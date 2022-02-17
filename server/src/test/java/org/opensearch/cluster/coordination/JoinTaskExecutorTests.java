@@ -183,7 +183,13 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             actualNode.getVersion()
         );
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(clusterManagerNode).localNodeId(clusterManagerNode.getId()).masterNodeId(clusterManagerNode.getId()).add(bwcNode))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(clusterManagerNode)
+                    .localNodeId(clusterManagerNode.getId())
+                    .masterNodeId(clusterManagerNode.getId())
+                    .add(bwcNode)
+            )
             .build();
 
         final ClusterStateTaskExecutor.ClusterTasksResult<JoinTaskExecutor.Task> result = joinTaskExecutor.execute(

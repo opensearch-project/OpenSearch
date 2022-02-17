@@ -95,7 +95,11 @@ public class ClusterStateDiffIT extends OpenSearchIntegTestCase {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         DiscoveryNode clusterManagerNode = randomNode("master");
         DiscoveryNode otherNode = randomNode("other");
-        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(clusterManagerNode).add(otherNode).localNodeId(clusterManagerNode.getId()).build();
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
+            .add(clusterManagerNode)
+            .add(otherNode)
+            .localNodeId(clusterManagerNode.getId())
+            .build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).build();
         ClusterState clusterStateFromDiffs = ClusterState.Builder.fromBytes(
             ClusterState.Builder.toBytes(clusterState),

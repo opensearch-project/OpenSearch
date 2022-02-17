@@ -101,7 +101,9 @@ public class PeersResponse extends TransportResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PeersResponse that = (PeersResponse) o;
-        return term == that.term && Objects.equals(clusterManagerNode, that.clusterManagerNode) && Objects.equals(knownPeers, that.knownPeers);
+        return term == that.term
+            && Objects.equals(clusterManagerNode, that.clusterManagerNode)
+            && Objects.equals(knownPeers, that.knownPeers);
     }
 
     @Override

@@ -276,7 +276,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             if (matchedRouting == null || matchedRouting.isSameAllocation(failedShardRouting) == false) {
                 iterator.remove();
             } else {
-                if (clusterManagerNode != null) { // TODO: can we remove this? Is resending shard failures the responsibility of shardStateAction?
+                // TODO: can we remove this? Is resending shard failures the responsibility of shardStateAction?
+                if (clusterManagerNode != null) {
                     String message = "master " + clusterManagerNode + " has not removed previously failed shard. resending shard failure";
                     logger.trace("[{}] re-sending failed shard [{}], reason [{}]", matchedRouting.shardId(), matchedRouting, message);
                     shardStateAction.localShardFailed(matchedRouting, message, null, SHARD_STATE_ACTION_LISTENER, state);

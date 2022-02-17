@@ -204,7 +204,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                         DiscoveryNode clusterManagerNode = nodes.getMasterNode();
                         final String actionName = getMasterActionName(clusterManagerNode);
                         transportService.sendRequest(
-                                clusterManagerNode,
+                            clusterManagerNode,
                             actionName,
                             request,
                             new ActionListenerResponseHandler<Response>(listener, TransportMasterNodeAction.this::read) {

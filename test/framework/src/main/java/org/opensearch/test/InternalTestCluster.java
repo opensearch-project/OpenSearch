@@ -1130,7 +1130,9 @@ public final class InternalTestCluster extends TestCluster {
 
         // start any missing node
         assert newSize == numSharedDedicatedClusterManagerNodes + numSharedDataNodes + numSharedCoordOnlyNodes;
-        final int numberOfMasterNodes = numSharedDedicatedClusterManagerNodes > 0 ? numSharedDedicatedClusterManagerNodes : numSharedDataNodes;
+        final int numberOfMasterNodes = numSharedDedicatedClusterManagerNodes > 0
+            ? numSharedDedicatedClusterManagerNodes
+            : numSharedDataNodes;
         final int defaultMinMasterNodes = (numberOfMasterNodes / 2) + 1;
         final List<NodeAndClient> toStartAndPublish = new ArrayList<>(); // we want to start nodes in one go
         final Runnable onTransportServiceStarted = () -> rebuildUnicastHostFiles(toStartAndPublish);
@@ -1150,8 +1152,8 @@ public final class InternalTestCluster extends TestCluster {
                 settings.add(nodeSettings);
             }
         }
-        for (int i = numSharedDedicatedClusterManagerNodes + numSharedDataNodes; i < numSharedDedicatedClusterManagerNodes + numSharedDataNodes
-            + numSharedCoordOnlyNodes; i++) {
+        for (int i = numSharedDedicatedClusterManagerNodes + numSharedDataNodes; i < numSharedDedicatedClusterManagerNodes
+            + numSharedDataNodes + numSharedCoordOnlyNodes; i++) {
             final Builder extraSettings = Settings.builder().put(noRoles());
             settings.add(getNodeSettings(i, sharedNodesSeeds[i], extraSettings.build(), defaultMinMasterNodes));
         }
@@ -1869,7 +1871,7 @@ public final class InternalTestCluster extends TestCluster {
 
             assert stoppingClusterManagers <= currentClusterManagers : currentClusterManagers + " < " + stoppingClusterManagers;
             if (stoppingClusterManagers != currentClusterManagers && stoppingClusterManagers > 0) {
-                // If stopping few enough clustermanager-nodes that there's still a majority left, there is no need to withdraw their votes first.
+                // If stopping few enough master-nodes that there's still a majority left, there is no need to withdraw their votes first.
                 // However, we do not yet have a way to be sure there's a majority left, because the voting configuration may not yet have
                 // been updated when the previous nodes shut down, so we must always explicitly withdraw votes.
                 // TODO add cluster health API to check that voting configuration is optimal so this isn't always needed

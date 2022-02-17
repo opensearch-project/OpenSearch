@@ -896,7 +896,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert peerFinderLeader.equals(lastKnownLeader) : peerFinderLeader;
                 assert electionScheduler == null : electionScheduler;
                 assert prevotingRound == null : prevotingRound;
-                assert becomingMaster || getStateForClusterManagerService().nodes().getMasterNodeId() != null : getStateForClusterManagerService();
+                assert becomingMaster
+                    || getStateForClusterManagerService().nodes().getMasterNodeId() != null : getStateForClusterManagerService();
                 assert leaderChecker.leader() == null : leaderChecker.leader();
                 assert getLocalNode().equals(applierState.nodes().getMasterNode())
                     || (applierState.nodes().getMasterNodeId() == null && applierState.term() < getCurrentTerm());
@@ -1148,7 +1149,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 // If we have already won the election then the actual join does not matter for election purposes, so swallow any exception
                 final boolean isNewJoinFromClusterManagerEligibleNode = handleJoinIgnoringExceptions(join);
 
-                // If we haven't completely finished becoming clustermanager then there's already a publication scheduled which will, in turn,
+                // If we haven't completely finished becoming master then there's already a publication scheduled which will, in turn,
                 // schedule a reconfiguration if needed. It's benign to schedule a reconfiguration anyway, but it might fail if it wins the
                 // race against the election-winning publication and log a big error message, which we can prevent by checking this here:
                 final boolean establishedAsClusterManager = mode == Mode.LEADER && getLastAcceptedState().term() == getCurrentTerm();
@@ -1197,7 +1198,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             // speculatively calculates the next cluster state update
             final ClusterState clusterState = coordinationState.get().getLastAcceptedState();
             if (mode != Mode.LEADER || clusterState.term() != getCurrentTerm()) {
-                // the clustermanager service checks if the local node is the clustermanager node in order to fail execution of the state update early
+                // the clustermanager service checks if the local node is the clustermanager node in order to fail execution of the state
+                // update early
                 return clusterStateWithNoClusterManagerBlock(clusterState);
             }
             return clusterState;
@@ -1615,8 +1617,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                                 .filter(DiscoveryNode::isMasterNode)
                                                 .filter(node -> nodeMayWinElection(state, node))
                                                 .filter(node -> {
-                                                    // check if clustermanager candidate would be able to get an election quorum if we were to
-                                                    // abdicate to it. Assume that every node that completed the publication can provide
+                                                    // check if clustermanager candidate would be able to get an election quorum if we were
+                                                    // to abdicate to it. Assume that every node that completed the publication can provide
                                                     // a vote in that next election and has the latest state.
                                                     final long futureElectionTerm = state.term() + 1;
                                                     final VoteCollection futureVoteCollection = new VoteCollection();
