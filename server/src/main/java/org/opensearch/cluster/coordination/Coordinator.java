@@ -888,7 +888,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 + lagDetector.getTrackedNodes();
 
             if (mode == Mode.LEADER) {
-                final boolean becomingMaster = getStateForClusterManagerService().term() != getCurrentTerm();
+                final boolean becomingClusterManager = getStateForClusterManagerService().term() != getCurrentTerm();
 
                 assert coordinationState.get().electionWon();
                 assert lastKnownLeader.isPresent() && lastKnownLeader.get().equals(getLocalNode());
@@ -896,8 +896,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert peerFinderLeader.equals(lastKnownLeader) : peerFinderLeader;
                 assert electionScheduler == null : electionScheduler;
                 assert prevotingRound == null : prevotingRound;
-                assert becomingMaster
-                    || getStateForClusterManagerService().nodes().getMasterNodeId() != null : getStateForClusterManagerService();
+                assert becomingClusterManager || getStateForClusterManagerService().nodes().getMasterNodeId() != null
+                    : getStateForClusterManagerService();
                 assert leaderChecker.leader() == null : leaderChecker.leader();
                 assert getLocalNode().equals(applierState.nodes().getMasterNode())
                     || (applierState.nodes().getMasterNodeId() == null && applierState.term() < getCurrentTerm());
@@ -905,7 +905,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert clusterFormationFailureHelper.isRunning() == false;
 
                 final boolean activePublication = currentPublication.map(CoordinatorPublication::isActiveForCurrentLeader).orElse(false);
-                if (becomingMaster && activePublication == false) {
+                if (becomingClusterManager && activePublication == false) {
                     // cluster state update task to become master is submitted to MasterService, but publication has not started yet
                     assert followersChecker.getKnownFollowers().isEmpty() : followersChecker.getKnownFollowers();
                 } else {
@@ -925,7 +925,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                         + followersChecker.getKnownFollowers();
                 }
 
-                assert becomingMaster
+                assert becomingClusterManager
                     || activePublication
                     || coordinationState.get()
                         .getLastAcceptedConfiguration()

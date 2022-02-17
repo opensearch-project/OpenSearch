@@ -455,7 +455,7 @@ public final class InternalTestCluster extends TestCluster {
      */
     public void setBootstrapMasterNodeIndex(int bootstrapClusterManagerNodeIndex) {
         assert autoManageClusterManagerNodes == false || bootstrapClusterManagerNodeIndex == -1 
-        : "bootstrapClusterManagerNodeIndex should be -1 if autoManageClusterManagerNodes is true, but was "
+                : "bootstrapClusterManagerNodeIndex should be -1 if autoManageClusterManagerNodes is true, but was "
                 + bootstrapClusterManagerNodeIndex;
         this.bootstrapClusterManagerNodeIndex = bootstrapClusterManagerNodeIndex;
     }
