@@ -1,5 +1,7 @@
 ---
 "Copy settings during split index":
+  - skip:
+        features: allowed_warnings
   - do:
       nodes.info:
         node_id: data:true

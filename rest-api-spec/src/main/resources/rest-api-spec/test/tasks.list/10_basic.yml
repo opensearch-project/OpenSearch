@@ -22,6 +22,8 @@
 
 ---
 "tasks_list headers":
+  - skip:
+        features: headers
   - do:
       headers: { "X-Opaque-Id": "That is me" }
       tasks.list:

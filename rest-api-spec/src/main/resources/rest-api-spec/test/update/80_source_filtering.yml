@@ -1,6 +1,6 @@
 ---
 "Source filtering":
-    - do:
+  - do:
       update:
           index:  test_1
           id:     1
