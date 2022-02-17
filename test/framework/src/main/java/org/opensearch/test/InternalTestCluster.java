@@ -454,8 +454,8 @@ public final class InternalTestCluster extends TestCluster {
      * It's only possible to change {@link #bootstrapClusterManagerNodeIndex} value if autoManageMasterNodes is false.
      */
     public void setBootstrapMasterNodeIndex(int bootstrapClusterManagerNodeIndex) {
-        assert autoManageClusterManagerNodes == false || bootstrapClusterManagerNodeIndex == -1 
-                : "bootstrapClusterManagerNodeIndex should be -1 if autoManageClusterManagerNodes is true, but was "
+        assert autoManageClusterManagerNodes == false || bootstrapClusterManagerNodeIndex == -1
+            : "bootstrapClusterManagerNodeIndex should be -1 if autoManageClusterManagerNodes is true, but was "
                 + bootstrapClusterManagerNodeIndex;
         this.bootstrapClusterManagerNodeIndex = bootstrapClusterManagerNodeIndex;
     }
