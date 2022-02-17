@@ -36,6 +36,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.store.Directory;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
@@ -59,6 +60,7 @@ import org.opensearch.indices.replication.SegmentReplicationService;
 import org.opensearch.indices.replication.checkpoint.TransportCheckpointInfoResponse;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -187,7 +189,13 @@ public class ReplicationTarget extends AbstractRefCounted {
                 } else {
                     assert indexShard.assertRetentionLeasesPersisted();
                 }
-                indexShard.updateCurrentInfos(checkpointInfo.getCheckpoint().getSegmentsGen(), checkpointInfo.getInfosBytes());
+                final long segmentsGen = checkpointInfo.getCheckpoint().getSegmentsGen();
+                // force an fsync if we are receiving a new gen.
+                if (segmentsGen > indexShard.getLatestSegmentInfos().getGeneration()) {
+                    final Directory directory = store().directory();
+                    directory.sync(Arrays.asList(directory.listAll()));
+                }
+                indexShard.updateCurrentInfos(segmentsGen, checkpointInfo.getInfosBytes());
             } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
                 // this is a fatal exception at this stage.
                 // this means we transferred files from the remote that have not be checksummed and they are

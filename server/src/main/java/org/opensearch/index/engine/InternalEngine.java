@@ -352,9 +352,6 @@ public class InternalEngine extends Engine {
             toIndexInput(infosBytes),
             gen);
         assert gen == infos.getGeneration();
-        if (gen > getLatestSegmentInfos().getGeneration()) {
-            this.store.syncDirectory();
-        }
         externalReaderManager.internalReaderManager.setCurrentInfos(infos);
         externalReaderManager.maybeRefresh();
     }
