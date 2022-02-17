@@ -423,7 +423,7 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         setState(
             clusterService,
             // use a random base version so it can go down when simulating a restart.
-            ClusterState.builder(ClusterStateCreationUtils.state(localNode, masterNode, allNodes)).version(randomIntBetween(0, 10))
+            ClusterState.builder(ClusterStateCreationUtils.state(localNode, clusterManagerNode, allNodes)).version(randomIntBetween(0, 10))
         );
 
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
@@ -439,7 +439,7 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         if (rejoinSameMaster) {
             transport.handleRemoteError(
                 capturedRequest.requestId,
-                randomBoolean() ? new ConnectTransportException(masterNode, "Fake error") : new NodeClosedException(masterNode)
+                randomBoolean() ? new ConnectTransportException(clusterManagerNode, "Fake error") : new NodeClosedException(clusterManagerNode)
             );
             assertFalse(listener.isDone());
             if (randomBoolean()) {
@@ -452,15 +452,15 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
                 // reset the same state to increment a version simulating a join of an existing node
                 // simulating use being disconnected
                 final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
-                nodesBuilder.masterNodeId(masterNode.getId());
+                nodesBuilder.masterNodeId(clusterManagerNode.getId());
                 setState(clusterService, ClusterState.builder(clusterService.state()).nodes(nodesBuilder));
             } else {
                 // simulate master restart followed by a state recovery - this will reset the cluster state version
                 final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
-                nodesBuilder.remove(masterNode);
-                masterNode = new DiscoveryNode(masterNode.getId(), masterNode.getAddress(), masterNode.getVersion());
-                nodesBuilder.add(masterNode);
-                nodesBuilder.masterNodeId(masterNode.getId());
+                nodesBuilder.remove(clusterManagerNode);
+                clusterManagerNode = new DiscoveryNode(clusterManagerNode.getId(), clusterManagerNode.getAddress(), clusterManagerNode.getVersion());
+                nodesBuilder.add(clusterManagerNode);
+                nodesBuilder.masterNodeId(clusterManagerNode.getId());
                 final ClusterState.Builder builder = ClusterState.builder(clusterService.state()).nodes(nodesBuilder);
                 setState(clusterService, builder.version(0));
             }
@@ -472,7 +472,7 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
             assertThat(capturedRequest.request, equalTo(request));
             assertThat(capturedRequest.action, equalTo("internal:testAction"));
         } else if (failsWithConnectTransportException) {
-            transport.handleRemoteError(capturedRequest.requestId, new ConnectTransportException(masterNode, "Fake error"));
+            transport.handleRemoteError(capturedRequest.requestId, new ConnectTransportException(clusterManagerNode, "Fake error"));
             assertFalse(listener.isDone());
             setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, allNodes));
             assertTrue(listener.isDone());
