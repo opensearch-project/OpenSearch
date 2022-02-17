@@ -1,6 +1,4 @@
 # Integration tests for ScriptScoreQuery using Painless
-
-setup:
 ---
 "Math functions":
 
