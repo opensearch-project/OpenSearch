@@ -351,10 +351,8 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
         }
 
         public synchronized void addReplica(IndexShard replica) throws IOException {
-            assert shardRoutings().stream()
-                .anyMatch(shardRouting -> shardRouting.isSameAllocation(replica.routingEntry())) == false : "replica with aId ["
-                    + replica.routingEntry().allocationId()
-                    + "] already exists";
+            assert shardRoutings().stream().anyMatch(shardRouting -> shardRouting.isSameAllocation(replica.routingEntry())) == false
+                : "replica with aId [" + replica.routingEntry().allocationId() + "] already exists";
             replicas.add(replica);
             if (replicationTargets != null) {
                 replicationTargets.addReplica(replica);

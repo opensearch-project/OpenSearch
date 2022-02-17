@@ -878,8 +878,8 @@ public abstract class TransportReplicationAction<
                     // resolve it from the index settings
                     request.waitForActiveShards(indexMetadata.getWaitForActiveShards());
                 }
-                assert request
-                    .waitForActiveShards() != ActiveShardCount.DEFAULT : "request waitForActiveShards must be set in resolveRequest";
+                assert request.waitForActiveShards() != ActiveShardCount.DEFAULT
+                    : "request waitForActiveShards must be set in resolveRequest";
 
                 final ShardRouting primary = state.getRoutingTable().shardRoutingTable(request.shardId()).primaryShard();
                 if (primary == null || primary.active() == false) {

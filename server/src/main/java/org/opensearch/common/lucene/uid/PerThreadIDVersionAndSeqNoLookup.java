@@ -117,10 +117,8 @@ final class PerThreadIDVersionAndSeqNoLookup {
      * entirely for these readers.
      */
     public DocIdAndVersion lookupVersion(BytesRef id, boolean loadSeqNo, LeafReaderContext context) throws IOException {
-        assert context.reader()
-            .getCoreCacheHelper()
-            .getKey()
-            .equals(readerKey) : "context's reader is not the same as the reader class was initialized on.";
+        assert context.reader().getCoreCacheHelper().getKey().equals(readerKey)
+            : "context's reader is not the same as the reader class was initialized on.";
         int docID = getDocID(id, context);
 
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
@@ -174,10 +172,8 @@ final class PerThreadIDVersionAndSeqNoLookup {
 
     /** Return null if id is not found. */
     DocIdAndSeqNo lookupSeqNo(BytesRef id, LeafReaderContext context) throws IOException {
-        assert context.reader()
-            .getCoreCacheHelper()
-            .getKey()
-            .equals(readerKey) : "context's reader is not the same as the reader class was initialized on.";
+        assert context.reader().getCoreCacheHelper().getKey().equals(readerKey)
+            : "context's reader is not the same as the reader class was initialized on.";
         final int docID = getDocID(id, context);
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
             final long seqNo = readNumericDocValues(context.reader(), SeqNoFieldMapper.NAME, docID);

@@ -5837,12 +5837,10 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(engine.getTranslog().stats().getUncommittedOperations(), equalTo(2));
         engine.refresh("test");
         engine.forceMerge(false, 1, false, false, false, UUIDs.randomBase64UUID());
-        assertBusy(
-            () -> {
-                // the merge listner runs concurrently after the force merge returned
-                assertThat(engine.shouldPeriodicallyFlush(), equalTo(true));
-            }
-        );
+        assertBusy(() -> {
+            // the merge listner runs concurrently after the force merge returned
+            assertThat(engine.shouldPeriodicallyFlush(), equalTo(true));
+        });
         engine.flush();
         assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
     }
