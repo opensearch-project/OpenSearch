@@ -1,6 +1,6 @@
 ---
 "Array of objects":
-    - do:
+  - do:
       bulk:
         refresh: true
         body:
