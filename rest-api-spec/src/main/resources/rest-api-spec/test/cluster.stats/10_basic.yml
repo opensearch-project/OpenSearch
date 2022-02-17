@@ -75,10 +75,6 @@
 
 ---
 "get cluster stats returns discovery types":
-  - skip:
-      version: " - 6.99.99"
-      reason:  "discovery types are added for v7.0.0"
-
   - do:
       cluster.stats: {}
 

@@ -315,11 +315,6 @@ setup:
 
 ---
 "no hits and inner_hits max_score null":
-
-  - skip:
-      version: " - 6.99.99"
-      reason:  max_score was set to 0 rather than null before 7.0
-
   - do:
       search:
         rest_total_hits_as_int: true
@@ -390,11 +385,6 @@ setup:
 
 ---
 "field collapsing, inner_hits and version":
-
-  - skip:
-      version: " - 6.1.0"
-      reason:  "bug fixed in 6.1.1"
-
   - do:
       count:
         index: test
@@ -493,11 +483,6 @@ setup:
 
 ---
 "field collapsing, inner_hits and seq_no":
-
-  - skip:
-      version: " - 6.99.0"
-      reason:  "sequence numbers introduced in 7.0.0"
-
   - do:
       search:
         rest_total_hits_as_int: true
