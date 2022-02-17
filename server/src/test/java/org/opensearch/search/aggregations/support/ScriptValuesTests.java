@@ -37,7 +37,6 @@ import java.util.Collections;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.Strings;
 import org.opensearch.script.AggregationScript;
 import org.opensearch.search.aggregations.support.values.ScriptBytesValues;
 import org.opensearch.search.aggregations.support.values.ScriptDoubleValues;
@@ -60,7 +59,7 @@ public class ScriptValuesTests extends OpenSearchTestCase {
         int index;
 
         FakeAggregationScript(Object[][] values) {
-            super(Collections.emptyMap(), new SearchLookup(null, null, Strings.EMPTY_ARRAY) {
+            super(Collections.emptyMap(), new SearchLookup(null, null) {
 
                 @Override
                 public LeafSearchLookup getLeafSearchLookup(LeafReaderContext context) {

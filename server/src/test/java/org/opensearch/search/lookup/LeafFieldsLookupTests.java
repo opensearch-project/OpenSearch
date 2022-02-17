@@ -90,7 +90,7 @@ public class LeafFieldsLookupTests extends OpenSearchTestCase {
             return null;
         }).when(leafReader).document(anyInt(), any(StoredFieldVisitor.class));
 
-        fieldsLookup = new LeafFieldsLookup(mapperService, new String[] { "type" }, leafReader);
+        fieldsLookup = new LeafFieldsLookup(mapperService, leafReader);
     }
 
     public void testBasicLookup() {

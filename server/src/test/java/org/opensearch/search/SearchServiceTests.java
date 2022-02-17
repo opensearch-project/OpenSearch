@@ -1180,7 +1180,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         final IndexService indexService = createIndex(index);
         final SearchService service = getInstanceFromNode(SearchService.class);
         final ShardId shardId = new ShardId(indexService.index(), 0);
-        final ShardSearchRequest request = new ShardSearchRequest(shardId, new String[0], 0, null) {
+        final ShardSearchRequest request = new ShardSearchRequest(shardId, 0, null) {
             @Override
             public SearchType searchType() {
                 // induce an artificial NPE

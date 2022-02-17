@@ -148,11 +148,9 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
             // Use significant_text on text fields but occasionally run with alternative of
             // significant_terms on legacy fieldData=true too.
             request = client().prepareSearch(INDEX_NAME)
-                .setTypes(DOC_TYPE)
                 .addAggregation(terms("class").field(CLASS_FIELD).subAggregation(significantText("sig_terms", TEXT_FIELD)));
         } else {
             request = client().prepareSearch(INDEX_NAME)
-                .setTypes(DOC_TYPE)
                 .addAggregation(terms("class").field(CLASS_FIELD).subAggregation(significantTerms("sig_terms").field(TEXT_FIELD)));
         }
 
@@ -245,13 +243,11 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
         SearchRequestBuilder request;
         if (randomBoolean()) {
             request = client().prepareSearch(INDEX_NAME)
-                .setTypes(DOC_TYPE)
                 .addAggregation(
                     terms("class").field(CLASS_FIELD).subAggregation(significantTerms("sig_terms").field(TEXT_FIELD).minDocCount(1))
                 );
         } else {
             request = client().prepareSearch(INDEX_NAME)
-                .setTypes(DOC_TYPE)
                 .addAggregation(terms("class").field(CLASS_FIELD).subAggregation(significantText("sig_terms", TEXT_FIELD).minDocCount(1)));
         }
 
@@ -282,7 +278,6 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
         SearchRequestBuilder request1;
         if (useSigText) {
             request1 = client().prepareSearch(INDEX_NAME)
-                .setTypes(DOC_TYPE)
                 .addAggregation(
                     terms("class").field(CLASS_FIELD)
                         .subAggregation(
@@ -292,7 +287,6 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
                 );
         } else {
             request1 = client().prepareSearch(INDEX_NAME)
-                .setTypes(DOC_TYPE)
                 .addAggregation(
                     terms("class").field(CLASS_FIELD)
                         .subAggregation(
@@ -309,7 +303,6 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
         SearchRequestBuilder request2;
         if (useSigText) {
             request2 = client().prepareSearch(INDEX_NAME)
-                .setTypes(DOC_TYPE)
                 .addAggregation(
                     filter("0", QueryBuilders.termQuery(CLASS_FIELD, "0")).subAggregation(
                         significantText("sig_terms", TEXT_FIELD).minDocCount(1)
@@ -326,7 +319,6 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
                 );
         } else {
             request2 = client().prepareSearch(INDEX_NAME)
-                .setTypes(DOC_TYPE)
                 .addAggregation(
                     filter("0", QueryBuilders.termQuery(CLASS_FIELD, "0")).subAggregation(
                         significantTerms("sig_terms").field(TEXT_FIELD)

@@ -36,10 +36,8 @@ import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.document.RestGetSourceAction.RestGetSourceResponseListener;
 import org.opensearch.test.rest.FakeRestChannel;
@@ -47,10 +45,6 @@ import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.test.rest.RestActionTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
-
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -73,54 +67,6 @@ public class RestGetSourceActionTests extends RestActionTestCase {
         request = null;
         channel = null;
         listener = null;
-    }
-
-    /**
-     * test deprecation is logged if type is used in path
-     */
-    public void testTypeInPath() {
-        boolean assertWarnings = true;
-        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
-        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
-        for (Method method : Arrays.asList(Method.GET, Method.HEAD)) {
-            // Ensure we have a fresh context for each request so we don't get duplicate headers
-            try (ThreadContext.StoredContext ignore = verifyingClient.threadPool().getThreadContext().stashContext()) {
-                RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(method)
-                    .withPath("/some_index/some_type/id/_source")
-                    .build();
-
-                dispatchRequest(request);
-                if (assertWarnings) {
-                    assertWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
-                    assertWarnings = false;
-                }
-            }
-        }
-    }
-
-    /**
-     * test deprecation is logged if type is used as parameter
-     */
-    public void testTypeParameter() {
-        boolean assertWarnings = true;
-        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
-        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
-        Map<String, String> params = new HashMap<>();
-        params.put("type", "some_type");
-        for (Method method : Arrays.asList(Method.GET, Method.HEAD)) {
-            // Ensure we have a fresh context for each request so we don't get duplicate headers
-            try (ThreadContext.StoredContext ignore = verifyingClient.threadPool().getThreadContext().stashContext()) {
-                RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(method)
-                    .withPath("/some_index/_source/id")
-                    .withParams(params)
-                    .build();
-                dispatchRequest(request);
-                if (assertWarnings) {
-                    assertWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
-                    assertWarnings = false;
-                }
-            }
-        }
     }
 
     public void testRestGetSourceAction() throws Exception {

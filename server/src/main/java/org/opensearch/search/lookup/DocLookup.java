@@ -32,7 +32,6 @@
 package org.opensearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.opensearch.common.Nullable;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -43,13 +42,10 @@ public class DocLookup {
 
     private final MapperService mapperService;
     private final Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup;
-    @Nullable
-    private final String[] types;
 
-    DocLookup(MapperService mapperService, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup, @Nullable String[] types) {
+    DocLookup(MapperService mapperService, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) {
         this.mapperService = mapperService;
         this.fieldDataLookup = fieldDataLookup;
-        this.types = types;
     }
 
     public MapperService mapperService() {
@@ -61,10 +57,6 @@ public class DocLookup {
     }
 
     public LeafDocLookup getLeafDocLookup(LeafReaderContext context) {
-        return new LeafDocLookup(mapperService, fieldDataLookup, types, context);
-    }
-
-    public String[] getTypes() {
-        return types;
+        return new LeafDocLookup(mapperService, fieldDataLookup, context);
     }
 }

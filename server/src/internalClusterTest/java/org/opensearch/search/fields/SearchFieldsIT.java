@@ -737,11 +737,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        SearchResponse searchResponse = client().prepareSearch("my-index")
-            .setTypes("my-type1")
-            .addStoredField("field1")
-            .addStoredField("_routing")
-            .get();
+        SearchResponse searchResponse = client().prepareSearch("my-index").addStoredField("field1").addStoredField("_routing").get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getAt(0).field("field1"), nullValue());
@@ -755,7 +751,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             .get();
 
         assertFailures(
-            client().prepareSearch("my-index").setTypes("my-type1").addStoredField("field1"),
+            client().prepareSearch("my-index").addStoredField("field1"),
             RestStatus.BAD_REQUEST,
             containsString("field [field1] isn't a leaf field")
         );
@@ -838,7 +834,6 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
         indexRandom(true, client().prepareIndex("test", "type", "1").setSource("test_field", "foobar"));
         refresh();
         SearchResponse searchResponse = client().prepareSearch("test")
-            .setTypes("type")
             .setSource(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).docValueField("test_field"))
             .get();
         assertHitCount(searchResponse, 1);
