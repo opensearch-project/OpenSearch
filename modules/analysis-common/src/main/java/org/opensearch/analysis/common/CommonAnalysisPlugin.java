@@ -257,6 +257,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("classic", ClassicFilterFactory::new);
         filters.put("czech_stem", CzechStemTokenFilterFactory::new);
         filters.put("common_grams", requiresAnalysisSettings(CommonGramsTokenFilterFactory::new));
+        filters.put("concatenate_graph", ConcatenateGraphTokenFilterFactory::new);
         filters.put(
             "condition",
             requiresAnalysisSettings((i, e, n, s) -> new ScriptedConditionTokenFilterFactory(i, n, s, scriptService.get()))
