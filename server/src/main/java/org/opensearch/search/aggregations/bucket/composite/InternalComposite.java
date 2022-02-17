@@ -104,7 +104,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             formats.add(in.readNamedWriteable(DocValueFormat.class));
         }
         this.reverseMuls = in.readIntArray();
-        if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
             this.missingOrders = in.readArray(MissingOrder::readFromStream, MissingOrder[]::new);
         } else {
             this.missingOrders = new MissingOrder[reverseMuls.length];
@@ -123,7 +123,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             out.writeNamedWriteable(format);
         }
         out.writeIntArray(reverseMuls);
-        if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
             out.writeArray((output, order) -> order.writeTo(output), missingOrders);
         }
         out.writeList(buckets);
