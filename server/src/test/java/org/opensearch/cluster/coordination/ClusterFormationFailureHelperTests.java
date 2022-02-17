@@ -818,8 +818,8 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             )
         );
 
-        final DiscoveryNode otherMasterNode = new DiscoveryNode("other-master", buildNewFakeTransportAddress(), Version.CURRENT);
-        final DiscoveryNode otherNonMasterNode = new DiscoveryNode(
+        final DiscoveryNode otherClusterManagerNode = new DiscoveryNode("other-master", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode otherNonClusterManagerNode = new DiscoveryNode(
             "other-non-master",
             buildNewFakeTransportAddress(),
             emptyMap(),
@@ -833,7 +833,13 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
 
         String[] configNodeIds = new String[] { "n1", "n2" };
         final ClusterState stateWithOtherNodes = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).add(otherMasterNode).add(otherNonMasterNode))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(localNode)
+                    .localNodeId(localNode.getId())
+                    .add(otherClusterManagerNode)
+                    .add(otherNonClusterManagerNode)
+            )
             .metadata(
                 Metadata.builder()
                     .coordinationMetadata(
@@ -864,13 +870,13 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
                         + "discovery will continue using [] from hosts providers and ["
                         + localNode
                         + ", "
-                        + otherMasterNode
+                        + otherClusterManagerNode
                         + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0",
 
                     "master not discovered or elected yet, an election requires two nodes with ids [n1, n2], "
                         + "have discovered [] which is not a quorum; "
                         + "discovery will continue using [] from hosts providers and ["
-                        + otherMasterNode
+                        + otherClusterManagerNode
                         + ", "
                         + localNode
                         + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"

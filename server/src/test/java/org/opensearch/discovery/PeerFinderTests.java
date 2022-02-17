@@ -336,7 +336,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
     }
 
     public void testDoesNotAddNonMasterEligibleNodesFromUnicastHostsList() {
-        final DiscoveryNode nonMasterNode = new DiscoveryNode(
+        final DiscoveryNode nonClusterManagerNode = new DiscoveryNode(
             "node-from-hosts-list",
             buildNewFakeTransportAddress(),
             emptyMap(),
@@ -344,8 +344,8 @@ public class PeerFinderTests extends OpenSearchTestCase {
             Version.CURRENT
         );
 
-        providedAddresses.add(nonMasterNode.getAddress());
-        transportAddressConnector.addReachableNode(nonMasterNode);
+        providedAddresses.add(nonClusterManagerNode.getAddress());
+        transportAddressConnector.addReachableNode(nonClusterManagerNode);
 
         peerFinder.activate(lastAcceptedNodes);
         runAllRunnableTasks();

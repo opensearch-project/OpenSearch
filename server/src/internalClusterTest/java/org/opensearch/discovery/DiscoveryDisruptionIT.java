@@ -201,31 +201,31 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
     public void testNodeNotReachableFromMaster() throws Exception {
         startCluster(3);
 
-        String masterNode = internalCluster().getMasterName();
-        String nonMasterNode = null;
-        while (nonMasterNode == null) {
-            nonMasterNode = randomFrom(internalCluster().getNodeNames());
-            if (nonMasterNode.equals(masterNode)) {
-                nonMasterNode = null;
+        String clusterManagerNode = internalCluster().getMasterName();
+        String nonClusterManagerNode = null;
+        while (nonClusterManagerNode == null) {
+            nonClusterManagerNode = randomFrom(internalCluster().getNodeNames());
+            if (nonClusterManagerNode.equals(clusterManagerNode)) {
+                nonClusterManagerNode = null;
             }
         }
 
-        logger.info("blocking request from master [{}] to [{}]", masterNode, nonMasterNode);
+        logger.info("blocking request from master [{}] to [{}]", clusterManagerNode, nonClusterManagerNode);
         MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(
             TransportService.class,
-            masterNode
+            clusterManagerNode
         );
         if (randomBoolean()) {
-            masterTransportService.addUnresponsiveRule(internalCluster().getInstance(TransportService.class, nonMasterNode));
+            masterTransportService.addUnresponsiveRule(internalCluster().getInstance(TransportService.class, nonClusterManagerNode));
         } else {
-            masterTransportService.addFailToSendNoConnectRule(internalCluster().getInstance(TransportService.class, nonMasterNode));
+            masterTransportService.addFailToSendNoConnectRule(internalCluster().getInstance(TransportService.class, nonClusterManagerNode));
         }
 
-        logger.info("waiting for [{}] to be removed from cluster", nonMasterNode);
-        ensureStableCluster(2, masterNode);
+        logger.info("waiting for [{}] to be removed from cluster", nonClusterManagerNode);
+        ensureStableCluster(2, clusterManagerNode);
 
-        logger.info("waiting for [{}] to have no master", nonMasterNode);
-        assertNoMaster(nonMasterNode);
+        logger.info("waiting for [{}] to have no master", nonClusterManagerNode);
+        assertNoMaster(nonClusterManagerNode);
 
         logger.info("healing partition and checking cluster reforms");
         masterTransportService.clearAllRules();

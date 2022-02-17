@@ -309,11 +309,11 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet(), 100);
         }
 
-        List<String> nonMasterNodes = new ArrayList<>(
+        List<String> nonClusterManagerNodes = new ArrayList<>(
             Sets.difference(Sets.newHashSet(internalCluster().getNodeNames()), Collections.singleton(internalCluster().getMasterName()))
         );
-        Settings nonMasterDataPathSettings1 = internalCluster().dataPathSettings(nonMasterNodes.get(0));
-        Settings nonMasterDataPathSettings2 = internalCluster().dataPathSettings(nonMasterNodes.get(1));
+        Settings nonMasterDataPathSettings1 = internalCluster().dataPathSettings(nonClusterManagerNodes.get(0));
+        Settings nonMasterDataPathSettings2 = internalCluster().dataPathSettings(nonClusterManagerNodes.get(1));
         internalCluster().stopRandomNonMasterNode();
         internalCluster().stopRandomNonMasterNode();
 
