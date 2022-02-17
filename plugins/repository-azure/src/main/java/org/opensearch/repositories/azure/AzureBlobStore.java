@@ -413,8 +413,8 @@ public class AzureBlobStore implements BlobStore {
 
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws URISyntaxException,
         BlobStorageException, IOException {
-        assert inputStream
-            .markSupported() : "Should not be used with non-mark supporting streams as their retry handling in the SDK is broken";
+        assert inputStream.markSupported()
+            : "Should not be used with non-mark supporting streams as their retry handling in the SDK is broken";
         logger.trace(() -> new ParameterizedMessage("writeBlob({}, stream, {})", blobName, blobSize));
         final Tuple<BlobServiceClient, Supplier<Context>> client = client();
         final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
