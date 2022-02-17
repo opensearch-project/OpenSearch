@@ -2282,9 +2282,9 @@ public class RequestConvertersTests extends OpenSearchTestCase {
 
     static void setRandomClusterManagerTimeout(Consumer<String> setter, Map<String, String> expectedParams) {
         if (randomBoolean()) {
-            String masterTimeout = randomTimeValue();
-            setter.accept(masterTimeout);
-            expectedParams.put("master_timeout", masterTimeout);
+            String clusterManagerTimeout = randomTimeValue();
+            setter.accept(clusterManagerTimeout);
+            expectedParams.put("master_timeout", clusterManagerTimeout);
         } else {
             expectedParams.put("master_timeout", MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT.getStringRep());
         }

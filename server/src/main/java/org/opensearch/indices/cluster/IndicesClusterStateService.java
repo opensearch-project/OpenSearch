@@ -267,7 +267,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             return;
         }
 
-        DiscoveryNode masterNode = state.nodes().getMasterNode();
+        DiscoveryNode clusterManagerNode = state.nodes().getMasterNode();
 
         // remove items from cache which are not in our routing table anymore and resend failures that have not executed on master yet
         for (Iterator<Map.Entry<ShardId, ShardRouting>> iterator = failedShardsCache.entrySet().iterator(); iterator.hasNext();) {
@@ -276,8 +276,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             if (matchedRouting == null || matchedRouting.isSameAllocation(failedShardRouting) == false) {
                 iterator.remove();
             } else {
-                if (masterNode != null) { // TODO: can we remove this? Is resending shard failures the responsibility of shardStateAction?
-                    String message = "master " + masterNode + " has not removed previously failed shard. resending shard failure";
+                if (clusterManagerNode != null) { // TODO: can we remove this? Is resending shard failures the responsibility of shardStateAction?
+                    String message = "master " + clusterManagerNode + " has not removed previously failed shard. resending shard failure";
                     logger.trace("[{}] re-sending failed shard [{}], reason [{}]", matchedRouting.shardId(), matchedRouting, message);
                     shardStateAction.localShardFailed(matchedRouting, message, null, SHARD_STATE_ACTION_LISTENER, state);
                 }

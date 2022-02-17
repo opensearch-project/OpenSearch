@@ -112,16 +112,16 @@ public class ShardStateActionTests extends OpenSearchTestCase {
             super(clusterService, transportService, allocationService, rerouteService, THREAD_POOL);
         }
 
-        private Runnable onBeforeWaitForNewMasterAndRetry;
+        private Runnable onBeforeWaitForNewClusterManagerAndRetry;
 
         public void setOnBeforeWaitForNewMasterAndRetry(Runnable onBeforeWaitForNewMasterAndRetry) {
-            this.onBeforeWaitForNewMasterAndRetry = onBeforeWaitForNewMasterAndRetry;
+            this.onBeforeWaitForNewClusterManagerAndRetry = onBeforeWaitForNewMasterAndRetry;
         }
 
-        private Runnable onAfterWaitForNewMasterAndRetry;
+        private Runnable onAfterWaitForNewClusterManagerAndRetry;
 
         public void setOnAfterWaitForNewMasterAndRetry(Runnable onAfterWaitForNewMasterAndRetry) {
-            this.onAfterWaitForNewMasterAndRetry = onAfterWaitForNewMasterAndRetry;
+            this.onAfterWaitForNewClusterManagerAndRetry = onAfterWaitForNewMasterAndRetry;
         }
 
         @Override
@@ -132,9 +132,9 @@ public class ShardStateActionTests extends OpenSearchTestCase {
             ActionListener<Void> listener,
             Predicate<ClusterState> changePredicate
         ) {
-            onBeforeWaitForNewMasterAndRetry.run();
+            onBeforeWaitForNewClusterManagerAndRetry.run();
             super.waitForNewMasterAndRetry(actionName, observer, request, listener, changePredicate);
-            onAfterWaitForNewMasterAndRetry.run();
+            onAfterWaitForNewClusterManagerAndRetry.run();
         }
     }
 

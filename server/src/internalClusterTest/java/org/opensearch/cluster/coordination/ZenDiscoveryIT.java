@@ -106,7 +106,7 @@ public class ZenDiscoveryIT extends OpenSearchIntegTestCase {
     }
 
     public void testHandleNodeJoin_incompatibleClusterState() throws InterruptedException, ExecutionException, TimeoutException {
-        String masterNode = internalCluster().startMasterOnlyNode();
+        String clusterManagerNode = internalCluster().startMasterOnlyNode();
         String node1 = internalCluster().startNode();
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, node1);
         Coordinator coordinator = (Coordinator) internalCluster().getInstance(Discovery.class, masterNode);

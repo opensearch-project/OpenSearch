@@ -429,17 +429,17 @@ public class ClusterStateCreationUtils {
      * Creates a cluster state where local node and master node can be specified
      *
      * @param localNode  node in allNodes that is the local node
-     * @param masterNode node in allNodes that is the master node. Can be null if no master exists
+     * @param clusterManagerNode node in allNodes that is the clustermanager node. Can be null if no clustermanager exists
      * @param allNodes   all nodes in the cluster
      * @return cluster state
      */
-    public static ClusterState state(DiscoveryNode localNode, DiscoveryNode masterNode, DiscoveryNode... allNodes) {
+    public static ClusterState state(DiscoveryNode localNode, DiscoveryNode clusterManagerNode, DiscoveryNode... allNodes) {
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         for (DiscoveryNode node : allNodes) {
             discoBuilder.add(node);
         }
-        if (masterNode != null) {
-            discoBuilder.masterNodeId(masterNode.getId());
+        if (clusterManagerNode != null) {
+            discoBuilder.masterNodeId(clusterManagerNode.getId());
         }
         discoBuilder.localNodeId(localNode.getId());
 

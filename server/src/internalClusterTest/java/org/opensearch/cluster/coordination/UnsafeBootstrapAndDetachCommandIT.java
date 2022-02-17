@@ -479,7 +479,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
 
     public void testNoInitialBootstrapAfterDetach() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
-        String masterNode = internalCluster().startMasterOnlyNode();
+        String clusterManagerNode = internalCluster().startMasterOnlyNode();
         Settings masterNodeDataPathSettings = internalCluster().dataPathSettings(masterNode);
         internalCluster().stopCurrentMasterNode();
 
@@ -504,7 +504,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
 
     public void testCanRunUnsafeBootstrapAfterErroneousDetachWithoutLoosingMetadata() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
-        String masterNode = internalCluster().startMasterOnlyNode();
+        String clusterManagerNode = internalCluster().startMasterOnlyNode();
         Settings masterNodeDataPathSettings = internalCluster().dataPathSettings(masterNode);
         ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest().persistentSettings(
             Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "1234kb")
@@ -534,7 +534,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
 
     public void testUnsafeBootstrapWithApplyClusterReadOnlyBlockAsFalse() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
-        String masterNode = internalCluster().startMasterOnlyNode();
+        String clusterManagerNode = internalCluster().startMasterOnlyNode();
         Settings masterNodeDataPathSettings = internalCluster().dataPathSettings(masterNode);
         ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest().persistentSettings(
             Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "1234kb")

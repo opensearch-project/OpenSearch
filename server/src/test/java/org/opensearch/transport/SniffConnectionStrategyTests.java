@@ -773,14 +773,14 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
             assertTrue(nodePredicate.test(dedicatedIngest));
         }
         {
-            DiscoveryNode masterIngest = new DiscoveryNode(
+            DiscoveryNode clusterManagerIngest = new DiscoveryNode(
                 "id",
                 address,
                 Collections.emptyMap(),
                 new HashSet<>(Arrays.asList(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
                 Version.CURRENT
             );
-            assertTrue(nodePredicate.test(masterIngest));
+            assertTrue(nodePredicate.test(clusterManagerIngest));
         }
         {
             DiscoveryNode dedicatedData = new DiscoveryNode(

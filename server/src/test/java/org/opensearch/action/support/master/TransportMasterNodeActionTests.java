@@ -419,7 +419,7 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         boolean failsWithConnectTransportException = randomBoolean();
         boolean rejoinSameMaster = failsWithConnectTransportException && randomBoolean();
         Request request = new Request().masterNodeTimeout(TimeValue.timeValueSeconds(failsWithConnectTransportException ? 60 : 0));
-        DiscoveryNode masterNode = this.remoteNode;
+        DiscoveryNode clusterManagerNode = this.remoteNode;
         setState(
             clusterService,
             // use a random base version so it can go down when simulating a restart.

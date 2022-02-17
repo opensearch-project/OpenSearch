@@ -201,10 +201,10 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                         logger.debug("no known master node, scheduling a retry");
                         retryOnMasterChange(clusterState, null);
                     } else {
-                        DiscoveryNode masterNode = nodes.getMasterNode();
-                        final String actionName = getMasterActionName(masterNode);
+                        DiscoveryNode clusterManagerNode = nodes.getMasterNode();
+                        final String actionName = getMasterActionName(clusterManagerNode);
                         transportService.sendRequest(
-                            masterNode,
+                                clusterManagerNode,
                             actionName,
                             request,
                             new ActionListenerResponseHandler<Response>(listener, TransportMasterNodeAction.this::read) {

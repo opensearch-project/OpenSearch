@@ -393,7 +393,7 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
         // otherwise persistent setting (which is a part of accepted state on old master) will be propagated to other nodes
         logger.debug("--> wait for master to be elected in major partition");
         assertBusy(() -> {
-            DiscoveryNode masterNode = internalCluster().client(randomFrom(otherNodes))
+            DiscoveryNode clusterManagerNode = internalCluster().client(randomFrom(otherNodes))
                 .admin()
                 .cluster()
                 .prepareState()
@@ -402,8 +402,8 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
                 .getState()
                 .nodes()
                 .getMasterNode();
-            assertThat(masterNode, notNullValue());
-            assertThat(masterNode.getName(), not(equalTo(master)));
+            assertThat(clusterManagerNode, notNullValue());
+            assertThat(clusterManagerNode.getName(), not(equalTo(master)));
         });
 
         partition.stopDisrupting();

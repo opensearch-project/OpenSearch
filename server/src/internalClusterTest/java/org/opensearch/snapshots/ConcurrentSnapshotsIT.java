@@ -301,7 +301,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testSnapshotRunsAfterInProgressDelete() throws Exception {
-        final String masterNode = internalCluster().startMasterOnlyNode();
+        final String clusterManagerNode = internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
@@ -571,7 +571,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testQueuedDeletesWithFailures() throws Exception {
-        final String masterNode = internalCluster().startMasterOnlyNode();
+        final String clusterManagerNode = internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
@@ -601,7 +601,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testQueuedDeletesWithOverlap() throws Exception {
-        final String masterNode = internalCluster().startMasterOnlyNode();
+        final String clusterManagerNode = internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
@@ -878,7 +878,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testMultipleSnapshotsQueuedAfterDelete() throws Exception {
-        final String masterNode = internalCluster().startMasterOnlyNode();
+        final String clusterManagerNode = internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
@@ -897,7 +897,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testMultiplePartialSnapshotsQueuedAfterDelete() throws Exception {
-        final String masterNode = internalCluster().startMasterOnlyNode();
+        final String clusterManagerNode = internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
@@ -977,7 +977,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testBackToBackQueuedDeletes() throws Exception {
-        final String masterName = internalCluster().startMasterOnlyNode();
+        final String clusterManagerName = internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
@@ -1024,7 +1024,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testStartDeleteDuringFinalizationCleanup() throws Exception {
-        final String masterName = internalCluster().startMasterOnlyNode();
+        final String clusterManagerName = internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
@@ -1042,7 +1042,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testEquivalentDeletesAreDeduplicated() throws Exception {
-        final String masterName = internalCluster().startMasterOnlyNode();
+        final String clusterManagerName = internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
@@ -1219,7 +1219,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testConcurrentOperationsLimit() throws Exception {
-        final String masterName = internalCluster().startMasterOnlyNode();
+        final String clusterManagerName = internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
@@ -1322,7 +1322,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testQueuedDeleteAfterFinalizationFailure() throws Exception {
-        final String masterNode = internalCluster().startMasterOnlyNode();
+        final String clusterManagerNode = internalCluster().startMasterOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
         blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
@@ -1365,7 +1365,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testStartWithSuccessfulShardSnapshotPendingFinalization() throws Exception {
-        final String masterName = internalCluster().startMasterOnlyNode();
+        final String clusterManagerName = internalCluster().startMasterOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");

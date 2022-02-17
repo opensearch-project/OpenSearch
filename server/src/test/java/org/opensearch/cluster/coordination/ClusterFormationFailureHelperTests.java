@@ -283,7 +283,7 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             is("this node is unhealthy: unhealthy-info")
         );
 
-        final DiscoveryNode masterNode = new DiscoveryNode(
+        final DiscoveryNode clusterManagerNode = new DiscoveryNode(
             "local",
             buildNewFakeTransportAddress(),
             emptyMap(),
@@ -292,7 +292,7 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
         );
         clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .version(12L)
-            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()))
+            .nodes(DiscoveryNodes.builder().add(clusterManagerNode).localNodeId(clusterManagerNode.getId()))
             .build();
 
         assertThat(
