@@ -1030,3 +1030,35 @@ setup:
   - length: { aggregations.test.buckets: 1 }
   - match: { aggregations.test.buckets.0.key.keyword: "foo" }
   - match: { aggregations.test.buckets.0.doc_count: 1 }
+---
+"Simple Composite aggregation with missing order":
+  - skip:
+      version: " - 1.2.99"
+      reason:  missing_order is supported in 1.3.0.
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                    "kw": {
+                      "terms": {
+                        "field": "keyword",
+                        "missing_bucket": true,
+                        "missing_order": "last"
+                      }
+                    }
+                ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.test.buckets: 3 }
+  - match: { aggregations.test.buckets.0.key.kw: "bar" }
+  - match: { aggregations.test.buckets.0.doc_count: 3 }
+  - match: { aggregations.test.buckets.1.key.kw: "foo" }
+  - match: { aggregations.test.buckets.1.doc_count: 2 }
+  - match: { aggregations.test.buckets.2.key.kw: null }
+  - match: { aggregations.test.buckets.2.doc_count: 2 }
