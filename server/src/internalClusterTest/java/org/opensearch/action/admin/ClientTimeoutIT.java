@@ -65,7 +65,7 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
             nodes.add(node.getNode().getName());
         }
         assertThat(response.getNodes().size(), equalTo(2));
-        assertThat(nodes.contains(masterNode), is(true));
+        assertThat(nodes.contains(clusterManagerNode), is(true));
     }
 
     public void testNodesStatsTimeout() {
@@ -87,7 +87,7 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
             nodes.add(node.getNode().getName());
         }
         assertThat(response.getNodes().size(), equalTo(2));
-        assertThat(nodes.contains(masterNode), is(true));
+        assertThat(nodes.contains(clusterManagerNode), is(true));
     }
 
     public void testListTasksTimeout() {

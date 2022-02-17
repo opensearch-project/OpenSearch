@@ -74,7 +74,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
             discoveryNodes.getMasterNode().getName()
         );
 
-        logger.info("blocking requests from non master [{}] to master [{}]", nonMasterNode, masterNode);
+        logger.info("blocking requests from non master [{}] to master [{}]", nonMasterNode, clusterManagerNode);
         MockTransportService nonMasterTransportService = (MockTransportService) internalCluster().getInstance(
             TransportService.class,
             nonMasterNode
@@ -83,10 +83,10 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
 
         assertNoMaster(nonMasterNode);
 
-        logger.info("blocking cluster state publishing from master [{}] to non master [{}]", masterNode, nonMasterNode);
+        logger.info("blocking cluster state publishing from master [{}] to non master [{}]", clusterManagerNode, nonMasterNode);
         MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(
             TransportService.class,
-            masterNode
+            clusterManagerNode
         );
         TransportService localTransportService = internalCluster().getInstance(
             TransportService.class,
@@ -98,7 +98,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
             masterTransportService.addFailToSendNoConnectRule(localTransportService, PublicationTransportHandler.COMMIT_STATE_ACTION_NAME);
         }
 
-        logger.info("allowing requests from non master [{}] to master [{}], waiting for two join request", nonMasterNode, masterNode);
+        logger.info("allowing requests from non master [{}] to master [{}], waiting for two join request", nonMasterNode, clusterManagerNode);
         final CountDownLatch countDownLatch = new CountDownLatch(2);
         nonMasterTransportService.addSendBehavior(masterTransportService, (connection, requestId, action, request, options) -> {
             if (action.equals(JoinHelper.JOIN_ACTION_NAME)) {

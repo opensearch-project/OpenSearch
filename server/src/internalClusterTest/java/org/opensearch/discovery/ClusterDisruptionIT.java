@@ -415,7 +415,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         String clusterManagerNode = internalCluster().startMasterOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
 
-        internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback() {
+        internalCluster().restartNode(clusterManagerNode, new InternalTestCluster.RestartCallback() {
             @Override
             public boolean clearData(String nodeName) {
                 return true;
@@ -444,9 +444,9 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         });
 
         assertBusy(() -> {
-            assertFalse(internalCluster().client(masterNode).admin().cluster().prepareHealth().get().isTimedOut());
+            assertFalse(internalCluster().client(clusterManagerNode).admin().cluster().prepareHealth().get().isTimedOut());
             assertTrue(
-                internalCluster().client(masterNode)
+                internalCluster().client(clusterManagerNode)
                     .admin()
                     .cluster()
                     .prepareHealth()

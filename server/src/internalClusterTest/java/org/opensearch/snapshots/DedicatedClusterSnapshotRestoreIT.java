@@ -1403,7 +1403,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final Snapshot snapshot1 = PlainActionFuture.get(
             f -> snapshotsService.createSnapshotLegacy(new CreateSnapshotRequest(repoName, "snap-1"), f)
         );
-        awaitNoMoreRunningOperations(masterNode);
+        awaitNoMoreRunningOperations(clusterManagerNode);
 
         final InvalidSnapshotNameException sne = expectThrows(
             InvalidSnapshotNameException.class,
