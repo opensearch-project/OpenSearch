@@ -611,15 +611,6 @@ public final class QueryBuilders {
     }
 
     /**
-     * A filter based on doc/mapping type.
-     * @deprecated Types are going away, prefer filtering on a field.
-     */
-    @Deprecated
-    public static TypeQueryBuilder typeQuery(String type) {
-        return new TypeQueryBuilder(type);
-    }
-
-    /**
      * A terms query that can extract the terms from another doc in an index.
      */
     public static TermsQueryBuilder termsLookupQuery(String name, TermsLookup termsLookup) {
