@@ -168,16 +168,6 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     }
 
     /**
-     * Set the document types which need to be copied from the source indices
-     */
-    public ReindexRequest setSourceDocTypes(String... docTypes) {
-        if (docTypes != null) {
-            this.getSearchRequest().types(docTypes);
-        }
-        return this;
-    }
-
-    /**
      * Sets the scroll size for setting how many documents are to be processed in one batch during reindex
      */
     public ReindexRequest setSourceBatchSize(int size) {
@@ -330,10 +320,6 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
                 builder.rawField("query", remoteInfo.getQuery().streamInput(), RemoteInfo.QUERY_CONTENT_TYPE.type());
             }
             builder.array("index", getSearchRequest().indices());
-            String[] types = getSearchRequest().types();
-            if (types.length > 0) {
-                builder.array("type", types);
-            }
             getSearchRequest().source().innerToXContent(builder, params);
             builder.endObject();
         }
@@ -382,11 +368,6 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             String[] indices = extractStringArray(source, "index");
             if (indices != null) {
                 request.getSearchRequest().indices(indices);
-            }
-            String[] types = extractStringArray(source, "type");
-            if (types != null) {
-                deprecationLogger.deprecate("reindex_with_types", TYPES_DEPRECATION_MESSAGE);
-                request.getSearchRequest().types(types);
             }
             request.setRemoteInfo(buildRemoteInfo(source));
             XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());

@@ -55,7 +55,7 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
             client().prepareIndex("test", "test", "3").setSource("foo", "b"),
             client().prepareIndex("test", "test", "4").setSource("foo", "c")
         );
-        assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 4);
+        assertHitCount(client().prepareSearch("test").setSize(0).get(), 4);
         assertEquals(1, client().prepareGet("test", "test", "1").get().getVersion());
         assertEquals(1, client().prepareGet("test", "test", "4").get().getVersion());
 
@@ -95,7 +95,7 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
             client().prepareIndex("test", "test", "3").setSource("foo", "b"),
             client().prepareIndex("test", "test", "4").setSource("foo", "c")
         );
-        assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 4);
+        assertHitCount(client().prepareSearch("test").setSize(0).get(), 4);
         assertEquals(1, client().prepareGet("test", "test", "1").get().getVersion());
         assertEquals(1, client().prepareGet("test", "test", "4").get().getVersion());
 

@@ -43,7 +43,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Strings;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.lease.Releasables;
@@ -51,7 +50,6 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.index.mapper.IdFieldMapper;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
@@ -136,13 +134,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
 
     @Override
     protected ExplainResponse shardOperation(ExplainRequest request, ShardId shardId) throws IOException {
-        String[] types;
-        if (MapperService.SINGLE_MAPPING_NAME.equals(request.type())) { // typeless explain call
-            types = Strings.EMPTY_ARRAY;
-        } else {
-            types = new String[] { request.type() };
-        }
-        ShardSearchRequest shardSearchLocalRequest = new ShardSearchRequest(shardId, types, request.nowInMillis, request.filteringAlias());
+        ShardSearchRequest shardSearchLocalRequest = new ShardSearchRequest(shardId, request.nowInMillis, request.filteringAlias());
         SearchContext context = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);
         Engine.GetResult result = null;
         try {

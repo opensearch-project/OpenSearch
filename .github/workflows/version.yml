@@ -11,6 +11,14 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
+       - name: GitHub App token
+        id: github_app_token
+        uses: tibdex/github-app-token@v1.5.0
+        with:
+          app_id: ${{ secrets.APP_ID }}
+          private_key: ${{ secrets.APP_PRIVATE_KEY }}
+          installation_id: 22958780
+
       - uses: actions/checkout@v2
       - name: Fetch Tag and Version Information
         run: |
@@ -35,6 +43,8 @@ jobs:
       - uses: actions/checkout@v2
         with:
           ref: ${{ env.BASE }}
+          token: ${{ steps.github_app_token.outputs.token }}
+
       - name: Increment Patch Version
         run: |
           echo Incrementing $CURRENT_VERSION to $NEXT_VERSION
@@ -43,9 +53,11 @@ jobs:
           echo Adding $NEXT_VERSION_UNDERSCORE after $CURRENT_VERSION_UNDERSCORE
           sed -i "s/public static final Version $CURRENT_VERSION_UNDERSCORE = new Version(\([[:digit:]]\+\)\(.*\));/\0\n    public static final Version $NEXT_VERSION_UNDERSCORE = new Version($NEXT_VERSION_ID\2);/g" server/src/main/java/org/opensearch/Version.java
           sed -i "s/CURRENT = $CURRENT_VERSION_UNDERSCORE;/CURRENT = $NEXT_VERSION_UNDERSCORE;/g" server/src/main/java/org/opensearch/Version.java
+
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v3
         with:
+          token: ${{ steps.github_app_token.outputs.token }}
           base: ${{ env.BASE }}
           branch: 'create-pull-request/patch-${{ env.BASE }}'
           commit-message: Incremented version to ${{ env.NEXT_VERSION }}
@@ -57,15 +69,19 @@ jobs:
       - uses: actions/checkout@v2
         with:
           ref: ${{ env.BASE_X }}
+          token: ${{ steps.github_app_token.outputs.token }}
+
       - name: Add bwc version to .X branch
         run: |
           echo Adding bwc version $NEXT_VERSION after $CURRENT_VERSION
           sed -i "s/- \"$CURRENT_VERSION\"/\0\n  - \"$NEXT_VERSION\"/g" .ci/bwcVersions
           echo Adding $NEXT_VERSION_UNDERSCORE after $CURRENT_VERSION_UNDERSCORE
           sed -i "s/public static final Version $CURRENT_VERSION_UNDERSCORE = new Version(\([[:digit:]]\+\)\(.*\));/\0\n    public static final Version $NEXT_VERSION_UNDERSCORE = new Version($NEXT_VERSION_ID\2);/g" server/src/main/java/org/opensearch/Version.java
+
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v3
         with:
+          token: ${{ steps.github_app_token.outputs.token }}
           base: ${{ env.BASE_X }}
           branch: 'create-pull-request/patch-${{ env.BASE_X }}'
           commit-message: Added bwc version ${{ env.NEXT_VERSION }}
@@ -77,15 +93,19 @@ jobs:
       - uses: actions/checkout@v2
         with:
           ref: main
+          token: ${{ steps.github_app_token.outputs.token }}
+
       - name: Add bwc version to main branch
         run: |
           echo Adding bwc version $NEXT_VERSION after $CURRENT_VERSION
           sed -i "s/- \"$CURRENT_VERSION\"/\0\n  - \"$NEXT_VERSION\"/g" .ci/bwcVersions
           echo Adding $NEXT_VERSION_UNDERSCORE after $CURRENT_VERSION_UNDERSCORE
           sed -i "s/public static final Version $CURRENT_VERSION_UNDERSCORE = new Version(\([[:digit:]]\+\)\(.*\));/\0\n    public static final Version $NEXT_VERSION_UNDERSCORE = new Version($NEXT_VERSION_ID\2);/g" server/src/main/java/org/opensearch/Version.java
+
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v3
         with:
+          token: ${{ steps.github_app_token.outputs.token }}
           base: main
           branch: 'create-pull-request/patch-main'
           commit-message: Added bwc version ${{ env.NEXT_VERSION }}
