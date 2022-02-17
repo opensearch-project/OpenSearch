@@ -18,6 +18,9 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
+import org.opensearch.index.codec.CodecServiceConfig;
+import org.opensearch.index.codec.CodecServiceFactory;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
@@ -44,20 +47,29 @@ public class EngineConfigFactory {
 
     /** default ctor primarily used for tests without plugins */
     public EngineConfigFactory(IndexSettings idxSettings) {
-        this(Collections.emptyList(), idxSettings);
+        this(Collections.emptyList(), idxSettings, null);
     }
 
     /**
      * Construct a factory using the plugin service and provided index settings
      */
     public EngineConfigFactory(PluginsService pluginsService, IndexSettings idxSettings) {
-        this(pluginsService.filterPlugins(EnginePlugin.class), idxSettings);
+        this(pluginsService.filterPlugins(EnginePlugin.class), idxSettings, null);
+    }
+
+    /**
+     * Construct a factory using the plugin service, provided index settings and mapper service
+     */
+    public EngineConfigFactory(PluginsService pluginsService, IndexSettings idxSettings, MapperService mapperService) {
+        this(pluginsService.filterPlugins(EnginePlugin.class), idxSettings, mapperService);
     }
 
     /* private constructor to construct the factory from specific EnginePlugins and IndexSettings */
-    EngineConfigFactory(Collection<EnginePlugin> enginePlugins, IndexSettings idxSettings) {
+    EngineConfigFactory(Collection<EnginePlugin> enginePlugins, IndexSettings idxSettings, MapperService mapperService) {
         Optional<CodecService> codecService = Optional.empty();
         String codecServiceOverridingPlugin = null;
+        Optional<CodecServiceFactory> codecServiceFactory = Optional.empty();
+        String codecServiceFactoryOverridingPlugin = null;
         Optional<TranslogDeletionPolicyFactory> translogDeletionPolicyFactory = Optional.empty();
         String translogDeletionPolicyOverridingPlugin = null;
         for (EnginePlugin enginePlugin : enginePlugins) {
@@ -65,7 +77,7 @@ public class EngineConfigFactory {
             if (codecService.isPresent() == false) {
                 codecService = enginePlugin.getCustomCodecService(idxSettings);
                 codecServiceOverridingPlugin = enginePlugin.getClass().getName();
-            } else {
+            } else if (enginePlugin.getCustomCodecService(idxSettings).isPresent()) {
                 throw new IllegalStateException(
                     "existing codec service already overridden in: "
                         + codecServiceOverridingPlugin
@@ -76,7 +88,7 @@ public class EngineConfigFactory {
             if (translogDeletionPolicyFactory.isPresent() == false) {
                 translogDeletionPolicyFactory = enginePlugin.getCustomTranslogDeletionPolicyFactory();
                 translogDeletionPolicyOverridingPlugin = enginePlugin.getClass().getName();
-            } else {
+            } else if (enginePlugin.getCustomTranslogDeletionPolicyFactory().isPresent()) {
                 throw new IllegalStateException(
                     "existing TranslogDeletionPolicyFactory is already overridden in: "
                         + translogDeletionPolicyOverridingPlugin
@@ -84,8 +96,34 @@ public class EngineConfigFactory {
                         + enginePlugin.getClass().getName()
                 );
             }
+            // get overriding CodecServiceFactory from EnginePlugin
+            if (codecServiceFactory.isPresent() == false) {
+                codecServiceFactory = enginePlugin.getCustomCodecServiceFactory();
+                codecServiceFactoryOverridingPlugin = enginePlugin.getClass().getName();
+            } else if (enginePlugin.getCustomCodecServiceFactory().isPresent()) {
+                throw new IllegalStateException(
+                    "existing codec service factory already overridden in: "
+                        + codecServiceFactoryOverridingPlugin
+                        + " attempting to override again by: "
+                        + enginePlugin.getClass().getName()
+                );
+            }
         }
-        this.codecService = codecService.orElse(null);
+
+        if (codecService.isPresent() && codecServiceFactory.isPresent()) {
+            throw new IllegalStateException(
+                "both codec service and codec service factory are present, codec service provided by: "
+                    + codecServiceOverridingPlugin
+                    + " conflicts with codec service factory provided by: "
+                    + codecServiceFactoryOverridingPlugin
+            );
+        }
+
+        this.codecService = codecService.isPresent() ? codecService.get() : codecServiceFactory.map(factory -> {
+            final CodecServiceConfig config = new CodecServiceConfig(idxSettings, mapperService);
+            return factory.createCodecService(config);
+        }).orElse(null);
+
         this.translogDeletionPolicyFactory = translogDeletionPolicyFactory.orElse((idxs, rtls) -> null);
     }
 
