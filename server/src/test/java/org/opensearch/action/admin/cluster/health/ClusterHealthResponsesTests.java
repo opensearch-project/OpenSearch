@@ -114,7 +114,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
 
     public void testClusterHealthVerifyClusterManagerNodeDiscovery() throws IOException {
         DiscoveryNode localNode = new DiscoveryNode("node", OpenSearchTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
-        // set the node information to verify clustermanager_node discovery in ClusterHealthResponse
+        // set the node information to verify cluster_manager_node discovery in ClusterHealthResponse
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
             .build();
@@ -172,7 +172,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
             randomFrom(ClusterHealthStatus.values()),
             indices
         );
-        // Create the Cluster Health Response object with discovered clustermanager as false,
+        // Create the Cluster Health Response object with discovered cluster manager as false,
         // to verify serialization puts default value for the field
         ClusterHealthResponse clusterHealth = new ClusterHealthResponse(
             "test-cluster",

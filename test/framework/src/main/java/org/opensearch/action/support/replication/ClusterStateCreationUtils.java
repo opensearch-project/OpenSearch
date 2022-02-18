@@ -429,7 +429,7 @@ public class ClusterStateCreationUtils {
      * Creates a cluster state where local node and master node can be specified
      *
      * @param localNode  node in allNodes that is the local node
-     * @param clusterManagerNode node in allNodes that is the clustermanager node. Can be null if no clustermanager exists
+     * @param clusterManagerNode node in allNodes that is the cluster_manager node. Can be null if no cluster manager exists
      * @param allNodes   all nodes in the cluster
      * @return cluster state
      */

@@ -341,7 +341,7 @@ public final class InternalTestCluster extends TestCluster {
         } else {
             if (useDedicatedClusterManagerNodes) {
                 if (random.nextBoolean()) {
-                    // use a dedicated clustermanager, but only low number to reduce overhead to tests
+                    // use a dedicated cluster manager, but only low number to reduce overhead to tests
                     this.numSharedDedicatedClusterManagerNodes = DEFAULT_LOW_NUM_MASTER_NODES;
                 } else {
                     this.numSharedDedicatedClusterManagerNodes = DEFAULT_HIGH_NUM_MASTER_NODES;
@@ -434,7 +434,7 @@ public final class InternalTestCluster extends TestCluster {
             RandomNumbers.randomIntBetween(random, 1, 4)
         );
         // TODO: currently we only randomize "cluster.no_master_block" between "write" and "metadata_write", as "all" is fragile
-        // and fails shards when a clustermanager abdicates, which breaks many tests.
+        // and fails shards when a cluster manager abdicates, which breaks many tests.
         builder.put(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), randomFrom(random, "write", "metadata_write"));
         defaultSettings = builder.build();
         executor = OpenSearchExecutors.newScaling(
@@ -1555,7 +1555,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
-     * Returns an Iterable to all instances for the given class &gt;T&lt; across all data and clustermanager nodes
+     * Returns an Iterable to all instances for the given class &gt;T&lt; across all data and cluster_manager nodes
      * in the cluster.
      */
     public <T> Iterable<T> getDataOrMasterNodeInstances(Class<T> clazz) {
@@ -1694,7 +1694,7 @@ public final class InternalTestCluster extends TestCluster {
         if (nodeAndClients.size() > 0) {
             final int newClusterManagers = (int) nodeAndClients.stream()
                 .filter(NodeAndClient::isMasterEligible)
-                .filter(nac -> nodes.containsKey(nac.name) == false) // filter out old clustermanagers
+                .filter(nac -> nodes.containsKey(nac.name) == false) // filter out old cluster managers
                 .count();
             final int currentClusterManagers = getClusterManagerNodesCount();
             rebuildUnicastHostFiles(nodeAndClients); // ensure that new nodes can find the existing nodes when they start
@@ -1717,7 +1717,7 @@ public final class InternalTestCluster extends TestCluster {
                 && currentClusterManagers > 0
                 && newClusterManagers > 0
                 && getMinClusterManagerNodes(currentClusterManagers + newClusterManagers) > currentClusterManagers) {
-                // update once clustermanagers have joined
+                // update once cluster managers have joined
                 validateClusterFormed();
             }
         }
@@ -1999,7 +1999,7 @@ public final class InternalTestCluster extends TestCluster {
 
     /**
      * Performs cluster bootstrap when node with index {@link #bootstrapClusterManagerNodeIndex} is started
-     * with the names of all existing and new clustermanager-eligible nodes.
+     * with the names of all existing and new cluster_manager-eligible nodes.
      * Indexing starts from 0.
      * If {@link #bootstrapClusterManagerNodeIndex} is -1 (default), this method does nothing.
      */
@@ -2161,7 +2161,7 @@ public final class InternalTestCluster extends TestCluster {
         return startNodes(numNodes, Settings.builder().put(onlyRole(settings, DiscoveryNodeRole.DATA_ROLE)).build());
     }
 
-    /** calculates a min clustermanager nodes value based on the given number of clustermanager nodes */
+    /** calculates a min cluster_manager nodes value based on the given number of cluster_manager nodes */
     private static int getMinClusterManagerNodes(int eligibleClusterManagerNodes) {
         return eligibleClusterManagerNodes / 2 + 1;
     }

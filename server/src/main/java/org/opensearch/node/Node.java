@@ -1182,7 +1182,7 @@ public class Node implements Closeable {
         // stop any changes happening as a result of cluster state changes
         injector.getInstance(IndicesClusterStateService.class).stop();
         // close discovery early to not react to pings anymore.
-        // This can confuse other nodes and delay things - mostly if we're the clustermanager and we're running tests.
+        // This can confuse other nodes and delay things - mostly if we're the cluster manager and we're running tests.
         injector.getInstance(Discovery.class).stop();
         // we close indices first, so operations won't be allowed on it
         injector.getInstance(ClusterService.class).stop();
@@ -1454,7 +1454,7 @@ public class Node implements Closeable {
     ) {
         final InternalClusterInfoService service = new InternalClusterInfoService(settings, clusterService, threadPool, client);
         if (DiscoveryNode.isMasterNode(settings)) {
-            // listen for state changes (this node starts/stops being the elected clustermanager, or new nodes are added)
+            // listen for state changes (this node starts/stops being the elected cluster manager, or new nodes are added)
             clusterService.addListener(service);
         }
         return service;

@@ -58,7 +58,7 @@ public abstract class TimedRequest implements Validatable {
     }
 
     /**
-     * Sets the timeout to connect to the clustermanager node
+     * Sets the timeout to connect to the cluster_manager node
      * @param clusterManagerTimeout timeout as a {@link TimeValue}
      */
     public void setMasterTimeout(TimeValue clusterManagerTimeout) {
@@ -73,7 +73,7 @@ public abstract class TimedRequest implements Validatable {
     }
 
     /**
-     * Returns the timeout for the request to be completed on the clustermanager node
+     * Returns the timeout for the request to be completed on the cluster_manager node
      */
     public TimeValue masterNodeTimeout() {
         return clusterManagerTimeout;

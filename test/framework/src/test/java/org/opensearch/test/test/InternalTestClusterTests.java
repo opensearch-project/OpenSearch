@@ -177,7 +177,7 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
             maxNumDataNodes = randomIntBetween(minNumDataNodes, 4);
             bootstrapClusterManagerNodeIndex = -1;
         } else {
-            // if we manage min clustermanager nodes, we need to lock down the number of nodes
+            // if we manage min cluster_manager nodes, we need to lock down the number of nodes
             minNumDataNodes = randomIntBetween(0, 4);
             maxNumDataNodes = minNumDataNodes;
             clusterManagerNodes = false;

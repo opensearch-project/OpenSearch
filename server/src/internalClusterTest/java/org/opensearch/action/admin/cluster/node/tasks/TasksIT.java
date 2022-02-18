@@ -157,14 +157,14 @@ public class TasksIT extends OpenSearchIntegTestCase {
     public void testClusterManagerNodeOperationTasks() {
         registerTaskManagerListeners(ClusterHealthAction.NAME);
 
-        // First run the health on the clustermanager node - should produce only one task on the clustermanager node
+        // First run the health on the cluster_manager node - should produce only one task on the cluster_manager node
         internalCluster().masterClient().admin().cluster().prepareHealth().get();
         assertEquals(1, numberOfEvents(ClusterHealthAction.NAME, Tuple::v1)); // counting only registration events
         assertEquals(1, numberOfEvents(ClusterHealthAction.NAME, event -> event.v1() == false)); // counting only unregistration events
 
         resetTaskManagerListeners(ClusterHealthAction.NAME);
 
-        // Now run the health on a non-clustermanager node - should produce one task on clustermanager and one task on another node
+        // Now run the health on a non-cluster_manager node - should produce one task on cluster_manager and one task on another node
         internalCluster().nonMasterClient().admin().cluster().prepareHealth().get();
         assertEquals(2, numberOfEvents(ClusterHealthAction.NAME, Tuple::v1)); // counting only registration events
         assertEquals(2, numberOfEvents(ClusterHealthAction.NAME, event -> event.v1() == false)); // counting only unregistration events

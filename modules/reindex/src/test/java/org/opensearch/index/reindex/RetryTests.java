@@ -118,7 +118,7 @@ public class RetryTests extends OpenSearchIntegTestCase {
     public void testReindexFromRemote() throws Exception {
         Function<Client, AbstractBulkByScrollRequestBuilder<?, ?>> function = client -> {
             /*
-             * Use the clustermanager node for the reindex from remote because that node
+             * Use the cluster_manager node for the reindex from remote because that node
              * doesn't have a copy of the data on it.
              */
             NodeInfo clusterManagerNode = null;
@@ -262,8 +262,8 @@ public class RetryTests extends OpenSearchIntegTestCase {
      */
     private BulkByScrollTask.Status taskStatus(String action) {
         /*
-         * We always use the clustermanager client because we always start the test requests on the
-         * clustermanager. We do this simply to make sure that the test request is not started on the
+         * We always use the cluster_manager client because we always start the test requests on the
+         * cluster manager. We do this simply to make sure that the test request is not started on the
          * node who's queue we're manipulating.
          */
         ListTasksResponse response = client().admin().cluster().prepareListTasks().setActions(action).setDetailed(true).get();

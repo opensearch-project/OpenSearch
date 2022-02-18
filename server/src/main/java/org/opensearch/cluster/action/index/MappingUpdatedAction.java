@@ -105,10 +105,10 @@ public class MappingUpdatedAction {
     }
 
     /**
-     * Update mappings on the clustermanager node, waiting for the change to be committed,
+     * Update mappings on the cluster_manager node, waiting for the change to be committed,
      * but not for the mapping update to be applied on all nodes. The timeout specified by
-     * {@code timeout} is the clustermanager node timeout ({@link MasterNodeRequest#masterNodeTimeout()}),
-     * potentially waiting for a clustermanager node to be available.
+     * {@code timeout} is the cluster_manager node timeout ({@link MasterNodeRequest#masterNodeTimeout()}),
+     * potentially waiting for a cluster_manager node to be available.
      */
     public void updateMappingOnMaster(Index index, String type, Mapping mappingUpdate, ActionListener<Void> listener) {
         if (type.equals(MapperService.DEFAULT_MAPPING)) {

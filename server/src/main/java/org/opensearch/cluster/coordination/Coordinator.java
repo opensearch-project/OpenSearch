@@ -354,7 +354,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             final ClusterState committedState = hideStateIfNotRecovered(coordinationState.get().getLastAcceptedState());
             applierState = mode == Mode.CANDIDATE ? clusterStateWithNoClusterManagerBlock(committedState) : committedState;
             if (applyCommitRequest.getSourceNode().equals(getLocalNode())) {
-                // clustermanager node applies the committed state at the end of the publication process, not here.
+                // cluster_manager node applies the committed state at the end of the publication process, not here.
                 applyListener.onResponse(null);
             } else {
                 clusterApplier.onNewClusterState(applyCommitRequest.toString(), () -> applierState, new ClusterApplyListener() {
@@ -423,7 +423,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             }
 
             if (publishRequest.getAcceptedState().term() > localState.term()) {
-                // only do join validation if we have not accepted state from this clustermanager yet
+                // only do join validation if we have not accepted state from this cluster manager yet
                 onJoinValidators.forEach(a -> a.accept(getLocalNode(), publishRequest.getAcceptedState()));
             }
 
@@ -1194,11 +1194,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     ClusterState getStateForClusterManagerService() {
         synchronized (mutex) {
-            // expose last accepted cluster state as base state upon which the clustermanager service
+            // expose last accepted cluster state as base state upon which the cluster_manager service
             // speculatively calculates the next cluster state update
             final ClusterState clusterState = coordinationState.get().getLastAcceptedState();
             if (mode != Mode.LEADER || clusterState.term() != getCurrentTerm()) {
-                // the clustermanager service checks if the local node is the clustermanager node in order to fail execution of the state
+                // the cluster_manager service checks if the local node is the cluster_manager node in order to fail execution of the state
                 // update early
                 return clusterStateWithNoClusterManagerBlock(clusterState);
             }
@@ -1617,7 +1617,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                                 .filter(DiscoveryNode::isMasterNode)
                                                 .filter(node -> nodeMayWinElection(state, node))
                                                 .filter(node -> {
-                                                    // check if clustermanager candidate would be able to get an election quorum if we were
+                                                    // check if cluster_manager candidate would be able to get an election quorum if we were
                                                     // to abdicate to it. Assume that every node that completed the publication can provide
                                                     // a vote in that next election and has the latest state.
                                                     final long futureElectionTerm = state.term() + 1;
@@ -1665,7 +1665,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     cancelTimeoutHandlers();
 
                     final FailedToCommitClusterStateException exception = new FailedToCommitClusterStateException("publication failed", e);
-                    ackListener.onNodeAck(getLocalNode(), exception); // other nodes have acked, but not the clustermanager.
+                    ackListener.onNodeAck(getLocalNode(), exception); // other nodes have acked, but not the cluster manager.
                     publishListener.onFailure(exception);
                 }
             }, OpenSearchExecutors.newDirectExecutorService(), transportService.getThreadPool().getThreadContext());

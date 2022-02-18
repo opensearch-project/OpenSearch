@@ -384,7 +384,7 @@ public class TransportBroadcastByNodeActionTests extends OpenSearchTestCase {
 
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
 
-        // the clustermanager should not be in the list of nodes that requests were sent to
+        // the cluster manager should not be in the list of nodes that requests were sent to
         ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[] { TEST_INDEX });
         Set<String> set = new HashSet<>();
         for (ShardRouting shard : shardIt) {

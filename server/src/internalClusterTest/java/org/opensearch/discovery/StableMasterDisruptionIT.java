@@ -73,8 +73,8 @@ import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Tests relating to the loss of the clustermanager, but which work with the default fault detection settings which are rather lenient and will
- * not detect a clustermanager failure too quickly.
+ * Tests relating to the loss of the cluster manager, but which work with the default fault detection settings which are rather lenient and will
+ * not detect a cluster manager failure too quickly.
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {

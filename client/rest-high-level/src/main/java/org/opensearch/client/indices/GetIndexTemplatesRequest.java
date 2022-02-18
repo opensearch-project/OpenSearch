@@ -84,7 +84,7 @@ public class GetIndexTemplatesRequest implements Validatable {
     }
 
     /**
-     * @return the timeout for waiting for the clustermanager node to respond
+     * @return the timeout for waiting for the cluster_manager node to respond
      */
     public TimeValue getMasterNodeTimeout() {
         return clusterManagerNodeTimeout;
@@ -100,7 +100,7 @@ public class GetIndexTemplatesRequest implements Validatable {
     }
 
     /**
-     * @return true if this request is to read from the local cluster state, rather than the clustermanager node - false otherwise
+     * @return true if this request is to read from the local cluster state, rather than the cluster_manager node - false otherwise
      */
     public boolean isLocal() {
         return local;
