@@ -338,7 +338,6 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
                 + "\"}}"
         );
         rewriteAndFetch(queryBuilder, queryShardContext).toQuery(queryShardContext);
-        assertWarnings(PercolateQueryBuilder.TYPE_DEPRECATION_MESSAGE);
     }
 
     public void testBothDocumentAndDocumentsSpecified() {
