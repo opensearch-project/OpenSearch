@@ -1516,11 +1516,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public ReplicationCheckpoint getLatestReplicationCheckpoint() {
-        return new ReplicationCheckpoint(this.shardId, getOperationPrimaryTerm(), getLatestSegmentInfos().getGeneration(), getLocalCheckpoint());
+        return new ReplicationCheckpoint(this.shardId, getOperationPrimaryTerm(), getLatestSegmentInfos().getGeneration(), getProcessedLocalCheckpoint());
     }
 
-    public void updateCurrentInfos(long gen, byte[] infosBytes) throws IOException {
-        getEngine().updateCurrentInfos(infosBytes, gen);
+    public void updateCurrentInfos(long gen, byte[] infosBytes, long seqNo) throws IOException {
+        getEngine().updateCurrentInfos(infosBytes, gen, seqNo);
     }
 
         /**
@@ -3088,7 +3088,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             replicationListener.onReplicationDone(replicationState);
                             recoveryState.getIndex().setFileDetailsComplete();
                             finalizeRecovery();
-                            postRecovery("Segrep recovery complete.");
+                            postRecovery("Segrep complete.");
                         }
                         @Override
                         public void onFailure(Exception e) {
@@ -3701,12 +3701,27 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         getEngine().syncTranslog();
     }
 
+    private ReplicationCheckpoint getLocalReplicationCheckpoint() {
+        return new ReplicationCheckpoint(shardId, getPendingPrimaryTerm(), getLatestSegmentInfos().getGeneration(), getEngine().getProcessedLocalCheckpoint());
+    }
+
+    public long getProcessedLocalCheckpoint() {
+        return getEngine().getProcessedLocalCheckpoint();
+    }
+
     /**
      * Invoked when a new checkpoint is received from a primary shard.  Starts the copy process.
      */
     public synchronized void onNewCheckpoint(final PublishCheckpointRequest request,
                                 final PrimaryShardReplicationSource source,
                                 final SegmentReplicationService segmentReplicationService) {
+        logger.debug("Checkpoint received {}", request.getCheckpoint());
+        ReplicationCheckpoint localCheckpoint = getLocalReplicationCheckpoint();
+        logger.debug("Local Checkpoint {}", getLocalReplicationCheckpoint());
+        if (localCheckpoint.equals(request.getCheckpoint())) {
+            logger.debug("Ignore - Shard is already on checkpoint");
+            return;
+        }
         if (state.equals(IndexShardState.STARTED) == false) {
             logger.debug("Ignore - shard is not started {} {}", recoveryState.getStage(), this.state);
             return;
@@ -3724,7 +3739,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 @Override
                 public void onReplicationDone(ReplicationState state) {
                     finalizeReplication();
-                    logger.info("Replication complete.");
+                    logger.debug("Replication complete to {}", getLocalReplicationCheckpoint());
                 }
 
                 @Override

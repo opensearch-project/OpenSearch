@@ -249,8 +249,9 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public void updateCurrentInfos(byte[] infosBytes, long gen) throws IOException {};
+    public void updateCurrentInfos(byte[] infosBytes, long gen, long seqNo) throws IOException {};
 
+    public long getProcessedLocalCheckpoint() { return 0L; };
 
     /**
      * A throttling class that can be activated, causing the

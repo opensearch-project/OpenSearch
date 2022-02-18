@@ -30,7 +30,7 @@ public class CopyState extends AbstractRefCounted {
         super("replication-nrt-state");
         this.segmentInfosRef = shard.getLatestSegmentInfosSafe();
         final SegmentInfos segmentInfos = segmentInfosRef.getSegmentInfos();
-        this.checkpoint = new ReplicationCheckpoint(shard.shardId(), shard.getOperationPrimaryTerm(), segmentInfos.getGeneration(), shard.getLocalCheckpoint());
+        this.checkpoint = new ReplicationCheckpoint(shard.shardId(), shard.getOperationPrimaryTerm(), segmentInfos.getGeneration(), shard.getProcessedLocalCheckpoint());
         this.metadataSnapshot = shard.store().getMetadata(segmentInfos);
         ByteBuffersDataOutput buffer = new ByteBuffersDataOutput();
         try (ByteBuffersIndexOutput tmpIndexOutput =

@@ -161,7 +161,7 @@ public class ReplicationTarget extends AbstractRefCounted {
                     final Directory directory = store().directory();
                     directory.sync(Arrays.asList(directory.listAll()));
                 }
-                indexShard.updateCurrentInfos(segmentsGen, checkpointInfo.getInfosBytes());
+                indexShard.updateCurrentInfos(segmentsGen, checkpointInfo.getInfosBytes(), checkpointInfo.getCheckpoint().getSeqNo());
             } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
                 // this is a fatal exception at this stage.
                 // this means we transferred files from the remote that have not be checksummed and they are

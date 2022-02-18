@@ -346,7 +346,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void updateCurrentInfos(byte[] infosBytes, long gen) throws IOException {
+    public void updateCurrentInfos(byte[] infosBytes, long gen, long seqNo) throws IOException {
         assert engineConfig.isPrimary() == false : "Only replicas should update Infos";
         SegmentInfos infos = SegmentInfos.readCommit(this.store.directory(),
             toIndexInput(infosBytes),
@@ -354,6 +354,7 @@ public class InternalEngine extends Engine {
         assert gen == infos.getGeneration();
         externalReaderManager.internalReaderManager.setCurrentInfos(infos);
         externalReaderManager.maybeRefresh();
+        localCheckpointTracker.markSeqNoAsProcessed(seqNo);
     }
 
     private ChecksumIndexInput toIndexInput(byte[] input) {
@@ -2573,7 +2574,9 @@ public class InternalEngine extends Engine {
                 // no need to commit in this case!, we snapshot before we close the shard, so translog and all sync'ed
                 logger.trace("rollback indexWriter");
                 try {
-                    indexWriter.rollback();
+                    if (engineConfig.isPrimary()) {
+                        indexWriter.rollback();
+                    }
                 } catch (AlreadyClosedException ex) {
                     failOnTragicEvent(ex);
                     throw ex;
@@ -2926,6 +2929,7 @@ public class InternalEngine extends Engine {
         return getTranslog().getLastSyncedGlobalCheckpoint();
     }
 
+    @Override
     public long getProcessedLocalCheckpoint() {
         return localCheckpointTracker.getProcessedCheckpoint();
     }
