@@ -32,8 +32,8 @@ setup:
 ---
 "Test ordered matching with via mode":
   - skip:
-      version: " - 1.99.99"
-      reason: "mode introduced in 2.0"
+      version: " - 1.2.99"
+      reason: "mode introduced in 1.3"
   - do:
         search:
           index: test
@@ -80,8 +80,8 @@ setup:
 ---
 "Test explicit unordered matching via mode":
   - skip:
-      version: " - 1.99.99"
-      reason: "mode introduced in 2.0"
+      version: " - 1.2.99"
+      reason: "mode introduced in 1.3"
   - do:
       search:
         index: test
@@ -115,7 +115,7 @@ setup:
 ---
 "Test unordered with overlap in match":
   - skip:
-        version: " - 1.99.99"
+        version: " - 1.2.99"
         reason: "Implemented in 2.0"
   - do:
       search:
@@ -132,7 +132,7 @@ setup:
 ---
 "Test unordered with no overlap in match":
   - skip:
-      version: " - 1.99.99"
+      version: " - 1.2.99"
       reason: "Implemented in 2.0"
   - do:
       search:
@@ -149,8 +149,8 @@ setup:
 ---
 "Test phrase matching":
   - skip:
-      version: " - 1.99.99"
-      reason: "mode introduced in 2.0"
+      version: " - 1.2.99"
+      reason: "mode introduced in 1.3"
   - do:
       search:
         index: test
@@ -181,8 +181,8 @@ setup:
 ---
 "Test ordered max_gaps matching":
   - skip:
-      version: " - 1.99.99"
-      reason: "mode introduced in 2.0"
+      version: " - 1.2.99"
+      reason: "mode introduced in 1.3"
   - do:
       search:
         index: test
@@ -199,8 +199,8 @@ setup:
 ---
 "Test ordered combination with disjunction via mode":
   - skip:
-      version: " - 1.99.99"
-      reason: "mode introduced in 2.0"
+      version: " - 1.2.99"
+      reason: "mode introduced in 1.3"
   - do:
       search:
         index: test
@@ -250,8 +250,8 @@ setup:
 ---
 "Test ordered combination with max_gaps":
   - skip:
-      version: " - 1.99.99"
-      reason: "mode introduced in 2.0"
+      version: " - 1.2.99"
+      reason: "mode introduced in 1.3"
   - do:
       search:
         index: test
@@ -272,8 +272,8 @@ setup:
 ---
 "Test ordered combination":
   - skip:
-      version: " - 1.99.99"
-      reason: "mode introduced in 2.0"
+      version: " - 1.2.99"
+      reason: "mode introduced in 1.3"
   - do:
       search:
         index: test
@@ -293,8 +293,8 @@ setup:
 ---
 "Test unordered combination via mode":
   - skip:
-      version: " - 1.99.99"
-      reason: "mode introduced in 2.0"
+      version: " - 1.2.99"
+      reason: "mode introduced in 1.3"
   - do:
       search:
         index: test
@@ -338,7 +338,7 @@ setup:
 ---
 "Test unordered combination with overlap":
   - skip:
-      version: " - 1.99.99"
+      version: " - 1.2.99"
       reason: "Implemented in 2.0"
   - do:
       search:
@@ -361,7 +361,7 @@ setup:
 ---
 "Test unordered combination no overlap":
   - skip:
-      version: " - 1.99.99"
+      version: " - 1.2.99"
       reason: "Implemented in 2.0"
   - do:
       search:
@@ -384,7 +384,7 @@ setup:
 ---
 "Test nested unordered combination with overlap":
   - skip:
-      version: " - 1.99.99"
+      version: " - 1.2.99"
       reason: "Implemented in 2.0"
   - do:
       search:
@@ -409,7 +409,7 @@ setup:
 ---
 "Test nested unordered combination no overlap":
   - skip:
-      version: " - 1.99.99"
+      version: " - 1.2.99"
       reason: "Implemented in 2.0"
   - do:
       search:
@@ -434,8 +434,8 @@ setup:
 ---
 "Test block combination":
   - skip:
-      version: " - 1.99.99"
-      reason: "mode introduced in 2.0"
+      version: " - 1.2.99"
+      reason: "mode introduced in 1.3"
   - do:
       search:
         index: test
@@ -457,8 +457,8 @@ setup:
 ---
 "Test containing":
   - skip:
-      version: " - 1.99.99"
-      reason: "mode introduced in 2.0"
+      version: " - 1.2.99"
+      reason: "mode introduced in 1.3"
   - do:
       search:
         index: test
@@ -483,8 +483,8 @@ setup:
 ---
 "Test not containing":
   - skip:
-      version: " - 1.99.99"
-      reason: "mode introduced in 2.0"
+      version: " - 1.2.99"
+      reason: "mode introduced in 1.3"
   - do:
       search:
         index: test
@@ -508,8 +508,8 @@ setup:
 ---
 "Test contained_by":
   - skip:
-      version: " - 1.99.99"
-      reason: "mode introduced in 2.0"
+      version: " - 1.2.99"
+      reason: "mode introduced in 1.3"
   - do:
       search:
         index: test
@@ -554,8 +554,8 @@ setup:
 ---
 "Test not_overlapping":
   - skip:
-      version: " - 1.99.99"
-      reason: "mode introduced in 2.0"
+      version: " - 1.2.99"
+      reason: "mode introduced in 1.3"
   - do:
       search:
         index: test
@@ -584,8 +584,8 @@ setup:
 ---
 "Test overlapping":
   - skip:
-      version: " - 1.99.99"
-      reason: "mode introduced in 2.0"
+      version: " - 1.2.99"
+      reason: "mode introduced in 1.3"
   - do:
       search:
         index: test
