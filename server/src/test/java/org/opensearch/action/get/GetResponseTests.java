@@ -108,7 +108,6 @@ public class GetResponseTests extends OpenSearchTestCase {
             GetResponse getResponse = new GetResponse(
                 new GetResult(
                     "index",
-                    "type",
                     "id",
                     0,
                     1,
@@ -127,9 +126,7 @@ public class GetResponseTests extends OpenSearchTestCase {
             );
         }
         {
-            GetResponse getResponse = new GetResponse(
-                new GetResult("index", "type", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null, null)
-            );
+            GetResponse getResponse = new GetResponse(new GetResult("index", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null, null));
             String output = Strings.toString(getResponse);
             assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"found\":false}", output);
         }
@@ -139,7 +136,6 @@ public class GetResponseTests extends OpenSearchTestCase {
         GetResponse getResponse = new GetResponse(
             new GetResult(
                 "index",
-                "type",
                 "id",
                 0,
                 1,
@@ -167,7 +163,7 @@ public class GetResponseTests extends OpenSearchTestCase {
 
     public void testFromXContentThrowsParsingException() throws IOException {
         GetResponse getResponse = new GetResponse(
-            new GetResult(null, null, null, UNASSIGNED_SEQ_NO, 0, randomIntBetween(1, 5), randomBoolean(), null, null, null)
+            new GetResult(null, null, UNASSIGNED_SEQ_NO, 0, randomIntBetween(1, 5), randomBoolean(), null, null, null)
         );
 
         XContentType xContentType = randomFrom(XContentType.values());

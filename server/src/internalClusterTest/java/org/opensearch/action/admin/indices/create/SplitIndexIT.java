@@ -229,7 +229,7 @@ public class SplitIndexIT extends OpenSearchIntegTestCase {
         assertHitCount(client().prepareSearch("first_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
         assertHitCount(client().prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
         for (int i = 0; i < numDocs; i++) {
-            GetResponse getResponse = client().prepareGet("first_split", "t1", Integer.toString(i)).setRouting(routingValue[i]).get();
+            GetResponse getResponse = client().prepareGet("first_split", Integer.toString(i)).setRouting(routingValue[i]).get();
             assertTrue(getResponse.isExists());
         }
 
@@ -274,7 +274,7 @@ public class SplitIndexIT extends OpenSearchIntegTestCase {
         }
         flushAndRefresh();
         for (int i = 0; i < numDocs; i++) {
-            GetResponse getResponse = client().prepareGet("second_split", "t1", Integer.toString(i)).setRouting(routingValue[i]).get();
+            GetResponse getResponse = client().prepareGet("second_split", Integer.toString(i)).setRouting(routingValue[i]).get();
             assertTrue(getResponse.isExists());
         }
         assertHitCount(client().prepareSearch("second_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);

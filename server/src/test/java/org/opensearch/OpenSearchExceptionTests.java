@@ -566,7 +566,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
     public void testFromXContentWithCause() throws IOException {
         OpenSearchException e = new OpenSearchException(
             "foo",
-            new OpenSearchException("bar", new OpenSearchException("baz", new RoutingMissingException("_test", "_type", "_id")))
+            new OpenSearchException("bar", new OpenSearchException("baz", new RoutingMissingException("_test", "_id")))
         );
 
         final XContent xContent = randomFrom(XContentType.values()).xContent();
@@ -594,7 +594,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         cause = (OpenSearchException) cause.getCause();
         assertEquals(
             cause.getMessage(),
-            "OpenSearch exception [type=routing_missing_exception, reason=routing is required for [_test]/[_type]/[_id]]"
+            "OpenSearch exception [type=routing_missing_exception, reason=routing is required for [_test]/[_id]]"
         );
         assertThat(cause.getHeaderKeys(), hasSize(0));
         assertThat(cause.getMetadataKeys(), hasSize(2));
@@ -603,7 +603,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
     }
 
     public void testFromXContentWithHeadersAndMetadata() throws IOException {
-        RoutingMissingException routing = new RoutingMissingException("_test", "_type", "_id");
+        RoutingMissingException routing = new RoutingMissingException("_test", "_id");
         OpenSearchException baz = new OpenSearchException("baz", routing);
         baz.addHeader("baz_0", "baz0");
         baz.addMetadata("opensearch.baz_1", "baz1");
@@ -656,7 +656,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         cause = (OpenSearchException) cause.getCause();
         assertEquals(
             cause.getMessage(),
-            "OpenSearch exception [type=routing_missing_exception, reason=routing is required for [_test]/[_type]/[_id]]"
+            "OpenSearch exception [type=routing_missing_exception, reason=routing is required for [_test]/[_id]]"
         );
         assertThat(cause.getHeaderKeys(), hasSize(0));
         assertThat(cause.getMetadataKeys(), hasSize(2));
@@ -878,7 +878,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
                 break;
 
             case 4: // JDK exception with cause
-                failureCause = new RoutingMissingException("idx", "type", "id");
+                failureCause = new RoutingMissingException("idx", "id");
                 failure = new RuntimeException("E", failureCause);
 
                 expectedCause = new OpenSearchException(

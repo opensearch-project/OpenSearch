@@ -532,8 +532,8 @@ public abstract class AbstractClient implements Client {
     }
 
     @Override
-    public GetRequestBuilder prepareGet(String index, String type, String id) {
-        return prepareGet().setIndex(index).setType(type).setId(id);
+    public GetRequestBuilder prepareGet(String index, String id) {
+        return prepareGet().setIndex(index).setId(id);
     }
 
     @Override

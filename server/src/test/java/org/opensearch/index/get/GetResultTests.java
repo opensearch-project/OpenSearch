@@ -97,7 +97,6 @@ public class GetResultTests extends OpenSearchTestCase {
         {
             GetResult getResult = new GetResult(
                 "index",
-                "type",
                 "id",
                 0,
                 1,
@@ -116,7 +115,7 @@ public class GetResultTests extends OpenSearchTestCase {
             );
         }
         {
-            GetResult getResult = new GetResult("index", "type", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null, null);
+            GetResult getResult = new GetResult("index", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null, null);
             String output = Strings.toString(getResult);
             assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"found\":false}", output);
         }
@@ -129,7 +128,6 @@ public class GetResultTests extends OpenSearchTestCase {
         // We don't expect to retrieve the index/type/id of the GetResult because they are not rendered
         // by the toXContentEmbedded method.
         GetResult expectedGetResult = new GetResult(
-            null,
             null,
             null,
             tuple.v2().getSeqNo(),
@@ -166,7 +164,6 @@ public class GetResultTests extends OpenSearchTestCase {
 
         GetResult getResult = new GetResult(
             "index",
-            "type",
             "id",
             0,
             1,
@@ -186,7 +183,7 @@ public class GetResultTests extends OpenSearchTestCase {
     }
 
     public void testToXContentEmbeddedNotFound() throws IOException {
-        GetResult getResult = new GetResult("index", "type", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null, null);
+        GetResult getResult = new GetResult("index", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null, null);
 
         BytesReference originalBytes = toXContentEmbedded(getResult, XContentType.JSON, false);
         assertEquals("{\"found\":false}", originalBytes.utf8ToString());
@@ -194,7 +191,7 @@ public class GetResultTests extends OpenSearchTestCase {
 
     public void testSerializationNotFound() throws IOException {
         // serializes and deserializes with streamable, then prints back to xcontent
-        GetResult getResult = new GetResult("index", "type", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null, null);
+        GetResult getResult = new GetResult("index", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null, null);
 
         BytesStreamOutput out = new BytesStreamOutput();
         getResult.writeTo(out);
@@ -222,7 +219,6 @@ public class GetResultTests extends OpenSearchTestCase {
     public static GetResult copyGetResult(GetResult getResult) {
         return new GetResult(
             getResult.getIndex(),
-            getResult.getType(),
             getResult.getId(),
             getResult.getSeqNo(),
             getResult.getPrimaryTerm(),
@@ -239,7 +235,19 @@ public class GetResultTests extends OpenSearchTestCase {
         mutations.add(
             () -> new GetResult(
                 randomUnicodeOfLength(15),
-                getResult.getType(),
+                getResult.getId(),
+                getResult.getSeqNo(),
+                getResult.getPrimaryTerm(),
+                getResult.getVersion(),
+                getResult.isExists(),
+                getResult.internalSourceRef(),
+                getResult.getFields(),
+                null
+            )
+        );
+        mutations.add(
+            () -> new GetResult(
+                getResult.getIndex(),
                 getResult.getId(),
                 getResult.getSeqNo(),
                 getResult.getPrimaryTerm(),
@@ -254,7 +262,6 @@ public class GetResultTests extends OpenSearchTestCase {
             () -> new GetResult(
                 getResult.getIndex(),
                 randomUnicodeOfLength(15),
-                getResult.getId(),
                 getResult.getSeqNo(),
                 getResult.getPrimaryTerm(),
                 getResult.getVersion(),
@@ -267,21 +274,6 @@ public class GetResultTests extends OpenSearchTestCase {
         mutations.add(
             () -> new GetResult(
                 getResult.getIndex(),
-                getResult.getType(),
-                randomUnicodeOfLength(15),
-                getResult.getSeqNo(),
-                getResult.getPrimaryTerm(),
-                getResult.getVersion(),
-                getResult.isExists(),
-                getResult.internalSourceRef(),
-                getResult.getFields(),
-                null
-            )
-        );
-        mutations.add(
-            () -> new GetResult(
-                getResult.getIndex(),
-                getResult.getType(),
                 getResult.getId(),
                 getResult.getSeqNo(),
                 getResult.getPrimaryTerm(),
@@ -295,7 +287,6 @@ public class GetResultTests extends OpenSearchTestCase {
         mutations.add(
             () -> new GetResult(
                 getResult.getIndex(),
-                getResult.getType(),
                 getResult.getId(),
                 getResult.isExists() ? UNASSIGNED_SEQ_NO : getResult.getSeqNo(),
                 getResult.isExists() ? 0 : getResult.getPrimaryTerm(),
@@ -309,7 +300,6 @@ public class GetResultTests extends OpenSearchTestCase {
         mutations.add(
             () -> new GetResult(
                 getResult.getIndex(),
-                getResult.getType(),
                 getResult.getId(),
                 getResult.getSeqNo(),
                 getResult.getPrimaryTerm(),
@@ -323,7 +313,6 @@ public class GetResultTests extends OpenSearchTestCase {
         mutations.add(
             () -> new GetResult(
                 getResult.getIndex(),
-                getResult.getType(),
                 getResult.getId(),
                 getResult.getSeqNo(),
                 getResult.getPrimaryTerm(),
@@ -373,10 +362,9 @@ public class GetResultTests extends OpenSearchTestCase {
             version = -1;
             exists = false;
         }
-        GetResult getResult = new GetResult(index, type, id, seqNo, primaryTerm, version, exists, source, docFields, metaFields);
+        GetResult getResult = new GetResult(index, id, seqNo, primaryTerm, version, exists, source, docFields, metaFields);
         GetResult expectedGetResult = new GetResult(
             index,
-            type,
             id,
             seqNo,
             primaryTerm,

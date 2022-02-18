@@ -224,7 +224,7 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
         index.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         final IndexResponse response = index.get();
         assertThat(response.status(), equalTo(RestStatus.CREATED));
-        final GetRequestBuilder get = client().prepareGet("index", "_doc", "1");
+        final GetRequestBuilder get = client().prepareGet("index", "1");
         final GetResponse getResponse = get.get();
         assertTrue(getResponse.isExists());
         final Map<String, Object> source = getResponse.getSourceAsMap();
@@ -252,7 +252,7 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
         index.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         final IndexResponse response = index.get();
         assertThat(response.status(), equalTo(RestStatus.CREATED));
-        final GetRequestBuilder get = client().prepareGet("index", "_doc", "1");
+        final GetRequestBuilder get = client().prepareGet("index", "1");
         final GetResponse getResponse = get.get();
         assertTrue(getResponse.isExists());
         final Map<String, Object> source = getResponse.getSourceAsMap();
@@ -302,7 +302,7 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
         index.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         final IndexResponse response = index.get();
         assertThat(response.status(), equalTo(RestStatus.CREATED));
-        final GetRequestBuilder get = client().prepareGet("index", "_doc", "1");
+        final GetRequestBuilder get = client().prepareGet("index", "1");
         final GetResponse getResponse = get.get();
         assertTrue(getResponse.isExists());
         final Map<String, Object> source = getResponse.getSourceAsMap();

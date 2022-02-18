@@ -284,7 +284,7 @@ final class RequestConverters {
     }
 
     private static Request getStyleRequest(String method, GetRequest getRequest) {
-        Request request = new Request(method, endpoint(getRequest.index(), getRequest.type(), getRequest.id()));
+        Request request = new Request(method, endpoint(getRequest.index(), getRequest.id()));
 
         Params parameters = new Params();
         parameters.withPreference(getRequest.preference());
@@ -315,13 +315,7 @@ final class RequestConverters {
         parameters.withRealtime(getSourceRequest.realtime());
         parameters.withFetchSourceContext(getSourceRequest.fetchSourceContext());
 
-        String optionalType = getSourceRequest.type();
-        String endpoint;
-        if (optionalType == null) {
-            endpoint = endpoint(getSourceRequest.index(), "_source", getSourceRequest.id());
-        } else {
-            endpoint = endpoint(getSourceRequest.index(), optionalType, getSourceRequest.id(), "_source");
-        }
+        String endpoint = endpoint(getSourceRequest.index(), "_source", getSourceRequest.id());
         Request request = new Request(httpMethodName, endpoint);
         request.addParameters(parameters.asMap());
         return request;
@@ -797,6 +791,10 @@ final class RequestConverters {
         throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, toXContentParams, false).toBytesRef();
         return new NByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
+    }
+
+    static String endpoint(String index, String id) {
+        return new EndpointBuilder().addPathPart(index, MapperService.SINGLE_MAPPING_NAME, id).build();
     }
 
     @Deprecated

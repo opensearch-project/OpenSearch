@@ -51,6 +51,7 @@ import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.DocumentMissingException;
 import org.opensearch.index.engine.DocumentSourceMissingException;
 import org.opensearch.index.get.GetResult;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
@@ -82,8 +83,7 @@ public class UpdateHelper {
      * Prepares an update request by converting it into an index or delete request or an update response (no action).
      */
     public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis) {
-        final GetResult getResult = indexShard.getService()
-            .getForUpdate(request.type(), request.id(), request.ifSeqNo(), request.ifPrimaryTerm());
+        final GetResult getResult = indexShard.getService().getForUpdate(request.id(), request.ifSeqNo(), request.ifPrimaryTerm());
         return prepare(indexShard.shardId(), request, getResult, nowInMillis);
     }
 
@@ -156,7 +156,7 @@ public class UpdateHelper {
                 case NONE:
                     UpdateResponse update = new UpdateResponse(
                         shardId,
-                        getResult.getType(),
+                        MapperService.SINGLE_MAPPING_NAME,
                         getResult.getId(),
                         getResult.getSeqNo(),
                         getResult.getPrimaryTerm(),
@@ -221,7 +221,7 @@ public class UpdateHelper {
         if (detectNoop && noop) {
             UpdateResponse update = new UpdateResponse(
                 shardId,
-                getResult.getType(),
+                MapperService.SINGLE_MAPPING_NAME,
                 getResult.getId(),
                 getResult.getSeqNo(),
                 getResult.getPrimaryTerm(),
@@ -271,7 +271,6 @@ public class UpdateHelper {
         Map<String, Object> ctx = new HashMap<>(16);
         ctx.put(ContextFields.OP, UpdateOpType.INDEX.toString()); // The default operation is "index"
         ctx.put(ContextFields.INDEX, getResult.getIndex());
-        ctx.put(ContextFields.TYPE, getResult.getType());
         ctx.put(ContextFields.ID, getResult.getId());
         ctx.put(ContextFields.VERSION, getResult.getVersion());
         ctx.put(ContextFields.ROUTING, routing);
@@ -313,7 +312,7 @@ public class UpdateHelper {
                 // If it was neither an INDEX or DELETE operation, treat it as a noop
                 UpdateResponse update = new UpdateResponse(
                     shardId,
-                    getResult.getType(),
+                    MapperService.SINGLE_MAPPING_NAME,
                     getResult.getId(),
                     getResult.getSeqNo(),
                     getResult.getPrimaryTerm(),
@@ -386,7 +385,6 @@ public class UpdateHelper {
         // TODO when using delete/none, we can still return the source as bytes by generating it (using the sourceContentType)
         return new GetResult(
             concreteIndex,
-            request.type(),
             request.id(),
             seqNo,
             primaryTerm,

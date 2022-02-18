@@ -45,6 +45,7 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.index.get.GetResultTests;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
@@ -110,7 +111,7 @@ public class UpdateResponseTests extends OpenSearchTestCase {
                 2,
                 UPDATED
             );
-            updateResponse.setGetResult(new GetResult("books", "book", "1", 0, 1, 2, true, source, fields, null));
+            updateResponse.setGetResult(new GetResult("books", "1", 0, 1, 2, true, source, fields, null));
 
             String output = Strings.toString(updateResponse);
             assertEquals(
@@ -192,7 +193,6 @@ public class UpdateResponseTests extends OpenSearchTestCase {
         GetResult expectedGetResult = getResults.v2();
 
         String index = actualGetResult.getIndex();
-        String type = actualGetResult.getType();
         String id = actualGetResult.getId();
         long version = actualGetResult.getVersion();
         DocWriteResponse.Result result = actualGetResult.isExists() ? DocWriteResponse.Result.UPDATED : DocWriteResponse.Result.NOT_FOUND;
@@ -211,11 +211,29 @@ public class UpdateResponseTests extends OpenSearchTestCase {
         if (seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
             Tuple<ReplicationResponse.ShardInfo, ReplicationResponse.ShardInfo> shardInfos = RandomObjects.randomShardInfo(random());
 
-            actual = new UpdateResponse(shardInfos.v1(), actualShardId, type, id, seqNo, primaryTerm, version, result);
-            expected = new UpdateResponse(shardInfos.v2(), expectedShardId, type, id, seqNo, primaryTerm, version, result);
+            actual = new UpdateResponse(
+                shardInfos.v1(),
+                actualShardId,
+                MapperService.SINGLE_MAPPING_NAME,
+                id,
+                seqNo,
+                primaryTerm,
+                version,
+                result
+            );
+            expected = new UpdateResponse(
+                shardInfos.v2(),
+                expectedShardId,
+                MapperService.SINGLE_MAPPING_NAME,
+                id,
+                seqNo,
+                primaryTerm,
+                version,
+                result
+            );
         } else {
-            actual = new UpdateResponse(actualShardId, type, id, seqNo, primaryTerm, version, result);
-            expected = new UpdateResponse(expectedShardId, type, id, seqNo, primaryTerm, version, result);
+            actual = new UpdateResponse(actualShardId, MapperService.SINGLE_MAPPING_NAME, id, seqNo, primaryTerm, version, result);
+            expected = new UpdateResponse(expectedShardId, MapperService.SINGLE_MAPPING_NAME, id, seqNo, primaryTerm, version, result);
         }
 
         if (actualGetResult.isExists()) {

@@ -72,7 +72,7 @@ public class RestGetSourceActionTests extends RestActionTestCase {
     public void testRestGetSourceAction() throws Exception {
         final BytesReference source = new BytesArray("{\"foo\": \"bar\"}");
         final GetResponse response = new GetResponse(
-            new GetResult("index1", "_doc", "1", UNASSIGNED_SEQ_NO, 0, -1, true, source, emptyMap(), null)
+            new GetResult("index1", "1", UNASSIGNED_SEQ_NO, 0, -1, true, source, emptyMap(), null)
         );
 
         final RestResponse restResponse = listener.buildResponse(response);
@@ -83,9 +83,7 @@ public class RestGetSourceActionTests extends RestActionTestCase {
     }
 
     public void testRestGetSourceActionWithMissingDocument() {
-        final GetResponse response = new GetResponse(
-            new GetResult("index1", "_doc", "1", UNASSIGNED_SEQ_NO, 0, -1, false, null, emptyMap(), null)
-        );
+        final GetResponse response = new GetResponse(new GetResult("index1", "1", UNASSIGNED_SEQ_NO, 0, -1, false, null, emptyMap(), null));
 
         final ResourceNotFoundException exception = expectThrows(ResourceNotFoundException.class, () -> listener.buildResponse(response));
 
@@ -93,12 +91,10 @@ public class RestGetSourceActionTests extends RestActionTestCase {
     }
 
     public void testRestGetSourceActionWithMissingDocumentSource() {
-        final GetResponse response = new GetResponse(
-            new GetResult("index1", "_doc", "1", UNASSIGNED_SEQ_NO, 0, -1, true, null, emptyMap(), null)
-        );
+        final GetResponse response = new GetResponse(new GetResult("index1", "1", UNASSIGNED_SEQ_NO, 0, -1, true, null, emptyMap(), null));
 
         final ResourceNotFoundException exception = expectThrows(ResourceNotFoundException.class, () -> listener.buildResponse(response));
 
-        assertThat(exception.getMessage(), equalTo("Source not found [index1]/[_doc]/[1]"));
+        assertThat(exception.getMessage(), equalTo("Source not found [index1]/[1]"));
     }
 }
