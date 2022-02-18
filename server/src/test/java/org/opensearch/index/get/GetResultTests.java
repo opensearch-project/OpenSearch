@@ -108,7 +108,7 @@ public class GetResultTests extends OpenSearchTestCase {
             );
             String output = Strings.toString(getResult);
             assertEquals(
-                "{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":1,\"_seq_no\":0,\"_primary_term\":1,"
+                "{\"_index\":\"index\",\"_id\":\"id\",\"_version\":1,\"_seq_no\":0,\"_primary_term\":1,"
                     + "\"metafield\":\"metavalue\",\"found\":true,\"_source\":{ \"field1\" : \"value1\", \"field2\":\"value2\"},"
                     + "\"fields\":{\"field1\":[\"value1\"]}}",
                 output
@@ -117,7 +117,7 @@ public class GetResultTests extends OpenSearchTestCase {
         {
             GetResult getResult = new GetResult("index", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null, null);
             String output = Strings.toString(getResult);
-            assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"found\":false}", output);
+            assertEquals("{\"_index\":\"index\",\"_id\":\"id\",\"found\":false}", output);
         }
     }
 

@@ -87,7 +87,7 @@ public class RestGetSourceActionTests extends RestActionTestCase {
 
         final ResourceNotFoundException exception = expectThrows(ResourceNotFoundException.class, () -> listener.buildResponse(response));
 
-        assertThat(exception.getMessage(), equalTo("Document not found [index1]/[_doc]/[1]"));
+        assertThat(exception.getMessage(), equalTo("Document not found [index1]/[1]"));
     }
 
     public void testRestGetSourceActionWithMissingDocumentSource() {

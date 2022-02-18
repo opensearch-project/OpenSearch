@@ -53,8 +53,8 @@ public class GetRequestTests extends OpenSearchTestCase {
             final ActionRequestValidationException validate = request.validate();
 
             assertThat(validate, not(nullValue()));
-            assertEquals(2, validate.validationErrors().size());
-            assertThat(validate.validationErrors(), hasItems("type is missing", "id is missing"));
+            assertEquals(1, validate.validationErrors().size());
+            assertThat(validate.validationErrors(), hasItems("id is missing"));
         }
     }
 }
