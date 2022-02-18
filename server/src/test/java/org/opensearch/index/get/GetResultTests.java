@@ -248,19 +248,6 @@ public class GetResultTests extends OpenSearchTestCase {
         mutations.add(
             () -> new GetResult(
                 getResult.getIndex(),
-                getResult.getId(),
-                getResult.getSeqNo(),
-                getResult.getPrimaryTerm(),
-                getResult.getVersion(),
-                getResult.isExists(),
-                getResult.internalSourceRef(),
-                getResult.getFields(),
-                null
-            )
-        );
-        mutations.add(
-            () -> new GetResult(
-                getResult.getIndex(),
                 randomUnicodeOfLength(15),
                 getResult.getSeqNo(),
                 getResult.getPrimaryTerm(),
