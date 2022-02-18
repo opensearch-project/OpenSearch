@@ -46,13 +46,9 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
-import org.opensearch.index.engine.EngineException;
-import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.IndexShardRecoveryException;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
-import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.recovery.MultiFileWriter;
 import org.opensearch.indices.recovery.RecoveryRequestTracker;
 import org.opensearch.indices.recovery.RecoveryState;
@@ -124,48 +120,18 @@ public class ReplicationTarget extends AbstractRefCounted {
     }
 
     public void startReplication(ActionListener<ReplicationResponse> listener) {
-        final StepListener<Boolean> shardStartedListener = new StepListener<>();
         final StepListener<TransportCheckpointInfoResponse> checkpointInfoListener = new StepListener<>();
         final StepListener<GetFilesResponse> getFilesListener = new StepListener<>();
         final StepListener<Void> finalizeListener = new StepListener<>();
 
-        ensureShardStarted(shardStartedListener);
-
         // Get list of files to copy from this checkpoint.
-        shardStartedListener.whenComplete(r -> source.getCheckpointInfo(replicationId, checkpoint, checkpointInfoListener), listener::onFailure);
+        source.getCheckpointInfo(replicationId, checkpoint, checkpointInfoListener);
 
         checkpointInfoListener.whenComplete(checkpointInfo -> getFiles(checkpointInfo, getFilesListener), listener::onFailure);
         getFilesListener.whenComplete(response -> finalizeReplication(checkpointInfoListener.result(), finalizeListener), listener::onFailure);
         finalizeListener.whenComplete(r -> listener.onResponse(new ReplicationResponse()), listener::onFailure);
     }
 
-    private void ensureShardStarted(StepListener<Boolean> shardStartedListener) {
-        if (indexShard.recoveryState().getStage() == RecoveryState.Stage.INIT) {
-            setupReplicaShard(indexShard, shardStartedListener);
-        } else {
-            shardStartedListener.onResponse(true);
-        }
-    }
-
-    private void setupReplicaShard(IndexShard indexShard, StepListener<Boolean> shardStartedListener) throws IndexShardRecoveryException {
-        indexShard.prepareForIndexRecovery();
-        final Store store = indexShard.store();
-        store.incRef();
-        try {
-            store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion);
-            final String translogUUID = Translog.createEmptyTranslog(
-                indexShard.shardPath().resolveTranslog(), SequenceNumbers.NO_OPS_PERFORMED, indexShard.shardId(),
-                indexShard.getPendingPrimaryTerm());
-            store.associateIndexWithNewTranslog(translogUUID);
-            indexShard.persistRetentionLeases();
-            indexShard.openEngineAndRecoverFromTranslog();
-            shardStartedListener.onResponse(true);
-        } catch (EngineException | IOException e) {
-            throw new IndexShardRecoveryException(indexShard.shardId(), "failed to start replica shard", e);
-        } finally {
-            store.decRef();
-        }
-    }
 
     public Store store() {
         ensureRefCount();

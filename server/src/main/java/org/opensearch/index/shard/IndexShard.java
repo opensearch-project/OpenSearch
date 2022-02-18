@@ -167,6 +167,7 @@ import org.opensearch.indices.replication.copy.PrimaryShardReplicationSource;
 import org.opensearch.indices.replication.copy.ReplicationCheckpoint;
 import org.opensearch.indices.replication.copy.ReplicationFailedException;
 import org.opensearch.indices.replication.copy.ReplicationState;
+import org.opensearch.indices.replication.copy.TrackShardResponse;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.rest.RestStatus;
@@ -3081,8 +3082,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             case PEER:
                 try {
                     markAsRecovering("from " + recoveryState.getSourceNode(), recoveryState);
-                    markAsReplicating();
-                    segmentReplicationService.startReplication(new ReplicationCheckpoint(this.shardId, -10, -10, 0), this, replicationSource, replicationListener);
+                    segmentReplicationService.prepareForReplication(this, recoveryState.getTargetNode(), recoveryState.getSourceNode(), new ActionListener<TrackShardResponse>() {
+                        @Override
+                        public void onResponse(TrackShardResponse unused) {
+                            replicationListener.onReplicationDone(replicationState);
+                            recoveryState.getIndex().setFileDetailsComplete();
+                            finalizeRecovery();
+                            postRecovery("Segrep recovery complete.");
+                        }
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.error("fail", e);
+                        }
+                    });
                 } catch (Exception e) {
                     logger.error("Error", e);
                     failShard("corrupted preexisting index", e);
@@ -3692,32 +3704,37 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Invoked when a new checkpoint is received from a primary shard.  Starts the copy process.
      */
-    public void onNewCheckpoint(final PublishCheckpointRequest request,
+    public synchronized void onNewCheckpoint(final PublishCheckpointRequest request,
                                 final PrimaryShardReplicationSource source,
                                 final SegmentReplicationService segmentReplicationService) {
-        if (this.replicationState.getStage() == ReplicationState.Stage.INACTIVE) {
-            try {
-                final ReplicationCheckpoint checkpoint = request.getCheckpoint();
-                logger.trace("Received new checkpoint {}", checkpoint);
-                // TODO: segrep - these are the states set after we perform our initial store recovery.
-                if (RecoveryState.Stage.TRANSLOG != this.recoveryState.getStage() && this.state.equals(IndexShardState.RECOVERING) == false) {
-                    logger.debug("Ignore - shard is not started {} {}", recoveryState.getStage(), this.state);
-                    return;
+        if (state.equals(IndexShardState.STARTED) == false) {
+            logger.debug("Ignore - shard is not started {} {}", recoveryState.getStage(), this.state);
+            return;
+        }
+        if (isReplicating()) {
+            logger.info("Ignore - shard is currently replicating to a checkpoint");
+            return;
+        }
+        try {
+            markAsReplicating();
+            final ReplicationCheckpoint checkpoint = request.getCheckpoint();
+            logger.trace("Received new checkpoint {}", checkpoint);
+            // TODO: segrep - these are the states set after we perform our initial store recovery.
+            segmentReplicationService.startReplication(checkpoint, this, source, new SegmentReplicationService.ReplicationListener() {
+                @Override
+                public void onReplicationDone(ReplicationState state) {
+                    finalizeReplication();
+                    logger.info("Replication complete.");
                 }
-                segmentReplicationService.startReplication(checkpoint, this, source, new SegmentReplicationService.ReplicationListener() {
-                    @Override
-                    public void onReplicationDone(ReplicationState state) {
-                        logger.trace("Replication complete.");
-                    }
 
-                    @Override
-                    public void onReplicationFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
-                        logger.error("Failure", e);
-                    }
-                });
-            } catch (Exception e) {
-                logger.error("Error", e);
-            }
+                @Override
+                public void onReplicationFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
+                    finalizeReplication();
+                    logger.error("Failure", e);
+                }
+            });
+        } catch (Exception e) {
+            logger.error("Error", e);
         }
     }
 
@@ -3726,11 +3743,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void markAsReplicating() {
-        replicationState.setStage(ReplicationState.Stage.ACTIVE);
+        this.replicationState.setStage(ReplicationState.Stage.ACTIVE);
     }
 
     public void finalizeReplication() {
-        replicationState.setStage(ReplicationState.Stage.INACTIVE);
+        this.replicationState.setStage(ReplicationState.Stage.INACTIVE);
+    }
+
+    private boolean isReplicating() {
+        return this.replicationState.getStage() == ReplicationState.Stage.ACTIVE;
     }
 
     /**

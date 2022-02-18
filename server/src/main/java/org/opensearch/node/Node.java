@@ -931,7 +931,7 @@ public class Node implements Closeable {
                 }
                 b.bind(SegmentReplicationPrimaryService.class)
                     .toInstance(new SegmentReplicationPrimaryService(transportService, indicesService, recoverySettings));
-                final SegmentReplicationService segmentReplicationService = new SegmentReplicationService(threadPool, recoverySettings);
+                final SegmentReplicationService segmentReplicationService = new SegmentReplicationService(threadPool, recoverySettings, transportService);
                 b.bind(SegmentReplicationService.class).toInstance(segmentReplicationService);
                 b.bind(PrimaryShardReplicationSource.class).toInstance(new PrimaryShardReplicationSource(transportService, clusterService, indicesService, recoverySettings, segmentReplicationService));
                 b.bind(HttpServerTransport.class).toInstance(httpServerTransport);

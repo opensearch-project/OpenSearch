@@ -639,7 +639,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             indicesService.createShard(
                 shardRouting,
                 replicationReplicaService,
-                new ReplicationListener(),
+                new ReplicationListener(shardRouting, primaryTerm),
                 replicationSource,
                 recoveryTargetService,
                 new RecoveryListener(shardRouting, primaryTerm),
@@ -761,16 +761,31 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     private class ReplicationListener implements SegmentReplicationService.ReplicationListener {
 
-        private ReplicationListener() {}
+        /**
+         * ShardRouting with which the shard was created
+         */
+        private final ShardRouting shardRouting;
+
+        /**
+         * Primary term with which the shard was created
+         */
+        private final long primaryTerm;
+
+        private ReplicationListener(final ShardRouting shardRouting, final long primaryTerm) {
+            this.shardRouting = shardRouting;
+            this.primaryTerm = primaryTerm;
+        }
 
         @Override
         public void onReplicationDone(final ReplicationState state) {
-            logger.info("Replication Done");
+            logger.info("Shard setup complete, ready for segment copy.");
+            shardStateAction.shardStarted(shardRouting, primaryTerm, "after replication", SHARD_STATE_ACTION_LISTENER);
         }
 
         @Override
         public void onReplicationFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
-            logger.error("Replication failed", e);
+            handleRecoveryFailure(shardRouting, sendShardFailure, e);
+            logger.error("Shard setup failed", e);
         }
     }
 

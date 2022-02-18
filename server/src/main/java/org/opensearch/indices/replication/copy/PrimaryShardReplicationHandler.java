@@ -167,11 +167,21 @@ public class PrimaryShardReplicationHandler {
                 throw new RecoveryEngineException(shard.shardId(), 1, "sendFileStep failed", e);
             }
 
-            // TODO: This only needs to happen on the initial setup.
             sendFileStep.whenComplete(r -> {
-                runUnderPrimaryPermit(() -> shard.initiateTracking(targetAllocationId),
-                    shardId + " initiating tracking of " + targetAllocationId, shard, cancellableThreads, logger);
-
+                runUnderPrimaryPermit(
+                    () -> shard.updateLocalCheckpointForShard(targetAllocationId, request.getCheckpoint().getSeqNo()),
+                    shardId + " updating local checkpoint for " + targetAllocationId,
+                    shard,
+                    cancellableThreads,
+                    logger
+                );
+                runUnderPrimaryPermit(
+                    () -> shard.markAllocationIdAsInSync(targetAllocationId, request.getCheckpoint().getSeqNo()),
+                    shardId + " marking " + targetAllocationId + " as in sync",
+                    shard,
+                    cancellableThreads,
+                    logger
+                );
                 try {
                     future.onResponse(new GetFilesResponse());
                 } finally {

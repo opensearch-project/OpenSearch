@@ -37,7 +37,9 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
@@ -65,6 +67,7 @@ public class SegmentReplicationPrimaryService {
     public static class Actions {
         public static final String GET_CHECKPOINT_INFO = "internal:index/shard/segrep/checkpoint_info";
         public static final String GET_FILES = "internal:index/shard/segrep/get_files";
+        public static final String TRACK_SHARD = "internal:index/shard/segrep/track_shard";
     }
 
     private final TransportService transportService;
@@ -93,6 +96,13 @@ public class SegmentReplicationPrimaryService {
             GetFilesRequest::new,
             new GetFilesRequestHandler()
         );
+
+        transportService.registerRequestHandler(
+            Actions.TRACK_SHARD,
+            ThreadPool.Names.GENERIC,
+            TrackShardRequest::new,
+            new TrackShardRequestHandler()
+        );
     }
 
     private static final class CopyStateCache {
@@ -103,6 +113,7 @@ public class SegmentReplicationPrimaryService {
         }
 
         public CopyState getCopyStateForCheckpoint(ReplicationCheckpoint checkpoint) {
+            // TODO: We should incref here and return from StartReplicationHandler...
             return checkpointCopyState.get(checkpoint);
         }
 
@@ -127,6 +138,7 @@ public class SegmentReplicationPrimaryService {
             final ShardId shardId = checkpoint.getShardId();
             final IndexService indexService = indicesService.indexService(shardId.getIndex());
             final IndexShard shard = indexService.getShard(shardId.id());
+
             // If we don't have the requested checkpoint, create a new one from the latest commit on the shard.
             // TODO: Segrep - need checkpoint validation.
             CopyState nrtCopyState = new CopyState(shard);
@@ -139,7 +151,7 @@ public class SegmentReplicationPrimaryService {
         @Override
         public void messageReceived(GetFilesRequest request, TransportChannel channel, Task task) throws Exception {
             if (commitCache.hasCheckpoint(request.getCheckpoint())) {
-              sendFiles(request, new ChannelActionListener<>(channel, Actions.GET_FILES, request));
+                sendFiles(request, new ChannelActionListener<>(channel, Actions.GET_FILES, request));
             } else {
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
             }
@@ -150,35 +162,67 @@ public class SegmentReplicationPrimaryService {
         final ShardId shardId = request.getCheckpoint().getShardId();
         logger.trace("Requested checkpoint {}", request.getCheckpoint());
 
-            final CopyState copyState = commitCache.getCopyStateForCheckpoint(request.getCheckpoint());
+        final CopyState copyState = commitCache.getCopyStateForCheckpoint(request.getCheckpoint());
+
+        final IndexService indexService = indicesService.indexService(shardId.getIndex());
+        final IndexShard shard = indexService.getShard(shardId.id());
+        final ReplicaClient replicationTargetHandler = new ReplicaClient(
+            shardId,
+            transportService,
+            request.getTargetNode(),
+            recoverySettings,
+            throttleTime -> shard.recoveryStats().addThrottleTime(throttleTime)
+        );
+        PrimaryShardReplicationHandler handler = new PrimaryShardReplicationHandler(
+            request.getReplicationId(),
+            shard,
+            request.getTargetNode(),
+            request.getTargetAllocationId(),
+            replicationTargetHandler,
+            shard.getThreadPool(),
+            request,
+            Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
+            recoverySettings.getMaxConcurrentFileChunks(),
+            recoverySettings.getMaxConcurrentOperations());
+        logger.info(
+            "[{}][{}] fetching files for {}",
+            shardId.getIndex().getName(),
+            shardId.id(),
+            request.getTargetNode()
+        );
+        // TODO: The calling shard could die between requests without finishing.
+        handler.sendFiles(copyState, ActionListener.runAfter(listener, () -> commitCache.removeCopyState(request.getCheckpoint())));
+    }
+
+    class TrackShardRequestHandler implements TransportRequestHandler<TrackShardRequest> {
+        @Override
+        public void messageReceived(TrackShardRequest request, TransportChannel channel, Task task) throws Exception {
+
+            final ShardId shardId = request.getShardId();
+            final String targetAllocationId = request.getTargetAllocationId();
 
             final IndexService indexService = indicesService.indexService(shardId.getIndex());
             final IndexShard shard = indexService.getShard(shardId.id());
-            final ReplicaClient replicationTargetHandler = new ReplicaClient(
-                shardId,
-                transportService,
-                request.getTargetNode(),
-                recoverySettings,
-                throttleTime -> shard.recoveryStats().addThrottleTime(throttleTime)
-            );
-            PrimaryShardReplicationHandler handler = new PrimaryShardReplicationHandler(
-                request.getReplicationId(),
+
+            PrimaryShardReplicationHandler.runUnderPrimaryPermit(() -> shard.initiateTracking(targetAllocationId),
+                shardId + " initiating tracking of " + targetAllocationId, shard, new CancellableThreads(), logger);
+
+            PrimaryShardReplicationHandler.runUnderPrimaryPermit(
+                () -> shard.updateLocalCheckpointForShard(targetAllocationId, SequenceNumbers.NO_OPS_PERFORMED),
+                shardId + " marking " + targetAllocationId + " as in sync",
                 shard,
-                request.getTargetNode(),
-                request.getTargetAllocationId(),
-                replicationTargetHandler,
-                shard.getThreadPool(),
-                request,
-                Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
-                recoverySettings.getMaxConcurrentFileChunks(),
-                recoverySettings.getMaxConcurrentOperations());
-            logger.info(
-                "[{}][{}] fetching files for {}",
-                shardId.getIndex().getName(),
-                shardId.id(),
-                request.getTargetNode()
+                new CancellableThreads(),
+                logger
             );
-            // TODO: The calling shard could die between requests without finishing.
-            handler.sendFiles(copyState, ActionListener.runAfter(listener, () -> commitCache.removeCopyState(request.getCheckpoint())));
+            PrimaryShardReplicationHandler.runUnderPrimaryPermit(
+                () -> shard.markAllocationIdAsInSync(targetAllocationId, SequenceNumbers.NO_OPS_PERFORMED),
+                shardId + " marking " + targetAllocationId + " as in sync",
+                shard,
+                new CancellableThreads(),
+                logger
+            );
+
+            channel.sendResponse(new TrackShardResponse());
+        }
     }
 }

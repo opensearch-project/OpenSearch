@@ -13,14 +13,23 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.support.replication.ReplicationResponse;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.index.engine.EngineException;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.IndexShardRecoveryException;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.store.Store;
+import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.Timer;
 import org.opensearch.indices.replication.copy.PrimaryShardReplicationSource;
@@ -29,7 +38,16 @@ import org.opensearch.indices.replication.copy.ReplicationCollection;
 import org.opensearch.indices.replication.copy.ReplicationFailedException;
 import org.opensearch.indices.replication.copy.ReplicationState;
 import org.opensearch.indices.replication.copy.ReplicationTarget;
+import org.opensearch.indices.replication.copy.SegmentReplicationPrimaryService;
+import org.opensearch.indices.replication.copy.TrackShardRequest;
+import org.opensearch.indices.replication.copy.TrackShardResponse;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportException;
+import org.opensearch.transport.TransportResponse;
+import org.opensearch.transport.TransportResponseHandler;
+import org.opensearch.transport.TransportService;
+
+import java.io.IOException;
 
 /**
  * Orchestrator of replication events.
@@ -40,6 +58,7 @@ public class SegmentReplicationService implements IndexEventListener {
 
     private final ThreadPool threadPool;
     private final RecoverySettings recoverySettings;
+    private final TransportService transportService;
 
     public ReplicationCollection getOnGoingReplications() {
         return onGoingReplications;
@@ -48,9 +67,11 @@ public class SegmentReplicationService implements IndexEventListener {
     private final ReplicationCollection onGoingReplications;
 
     public SegmentReplicationService(final ThreadPool threadPool,
-                                     final RecoverySettings recoverySettings) {
+                                     final RecoverySettings recoverySettings,
+                                     final TransportService transportService) {
         this.threadPool = threadPool;
         this.recoverySettings = recoverySettings;
+        this.transportService = transportService;
         this.onGoingReplications = new ReplicationCollection(logger, threadPool);
     }
 
@@ -61,8 +82,36 @@ public class SegmentReplicationService implements IndexEventListener {
         }
     }
 
+    public void prepareForReplication(IndexShard indexShard, DiscoveryNode targetNode, DiscoveryNode sourceNode, ActionListener<TrackShardResponse> listener) {
+        setupReplicaShard(indexShard);
+        transportService.sendRequest(sourceNode,
+            SegmentReplicationPrimaryService.Actions.TRACK_SHARD,
+            new TrackShardRequest(indexShard.shardId(), indexShard.routingEntry().allocationId().getId(), targetNode),
+            new ActionListenerResponseHandler<>(listener, TrackShardResponse::new));
+    }
+
+    private void setupReplicaShard(IndexShard indexShard) throws IndexShardRecoveryException {
+        indexShard.prepareForIndexRecovery();
+        final Store store = indexShard.store();
+        store.incRef();
+        try {
+            store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion);
+            final String translogUUID = Translog.createEmptyTranslog(
+                indexShard.shardPath().resolveTranslog(), SequenceNumbers.NO_OPS_PERFORMED, indexShard.shardId(),
+                indexShard.getPendingPrimaryTerm());
+            store.associateIndexWithNewTranslog(translogUUID);
+            indexShard.persistRetentionLeases();
+            indexShard.openEngineAndRecoverFromTranslog();
+        } catch (EngineException | IOException e) {
+            throw new IndexShardRecoveryException(indexShard.shardId(), "failed to start replica shard", e);
+        } finally {
+            store.decRef();
+        }
+    }
+
     public void startReplication(final ReplicationCheckpoint checkpoint, final IndexShard indexShard, PrimaryShardReplicationSource source, final ReplicationListener listener) {
         final long replicationId = onGoingReplications.startReplication(checkpoint, indexShard, source, listener, recoverySettings.activityTimeout());
+        logger.info("Starting replication {}", replicationId);
         threadPool.generic().execute(new ReplicationRunner(replicationId));
     }
 
@@ -144,11 +193,11 @@ public class SegmentReplicationService implements IndexEventListener {
 //            final TimeValue replicationTime = new TimeValue(timer.time());
             logger.trace("Replication complete {}", replicationId);
             onGoingReplications.markReplicationAsDone(replicationId);
-            shard.finalizeReplication();
         }
 
         @Override
         public void onFailure(Exception e) {
+            logger.error("Error", e);
             if (logger.isTraceEnabled()) {
                 logger.trace(
                     () -> new ParameterizedMessage(
