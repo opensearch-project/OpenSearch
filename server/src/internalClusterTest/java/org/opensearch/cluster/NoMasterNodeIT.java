@@ -127,13 +127,13 @@ public class NoMasterNodeIT extends OpenSearchIntegTestCase {
         );
 
         assertRequestBuilderThrows(
-            clientToMasterlessNode.prepareMultiGet().add("test", "type1", "1"),
+            clientToMasterlessNode.prepareMultiGet().add("test", "1"),
             ClusterBlockException.class,
             RestStatus.SERVICE_UNAVAILABLE
         );
 
         assertRequestBuilderThrows(
-            clientToMasterlessNode.prepareMultiGet().add("no_index", "type1", "1"),
+            clientToMasterlessNode.prepareMultiGet().add("no_index", "1"),
             ClusterBlockException.class,
             RestStatus.SERVICE_UNAVAILABLE
         );

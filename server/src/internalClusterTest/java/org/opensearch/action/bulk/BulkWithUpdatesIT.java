@@ -440,7 +440,6 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
             assertThat(response.getItems()[i].getId(), equalTo(Integer.toString(i)));
             assertThat(response.getItems()[i].getVersion(), equalTo(1L));
             assertThat(response.getItems()[i].getIndex(), equalTo("test"));
-            assertThat(response.getItems()[i].getType(), equalTo("type1"));
             assertThat(response.getItems()[i].getOpType(), equalTo(OpType.UPDATE));
             assertThat(response.getItems()[i].getResponse().getId(), equalTo(Integer.toString(i)));
             assertThat(response.getItems()[i].getResponse().getVersion(), equalTo(1L));
@@ -550,7 +549,6 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
             assertThat(itemResponse.getItemId(), equalTo(i));
             assertThat(itemResponse.getId(), equalTo(Integer.toString(i)));
             assertThat(itemResponse.getIndex(), equalTo("test"));
-            assertThat(itemResponse.getType(), equalTo("type1"));
             assertThat(itemResponse.getOpType(), equalTo(OpType.UPDATE));
             for (int j = 0; j < 5; j++) {
                 GetResponse getResponse = client().prepareGet("test", Integer.toString(i)).get();

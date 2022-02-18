@@ -398,7 +398,7 @@ public class SimpleRoutingIT extends OpenSearchIntegTestCase {
                 fail("get with missing routing when routing is required should fail");
             } catch (RoutingMissingException e) {
                 assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-                assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
+                assertThat(e.getMessage(), equalTo("routing is required for [test]/[1]"));
             }
             assertThat(client().prepareGet(indexOrAlias(), "1").setRouting(routingValue).execute().actionGet().isExists(), equalTo(true));
         }
@@ -478,7 +478,7 @@ public class SimpleRoutingIT extends OpenSearchIntegTestCase {
                 assertThat(bulkItemResponse.getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
                 assertThat(bulkItemResponse.getFailure().getStatus(), equalTo(RestStatus.BAD_REQUEST));
                 assertThat(bulkItemResponse.getFailure().getCause(), instanceOf(RoutingMissingException.class));
-                assertThat(bulkItemResponse.getFailureMessage(), containsString("routing is required for [test]/[type1]/[1]"));
+                assertThat(bulkItemResponse.getFailureMessage(), containsString("routing is required for [test]/[1]"));
             }
         }
 
@@ -586,7 +586,7 @@ public class SimpleRoutingIT extends OpenSearchIntegTestCase {
             client().prepareGet(indexOrAlias(), "1").get();
             fail();
         } catch (RoutingMissingException e) {
-            assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
+            assertThat(e.getMessage(), equalTo("routing is required for [test]/[1]"));
         }
 
         logger.info("--> verifying explain with id [2], with routing [0], should succeed");
