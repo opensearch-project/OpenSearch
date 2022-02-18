@@ -425,7 +425,7 @@ public class SimpleRoutingIT extends OpenSearchIntegTestCase {
                 fail();
             } catch (RoutingMissingException e) {
                 assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-                assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
+                assertThat(e.getMessage(), equalTo("routing is required for [test]/[1]"));
             }
             GetResponse getResponse = client().prepareGet(indexOrAlias(), "1").setRouting(routingValue).execute().actionGet();
             assertThat(getResponse.isExists(), equalTo(true));
@@ -440,7 +440,7 @@ public class SimpleRoutingIT extends OpenSearchIntegTestCase {
                 fail();
             } catch (RoutingMissingException e) {
                 assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-                assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
+                assertThat(e.getMessage(), equalTo("routing is required for [test]/[1]"));
             }
             assertThat(client().prepareGet(indexOrAlias(), "1").setRouting(routingValue).execute().actionGet().isExists(), equalTo(false));
         }
@@ -509,7 +509,7 @@ public class SimpleRoutingIT extends OpenSearchIntegTestCase {
                 assertThat(bulkItemResponse.getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
                 assertThat(bulkItemResponse.getFailure().getStatus(), equalTo(RestStatus.BAD_REQUEST));
                 assertThat(bulkItemResponse.getFailure().getCause(), instanceOf(RoutingMissingException.class));
-                assertThat(bulkItemResponse.getFailureMessage(), containsString("routing is required for [test]/[type1]/[1]"));
+                assertThat(bulkItemResponse.getFailureMessage(), containsString("routing is required for [test]/[1]"));
             }
         }
 
@@ -534,7 +534,7 @@ public class SimpleRoutingIT extends OpenSearchIntegTestCase {
                 assertThat(bulkItemResponse.getOpType(), equalTo(DocWriteRequest.OpType.DELETE));
                 assertThat(bulkItemResponse.getFailure().getStatus(), equalTo(RestStatus.BAD_REQUEST));
                 assertThat(bulkItemResponse.getFailure().getCause(), instanceOf(RoutingMissingException.class));
-                assertThat(bulkItemResponse.getFailureMessage(), containsString("routing is required for [test]/[type1]/[1]"));
+                assertThat(bulkItemResponse.getFailureMessage(), containsString("routing is required for [test]/[1]"));
             }
         }
 
@@ -602,7 +602,7 @@ public class SimpleRoutingIT extends OpenSearchIntegTestCase {
             client().prepareExplain(indexOrAlias(), "type1", "2").setQuery(QueryBuilders.matchAllQuery()).get();
             fail();
         } catch (RoutingMissingException e) {
-            assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[2]"));
+            assertThat(e.getMessage(), equalTo("routing is required for [test]/[2]"));
         }
 
         logger.info("--> verifying term vector with id [1], with routing [0], should succeed");
@@ -614,7 +614,7 @@ public class SimpleRoutingIT extends OpenSearchIntegTestCase {
             client().prepareTermVectors(indexOrAlias(), "1").get();
             fail();
         } catch (RoutingMissingException e) {
-            assertThat(e.getMessage(), equalTo("routing is required for [test]/[_doc]/[1]"));
+            assertThat(e.getMessage(), equalTo("routing is required for [test]/[1]"));
         }
 
         UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
@@ -628,7 +628,7 @@ public class SimpleRoutingIT extends OpenSearchIntegTestCase {
             client().prepareUpdate(indexOrAlias(), "type1", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field1", "value1").get();
             fail();
         } catch (RoutingMissingException e) {
-            assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
+            assertThat(e.getMessage(), equalTo("routing is required for [test]/[1]"));
         }
 
         logger.info("--> verifying mget with ids [1,2], with routing [0], should succeed");
@@ -650,10 +650,10 @@ public class SimpleRoutingIT extends OpenSearchIntegTestCase {
         assertThat(multiGetResponse.getResponses().length, equalTo(2));
         assertThat(multiGetResponse.getResponses()[0].isFailed(), equalTo(true));
         assertThat(multiGetResponse.getResponses()[0].getFailure().getId(), equalTo("1"));
-        assertThat(multiGetResponse.getResponses()[0].getFailure().getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
+        assertThat(multiGetResponse.getResponses()[0].getFailure().getMessage(), equalTo("routing is required for [test]/[1]"));
         assertThat(multiGetResponse.getResponses()[1].isFailed(), equalTo(true));
         assertThat(multiGetResponse.getResponses()[1].getFailure().getId(), equalTo("2"));
-        assertThat(multiGetResponse.getResponses()[1].getFailure().getMessage(), equalTo("routing is required for [test]/[type1]/[2]"));
+        assertThat(multiGetResponse.getResponses()[1].getFailure().getMessage(), equalTo("routing is required for [test]/[2]"));
 
         MultiTermVectorsResponse multiTermVectorsResponse = client().prepareMultiTermVectors()
             .add(new TermVectorsRequest(indexOrAlias(), "1").routing(routingValue))
@@ -678,7 +678,7 @@ public class SimpleRoutingIT extends OpenSearchIntegTestCase {
         assertThat(multiTermVectorsResponse.getResponses()[0].isFailed(), equalTo(true));
         assertThat(
             multiTermVectorsResponse.getResponses()[0].getFailure().getCause().getMessage(),
-            equalTo("routing is required for [test]/[_doc]/[1]")
+            equalTo("routing is required for [test]/[1]")
         );
         assertThat(multiTermVectorsResponse.getResponses()[0].getResponse(), nullValue());
         assertThat(multiTermVectorsResponse.getResponses()[1].getId(), equalTo("2"));
@@ -686,7 +686,7 @@ public class SimpleRoutingIT extends OpenSearchIntegTestCase {
         assertThat(multiTermVectorsResponse.getResponses()[1].getResponse(), nullValue());
         assertThat(
             multiTermVectorsResponse.getResponses()[1].getFailure().getCause().getMessage(),
-            equalTo("routing is required for [test]/[_doc]/[2]")
+            equalTo("routing is required for [test]/[2]")
         );
     }
 

@@ -593,7 +593,6 @@ public class UpdateIT extends OpenSearchIntegTestCase {
         getResponse = client().prepareGet("test", "id2").execute().actionGet();
         updateContext = (Map<String, Object>) getResponse.getSourceAsMap().get("update_context");
         assertEquals("test", updateContext.get("_index"));
-        assertEquals("type1", updateContext.get("_type"));
         assertEquals("id2", updateContext.get("_id"));
         assertEquals(1, updateContext.get("_version"));
         assertNull(updateContext.get("_routing"));
