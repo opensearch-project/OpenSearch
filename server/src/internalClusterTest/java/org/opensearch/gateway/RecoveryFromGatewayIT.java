@@ -223,7 +223,7 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         int numberOfShards = numberOfShards();
         assertAcked(
             prepareCreate("test").setSettings(
-                Settings.builder().put("index.codec", "Lucene86").put(SETTING_NUMBER_OF_SHARDS, numberOfShards()).put(SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1))
+                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards()).put(SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1))
             ).addMapping("type1", mapping, XContentType.JSON)
         );
 
