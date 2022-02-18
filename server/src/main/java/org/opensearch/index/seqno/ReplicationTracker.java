@@ -905,22 +905,22 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
         if (primaryMode && indexSettings.isSoftDeleteEnabled() && hasAllPeerRecoveryRetentionLeases) {
             // TODO: Segrep - This blows up during segrep because we don't have a retention lease for replicas on the primary - we can ignore for poc.
-            // all tracked shard copies have a corresponding peer-recovery retention lease
-//            for (final ShardRouting shardRouting : routingTable.assignedShards()) {
-//                if (checkpoints.get(shardRouting.allocationId().getId()).tracked) {
-//                    assert retentionLeases.contains(
-//                        getPeerRecoveryRetentionLeaseId(shardRouting)
-//                    ) : "no retention lease for tracked shard [" + shardRouting + "] in " + retentionLeases;
-//                    assert PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(
-//                        retentionLeases.get(getPeerRecoveryRetentionLeaseId(shardRouting)).source()
-//                    ) : "incorrect source ["
-//                        + retentionLeases.get(getPeerRecoveryRetentionLeaseId(shardRouting)).source()
-//                        + "] for ["
-//                        + shardRouting
-//                        + "] in "
-//                        + retentionLeases;
-//                }
-//            }
+//             all tracked shard copies have a corresponding peer-recovery retention lease
+            for (final ShardRouting shardRouting : routingTable.assignedShards()) {
+                if (checkpoints.get(shardRouting.allocationId().getId()).tracked) {
+                    assert retentionLeases.contains(
+                        getPeerRecoveryRetentionLeaseId(shardRouting)
+                    ) : "no retention lease for tracked shard [" + shardRouting + "] in " + retentionLeases;
+                    assert PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(
+                        retentionLeases.get(getPeerRecoveryRetentionLeaseId(shardRouting)).source()
+                    ) : "incorrect source ["
+                        + retentionLeases.get(getPeerRecoveryRetentionLeaseId(shardRouting)).source()
+                        + "] for ["
+                        + shardRouting
+                        + "] in "
+                        + retentionLeases;
+                }
+            }
         }
 
         return true;
