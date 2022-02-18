@@ -1148,7 +1148,7 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
         String mapping1 = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type")
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
                 .startObject("properties")
                 .startObject("nested1")
                 .field("type", "nested")
@@ -1162,14 +1162,14 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
         // cannot update `include_in_parent` dynamically
         MapperException e1 = expectThrows(
             MapperException.class,
-            () -> mapperService.merge("type", new CompressedXContent(mapping1), MergeReason.MAPPING_UPDATE)
+            () -> mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping1), MergeReason.MAPPING_UPDATE)
         );
         assertEquals("the [include_in_parent] parameter can't be updated on a nested object mapping", e1.getMessage());
 
         String mapping2 = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type")
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
                 .startObject("properties")
                 .startObject("nested1")
                 .field("type", "nested")
@@ -1183,7 +1183,7 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
         // cannot update `include_in_root` dynamically
         MapperException e2 = expectThrows(
             MapperException.class,
-            () -> mapperService.merge("type", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE)
+            () -> mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE)
         );
         assertEquals("the [include_in_root] parameter can't be updated on a nested object mapping", e2.getMessage());
     }

@@ -47,7 +47,6 @@ import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParser.Token;
-import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -301,10 +300,8 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                     } else {
                         MappingMetadata mappings = null;
                         for (final ObjectObjectCursor<String, MappingMetadata> typeEntry : indexMappings) {
-                            if (typeEntry.key.equals(MapperService.DEFAULT_MAPPING) == false) {
-                                assert mappings == null;
-                                mappings = typeEntry.value;
-                            }
+                            assert mappings == null;
+                            mappings = typeEntry.value;
                         }
                         if (mappings == null) {
                             // no mappings yet
