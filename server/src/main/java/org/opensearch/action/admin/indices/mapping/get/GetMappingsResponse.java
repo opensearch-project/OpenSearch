@@ -135,10 +135,8 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
                 if (includeTypeName == false) {
                     MappingMetadata mappings = null;
                     for (final ObjectObjectCursor<String, MappingMetadata> typeEntry : indexEntry.value) {
-                        if (typeEntry.key.equals("_default_") == false) {
-                            assert mappings == null;
-                            mappings = typeEntry.value;
-                        }
+                        assert mappings == null;
+                        mappings = typeEntry.value;
                     }
                     if (mappings == null) {
                         // no mappings yet

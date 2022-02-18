@@ -1058,33 +1058,36 @@ public class DocumentParserTests extends MapperServiceTestCase {
     public void testParseToJsonAndParse() throws Exception {
         String mapping = copyToStringFromClasspath("/org/opensearch/index/mapper/simple/test-mapping.json");
         MapperService mapperService = createMapperService(mapping(b -> {}));
-        merge("person", mapperService, mapping);
+        merge(MapperService.SINGLE_MAPPING_NAME, mapperService, mapping);
         String builtMapping = mapperService.documentMapper().mappingSource().string();
         // reparse it
-        DocumentMapper builtDocMapper = createDocumentMapper("_doc", builtMapping);
+        DocumentMapper builtDocMapper = createDocumentMapper(MapperService.SINGLE_MAPPING_NAME, builtMapping);
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/opensearch/index/mapper/simple/test1.json"));
-        Document doc = builtDocMapper.parse(new SourceToParse("test", "_doc", "1", json, XContentType.JSON)).rootDoc();
+        Document doc = builtDocMapper.parse(new SourceToParse("test", MapperService.SINGLE_MAPPING_NAME, "1", json, XContentType.JSON))
+            .rootDoc();
         assertThat(doc.getBinaryValue(builtDocMapper.idFieldMapper().name()), equalTo(Uid.encodeId("1")));
         assertThat(doc.get(builtDocMapper.mappers().getMapper("name.first").name()), equalTo("fred"));
     }
 
     public void testSimpleParser() throws Exception {
         String mapping = copyToStringFromClasspath("/org/opensearch/index/mapper/simple/test-mapping.json");
-        DocumentMapper docMapper = createDocumentMapper("person", mapping);
+        DocumentMapper docMapper = createDocumentMapper(MapperService.SINGLE_MAPPING_NAME, mapping);
 
         assertThat((String) docMapper.meta().get("param1"), equalTo("value1"));
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/opensearch/index/mapper/simple/test1.json"));
-        Document doc = docMapper.parse(new SourceToParse("test", "_doc", "1", json, XContentType.JSON)).rootDoc();
+        Document doc = docMapper.parse(new SourceToParse("test", MapperService.SINGLE_MAPPING_NAME, "1", json, XContentType.JSON))
+            .rootDoc();
         assertThat(doc.getBinaryValue(docMapper.idFieldMapper().name()), equalTo(Uid.encodeId("1")));
         assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("fred"));
     }
 
     public void testSimpleParserNoTypeNoId() throws Exception {
         String mapping = copyToStringFromClasspath("/org/opensearch/index/mapper/simple/test-mapping.json");
-        DocumentMapper docMapper = createDocumentMapper("person", mapping);
+        DocumentMapper docMapper = createDocumentMapper(MapperService.SINGLE_MAPPING_NAME, mapping);
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/opensearch/index/mapper/simple/test1-notype-noid.json"));
-        Document doc = docMapper.parse(new SourceToParse("test", "_doc", "1", json, XContentType.JSON)).rootDoc();
+        Document doc = docMapper.parse(new SourceToParse("test", MapperService.SINGLE_MAPPING_NAME, "1", json, XContentType.JSON))
+            .rootDoc();
         assertThat(doc.getBinaryValue(docMapper.idFieldMapper().name()), equalTo(Uid.encodeId("1")));
         assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("fred"));
     }
@@ -1092,12 +1095,12 @@ public class DocumentParserTests extends MapperServiceTestCase {
     public void testAttributes() throws Exception {
         String mapping = copyToStringFromClasspath("/org/opensearch/index/mapper/simple/test-mapping.json");
 
-        DocumentMapper docMapper = createDocumentMapper("person", mapping);
+        DocumentMapper docMapper = createDocumentMapper(MapperService.SINGLE_MAPPING_NAME, mapping);
 
         assertThat((String) docMapper.meta().get("param1"), equalTo("value1"));
 
         String builtMapping = docMapper.mappingSource().string();
-        DocumentMapper builtDocMapper = createDocumentMapper("_doc", builtMapping);
+        DocumentMapper builtDocMapper = createDocumentMapper(MapperService.SINGLE_MAPPING_NAME, builtMapping);
         assertThat((String) builtDocMapper.meta().get("param1"), equalTo("value1"));
     }
 
@@ -1106,7 +1109,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         BytesReference json = new BytesArray("".getBytes(StandardCharsets.UTF_8));
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> docMapper.parse(new SourceToParse("test", "_doc", "1", json, XContentType.JSON))
+            () -> docMapper.parse(new SourceToParse("test", MapperService.SINGLE_MAPPING_NAME, "1", json, XContentType.JSON))
         );
         assertThat(e.getMessage(), equalTo("failed to parse, document is empty"));
     }
@@ -1472,7 +1475,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type")
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
                 .startObject("properties")
                 .startObject("foo")
                 .field("type", "keyword")
@@ -1481,7 +1484,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
                 .endObject()
                 .endObject()
         );
-        DocumentMapper mapper = createDocumentMapper("type", mapping);
+        DocumentMapper mapper = createDocumentMapper(MapperService.SINGLE_MAPPING_NAME, mapping);
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("foo", "1234")));
         assertNull(doc.dynamicMappingsUpdate()); // no update since we reused the existing type

@@ -43,6 +43,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.MoreLikeThisQueryBuilder;
 import org.opensearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.opensearch.index.query.QueryBuilder;
@@ -740,16 +741,23 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
         assertHitCount(response, 1);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/2107")
     public void testMoreLikeThisMalformedArtificialDocs() throws Exception {
         logger.info("Creating the index ...");
-        assertAcked(prepareCreate("test").addMapping("type1", "text", "type=text,analyzer=whitespace", "date", "type=date"));
+        assertAcked(
+            prepareCreate("test").addMapping(
+                MapperService.SINGLE_MAPPING_NAME,
+                "text",
+                "type=text,analyzer=whitespace",
+                "date",
+                "type=date"
+            )
+        );
         ensureGreen("test");
 
         logger.info("Creating an index with a single document ...");
         indexRandom(
             true,
-            client().prepareIndex("test", "type1", "1")
+            client().prepareIndex("test", MapperService.SINGLE_MAPPING_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("text", "Hello World!").field("date", "2009-01-01").endObject())
         );
 
