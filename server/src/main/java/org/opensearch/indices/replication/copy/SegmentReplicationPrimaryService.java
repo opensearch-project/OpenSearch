@@ -40,11 +40,9 @@ import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.action.support.ThreadedActionListener;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
-import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.index.IndexService;
-import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
@@ -190,7 +188,7 @@ public class SegmentReplicationPrimaryService {
             Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
             recoverySettings.getMaxConcurrentFileChunks(),
             recoverySettings.getMaxConcurrentOperations());
-        logger.info(
+        logger.debug(
             "[{}][{}] fetching files for {}",
             shardId.getIndex().getName(),
             shardId.id(),
@@ -215,17 +213,14 @@ public class SegmentReplicationPrimaryService {
             if (routingTable.getByAllocationId(targetAllocationId) == null) {
                 // TODO: Segrep - this is a hack to just wait until the primary has record of the replica's ShardRouting.
                 // We should instead throw & retry this request from the replica similar to recovery paths.
-                while (true) {
-                    if (routingTable.getByAllocationId(targetAllocationId) != null) {
-                        break;
-                    }
-                    this.wait(10);
-                }
-                logger.info(
+               logger.debug(
                     "delaying startup of {} as it is not listed as assigned to target node {}",
                     shardId,
                     request.getTargetNode()
                 );
+                do {
+                    Thread.sleep(10);
+                } while(routingTable.getByAllocationId(targetAllocationId) == null);
             }
             final StepListener<ReplicationResponse> addRetentionLeaseStep = new StepListener<>();
             final StepListener<ReplicationResponse> responseListener = new StepListener<>();
