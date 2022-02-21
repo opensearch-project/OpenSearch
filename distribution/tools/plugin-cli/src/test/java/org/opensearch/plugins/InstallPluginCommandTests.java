@@ -828,6 +828,31 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         }
     }
 
+    public void testPluginsHelpNonOptionArgumentsOutput() throws Exception {
+        MockTerminal terminal = new MockTerminal();
+        new InstallPluginCommand() {
+            @Override
+            protected boolean addShutdownHook() {
+                return false;
+            }
+        }.main(new String[] { "--help" }, terminal);
+
+        try (BufferedReader reader = new BufferedReader(new StringReader(terminal.getOutput()))) {
+            
+            String line = reader.readLine();
+
+            // find the beginning of Non-option arguments list
+            while(line.endsWith("Non-option arguments:") == false) {
+                line = reader.readLine();
+            }
+
+            // check that line outputs correctly
+            line = reader.readLine();
+            assertThat(line, containsString("<name|URL>"));
+
+        }
+    }
+
     public void testInstallMisspelledOfficialPlugins() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
 

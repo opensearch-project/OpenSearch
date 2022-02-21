@@ -218,7 +218,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             Arrays.asList("b", "batch"),
             "Enable batch mode explicitly, automatic confirmation of security permission"
         );
-        this.arguments = parser.nonOptions("plugin id");
+        this.arguments = parser.nonOptions("plugin <name|URL>");
     }
 
     @Override
