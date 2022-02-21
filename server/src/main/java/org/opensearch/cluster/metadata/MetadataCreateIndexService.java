@@ -98,7 +98,6 @@ import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -474,7 +473,6 @@ public class MetadataCreateIndexService {
                     request.index(),
                     aliases,
                     indexService.mapperService()::documentMapper,
-                    () -> indexService.mapperService().documentMapper(MapperService.DEFAULT_MAPPING),
                     temporaryIndexMeta.getSettings(),
                     temporaryIndexMeta.getRoutingNumShards(),
                     sourceMetadata,
@@ -986,9 +984,8 @@ public class MetadataCreateIndexService {
                 routingNumShards = calculateNumRoutingShards(numTargetShards, indexVersionCreated);
             }
         } else {
-            assert IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(
-                indexSettings
-            ) == false : "index.number_of_routing_shards should not be present on the target index on resize";
+            assert IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(indexSettings) == false
+                : "index.number_of_routing_shards should not be present on the target index on resize";
             routingNumShards = sourceMetadata.getRoutingNumShards();
         }
         return routingNumShards;
@@ -1100,7 +1097,6 @@ public class MetadataCreateIndexService {
         String indexName,
         List<AliasMetadata> aliases,
         Supplier<DocumentMapper> documentMapperSupplier,
-        Supplier<DocumentMapper> defaultDocumentMapperSupplier,
         Settings indexSettings,
         int routingNumShards,
         @Nullable IndexMetadata sourceMetadata,
@@ -1110,11 +1106,10 @@ public class MetadataCreateIndexService {
         indexMetadataBuilder.system(isSystem);
         // now, update the mappings with the actual source
         Map<String, MappingMetadata> mappingsMetadata = new HashMap<>();
-        for (DocumentMapper mapper : Arrays.asList(documentMapperSupplier.get(), defaultDocumentMapperSupplier.get())) {
-            if (mapper != null) {
-                MappingMetadata mappingMd = new MappingMetadata(mapper);
-                mappingsMetadata.put(mapper.type(), mappingMd);
-            }
+        DocumentMapper mapper = documentMapperSupplier.get();
+        if (mapper != null) {
+            MappingMetadata mappingMd = new MappingMetadata(mapper);
+            mappingsMetadata.put(mapper.type(), mappingMd);
         }
 
         for (MappingMetadata mappingMd : mappingsMetadata.values()) {

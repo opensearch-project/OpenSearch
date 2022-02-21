@@ -140,8 +140,8 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
             + seqNo
             + " primaryTerm: "
             + primaryTerm;
-        assert exists
-            || (seqNo == UNASSIGNED_SEQ_NO && primaryTerm == UNASSIGNED_PRIMARY_TERM) : "doc not found but seqNo/primaryTerm are set";
+        assert exists || (seqNo == UNASSIGNED_SEQ_NO && primaryTerm == UNASSIGNED_PRIMARY_TERM)
+            : "doc not found but seqNo/primaryTerm are set";
         this.version = version;
         this.exists = exists;
         this.source = source;

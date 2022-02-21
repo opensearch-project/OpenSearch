@@ -67,7 +67,6 @@ import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.gateway.MetadataStateFormat;
 import org.opensearch.index.Index;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
@@ -677,20 +676,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     @Nullable
     public MappingMetadata mapping() {
         for (ObjectObjectCursor<String, MappingMetadata> cursor : mappings) {
-            if (cursor.key.equals(MapperService.DEFAULT_MAPPING) == false) {
-                return cursor.value;
-            }
+            return cursor.value;
         }
         return null;
-    }
-
-    /**
-     * Get the default mapping.
-     * NOTE: this is always {@code null} for 7.x indices which are disallowed to have a default mapping.
-     */
-    @Nullable
-    public MappingMetadata defaultMapping() {
-        return mappings.get(MapperService.DEFAULT_MAPPING);
     }
 
     public static final String INDEX_RESIZE_SOURCE_UUID_KEY = "index.resize.source.uuid";
@@ -702,25 +690,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return INDEX_RESIZE_SOURCE_UUID.exists(settings)
             ? new Index(INDEX_RESIZE_SOURCE_NAME.get(settings), INDEX_RESIZE_SOURCE_UUID.get(settings))
             : null;
-    }
-
-    /**
-     * Sometimes, the default mapping exists and an actual mapping is not created yet (introduced),
-     * in this case, we want to return the default mapping in case it has some default mapping definitions.
-     * <p>
-     * Note, once the mapping type is introduced, the default mapping is applied on the actual typed MappingMetadata,
-     * setting its routing, timestamp, and so on if needed.
-     */
-    @Nullable
-    public MappingMetadata mappingOrDefault() {
-        MappingMetadata mapping = null;
-        for (ObjectCursor<MappingMetadata> m : mappings.values()) {
-            if (mapping == null || mapping.type().equals(MapperService.DEFAULT_MAPPING)) {
-                mapping = m.value;
-            }
-        }
-
-        return mapping;
     }
 
     ImmutableOpenMap<String, DiffableStringMap> getCustomData() {
@@ -1336,14 +1305,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         public IndexMetadata build() {
             ImmutableOpenMap.Builder<String, AliasMetadata> tmpAliases = aliases;
             Settings tmpSettings = settings;
-
-            // update default mapping on the MappingMetadata
-            if (mappings.containsKey(MapperService.DEFAULT_MAPPING)) {
-                MappingMetadata defaultMapping = mappings.get(MapperService.DEFAULT_MAPPING);
-                for (ObjectCursor<MappingMetadata> cursor : mappings.values()) {
-                    cursor.value.updateDefaultMapping(defaultMapping);
-                }
-            }
 
             /*
              * We expect that the metadata has been properly built to set the number of shards and the number of replicas, and do not rely

@@ -47,7 +47,6 @@ import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.Mapper;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.rest.BaseRestHandler;
 
 import java.io.IOException;
@@ -165,10 +164,8 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
             if (includeTypeName == false) {
                 Map<String, FieldMappingMetadata> mappings = null;
                 for (Map.Entry<String, Map<String, FieldMappingMetadata>> typeEntry : indexEntry.getValue().entrySet()) {
-                    if (typeEntry.getKey().equals(MapperService.DEFAULT_MAPPING) == false) {
-                        assert mappings == null;
-                        mappings = typeEntry.getValue();
-                    }
+                    assert mappings == null;
+                    mappings = typeEntry.getValue();
                 }
                 if (mappings != null) {
                     addFieldMappingsToBuilder(builder, params, mappings);

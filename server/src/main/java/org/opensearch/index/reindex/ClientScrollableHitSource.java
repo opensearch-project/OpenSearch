@@ -91,9 +91,8 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
     public void doStart(RejectAwareActionListener<Response> searchListener) {
         if (logger.isDebugEnabled()) {
             logger.debug(
-                "executing initial scroll against {}{}",
-                isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices(),
-                isEmpty(firstSearchRequest.types()) ? "" : firstSearchRequest.types()
+                "executing initial scroll against {}",
+                isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices()
             );
         }
         client.search(firstSearchRequest, wrapListener(searchListener));

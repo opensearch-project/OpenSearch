@@ -284,8 +284,8 @@ public final class XContentTestUtils {
      * </ul>
      */
     static List<String> getInsertPaths(XContentParser parser, Stack<String> currentPath) throws IOException {
-        assert parser.currentToken() == XContentParser.Token.START_OBJECT
-            || parser.currentToken() == XContentParser.Token.START_ARRAY : "should only be called when new objects or arrays start";
+        assert parser.currentToken() == XContentParser.Token.START_OBJECT || parser.currentToken() == XContentParser.Token.START_ARRAY
+            : "should only be called when new objects or arrays start";
         List<String> validPaths = new ArrayList<>();
         // parser.currentName() can be null for root object and unnamed objects in arrays
         if (parser.currentName() != null) {

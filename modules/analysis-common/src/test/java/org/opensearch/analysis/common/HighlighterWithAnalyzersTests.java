@@ -140,7 +140,6 @@ public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
         client().prepareIndex("test", "test", "1").setSource("name", "ARCOTEL Hotels Deutschland").get();
         refresh();
         SearchResponse search = client().prepareSearch("test")
-            .setTypes("test")
             .setQuery(matchQuery("name.autocomplete", "deut tel").operator(Operator.OR))
             .highlighter(new HighlightBuilder().field("name.autocomplete"))
             .get();

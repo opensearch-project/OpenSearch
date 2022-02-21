@@ -206,13 +206,10 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
      * the parser with right-curly brackets to allow statements to be delimited by them at the end of blocks.
      */
     public void testRCurlyNotDelim() {
-        IllegalArgumentException e = expectScriptThrows(
-            IllegalArgumentException.class,
-            () -> {
-                // We don't want PICKY here so we get the normal error message
-                exec("def i = 1} return 1", emptyMap(), emptyMap(), false);
-            }
-        );
+        IllegalArgumentException e = expectScriptThrows(IllegalArgumentException.class, () -> {
+            // We don't want PICKY here so we get the normal error message
+            exec("def i = 1} return 1", emptyMap(), emptyMap(), false);
+        });
         assertEquals("unexpected token ['}'] was expecting one of [{<EOF>, ';'}].", e.getMessage());
     }
 

@@ -42,5 +42,5 @@ dependencies {
   api "org.bouncycastle:bcpkix-jdk15on:${versions.bouncycastle}"
   api "com.fasterxml.jackson.jaxrs:jackson-jaxrs-json-provider:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  api 'net.minidev:json-smart:2.4.7'
+  api 'net.minidev:json-smart:2.4.8'
 }

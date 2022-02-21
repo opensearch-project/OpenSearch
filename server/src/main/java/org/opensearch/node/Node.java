@@ -1059,8 +1059,8 @@ public class Node implements Closeable {
         transportService.getTaskManager().setTaskCancellationService(new TaskCancellationService(transportService));
         transportService.start();
         assert localNodeFactory.getNode() != null;
-        assert transportService.getLocalNode()
-            .equals(localNodeFactory.getNode()) : "transportService has a different local node than the factory provided";
+        assert transportService.getLocalNode().equals(localNodeFactory.getNode())
+            : "transportService has a different local node than the factory provided";
         injector.getInstance(PeerRecoverySourceService.class).start();
 
         // Load (and maybe upgrade) the metadata stored on disk
@@ -1103,8 +1103,8 @@ public class Node implements Closeable {
         // start after transport service so the local disco is known
         discovery.start(); // start before cluster service so that it can set initial state on ClusterApplierService
         clusterService.start();
-        assert clusterService.localNode()
-            .equals(localNodeFactory.getNode()) : "clusterService has a different local node than the factory provided";
+        assert clusterService.localNode().equals(localNodeFactory.getNode())
+            : "clusterService has a different local node than the factory provided";
         transportService.acceptIncomingRequests();
         discovery.startInitialJoin();
         final TimeValue initialStateTimeout = DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings());

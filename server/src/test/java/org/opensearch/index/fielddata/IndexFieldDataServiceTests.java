@@ -143,7 +143,7 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
             searchLookupSetOnce.set(searchLookup);
             return (IndexFieldData.Builder) (cache, breakerService) -> null;
         });
-        SearchLookup searchLookup = new SearchLookup(null, null, null);
+        SearchLookup searchLookup = new SearchLookup(null, null);
         ifdService.getForField(ft, "qualified", () -> searchLookup);
         assertSame(searchLookup, searchLookupSetOnce.get().get());
     }

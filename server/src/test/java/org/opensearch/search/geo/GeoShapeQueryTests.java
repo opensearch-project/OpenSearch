@@ -478,7 +478,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
 
         // This search would fail if both geoshape indexing and geoshape filtering
         // used the bottom-level optimization in SpatialPrefixTree#recursiveGetNodes.
-        SearchResponse searchResponse = client().prepareSearch("test").setTypes("type1").setQuery(geoIntersectionQuery("geo", query)).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(geoIntersectionQuery("geo", query)).get();
 
         assertSearchResponse(searchResponse);
         assertHitCount(searchResponse, 1);
@@ -655,10 +655,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         }
 
         // test that point was inserted
-        SearchResponse response = client().prepareSearch("geo_points_only")
-            .setTypes("type1")
-            .setQuery(geoIntersectionQuery("location", shape))
-            .get();
+        SearchResponse response = client().prepareSearch("geo_points_only").setQuery(geoIntersectionQuery("location", shape)).get();
 
         assertHitCount(response, 1);
     }
@@ -699,7 +696,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             .get();
 
         // test that point was inserted
-        SearchResponse response = client().prepareSearch("geo_points_only").setTypes("type1").setQuery(matchAllQuery()).get();
+        SearchResponse response = client().prepareSearch("geo_points_only").setQuery(matchAllQuery()).get();
 
         assertHitCount(response, 2);
     }

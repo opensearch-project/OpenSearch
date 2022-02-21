@@ -43,6 +43,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.MoreLikeThisQueryBuilder;
 import org.opensearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.opensearch.index.query.QueryBuilder;
@@ -640,7 +641,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
             .include(true)
             .minTermFreq(1)
             .minDocFreq(1);
-        SearchResponse mltResponse = client().prepareSearch().setTypes("type1").setQuery(queryBuilder).get();
+        SearchResponse mltResponse = client().prepareSearch().setQuery(queryBuilder).get();
         assertHitCount(mltResponse, 3L);
     }
 
@@ -672,7 +673,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
                 .minDocFreq(1)
                 .maxQueryTerms(max_query_terms)
                 .minimumShouldMatch("0%");
-            SearchResponse response = client().prepareSearch("test").setTypes("type1").setQuery(mltQuery).get();
+            SearchResponse response = client().prepareSearch("test").setQuery(mltQuery).get();
             assertSearchResponse(response);
             assertHitCount(response, max_query_terms);
         }
@@ -705,7 +706,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
                 .minDocFreq(1)
                 .minimumShouldMatch(minimumShouldMatch);
             logger.info("Testing with minimum_should_match = {}", minimumShouldMatch);
-            SearchResponse response = client().prepareSearch("test").setTypes("type1").setQuery(mltQuery).get();
+            SearchResponse response = client().prepareSearch("test").setQuery(mltQuery).get();
             assertSearchResponse(response);
             if (minimumShouldMatch.equals("0%")) {
                 assertHitCount(response, 10);
@@ -735,21 +736,28 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
             .minDocFreq(0)
             .maxQueryTerms(100)
             .minimumShouldMatch("100%"); // strict all terms must match!
-        SearchResponse response = client().prepareSearch("test").setTypes("type1").setQuery(mltQuery).get();
+        SearchResponse response = client().prepareSearch("test").setQuery(mltQuery).get();
         assertSearchResponse(response);
         assertHitCount(response, 1);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/2107")
     public void testMoreLikeThisMalformedArtificialDocs() throws Exception {
         logger.info("Creating the index ...");
-        assertAcked(prepareCreate("test").addMapping("type1", "text", "type=text,analyzer=whitespace", "date", "type=date"));
+        assertAcked(
+            prepareCreate("test").addMapping(
+                MapperService.SINGLE_MAPPING_NAME,
+                "text",
+                "type=text,analyzer=whitespace",
+                "date",
+                "type=date"
+            )
+        );
         ensureGreen("test");
 
         logger.info("Creating an index with a single document ...");
         indexRandom(
             true,
-            client().prepareIndex("test", "type1", "1")
+            client().prepareIndex("test", MapperService.SINGLE_MAPPING_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("text", "Hello World!").field("date", "2009-01-01").endObject())
         );
 
@@ -809,7 +817,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
             .minDocFreq(0)
             .maxQueryTerms(100)
             .minimumShouldMatch("0%");
-        SearchResponse response = client().prepareSearch("test").setTypes("type1").setQuery(mltQuery).get();
+        SearchResponse response = client().prepareSearch("test").setQuery(mltQuery).get();
         assertSearchResponse(response);
         assertHitCount(response, numFields);
 
@@ -824,7 +832,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
                 .include(true)
                 .minimumShouldMatch("0%");
 
-            response = client().prepareSearch("test").setTypes("type1").setQuery(mltQuery).get();
+            response = client().prepareSearch("test").setQuery(mltQuery).get();
             assertSearchResponse(response);
             assertHitCount(response, numFields - (i + 1));
         }
@@ -848,7 +856,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
             .minDocFreq(0)
             .include(true)
             .minimumShouldMatch("1%");
-        SearchResponse response = client().prepareSearch("test").setTypes("type1").setQuery(mltQuery).get();
+        SearchResponse response = client().prepareSearch("test").setQuery(mltQuery).get();
         assertSearchResponse(response);
         assertHitCount(response, 2);
 
@@ -856,7 +864,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
             .minDocFreq(0)
             .include(true)
             .minimumShouldMatch("1%");
-        response = client().prepareSearch("test").setTypes("type1").setQuery(mltQuery).get();
+        response = client().prepareSearch("test").setQuery(mltQuery).get();
         assertSearchResponse(response);
         assertHitCount(response, 1);
     }

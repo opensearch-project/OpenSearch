@@ -51,7 +51,6 @@ import org.opensearch.common.util.concurrent.RunOnce;
 import org.opensearch.common.util.concurrent.UncategorizedExecutionException;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.Index;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.Mapping;
 
 import java.util.concurrent.Semaphore;
@@ -111,9 +110,6 @@ public class MappingUpdatedAction {
      * potentially waiting for a master node to be available.
      */
     public void updateMappingOnMaster(Index index, String type, Mapping mappingUpdate, ActionListener<Void> listener) {
-        if (type.equals(MapperService.DEFAULT_MAPPING)) {
-            throw new IllegalArgumentException("_default_ mapping should not be updated");
-        }
 
         final RunOnce release = new RunOnce(() -> semaphore.release());
         try {
