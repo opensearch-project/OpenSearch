@@ -837,12 +837,12 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
             }
         }.main(new String[] { "--help" }, terminal);
         try (BufferedReader reader = new BufferedReader(new StringReader(terminal.getOutput()))) {
-            
+
             // grad first line of --help output
             String line = reader.readLine();
 
             // find the beginning of Non-option arguments list
-            while(line.contains("Non-option arguments:") == false) {
+            while (line.contains("Non-option arguments:") == false) {
                 line = reader.readLine();
             }
 
