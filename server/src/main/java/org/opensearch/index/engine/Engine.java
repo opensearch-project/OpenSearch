@@ -1704,16 +1704,15 @@ public abstract class Engine implements Closeable {
     public static class Get {
         private final boolean realtime;
         private final Term uid;
-        private final String type, id;
+        private final String id;
         private final boolean readFromTranslog;
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
         private long ifSeqNo = UNASSIGNED_SEQ_NO;
         private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
-        public Get(boolean realtime, boolean readFromTranslog, String type, String id, Term uid) {
+        public Get(boolean realtime, boolean readFromTranslog, String id, Term uid) {
             this.realtime = realtime;
-            this.type = type;
             this.id = id;
             this.uid = uid;
             this.readFromTranslog = readFromTranslog;
@@ -1721,10 +1720,6 @@ public abstract class Engine implements Closeable {
 
         public boolean realtime() {
             return this.realtime;
-        }
-
-        public String type() {
-            return type;
         }
 
         public String id() {

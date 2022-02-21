@@ -568,7 +568,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             docWriteRequest.routing(metadata.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
                             // check if routing is required, if so, throw error if routing wasn't specified
                             if (docWriteRequest.routing() == null && metadata.routingRequired(concreteIndex.getName())) {
-                                throw new RoutingMissingException(concreteIndex.getName(), docWriteRequest.type(), docWriteRequest.id());
+                                throw new RoutingMissingException(concreteIndex.getName(), docWriteRequest.id());
                             }
                             break;
                         default:

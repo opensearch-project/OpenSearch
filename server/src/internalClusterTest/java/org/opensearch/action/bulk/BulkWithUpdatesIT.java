@@ -177,17 +177,17 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
         assertThat(bulkResponse.getItems()[2].getResponse().getId(), equalTo("3"));
         assertThat(bulkResponse.getItems()[2].getResponse().getVersion(), equalTo(2L));
 
-        GetResponse getResponse = client().prepareGet().setIndex("test").setType("type1").setId("1").execute().actionGet();
+        GetResponse getResponse = client().prepareGet().setIndex("test").setId("1").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getVersion(), equalTo(2L));
         assertThat(((Number) getResponse.getSource().get("field")).longValue(), equalTo(2L));
 
-        getResponse = client().prepareGet().setIndex("test").setType("type1").setId("2").execute().actionGet();
+        getResponse = client().prepareGet().setIndex("test").setId("2").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getVersion(), equalTo(2L));
         assertThat(((Number) getResponse.getSource().get("field")).longValue(), equalTo(3L));
 
-        getResponse = client().prepareGet().setIndex("test").setType("type1").setId("3").execute().actionGet();
+        getResponse = client().prepareGet().setIndex("test").setId("3").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getVersion(), equalTo(2L));
         assertThat(getResponse.getSource().get("field1").toString(), equalTo("test"));
@@ -217,15 +217,15 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
         assertThat(bulkResponse.getItems()[2].getResponse().getIndex(), equalTo("test"));
         assertThat(bulkResponse.getItems()[2].getResponse().getVersion(), equalTo(3L));
 
-        getResponse = client().prepareGet().setIndex("test").setType("type1").setId("6").execute().actionGet();
+        getResponse = client().prepareGet().setIndex("test").setId("6").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getVersion(), equalTo(1L));
         assertThat(((Number) getResponse.getSource().get("field")).longValue(), equalTo(0L));
 
-        getResponse = client().prepareGet().setIndex("test").setType("type1").setId("7").execute().actionGet();
+        getResponse = client().prepareGet().setIndex("test").setId("7").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
 
-        getResponse = client().prepareGet().setIndex("test").setType("type1").setId("2").execute().actionGet();
+        getResponse = client().prepareGet().setIndex("test").setId("2").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getVersion(), equalTo(3L));
         assertThat(((Number) getResponse.getSource().get("field")).longValue(), equalTo(4L));
@@ -440,14 +440,13 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
             assertThat(response.getItems()[i].getId(), equalTo(Integer.toString(i)));
             assertThat(response.getItems()[i].getVersion(), equalTo(1L));
             assertThat(response.getItems()[i].getIndex(), equalTo("test"));
-            assertThat(response.getItems()[i].getType(), equalTo("type1"));
             assertThat(response.getItems()[i].getOpType(), equalTo(OpType.UPDATE));
             assertThat(response.getItems()[i].getResponse().getId(), equalTo(Integer.toString(i)));
             assertThat(response.getItems()[i].getResponse().getVersion(), equalTo(1L));
             assertThat(((UpdateResponse) response.getItems()[i].getResponse()).getGetResult().sourceAsMap().get("counter"), equalTo(1));
 
             for (int j = 0; j < 5; j++) {
-                GetResponse getResponse = client().prepareGet("test", "type1", Integer.toString(i)).execute().actionGet();
+                GetResponse getResponse = client().prepareGet("test", Integer.toString(i)).execute().actionGet();
                 assertThat(getResponse.isExists(), equalTo(true));
                 assertThat(getResponse.getVersion(), equalTo(1L));
                 assertThat(((Number) getResponse.getSource().get("counter")).longValue(), equalTo(1L));
@@ -480,7 +479,6 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
             assertThat(response.getItems()[i].getId(), equalTo(Integer.toString(i)));
             assertThat(response.getItems()[i].getVersion(), equalTo(2L));
             assertThat(response.getItems()[i].getIndex(), equalTo("test"));
-            assertThat(response.getItems()[i].getType(), equalTo("type1"));
             assertThat(response.getItems()[i].getOpType(), equalTo(OpType.UPDATE));
             assertThat(response.getItems()[i].getResponse().getId(), equalTo(Integer.toString(i)));
             assertThat(response.getItems()[i].getResponse().getVersion(), equalTo(2L));
@@ -504,7 +502,6 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
                 assertThat(response.getItems()[i].getId(), equalTo(Integer.toString(id)));
                 assertThat(response.getItems()[i].getVersion(), equalTo(3L));
                 assertThat(response.getItems()[i].getIndex(), equalTo("test"));
-                assertThat(response.getItems()[i].getType(), equalTo("type1"));
                 assertThat(response.getItems()[i].getOpType(), equalTo(OpType.UPDATE));
             }
         }
@@ -526,7 +523,6 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
             assertThat(response.getItems()[i].getItemId(), equalTo(i));
             assertThat(response.getItems()[i].getId(), equalTo(Integer.toString(i)));
             assertThat(response.getItems()[i].getIndex(), equalTo("test"));
-            assertThat(response.getItems()[i].getType(), equalTo("type1"));
             assertThat(response.getItems()[i].getOpType(), equalTo(OpType.UPDATE));
         }
 
@@ -550,10 +546,9 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
             assertThat(itemResponse.getItemId(), equalTo(i));
             assertThat(itemResponse.getId(), equalTo(Integer.toString(i)));
             assertThat(itemResponse.getIndex(), equalTo("test"));
-            assertThat(itemResponse.getType(), equalTo("type1"));
             assertThat(itemResponse.getOpType(), equalTo(OpType.UPDATE));
             for (int j = 0; j < 5; j++) {
-                GetResponse getResponse = client().prepareGet("test", "type1", Integer.toString(i)).get();
+                GetResponse getResponse = client().prepareGet("test", Integer.toString(i)).get();
                 assertThat(getResponse.isExists(), equalTo(false));
             }
         }

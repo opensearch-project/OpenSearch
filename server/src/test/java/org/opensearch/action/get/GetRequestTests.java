@@ -42,19 +42,19 @@ public class GetRequestTests extends OpenSearchTestCase {
 
     public void testValidation() {
         {
-            final GetRequest request = new GetRequest("index4", "_doc", "0");
+            final GetRequest request = new GetRequest("index4", "0");
             final ActionRequestValidationException validate = request.validate();
 
             assertThat(validate, nullValue());
         }
 
         {
-            final GetRequest request = new GetRequest("index4", randomBoolean() ? "" : null, randomBoolean() ? "" : null);
+            final GetRequest request = new GetRequest("index4", randomBoolean() ? "" : null);
             final ActionRequestValidationException validate = request.validate();
 
             assertThat(validate, not(nullValue()));
-            assertEquals(2, validate.validationErrors().size());
-            assertThat(validate.validationErrors(), hasItems("type is missing", "id is missing"));
+            assertEquals(1, validate.validationErrors().size());
+            assertThat(validate.validationErrors(), hasItems("id is missing"));
         }
     }
 }

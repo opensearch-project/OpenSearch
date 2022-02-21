@@ -90,7 +90,7 @@ public abstract class GeoQueryTests extends OpenSearchSingleNodeTestCase {
             .setSource("{\"geo\": null}", XContentType.JSON)
             .setRefreshPolicy(IMMEDIATE)
             .get();
-        GetResponse result = client().prepareGet(defaultIndexName, "_doc", "aNullshape").get();
+        GetResponse result = client().prepareGet(defaultIndexName, "aNullshape").get();
         assertThat(result.getField("location"), nullValue());
     }
 

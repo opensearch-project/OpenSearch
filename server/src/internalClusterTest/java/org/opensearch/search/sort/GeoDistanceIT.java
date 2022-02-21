@@ -590,7 +590,7 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("locations").setSettings(settings).addMapping("location", mapping));
         client().prepareIndex("locations", "location", "1").setCreate(true).setSource(source).get();
         refresh();
-        client().prepareGet("locations", "location", "1").get();
+        client().prepareGet("locations", "1").get();
 
         SearchResponse result = client().prepareSearch("locations")
             .setQuery(QueryBuilders.matchAllQuery())

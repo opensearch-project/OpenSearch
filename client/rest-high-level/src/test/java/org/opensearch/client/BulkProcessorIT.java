@@ -565,7 +565,6 @@ public class BulkProcessorIT extends OpenSearchRestHighLevelClientTestCase {
         int i = 1;
         for (MultiGetItemResponse multiGetItemResponse : multiGetResponse) {
             assertThat(multiGetItemResponse.getIndex(), equalTo("test"));
-            assertThat(multiGetItemResponse.getType(), equalTo("_doc"));
             assertThat(multiGetItemResponse.getId(), equalTo(Integer.toString(i++)));
         }
     }
