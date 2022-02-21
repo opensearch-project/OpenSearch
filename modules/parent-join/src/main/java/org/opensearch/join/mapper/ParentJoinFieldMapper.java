@@ -57,6 +57,7 @@ import org.opensearch.index.mapper.SourceValueFetcher;
 import org.opensearch.index.mapper.StringFieldType;
 import org.opensearch.index.mapper.TextSearchInfo;
 import org.opensearch.index.mapper.ValueFetcher;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.lookup.SearchLookup;
 
@@ -243,8 +244,8 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return SourceValueFetcher.identity(name(), mapperService, format);
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+            return SourceValueFetcher.identity(name(), context, format);
         }
 
         @Override

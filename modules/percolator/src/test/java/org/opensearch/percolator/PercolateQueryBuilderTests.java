@@ -184,7 +184,6 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     @Override
     protected GetResponse executeGet(GetRequest getRequest) {
         assertThat(getRequest.index(), Matchers.equalTo(indexedDocumentIndex));
-        assertThat(getRequest.type(), Matchers.equalTo(MapperService.SINGLE_MAPPING_NAME));
         assertThat(getRequest.id(), Matchers.equalTo(indexedDocumentId));
         assertThat(getRequest.routing(), Matchers.equalTo(indexedDocumentRouting));
         assertThat(getRequest.preference(), Matchers.equalTo(indexedDocumentPreference));
@@ -193,7 +192,6 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
             return new GetResponse(
                 new GetResult(
                     indexedDocumentIndex,
-                    MapperService.SINGLE_MAPPING_NAME,
                     indexedDocumentId,
                     0,
                     1,
@@ -208,7 +206,6 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
             return new GetResponse(
                 new GetResult(
                     indexedDocumentIndex,
-                    MapperService.SINGLE_MAPPING_NAME,
                     indexedDocumentId,
                     UNASSIGNED_SEQ_NO,
                     0,
@@ -341,7 +338,6 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
                 + "\"}}"
         );
         rewriteAndFetch(queryBuilder, queryShardContext).toQuery(queryShardContext);
-        assertWarnings(PercolateQueryBuilder.TYPE_DEPRECATION_MESSAGE);
     }
 
     public void testBothDocumentAndDocumentsSpecified() {

@@ -850,8 +850,8 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getCount());
             table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getCount());
 
-            table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getMemory());
-            table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getMemory());
+            table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getZeroMemory());
+            table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getZeroMemory());
 
             table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getIndexWriterMemory());
             table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getIndexWriterMemory());

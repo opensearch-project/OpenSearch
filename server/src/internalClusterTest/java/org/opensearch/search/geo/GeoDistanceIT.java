@@ -220,7 +220,6 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
         String name = "TestPosition";
 
         search.setQuery(QueryBuilders.matchAllQuery())
-            .setTypes("type1")
             .addAggregation(
                 AggregationBuilders.geoDistance(name, new GeoPoint(tgt_lat, tgt_lon))
                     .field("location")

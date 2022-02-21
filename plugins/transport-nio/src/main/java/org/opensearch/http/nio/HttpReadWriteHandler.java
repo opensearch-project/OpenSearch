@@ -199,8 +199,8 @@ public class HttpReadWriteHandler implements NioChannelHandler {
             + ". Found type: "
             + message.getClass()
             + ".";
-        assert ((HttpPipelinedResponse) message)
-            .getDelegateRequest() instanceof NioHttpResponse : "This channel only pipelined responses with a delegate of type: "
+        assert ((HttpPipelinedResponse) message).getDelegateRequest() instanceof NioHttpResponse
+            : "This channel only pipelined responses with a delegate of type: "
                 + NioHttpResponse.class
                 + ". Found type: "
                 + ((HttpPipelinedResponse) message).getDelegateRequest().getClass()

@@ -44,8 +44,11 @@ OPENSEARCH_HOME=`dirname "$OPENSEARCH_HOME"`
 # now set the classpath
 OPENSEARCH_CLASSPATH="$OPENSEARCH_HOME/lib/*"
 
-# now set the path to java
-if [ ! -z "$JAVA_HOME" ]; then
+# now set the path to java: OPENSEARCH_JAVA_HOME -> JAVA_HOME -> bundled JDK
+if [ ! -z "$OPENSEARCH_JAVA_HOME" ]; then
+  JAVA="$OPENSEARCH_JAVA_HOME/bin/java"
+  JAVA_TYPE="OPENSEARCH_JAVA_HOME"
+elif [ ! -z "$JAVA_HOME" ]; then
   JAVA="$JAVA_HOME/bin/java"
   JAVA_TYPE="JAVA_HOME"
 else

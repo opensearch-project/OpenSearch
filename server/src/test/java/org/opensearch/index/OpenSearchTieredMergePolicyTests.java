@@ -69,12 +69,6 @@ public class OpenSearchTieredMergePolicyTests extends OpenSearchTestCase {
         assertEquals(42, policy.regularMergePolicy.getMaxMergeAtOnce());
     }
 
-    public void testSetMaxMergeAtOnceExplicit() {
-        OpenSearchTieredMergePolicy policy = new OpenSearchTieredMergePolicy();
-        policy.setMaxMergeAtOnceExplicit(42);
-        assertEquals(42, policy.forcedMergePolicy.getMaxMergeAtOnceExplicit());
-    }
-
     public void testSetSegmentsPerTier() {
         OpenSearchTieredMergePolicy policy = new OpenSearchTieredMergePolicy();
         policy.setSegmentsPerTier(42);

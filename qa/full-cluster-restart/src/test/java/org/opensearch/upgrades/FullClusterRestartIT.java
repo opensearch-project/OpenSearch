@@ -50,7 +50,6 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.rest.action.document.RestBulkAction;
-import org.opensearch.rest.action.document.RestIndexAction;
 import org.opensearch.rest.action.document.RestUpdateAction;
 import org.opensearch.rest.action.search.RestExplainAction;
 import org.opensearch.test.NotEqualMessageBuilder;
@@ -719,6 +718,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
              * or not we have one. */
             shouldHaveTranslog = randomBoolean();
 
+            Settings.Builder settings = Settings.builder();
+            if (minimumNodeVersion().before(Version.V_2_0_0) && randomBoolean()) {
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
+            }
+            createIndex(index, settings.build());
+
             indexRandomDocuments(count, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
 
             // make sure all recoveries are done
@@ -731,7 +736,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertOK(client().performRequest(flushRequest));
 
             if (randomBoolean()) {
-                performSyncedFlush(index, randomBoolean());
+                syncedFlush(index, randomBoolean());
             }
             if (shouldHaveTranslog) {
                 // Update a few documents so we are sure to have a translog
@@ -983,9 +988,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             for (int i = 0; i < numDocs; i++) {
                 String doc = Strings.toString(JsonXContent.contentBuilder().startObject().field("field", "v1").endObject());
                 Request request = new Request("POST", "/" + index + "/" + type + "/" + i);
-                if (isRunningAgainstAncientCluster() == false) {
-                    request.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
-                }
                 request.setJsonEntity(doc);
                 client().performRequest(request);
                 refresh();
@@ -1252,9 +1254,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Request request = new Request("PUT", "/info/" + this.type + "/" + index + "_" + type);
         request.addParameter("op_type", "create");
         request.setJsonEntity(Strings.toString(infoDoc));
-        if (isRunningAgainstAncientCluster() == false) {
-            request.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
-        }
         client().performRequest(request);
     }
 
@@ -1423,7 +1422,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             if (randomBoolean()) {
                 flush(index, randomBoolean());
             } else if (randomBoolean()) {
-                performSyncedFlush(index, randomBoolean());
+                syncedFlush(index, randomBoolean());
             }
             saveInfoDocument("doc_count", Integer.toString(numDocs));
         }
@@ -1510,11 +1509,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             Request bulk = new Request("POST", "/_bulk");
             bulk.addParameter("refresh", "true");
-            bulk.setJsonEntity("{\"index\": {\"_index\": \"test_index_old\", \"_type\" : \"" + type + "\"}}\n" +
-                "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
-        if (isRunningAgainstAncientCluster() == false) {
-            bulk.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
-        }
+            bulk.setJsonEntity("{\"index\": {\"_index\": \"test_index_old\"}}\n" + "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
             client().performRequest(bulk);
 
             // start a async reindex job

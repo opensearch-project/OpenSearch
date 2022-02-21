@@ -33,7 +33,6 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.opensearch.ExceptionsHelper;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
@@ -66,12 +65,12 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
 
@@ -114,34 +113,6 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         assertEquals("mapping type name [_document] can't start with '_' unless it is called [_doc]", e.getMessage());
 
         MapperService.validateTypeName("_doc"); // no exception
-    }
-
-    public void testIndexIntoDefaultMapping() throws Throwable {
-        // 1. test implicit index creation
-        ExecutionException e = expectThrows(
-            ExecutionException.class,
-            () -> client().prepareIndex("index1", MapperService.DEFAULT_MAPPING, "1").setSource("{}", XContentType.JSON).execute().get()
-        );
-        Throwable throwable = ExceptionsHelper.unwrapCause(e.getCause());
-        if (throwable instanceof IllegalArgumentException) {
-            assertEquals("It is forbidden to index into the default mapping [_default_]", throwable.getMessage());
-        } else {
-            throw e;
-        }
-
-        // 2. already existing index
-        IndexService indexService = createIndex("index2");
-        e = expectThrows(
-            ExecutionException.class,
-            () -> { client().prepareIndex("index1", MapperService.DEFAULT_MAPPING, "2").setSource().execute().get(); }
-        );
-        throwable = ExceptionsHelper.unwrapCause(e.getCause());
-        if (throwable instanceof IllegalArgumentException) {
-            assertEquals("It is forbidden to index into the default mapping [_default_]", throwable.getMessage());
-        } else {
-            throw e;
-        }
-        assertNull(indexService.mapperService().documentMapper(MapperService.DEFAULT_MAPPING));
     }
 
     public void testPreflightUpdateDoesNotChangeMapping() throws Throwable {
@@ -359,14 +330,56 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         assertEquals("Limit of total fields [" + numberOfNonAliasFields + "] has been exceeded", e.getMessage());
     }
 
-    public void testDefaultMappingIsRejectedOn7() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_default_").endObject().endObject());
+    public void testForbidMultipleTypes() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
         MapperService mapperService = createIndex("test").mapperService();
+        mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+
+        String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type2").endObject().endObject());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> mapperService.merge("_default_", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE)
+            () -> mapperService.merge("type2", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE)
         );
-        assertEquals(MapperService.DEFAULT_MAPPING_ERROR_MESSAGE, e.getMessage());
+        assertThat(e.getMessage(), startsWith("Rejecting mapping update to [test] as the final mapping would have more than 1 type: "));
+    }
+
+    /**
+     * This test checks that the multi-type validation is done before we do any other kind of validation on the mapping that's added,
+     * see https://github.com/elastic/elasticsearch/issues/29313
+     */
+    public void testForbidMultipleTypesWithConflictingMappings() throws IOException {
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("type")
+                .startObject("properties")
+                .startObject("field1")
+                .field("type", "integer_range")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
+        MapperService mapperService = createIndex("test").mapperService();
+        mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+
+        String mapping2 = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("type2")
+                .startObject("properties")
+                .startObject("field1")
+                .field("type", "integer")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> mapperService.merge("type2", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE)
+        );
+        assertThat(e.getMessage(), startsWith("Rejecting mapping update to [test] as the final mapping would have more than 1 type: "));
     }
 
     public void testFieldNameLengthLimit() throws Throwable {

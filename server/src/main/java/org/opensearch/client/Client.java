@@ -271,9 +271,9 @@ public interface Client extends OpenSearchClient, Releasable {
     GetRequestBuilder prepareGet();
 
     /**
-     * Gets the document that was indexed from an index with a type (optional) and id.
+     * Gets the document that was indexed from an index with an id.
      */
-    GetRequestBuilder prepareGet(String index, @Nullable String type, String id);
+    GetRequestBuilder prepareGet(String index, String id);
 
     /**
      * Multi get documents.
@@ -375,10 +375,9 @@ public interface Client extends OpenSearchClient, Releasable {
      * Builder for the term vector request.
      *
      * @param index The index to load the document from
-     * @param type  The type of the document
      * @param id    The id of the document
      */
-    TermVectorsRequestBuilder prepareTermVectors(String index, String type, String id);
+    TermVectorsRequestBuilder prepareTermVectors(String index, String id);
 
     /**
      * Multi get term vectors.

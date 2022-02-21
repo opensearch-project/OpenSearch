@@ -222,7 +222,6 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         String error = null;
         ShardSearchRequest shardSearchLocalRequest = new ShardSearchRequest(
             request.shardId(),
-            request.types(),
             request.nowInMillis(),
             request.filteringAliases()
         );

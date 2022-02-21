@@ -49,14 +49,17 @@ public class MovePrimaryFirstTests extends OpenSearchIntegTestCase {
     }
 
     /**
-     * Creates two nodes each in two zones and shuts down nodes in one zone
-     * after relocating half the number of shards. Since, primaries are relocated
-     * first, cluster should stay green as primary should have relocated
+     * Creates two nodes each in two zones and shuts down nodes in zone1 after
+     * relocating half the number of shards. Shards per node constraint ensures
+     * that exactly 50% of shards relocate to nodes in zone2 giving time to shut down
+     * nodes in zone1. Since primaries are relocated first as movePrimaryFirst is
+     * enabled, cluster should not become red and zone2 nodes have all the primaries
      */
     public void testClusterGreenAfterPartialRelocation() throws InterruptedException {
         internalCluster().startMasterOnlyNodes(1);
         final String z1 = "zone-1", z2 = "zone-2";
-        final int primaryShardCount = 100;
+        final int primaryShardCount = 6;
+        assertTrue("Primary shard count must be even for equal distribution across two nodes", primaryShardCount % 2 == 0);
         final String z1n1 = startDataOnlyNode(z1);
         ensureGreen();
         createAndIndex("foo", 1, primaryShardCount);
@@ -83,18 +86,17 @@ public class MovePrimaryFirstTests extends OpenSearchIntegTestCase {
         final ClusterStateListener listener = event -> {
             if (event.routingTableChanged()) {
                 final RoutingNodes routingNodes = event.state().getRoutingNodes();
-                int startedz2n1 = 0;
-                int startedz2n2 = 0;
+                int startedCount = 0;
                 for (Iterator<RoutingNode> it = routingNodes.iterator(); it.hasNext();) {
                     RoutingNode routingNode = it.next();
                     final String nodeName = routingNode.node().getName();
-                    if (nodeName.equals(z2n1)) {
-                        startedz2n1 = routingNode.numberOfShardsWithState(ShardRoutingState.STARTED);
-                    } else if (nodeName.equals(z2n2)) {
-                        startedz2n2 = routingNode.numberOfShardsWithState(ShardRoutingState.STARTED);
+                    if (nodeName.equals(z2n1) || nodeName.equals(z2n2)) {
+                        startedCount += routingNode.numberOfShardsWithState(ShardRoutingState.STARTED);
                     }
                 }
-                if (startedz2n1 >= primaryShardCount / 2 && startedz2n2 >= primaryShardCount / 2) {
+
+                // Count down the latch once all the primary shards have initialized on nodes in zone-2
+                if (startedCount == primaryShardCount) {
                     primaryMoveLatch.countDown();
                 }
             }
@@ -103,15 +105,23 @@ public class MovePrimaryFirstTests extends OpenSearchIntegTestCase {
 
         // Exclude zone1 nodes for allocation and await latch count down
         settingsRequest = new ClusterUpdateSettingsRequest();
-        settingsRequest.persistentSettings(Settings.builder().put("cluster.routing.allocation.exclude.zone", z1));
+        settingsRequest.persistentSettings(
+            Settings.builder()
+                .put("cluster.routing.allocation.exclude.zone", z1)
+                // Total shards per node constraint is added to pause the relocation after primary shards
+                // have relocated to allow time for node shutdown and validate yellow cluster
+                .put("cluster.routing.allocation.total_shards_per_node", primaryShardCount / 2)
+        );
         client().admin().cluster().updateSettings(settingsRequest);
         primaryMoveLatch.await();
 
-        // Shutdown both nodes in zone and ensure cluster stays green
+        // Shutdown both nodes in zone 1 and ensure cluster does not become red
         try {
             internalCluster().stopRandomNode(InternalTestCluster.nameFilter(z1n1));
             internalCluster().stopRandomNode(InternalTestCluster.nameFilter(z1n2));
         } catch (Exception e) {}
-        ensureGreen();
+        // Due to shards per node constraint cluster cannot be green
+        // Since yellow suffices for this test, not removing shards constraint
+        ensureYellow();
     }
 }

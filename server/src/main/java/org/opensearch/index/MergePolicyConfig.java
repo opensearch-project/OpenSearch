@@ -76,11 +76,6 @@ import org.opensearch.common.unit.ByteSizeValue;
  *     Maximum number of segments to be merged at a time during "normal" merging.
  *     Default is <code>10</code>.
  *
- * <li><code>index.merge.policy.max_merge_at_once_explicit</code>:
- *
- *     Maximum number of segments to be merged at a time, during force merge or
- *     expungeDeletes. Default is <code>30</code>.
- *
  * <li><code>index.merge.policy.max_merged_segment</code>:
  *
  *     Maximum sized segment to produce during normal merging (not explicit
@@ -136,7 +131,6 @@ public final class MergePolicyConfig {
     public static final double DEFAULT_EXPUNGE_DELETES_ALLOWED = 10d;
     public static final ByteSizeValue DEFAULT_FLOOR_SEGMENT = new ByteSizeValue(2, ByteSizeUnit.MB);
     public static final int DEFAULT_MAX_MERGE_AT_ONCE = 10;
-    public static final int DEFAULT_MAX_MERGE_AT_ONCE_EXPLICIT = 30;
     public static final ByteSizeValue DEFAULT_MAX_MERGED_SEGMENT = new ByteSizeValue(5, ByteSizeUnit.GB);
     public static final double DEFAULT_SEGMENTS_PER_TIER = 10.0d;
     public static final double DEFAULT_RECLAIM_DELETES_WEIGHT = 2.0d;
@@ -165,13 +159,6 @@ public final class MergePolicyConfig {
     public static final Setting<Integer> INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING = Setting.intSetting(
         "index.merge.policy.max_merge_at_once",
         DEFAULT_MAX_MERGE_AT_ONCE,
-        2,
-        Property.Dynamic,
-        Property.IndexScope
-    );
-    public static final Setting<Integer> INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING = Setting.intSetting(
-        "index.merge.policy.max_merge_at_once_explicit",
-        DEFAULT_MAX_MERGE_AT_ONCE_EXPLICIT,
         2,
         Property.Dynamic,
         Property.IndexScope
@@ -213,7 +200,6 @@ public final class MergePolicyConfig {
         double forceMergeDeletesPctAllowed = indexSettings.getValue(INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING); // percentage
         ByteSizeValue floorSegment = indexSettings.getValue(INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING);
         int maxMergeAtOnce = indexSettings.getValue(INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING);
-        int maxMergeAtOnceExplicit = indexSettings.getValue(INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING);
         // TODO is this really a good default number for max_merge_segment, what happens for large indices,
         // won't they end up with many segments?
         ByteSizeValue maxMergedSegment = indexSettings.getValue(INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING);
@@ -232,19 +218,17 @@ public final class MergePolicyConfig {
         mergePolicy.setForceMergeDeletesPctAllowed(forceMergeDeletesPctAllowed);
         mergePolicy.setFloorSegmentMB(floorSegment.getMbFrac());
         mergePolicy.setMaxMergeAtOnce(maxMergeAtOnce);
-        mergePolicy.setMaxMergeAtOnceExplicit(maxMergeAtOnceExplicit);
         mergePolicy.setMaxMergedSegmentMB(maxMergedSegment.getMbFrac());
         mergePolicy.setSegmentsPerTier(segmentsPerTier);
         mergePolicy.setDeletesPctAllowed(deletesPctAllowed);
         if (logger.isTraceEnabled()) {
             logger.trace(
                 "using [tiered] merge mergePolicy with expunge_deletes_allowed[{}], floor_segment[{}],"
-                    + " max_merge_at_once[{}], max_merge_at_once_explicit[{}], max_merged_segment[{}], segments_per_tier[{}],"
+                    + " max_merge_at_once[{}], max_merged_segment[{}], segments_per_tier[{}],"
                     + " deletes_pct_allowed[{}]",
                 forceMergeDeletesPctAllowed,
                 floorSegment,
                 maxMergeAtOnce,
-                maxMergeAtOnceExplicit,
                 maxMergedSegment,
                 segmentsPerTier,
                 deletesPctAllowed
@@ -258,10 +242,6 @@ public final class MergePolicyConfig {
 
     void setMaxMergedSegment(ByteSizeValue maxMergedSegment) {
         mergePolicy.setMaxMergedSegmentMB(maxMergedSegment.getMbFrac());
-    }
-
-    void setMaxMergesAtOnceExplicit(Integer maxMergeAtOnceExplicit) {
-        mergePolicy.setMaxMergeAtOnceExplicit(maxMergeAtOnceExplicit);
     }
 
     void setMaxMergesAtOnce(Integer maxMergeAtOnce) {

@@ -70,6 +70,7 @@ import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.MultiBucketCollector;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
+import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.searchafter.SearchAfterBuilder;
 import org.opensearch.search.sort.SortAndFormats;
@@ -89,6 +90,7 @@ final class CompositeAggregator extends BucketsAggregator {
     private final int size;
     private final List<String> sourceNames;
     private final int[] reverseMuls;
+    private final MissingOrder[] missingOrders;
     private final List<DocValueFormat> formats;
     private final CompositeKey rawAfterKey;
 
@@ -117,6 +119,7 @@ final class CompositeAggregator extends BucketsAggregator {
         this.size = size;
         this.sourceNames = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::name).collect(Collectors.toList());
         this.reverseMuls = Arrays.stream(sourceConfigs).mapToInt(CompositeValuesSourceConfig::reverseMul).toArray();
+        this.missingOrders = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::missingOrder).toArray(MissingOrder[]::new);
         this.formats = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::format).collect(Collectors.toList());
         this.sources = new SingleDimensionValuesSource[sourceConfigs.length];
         // check that the provided size is not greater than the search.max_buckets setting
@@ -189,7 +192,15 @@ final class CompositeAggregator extends BucketsAggregator {
             CompositeKey key = queue.toCompositeKey(slot);
             InternalAggregations aggs = subAggsForBuckets[slot];
             int docCount = queue.getDocCount(slot);
-            buckets[queue.size()] = new InternalComposite.InternalBucket(sourceNames, formats, key, reverseMuls, docCount, aggs);
+            buckets[queue.size()] = new InternalComposite.InternalBucket(
+                sourceNames,
+                formats,
+                key,
+                reverseMuls,
+                missingOrders,
+                docCount,
+                aggs
+            );
         }
         CompositeKey lastBucket = num > 0 ? buckets[num - 1].getRawKey() : null;
         return new InternalAggregation[] {
@@ -201,6 +212,7 @@ final class CompositeAggregator extends BucketsAggregator {
                 Arrays.asList(buckets),
                 lastBucket,
                 reverseMuls,
+                missingOrders,
                 earlyTerminated,
                 metadata()
             ) };
@@ -208,7 +220,18 @@ final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalComposite(name, size, sourceNames, formats, Collections.emptyList(), null, reverseMuls, false, metadata());
+        return new InternalComposite(
+            name,
+            size,
+            sourceNames,
+            formats,
+            Collections.emptyList(),
+            null,
+            reverseMuls,
+            missingOrders,
+            false,
+            metadata()
+        );
     }
 
     private void finishLeaf() {

@@ -48,6 +48,9 @@ import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -186,5 +189,18 @@ public class Util {
                 return getter.get();
             }
         };
+    }
+
+    public static ZonedDateTime getBuildDate(ZonedDateTime defaultValue) {
+        final String sourceDateEpoch = System.getenv("SOURCE_DATE_EPOCH");
+        if (sourceDateEpoch != null) {
+            try {
+                return ZonedDateTime.ofInstant(Instant.ofEpochSecond(Long.parseLong(sourceDateEpoch)), ZoneOffset.UTC);
+            } catch (NumberFormatException e) {
+                throw new GradleException("Sysprop [SOURCE_DATE_EPOCH] must be of type [long]", e);
+            }
+        } else {
+            return defaultValue;
+        }
     }
 }

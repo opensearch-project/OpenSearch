@@ -255,7 +255,7 @@ public class BulkProcessorIT extends OpenSearchIntegTestCase {
                     processor.add(
                         new IndexRequest("test", "test", Integer.toString(testDocs)).source(Requests.INDEX_CONTENT_TYPE, "field", "value")
                     );
-                    multiGetRequestBuilder.add("test", "test", Integer.toString(testDocs));
+                    multiGetRequestBuilder.add("test", Integer.toString(testDocs));
                 } else {
                     testReadOnlyDocs++;
                     processor.add(
@@ -320,7 +320,7 @@ public class BulkProcessorIT extends OpenSearchIntegTestCase {
                     + "\n";
                 processor.add(new BytesArray(source), null, null, XContentType.JSON);
             }
-            multiGetRequestBuilder.add("test", "test", Integer.toString(i));
+            multiGetRequestBuilder.add("test", Integer.toString(i));
         }
         return multiGetRequestBuilder;
     }
@@ -345,7 +345,6 @@ public class BulkProcessorIT extends OpenSearchIntegTestCase {
         int i = 1;
         for (MultiGetItemResponse multiGetItemResponse : multiGetResponse) {
             assertThat(multiGetItemResponse.getIndex(), equalTo("test"));
-            assertThat(multiGetItemResponse.getType(), equalTo("test"));
             assertThat(multiGetItemResponse.getId(), equalTo(Integer.toString(i++)));
         }
     }

@@ -33,7 +33,6 @@
 package org.opensearch.index.engine;
 
 import java.io.IOException;
-import java.util.function.BiConsumer;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.ReferenceManager;
@@ -52,23 +51,15 @@ import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
  */
 @SuppressForbidden(reason = "reference counting is required here")
 class OpenSearchReaderManager extends ReferenceManager<OpenSearchDirectoryReader> {
-    private final BiConsumer<OpenSearchDirectoryReader, OpenSearchDirectoryReader> refreshListener;
-
     /**
      * Creates and returns a new OpenSearchReaderManager from the given
      * already-opened {@link OpenSearchDirectoryReader}, stealing
      * the incoming reference.
      *
      * @param reader            the directoryReader to use for future reopens
-     * @param refreshListener   A consumer that is called every time a new reader is opened
      */
-    OpenSearchReaderManager(
-        OpenSearchDirectoryReader reader,
-        BiConsumer<OpenSearchDirectoryReader, OpenSearchDirectoryReader> refreshListener
-    ) {
+    OpenSearchReaderManager(OpenSearchDirectoryReader reader) {
         this.current = reader;
-        this.refreshListener = refreshListener;
-        refreshListener.accept(current, null);
     }
 
     @Override
@@ -79,9 +70,6 @@ class OpenSearchReaderManager extends ReferenceManager<OpenSearchDirectoryReader
     @Override
     protected OpenSearchDirectoryReader refreshIfNeeded(OpenSearchDirectoryReader referenceToRefresh) throws IOException {
         final OpenSearchDirectoryReader reader = (OpenSearchDirectoryReader) DirectoryReader.openIfChanged(referenceToRefresh);
-        if (reader != null) {
-            refreshListener.accept(reader, referenceToRefresh);
-        }
         return reader;
     }
 

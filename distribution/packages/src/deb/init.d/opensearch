@@ -66,8 +66,9 @@ DAEMON=$OPENSEARCH_HOME/bin/opensearch
 DAEMON_OPTS="-d -p $PID_FILE"
 
 export OPENSEARCH_JAVA_OPTS
-export JAVA_HOME
 export OPENSEARCH_PATH_CONF
+export JAVA_HOME
+export OPENSEARCH_JAVA_HOME
 
 if [ ! -x "$DAEMON" ]; then
 	echo "The opensearch startup script does not exists or it is not executable, tried: $DAEMON"

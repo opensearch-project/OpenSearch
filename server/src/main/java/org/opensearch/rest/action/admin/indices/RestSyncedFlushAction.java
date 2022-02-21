@@ -32,17 +32,20 @@
 
 package org.opensearch.rest.action.admin.indices;
 
-import org.opensearch.action.admin.indices.flush.SyncedFlushRequest;
-import org.opensearch.action.admin.indices.flush.SyncedFlushResponse;
+import org.opensearch.action.admin.indices.flush.FlushRequest;
+import org.opensearch.action.admin.indices.flush.FlushResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
+import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
-import org.opensearch.rest.action.RestBuilderListener;
+import org.opensearch.rest.RestStatus;
+import org.opensearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -53,6 +56,8 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
 public class RestSyncedFlushAction extends BaseRestHandler {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestSyncedFlushAction.class);
 
     @Override
     public List<Route> routes() {
@@ -73,17 +78,37 @@ public class RestSyncedFlushAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, IndicesOptions.lenientExpandOpen());
-        SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        syncedFlushRequest.indicesOptions(indicesOptions);
-        return channel -> client.admin().indices().syncedFlush(syncedFlushRequest, new RestBuilderListener<SyncedFlushResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(SyncedFlushResponse results, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                results.toXContent(builder, request);
-                builder.endObject();
-                return new BytesRestResponse(results.restStatus(), builder);
-            }
-        });
+        DEPRECATION_LOGGER.deprecate(
+            "synced_flush",
+            "Synced flush was removed and a normal flush was performed instead. This transition will be removed in a future version."
+        );
+        final FlushRequest flushRequest = new FlushRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        flushRequest.indicesOptions(IndicesOptions.fromRequest(request, flushRequest.indicesOptions()));
+        return channel -> client.admin().indices().flush(flushRequest, new SimulateSyncedFlushResponseListener(channel));
+    }
+
+    static final class SimulateSyncedFlushResponseListener extends RestToXContentListener<FlushResponse> {
+
+        SimulateSyncedFlushResponseListener(RestChannel channel) {
+            super(channel);
+        }
+
+        @Override
+        public RestResponse buildResponse(FlushResponse flushResponse, XContentBuilder builder) throws Exception {
+            builder.startObject();
+            buildSyncedFlushResponse(builder, flushResponse);
+            builder.endObject();
+            final RestStatus restStatus = flushResponse.getFailedShards() == 0 ? RestStatus.OK : RestStatus.CONFLICT;
+            return new BytesRestResponse(restStatus, builder);
+        }
+
+        private void buildSyncedFlushResponse(XContentBuilder builder, FlushResponse flushResponse) throws IOException {
+            builder.startObject("_shards");
+            builder.field("total", flushResponse.getTotalShards());
+            builder.field("successful", flushResponse.getSuccessfulShards());
+            builder.field("failed", flushResponse.getFailedShards());
+            // can't serialize the detail of each index as we don't have the shard count per index.
+            builder.endObject();
+        }
     }
 }

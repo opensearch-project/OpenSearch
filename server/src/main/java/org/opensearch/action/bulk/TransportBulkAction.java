@@ -210,9 +210,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
     @Override
     protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
-        final long indexingBytes = bulkRequest.ramBytesUsed();
         final boolean isOnlySystem = isOnlySystem(bulkRequest, clusterService.state().metadata().getIndicesLookup(), systemIndices);
-        final Releasable releasable = indexingPressureService.markCoordinatingOperationStarted(indexingBytes, isOnlySystem);
+        final Releasable releasable = indexingPressureService.markCoordinatingOperationStarted(bulkRequest::ramBytesUsed, isOnlySystem);
         final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
         final String executorName = isOnlySystem ? Names.SYSTEM_WRITE : Names.WRITE;
         try {
@@ -553,7 +552,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             prohibitCustomRoutingOnDataStream(docWriteRequest, metadata);
                             IndexRequest indexRequest = (IndexRequest) docWriteRequest;
                             final IndexMetadata indexMetadata = metadata.index(concreteIndex);
-                            MappingMetadata mappingMd = indexMetadata.mappingOrDefault();
+                            MappingMetadata mappingMd = indexMetadata.mapping();
                             Version indexCreated = indexMetadata.getCreationVersion();
                             indexRequest.resolveRouting(metadata);
                             indexRequest.process(indexCreated, mappingMd, concreteIndex.getName());
@@ -569,7 +568,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             docWriteRequest.routing(metadata.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
                             // check if routing is required, if so, throw error if routing wasn't specified
                             if (docWriteRequest.routing() == null && metadata.routingRequired(concreteIndex.getName())) {
-                                throw new RoutingMissingException(concreteIndex.getName(), docWriteRequest.type(), docWriteRequest.id());
+                                throw new RoutingMissingException(concreteIndex.getName(), docWriteRequest.id());
                             }
                             break;
                         default:
@@ -631,7 +630,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 final boolean isOnlySystem = isOnlySystem(bulkRequest, clusterService.state().metadata().getIndicesLookup(), systemIndices);
                 final Releasable releasable = indexingPressureService.markCoordinatingOperationStarted(
                     shardId,
-                    bulkShardRequest.ramBytesUsed(),
+                    bulkShardRequest::ramBytesUsed,
                     isOnlySystem
                 );
                 shardBulkAction.execute(bulkShardRequest, ActionListener.runBefore(new ActionListener<BulkShardResponse>() {

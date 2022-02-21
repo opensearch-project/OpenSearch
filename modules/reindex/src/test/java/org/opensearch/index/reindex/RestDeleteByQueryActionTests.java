@@ -33,8 +33,6 @@
 package org.opensearch.index.reindex;
 
 import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.rest.RestRequest;
-import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.test.rest.RestActionTestCase;
 import org.junit.Before;
@@ -50,26 +48,6 @@ public class RestDeleteByQueryActionTests extends RestActionTestCase {
     public void setUpAction() {
         action = new RestDeleteByQueryAction();
         controller().registerHandler(action);
-    }
-
-    public void testTypeInPath() throws IOException {
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-            .withPath("/some_index/some_type/_delete_by_query")
-            .build();
-
-        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
-        verifyingClient.setExecuteLocallyVerifier((arg1, arg2) -> null);
-
-        dispatchRequest(request);
-
-        // checks the type in the URL is propagated correctly to the request object
-        // only works after the request is dispatched, so its params are filled from url.
-        DeleteByQueryRequest dbqRequest = action.buildRequest(request, DEFAULT_NAMED_WRITABLE_REGISTRY);
-        assertArrayEquals(new String[] { "some_type" }, dbqRequest.getDocTypes());
-
-        // RestDeleteByQueryAction itself doesn't check for a deprecated type usage
-        // checking here for a deprecation from its internal search request
-        assertWarnings(RestSearchAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testParseEmpty() throws IOException {

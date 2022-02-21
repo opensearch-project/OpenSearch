@@ -33,6 +33,7 @@
 package org.opensearch.index.mapper;
 
 import org.opensearch.common.Nullable;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.lookup.SourceLookup;
 
 import java.util.ArrayList;
@@ -51,17 +52,17 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
     private final Set<String> sourcePaths;
     private final @Nullable Object nullValue;
 
-    public ArraySourceValueFetcher(String fieldName, MapperService mapperService) {
-        this(fieldName, mapperService, null);
+    public ArraySourceValueFetcher(String fieldName, QueryShardContext context) {
+        this(fieldName, context, null);
     }
 
     /**
      * @param fieldName The name of the field.
-     * @param mapperService A mapper service.
+     * @param context A query shard context.
      * @param nullValue A optional substitute value if the _source value is 'null'.
      */
-    public ArraySourceValueFetcher(String fieldName, MapperService mapperService, Object nullValue) {
-        this.sourcePaths = mapperService.sourcePath(fieldName);
+    public ArraySourceValueFetcher(String fieldName, QueryShardContext context, Object nullValue) {
+        this.sourcePaths = context.sourcePath(fieldName);
         this.nullValue = nullValue;
     }
 

@@ -32,7 +32,6 @@
 
 package org.opensearch.index.analysis;
 
-import org.apache.lucene.util.Version;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.AbstractIndexComponent;
 import org.opensearch.index.IndexSettings;
@@ -41,20 +40,13 @@ public abstract class AbstractTokenFilterFactory extends AbstractIndexComponent 
 
     private final String name;
 
-    protected final Version version;
-
     public AbstractTokenFilterFactory(IndexSettings indexSettings, String name, Settings settings) {
         super(indexSettings);
         this.name = name;
-        this.version = Analysis.parseAnalysisVersion(this.indexSettings.getSettings(), settings, logger);
     }
 
     @Override
     public String name() {
         return this.name;
-    }
-
-    public final Version version() {
-        return version;
     }
 }

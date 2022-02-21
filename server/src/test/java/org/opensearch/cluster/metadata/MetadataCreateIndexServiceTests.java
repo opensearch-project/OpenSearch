@@ -1100,16 +1100,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .put(SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         List<AliasMetadata> aliases = singletonList(AliasMetadata.builder("alias1").build());
-        IndexMetadata indexMetadata = buildIndexMetadata(
-            "test",
-            aliases,
-            () -> null,
-            () -> null,
-            indexSettings,
-            4,
-            sourceIndexMetadata,
-            false
-        );
+        IndexMetadata indexMetadata = buildIndexMetadata("test", aliases, () -> null, indexSettings, 4, sourceIndexMetadata, false);
 
         assertThat(indexMetadata.getAliases().size(), is(1));
         assertThat(indexMetadata.getAliases().keys().iterator().next().value, is("alias1"));

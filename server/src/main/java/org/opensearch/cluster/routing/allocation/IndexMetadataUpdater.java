@@ -86,14 +86,12 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
 
     @Override
     public void shardStarted(ShardRouting initializingShard, ShardRouting startedShard) {
-        assert Objects.equals(
-            initializingShard.allocationId().getId(),
-            startedShard.allocationId().getId()
-        ) : "initializingShard.allocationId ["
-            + initializingShard.allocationId().getId()
-            + "] and startedShard.allocationId ["
-            + startedShard.allocationId().getId()
-            + "] have to have the same";
+        assert Objects.equals(initializingShard.allocationId().getId(), startedShard.allocationId().getId())
+            : "initializingShard.allocationId ["
+                + initializingShard.allocationId().getId()
+                + "] and startedShard.allocationId ["
+                + startedShard.allocationId().getId()
+                + "] have to have the same";
         Updates updates = changes(startedShard.shardId());
         updates.addedAllocationIds.add(startedShard.allocationId().getId());
         if (startedShard.primary()
@@ -171,13 +169,11 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
         ShardId shardId,
         Updates updates
     ) {
-        assert Sets.haveEmptyIntersection(
-            updates.addedAllocationIds,
-            updates.removedAllocationIds
-        ) : "allocation ids cannot be both added and removed in the same allocation round, added ids: "
-            + updates.addedAllocationIds
-            + ", removed ids: "
-            + updates.removedAllocationIds;
+        assert Sets.haveEmptyIntersection(updates.addedAllocationIds, updates.removedAllocationIds)
+            : "allocation ids cannot be both added and removed in the same allocation round, added ids: "
+                + updates.addedAllocationIds
+                + ", removed ids: "
+                + updates.removedAllocationIds;
 
         Set<String> oldInSyncAllocationIds = oldIndexMetadata.inSyncAllocationIds(shardId.id());
 
@@ -217,9 +213,8 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
             inSyncAllocationIds.removeAll(updates.removedAllocationIds);
 
             assert oldInSyncAllocationIds.contains(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID) == false
-                || inSyncAllocationIds.contains(
-                    RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID
-                ) == false : "fake allocation id has to be removed, inSyncAllocationIds:" + inSyncAllocationIds;
+                || inSyncAllocationIds.contains(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID) == false
+                : "fake allocation id has to be removed, inSyncAllocationIds:" + inSyncAllocationIds;
 
             // Prevent set of inSyncAllocationIds to grow unboundedly. This can happen for example if we don't write to a primary
             // but repeatedly shut down nodes that have active replicas.
@@ -258,9 +253,8 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
                 inSyncAllocationIds.add(updates.firstFailedPrimary.allocationId().getId());
             }
 
-            assert inSyncAllocationIds.isEmpty() == false
-                || oldInSyncAllocationIds.isEmpty() : "in-sync allocations cannot become empty after they have been non-empty: "
-                    + oldInSyncAllocationIds;
+            assert inSyncAllocationIds.isEmpty() == false || oldInSyncAllocationIds.isEmpty()
+                : "in-sync allocations cannot become empty after they have been non-empty: " + oldInSyncAllocationIds;
 
             // be extra safe here and only update in-sync set if it is non-empty
             if (inSyncAllocationIds.isEmpty() == false) {
@@ -295,11 +289,8 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
                 int shardNumber = shardEntry.getKey().getId();
                 Set<String> oldInSyncAllocations = oldIndexMetadata.inSyncAllocationIds(shardNumber);
                 Set<String> idsToRemove = shardEntry.getValue().stream().map(e -> e.getAllocationId()).collect(Collectors.toSet());
-                assert idsToRemove.stream()
-                    .allMatch(id -> oldRoutingTable.getByAllocationId(shardEntry.getKey(), id) == null) : "removing stale ids: "
-                        + idsToRemove
-                        + ", some of which have still a routing entry: "
-                        + oldRoutingTable;
+                assert idsToRemove.stream().allMatch(id -> oldRoutingTable.getByAllocationId(shardEntry.getKey(), id) == null)
+                    : "removing stale ids: " + idsToRemove + ", some of which have still a routing entry: " + oldRoutingTable;
                 Set<String> remainingInSyncAllocations = Sets.difference(oldInSyncAllocations, idsToRemove);
                 assert remainingInSyncAllocations.isEmpty() == false : "Set of in-sync ids cannot become empty for shard "
                     + shardEntry.getKey()

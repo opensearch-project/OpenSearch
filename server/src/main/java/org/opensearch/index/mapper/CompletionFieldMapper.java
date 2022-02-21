@@ -54,6 +54,7 @@ import org.opensearch.common.xcontent.XContentParser.NumberType;
 import org.opensearch.common.xcontent.XContentParser.Token;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.suggest.completion.CompletionSuggester;
 import org.opensearch.search.suggest.completion.context.ContextMapping;
@@ -363,12 +364,12 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new ArraySourceValueFetcher(name(), mapperService) {
+            return new ArraySourceValueFetcher(name(), context) {
                 @Override
                 protected List<?> parseSourceValue(Object value) {
                     if (value instanceof List) {

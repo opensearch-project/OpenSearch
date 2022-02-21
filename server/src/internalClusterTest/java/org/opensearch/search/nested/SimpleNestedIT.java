@@ -101,7 +101,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
             .get();
 
         waitForRelocation(ClusterHealthStatus.GREEN);
-        GetResponse getResponse = client().prepareGet("test", "type1", "1").get();
+        GetResponse getResponse = client().prepareGet("test", "1").get();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getSourceAsBytes(), notNullValue());
         refresh();
@@ -263,7 +263,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
             )
             .get();
 
-        GetResponse getResponse = client().prepareGet("test", "type1", "1").get();
+        GetResponse getResponse = client().prepareGet("test", "1").get();
         assertThat(getResponse.isExists(), equalTo(true));
         waitForRelocation(ClusterHealthStatus.GREEN);
         refresh();
@@ -548,7 +548,6 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test")
-            .setTypes("type1")
             .setQuery(QueryBuilders.matchAllQuery())
             .addSort(SortBuilders.fieldSort("nested1.field1").order(SortOrder.ASC).setNestedPath("nested1"))
             .get();
@@ -562,7 +561,6 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
         assertThat(searchResponse.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("4"));
 
         searchResponse = client().prepareSearch("test")
-            .setTypes("type1")
             .setQuery(QueryBuilders.matchAllQuery())
             .addSort(SortBuilders.fieldSort("nested1.field1").order(SortOrder.DESC).setNestedPath("nested1"))
             .get();
@@ -658,7 +656,6 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
         refresh();
 
         SearchRequestBuilder searchRequestBuilder = client().prepareSearch("test")
-            .setTypes("type1")
             .setQuery(QueryBuilders.matchAllQuery())
             .addSort(
                 SortBuilders.fieldSort("nested1.field1")
@@ -683,7 +680,6 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
         assertThat(searchResponse.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("10"));
 
         searchRequestBuilder = client().prepareSearch("test")
-            .setTypes("type1")
             .setQuery(QueryBuilders.matchAllQuery())
             .addSort(
                 SortBuilders.fieldSort("nested1.field1")

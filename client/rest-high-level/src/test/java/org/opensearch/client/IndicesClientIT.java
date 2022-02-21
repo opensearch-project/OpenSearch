@@ -46,7 +46,6 @@ import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.flush.FlushResponse;
-import org.opensearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.opensearch.action.admin.indices.open.OpenIndexRequest;
@@ -126,7 +125,6 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.indices.flush.SyncedFlushService;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.action.admin.indices.RestCreateIndexAction;
 import org.opensearch.rest.action.admin.indices.RestGetFieldMappingAction;
@@ -1075,39 +1073,6 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
             OpenSearchException exception = expectThrows(
                 OpenSearchException.class,
                 () -> execute(flushRequest, highLevelClient().indices()::flush, highLevelClient().indices()::flushAsync)
-            );
-            assertEquals(RestStatus.NOT_FOUND, exception.status());
-        }
-    }
-
-    public void testSyncedFlush() throws IOException {
-        {
-            String index = "index";
-            Settings settings = Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build();
-            createIndex(index, settings);
-            SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(index);
-            SyncedFlushResponse flushResponse = execute(
-                syncedFlushRequest,
-                highLevelClient().indices()::flushSynced,
-                highLevelClient().indices()::flushSyncedAsync,
-                expectWarningsOnce(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE)
-            );
-            assertThat(flushResponse.totalShards(), equalTo(1));
-            assertThat(flushResponse.successfulShards(), equalTo(1));
-            assertThat(flushResponse.failedShards(), equalTo(0));
-        }
-        {
-            String nonExistentIndex = "non_existent_index";
-            assertFalse(indexExists(nonExistentIndex));
-            SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(nonExistentIndex);
-            OpenSearchException exception = expectThrows(
-                OpenSearchException.class,
-                () -> execute(
-                    syncedFlushRequest,
-                    highLevelClient().indices()::flushSynced,
-                    highLevelClient().indices()::flushSyncedAsync,
-                    expectWarningsOnce(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE)
-                )
             );
             assertEquals(RestStatus.NOT_FOUND, exception.status());
         }

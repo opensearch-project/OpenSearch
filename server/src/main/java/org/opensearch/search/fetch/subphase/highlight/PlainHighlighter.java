@@ -49,7 +49,6 @@ import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.common.text.Text;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.search.fetch.FetchContext;
 import org.opensearch.search.fetch.FetchSubPhase;
@@ -118,25 +117,13 @@ public class PlainHighlighter implements Highlighter {
         ArrayList<TextFragment> fragsList = new ArrayList<>();
         List<Object> textsToHighlight;
         Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().getType()).mappers().indexAnalyzer();
-        Integer keywordIgnoreAbove = null;
-        if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
-            KeywordFieldMapper mapper = (KeywordFieldMapper) context.mapperService()
-                .documentMapper()
-                .mappers()
-                .getMapper(fieldContext.fieldName);
-            keywordIgnoreAbove = mapper.ignoreAbove();
-        }
-        ;
         final int maxAnalyzedOffset = context.getIndexSettings().getHighlightMaxAnalyzedOffset();
 
-        textsToHighlight = HighlightUtils.loadFieldValues(fieldType, hitContext, fieldContext.forceSource);
+        textsToHighlight = HighlightUtils.loadFieldValues(fieldType, context.getQueryShardContext(), hitContext, fieldContext.forceSource);
 
         for (Object textToHighlight : textsToHighlight) {
             String text = convertFieldValue(fieldType, textToHighlight);
             int textLength = text.length();
-            if (keywordIgnoreAbove != null && textLength > keywordIgnoreAbove) {
-                continue; // skip highlighting keyword terms that were ignored during indexing
-            }
             if (textLength > maxAnalyzedOffset) {
                 throw new IllegalArgumentException(
                     "The length of ["

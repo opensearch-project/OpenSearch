@@ -255,7 +255,6 @@ public class ExplainActionIT extends OpenSearchIntegTestCase {
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getGetResult(), notNullValue());
         assertThat(response.getGetResult().getIndex(), equalTo("test"));
-        assertThat(response.getGetResult().getType(), equalTo("test"));
         assertThat(response.getGetResult().getId(), equalTo("1"));
         assertThat(response.getGetResult().getSource(), notNullValue());
         assertThat((String) response.getGetResult().getSource().get("field1"), equalTo("value1"));

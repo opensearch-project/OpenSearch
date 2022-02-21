@@ -35,11 +35,11 @@ package org.opensearch.index.mapper;
 import com.carrotsearch.hppc.ObjectArrayList;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.index.fielddata.IndexFieldData;
@@ -117,8 +117,8 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return SourceValueFetcher.identity(name(), mapperService, format);
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+            return SourceValueFetcher.identity(name(), context, format);
         }
 
         @Override
@@ -240,8 +240,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
             try {
                 CollectionUtils.sortAndDedup(bytesList);
                 int size = bytesList.size();
-                final byte[] bytes = new byte[totalSize + (size + 1) * 5];
-                ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
+                BytesStreamOutput out = new BytesStreamOutput(totalSize + (size + 1) * 5);
                 out.writeVInt(size);  // write total number of values
                 for (int i = 0; i < size; i++) {
                     final byte[] value = bytesList.get(i);
@@ -249,7 +248,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
                     out.writeVInt(valueLength);
                     out.writeBytes(value, 0, valueLength);
                 }
-                return new BytesRef(bytes, 0, out.getPosition());
+                return out.bytes().toBytesRef();
             } catch (IOException e) {
                 throw new OpenSearchException("Failed to get binary value", e);
             }

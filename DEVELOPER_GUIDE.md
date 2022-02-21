@@ -3,7 +3,7 @@
     - [Git Clone OpenSearch Repo](#git-clone-opensearch-repo)
     - [Install Prerequisites](#install-prerequisites)
       - [JDK 11](#jdk-11)
-      - [JDK 8 and 14](#jdk-8-and-14)
+      - [JDK 14](#jdk-14)
       - [Runtime JDK](#runtime-jdk)
       - [Windows](#windows)
       - [Docker](#docker)
@@ -33,6 +33,8 @@
       - [runtimeOnly](#runtimeonly)
       - [compileOnly](#compileonly)
       - [testImplementation](#testimplementation)
+    - [Gradle Plugins](#gradle-plugins)
+      - [Distribution Download Plugin](#distribution-download-plugin)
   - [Misc](#misc)
     - [git-secrets](#git-secrets)
       - [Installation](#installation)
@@ -65,13 +67,13 @@ OpenSearch builds using Java 11 at a minimum. This means you must have a JDK 11 
 
 Download Java 11 from [here](https://adoptium.net/releases.html?variant=openjdk11).
 
-#### JDK 8 and 14
+#### JDK 14
 
-To run the full suite of tests, download and install [JDK 8](https://adoptium.net/releases.html?variant=openjdk8) and [JDK 14](https://jdk.java.net/archive/) and set `JAVA8_HOME`, `JAVA11_HOME`, and `JAVA14_HOME`. They are required by the [backwards compatibility test](./TESTING.md#testing-backwards-compatibility).
+To run the full suite of tests, download and install [JDK 14](https://jdk.java.net/archive/) and set `JAVA11_HOME`, and `JAVA14_HOME`. They are required by the [backwards compatibility test](./TESTING.md#testing-backwards-compatibility).
 
 #### Runtime JDK
 
-By default, the test tasks use bundled JDK runtime, configured in `buildSrc/version.properties` and set to JDK 17 (LTS). Other kind of test tasks (integration, cluster, ... ) use the same runtime as `JAVA_HOME`. However, since OpenSearch supports JDK 8 as the runtime, the build supports compiling with JDK 11 and testing on a different version of JDK runtime. To do this, set `RUNTIME_JAVA_HOME` pointing to the Java home of another JDK installation, e.g. `RUNTIME_JAVA_HOME=/usr/lib/jvm/jdk-8`. Alternatively, the runtime JDK version could be provided as the command line argument, using combination of `runtime.java=<major JDK version>` property and `JAVA<major JDK version>_HOME` environment variable, for example `./gradlew -Druntime.java=17 ...` (in this case, the tooling expects `JAVA17_HOME` environment variable to be set).
+By default, the test tasks use bundled JDK runtime, configured in `buildSrc/version.properties` and set to JDK 17 (LTS). Other kind of test tasks (integration, cluster, ... ) use the same runtime as `JAVA_HOME`. However, the build supports compiling with JDK 11 and testing on a different version of JDK runtime. To do this, set `RUNTIME_JAVA_HOME` pointing to the Java home of another JDK installation, e.g. `RUNTIME_JAVA_HOME=/usr/lib/jvm/jdk-14`. Alternatively, the runtime JDK version could be provided as the command line argument, using combination of `runtime.java=<major JDK version>` property and `JAVA<major JDK version>_HOME` environment variable, for example `./gradlew -Druntime.java=17 ...` (in this case, the tooling expects `JAVA17_HOME` environment variable to be set).
 
 #### Windows
 
@@ -182,6 +184,15 @@ You can import the OpenSearch project into IntelliJ IDEA as follows.
 1. Select **File > Open**
 2. In the subsequent dialog navigate to the root `build.gradle` file
 3. In the subsequent dialog select **Open as Project**
+
+#### Remote development using JetBrains Gateway
+
+[JetBrains Gateway](https://www.jetbrains.com/remote-development/gateway/) enables development, testing and debugging on remote machines like development servers.
+
+1. On the local development machine, download and install the latest thin client from the [JetBrains Gateway page](https://www.jetbrains.com/remote-development/gateway/).
+2. Create a new connection to the remote server and install an IntelliJ server support using [these instructions](https://www.jetbrains.com/help/idea/remote-development-starting-page.html#connect_to_rd_ij).
+
+Follow the [IntelliJ IDEA instructions](#intellij-idea) post a successful connection.
 
 ### Visual Studio Code
 
@@ -330,6 +341,15 @@ somehow. OpenSearch plugins use this configuration to include dependencies that 
 
 Code that is on the classpath for compiling tests that are part of this project but not production code. The canonical example
 of this is `junit`.
+
+### Gradle Plugins
+
+#### Distribution Download Plugin
+
+The Distribution Download plugin downloads the latest version of OpenSearch by default, and supports overriding this behavior by setting `customDistributionUrl`.
+```
+./gradlew integTest -DcustomDistributionUrl="https://ci.opensearch.org/ci/dbc/bundle-build/1.2.0/1127/linux/x64/dist/opensearch-1.2.0-linux-x64.tar.gz"
+```
 
 ## Misc
 

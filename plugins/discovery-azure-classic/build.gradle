@@ -54,7 +54,7 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "commons-lang:commons-lang:2.6"
   api "commons-io:commons-io:2.7"
-  api 'javax.mail:mail:1.4.5'
+  api 'javax.mail:mail:1.4.7'
   api 'javax.inject:javax.inject:1'
   api "com.sun.jersey:jersey-client:${versions.jersey}"
   api "com.sun.jersey:jersey-core:${versions.jersey}"
@@ -64,7 +64,7 @@ dependencies {
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
   // and whitelist this hack in JarHell
-  api 'javax.xml.bind:jaxb-api:2.2.2'
+  api 'javax.xml.bind:jaxb-api:2.3.1'
 }
 
 restResources {
