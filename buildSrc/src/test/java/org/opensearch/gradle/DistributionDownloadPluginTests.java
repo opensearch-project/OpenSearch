@@ -132,7 +132,6 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
         );
     }
 
-
     public void testBadVersionFormat() {
         assertDistroError(
             createProject(null, false),
