@@ -54,7 +54,7 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "commons-lang:commons-lang:2.6"
   api "commons-io:commons-io:2.7"
-  api 'javax.mail:mail:1.4.5'
+  api 'javax.mail:mail:1.4.7'
   api 'javax.inject:javax.inject:1'
   api "com.sun.jersey:jersey-client:${versions.jersey}"
   api "com.sun.jersey:jersey-core:${versions.jersey}"
