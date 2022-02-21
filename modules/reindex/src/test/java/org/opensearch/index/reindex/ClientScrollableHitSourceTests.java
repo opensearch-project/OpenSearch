@@ -47,7 +47,6 @@ import org.opensearch.client.ParentTaskAssigningClient;
 import org.opensearch.client.support.AbstractClient;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.text.Text;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.search.SearchHit;
@@ -183,7 +182,7 @@ public class ClientScrollableHitSourceTests extends OpenSearchTestCase {
 
     private SearchResponse createSearchResponse() {
         // create a simulated response.
-        SearchHit hit = new SearchHit(0, "id", new Text("type"), emptyMap(), emptyMap()).sourceRef(new BytesArray("{}"));
+        SearchHit hit = new SearchHit(0, "id", emptyMap(), emptyMap()).sourceRef(new BytesArray("{}"));
         SearchHits hits = new SearchHits(
             IntStream.range(0, randomIntBetween(0, 20)).mapToObj(i -> hit).toArray(SearchHit[]::new),
             new TotalHits(0, TotalHits.Relation.EQUAL_TO),

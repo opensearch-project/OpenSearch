@@ -269,14 +269,7 @@ public class OpenSearchAssertions {
         Set<String> idsSet = new HashSet<>(Arrays.asList(ids));
         for (SearchHit hit : searchResponse.getHits()) {
             assertThat(
-                "id ["
-                    + hit.getId()
-                    + "] was found in search results but wasn't expected (type ["
-                    + hit.getType()
-                    + "], index ["
-                    + hit.getIndex()
-                    + "])"
-                    + shardStatus,
+                "id [" + hit.getId() + "] was found in search results but wasn't expected (index [" + hit.getIndex() + "])" + shardStatus,
                 idsSet.remove(hit.getId()),
                 equalTo(true)
             );
@@ -545,10 +538,6 @@ public class OpenSearchAssertions {
      */
     public static Matcher<SearchHit> hasId(final String id) {
         return new OpenSearchMatchers.SearchHitHasIdMatcher(id);
-    }
-
-    public static Matcher<SearchHit> hasType(final String type) {
-        return new OpenSearchMatchers.SearchHitHasTypeMatcher(type);
     }
 
     public static Matcher<SearchHit> hasIndex(final String index) {

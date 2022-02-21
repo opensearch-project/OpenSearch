@@ -80,7 +80,6 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
@@ -411,7 +410,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason) {
-        return internalMerge(Collections.singletonMap(type, mappingSource), reason).get(type);
+        return internalMerge(Collections.singletonMap(type, mappingSource), reason).values().iterator().next();
     }
 
     private synchronized Map<String, DocumentMapper> internalMerge(IndexMetadata indexMetadata, MergeReason reason) {
@@ -468,20 +467,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private synchronized Map<String, DocumentMapper> internalMerge(DocumentMapper mapper, MergeReason reason) {
-
         Map<String, DocumentMapper> results = new LinkedHashMap<>(2);
-
-        {
-            if (mapper != null && this.mapper != null && Objects.equals(this.mapper.type(), mapper.type()) == false) {
-                throw new IllegalArgumentException(
-                    "Rejecting mapping update to ["
-                        + index().getName()
-                        + "] as the final mapping would have more than 1 type: "
-                        + Arrays.asList(this.mapper.type(), mapper.type())
-                );
-            }
-        }
-
         DocumentMapper newMapper = null;
         if (mapper != null) {
             // check naming
@@ -565,15 +551,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public static boolean isMappingSourceTyped(String type, CompressedXContent mappingSource) {
         Map<String, Object> root = XContentHelper.convertToMap(mappingSource.compressedReference(), true, XContentType.JSON).v2();
         return isMappingSourceTyped(type, root);
-    }
-
-    /**
-     * If the _type name is _doc and there is no _doc top-level key then this means that we
-     * are handling a typeless call. In such a case, we override _doc with the actual type
-     * name in the mappings. This allows to use typeless APIs on typed indices.
-     */
-    public String getTypeForUpdate(String type, CompressedXContent mappingSource) {
-        return isMappingSourceTyped(type, mappingSource) == false ? resolveDocumentType(type) : type;
     }
 
     /**

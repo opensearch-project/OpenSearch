@@ -590,7 +590,7 @@ public class SimpleRoutingIT extends OpenSearchIntegTestCase {
         }
 
         logger.info("--> verifying explain with id [2], with routing [0], should succeed");
-        ExplainResponse explainResponse = client().prepareExplain(indexOrAlias(), "type1", "2")
+        ExplainResponse explainResponse = client().prepareExplain(indexOrAlias(), "2")
             .setQuery(QueryBuilders.matchAllQuery())
             .setRouting(routingValue)
             .get();
@@ -599,7 +599,7 @@ public class SimpleRoutingIT extends OpenSearchIntegTestCase {
 
         logger.info("--> verifying explain with id [2], with no routing, should fail");
         try {
-            client().prepareExplain(indexOrAlias(), "type1", "2").setQuery(QueryBuilders.matchAllQuery()).get();
+            client().prepareExplain(indexOrAlias(), "2").setQuery(QueryBuilders.matchAllQuery()).get();
             fail();
         } catch (RoutingMissingException e) {
             assertThat(e.getMessage(), equalTo("routing is required for [test]/[2]"));

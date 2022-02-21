@@ -190,7 +190,7 @@ public class FetchSourcePhaseTests extends OpenSearchTestCase {
         when(fetchContext.fetchSourceContext()).thenReturn(fetchSourceContext);
         when(fetchContext.getIndexName()).thenReturn("index");
 
-        final SearchHit searchHit = new SearchHit(1, null, null, nestedIdentity, null, null);
+        final SearchHit searchHit = new SearchHit(1, null, nestedIdentity, null, null);
 
         // We don't need a real index, just a LeafReaderContext which cannot be mocked.
         MemoryIndex index = new MemoryIndex();

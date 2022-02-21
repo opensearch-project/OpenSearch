@@ -349,7 +349,7 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
         String explainShardAction = ExplainAction.NAME + "[s]";
         interceptTransportActions(explainShardAction);
 
-        ExplainRequest explainRequest = new ExplainRequest(randomIndexOrAlias(), "type", "id").query(QueryBuilders.matchAllQuery());
+        ExplainRequest explainRequest = new ExplainRequest(randomIndexOrAlias(), "id").query(QueryBuilders.matchAllQuery());
         internalCluster().coordOnlyNodeClient().explain(explainRequest).actionGet();
 
         clearInterceptedActions();
