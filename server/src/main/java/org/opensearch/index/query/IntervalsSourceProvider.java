@@ -39,6 +39,7 @@ import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.ParseField;
@@ -72,7 +73,7 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalCo
  * Factory class for {@link IntervalsSource}
  *
  * Built-in sources include {@link Match}, which analyzes a text string and converts it
- * to a proximity source (phrase, ordered or unordered depending on how
+ * to a proximity source (phrase, ordered, unordered, unordered without overlaps depending on how
  * strict the matching should be); {@link Combine}, which allows proximity queries
  * between different sub-sources; and {@link Disjunction}.
  */
@@ -101,12 +102,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 return Prefix.fromXContent(parser);
             case "wildcard":
                 return Wildcard.fromXContent(parser);
+            case "regexp":
+                return Regexp.fromXContent(parser);
             case "fuzzy":
                 return Fuzzy.fromXContent(parser);
         }
         throw new ParsingException(
             parser.getTokenLocation(),
-            "Unknown interval type [" + parser.currentName() + "], expecting one of [match, any_of, all_of, prefix, wildcard]"
+            "Unknown interval type [" + parser.currentName() + "], expecting one of [match, any_of, all_of, prefix, wildcard, regexp]"
         );
     }
 
@@ -127,15 +130,15 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         private final String query;
         private final int maxGaps;
-        private final boolean ordered;
+        private final IntervalMode mode;
         private final String analyzer;
         private final IntervalFilter filter;
         private final String useField;
 
-        public Match(String query, int maxGaps, boolean ordered, String analyzer, IntervalFilter filter, String useField) {
+        public Match(String query, int maxGaps, IntervalMode mode, String analyzer, IntervalFilter filter, String useField) {
             this.query = query;
             this.maxGaps = maxGaps;
-            this.ordered = ordered;
+            this.mode = mode;
             this.analyzer = analyzer;
             this.filter = filter;
             this.useField = useField;
@@ -144,7 +147,15 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         public Match(StreamInput in) throws IOException {
             this.query = in.readString();
             this.maxGaps = in.readVInt();
-            this.ordered = in.readBoolean();
+            if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
+                this.mode = IntervalMode.readFromStream(in);
+            } else {
+                if (in.readBoolean()) {
+                    this.mode = IntervalMode.ORDERED;
+                } else {
+                    this.mode = IntervalMode.UNORDERED;
+                }
+            }
             this.analyzer = in.readOptionalString();
             this.filter = in.readOptionalWriteable(IntervalFilter::new);
             if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
@@ -164,9 +175,9 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             if (useField != null) {
                 fieldType = context.fieldMapper(useField);
                 assert fieldType != null;
-                source = Intervals.fixField(useField, fieldType.intervals(query, maxGaps, ordered, analyzer, false));
+                source = Intervals.fixField(useField, fieldType.intervals(query, maxGaps, mode, analyzer, false));
             } else {
-                source = fieldType.intervals(query, maxGaps, ordered, analyzer, false);
+                source = fieldType.intervals(query, maxGaps, mode, analyzer, false);
             }
             if (filter != null) {
                 return filter.filter(source, context, fieldType);
@@ -187,7 +198,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             if (o == null || getClass() != o.getClass()) return false;
             Match match = (Match) o;
             return maxGaps == match.maxGaps
-                && ordered == match.ordered
+                && mode == match.mode
                 && Objects.equals(query, match.query)
                 && Objects.equals(filter, match.filter)
                 && Objects.equals(useField, match.useField)
@@ -196,7 +207,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         @Override
         public int hashCode() {
-            return Objects.hash(query, maxGaps, ordered, analyzer, filter, useField);
+            return Objects.hash(query, maxGaps, mode, analyzer, filter, useField);
         }
 
         @Override
@@ -208,7 +219,11 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(query);
             out.writeVInt(maxGaps);
-            out.writeBoolean(ordered);
+            if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
+                mode.writeTo(out);
+            } else {
+                out.writeBoolean(mode == IntervalMode.ORDERED);
+            }
             out.writeOptionalString(analyzer);
             out.writeOptionalWriteable(filter);
             if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
@@ -222,7 +237,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             builder.startObject();
             builder.field("query", query);
             builder.field("max_gaps", maxGaps);
-            builder.field("ordered", ordered);
+            builder.field("mode", mode);
             if (analyzer != null) {
                 builder.field("analyzer", analyzer);
             }
@@ -238,16 +253,28 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         private static final ConstructingObjectParser<Match, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
             String query = (String) args[0];
             int max_gaps = (args[1] == null ? -1 : (Integer) args[1]);
-            boolean ordered = (args[2] != null && (boolean) args[2]);
-            String analyzer = (String) args[3];
-            IntervalFilter filter = (IntervalFilter) args[4];
-            String useField = (String) args[5];
-            return new Match(query, max_gaps, ordered, analyzer, filter, useField);
+            Boolean ordered = (Boolean) args[2];
+            String mode = (String) args[3];
+            String analyzer = (String) args[4];
+            IntervalFilter filter = (IntervalFilter) args[5];
+            String useField = (String) args[6];
+
+            IntervalMode intervalMode;
+            if (ordered != null) {
+                intervalMode = ordered ? IntervalMode.ORDERED : IntervalMode.UNORDERED;
+            } else if (mode != null) {
+                intervalMode = IntervalMode.fromString(mode);
+            } else {
+                intervalMode = IntervalMode.UNORDERED;
+            }
+
+            return new Match(query, max_gaps, intervalMode, analyzer, filter, useField);
         });
         static {
             PARSER.declareString(constructorArg(), new ParseField("query"));
             PARSER.declareInt(optionalConstructorArg(), new ParseField("max_gaps"));
-            PARSER.declareBoolean(optionalConstructorArg(), new ParseField("ordered"));
+            PARSER.declareBoolean(optionalConstructorArg(), new ParseField("ordered").withAllDeprecated());
+            PARSER.declareString(optionalConstructorArg(), new ParseField("mode"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("analyzer"));
             PARSER.declareObject(optionalConstructorArg(), (p, c) -> IntervalFilter.fromXContent(p), new ParseField("filter"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("use_field"));
@@ -265,8 +292,8 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             return maxGaps;
         }
 
-        boolean isOrdered() {
-            return ordered;
+        IntervalMode getMode() {
+            return mode;
         }
 
         String getAnalyzer() {
@@ -392,19 +419,23 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         public static final String NAME = "all_of";
 
         private final List<IntervalsSourceProvider> subSources;
-        private final boolean ordered;
+        private final IntervalMode mode;
         private final int maxGaps;
         private final IntervalFilter filter;
 
-        public Combine(List<IntervalsSourceProvider> subSources, boolean ordered, int maxGaps, IntervalFilter filter) {
+        public Combine(List<IntervalsSourceProvider> subSources, IntervalMode mode, int maxGaps, IntervalFilter filter) {
             this.subSources = subSources;
-            this.ordered = ordered;
+            this.mode = mode;
             this.maxGaps = maxGaps;
             this.filter = filter;
         }
 
         public Combine(StreamInput in) throws IOException {
-            this.ordered = in.readBoolean();
+            if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
+                this.mode = IntervalMode.readFromStream(in);
+            } else {
+                this.mode = in.readBoolean() ? IntervalMode.ORDERED : IntervalMode.UNORDERED;
+            }
             this.subSources = in.readNamedWriteableList(IntervalsSourceProvider.class);
             this.maxGaps = in.readInt();
             this.filter = in.readOptionalWriteable(IntervalFilter::new);
@@ -416,7 +447,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             for (IntervalsSourceProvider provider : subSources) {
                 ss.add(provider.getSource(ctx, fieldType));
             }
-            IntervalsSource source = IntervalBuilder.combineSources(ss, maxGaps, ordered);
+            IntervalsSource source = IntervalBuilder.combineSources(ss, maxGaps, mode);
             if (filter != null) {
                 return filter.filter(source, ctx, fieldType);
             }
@@ -436,14 +467,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             if (o == null || getClass() != o.getClass()) return false;
             Combine combine = (Combine) o;
             return Objects.equals(subSources, combine.subSources)
-                && ordered == combine.ordered
+                && mode == combine.mode
                 && maxGaps == combine.maxGaps
                 && Objects.equals(filter, combine.filter);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(subSources, ordered, maxGaps, filter);
+            return Objects.hash(subSources, mode, maxGaps, filter);
         }
 
         @Override
@@ -453,7 +484,11 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeBoolean(ordered);
+            if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
+                mode.writeTo(out);
+            } else {
+                out.writeBoolean(mode == IntervalMode.ORDERED);
+            }
             out.writeNamedWriteableList(subSources);
             out.writeInt(maxGaps);
             out.writeOptionalWriteable(filter);
@@ -462,7 +497,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(NAME);
-            builder.field("ordered", ordered);
+            builder.field("mode", mode);
             builder.field("max_gaps", maxGaps);
             builder.startArray("intervals");
             for (IntervalsSourceProvider provider : subSources) {
@@ -479,14 +514,26 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         @SuppressWarnings("unchecked")
         static final ConstructingObjectParser<Combine, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
-            boolean ordered = (args[0] != null && (boolean) args[0]);
-            List<IntervalsSourceProvider> subSources = (List<IntervalsSourceProvider>) args[1];
-            Integer maxGaps = (args[2] == null ? -1 : (Integer) args[2]);
-            IntervalFilter filter = (IntervalFilter) args[3];
-            return new Combine(subSources, ordered, maxGaps, filter);
+            Boolean ordered = (Boolean) args[0];
+            String mode = (String) args[1];
+            List<IntervalsSourceProvider> subSources = (List<IntervalsSourceProvider>) args[2];
+            Integer maxGaps = (args[3] == null ? -1 : (Integer) args[3]);
+            IntervalFilter filter = (IntervalFilter) args[4];
+
+            IntervalMode intervalMode;
+            if (ordered != null) {
+                intervalMode = ordered ? IntervalMode.ORDERED : IntervalMode.UNORDERED;
+            } else if (mode != null) {
+                intervalMode = IntervalMode.fromString(mode);
+            } else {
+                intervalMode = IntervalMode.UNORDERED;
+            }
+
+            return new Combine(subSources, intervalMode, maxGaps, filter);
         });
         static {
-            PARSER.declareBoolean(optionalConstructorArg(), new ParseField("ordered"));
+            PARSER.declareBoolean(optionalConstructorArg(), new ParseField("ordered").withAllDeprecated());
+            PARSER.declareString(optionalConstructorArg(), new ParseField("mode"));
             PARSER.declareObjectArray(
                 constructorArg(),
                 (p, c) -> IntervalsSourceProvider.parseInnerIntervals(p),
@@ -504,8 +551,8 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             return subSources;
         }
 
-        boolean isOrdered() {
-            return ordered;
+        IntervalMode getMode() {
+            return mode;
         }
 
         int getMaxGaps() {
@@ -547,9 +594,9 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             if (useField != null) {
                 fieldType = context.fieldMapper(useField);
                 assert fieldType != null;
-                source = Intervals.fixField(useField, fieldType.intervals(prefix, 0, false, analyzer, true));
+                source = Intervals.fixField(useField, fieldType.intervals(prefix, 0, IntervalMode.UNORDERED, analyzer, true));
             } else {
-                source = fieldType.intervals(prefix, 0, false, analyzer, true);
+                source = fieldType.intervals(prefix, 0, IntervalMode.UNORDERED, analyzer, true);
             }
             return source;
         }
@@ -628,6 +675,155 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         String getUseField() {
             return useField;
+        }
+    }
+
+    public static class Regexp extends IntervalsSourceProvider {
+
+        public static final String NAME = "regexp";
+        public static final int DEFAULT_FLAGS_VALUE = RegexpFlag.ALL.value();
+
+        private final String pattern;
+        private final int flags;
+        private final String useField;
+        private final Integer maxExpansions;
+
+        public Regexp(String pattern, int flags, String useField, Integer maxExpansions) {
+            this.pattern = pattern;
+            this.flags = flags;
+            this.useField = useField;
+            this.maxExpansions = (maxExpansions != null && maxExpansions > 0) ? maxExpansions : null;
+        }
+
+        public Regexp(StreamInput in) throws IOException {
+            this.pattern = in.readString();
+            this.flags = in.readVInt();
+            this.useField = in.readOptionalString();
+            this.maxExpansions = in.readOptionalVInt();
+        }
+
+        @Override
+        public IntervalsSource getSource(QueryShardContext context, MappedFieldType fieldType) {
+            final org.apache.lucene.util.automaton.RegExp regexp = new org.apache.lucene.util.automaton.RegExp(pattern, flags);
+            final CompiledAutomaton automaton = new CompiledAutomaton(regexp.toAutomaton());
+
+            if (useField != null) {
+                fieldType = context.fieldMapper(useField);
+                assert fieldType != null;
+                checkPositions(fieldType);
+
+                IntervalsSource regexpSource = maxExpansions == null
+                    ? Intervals.multiterm(automaton, regexp.toString())
+                    : Intervals.multiterm(automaton, maxExpansions, regexp.toString());
+                return Intervals.fixField(useField, regexpSource);
+            } else {
+                checkPositions(fieldType);
+                return maxExpansions == null
+                    ? Intervals.multiterm(automaton, regexp.toString())
+                    : Intervals.multiterm(automaton, maxExpansions, regexp.toString());
+            }
+        }
+
+        private void checkPositions(MappedFieldType type) {
+            if (type.getTextSearchInfo().hasPositions() == false) {
+                throw new IllegalArgumentException("Cannot create intervals over field [" + type.name() + "] with no positions indexed");
+            }
+        }
+
+        @Override
+        public void extractFields(Set<String> fields) {
+            if (useField != null) {
+                fields.add(useField);
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Regexp regexp = (Regexp) o;
+            return Objects.equals(pattern, regexp.pattern)
+                && Objects.equals(flags, regexp.flags)
+                && Objects.equals(useField, regexp.useField)
+                && Objects.equals(maxExpansions, regexp.maxExpansions);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(pattern, flags, useField, maxExpansions);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(pattern);
+            out.writeVInt(flags);
+            out.writeOptionalString(useField);
+            out.writeOptionalVInt(maxExpansions);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(NAME);
+            builder.field("pattern", pattern);
+            if (flags != DEFAULT_FLAGS_VALUE) {
+                builder.field("flags_value", flags);
+            }
+            if (useField != null) {
+                builder.field("use_field", useField);
+            }
+            if (maxExpansions != null) {
+                builder.field("max_expansions", maxExpansions);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        private static final ConstructingObjectParser<Regexp, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
+            String pattern = (String) args[0];
+            String flags = (String) args[1];
+            Integer flagsValue = (Integer) args[2];
+            String useField = (String) args[3];
+            Integer maxExpansions = (Integer) args[4];
+
+            if (flagsValue != null) {
+                return new Regexp(pattern, flagsValue, useField, maxExpansions);
+            } else if (flags != null) {
+                return new Regexp(pattern, RegexpFlag.resolveValue(flags), useField, maxExpansions);
+            } else {
+                return new Regexp(pattern, DEFAULT_FLAGS_VALUE, useField, maxExpansions);
+            }
+        });
+        static {
+            PARSER.declareString(constructorArg(), new ParseField("pattern"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("flags"));
+            PARSER.declareInt(optionalConstructorArg(), new ParseField("flags_value"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("use_field"));
+            PARSER.declareInt(optionalConstructorArg(), new ParseField("max_expansions"));
+        }
+
+        public static Regexp fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
+        }
+
+        String getPattern() {
+            return pattern;
+        }
+
+        int getFlags() {
+            return flags;
+        }
+
+        String getUseField() {
+            return useField;
+        }
+
+        Integer getMaxExpansions() {
+            return maxExpansions;
         }
     }
 

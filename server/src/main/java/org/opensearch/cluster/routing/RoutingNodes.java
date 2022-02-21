@@ -56,7 +56,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -108,10 +107,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         this.readOnly = readOnly;
         final RoutingTable routingTable = clusterState.routingTable();
 
-        Map<String, LinkedHashMap<ShardId, ShardRouting>> nodesToShards = new HashMap<>();
         // fill in the nodeToShards with the "live" nodes
         for (ObjectCursor<DiscoveryNode> cursor : clusterState.nodes().getDataNodes().values()) {
-            nodesToShards.put(cursor.value.getId(), new LinkedHashMap<>()); // LinkedHashMap to preserve order
+            String nodeId = cursor.value.getId();
+            this.nodesToShards.put(cursor.value.getId(), new RoutingNode(nodeId, clusterState.nodes().get(nodeId)));
         }
 
         // fill in the inverse of node -> shards allocated
@@ -125,27 +124,23 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                     // by the ShardId, as this is common for primary and replicas.
                     // A replica Set might have one (and not more) replicas with the state of RELOCATING.
                     if (shard.assignedToNode()) {
-                        Map<ShardId, ShardRouting> entries = nodesToShards.computeIfAbsent(
+                        RoutingNode routingNode = this.nodesToShards.computeIfAbsent(
                             shard.currentNodeId(),
-                            k -> new LinkedHashMap<>()
-                        ); // LinkedHashMap to preserve order
-                        ShardRouting previousValue = entries.put(shard.shardId(), shard);
-                        if (previousValue != null) {
-                            throw new IllegalArgumentException("Cannot have two different shards with same shard id on same node");
-                        }
+                            k -> new RoutingNode(shard.currentNodeId(), clusterState.nodes().get(shard.currentNodeId()))
+                        );
+                        routingNode.add(shard);
                         assignedShardsAdd(shard);
                         if (shard.relocating()) {
                             relocatingShards++;
-                            // LinkedHashMap to preserve order.
                             // Add the counterpart shard with relocatingNodeId reflecting the source from which
                             // it's relocating from.
-                            entries = nodesToShards.computeIfAbsent(shard.relocatingNodeId(), k -> new LinkedHashMap<>());
+                            routingNode = nodesToShards.computeIfAbsent(
+                                shard.relocatingNodeId(),
+                                k -> new RoutingNode(shard.relocatingNodeId(), clusterState.nodes().get(shard.relocatingNodeId()))
+                            );
                             ShardRouting targetShardRouting = shard.getTargetRelocatingShard();
                             addInitialRecovery(targetShardRouting, indexShard.primary);
-                            previousValue = entries.put(targetShardRouting.shardId(), targetShardRouting);
-                            if (previousValue != null) {
-                                throw new IllegalArgumentException("Cannot have two different shards with same shard id on same node");
-                            }
+                            routingNode.add(targetShardRouting);
                             assignedShardsAdd(targetShardRouting);
                         } else if (shard.initializing()) {
                             if (shard.primary()) {
@@ -159,10 +154,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                     }
                 }
             }
-        }
-        for (Map.Entry<String, LinkedHashMap<ShardId, ShardRouting>> entry : nodesToShards.entrySet()) {
-            String nodeId = entry.getKey();
-            this.nodesToShards.put(nodeId, new RoutingNode(nodeId, clusterState.nodes().get(nodeId), entry.getValue()));
         }
     }
 
@@ -1289,37 +1280,97 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * the first node, then the first shard of the second node, etc. until one shard from each node has been returned.
      * The iterator then resumes on the first node by returning the second shard and continues until all shards from
      * all the nodes have been returned.
+     * @param movePrimaryFirst if true, all primary shards are iterated over before iterating replica for any node
+     * @return iterator of shard routings
      */
-    public Iterator<ShardRouting> nodeInterleavedShardIterator() {
+    public Iterator<ShardRouting> nodeInterleavedShardIterator(boolean movePrimaryFirst) {
         final Queue<Iterator<ShardRouting>> queue = new ArrayDeque<>();
         for (Map.Entry<String, RoutingNode> entry : nodesToShards.entrySet()) {
             queue.add(entry.getValue().copyShards().iterator());
         }
-        return new Iterator<ShardRouting>() {
-            public boolean hasNext() {
-                while (!queue.isEmpty()) {
-                    if (queue.peek().hasNext()) {
+        if (movePrimaryFirst) {
+            return new Iterator<ShardRouting>() {
+                private Queue<ShardRouting> replicaShards = new ArrayDeque<>();
+                private Queue<Iterator<ShardRouting>> replicaIterators = new ArrayDeque<>();
+
+                public boolean hasNext() {
+                    while (!queue.isEmpty()) {
+                        if (queue.peek().hasNext()) {
+                            return true;
+                        }
+                        queue.poll();
+                    }
+                    if (!replicaShards.isEmpty()) {
                         return true;
                     }
-                    queue.poll();
+                    while (!replicaIterators.isEmpty()) {
+                        if (replicaIterators.peek().hasNext()) {
+                            return true;
+                        }
+                        replicaIterators.poll();
+                    }
+                    return false;
                 }
-                return false;
-            }
 
-            public ShardRouting next() {
-                if (hasNext() == false) {
-                    throw new NoSuchElementException();
+                public ShardRouting next() {
+                    if (hasNext() == false) {
+                        throw new NoSuchElementException();
+                    }
+                    while (!queue.isEmpty()) {
+                        Iterator<ShardRouting> iter = queue.poll();
+                        if (iter.hasNext()) {
+                            ShardRouting result = iter.next();
+                            if (result.primary()) {
+                                queue.offer(iter);
+                                return result;
+                            }
+                            replicaShards.offer(result);
+                            replicaIterators.offer(iter);
+                        }
+                    }
+                    if (!replicaShards.isEmpty()) {
+                        return replicaShards.poll();
+                    }
+                    Iterator<ShardRouting> replicaIterator = replicaIterators.poll();
+                    ShardRouting replicaShard = replicaIterator.next();
+                    replicaIterators.offer(replicaIterator);
+
+                    assert !replicaShard.primary();
+                    return replicaShard;
                 }
-                Iterator<ShardRouting> iter = queue.poll();
-                ShardRouting result = iter.next();
-                queue.offer(iter);
-                return result;
-            }
 
-            public void remove() {
-                throw new UnsupportedOperationException();
-            }
-        };
+                public void remove() {
+                    throw new UnsupportedOperationException();
+                }
+            };
+        } else {
+            return new Iterator<ShardRouting>() {
+                @Override
+                public boolean hasNext() {
+                    while (!queue.isEmpty()) {
+                        if (queue.peek().hasNext()) {
+                            return true;
+                        }
+                        queue.poll();
+                    }
+                    return false;
+                }
+
+                @Override
+                public ShardRouting next() {
+                    if (hasNext() == false) {
+                        throw new NoSuchElementException();
+                    }
+                    Iterator<ShardRouting> iter = queue.poll();
+                    queue.offer(iter);
+                    return iter.next();
+                }
+
+                public void remove() {
+                    throw new UnsupportedOperationException();
+                }
+            };
+        }
     }
 
     private static final class Recoveries {

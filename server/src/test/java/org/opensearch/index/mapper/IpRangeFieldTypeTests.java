@@ -46,7 +46,7 @@ public class IpRangeFieldTypeTests extends FieldTypeTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
-        RangeFieldMapper mapper = new RangeFieldMapper.Builder("field", RangeType.IP, true).build(context);
+        RangeFieldMapper mapper = new RangeFieldMapper.Builder("field", RangeType.IP, true, Version.V_EMPTY).build(context);
         Map<String, Object> range = org.opensearch.common.collect.Map.of("gte", "2001:db8:0:0:0:0:2:1");
         assertEquals(
             Collections.singletonList(org.opensearch.common.collect.Map.of("gte", "2001:db8::2:1")),

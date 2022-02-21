@@ -6,7 +6,7 @@
 #OPENSEARCH_HOME=/usr/share/opensearch
 
 # OpenSearch Java path
-#JAVA_HOME=
+#OPENSEARCH_JAVA_HOME=
 
 # OpenSearch configuration directory
 # Note: this setting will be shared with command-line tools

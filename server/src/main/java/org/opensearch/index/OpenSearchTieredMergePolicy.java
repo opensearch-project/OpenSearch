@@ -99,11 +99,13 @@ final class OpenSearchTieredMergePolicy extends FilterMergePolicy {
         return regularMergePolicy.getMaxMergeAtOnce();
     }
 
+    @Deprecated
     public void setMaxMergeAtOnceExplicit(int maxMergeAtOnceExplicit) {
         regularMergePolicy.setMaxMergeAtOnceExplicit(maxMergeAtOnceExplicit);
         forcedMergePolicy.setMaxMergeAtOnceExplicit(maxMergeAtOnceExplicit);
     }
 
+    @Deprecated
     public int getMaxMergeAtOnceExplicit() {
         return forcedMergePolicy.getMaxMergeAtOnceExplicit();
     }
