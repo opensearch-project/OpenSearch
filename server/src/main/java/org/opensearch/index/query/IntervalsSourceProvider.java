@@ -147,7 +147,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         public Match(StreamInput in) throws IOException {
             this.query = in.readString();
             this.maxGaps = in.readVInt();
-            if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
                 this.mode = IntervalMode.readFromStream(in);
             } else {
                 if (in.readBoolean()) {
@@ -219,7 +219,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(query);
             out.writeVInt(maxGaps);
-            if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
                 mode.writeTo(out);
             } else {
                 out.writeBoolean(mode == IntervalMode.ORDERED);
@@ -431,7 +431,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         public Combine(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
                 this.mode = IntervalMode.readFromStream(in);
             } else {
                 this.mode = in.readBoolean() ? IntervalMode.ORDERED : IntervalMode.UNORDERED;
@@ -484,7 +484,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
                 mode.writeTo(out);
             } else {
                 out.writeBoolean(mode == IntervalMode.ORDERED);
