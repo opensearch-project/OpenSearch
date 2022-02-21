@@ -38,6 +38,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.index.get.GetResult;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
 
@@ -83,7 +84,7 @@ public class UpdateResponse extends DocWriteResponse {
         long version,
         Result result
     ) {
-        super(shardId, type, id, seqNo, primaryTerm, version, result);
+        super(shardId, MapperService.SINGLE_MAPPING_NAME, id, seqNo, primaryTerm, version, result);
         setShardInfo(shardInfo);
     }
 
@@ -198,7 +199,6 @@ public class UpdateResponse extends DocWriteResponse {
                 update.setGetResult(
                     new GetResult(
                         update.getIndex(),
-                        update.getType(),
                         update.getId(),
                         getResult.getSeqNo(),
                         getResult.getPrimaryTerm(),

@@ -80,7 +80,6 @@ public class ExplainResponseTests extends AbstractSerializingTestCase<ExplainRes
         GetResult getResult = new GetResult(
             randomAlphaOfLengthBetween(3, 10),
             randomAlphaOfLengthBetween(3, 10),
-            randomAlphaOfLengthBetween(3, 10),
             0,
             1,
             randomNonNegativeLong(),
@@ -104,7 +103,6 @@ public class ExplainResponseTests extends AbstractSerializingTestCase<ExplainRes
         boolean exist = true;
         Explanation explanation = Explanation.match(1.0f, "description", Collections.emptySet());
         GetResult getResult = new GetResult(
-            null,
             null,
             null,
             0,

@@ -922,7 +922,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
 
             Throwable cause = exception.getCause();
             assertThat(cause, instanceOf(RoutingMissingException.class));
-            assertThat(cause.getMessage(), equalTo("routing is required for [test]/[_doc]/[1]"));
+            assertThat(cause.getMessage(), equalTo("routing is required for [test]/[1]"));
         }
 
         {
@@ -941,7 +941,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
 
             Throwable cause = exception.getCause();
             assertThat(cause, instanceOf(RoutingMissingException.class));
-            assertThat(cause.getMessage(), equalTo("routing is required for [test]/[_doc]/[2]"));
+            assertThat(cause.getMessage(), equalTo("routing is required for [test]/[2]"));
         }
     }
 }
