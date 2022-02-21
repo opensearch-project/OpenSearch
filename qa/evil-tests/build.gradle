@@ -40,7 +40,7 @@ apply plugin: 'opensearch.testclusters'
 apply plugin: 'opensearch.standalone-test'
 
 dependencies {
-  testImplementation 'com.google.jimfs:jimfs:1.1'
+  testImplementation 'com.google.jimfs:jimfs:1.2'
 }
 
 // TODO: give each evil test its own fresh JVM for more isolation.
