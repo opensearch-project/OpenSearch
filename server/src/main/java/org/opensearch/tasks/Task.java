@@ -39,6 +39,7 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.ToXContentObject;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -193,6 +194,16 @@ public class Task {
      */
     public Status getStatus() {
         return null;
+    }
+
+    public Map<String, Long> getResourceStats() {
+        // TODO: Replace this with the actual method.
+        return new HashMap<String, Long>() {
+            {
+                put("cpu", id * 100);
+                put("memory", id * 100);
+            }
+        };
     }
 
     /**

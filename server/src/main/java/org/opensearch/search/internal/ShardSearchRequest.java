@@ -51,6 +51,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.index.Index;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
@@ -71,6 +72,7 @@ import org.opensearch.tasks.TaskId;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -82,6 +84,8 @@ import static org.opensearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISA
  * Provides a cache key based on its content that can be used to cache shard level response.
  */
 public class ShardSearchRequest extends TransportRequest implements IndicesRequest {
+    public static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
+
     private final String clusterAlias;
     private final ShardId shardId;
     private final int numberOfShards;
@@ -499,13 +503,23 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new SearchShardTask(id, type, action, getDescription(), parentTaskId, headers);
+        return new SearchShardTask(id, type, action, getDescription(), parentTaskId, headers, this::getMetadataSupplier);
     }
 
     @Override
     public String getDescription() {
         // Shard id is enough here, the request itself can be found by looking at the parent task description
         return "shardId[" + shardId() + "]";
+    }
+
+    public String getMetadataSupplier() {
+        StringBuilder sb = new StringBuilder();
+        if (source != null) {
+            sb.append("source[").append(source.toString(FORMAT_PARAMS)).append("]");
+        } else {
+            sb.append("source[]");
+        }
+        return sb.toString();
     }
 
     public Rewriteable<Rewriteable> getRewriteable() {
