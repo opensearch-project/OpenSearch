@@ -129,23 +129,22 @@ public class ReplicationCollection {
         return replicationRef;
     }
 
-//    /** cancel the replication with the given id (if found) and remove it from the replication collection */
-//    public boolean cancelReplication(long id, String reason) {
-//        ReplicationTarget removed = onGoingRecoveries.remove(id);
-//        boolean cancelled = false;
-//        if (removed != null) {
-//            logger.trace(
-//                "{} canceled replication from {}, id [{}] (reason [{}])",
-//                removed.getIndexShard().shardId(),
-//                removed.getSource().name(),
-//                removed.getReplicationId(),
-//                reason
-//            );
-//            removed.cancel(reason);
-//            cancelled = true;
-//        }
-//        return cancelled;
-//    }
+    /** cancel the replication with the given id (if found) and remove it from the replication collection */
+    public boolean cancelReplication(long id, String reason) {
+        ReplicationTarget removed = onGoingReplications.remove(id);
+        boolean cancelled = false;
+        if (removed != null) {
+            logger.trace(
+                "{} canceled replication, id [{}] (reason [{}])",
+                removed.getIndexShard().shardId(),
+                removed.getReplicationId(),
+                reason
+            );
+            removed.cancel(reason);
+            cancelled = true;
+        }
+        return cancelled;
+    }
 
     /**
      * fail the replication with the given id (if found) and remove it from the replication collection

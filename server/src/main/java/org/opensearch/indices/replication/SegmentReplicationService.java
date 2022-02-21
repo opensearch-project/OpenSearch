@@ -14,13 +14,16 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
+import org.opensearch.action.support.RetryableAction;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.breaker.CircuitBreakingException;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexEventListener;
@@ -29,7 +32,7 @@ import org.opensearch.index.shard.IndexShardRecoveryException;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
-import org.opensearch.indices.recovery.PeerRecoveryTargetService;
+import org.opensearch.indices.recovery.DelayRecoveryException;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.Timer;
 import org.opensearch.indices.replication.copy.PrimaryShardReplicationSource;
@@ -42,9 +45,10 @@ import org.opensearch.indices.replication.copy.SegmentReplicationPrimaryService;
 import org.opensearch.indices.replication.copy.TrackShardRequest;
 import org.opensearch.indices.replication.copy.TrackShardResponse;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.TransportException;
-import org.opensearch.transport.TransportResponse;
-import org.opensearch.transport.TransportResponseHandler;
+import org.opensearch.transport.ConnectTransportException;
+import org.opensearch.transport.RemoteTransportException;
+import org.opensearch.transport.SendRequestTransportException;
+import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
@@ -84,10 +88,40 @@ public class SegmentReplicationService implements IndexEventListener {
 
     public void prepareForReplication(IndexShard indexShard, DiscoveryNode targetNode, DiscoveryNode sourceNode, ActionListener<TrackShardResponse> listener) {
         setupReplicaShard(indexShard);
-        transportService.sendRequest(sourceNode,
-            SegmentReplicationPrimaryService.Actions.TRACK_SHARD,
-            new TrackShardRequest(indexShard.shardId(), indexShard.routingEntry().allocationId().getId(), targetNode),
-            new ActionListenerResponseHandler<>(listener, TrackShardResponse::new));
+        final TimeValue initialDelay = TimeValue.timeValueMillis(200);
+        final TimeValue timeout = recoverySettings.internalActionRetryTimeout();
+        final RetryableAction retryableAction = new RetryableAction(logger, threadPool, initialDelay, timeout, listener) {
+            @Override
+            public void tryAction(ActionListener listener) {
+                transportService.sendRequest(sourceNode,
+                    SegmentReplicationPrimaryService.Actions.TRACK_SHARD,
+                    new TrackShardRequest(indexShard.shardId(), indexShard.routingEntry().allocationId().getId(), targetNode),
+                    TransportRequestOptions.builder()
+                        .withTimeout(recoverySettings.internalActionTimeout())
+                        .build(),
+                    new ActionListenerResponseHandler<>(listener, TrackShardResponse::new));
+            }
+
+            @Override
+            public boolean shouldRetry(Exception e) {
+                return retryableException(e);
+            }
+        };
+        retryableAction.run();
+    }
+
+    private static boolean retryableException(Exception e) {
+        if (e instanceof ConnectTransportException) {
+            return true;
+        } else if (e instanceof SendRequestTransportException) {
+            final Throwable cause = ExceptionsHelper.unwrapCause(e);
+            return cause instanceof ConnectTransportException;
+        } else if (e instanceof RemoteTransportException) {
+            final Throwable cause = ExceptionsHelper.unwrapCause(e);
+            return cause instanceof CircuitBreakingException || cause instanceof OpenSearchRejectedExecutionException
+                || cause instanceof DelayRecoveryException;
+        }
+        return false;
     }
 
     private void setupReplicaShard(IndexShard indexShard) throws IndexShardRecoveryException {

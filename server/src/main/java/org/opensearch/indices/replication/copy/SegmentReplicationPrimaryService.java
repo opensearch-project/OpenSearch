@@ -47,6 +47,7 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.recovery.DelayRecoveryException;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.checkpoint.TransportCheckpointInfoResponse;
 import org.opensearch.tasks.Task;
@@ -56,6 +57,7 @@ import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -117,8 +119,11 @@ public class SegmentReplicationPrimaryService {
         }
 
         public CopyState getCopyStateForCheckpoint(ReplicationCheckpoint checkpoint) {
-            // TODO: We should incref here and return from StartReplicationHandler...
-            return checkpointCopyState.get(checkpoint);
+            final CopyState copyState = checkpointCopyState.get(checkpoint);
+            if (copyState != null) {
+                copyState.incRef();
+            }
+            return copyState;
         }
 
         public boolean hasCheckpoint(ReplicationCheckpoint checkpoint) {
@@ -135,19 +140,27 @@ public class SegmentReplicationPrimaryService {
         }
     }
 
+    private CopyState getCopyState(ReplicationCheckpoint checkpoint) throws IOException {
+        if (commitCache.hasCheckpoint(checkpoint)) {
+            return commitCache.getCopyStateForCheckpoint(checkpoint);
+        }
+        final CopyState copyState = buildCopyState(checkpoint.getShardId());
+        commitCache.addCopyState(copyState);
+        return copyState;
+    }
+
+    private CopyState buildCopyState(ShardId shardId) throws IOException {
+        final IndexService indexService = indicesService.indexService(shardId.getIndex());
+        final IndexShard shard = indexService.getShard(shardId.id());
+        return new CopyState(shard);
+    }
+
     private class StartReplicationRequestHandler implements TransportRequestHandler<StartReplicationRequest> {
         @Override
         public void messageReceived(StartReplicationRequest request, TransportChannel channel, Task task) throws Exception {
             final ReplicationCheckpoint checkpoint = request.getCheckpoint();
-            final ShardId shardId = checkpoint.getShardId();
-            final IndexService indexService = indicesService.indexService(shardId.getIndex());
-            final IndexShard shard = indexService.getShard(shardId.id());
-
-            // If we don't have the requested checkpoint, create a new one from the latest commit on the shard.
-            // TODO: Segrep - need checkpoint validation.
-            CopyState nrtCopyState = new CopyState(shard);
-            commitCache.addCopyState(nrtCopyState);
-            channel.sendResponse(new TransportCheckpointInfoResponse(nrtCopyState.getCheckpoint(), nrtCopyState.getMetadataSnapshot(), nrtCopyState.getInfosBytes()));
+            final CopyState copyState = getCopyState(checkpoint);
+            channel.sendResponse(new TransportCheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataSnapshot(), copyState.getInfosBytes()));
         }
     }
 
@@ -201,7 +214,6 @@ public class SegmentReplicationPrimaryService {
     class TrackShardRequestHandler implements TransportRequestHandler<TrackShardRequest> {
         @Override
         public void messageReceived(TrackShardRequest request, TransportChannel channel, Task task) throws Exception {
-
             final ShardId shardId = request.getShardId();
             final String targetAllocationId = request.getTargetAllocationId();
 
@@ -211,16 +223,7 @@ public class SegmentReplicationPrimaryService {
             final IndexShardRoutingTable routingTable = shard.getReplicationGroup().getRoutingTable();
 
             if (routingTable.getByAllocationId(targetAllocationId) == null) {
-                // TODO: Segrep - this is a hack to just wait until the primary has record of the replica's ShardRouting.
-                // We should instead throw & retry this request from the replica similar to recovery paths.
-               logger.debug(
-                    "delaying startup of {} as it is not listed as assigned to target node {}",
-                    shardId,
-                    request.getTargetNode()
-                );
-                do {
-                    Thread.sleep(10);
-                } while(routingTable.getByAllocationId(targetAllocationId) == null);
+                throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
             }
             final StepListener<ReplicationResponse> addRetentionLeaseStep = new StepListener<>();
             final StepListener<ReplicationResponse> responseListener = new StepListener<>();

@@ -3082,17 +3082,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             case PEER:
                 try {
                     markAsRecovering("from " + recoveryState.getSourceNode(), recoveryState);
+                    IndexShard indexShard = this;
                     segmentReplicationService.prepareForReplication(this, recoveryState.getTargetNode(), recoveryState.getSourceNode(), new ActionListener<TrackShardResponse>() {
                         @Override
                         public void onResponse(TrackShardResponse unused) {
                             replicationListener.onReplicationDone(replicationState);
                             recoveryState.getIndex().setFileDetailsComplete();
                             finalizeRecovery();
-                            postRecovery("Segrep complete.");
+                            postRecovery("Shard setup complete.");
                         }
                         @Override
                         public void onFailure(Exception e) {
-                            logger.error("fail", e);
+                            replicationListener.onReplicationFailure(replicationState, new ReplicationFailedException(indexShard, e), true);
                         }
                     });
                 } catch (Exception e) {
