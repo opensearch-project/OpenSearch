@@ -46,7 +46,7 @@ testClusters.all {
 
 dependencies {
   api 'org.antlr:antlr4-runtime:4.5.3'
-  api 'org.ow2.asm:asm-util:7.2'
+  api 'org.ow2.asm:asm-util:9.2'
   api 'org.ow2.asm:asm-tree:7.2'
   api 'org.ow2.asm:asm-commons:7.2'
   api 'org.ow2.asm:asm-analysis:7.2'
