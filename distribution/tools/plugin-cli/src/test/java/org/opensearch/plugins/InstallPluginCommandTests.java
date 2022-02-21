@@ -838,6 +838,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         }.main(new String[] { "--help" }, terminal);
         try (BufferedReader reader = new BufferedReader(new StringReader(terminal.getOutput()))) {
             
+            // grad first line of --help output
             String line = reader.readLine();
 
             // find the beginning of Non-option arguments list
@@ -845,7 +846,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
                 line = reader.readLine();
             }
 
-            // check that line outputs correctly
+            // check that non option agrument list contains correct string
             line = reader.readLine();
             assertThat(line, containsString("<name|URL>"));
 
