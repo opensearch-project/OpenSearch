@@ -80,22 +80,22 @@ public class DateMathIndexExpressionsIntegrationIT extends OpenSearchIntegTestCa
         assertHitCount(searchResponse, 3);
         assertSearchHits(searchResponse, "1", "2", "3");
 
-        GetResponse getResponse = client().prepareGet(dateMathExp1, "type", "1").get();
+        GetResponse getResponse = client().prepareGet(dateMathExp1, "1").get();
         assertThat(getResponse.isExists(), is(true));
         assertThat(getResponse.getId(), equalTo("1"));
 
-        getResponse = client().prepareGet(dateMathExp2, "type", "2").get();
+        getResponse = client().prepareGet(dateMathExp2, "2").get();
         assertThat(getResponse.isExists(), is(true));
         assertThat(getResponse.getId(), equalTo("2"));
 
-        getResponse = client().prepareGet(dateMathExp3, "type", "3").get();
+        getResponse = client().prepareGet(dateMathExp3, "3").get();
         assertThat(getResponse.isExists(), is(true));
         assertThat(getResponse.getId(), equalTo("3"));
 
         MultiGetResponse mgetResponse = client().prepareMultiGet()
-            .add(dateMathExp1, "type", "1")
-            .add(dateMathExp2, "type", "2")
-            .add(dateMathExp3, "type", "3")
+            .add(dateMathExp1, "1")
+            .add(dateMathExp2, "2")
+            .add(dateMathExp3, "3")
             .get();
         assertThat(mgetResponse.getResponses()[0].getResponse().isExists(), is(true));
         assertThat(mgetResponse.getResponses()[0].getResponse().getId(), equalTo("1"));

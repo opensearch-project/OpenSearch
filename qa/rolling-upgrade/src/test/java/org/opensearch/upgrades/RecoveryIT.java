@@ -668,7 +668,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
         client().performRequest(new Request("POST", index + "/_refresh"));
         for (int docId : updates.keySet()) {
             Request get = new Request("GET", index + "/_doc/" + docId);
-            get.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
             Map<String, Object> doc = entityAsMap(client().performRequest(get));
             assertThat(XContentMapValues.extractValue("_source.updated_field", doc), equalTo(updates.get(docId)));
         }

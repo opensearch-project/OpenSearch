@@ -66,16 +66,16 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
         client().prepareIndex("alias0", "type1", "1").setSource("field", "value1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         logger.info("--> verifying get with no routing, should not find anything");
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
+            assertThat(client().prepareGet("test", "1").execute().actionGet().isExists(), equalTo(false));
         }
         logger.info("--> verifying get with routing, should find");
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
+            assertThat(client().prepareGet("test", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
         }
 
         logger.info("--> verifying get with routing alias, should find");
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("alias0", "type1", "1").execute().actionGet().isExists(), equalTo(true));
+            assertThat(client().prepareGet("alias0", "1").execute().actionGet().isExists(), equalTo(true));
         }
 
         logger.info("--> updating with id [1] and routing through alias");
@@ -85,9 +85,9 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
             .execute()
             .actionGet();
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("alias0", "type1", "1").execute().actionGet().isExists(), equalTo(true));
+            assertThat(client().prepareGet("alias0", "1").execute().actionGet().isExists(), equalTo(true));
             assertThat(
-                client().prepareGet("alias0", "type1", "1").execute().actionGet().getSourceAsMap().get("field").toString(),
+                client().prepareGet("alias0", "1").execute().actionGet().getSourceAsMap().get("field").toString(),
                 equalTo("value2")
             );
         }
@@ -95,29 +95,29 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
         logger.info("--> deleting with no routing, should not delete anything");
         client().prepareDelete("test", "type1", "1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
-            assertThat(client().prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
-            assertThat(client().prepareGet("alias0", "type1", "1").execute().actionGet().isExists(), equalTo(true));
+            assertThat(client().prepareGet("test", "1").execute().actionGet().isExists(), equalTo(false));
+            assertThat(client().prepareGet("test", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
+            assertThat(client().prepareGet("alias0", "1").execute().actionGet().isExists(), equalTo(true));
         }
 
         logger.info("--> deleting with routing alias, should delete");
         client().prepareDelete("alias0", "type1", "1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
-            assertThat(client().prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(false));
-            assertThat(client().prepareGet("alias0", "type1", "1").execute().actionGet().isExists(), equalTo(false));
+            assertThat(client().prepareGet("test", "1").execute().actionGet().isExists(), equalTo(false));
+            assertThat(client().prepareGet("test", "1").setRouting("0").execute().actionGet().isExists(), equalTo(false));
+            assertThat(client().prepareGet("alias0", "1").execute().actionGet().isExists(), equalTo(false));
         }
 
         logger.info("--> indexing with id [1], and routing [0] using alias");
         client().prepareIndex("alias0", "type1", "1").setSource("field", "value1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         logger.info("--> verifying get with no routing, should not find anything");
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
+            assertThat(client().prepareGet("test", "1").execute().actionGet().isExists(), equalTo(false));
         }
         logger.info("--> verifying get with routing, should find");
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
-            assertThat(client().prepareGet("alias0", "type1", "1").execute().actionGet().isExists(), equalTo(true));
+            assertThat(client().prepareGet("test", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
+            assertThat(client().prepareGet("alias0", "1").execute().actionGet().isExists(), equalTo(true));
         }
     }
 
@@ -137,11 +137,11 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
         client().prepareIndex("alias0", "type1", "1").setSource("field", "value1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         logger.info("--> verifying get with no routing, should not find anything");
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
+            assertThat(client().prepareGet("test", "1").execute().actionGet().isExists(), equalTo(false));
         }
         logger.info("--> verifying get with routing, should find");
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("alias0", "type1", "1").execute().actionGet().isExists(), equalTo(true));
+            assertThat(client().prepareGet("alias0", "1").execute().actionGet().isExists(), equalTo(true));
         }
 
         logger.info("--> search with no routing, should fine one");
@@ -494,22 +494,22 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
         client().prepareIndex("alias-a0", "type1", "1").setSource("field", "value1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         logger.info("--> verifying get with no routing, should not find anything");
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test-a", "type1", "1").execute().actionGet().isExists(), equalTo(false));
+            assertThat(client().prepareGet("test-a", "1").execute().actionGet().isExists(), equalTo(false));
         }
         logger.info("--> verifying get with routing, should find");
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("alias-a0", "type1", "1").execute().actionGet().isExists(), equalTo(true));
+            assertThat(client().prepareGet("alias-a0", "1").execute().actionGet().isExists(), equalTo(true));
         }
 
         logger.info("--> indexing with id [0], and routing [1] using alias to test-b");
         client().prepareIndex("alias-b1", "type1", "1").setSource("field", "value1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         logger.info("--> verifying get with no routing, should not find anything");
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test-a", "type1", "1").execute().actionGet().isExists(), equalTo(false));
+            assertThat(client().prepareGet("test-a", "1").execute().actionGet().isExists(), equalTo(false));
         }
         logger.info("--> verifying get with routing, should find");
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("alias-b1", "type1", "1").execute().actionGet().isExists(), equalTo(true));
+            assertThat(client().prepareGet("alias-b1", "1").execute().actionGet().isExists(), equalTo(true));
         }
 
         logger.info("--> search with alias-a1,alias-b0, should not find");
@@ -655,7 +655,7 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
 
         logger.info("--> verifying get and search with routing, should find");
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "type1", "0").setRouting("3").execute().actionGet().isExists(), equalTo(true));
+            assertThat(client().prepareGet("test", "0").setRouting("3").execute().actionGet().isExists(), equalTo(true));
             assertThat(
                 client().prepareSearch("alias")
                     .setQuery(QueryBuilders.matchAllQuery())
@@ -717,8 +717,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
 
         logger.info("--> verifying get and search with routing, should find");
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "type1", "0").setRouting("3").execute().actionGet().isExists(), equalTo(true));
-            assertThat(client().prepareGet("test", "type1", "1").setRouting("4").execute().actionGet().isExists(), equalTo(true));
+            assertThat(client().prepareGet("test", "0").setRouting("3").execute().actionGet().isExists(), equalTo(true));
+            assertThat(client().prepareGet("test", "1").setRouting("4").execute().actionGet().isExists(), equalTo(true));
             assertThat(
                 client().prepareSearch("alias")
                     .setQuery(QueryBuilders.matchAllQuery())

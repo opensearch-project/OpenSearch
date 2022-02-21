@@ -231,7 +231,7 @@ public class PartitionedRoutingIT extends OpenSearchIntegTestCase {
             String routing = routingEntry.getKey();
 
             for (String id : routingEntry.getValue()) {
-                assertTrue(client().prepareGet(index, "type", id).setRouting(routing).execute().actionGet().isExists());
+                assertTrue(client().prepareGet(index, id).setRouting(routing).execute().actionGet().isExists());
             }
         }
     }

@@ -860,7 +860,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         assertThat(response.getVersion(), equalTo(1L));
 
         try {
-            client().prepareGet(indexOrAlias(), "type1", "1").setVersion(2).get();
+            client().prepareGet(indexOrAlias(), "1").setVersion(2).get();
             fail();
         } catch (VersionConflictEngineException e) {
             // all good
@@ -883,7 +883,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         assertThat(response.getVersion(), equalTo(1L));
 
         try {
-            client().prepareGet(indexOrAlias(), "type1", "1").setVersion(2).setRealtime(false).get();
+            client().prepareGet(indexOrAlias(), "1").setVersion(2).setRealtime(false).get();
             fail();
         } catch (VersionConflictEngineException e) {
             // all good
@@ -902,7 +902,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         assertThat(response.getVersion(), equalTo(2L));
 
         try {
-            client().prepareGet(indexOrAlias(), "type1", "1").setVersion(1).get();
+            client().prepareGet(indexOrAlias(), "1").setVersion(1).get();
             fail();
         } catch (VersionConflictEngineException e) {
             // all good
@@ -925,7 +925,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         assertThat(response.getVersion(), equalTo(2L));
 
         try {
-            client().prepareGet(indexOrAlias(), "type1", "1").setVersion(1).setRealtime(false).get();
+            client().prepareGet(indexOrAlias(), "1").setVersion(1).setRealtime(false).get();
             fail();
         } catch (VersionConflictEngineException e) {
             // all good

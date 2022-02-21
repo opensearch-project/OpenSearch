@@ -139,7 +139,7 @@ public class DynamicMappingIT extends OpenSearchIntegTestCase {
             assertMappingsHaveField(mappings, "index", "type", "field" + i);
         }
         for (int i = 0; i < indexThreads.length; ++i) {
-            assertTrue(client().prepareGet("index", "type", Integer.toString(i)).get().isExists());
+            assertTrue(client().prepareGet("index", Integer.toString(i)).get().isExists());
         }
     }
 
