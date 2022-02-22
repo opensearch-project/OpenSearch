@@ -23,7 +23,6 @@
 
  - do:
       indices.get_mapping:
-          include_type_name: false
           index: index
 
  - match: { index.mappings.properties.foo.type: "keyword" }
