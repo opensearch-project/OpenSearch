@@ -36,7 +36,7 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoverySettings;
-import org.opensearch.indices.replication.SegmentReplicationService;
+import org.opensearch.indices.replication.SegmentReplicationReplicaService;
 import org.opensearch.indices.replication.checkpoint.TransportCheckpointInfoResponse;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
@@ -69,7 +69,7 @@ public class PrimaryShardReplicationSource {
     private final Map<Object, RetryableAction<?>> onGoingRetryableActions = ConcurrentCollections.newConcurrentMap();
     private final ThreadPool threadPool;
     private final RecoverySettings recoverySettings;
-    private final SegmentReplicationService segmentReplicationService;
+    private final SegmentReplicationReplicaService segmentReplicationReplicaService;
 
     // TODO: Segrep - Cancellation doesn't make sense here as it should be per replication event.
     private volatile boolean isCancelled = false;
@@ -82,13 +82,13 @@ public class PrimaryShardReplicationSource {
                                          ClusterService clusterService,
                                          IndicesService indicesService,
                                          RecoverySettings recoverySettings,
-                                         SegmentReplicationService segmentReplicationReplicaShardService) {
+                                         SegmentReplicationReplicaService segmentReplicationReplicaShardService) {
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.recoverySettings = recoverySettings;
         this.threadPool = transportService.getThreadPool();
-        this.segmentReplicationService = segmentReplicationReplicaShardService;
+        this.segmentReplicationReplicaService = segmentReplicationReplicaShardService;
 
         transportService.registerRequestHandler(
             Actions.FILE_CHUNK,
@@ -205,7 +205,7 @@ public class PrimaryShardReplicationSource {
 
         @Override
         public void messageReceived(final ReplicationFileChunkRequest request, TransportChannel channel, Task task) throws Exception {
-            try (ReplicationCollection.ReplicationRef replicationRef = segmentReplicationService.getOnGoingReplications().getReplicationSafe(request.getReplicationId(), request.shardId())) {
+            try (ReplicationCollection.ReplicationRef replicationRef = segmentReplicationReplicaService.getOnGoingReplications().getReplicationSafe(request.getReplicationId(), request.shardId())) {
                 final ReplicationTarget replicationTarget = replicationRef.target();
                 final ActionListener<Void> listener = createOrFinishListener(replicationRef, channel, Actions.FILE_CHUNK, request);
                 if (listener == null) {

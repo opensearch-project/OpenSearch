@@ -21,7 +21,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.indices.replication.SegmentReplicationService;
+import org.opensearch.indices.replication.SegmentReplicationReplicaService;
 import org.opensearch.indices.replication.copy.PrimaryShardReplicationSource;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -37,7 +37,7 @@ public class TransportPublishShardCheckpointAction extends TransportReplicationA
 
     public static final String ACTION_NAME = PublishCheckpointAction.NAME + "[s]";
 
-    private final SegmentReplicationService replicationService;
+    private final SegmentReplicationReplicaService replicationService;
     private final PrimaryShardReplicationSource source;
 
     @Inject
@@ -49,7 +49,7 @@ public class TransportPublishShardCheckpointAction extends TransportReplicationA
         ThreadPool threadPool,
         ShardStateAction shardStateAction,
         ActionFilters actionFilters,
-        SegmentReplicationService segmentCopyService,
+        SegmentReplicationReplicaService segmentCopyService,
         PrimaryShardReplicationSource source) {
         super(
             settings,

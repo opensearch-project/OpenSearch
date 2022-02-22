@@ -41,7 +41,7 @@ import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.indices.replication.SegmentReplicationService;
+import org.opensearch.indices.replication.SegmentReplicationReplicaService;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -75,7 +75,7 @@ public class ReplicationCollection {
         ReplicationCheckpoint checkpoint,
         IndexShard indexShard,
         PrimaryShardReplicationSource source,
-        SegmentReplicationService.ReplicationListener listener,
+        SegmentReplicationReplicaService.ReplicationListener listener,
         TimeValue activityTimeout
     ) {
         ReplicationTarget replicationTarget = new ReplicationTarget(checkpoint, indexShard, source, listener);

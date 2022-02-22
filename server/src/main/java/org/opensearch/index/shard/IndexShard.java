@@ -160,7 +160,7 @@ import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryFailedException;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
-import org.opensearch.indices.replication.SegmentReplicationService;
+import org.opensearch.indices.replication.SegmentReplicationReplicaService;
 import org.opensearch.indices.replication.checkpoint.PublishCheckpointRequest;
 import org.opensearch.indices.replication.checkpoint.TransportCheckpointPublisher;
 import org.opensearch.indices.replication.copy.PrimaryShardReplicationSource;
@@ -1507,10 +1507,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    /**
+     * Fetch a ref to the latest SegmentInfos held by the engine.  This ensures the files will not be deleted until
+     * the ref is closed.
+     * @return {@link Engine.SegmentInfosRef}
+     * @throws EngineException - When infos cannot be retrieved from the Engine.
+     */
     public Engine.SegmentInfosRef getLatestSegmentInfosSafe() throws EngineException {
         return getEngine().getLatestSegmentInfosSafe();
     }
 
+    /**
+     * Fetch a snapshot of the latest SegmentInfos held by the engine.
+     * @return {@link SegmentInfos}
+     */
     public SegmentInfos getLatestSegmentInfos() {
         return getEngine().getLatestSegmentInfos();
     }
@@ -1523,10 +1533,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         getEngine().updateCurrentInfos(infosBytes, gen, seqNo);
     }
 
-        /**
-         * Snapshots the most recent safe index commit from the currently running engine.
-         * All index files referenced by this index commit won't be freed until the commit/snapshot is closed.
-         */
+    /**
+     * Snapshots the most recent safe index commit from the currently running engine.
+     * All index files referenced by this index commit won't be freed until the commit/snapshot is closed.
+     */
     public Engine.IndexCommitRef acquireSafeIndexCommit() throws EngineException {
         final IndexShardState state = this.state; // one time volatile read
         // we allow snapshot on closed index shard, since we want to do one after we close the shard and before we close the engine
@@ -3048,8 +3058,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public void startRecovery(
         RecoveryState recoveryState,
-        SegmentReplicationService segmentReplicationService,
-        SegmentReplicationService.ReplicationListener replicationListener,
+        SegmentReplicationReplicaService segmentReplicationReplicaService,
+        SegmentReplicationReplicaService.ReplicationListener replicationListener,
         PrimaryShardReplicationSource replicationSource,
         PeerRecoveryTargetService peerRecoveryTargetService,
         PeerRecoveryTargetService.RecoveryListener recoveryListener,
@@ -3083,7 +3093,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 try {
                     markAsRecovering("from " + recoveryState.getSourceNode(), recoveryState);
                     IndexShard indexShard = this;
-                    segmentReplicationService.prepareForReplication(this, recoveryState.getTargetNode(), recoveryState.getSourceNode(), new ActionListener<TrackShardResponse>() {
+                    segmentReplicationReplicaService.prepareForReplication(this, recoveryState.getTargetNode(), recoveryState.getSourceNode(), new ActionListener<TrackShardResponse>() {
                         @Override
                         public void onResponse(TrackShardResponse unused) {
                             replicationListener.onReplicationDone(replicationState);
@@ -3097,7 +3107,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         }
                     });
                 } catch (Exception e) {
-                    logger.error("Error", e);
+                    logger.error("Error preparing the shard for Segment replication", e);
                     failShard("corrupted preexisting index", e);
                     recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true);
                 }
@@ -3711,7 +3721,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public synchronized void onNewCheckpoint(final PublishCheckpointRequest request,
                                 final PrimaryShardReplicationSource source,
-                                final SegmentReplicationService segmentReplicationService) {
+                                final SegmentReplicationReplicaService segmentReplicationReplicaService) {
         logger.debug("Checkpoint received {}", request.getCheckpoint());
         ReplicationCheckpoint localCheckpoint = getLatestReplicationCheckpoint();
         logger.debug("Local Checkpoint {}", getLatestReplicationCheckpoint());
@@ -3732,16 +3742,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final ReplicationCheckpoint checkpoint = request.getCheckpoint();
             logger.trace("Received new checkpoint {}", checkpoint);
             // TODO: segrep - these are the states set after we perform our initial store recovery.
-            segmentReplicationService.startReplication(checkpoint, this, source, new SegmentReplicationService.ReplicationListener() {
+            segmentReplicationReplicaService.startReplication(checkpoint, this, source, new SegmentReplicationReplicaService.ReplicationListener() {
                 @Override
                 public void onReplicationDone(ReplicationState state) {
-                    finalizeReplication();
+                    markReplicationComplete();
                     logger.debug("Replication complete to {}", getLatestReplicationCheckpoint());
                 }
 
                 @Override
                 public void onReplicationFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
-                    finalizeReplication();
+                    markReplicationComplete();
                     logger.error("Failure", e);
                 }
             });
@@ -3758,7 +3768,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.replicationState.setStage(ReplicationState.Stage.ACTIVE);
     }
 
-    public void finalizeReplication() {
+    public void markReplicationComplete() {
         this.replicationState.setStage(ReplicationState.Stage.INACTIVE);
     }
 

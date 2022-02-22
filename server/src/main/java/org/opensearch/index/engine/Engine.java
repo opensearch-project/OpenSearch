@@ -1200,8 +1200,18 @@ public abstract class Engine implements Closeable {
      */
     public abstract IndexCommitRef acquireLastIndexCommit(boolean flushFirst) throws EngineException;
 
+    /**
+     * Fetch a snapshot of the latest SegmentInfos from the engine and ensure that segment files are retained in the directory
+     * until closed.
+     * @return {@link SegmentInfosRef} - A ref to segmentInfos that must be closed for segment files to be deleted.
+     */
     public SegmentInfosRef getLatestSegmentInfosSafe() { return null; };
 
+    /**
+     * Fetch a snapshot of the latest SegmentInfos from the engine.
+     * This method does not ensure that segment files are retained in the directory.
+     * @return {@link SegmentInfos}
+     */
     public SegmentInfos getLatestSegmentInfos() { return null; };
 
     /**

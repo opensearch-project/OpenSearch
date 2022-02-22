@@ -37,7 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.index.IndexingPressureService;
-import org.opensearch.indices.replication.SegmentReplicationService;
+import org.opensearch.indices.replication.SegmentReplicationReplicaService;
 import org.opensearch.indices.replication.copy.PrimaryShardReplicationSource;
 import org.opensearch.indices.replication.copy.SegmentReplicationPrimaryService;
 import org.opensearch.watcher.ResourceWatcherService;
@@ -931,9 +931,9 @@ public class Node implements Closeable {
                 }
                 b.bind(SegmentReplicationPrimaryService.class)
                     .toInstance(new SegmentReplicationPrimaryService(transportService, indicesService, recoverySettings));
-                final SegmentReplicationService segmentReplicationService = new SegmentReplicationService(threadPool, recoverySettings, transportService);
-                b.bind(SegmentReplicationService.class).toInstance(segmentReplicationService);
-                b.bind(PrimaryShardReplicationSource.class).toInstance(new PrimaryShardReplicationSource(transportService, clusterService, indicesService, recoverySettings, segmentReplicationService));
+                final SegmentReplicationReplicaService segmentReplicationReplicaService = new SegmentReplicationReplicaService(threadPool, recoverySettings, transportService);
+                b.bind(SegmentReplicationReplicaService.class).toInstance(segmentReplicationReplicaService);
+                b.bind(PrimaryShardReplicationSource.class).toInstance(new PrimaryShardReplicationSource(transportService, clusterService, indicesService, recoverySettings, segmentReplicationReplicaService));
                 b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
                 pluginComponents.stream().forEach(p -> b.bind((Class) p.getClass()).toInstance(p));
                 b.bind(PersistentTasksService.class).toInstance(persistentTasksService);

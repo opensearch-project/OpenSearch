@@ -121,7 +121,7 @@ class OpenSearchReaderManager extends ReferenceManager<OpenSearchDirectoryReader
      * Switch to new segments, refreshing if necessary. Note that it's the caller job to ensure
      * there's a held refCount for the incoming infos, so all files exist.
      */
-    public synchronized void setCurrentInfos(SegmentInfos infos) throws IOException {
+    public synchronized void updateSegments(SegmentInfos infos) throws IOException {
         currentInfos = infos;
         maybeRefresh();
     }

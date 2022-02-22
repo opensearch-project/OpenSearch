@@ -119,11 +119,7 @@ public class SegmentReplicationPrimaryService {
         }
 
         public CopyState getCopyStateForCheckpoint(ReplicationCheckpoint checkpoint) {
-            final CopyState copyState = checkpointCopyState.get(checkpoint);
-            if (copyState != null) {
-                copyState.incRef();
-            }
-            return copyState;
+            return checkpointCopyState.get(checkpoint);
         }
 
         public boolean hasCheckpoint(ReplicationCheckpoint checkpoint) {
@@ -134,6 +130,7 @@ public class SegmentReplicationPrimaryService {
             final Optional<CopyState> nrtCopyState = Optional.ofNullable(checkpointCopyState.get(checkpoint));
             nrtCopyState.ifPresent((state) -> {
                 if (state.decRef()) {
+                    // decRef() returns true if there are no longer any references, if so remove it from our cache.
                     checkpointCopyState.remove(checkpoint);
                 }
             });
@@ -142,7 +139,9 @@ public class SegmentReplicationPrimaryService {
 
     private CopyState getCopyState(ReplicationCheckpoint checkpoint) throws IOException {
         if (commitCache.hasCheckpoint(checkpoint)) {
-            return commitCache.getCopyStateForCheckpoint(checkpoint);
+            final CopyState copyState = commitCache.getCopyStateForCheckpoint(checkpoint);
+            copyState.incRef();
+            return copyState;
         }
         final CopyState copyState = buildCopyState(checkpoint.getShardId());
         commitCache.addCopyState(copyState);
@@ -159,6 +158,7 @@ public class SegmentReplicationPrimaryService {
         @Override
         public void messageReceived(StartReplicationRequest request, TransportChannel channel, Task task) throws Exception {
             final ReplicationCheckpoint checkpoint = request.getCheckpoint();
+            logger.trace("Received request for checkpoint {}", checkpoint);
             final CopyState copyState = getCopyState(checkpoint);
             channel.sendResponse(new TransportCheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataSnapshot(), copyState.getInfosBytes()));
         }
@@ -177,7 +177,7 @@ public class SegmentReplicationPrimaryService {
 
     private void sendFiles(GetFilesRequest request, ActionListener<GetFilesResponse> listener) {
         final ShardId shardId = request.getCheckpoint().getShardId();
-        logger.trace("Requested checkpoint {}", request.getCheckpoint());
+        logger.trace("Requested file copy for checkpoint {}", request.getCheckpoint());
 
         final CopyState copyState = commitCache.getCopyStateForCheckpoint(request.getCheckpoint());
 

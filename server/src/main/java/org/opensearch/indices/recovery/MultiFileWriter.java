@@ -79,7 +79,6 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
 
     final Map<String, String> tempFileNames = ConcurrentCollections.newConcurrentMap();
 
-
     public void writeFileChunk(StoreFileMetadata fileMetadata, long position, BytesReference content, boolean lastChunk)
         throws IOException {
         assert Transports.assertNotTransportThread("multi_file_writer");

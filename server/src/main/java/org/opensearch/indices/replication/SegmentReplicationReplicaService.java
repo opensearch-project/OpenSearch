@@ -56,9 +56,9 @@ import java.io.IOException;
 /**
  * Orchestrator of replication events.
  */
-public class SegmentReplicationService implements IndexEventListener {
+public class SegmentReplicationReplicaService implements IndexEventListener {
 
-    private static final Logger logger = LogManager.getLogger(SegmentReplicationService.class);
+    private static final Logger logger = LogManager.getLogger(SegmentReplicationReplicaService.class);
 
     private final ThreadPool threadPool;
     private final RecoverySettings recoverySettings;
@@ -70,9 +70,9 @@ public class SegmentReplicationService implements IndexEventListener {
 
     private final ReplicationCollection onGoingReplications;
 
-    public SegmentReplicationService(final ThreadPool threadPool,
-                                     final RecoverySettings recoverySettings,
-                                     final TransportService transportService) {
+    public SegmentReplicationReplicaService(final ThreadPool threadPool,
+                                            final RecoverySettings recoverySettings,
+                                            final TransportService transportService) {
         this.threadPool = threadPool;
         this.recoverySettings = recoverySettings;
         this.transportService = transportService;
@@ -145,7 +145,7 @@ public class SegmentReplicationService implements IndexEventListener {
 
     public void startReplication(final ReplicationCheckpoint checkpoint, final IndexShard indexShard, PrimaryShardReplicationSource source, final ReplicationListener listener) {
         final long replicationId = onGoingReplications.startReplication(checkpoint, indexShard, source, listener, recoverySettings.activityTimeout());
-        logger.info("Starting replication {}", replicationId);
+        logger.trace("Starting replication {}", replicationId);
         threadPool.generic().execute(new ReplicationRunner(replicationId));
     }
 

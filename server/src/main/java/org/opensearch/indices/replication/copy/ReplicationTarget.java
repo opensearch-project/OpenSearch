@@ -52,7 +52,7 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.MultiFileWriter;
 import org.opensearch.indices.recovery.RecoveryRequestTracker;
 import org.opensearch.indices.recovery.RecoveryState;
-import org.opensearch.indices.replication.SegmentReplicationService;
+import org.opensearch.indices.replication.SegmentReplicationReplicaService;
 import org.opensearch.indices.replication.checkpoint.TransportCheckpointInfoResponse;
 
 import java.io.IOException;
@@ -80,7 +80,7 @@ public class ReplicationTarget extends AbstractRefCounted {
     private final IndexShard indexShard;
     private final Logger logger;
     private final PrimaryShardReplicationSource source;
-    private final SegmentReplicationService.ReplicationListener listener;
+    private final SegmentReplicationReplicaService.ReplicationListener listener;
     private final Store store;
     private final MultiFileWriter multiFileWriter;
     private final RecoveryRequestTracker requestTracker = new RecoveryRequestTracker();
@@ -96,7 +96,7 @@ public class ReplicationTarget extends AbstractRefCounted {
      * @param source     source of the recovery where we recover from
      * @param listener   called when recovery is completed/failed
      */
-    public ReplicationTarget(ReplicationCheckpoint checkpoint, IndexShard indexShard, PrimaryShardReplicationSource source, SegmentReplicationService.ReplicationListener listener) {
+    public ReplicationTarget(ReplicationCheckpoint checkpoint, IndexShard indexShard, PrimaryShardReplicationSource source, SegmentReplicationReplicaService.ReplicationListener listener) {
         super("replication_status");
         this.checkpoint = checkpoint;
         this.indexShard = indexShard;

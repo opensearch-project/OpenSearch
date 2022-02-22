@@ -352,7 +352,7 @@ public class InternalEngine extends Engine {
             toIndexInput(infosBytes),
             gen);
         assert gen == infos.getGeneration();
-        externalReaderManager.internalReaderManager.setCurrentInfos(infos);
+        externalReaderManager.internalReaderManager.updateSegments(infos);
         externalReaderManager.maybeRefresh();
         localCheckpointTracker.markSeqNoAsProcessed(seqNo);
     }
@@ -2110,6 +2110,9 @@ public class InternalEngine extends Engine {
 
     @Override
     public CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
+        if (engineConfig.isPrimary() == false) {
+            return new CommitId(lastCommittedSegmentInfos.getId());
+        }
         ensureOpen();
         if (force && waitIfOngoing == false) {
             assert false : "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing;
