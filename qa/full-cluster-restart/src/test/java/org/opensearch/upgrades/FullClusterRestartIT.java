@@ -624,8 +624,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Map<?, ?> hit = (Map<?, ?>) ((List<?>)(XContentMapValues.extractValue("hits.hits", searchResponse))).get(0);
         String docId = (String) hit.get("_id");
 
-        Request updateRequest = new Request("POST", "/" + index + "/" + typeName + "/" + docId + "/_update");
-        updateRequest.setOptions(expectWarnings(RestUpdateAction.TYPES_DEPRECATION_MESSAGE));
+        Request updateRequest = new Request("POST", "/" + index + "/_update/" + docId);
         updateRequest.setJsonEntity("{ \"doc\" : { \"foo\": \"bar\"}}");
         client().performRequest(updateRequest);
 
