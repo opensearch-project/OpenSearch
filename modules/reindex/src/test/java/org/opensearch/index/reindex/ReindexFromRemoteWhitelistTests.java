@@ -131,7 +131,7 @@ public class ReindexFromRemoteWhitelistTests extends OpenSearchTestCase {
             IllegalArgumentException.class,
             () -> checkRemoteWhitelist(buildRemoteWhitelist(whitelist), newRemoteInfo("not in list", port))
         );
-        assertEquals("[not in list:" + port + "] not whitelisted in reindex.remote.whitelist", e.getMessage());
+        assertEquals("[not in list:" + port + "] not whitelisted in reindex.remote.allowlist", e.getMessage());
     }
 
     public void testRejectMatchAll() {

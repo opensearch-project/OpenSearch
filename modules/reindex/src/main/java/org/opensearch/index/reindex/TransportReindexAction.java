@@ -60,7 +60,15 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         "reindex.remote.whitelist",
         emptyList(),
         Function.identity(),
-        Property.NodeScope
+        Property.NodeScope, Property.Deprecated
+    );
+    // The setting below is going to replace the above. 
+    // To keep backwards compatibility, the old usage is remained, and it's also used as the fallback for the new usage.
+    public static final Setting<List<String>> REMOTE_CLUSTER_ALLOWLIST = Setting.listSetting(
+            "reindex.remote.allowlist", 
+            REMOTE_CLUSTER_WHITELIST,
+            Function.identity(),
+            Property.NodeScope
     );
     public static Optional<RemoteReindexExtension> remoteExtension = Optional.empty();
 
