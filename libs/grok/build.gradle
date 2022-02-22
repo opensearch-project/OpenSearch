@@ -41,3 +41,7 @@ dependencies {
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
+
+thirdPartyAudit.ignoreMissingClasses(
+  'org.jcodings.unicode.UnicodeCodeRange'
+)
