@@ -54,7 +54,6 @@ import static org.opensearch.rest.RestRequest.Method.POST;
  * Rest action for computing a score explanation for specific documents.
  */
 public class RestExplainAction extends BaseRestHandler {
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " + "Specifying a type in explain requests is deprecated.";
 
     @Override
     public List<Route> routes() {

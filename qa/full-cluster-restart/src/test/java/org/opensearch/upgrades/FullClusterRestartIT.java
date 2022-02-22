@@ -49,8 +49,6 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.rest.action.document.RestBulkAction;
-import org.opensearch.rest.action.search.RestExplainAction;
 import org.opensearch.test.NotEqualMessageBuilder;
 import org.opensearch.test.XContentTestUtils;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
@@ -95,10 +93,10 @@ import static org.hamcrest.Matchers.nullValue;
  * with {@code tests.is_old_cluster} set to {@code false}.
  */
 public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " + "Specifying a type in explain requests is deprecated.";
+
     private String index;
     private String type;
-
-    public static final String TYPES_DEPRECATION_MESSAGE_BULK = "[types removal]" + " Specifying types in bulk requests is deprecated.";
 
     @Before
     public void setIndex() {
@@ -572,7 +570,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         Request explainRequest = new Request("GET", "/" + index + "/" + type + "/" + id + "/_explain");
         explainRequest.setJsonEntity("{ \"query\": { \"match_all\" : {} }}");
-        explainRequest.setOptions(expectWarnings(RestExplainAction.TYPES_DEPRECATION_MESSAGE));
+        explainRequest.setOptions(expectWarnings(TYPES_DEPRECATION_MESSAGE));
         String explanation = toStr(client().performRequest(explainRequest));
         assertFalse("Could not find payload boost in explanation\n" + explanation, explanation.contains("payloadBoost"));
 
