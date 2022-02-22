@@ -73,6 +73,9 @@
 
 ---
 "Response for version conflict (version powered)":
+  - skip:
+      version: "6.7.0 - "
+      reason: reindex moved to rely on sequence numbers for concurrency control
   - do:
       indices.create:
         index: test
