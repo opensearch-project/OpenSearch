@@ -35,7 +35,7 @@ import org.apache.lucene.util.packed.PackedInts.Writer;
 /**
  * Forked from Lucene 8.x; removed in Lucene 8.9
  *
- * @todo further investigate a better alternative
+ * Todo: further investigate a better alternative
  *
  * Simplistic compression for array of unsigned long values. Each value is {@code >= 0} and {@code
  * <=} a specified maximum value. The values are stored as packed ints, with each value consuming a

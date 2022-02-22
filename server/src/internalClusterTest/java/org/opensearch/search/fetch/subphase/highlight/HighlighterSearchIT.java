@@ -3301,7 +3301,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         b.endObject().endObject();
         prepareCreate("test").addMapping("type", b).get();
 
-        client().prepareIndex("test", "type")
+        client().prepareIndex("test")
             .setId("1")
             .setSource(jsonBuilder().startObject().field("foo", "how now brown cow").endObject())
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)

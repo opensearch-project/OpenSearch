@@ -289,6 +289,8 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             : SourceFieldMapper.NAME;
         final FieldsVisitor fields = new FieldsVisitor(true, sourceField);
         leaf.reader().document(segmentDocID, fields);
+        // todo: remove postProcess after removing types and uid from translog
+        fields.postProcess(mapperService);
 
         final Translog.Operation op;
         final boolean isTombstone = parallelArray.isTombStone[docIndex];

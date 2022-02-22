@@ -252,7 +252,6 @@ public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/2063")
     public void testPhrasePrefix() throws IOException {
         Settings.Builder builder = Settings.builder()
             .put(indexSettings())
