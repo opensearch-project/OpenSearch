@@ -75,6 +75,7 @@ import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.checkpoint.TransportCheckpointPublisher;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
@@ -466,7 +467,8 @@ public final class IndexModule {
         IndicesFieldDataCache indicesFieldDataCache,
         NamedWriteableRegistry namedWriteableRegistry,
         BooleanSupplier idFieldDataEnabled,
-        ValuesSourceRegistry valuesSourceRegistry
+        ValuesSourceRegistry valuesSourceRegistry,
+        TransportCheckpointPublisher checkpointPublisher
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -520,8 +522,8 @@ public final class IndexModule {
                 allowExpensiveQueries,
                 expressionResolver,
                 valuesSourceRegistry,
-                recoveryStateFactory
-            );
+                recoveryStateFactory,
+                checkpointPublisher);
             success = true;
             return indexService;
         } finally {

@@ -81,6 +81,10 @@ import org.opensearch.indices.recovery.PeerRecoverySourceService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryFailedException;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.SegmentReplicationReplicaService;
+import org.opensearch.indices.replication.copy.PrimaryShardReplicationSource;
+import org.opensearch.indices.replication.copy.ReplicationFailedException;
+import org.opensearch.indices.replication.copy.ReplicationState;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.search.SearchService;
 import org.opensearch.snapshots.SnapshotShardsService;
@@ -113,6 +117,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     final AllocatedIndices<? extends Shard, ? extends AllocatedIndex<? extends Shard>> indicesService;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
+
+    private final SegmentReplicationReplicaService segmentReplicationReplicaService;
+    private final PrimaryShardReplicationSource replicationSource;
     private final PeerRecoveryTargetService recoveryTargetService;
     private final ShardStateAction shardStateAction;
     private final NodeMappingRefreshAction nodeMappingRefreshAction;
@@ -149,13 +156,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final SnapshotShardsService snapshotShardsService,
         final PrimaryReplicaSyncer primaryReplicaSyncer,
         final GlobalCheckpointSyncAction globalCheckpointSyncAction,
-        final RetentionLeaseSyncer retentionLeaseSyncer
-    ) {
+        final RetentionLeaseSyncer retentionLeaseSyncer,
+        final SegmentReplicationReplicaService replicationReplicaService,
+        final PrimaryShardReplicationSource replicationSource) {
         this(
             settings,
             indicesService,
             clusterService,
             threadPool,
+            replicationReplicaService,
+            replicationSource,
             recoveryTargetService,
             shardStateAction,
             nodeMappingRefreshAction,
@@ -176,6 +186,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final AllocatedIndices<? extends Shard, ? extends AllocatedIndex<? extends Shard>> indicesService,
         final ClusterService clusterService,
         final ThreadPool threadPool,
+        final SegmentReplicationReplicaService replicationReplicaService,
+        final PrimaryShardReplicationSource replicationSource,
         final PeerRecoveryTargetService recoveryTargetService,
         final ShardStateAction shardStateAction,
         final NodeMappingRefreshAction nodeMappingRefreshAction,
@@ -189,6 +201,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final RetentionLeaseSyncer retentionLeaseSyncer
     ) {
         this.settings = settings;
+        this.segmentReplicationReplicaService = replicationReplicaService;
+        this.replicationSource = replicationSource;
         this.buildInIndexListener = Arrays.asList(
             peerRecoverySourceService,
             recoveryTargetService,
@@ -624,6 +638,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             logger.debug("{} creating shard with primary term [{}]", shardRouting.shardId(), primaryTerm);
             indicesService.createShard(
                 shardRouting,
+                segmentReplicationReplicaService,
+                new ReplicationListener(shardRouting, primaryTerm),
+                replicationSource,
                 recoveryTargetService,
                 new RecoveryListener(shardRouting, primaryTerm),
                 repositoriesService,
@@ -739,6 +756,37 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             );
         }
         return sourceNode;
+    }
+
+
+    private class ReplicationListener implements SegmentReplicationReplicaService.ReplicationListener {
+
+        /**
+         * ShardRouting with which the shard was created
+         */
+        private final ShardRouting shardRouting;
+
+        /**
+         * Primary term with which the shard was created
+         */
+        private final long primaryTerm;
+
+        private ReplicationListener(final ShardRouting shardRouting, final long primaryTerm) {
+            this.shardRouting = shardRouting;
+            this.primaryTerm = primaryTerm;
+        }
+
+        @Override
+        public void onReplicationDone(final ReplicationState state) {
+            logger.info("Shard setup complete, ready for segment copy.");
+            shardStateAction.shardStarted(shardRouting, primaryTerm, "after replication", SHARD_STATE_ACTION_LISTENER);
+        }
+
+        @Override
+        public void onReplicationFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
+            handleRecoveryFailure(shardRouting, sendShardFailure, e);
+            logger.error("Shard setup failed", e);
+        }
     }
 
     private class RecoveryListener implements PeerRecoveryTargetService.RecoveryListener {
@@ -990,6 +1038,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          */
         T createShard(
             ShardRouting shardRouting,
+            SegmentReplicationReplicaService replicaService,
+            SegmentReplicationReplicaService.ReplicationListener replicationListener,
+            PrimaryShardReplicationSource replicationSource,
             PeerRecoveryTargetService recoveryTargetService,
             PeerRecoveryTargetService.RecoveryListener recoveryListener,
             RepositoriesService repositoriesService,

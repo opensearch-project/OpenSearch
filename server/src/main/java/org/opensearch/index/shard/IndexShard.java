@@ -160,6 +160,14 @@ import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryFailedException;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
+import org.opensearch.indices.replication.SegmentReplicationReplicaService;
+import org.opensearch.indices.replication.checkpoint.PublishCheckpointRequest;
+import org.opensearch.indices.replication.checkpoint.TransportCheckpointPublisher;
+import org.opensearch.indices.replication.copy.PrimaryShardReplicationSource;
+import org.opensearch.indices.replication.copy.ReplicationCheckpoint;
+import org.opensearch.indices.replication.copy.ReplicationFailedException;
+import org.opensearch.indices.replication.copy.ReplicationState;
+import org.opensearch.indices.replication.copy.TrackShardResponse;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.rest.RestStatus;
@@ -253,6 +261,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     @Nullable
     private volatile RecoveryState recoveryState;
 
+    private volatile ReplicationState replicationState;
+
     private final RecoveryStats recoveryStats = new RecoveryStats();
     private final MeanMetric refreshMetric = new MeanMetric();
     private final MeanMetric externalRefreshMetric = new MeanMetric();
@@ -295,6 +305,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final RefreshPendingLocationListener refreshPendingLocationListener;
     private volatile boolean useRetentionLeasesInPeerRecovery;
 
+    private final CheckpointRefreshListener checkpointRefreshListener;
+
     public IndexShard(
         final ShardRouting shardRouting,
         final IndexSettings indexSettings,
@@ -315,8 +327,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final List<IndexingOperationListener> listeners,
         final Runnable globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
-        final CircuitBreakerService circuitBreakerService
-    ) throws IOException {
+        final CircuitBreakerService circuitBreakerService,
+        final TransportCheckpointPublisher checkpointPublisher) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
         this.shardRouting = shardRouting;
@@ -398,6 +410,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         persistMetadata(path, indexSettings, shardRouting, null, logger);
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
+        this.checkpointRefreshListener = new CheckpointRefreshListener(this, checkpointPublisher);
+        this.replicationState = new ReplicationState();
     }
 
     public ThreadPool getThreadPool() {
@@ -1267,6 +1281,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Returns how many bytes we are currently moving from heap to disk
      */
     public long getWritingBytes() {
+        // TODO: Segrep: hack - if not the primary our IW is null and this blows up.
+        if (shardRouting.primary() == false) {
+            return 0L;
+        }
         Engine engine = getEngineOrNull();
         if (engine == null) {
             return 0;
@@ -1487,6 +1505,32 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             throw new IllegalIndexShardStateException(shardId, state, "snapshot is not allowed");
         }
+    }
+
+    /**
+     * Fetch a ref to the latest SegmentInfos held by the engine.  This ensures the files will not be deleted until
+     * the ref is closed.
+     * @return {@link Engine.SegmentInfosRef}
+     * @throws EngineException - When infos cannot be retrieved from the Engine.
+     */
+    public Engine.SegmentInfosRef getLatestSegmentInfosSafe() throws EngineException {
+        return getEngine().getLatestSegmentInfosSafe();
+    }
+
+    /**
+     * Fetch a snapshot of the latest SegmentInfos held by the engine.
+     * @return {@link SegmentInfos}
+     */
+    public SegmentInfos getLatestSegmentInfos() {
+        return getEngine().getLatestSegmentInfos();
+    }
+
+    public ReplicationCheckpoint getLatestReplicationCheckpoint() {
+        return new ReplicationCheckpoint(this.shardId, getOperationPrimaryTerm(), getLatestSegmentInfos().getGeneration(), getProcessedLocalCheckpoint());
+    }
+
+    public void updateCurrentInfos(long gen, byte[] infosBytes, long seqNo) throws IOException {
+        getEngine().updateCurrentInfos(infosBytes, gen, seqNo);
     }
 
     /**
@@ -1993,7 +2037,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void openEngineAndSkipTranslogRecovery() throws IOException {
         assert routingEntry().recoverySource().getType() == RecoverySource.Type.PEER : "not a peer recovery [" + routingEntry() + "]";
-        recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
+        // TODO: Segrep - fix initial recovery stages from ReplicationTarget.
+//        recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
         loadGlobalCheckpointToReplicationTracker();
         innerOpenEngineAndTranslog(replicationTracker);
         getEngine().skipTranslogRecovery();
@@ -2029,7 +2074,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // time elapses after the engine is created above (pulling the config settings) until we set the engine reference, during
         // which settings changes could possibly have happened, so here we forcefully push any config changes to the new engine.
         onSettingsChanged();
-        assert assertSequenceNumbersInCommit();
+        // TODO: Segrep - Fix
+//        assert assertSequenceNumbersInCommit();
         recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
     }
 
@@ -2202,6 +2248,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Returns number of heap bytes used by the indexing buffer for this shard, or 0 if the shard is closed
      */
     public long getIndexBufferRAMBytesUsed() {
+        if (shardRouting.primary() == false) {
+            return 0;
+        }
         Engine engine = getEngineOrNull();
         if (engine == null) {
             return 0;
@@ -2681,7 +2730,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void syncRetentionLeases() {
         assert assertPrimaryMode();
         verifyNotClosed();
-        replicationTracker.renewPeerRecoveryRetentionLeases();
+        // TODO: Segrep - Fix retention leases
+//        replicationTracker.renewPeerRecoveryRetentionLeases();
         final Tuple<Boolean, RetentionLeases> retentionLeases = getRetentionLeases(true);
         if (retentionLeases.v1()) {
             logger.trace("syncing retention leases [{}] after expiration check", retentionLeases.v2());
@@ -3008,7 +3058,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public void startRecovery(
         RecoveryState recoveryState,
-        PeerRecoveryTargetService recoveryTargetService,
+        SegmentReplicationReplicaService segmentReplicationReplicaService,
+        SegmentReplicationReplicaService.ReplicationListener replicationListener,
+        PrimaryShardReplicationSource replicationSource,
+        PeerRecoveryTargetService peerRecoveryTargetService,
         PeerRecoveryTargetService.RecoveryListener recoveryListener,
         RepositoriesService repositoriesService,
         BiConsumer<String, MappingMetadata> mappingUpdateConsumer,
@@ -3039,8 +3092,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             case PEER:
                 try {
                     markAsRecovering("from " + recoveryState.getSourceNode(), recoveryState);
-                    recoveryTargetService.startRecovery(this, recoveryState.getSourceNode(), recoveryListener);
+                    IndexShard indexShard = this;
+                    segmentReplicationReplicaService.prepareForReplication(this, recoveryState.getTargetNode(), recoveryState.getSourceNode(), new ActionListener<TrackShardResponse>() {
+                        @Override
+                        public void onResponse(TrackShardResponse unused) {
+                            replicationListener.onReplicationDone(replicationState);
+                            recoveryState.getIndex().setFileDetailsComplete();
+                            finalizeRecovery();
+                            postRecovery("Shard setup complete.");
+                        }
+                        @Override
+                        public void onFailure(Exception e) {
+                            replicationListener.onReplicationFailure(replicationState, new ReplicationFailedException(indexShard, e), true);
+                        }
+                    });
                 } catch (Exception e) {
+                    logger.error("Error preparing the shard for Segment replication", e);
                     failShard("corrupted preexisting index", e);
                     recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true);
                 }
@@ -3253,13 +3320,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             translogConfig,
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
             Arrays.asList(refreshListeners, refreshPendingLocationListener),
-            Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
+            Arrays.asList(new RefreshMetricUpdater(refreshMetric), checkpointRefreshListener),
             indexSort,
             circuitBreakerService,
             globalCheckpointSupplier,
             replicationTracker::getRetentionLeases,
             () -> getOperationPrimaryTerm(),
-            tombstoneDocSupplier()
+            tombstoneDocSupplier(),
+            shardRouting.primary()
         );
     }
 
@@ -3644,6 +3712,70 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         getEngine().syncTranslog();
     }
 
+    public long getProcessedLocalCheckpoint() {
+        return getEngine().getProcessedLocalCheckpoint();
+    }
+
+    /**
+     * Invoked when a new checkpoint is received from a primary shard.  Starts the copy process.
+     */
+    public synchronized void onNewCheckpoint(final PublishCheckpointRequest request,
+                                final PrimaryShardReplicationSource source,
+                                final SegmentReplicationReplicaService segmentReplicationReplicaService) {
+        logger.debug("Checkpoint received {}", request.getCheckpoint());
+        ReplicationCheckpoint localCheckpoint = getLatestReplicationCheckpoint();
+        logger.debug("Local Checkpoint {}", getLatestReplicationCheckpoint());
+        if (localCheckpoint.equals(request.getCheckpoint())) {
+            logger.debug("Ignore - Shard is already on checkpoint");
+            return;
+        }
+        if (state.equals(IndexShardState.STARTED) == false) {
+            logger.debug("Ignore - shard is not started {} {}", recoveryState.getStage(), this.state);
+            return;
+        }
+        if (isReplicating()) {
+            logger.info("Ignore - shard is currently replicating to a checkpoint");
+            return;
+        }
+        try {
+            markAsReplicating();
+            final ReplicationCheckpoint checkpoint = request.getCheckpoint();
+            logger.trace("Received new checkpoint {}", checkpoint);
+            // TODO: segrep - these are the states set after we perform our initial store recovery.
+            segmentReplicationReplicaService.startReplication(checkpoint, this, source, new SegmentReplicationReplicaService.ReplicationListener() {
+                @Override
+                public void onReplicationDone(ReplicationState state) {
+                    markReplicationComplete();
+                    logger.debug("Replication complete to {}", getLatestReplicationCheckpoint());
+                }
+
+                @Override
+                public void onReplicationFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
+                    markReplicationComplete();
+                    logger.error("Failure", e);
+                }
+            });
+        } catch (Exception e) {
+            logger.error("Error", e);
+        }
+    }
+
+    public ReplicationState getReplicationState() {
+        return this.replicationState;
+    }
+
+    public void markAsReplicating() {
+        this.replicationState.setStage(ReplicationState.Stage.ACTIVE);
+    }
+
+    public void markReplicationComplete() {
+        this.replicationState.setStage(ReplicationState.Stage.INACTIVE);
+    }
+
+    private boolean isReplicating() {
+        return this.replicationState.getStage() == ReplicationState.Stage.ACTIVE;
+    }
+
     /**
      * Checks if the underlying storage sync is required.
      */
@@ -3778,6 +3910,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return <code>true</code> iff the engine got refreshed otherwise <code>false</code>
      */
     public boolean scheduledRefresh() {
+        // skip if not primary shard.
+        // TODO: Segrep - should split into primary/replica classes.
+        if (shardRouting.primary() == false) {
+            return false;
+        }
         verifyNotClosed();
         boolean listenerNeedsRefresh = refreshListeners.refreshNeeded();
         if (isReadAllowed() && (listenerNeedsRefresh || getEngine().refreshNeeded())) {

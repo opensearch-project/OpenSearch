@@ -150,7 +150,9 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
                 + temporaryFileName
                 + "] in "
                 + Arrays.toString(store.directory().listAll());
-            store.directory().sync(Collections.singleton(temporaryFileName));
+            // TODO: Segrep - toggle this with a setting.  With segrep we don't want this fsync we will only fsync
+            //  when a new checkpoint is received.
+//            store.directory().sync(Collections.singleton(temporaryFileName));
             IndexOutput remove = removeOpenIndexOutputs(name);
             assert remove == null || remove == indexOutput; // remove maybe null if we got finished
         }

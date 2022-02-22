@@ -104,6 +104,8 @@ import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -205,6 +207,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public Directory directory() {
         ensureOpen();
         return directory;
+    }
+
+    /**
+     * Forces an fsync on the directory - to be called by replicas after receiving a new commit point.
+     * @throws IOException if we are unable to list current directory contents.
+     */
+    public void syncDirectory() throws IOException {
+        this.directory.sync(Arrays.asList(this.directory.listAll()));
     }
 
     /**
@@ -311,6 +321,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         } finally {
             lock.unlock();
         }
+    }
+
+    public MetadataSnapshot getMetadata(SegmentInfos segmentInfos) throws IOException {
+        return new MetadataSnapshot(segmentInfos, directory, logger);
     }
 
     /**
@@ -475,7 +489,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             Directory dir = new NIOFSDirectory(indexLocation)
         ) {
             failIfCorrupted(dir);
-            return new MetadataSnapshot(null, dir, logger);
+            return new MetadataSnapshot((IndexCommit) null, dir, logger);
         } catch (IndexNotFoundException ex) {
             // that's fine - happens all the time no need to log
         } catch (FileNotFoundException | NoSuchFileException ex) {
@@ -682,7 +696,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 }
             }
             directory.syncMetaData();
-            final Store.MetadataSnapshot metadataOrEmpty = getMetadata(null);
+            final Store.MetadataSnapshot metadataOrEmpty = getMetadata((IndexCommit) null);
             verifyAfterCleanup(sourceMetadata, metadataOrEmpty);
         } finally {
             metadataLock.writeLock().unlock();
@@ -822,6 +836,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             assert metadata.isEmpty() || numSegmentFiles() == 1 : "numSegmentFiles: " + numSegmentFiles();
         }
 
+        MetadataSnapshot(SegmentInfos infos, Directory directory, Logger logger) throws IOException {
+            LoadedMetadata loadedMetadata = loadMetadata(infos, directory, logger);
+            metadata = loadedMetadata.fileMetadata;
+            commitUserData = loadedMetadata.userData;
+            numDocs = loadedMetadata.numDocs;
+            assert metadata.isEmpty() || numSegmentFiles() == 1 : "numSegmentFiles: " + numSegmentFiles();
+        }
+
         /**
          * Read from a stream.
          */
@@ -877,23 +899,23 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             }
         }
 
-        static LoadedMetadata loadMetadata(IndexCommit commit, Directory directory, Logger logger) throws IOException {
+        static LoadedMetadata loadMetadata(SegmentInfos infos, Directory directory, Logger logger) throws IOException {
             long numDocs;
             Map<String, StoreFileMetadata> builder = new HashMap<>();
             Map<String, String> commitUserDataBuilder = new HashMap<>();
             try {
-                final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
-                numDocs = Lucene.getNumDocs(segmentCommitInfos);
-                commitUserDataBuilder.putAll(segmentCommitInfos.getUserData());
+                numDocs = Lucene.getNumDocs(infos);
+                commitUserDataBuilder.putAll(infos.getUserData());
                 // we don't know which version was used to write so we take the max version.
-                Version maxVersion = segmentCommitInfos.getMinSegmentLuceneVersion();
-                for (SegmentCommitInfo info : segmentCommitInfos) {
+                Version maxVersion = infos.getMinSegmentLuceneVersion();
+                for (SegmentCommitInfo info : infos) {
                     final Version version = info.info.getVersion();
                     if (version == null) {
                         // version is written since 3.1+: we should have already hit IndexFormatTooOld.
                         throw new IllegalArgumentException("expected valid version value: " + info.info.toString());
                     }
-                    if (version.onOrAfter(maxVersion)) {
+                    // TODO: Version is null here from getMinSegmentLuceneVersion... not sure why
+                    if (maxVersion == null || version.onOrAfter(maxVersion)) {
                         maxVersion = version;
                     }
                     for (String file : info.files()) {
@@ -910,7 +932,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 if (maxVersion == null) {
                     maxVersion = org.opensearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion;
                 }
-                final String segmentsFile = segmentCommitInfos.getSegmentsFileName();
+                final String segmentsFile = infos.getSegmentsFileName();
                 checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion, true);
             } catch (CorruptIndexException | IndexNotFoundException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
                 // we either know the index is corrupted or it's just not there
@@ -922,8 +944,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     // TODO we should check the checksum in lucene if we hit an exception
                     logger.warn(
                         () -> new ParameterizedMessage(
-                            "failed to build store metadata. checking segment info integrity " + "(with commit [{}])",
-                            commit == null ? "no" : "yes"
+                            "failed to build store metadata. checking segment info integrity " + "(with infos [{}])",
+                            infos == null ? "no" : "yes"
                         ),
                         ex
                     );
@@ -938,6 +960,16 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 throw ex;
             }
             return new LoadedMetadata(unmodifiableMap(builder), unmodifiableMap(commitUserDataBuilder), numDocs);
+        }
+
+        static LoadedMetadata loadMetadata(IndexCommit commit, Directory directory, Logger logger) throws IOException {
+            SegmentInfos infos;
+            try {
+                infos = Store.readSegmentsInfo(commit, directory);
+            } catch (Exception e) {
+                throw e;
+            }
+            return loadMetadata(infos, directory, logger);
         }
 
         private static void checksumFromLuceneFile(

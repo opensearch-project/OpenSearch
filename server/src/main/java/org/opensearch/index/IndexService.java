@@ -94,6 +94,7 @@ import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.checkpoint.TransportCheckpointPublisher;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
@@ -165,6 +166,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexNameExpressionResolver expressionResolver;
     private final Supplier<Sort> indexSortSupplier;
     private final ValuesSourceRegistry valuesSourceRegistry;
+    private final TransportCheckpointPublisher checkpointPublisher;
 
     public IndexService(
         IndexSettings indexSettings,
@@ -195,8 +197,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         BooleanSupplier allowExpensiveQueries,
         IndexNameExpressionResolver expressionResolver,
         ValuesSourceRegistry valuesSourceRegistry,
-        IndexStorePlugin.RecoveryStateFactory recoveryStateFactory
-    ) {
+        IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
+        TransportCheckpointPublisher checkpointPublisher) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.indexSettings = indexSettings;
@@ -206,6 +208,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.circuitBreakerService = circuitBreakerService;
         this.expressionResolver = expressionResolver;
         this.valuesSourceRegistry = valuesSourceRegistry;
+        this.checkpointPublisher = checkpointPublisher;
         if (needsMapperService(indexSettings, indexCreationContext)) {
             assert indexAnalyzers != null;
             this.mapperService = new MapperService(
@@ -520,8 +523,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 indexingOperationListeners,
                 () -> globalCheckpointSyncer.accept(shardId),
                 retentionLeaseSyncer,
-                circuitBreakerService
-            );
+                circuitBreakerService,
+                checkpointPublisher);
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
             shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();
@@ -911,7 +914,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         if (indexSettings.getRefreshInterval().millis() > 0 || force) {
             for (IndexShard shard : this.shards.values()) {
                 try {
-                    shard.scheduledRefresh();
+                    if (shard.routingEntry().primary()) {
+                        shard.scheduledRefresh();
+                    }
                 } catch (IndexShardClosedException | AlreadyClosedException ex) {
                     // fine - continue;
                 }

@@ -270,6 +270,8 @@ import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.index.seqno.RetentionLeaseActions;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.indices.replication.checkpoint.PublishCheckpointAction;
+import org.opensearch.indices.replication.checkpoint.TransportPublishCheckpointAction;
 import org.opensearch.persistent.CompletionPersistentTaskAction;
 import org.opensearch.persistent.RemovePersistentTaskAction;
 import org.opensearch.persistent.StartPersistentTaskAction;
@@ -588,6 +590,7 @@ public class ActionModule extends AbstractModule {
         actions.register(SimulateTemplateAction.INSTANCE, TransportSimulateTemplateAction.class);
         actions.register(ValidateQueryAction.INSTANCE, TransportValidateQueryAction.class);
         actions.register(RefreshAction.INSTANCE, TransportRefreshAction.class);
+        actions.register(PublishCheckpointAction.INSTANCE, TransportPublishCheckpointAction.class);
         actions.register(FlushAction.INSTANCE, TransportFlushAction.class);
         actions.register(SyncedFlushAction.INSTANCE, TransportSyncedFlushAction.class);
         actions.register(ForceMergeAction.INSTANCE, TransportForceMergeAction.class);

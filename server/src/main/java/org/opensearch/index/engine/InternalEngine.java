@@ -48,6 +48,7 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.ShuffleForcedMergePolicy;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
+import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -61,6 +62,10 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.BufferedChecksumIndexInput;
+import org.apache.lucene.store.ByteBuffersDataInput;
+import org.apache.lucene.store.ByteBuffersIndexInput;
+import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
@@ -114,6 +119,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -271,11 +277,19 @@ public class InternalEngine extends Engine {
                     translog::getLastSyncedGlobalCheckpoint
                 );
                 this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
-                writer = createWriter();
-                bootstrapAppendOnlyInfoFromWriter(writer);
-                final Map<String, String> commitData = commitDataAsMap(writer);
-                historyUUID = loadHistoryUUID(commitData);
-                forceMergeUUID = commitData.get(FORCE_MERGE_UUID_KEY);
+                // TODO: Segrep - should have a separate read only engine rather than all this conditional logic.
+                if (engineConfig.isPrimary()) {
+                    writer = createWriter();
+                    bootstrapAppendOnlyInfoFromWriter(writer);
+                    final Map<String, String> commitData = commitDataAsMap(writer);
+                    historyUUID = loadHistoryUUID(commitData);
+                    forceMergeUUID = commitData.get(FORCE_MERGE_UUID_KEY);
+                } else {
+                    // Segrep - hack to make this engine read only and not use
+                    writer = null;
+                    historyUUID = null;
+                    forceMergeUUID = null;
+                }
                 indexWriter = writer;
             } catch (IOException | TranslogCorruptedException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
@@ -329,6 +343,25 @@ public class InternalEngine extends Engine {
             }
         }
         logger.trace("created new InternalEngine");
+    }
+
+    @Override
+    public void updateCurrentInfos(byte[] infosBytes, long gen, long seqNo) throws IOException {
+        assert engineConfig.isPrimary() == false : "Only replicas should update Infos";
+        SegmentInfos infos = SegmentInfos.readCommit(this.store.directory(),
+            toIndexInput(infosBytes),
+            gen);
+        assert gen == infos.getGeneration();
+        externalReaderManager.internalReaderManager.updateSegments(infos);
+        externalReaderManager.maybeRefresh();
+        localCheckpointTracker.markSeqNoAsProcessed(seqNo);
+    }
+
+    private ChecksumIndexInput toIndexInput(byte[] input) {
+        return new BufferedChecksumIndexInput(
+            new ByteBuffersIndexInput(
+                new ByteBuffersDataInput(
+                    Arrays.asList(ByteBuffer.wrap(input))), "SegmentInfos"));
     }
 
     private LocalCheckpointTracker createLocalCheckpointTracker(
@@ -553,7 +586,9 @@ public class InternalEngine extends Engine {
                 translog.currentFileGeneration()
             )
         );
-        flush(false, true);
+        if (engineConfig.isPrimary()) {
+            flush(false, true);
+        }
         translog.trimUnreferencedReaders();
     }
 
@@ -662,7 +697,9 @@ public class InternalEngine extends Engine {
 
     private void revisitIndexDeletionPolicyOnTranslogSynced() throws IOException {
         if (combinedDeletionPolicy.hasUnreferencedCommits()) {
-            indexWriter.deleteUnusedFiles();
+            if (engineConfig.isPrimary()) {
+                indexWriter.deleteUnusedFiles();
+            }
         }
         translog.trimUnreferencedReaders();
     }
@@ -701,7 +738,7 @@ public class InternalEngine extends Engine {
         try {
             try {
                 final OpenSearchDirectoryReader directoryReader = OpenSearchDirectoryReader.wrap(
-                    DirectoryReader.open(indexWriter),
+                    getDirectoryReader(),
                     shardId
                 );
                 internalReaderManager = new OpenSearchReaderManager(
@@ -726,6 +763,14 @@ public class InternalEngine extends Engine {
                 IOUtils.closeWhileHandlingException(internalReaderManager, indexWriter);
             }
         }
+    }
+
+    private DirectoryReader getDirectoryReader() throws IOException {
+        // replicas should create the reader from store, we don't want an open IW on replicas.
+        if (engineConfig.isPrimary() == false) {
+            return DirectoryReader.open(store.directory());
+        }
+        return DirectoryReader.open(indexWriter);
     }
 
     @Override
@@ -1105,20 +1150,22 @@ public class InternalEngine extends Engine {
 
     @Override
     public Engine.IndexResult addIndexOperationToTranslog(Index index) throws IOException {
-        IndexingStrategy plan = indexingStrategyForOperation(index);
-        /**
-         * Matches the logic in {@link #indexIntoLucene(Index, IndexingStrategy)}
-         */
-        IndexResult indexResult = new IndexResult(
-            plan.versionForIndexing,
-            index.primaryTerm(),
-            index.seqNo(),
-            plan.currentNotFoundOrDeleted
-        );
-        addIndexOperationToTranslog(index, indexResult);
-        indexResult.setTook(System.nanoTime() - index.startTime());
-        indexResult.freeze();
-        return indexResult;
+        try (Releasable ignored = versionMap.acquireLock(index.uid().bytes())) {
+            IndexingStrategy plan = indexingStrategyForOperation(index);
+            /**
+             * Matches the logic in {@link #indexIntoLucene(Index, IndexingStrategy)}
+             */
+            IndexResult indexResult = new IndexResult(
+                plan.versionForIndexing,
+                index.primaryTerm(),
+                index.seqNo(),
+                plan.currentNotFoundOrDeleted
+            );
+            addIndexOperationToTranslog(index, indexResult);
+            indexResult.setTook(System.nanoTime() - index.startTime());
+            indexResult.freeze();
+            return indexResult;
+        }
     }
 
     private void addIndexOperationToTranslog(Index index, IndexResult indexResult) throws IOException {
@@ -2063,6 +2110,9 @@ public class InternalEngine extends Engine {
 
     @Override
     public CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
+        if (engineConfig.isPrimary() == false) {
+            return new CommitId(lastCommittedSegmentInfos.getId());
+        }
         ensureOpen();
         if (force && waitIfOngoing == false) {
             assert false : "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing;
@@ -2358,6 +2408,35 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    public SegmentInfosRef getLatestSegmentInfosSafe() {
+        assert (engineConfig.isPrimary());
+        final SegmentInfos segmentInfos = getLatestSegmentInfos();
+        try {
+            indexWriter.incRefDeleter(segmentInfos);
+        } catch (IOException e) {
+            throw new EngineException(shardId, e.getMessage(), e);
+        }
+        return new Engine.SegmentInfosRef(segmentInfos, () -> indexWriter.decRefDeleter(segmentInfos));
+    }
+
+    @Override
+    public SegmentInfos getLatestSegmentInfos() {
+        OpenSearchDirectoryReader reader = null;
+        try {
+            reader = externalReaderManager.internalReaderManager.acquire();
+            return ((StandardDirectoryReader) reader.getDelegate()).getSegmentInfos();
+        } catch (IOException e) {
+            throw new EngineException(shardId, e.getMessage(), e);
+        } finally {
+            try {
+                externalReaderManager.internalReaderManager.release(reader);
+            } catch (IOException e) {
+                throw new EngineException(shardId, e.getMessage(), e);
+            }
+        }
+    }
+
+    @Override
     public IndexCommitRef acquireSafeIndexCommit() throws EngineException {
         final IndexCommit safeCommit = combinedDeletionPolicy.acquireIndexCommit(true);
         return new Engine.IndexCommitRef(safeCommit, () -> releaseIndexCommit(safeCommit));
@@ -2498,7 +2577,9 @@ public class InternalEngine extends Engine {
                 // no need to commit in this case!, we snapshot before we close the shard, so translog and all sync'ed
                 logger.trace("rollback indexWriter");
                 try {
-                    indexWriter.rollback();
+                    if (engineConfig.isPrimary()) {
+                        indexWriter.rollback();
+                    }
                 } catch (AlreadyClosedException ex) {
                     failOnTragicEvent(ex);
                     throw ex;
@@ -2851,6 +2932,7 @@ public class InternalEngine extends Engine {
         return getTranslog().getLastSyncedGlobalCheckpoint();
     }
 
+    @Override
     public long getProcessedLocalCheckpoint() {
         return localCheckpointTracker.getProcessedCheckpoint();
     }
