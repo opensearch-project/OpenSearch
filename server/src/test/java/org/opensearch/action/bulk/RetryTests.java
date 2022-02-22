@@ -249,7 +249,7 @@ public class RetryTests extends OpenSearchTestCase {
             return new BulkItemResponse(
                 1,
                 OpType.INDEX,
-                new BulkItemResponse.Failure("test", "test", "1", new OpenSearchRejectedExecutionException("pool full"))
+                new BulkItemResponse.Failure("test", "1", new OpenSearchRejectedExecutionException("pool full"))
             );
         }
     }

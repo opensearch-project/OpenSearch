@@ -186,7 +186,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         BulkItemResponse.Failure failure = primaryResponse.getFailure();
         assertThat(failure.getIndex(), equalTo("index"));
-        assertThat(failure.getType(), equalTo("_doc"));
         assertThat(failure.getId(), equalTo("id"));
         assertThat(failure.getCause().getClass(), equalTo(VersionConflictEngineException.class));
         assertThat(failure.getCause().getMessage(), containsString("version conflict, document already exists (current version [1])"));
@@ -236,7 +235,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                     BulkItemResponse response = result.finalResponseIfSuccessful.getResponses()[i];
                     assertThat(response.getItemId(), equalTo(i));
                     assertThat(response.getIndex(), equalTo("index"));
-                    assertThat(response.getType(), equalTo("_doc"));
                     assertThat(response.getId(), equalTo("id_" + i));
                     assertThat(response.getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
                     if (response.getItemId() == rejectItem.id()) {
@@ -394,7 +392,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertThat(primaryResponse.getFailureMessage(), containsString("some kind of exception"));
         BulkItemResponse.Failure failure = primaryResponse.getFailure();
         assertThat(failure.getIndex(), equalTo("index"));
-        assertThat(failure.getType(), equalTo("_doc"));
         assertThat(failure.getId(), equalTo("id"));
         assertThat(failure.getCause(), equalTo(err));
 
@@ -610,7 +607,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertThat(primaryResponse.getFailureMessage(), containsString("I'm dead <(x.x)>"));
         BulkItemResponse.Failure failure = primaryResponse.getFailure();
         assertThat(failure.getIndex(), equalTo("index"));
-        assertThat(failure.getType(), equalTo("_doc"));
         assertThat(failure.getId(), equalTo("id"));
         assertThat(failure.getCause(), equalTo(err));
         assertThat(failure.getStatus(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
@@ -670,7 +666,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertThat(primaryResponse.getFailureMessage(), containsString("I'm conflicted <(;_;)>"));
         BulkItemResponse.Failure failure = primaryResponse.getFailure();
         assertThat(failure.getIndex(), equalTo("index"));
-        assertThat(failure.getType(), equalTo("_doc"));
         assertThat(failure.getId(), equalTo("id"));
         assertThat(failure.getCause(), equalTo(err));
         assertThat(failure.getStatus(), equalTo(RestStatus.CONFLICT));
@@ -833,7 +828,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertThat(primaryResponse.getFailureMessage(), containsString("oops"));
         BulkItemResponse.Failure failure = primaryResponse.getFailure();
         assertThat(failure.getIndex(), equalTo("index"));
-        assertThat(failure.getType(), equalTo("_doc"));
         assertThat(failure.getId(), equalTo("id"));
         assertThat(failure.getCause(), equalTo(err));
         assertThat(failure.getStatus(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
@@ -888,7 +882,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             new BulkItemResponse(
                 0,
                 randomFrom(DocWriteRequest.OpType.CREATE, DocWriteRequest.OpType.DELETE, DocWriteRequest.OpType.INDEX),
-                new BulkItemResponse.Failure("index", "_doc", "1", exception, 1L, 1L)
+                new BulkItemResponse.Failure("index", "1", exception, 1L, 1L)
             )
         );
         BulkItemRequest[] itemRequests = new BulkItemRequest[1];

@@ -315,7 +315,7 @@ public class AsyncBulkByScrollActionTests extends OpenSearchTestCase {
                     responses[i] = new BulkItemResponse(
                         i,
                         randomFrom(DocWriteRequest.OpType.values()),
-                        new Failure(shardId.getIndexName(), "type", "id" + i, new VersionConflictEngineException(shardId, "id", "test"))
+                        new Failure(shardId.getIndexName(), "id" + i, new VersionConflictEngineException(shardId, "id", "test"))
                     );
                     continue;
                 }
@@ -433,7 +433,7 @@ public class AsyncBulkByScrollActionTests extends OpenSearchTestCase {
      * Mimicks bulk indexing failures.
      */
     public void testBulkFailuresAbortRequest() throws Exception {
-        Failure failure = new Failure("index", "type", "id", new RuntimeException("test"));
+        Failure failure = new Failure("index", "id", new RuntimeException("test"));
         DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction();
         BulkResponse bulkResponse = new BulkResponse(
             new BulkItemResponse[] { new BulkItemResponse(0, DocWriteRequest.OpType.CREATE, failure) },
@@ -982,12 +982,7 @@ public class AsyncBulkByScrollActionTests extends OpenSearchTestCase {
                         responses[i] = new BulkItemResponse(
                             i,
                             item.opType(),
-                            new Failure(
-                                response.getIndex(),
-                                response.getType(),
-                                response.getId(),
-                                new OpenSearchRejectedExecutionException()
-                            )
+                            new Failure(response.getIndex(), response.getId(), new OpenSearchRejectedExecutionException())
                         );
                     } else {
                         responses[i] = new BulkItemResponse(i, item.opType(), response);

@@ -88,7 +88,6 @@ public class BulkIntegrationIT extends OpenSearchIntegTestCase {
         assertBusy(() -> {
             GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings().get();
             assertTrue(mappingsResponse.getMappings().containsKey("logstash-2014.03.30"));
-            assertTrue(mappingsResponse.getMappings().get("logstash-2014.03.30").containsKey("logs"));
         });
     }
 
@@ -163,7 +162,7 @@ public class BulkIntegrationIT extends OpenSearchIntegTestCase {
 
         {
             createSamplePipeline("pipeline");
-            BulkRequestBuilder bulkBuilder = client().prepareBulk("test", "type1").routing("routing").pipeline("pipeline");
+            BulkRequestBuilder bulkBuilder = client().prepareBulk("test").routing("routing").pipeline("pipeline");
 
             bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
             BulkResponse bulkItemResponses = bulkBuilder.get();

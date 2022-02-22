@@ -251,7 +251,7 @@ class BulkPrimaryExecutionContext {
             docWriteRequest.opType(),
             // Make sure to use getCurrentItem().index() here, if you use docWriteRequest.index() it will use the
             // concrete index instead of an alias if used!
-            new BulkItemResponse.Failure(getCurrentItem().index(), docWriteRequest.type(), docWriteRequest.id(), cause)
+            new BulkItemResponse.Failure(getCurrentItem().index(), docWriteRequest.id(), cause)
         );
         markAsCompleted(executionResult);
     }
@@ -304,7 +304,6 @@ class BulkPrimaryExecutionContext {
                     // concrete index instead of an alias if used!
                     new BulkItemResponse.Failure(
                         request.index(),
-                        docWriteRequest.type(),
                         docWriteRequest.id(),
                         result.getFailure(),
                         result.getSeqNo(),

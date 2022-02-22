@@ -69,7 +69,6 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.rest.action.document.RestBulkAction;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
@@ -441,10 +440,9 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
     public void testMultiGetWithIds() throws IOException {
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
-        bulk.add(new IndexRequest("index", "type", "id1").source("{\"field\":\"value1\"}", XContentType.JSON));
-        bulk.add(new IndexRequest("index", "type", "id2").source("{\"field\":\"value2\"}", XContentType.JSON));
+        bulk.add(new IndexRequest("index", "id1").source("{\"field\":\"value1\"}", XContentType.JSON));
+        bulk.add(new IndexRequest("index", "id2").source("{\"field\":\"value2\"}", XContentType.JSON));
 
-        highLevelClient().bulk(bulk, expectWarningsOnce(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         multiGetRequest.add("index", "id1");
         multiGetRequest.add("index", "id2");
@@ -1016,7 +1014,6 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
 
             assertEquals(i, bulkItemResponse.getItemId());
             assertEquals("index", bulkItemResponse.getIndex());
-            assertEquals("_doc", bulkItemResponse.getType());
             assertEquals(String.valueOf(i), bulkItemResponse.getId());
 
             DocWriteRequest.OpType requestOpType = bulkRequest.requests().get(i).opType();
