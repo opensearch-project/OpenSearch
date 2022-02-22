@@ -50,7 +50,6 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.rest.action.document.RestBulkAction;
-import org.opensearch.rest.action.document.RestUpdateAction;
 import org.opensearch.rest.action.search.RestExplainAction;
 import org.opensearch.test.NotEqualMessageBuilder;
 import org.opensearch.test.XContentTestUtils;
@@ -98,6 +97,8 @@ import static org.hamcrest.Matchers.nullValue;
 public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     private String index;
     private String type;
+
+    public static final String TYPES_DEPRECATION_MESSAGE_BULK = "[types removal]" + " Specifying types in bulk requests is deprecated.";
 
     @Before
     public void setIndex() {
@@ -493,6 +494,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Request bulkRequest = new Request("POST", "/" + index + "_write/" + type + "/_bulk");
         bulkRequest.setJsonEntity(bulk.toString());
         bulkRequest.addParameter("refresh", "");
+        bulkRequest.setOptions(expectWarnings(TYPES_DEPRECATION_MESSAGE_BULK));
         assertThat(EntityUtils.toString(client().performRequest(bulkRequest).getEntity()), containsString("\"errors\":false"));
 
         if (isRunningAgainstOldCluster()) {
@@ -1146,6 +1148,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Request writeToRestoredRequest = new Request("POST", "/restored_" + index + "/" + type + "/_bulk");
         writeToRestoredRequest.addParameter("refresh", "true");
         writeToRestoredRequest.setJsonEntity(bulk.toString());
+        writeToRestoredRequest.setOptions(expectWarnings(TYPES_DEPRECATION_MESSAGE_BULK));
         assertThat(EntityUtils.toString(client().performRequest(writeToRestoredRequest).getEntity()), containsString("\"errors\":false"));
 
         // And count to make sure the add worked
