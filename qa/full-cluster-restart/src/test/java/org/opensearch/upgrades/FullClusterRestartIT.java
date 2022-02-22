@@ -93,7 +93,6 @@ import static org.hamcrest.Matchers.nullValue;
  * with {@code tests.is_old_cluster} set to {@code false}.
  */
 public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " + "Specifying a type in explain requests is deprecated.";
 
     private String index;
     private String type;
@@ -180,7 +179,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertBasicSearchWorks(count);
         assertAllSearchWorks(count);
         assertBasicAggregationWorks();
-        assertRealtimeGetWorks(type);
+        assertRealtimeGetWorks();
         assertStoredBinaryFields(count);
     }
 
@@ -196,9 +195,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             }
             {
                 mappingsAndSettings.startObject("mappings");
-                if (isRunningAgainstAncientCluster()) {
-                    mappingsAndSettings.startObject(type);
-                }
                 mappingsAndSettings.startObject("properties");
                 {
                     mappingsAndSettings.startObject("field");
@@ -206,16 +202,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     mappingsAndSettings.endObject();
                 }
                 mappingsAndSettings.endObject();
-                if (isRunningAgainstAncientCluster()) {
-                    mappingsAndSettings.endObject();
-                }
                 mappingsAndSettings.endObject();
             }
             mappingsAndSettings.endObject();
 
             Request createIndex = new Request("PUT", "/" + index);
             createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
-            createIndex.setOptions(allowTypesRemovalWarnings());
             client().performRequest(createIndex);
 
             int numDocs = randomIntBetween(2000, 3000);
@@ -302,9 +294,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             {
                 mappingsAndSettings.startObject("mappings");
                 {
-                    if (isRunningAgainstAncientCluster()) {
-                        mappingsAndSettings.startObject(type);
-                    }
                     mappingsAndSettings.startObject("properties");
                     {
                         mappingsAndSettings.startObject("field");
@@ -314,25 +303,18 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                         mappingsAndSettings.endObject();
                     }
                     mappingsAndSettings.endObject();
-                    if (isRunningAgainstAncientCluster()) {
-                        mappingsAndSettings.endObject();
-                    }
                 }
                 mappingsAndSettings.endObject();
-                if (isRunningAgainstAncientCluster() == false) {
-                    // the default number of shards is now one so we have to set the number of shards to be more than one explicitly
-                    mappingsAndSettings.startObject("settings");
-                    {
-                        mappingsAndSettings.field("index.number_of_shards", 5);
-                    }
-                    mappingsAndSettings.endObject();
+                mappingsAndSettings.startObject("settings");
+                {
+                    mappingsAndSettings.field("index.number_of_shards", 5);
                 }
+                mappingsAndSettings.endObject();
             }
             mappingsAndSettings.endObject();
 
             Request createIndex = new Request("PUT", "/" + index);
             createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
-            createIndex.setOptions(allowTypesRemovalWarnings());
             client().performRequest(createIndex);
 
             numDocs = randomIntBetween(512, 1024);
@@ -385,9 +367,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             {
                 mappingsAndSettings.startObject("mappings");
                 {
-                    if (isRunningAgainstAncientCluster()) {
-                        mappingsAndSettings.startObject(type);
-                    }
                     mappingsAndSettings.startObject("properties");
                     {
                         mappingsAndSettings.startObject("field");
@@ -397,23 +376,17 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                         mappingsAndSettings.endObject();
                     }
                     mappingsAndSettings.endObject();
-                    if (isRunningAgainstAncientCluster()) {
-                        mappingsAndSettings.endObject();
-                    }
                 }
                 mappingsAndSettings.endObject();
-                if (isRunningAgainstAncientCluster() == false) {
-                    // the default number of shards is now one so we have to set the number of shards to be more than one explicitly
-                    mappingsAndSettings.startObject("settings");
-                    mappingsAndSettings.field("index.number_of_shards", 5);
-                    mappingsAndSettings.endObject();
-                }
+                // the default number of shards is now one so we have to set the number of shards to be more than one explicitly
+                mappingsAndSettings.startObject("settings");
+                mappingsAndSettings.field("index.number_of_shards", 5);
+                mappingsAndSettings.endObject();
             }
             mappingsAndSettings.endObject();
 
             Request createIndex = new Request("PUT", "/" + index);
             createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
-            createIndex.setOptions(allowTypesRemovalWarnings());
             client().performRequest(createIndex);
 
             numDocs = randomIntBetween(512, 1024);
@@ -565,12 +538,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         // the 'string' field has a boost of 4 in the mappings so it should get a payload boost
         String stringValue = (String) XContentMapValues.extractValue("_source.string", bestHit);
         assertNotNull(stringValue);
-        String type = (String) bestHit.get("_type");
         String id = (String) bestHit.get("_id");
 
-        Request explainRequest = new Request("GET", "/" + index + "/" + type + "/" + id + "/_explain");
+        Request explainRequest = new Request("GET", "/" + index + "/_explain" + "/" + id);
         explainRequest.setJsonEntity("{ \"query\": { \"match_all\" : {} }}");
-        explainRequest.setOptions(expectWarnings(TYPES_DEPRECATION_MESSAGE));
         String explanation = toStr(client().performRequest(explainRequest));
         assertFalse("Could not find payload boost in explanation\n" + explanation, explanation.contains("payloadBoost"));
 
@@ -610,7 +581,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertTotalHits(termsCount, boolTerms);
     }
 
-    void assertRealtimeGetWorks(final String typeName) throws IOException {
+    void assertRealtimeGetWorks() throws IOException {
         Request disableAutoRefresh = new Request("PUT", "/" + index + "/_settings");
         disableAutoRefresh.setJsonEntity("{ \"index\": { \"refresh_interval\" : -1 }}");
         client().performRequest(disableAutoRefresh);
@@ -625,7 +596,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         updateRequest.setJsonEntity("{ \"doc\" : { \"foo\": \"bar\"}}");
         client().performRequest(updateRequest);
 
-        Request getRequest = new Request("GET", "/" + index + "/" + typeName + "/" + docId);
+        Request getRequest = new Request("GET", "/" + index + "/" + type + "/" + docId);
         Map<String, Object> getRsp = entityAsMap(client().performRequest(getRequest));
         Map<?, ?> source = (Map<?, ?>) getRsp.get("_source");
         assertTrue("doc does not contain 'foo' key: " + source, source.containsKey("foo"));
@@ -743,10 +714,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                         i -> jsonBuilder().startObject().field("field", "value").endObject()
                 );
             }
-            saveInfoDocument("should_have_translog", Boolean.toString(shouldHaveTranslog));
+            saveInfoDocument(index + "+should_have_translog", Boolean.toString(shouldHaveTranslog));
         } else {
             count = countOfIndexedRandomDocuments();
-            shouldHaveTranslog = Booleans.parseBoolean(loadInfoDocument("should_have_translog"));
+            shouldHaveTranslog = Booleans.parseBoolean(loadInfoDocument(index + "_should_have_translog"));
         }
 
         // Count the documents in the index to make sure we have as many as we put there
@@ -997,7 +968,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             }
             refresh();
             assertTotalHits(liveDocs, entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
-            saveInfoDocument("doc_count", Integer.toString(liveDocs));
+            saveInfoDocument(index + "_doc_count", Integer.toString(liveDocs));
         } else {
             int liveDocs = Integer.parseInt(loadInfoDocument("doc_count"));
             assertTotalHits(liveDocs, entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
@@ -1203,7 +1174,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             }
         }
         if (saveInfo) {
-            saveInfoDocument("count", Integer.toString(count));
+            saveInfoDocument(index + "_count", Integer.toString(count));
         }
     }
 
@@ -1214,31 +1185,27 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     private int countOfIndexedRandomDocuments() throws IOException {
-        return Integer.parseInt(loadInfoDocument("count"));
+        return Integer.parseInt(loadInfoDocument(index + "_count"));
     }
 
-    private void saveInfoDocument(String type, String value) throws IOException {
+    private void saveInfoDocument(String id, String value) throws IOException {
         XContentBuilder infoDoc = JsonXContent.contentBuilder().startObject();
         infoDoc.field("value", value);
         infoDoc.endObject();
         // Only create the first version so we know how many documents are created when the index is first created
-        Request request = new Request("PUT", "/info/" + this.type + "/" + index + "_" + type);
+        Request request = new Request("PUT", "/info/" + type + "/" + id);
         request.addParameter("op_type", "create");
         request.setJsonEntity(Strings.toString(infoDoc));
         client().performRequest(request);
     }
 
-    private String loadInfoDocument(String type) throws IOException {
-        Request request = new Request("GET", "/info/" + this.type + "/" + index + "_" + type);
+    private String loadInfoDocument(String id) throws IOException {
+        Request request = new Request("GET", "/info/_doc/" + id);
         request.addParameter("filter_path", "_source");
         String doc = toStr(client().performRequest(request));
         Matcher m = Pattern.compile("\"value\":\"(.+)\"").matcher(doc);
         assertTrue(doc, m.find());
         return m.group(1);
-    }
-
-    private Object randomLenientBoolean() {
-        return randomFrom(new Object[] {"off", "no", "0", 0, "false", false, "on", "yes", "1", 1, "true", true});
     }
 
     private void refresh() throws IOException {
