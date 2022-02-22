@@ -65,7 +65,7 @@ dependencies {
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
   // and whitelist this hack in JarHell
-  api 'javax.xml.bind:jaxb-api:2.2.2'
+  api 'javax.xml.bind:jaxb-api:2.3.1'
 
   testImplementation project(':test:fixtures:s3-fixture')
 }
