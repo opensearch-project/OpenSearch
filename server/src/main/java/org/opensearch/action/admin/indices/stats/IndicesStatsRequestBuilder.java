@@ -78,15 +78,6 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
         return this;
     }
 
-    /**
-     * Document types to return stats for. Mainly affects {@link #setIndexing(boolean)} when
-     * enabled, returning specific indexing stats for those types.
-     */
-    public IndicesStatsRequestBuilder setTypes(String... types) {
-        request.types(types);
-        return this;
-    }
-
     public IndicesStatsRequestBuilder setGroups(String... groups) {
         request.groups(groups);
         return this;

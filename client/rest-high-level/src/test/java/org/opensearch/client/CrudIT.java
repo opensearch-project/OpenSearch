@@ -438,7 +438,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
         }
     }
 
-    public void testMultiGetWithTypes() throws IOException {
+    public void testMultiGetWithIds() throws IOException {
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         bulk.add(new IndexRequest("index", "type", "id1").source("{\"field\":\"value1\"}", XContentType.JSON));
