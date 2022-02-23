@@ -160,6 +160,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     count,
                     true,
                     true,
+                    randomBoolean(),
                     i -> JsonXContent.contentBuilder().startObject()
                             .field("string", randomAlphaOfLength(10))
                             .field("int", randomInt(100))
@@ -212,7 +213,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             int numDocs = randomIntBetween(2000, 3000);
             indexRandomDocuments(
-                    numDocs, true, false, i -> JsonXContent.contentBuilder().startObject().field("field", "value").endObject());
+                    numDocs, true, false, randomBoolean(), i -> JsonXContent.contentBuilder().startObject().field("field", "value").endObject());
             logger.info("Refreshing [{}]", index);
             client().performRequest(new Request("POST", "/" + index + "/_refresh"));
         } else {
@@ -319,7 +320,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             numDocs = randomIntBetween(512, 1024);
             indexRandomDocuments(
-                    numDocs, true, true, i -> JsonXContent.contentBuilder().startObject().field("field", "value").endObject());
+                    numDocs, true, true, randomBoolean(), i -> JsonXContent.contentBuilder().startObject().field("field", "value").endObject());
 
             ensureGreen(index); // wait for source index to be available on both nodes before starting shrink
 
@@ -394,6 +395,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     numDocs,
                     true,
                     true,
+                    randomBoolean(),
                     i -> JsonXContent.contentBuilder().startObject().field("field", "value").endObject()
             );
         } else {
@@ -684,14 +686,13 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
              * an index without a translog so we randomize whether
              * or not we have one. */
             shouldHaveTranslog = randomBoolean();
-
             Settings.Builder settings = Settings.builder();
             if (minimumNodeVersion().before(Version.V_2_0_0) && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
-            createIndex(index, settings.build());
-
-            indexRandomDocuments(count, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
+            final String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;
+            createIndex(index, settings.build(), mappings);
+            indexRandomDocuments(count, true, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
 
             // make sure all recoveries are done
             ensureGreen(index);
@@ -702,19 +703,17 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             flushRequest.addParameter("wait_if_ongoing", "true");
             assertOK(client().performRequest(flushRequest));
 
-            if (randomBoolean()) {
-                syncedFlush(index, randomBoolean());
-            }
             if (shouldHaveTranslog) {
                 // Update a few documents so we are sure to have a translog
                 indexRandomDocuments(
-                        count / 10,
-                        false, // flushing here would invalidate the whole thing
-                        false,
-                        i -> jsonBuilder().startObject().field("field", "value").endObject()
+                    count / 10,
+                    false, // flushing here would invalidate the whole thing
+                    false,
+                    true,
+                    i -> jsonBuilder().startObject().field("field", "value").endObject()
                 );
             }
-            saveInfoDocument(index + "+should_have_translog", Boolean.toString(shouldHaveTranslog));
+            saveInfoDocument(index + "_should_have_translog", Boolean.toString(shouldHaveTranslog));
         } else {
             count = countOfIndexedRandomDocuments();
             shouldHaveTranslog = Booleans.parseBoolean(loadInfoDocument(index + "_should_have_translog"));
@@ -723,7 +722,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         // Count the documents in the index to make sure we have as many as we put there
         Request countRequest = new Request("GET", "/" + index + "/_search");
         countRequest.addParameter("size", "0");
-        refresh();
+        refreshAllIndices();
         Map<String, Object> countResponse = entityAsMap(client().performRequest(countRequest));
         assertTotalHits(count, countResponse);
 
@@ -756,6 +755,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             String currentLuceneVersion = Version.CURRENT.luceneVersion.toString();
             String bwcLuceneVersion = getOldClusterVersion().luceneVersion.toString();
+            String minCompatibleBWCVersion = Version.CURRENT.minimumCompatibilityVersion().luceneVersion.toString();
             if (shouldHaveTranslog && false == currentLuceneVersion.equals(bwcLuceneVersion)) {
                 int numCurrentVersion = 0;
                 int numBwcVersion = 0;
@@ -774,6 +774,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                         numCurrentVersion++;
                     } else if (bwcLuceneVersion.equals(version)) {
                         numBwcVersion++;
+                    } else if (minCompatibleBWCVersion.equals(version) && minCompatibleBWCVersion.equals(bwcLuceneVersion) == false) {
+                        // Our upgrade path from 7.non-last always goes through 7.last, which depending on timing can create 7.last
+                        // index segment. We ignore those.
+                        continue;
                     } else {
                         fail("expected version to be one of [" + currentLuceneVersion + "," + bwcLuceneVersion + "] but was " + line);
                     }
@@ -804,7 +808,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
             createIndex(index, settings.build());
-            indexRandomDocuments(count, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
+            indexRandomDocuments(count, true, true, randomBoolean(), i -> jsonBuilder().startObject().field("field", "value").endObject());
         } else {
             count = countOfIndexedRandomDocuments();
         }
@@ -1154,19 +1158,20 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     // TODO tests for upgrades after shrink. We've had trouble with shrink in the past.
 
     private void indexRandomDocuments(
-            final int count,
-            final boolean flushAllowed,
-            final boolean saveInfo,
-            final CheckedFunction<Integer, XContentBuilder, IOException> docSupplier)
-            throws IOException {
+        final int count,
+        final boolean flushAllowed,
+        final boolean saveInfo,
+        final boolean specifyId,
+        final CheckedFunction<Integer, XContentBuilder, IOException> docSupplier
+    ) throws IOException {
         logger.info("Indexing {} random documents", count);
         for (int i = 0; i < count; i++) {
             logger.debug("Indexing document [{}]", i);
-            Request createDocument = new Request("POST", "/" + index + "/" + type + "/" + i);
+            Request createDocument = new Request("POST", "/" + index + "/_doc/" + (specifyId ? i : ""));
             createDocument.setJsonEntity(Strings.toString(docSupplier.apply(i)));
             client().performRequest(createDocument);
             if (rarely()) {
-                refresh();
+                refreshAllIndices();
             }
             if (flushAllowed && rarely()) {
                 logger.debug("Flushing [{}]", index);
@@ -1546,7 +1551,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             createIndex(index, settings.build());
             ensureGreen(index);
             int numDocs = randomIntBetween(0, 100);
-            indexRandomDocuments(numDocs, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
+            indexRandomDocuments(numDocs, true, true, randomBoolean(), i -> jsonBuilder().startObject().field("field", "value").endObject());
             // create repo
             XContentBuilder repoConfig = JsonXContent.contentBuilder().startObject();
             {
@@ -1600,7 +1605,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             createIndex(index, settings.build());
             ensureGreen(index);
             int numDocs = randomIntBetween(0, 100);
-            indexRandomDocuments(numDocs, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
+            indexRandomDocuments(numDocs, true, true, randomBoolean(), i -> jsonBuilder().startObject().field("field", "value").endObject());
             // create repo
             XContentBuilder repoConfig = JsonXContent.contentBuilder().startObject();
             {
