@@ -6175,9 +6175,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
             MapperService mapperService = createMapperService("test");
             List<Translog.Operation> luceneOps = readAllOperationsBasedOnSource(engine, mapperService);
-            List<Translog.Operation> translogOps = readAllOperationsBasedOnSource(engine, mapperService);
             assertThat(luceneOps.stream().map(o -> o.seqNo()).collect(Collectors.toList()), containsInAnyOrder(expectedSeqNos.toArray()));
-            assertThat(translogOps.stream().map(o -> o.seqNo()).collect(Collectors.toList()), containsInAnyOrder(expectedSeqNos.toArray()));
         }
     }
 

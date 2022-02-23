@@ -132,6 +132,7 @@ public class RecoverySourceHandler {
     private final CancellableThreads cancellableThreads = new CancellableThreads();
     private final List<Closeable> resources = new CopyOnWriteArrayList<>();
     private final ListenableFuture<RecoveryResponse> future = new ListenableFuture<>();
+    private static final String PEER_RECOVERY_NAME = "peer-recovery";
 
     public RecoverySourceHandler(
         IndexShard shard,
@@ -215,7 +216,7 @@ public class RecoverySourceHandler {
             final long startingSeqNo;
             final boolean isSequenceNumberBasedRecovery = request.startingSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
                 && isTargetSameHistory()
-                && shard.hasCompleteHistoryOperations("peer-recovery", request.startingSeqNo())
+                && shard.hasCompleteHistoryOperations(PEER_RECOVERY_NAME, request.startingSeqNo())
                 && ((retentionLeaseRef.get() == null && shard.useRetentionLeasesInPeerRecovery() == false)
                     || (retentionLeaseRef.get() != null && retentionLeaseRef.get().retainingSequenceNumber() <= request.startingSeqNo()));
             // NB check hasCompleteHistoryOperations when computing isSequenceNumberBasedRecovery, even if there is a retention lease,
@@ -339,7 +340,7 @@ public class RecoverySourceHandler {
 
                 final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
                 logger.trace("snapshot translog for recovery; current size is [{}]", estimateNumberOfHistoryOperations(startingSeqNo));
-                final Translog.Snapshot phase2Snapshot = shard.newChangesSnapshot("peer-recovery", startingSeqNo, Long.MAX_VALUE, false);
+                final Translog.Snapshot phase2Snapshot = shard.newChangesSnapshot(PEER_RECOVERY_NAME, startingSeqNo, Long.MAX_VALUE, false);
                 resources.add(phase2Snapshot);
                 retentionLock.close();
 
@@ -401,7 +402,7 @@ public class RecoverySourceHandler {
     }
 
     private int estimateNumberOfHistoryOperations(long startingSeqNo) throws IOException {
-        try (Translog.Snapshot snapshot = shard.newChangesSnapshot("peer-recover", startingSeqNo, Long.MAX_VALUE, false)) {
+        try (Translog.Snapshot snapshot = shard.newChangesSnapshot(PEER_RECOVERY_NAME, startingSeqNo, Long.MAX_VALUE, false)) {
             return snapshot.totalOperations();
         }
     }
