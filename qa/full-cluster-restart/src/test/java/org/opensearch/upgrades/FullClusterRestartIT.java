@@ -951,10 +951,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             int numDocs = between(10, 100);
             for (int i = 0; i < numDocs; i++) {
                 String doc = Strings.toString(JsonXContent.contentBuilder().startObject().field("field", "v1").endObject());
-                Request request = new Request("POST", "/" + index + "/" + type + "/" + i);
+                Request request = new Request("POST", "/" + index + "/_doc/" + i);
                 request.setJsonEntity(doc);
                 client().performRequest(request);
-                refresh();
+                refreshAllIndices();
             }
             client().performRequest(new Request("POST", "/" + index + "/_flush"));
             int liveDocs = numDocs;
@@ -962,19 +962,19 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             for (int i = 0; i < numDocs; i++) {
                 if (randomBoolean()) {
                     String doc = Strings.toString(JsonXContent.contentBuilder().startObject().field("field", "v2").endObject());
-                    Request request = new Request("POST", "/" + index + "/" + type + "/" + i);
+                    Request request = new Request("POST", "/" + index + "/_doc/" + i);
                     request.setJsonEntity(doc);
                     client().performRequest(request);
                 } else if (randomBoolean()) {
-                    client().performRequest(new Request("DELETE", "/" + index + "/" + type + "/" + i));
+                    client().performRequest(new Request("DELETE", "/" + index + "/_doc/" + i));
                     liveDocs--;
                 }
             }
-            refresh();
+            refreshAllIndices();
             assertTotalHits(liveDocs, entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
             saveInfoDocument(index + "_doc_count", Integer.toString(liveDocs));
         } else {
-            int liveDocs = Integer.parseInt(loadInfoDocument("doc_count"));
+            int liveDocs = Integer.parseInt(loadInfoDocument(index + "_doc_count"));
             assertTotalHits(liveDocs, entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
         }
     }
