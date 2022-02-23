@@ -70,7 +70,7 @@ class ReindexValidator {
         IndexNameExpressionResolver resolver,
         AutoCreateIndex autoCreateIndex
     ) {
-        this.remoteWhitelist = buildRemoteWhitelist(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.get(settings));
+        this.remoteWhitelist = buildRemoteWhitelist(TransportReindexAction.REMOTE_CLUSTER_ALLOWLIST.get(settings));
         this.clusterService = clusterService;
         this.resolver = resolver;
         this.autoCreateIndex = autoCreateIndex;
@@ -101,7 +101,7 @@ class ReindexValidator {
         if (whitelist.run(check)) {
             return;
         }
-        String whiteListKey = TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey();
+        String whiteListKey = TransportReindexAction.REMOTE_CLUSTER_ALLOWLIST.getKey();
         throw new IllegalArgumentException('[' + check + "] not whitelisted in " + whiteListKey);
     }
 
