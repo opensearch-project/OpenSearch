@@ -231,6 +231,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         terminal.println("  An official opensearch plugin name");
         terminal.println("  Maven coordinates to a plugin zip");
         terminal.println("  A URL to a plugin zip");
+        terminal.println("  A local zip file");
         terminal.println("");
 
         // List official opensearch plugin names
