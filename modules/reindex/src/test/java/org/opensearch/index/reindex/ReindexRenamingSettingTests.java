@@ -50,7 +50,6 @@ public class ReindexRenamingSettingTests extends OpenSearchTestCase {
     
     public void testSettingGetValue() {
         Settings settings = Settings.builder().put("reindex.remote.allowlist", "127.0.0.1:*").build();
-        System.out.println(TransportReindexAction.REMOTE_CLUSTER_ALLOWLIST.get(settings));
         assertEquals(TransportReindexAction.REMOTE_CLUSTER_ALLOWLIST.get(settings), Arrays.asList("127.0.0.1:*"));
         assertEquals(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.get(settings), Arrays.asList());
     }
