@@ -339,7 +339,9 @@ public class RecoverySourceHandler {
                 );
 
                 final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
-                logger.trace("snapshot translog for recovery; current size is [{}]", estimateNumberOfHistoryOperations(startingSeqNo));
+                if (logger.isTraceEnabled()) {
+                    logger.trace("snapshot translog for recovery; current size is [{}]", estimateNumberOfHistoryOperations(startingSeqNo));
+                }
                 final Translog.Snapshot phase2Snapshot = shard.newChangesSnapshot(PEER_RECOVERY_NAME, startingSeqNo, Long.MAX_VALUE, false);
                 resources.add(phase2Snapshot);
                 retentionLock.close();
