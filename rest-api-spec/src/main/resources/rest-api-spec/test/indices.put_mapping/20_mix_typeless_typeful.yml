@@ -14,7 +14,6 @@
 
  - do:
       indices.put_mapping:
-          include_type_name: false
           index: index
           body:
               properties:
@@ -30,7 +29,6 @@
 
  - do:
       indices.put_mapping:
-          include_type_name: false
           index: index
           body:
               properties:
@@ -40,7 +38,6 @@
  - do:
       catch: /the final mapping would have more than 1 type/
       indices.put_mapping:
-          include_type_name: true
           index: index
           type: some_other_type
           body:
@@ -60,7 +57,6 @@
 
  - do:
       indices.create:
-          include_type_name: true
           index: index
           body:
               mappings:
@@ -72,7 +68,6 @@
  - do:
       catch: /the final mapping would have more than 1 type/
       indices.put_mapping:
-          include_type_name: true
           index: index
           type: _doc
           body:

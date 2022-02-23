@@ -131,7 +131,6 @@ import org.opensearch.rest.action.admin.indices.RestGetFieldMappingAction;
 import org.opensearch.rest.action.admin.indices.RestGetIndexTemplateAction;
 import org.opensearch.rest.action.admin.indices.RestGetIndicesAction;
 import org.opensearch.rest.action.admin.indices.RestPutIndexTemplateAction;
-import org.opensearch.rest.action.admin.indices.RestPutMappingAction;
 import org.opensearch.rest.action.admin.indices.RestRolloverIndexAction;
 
 import java.io.IOException;
@@ -573,32 +572,6 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
             putMappingRequest,
             highLevelClient().indices()::putMapping,
             highLevelClient().indices()::putMappingAsync
-        );
-        assertTrue(putMappingResponse.isAcknowledged());
-
-        Map<String, Object> getIndexResponse = getAsMap(indexName);
-        assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings.properties.field.type", getIndexResponse));
-    }
-
-    public void testPutMappingWithTypes() throws IOException {
-        String indexName = "mapping_index";
-        createIndex(indexName, Settings.EMPTY);
-
-        org.opensearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest =
-            new org.opensearch.action.admin.indices.mapping.put.PutMappingRequest(indexName);
-        putMappingRequest.type("some_type");
-
-        XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
-        mappingBuilder.startObject().startObject("properties").startObject("field");
-        mappingBuilder.field("type", "text");
-        mappingBuilder.endObject().endObject().endObject();
-        putMappingRequest.source(mappingBuilder);
-
-        AcknowledgedResponse putMappingResponse = execute(
-            putMappingRequest,
-            highLevelClient().indices()::putMapping,
-            highLevelClient().indices()::putMappingAsync,
-            expectWarningsOnce(RestPutMappingAction.TYPES_DEPRECATION_MESSAGE)
         );
         assertTrue(putMappingResponse.isAcknowledged());
 

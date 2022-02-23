@@ -36,7 +36,6 @@ import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.rest.BaseRestHandler;
@@ -50,7 +49,6 @@ import java.util.Map;
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.client.Requests.putMappingRequest;
-import static org.opensearch.index.mapper.MapperService.isMappingSourceTyped;
 import static org.opensearch.rest.RestRequest.Method.POST;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
