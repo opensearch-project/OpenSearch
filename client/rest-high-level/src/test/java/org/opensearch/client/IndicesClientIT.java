@@ -679,6 +679,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
             new BytesArray("{\"field\":{\"type\":\"text\"}}")
         );
         assertThat(fieldMappingMap, equalTo(Collections.singletonMap("field", metadata)));
+
     }
 
     public void testGetFieldMappingWithTypes() throws IOException {
