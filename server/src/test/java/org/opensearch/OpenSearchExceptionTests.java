@@ -882,7 +882,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
                 failure = new RuntimeException("E", failureCause);
 
                 expectedCause = new OpenSearchException(
-                    "OpenSearch exception [type=routing_missing_exception, " + "reason=routing is required for [idx]/[type]/[id]]"
+                    "OpenSearch exception [type=routing_missing_exception, " + "reason=routing is required for [idx]/[id]]"
                 );
                 expectedCause.addMetadata("opensearch.index", "idx");
                 expectedCause.addMetadata("opensearch.index_uuid", "_na_");
