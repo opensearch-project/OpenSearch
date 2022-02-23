@@ -47,7 +47,6 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.rest.action.document.RestBulkAction;
 import org.opensearch.script.Script;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -76,12 +75,10 @@ public class BulkRequestTests extends OpenSearchTestCase {
         assertThat(((IndexRequest) bulkRequest.requests().get(0)).source(), equalTo(new BytesArray("{ \"field1\" : \"value1\" }")));
         assertThat(bulkRequest.requests().get(1), instanceOf(DeleteRequest.class));
         assertThat(((IndexRequest) bulkRequest.requests().get(2)).source(), equalTo(new BytesArray("{ \"field1\" : \"value3\" }")));
-        // This test's JSON contains outdated references to types
-        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testSimpleBulkWithCarriageReturn() throws Exception {
-        String bulkAction = "{ \"index\":{\"_index\":\"test\",\"_type\":\"type1\",\"_id\":\"1\"} }\r\n{ \"field1\" : \"value1\" }\r\n";
+        String bulkAction = "{ \"index\":{\"_index\":\"test\",\"_id\":\"1\"} }\r\n{ \"field1\" : \"value1\" }\r\n";
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
         assertThat(bulkRequest.numberOfActions(), equalTo(1));
@@ -92,8 +89,6 @@ public class BulkRequestTests extends OpenSearchTestCase {
             XContentType.JSON
         ).v2();
         assertEquals("value1", sourceMap.get("field1"));
-        // This test's JSON contains outdated references to types
-        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testSimpleBulk2() throws Exception {
@@ -119,7 +114,6 @@ public class BulkRequestTests extends OpenSearchTestCase {
         assertThat(((UpdateRequest) bulkRequest.requests().get(0)).retryOnConflict(), equalTo(2));
         assertThat(((UpdateRequest) bulkRequest.requests().get(0)).doc().source().utf8ToString(), equalTo("{\"field\":\"value\"}"));
         assertThat(bulkRequest.requests().get(1).id(), equalTo("0"));
-        assertThat(bulkRequest.requests().get(1).type(), equalTo("type1"));
         assertThat(bulkRequest.requests().get(1).index(), equalTo("index1"));
         Script script = ((UpdateRequest) bulkRequest.requests().get(1)).script();
         assertThat(script, notNullValue());
@@ -130,22 +124,18 @@ public class BulkRequestTests extends OpenSearchTestCase {
         assertThat(scriptParams.size(), equalTo(1));
         assertThat(scriptParams.get("param1"), equalTo(1));
         assertThat(((UpdateRequest) bulkRequest.requests().get(1)).upsertRequest().source().utf8ToString(), equalTo("{\"counter\":1}"));
-        // This test's JSON contains outdated references to types
-        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testBulkAllowExplicitIndex() throws Exception {
         String bulkAction1 = copyToStringFromClasspath("/org/opensearch/action/bulk/simple-bulk.json");
         Exception ex = expectThrows(
             Exception.class,
-            () -> new BulkRequest().add(new BytesArray(bulkAction1.getBytes(StandardCharsets.UTF_8)), null, null, false, XContentType.JSON)
+            () -> new BulkRequest().add(new BytesArray(bulkAction1.getBytes(StandardCharsets.UTF_8)), null, false, XContentType.JSON)
         );
         assertEquals("explicit index in bulk is not allowed", ex.getMessage());
 
         String bulkAction = copyToStringFromClasspath("/org/opensearch/action/bulk/simple-bulk5.json");
-        new BulkRequest().add(new BytesArray(bulkAction.getBytes(StandardCharsets.UTF_8)), "test", null, false, XContentType.JSON);
-        // This test's JSON contains outdated references to types
-        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
+        new BulkRequest().add(new BytesArray(bulkAction.getBytes(StandardCharsets.UTF_8)), "test", false, XContentType.JSON);
     }
 
     public void testBulkAddIterable() {
@@ -169,8 +159,6 @@ public class BulkRequestTests extends OpenSearchTestCase {
             () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON)
         );
         assertThat(exc.getMessage(), containsString("Unknown key for a VALUE_STRING in [hello]"));
-        // This test's JSON contains outdated references to types
-        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testSimpleBulk7() throws Exception {
@@ -184,8 +172,6 @@ public class BulkRequestTests extends OpenSearchTestCase {
             exc.getMessage(),
             containsString("Malformed action/metadata line [5], expected a simple value for field [_unknown] but found [START_ARRAY]")
         );
-        // This test's JSON contains outdated references to types
-        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testSimpleBulk8() throws Exception {
@@ -196,8 +182,6 @@ public class BulkRequestTests extends OpenSearchTestCase {
             () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON)
         );
         assertThat(exc.getMessage(), containsString("Action/metadata line [3] contains an unknown parameter [_foo]"));
-        // This test's JSON contains outdated references to types
-        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testSimpleBulk9() throws Exception {
@@ -218,13 +202,10 @@ public class BulkRequestTests extends OpenSearchTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
         assertThat(bulkRequest.numberOfActions(), equalTo(9));
-        // This test's JSON contains outdated references to types
-        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testBulkActionShouldNotContainArray() throws Exception {
-        String bulkAction = "{ \"index\":{\"_index\":[\"index1\", \"index2\"],\"_type\":\"type1\",\"_id\":\"1\"} }\r\n"
-            + "{ \"field1\" : \"value1\" }\r\n";
+        String bulkAction = "{ \"index\":{\"_index\":[\"index1\", \"index2\"],\"_id\":\"1\"} }\r\n" + "{ \"field1\" : \"value1\" }\r\n";
         BulkRequest bulkRequest = new BulkRequest();
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
@@ -318,7 +299,6 @@ public class BulkRequestTests extends OpenSearchTestCase {
                 builder.startObject();
                 builder.startObject("index");
                 builder.field("_index", "index");
-                builder.field("_type", "type");
                 builder.field("_id", "test");
                 builder.endObject();
                 builder.endObject();
@@ -334,19 +314,16 @@ public class BulkRequestTests extends OpenSearchTestCase {
         }
 
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(data, null, null, xContentType);
+        bulkRequest.add(data, null, xContentType);
         assertEquals(1, bulkRequest.requests().size());
         DocWriteRequest<?> docWriteRequest = bulkRequest.requests().get(0);
         assertEquals(DocWriteRequest.OpType.INDEX, docWriteRequest.opType());
         assertEquals("index", docWriteRequest.index());
-        assertEquals("type", docWriteRequest.type());
         assertEquals("test", docWriteRequest.id());
         assertThat(docWriteRequest, instanceOf(IndexRequest.class));
         IndexRequest request = (IndexRequest) docWriteRequest;
         assertEquals(1, request.sourceAsMap().size());
         assertEquals("value", request.sourceAsMap().get("field"));
-        // This test's content contains outdated references to types
-        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testToValidateUpsertRequestAndCASInBulkRequest() throws IOException {
@@ -357,7 +334,6 @@ public class BulkRequestTests extends OpenSearchTestCase {
                 builder.startObject();
                 builder.startObject("update");
                 builder.field("_index", "index");
-                builder.field("_type", "type");
                 builder.field("_id", "id");
                 builder.field("if_seq_no", 1L);
                 builder.field("if_primary_term", 100L);
@@ -372,7 +348,6 @@ public class BulkRequestTests extends OpenSearchTestCase {
                 values.put("if_seq_no", 1L);
                 values.put("if_primary_term", 100L);
                 values.put("_index", "index");
-                values.put("_type", "type");
                 builder.field("upsert", values);
                 builder.endObject();
             }
@@ -380,10 +355,8 @@ public class BulkRequestTests extends OpenSearchTestCase {
             data = out.bytes();
         }
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(data, null, null, xContentType);
+        bulkRequest.add(data, null, xContentType);
         assertThat(bulkRequest.validate().validationErrors(), contains("upsert requests don't support `if_seq_no` and `if_primary_term`"));
-        // This test's JSON contains outdated references to types
-        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testBulkTerminatedByNewline() throws Exception {
@@ -404,7 +377,5 @@ public class BulkRequestTests extends OpenSearchTestCase {
             XContentType.JSON
         );
         assertEquals(3, bulkRequestWithNewLine.numberOfActions());
-        // This test's JSON contains outdated references to types
-        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 }

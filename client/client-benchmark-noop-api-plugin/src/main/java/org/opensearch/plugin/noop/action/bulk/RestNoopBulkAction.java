@@ -97,7 +97,6 @@ public class RestNoopBulkAction extends BaseRestHandler {
         bulkRequest.add(
             request.requiredContent(),
             defaultIndex,
-            defaultType,
             defaultRouting,
             null,
             defaultPipeline,
