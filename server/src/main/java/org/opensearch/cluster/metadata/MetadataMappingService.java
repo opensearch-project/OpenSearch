@@ -57,17 +57,14 @@ import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.indices.InvalidTypeNameException;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.opensearch.index.mapper.MapperService.isMappingSourceTyped;
 import static org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
@@ -263,7 +260,6 @@ public class MetadataMappingService {
             PutMappingClusterStateUpdateRequest request,
             Map<Index, MapperService> indexMapperServices
         ) throws IOException {
-            String mappingType = request.type();
             CompressedXContent mappingUpdateSource = new CompressedXContent(request.source());
             final Metadata metadata = currentState.metadata();
             final List<IndexMetadata> updateList = new ArrayList<>();
@@ -278,34 +274,11 @@ public class MetadataMappingService {
                 updateList.add(indexMetadata);
                 // try and parse it (no need to add it here) so we can bail early in case of parsing exception
                 DocumentMapper existingMapper = mapperService.documentMapper();
-
-                String typeForUpdate = mapperService.getTypeForUpdate(mappingType, mappingUpdateSource);
-                if (existingMapper != null && existingMapper.type().equals(typeForUpdate) == false) {
-                    throw new IllegalArgumentException(
-                        "Rejecting mapping update to ["
-                            + mapperService.index().getName()
-                            + "] as the final mapping would have more than 1 type: "
-                            + Arrays.asList(existingMapper.type(), typeForUpdate)
-                    );
-                }
-
                 DocumentMapper newMapper = mapperService.parse(request.type(), mappingUpdateSource);
                 if (existingMapper != null) {
                     // first, simulate: just call merge and ignore the result
                     existingMapper.merge(newMapper.mapping(), MergeReason.MAPPING_UPDATE);
                 }
-                if (mappingType == null) {
-                    mappingType = newMapper.type();
-                } else if (mappingType.equals(newMapper.type()) == false
-                    && (isMappingSourceTyped(request.type(), mappingUpdateSource)
-                        || mapperService.resolveDocumentType(mappingType).equals(newMapper.type()) == false)) {
-                            throw new InvalidTypeNameException("Type name provided does not match type name within mapping definition.");
-                        }
-            }
-            assert mappingType != null;
-
-            if (MapperService.SINGLE_MAPPING_NAME.equals(mappingType) == false && mappingType.charAt(0) == '_') {
-                throw new InvalidTypeNameException("Document mapping type name can't start with '_', found: [" + mappingType + "]");
             }
             Metadata.Builder builder = Metadata.builder(metadata);
             boolean updated = false;
@@ -316,13 +289,12 @@ public class MetadataMappingService {
                 final Index index = indexMetadata.getIndex();
                 final MapperService mapperService = indexMapperServices.get(index);
 
-                String typeForUpdate = mapperService.getTypeForUpdate(mappingType, mappingUpdateSource);
                 CompressedXContent existingSource = null;
-                DocumentMapper existingMapper = mapperService.documentMapper(typeForUpdate);
+                DocumentMapper existingMapper = mapperService.documentMapper();
                 if (existingMapper != null) {
                     existingSource = existingMapper.mappingSource();
                 }
-                DocumentMapper mergedMapper = mapperService.merge(typeForUpdate, mappingUpdateSource, MergeReason.MAPPING_UPDATE);
+                DocumentMapper mergedMapper = mapperService.merge(request.type(), mappingUpdateSource, MergeReason.MAPPING_UPDATE);
                 CompressedXContent updatedSource = mergedMapper.mappingSource();
 
                 if (existingSource != null) {
@@ -341,9 +313,9 @@ public class MetadataMappingService {
                 } else {
                     updatedMapping = true;
                     if (logger.isDebugEnabled()) {
-                        logger.debug("{} create_mapping [{}] with source [{}]", index, mappingType, updatedSource);
+                        logger.debug("{} create_mapping with source [{}]", index, updatedSource);
                     } else if (logger.isInfoEnabled()) {
-                        logger.info("{} create_mapping [{}]", index, mappingType);
+                        logger.info("{} create_mapping", index);
                     }
                 }
 

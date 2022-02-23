@@ -108,10 +108,6 @@ public abstract class AbstractFullClusterRestartTestCase extends OpenSearchRestT
     }
 
     protected static int extractTotalHits(Map<?, ?> response) {
-        if (isRunningAgainstOldCluster() && getOldClusterVersion().before(LegacyESVersion.V_7_0_0)) {
-            return (Integer) XContentMapValues.extractValue("hits.total", response);
-        } else {
-            return (Integer) XContentMapValues.extractValue("hits.total.value", response);
-        }
+        return (Integer) XContentMapValues.extractValue("hits.total.value", response);
     }
 }

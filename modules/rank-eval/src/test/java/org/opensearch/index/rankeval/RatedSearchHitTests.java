@@ -34,11 +34,9 @@ package org.opensearch.index.rankeval;
 
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.text.Text;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.SearchHit;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -55,7 +53,6 @@ public class RatedSearchHitTests extends OpenSearchTestCase {
         SearchHit searchHit = new SearchHit(
             randomIntBetween(0, 10),
             randomAlphaOfLength(10),
-            new Text(MapperService.SINGLE_MAPPING_NAME),
             Collections.emptyMap(),
             Collections.emptyMap()
         );
@@ -71,13 +68,7 @@ public class RatedSearchHitTests extends OpenSearchTestCase {
                 rating = rating.isPresent() ? OptionalInt.of(rating.getAsInt() + 1) : OptionalInt.of(randomInt(5));
                 break;
             case 1:
-                hit = new SearchHit(
-                    hit.docId(),
-                    hit.getId() + randomAlphaOfLength(10),
-                    new Text(MapperService.SINGLE_MAPPING_NAME),
-                    Collections.emptyMap(),
-                    Collections.emptyMap()
-                );
+                hit = new SearchHit(hit.docId(), hit.getId() + randomAlphaOfLength(10), Collections.emptyMap(), Collections.emptyMap());
                 break;
             default:
                 throw new IllegalStateException("The test should only allow two parameters mutated");

@@ -1123,7 +1123,6 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
             for (SearchHit hit : hits) {
                 assertThat(hit.getSourceAsMap(), nullValue());
                 assertThat(hit.getId(), nullValue());
-                assertThat(hit.getType(), equalTo("type"));
             }
         }
     }

@@ -71,7 +71,6 @@ public class ExplainResponseTests extends AbstractSerializingTestCase<ExplainRes
     @Override
     protected ExplainResponse createTestInstance() {
         String index = randomAlphaOfLength(5);
-        String type = randomAlphaOfLength(5);
         String id = String.valueOf(randomIntBetween(1, 100));
         boolean exist = randomBoolean();
         Explanation explanation = randomExplanation(randomExplanation(randomExplanation()), randomExplanation());
@@ -88,7 +87,7 @@ public class ExplainResponseTests extends AbstractSerializingTestCase<ExplainRes
             singletonMap(fieldName, new DocumentField(fieldName, values)),
             null
         );
-        return new ExplainResponse(index, type, id, exist, explanation, getResult);
+        return new ExplainResponse(index, id, exist, explanation, getResult);
     }
 
     @Override
@@ -113,7 +112,7 @@ public class ExplainResponseTests extends AbstractSerializingTestCase<ExplainRes
             singletonMap("field1", new DocumentField("field1", singletonList("value1"))),
             null
         );
-        ExplainResponse response = new ExplainResponse(index, type, id, exist, explanation, getResult);
+        ExplainResponse response = new ExplainResponse(index, id, exist, explanation, getResult);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -122,7 +121,6 @@ public class ExplainResponseTests extends AbstractSerializingTestCase<ExplainRes
 
         String expectedResponse = ("{\n"
             + "    \"_index\":\"index\",\n"
-            + "    \"_type\":\"type\",\n"
             + "    \"_id\":\"1\",\n"
             + "    \"matched\":true,\n"
             + "    \"explanation\":{\n"
