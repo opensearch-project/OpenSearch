@@ -91,7 +91,6 @@
   - skip:
       version: "6.7.0 - "
       reason: reindex moved to rely on sequence numbers for concurrency control
-
   - do:
       indices.create:
         index: test
@@ -145,10 +144,6 @@
 
 ---
 "Response for version conflict (seq no powered)":
-  - skip:
-      version: " - 6.6.99"
-      reason: reindex moved to rely on sequence numbers for concurrency control
-
   - do:
       indices.create:
         index: test
