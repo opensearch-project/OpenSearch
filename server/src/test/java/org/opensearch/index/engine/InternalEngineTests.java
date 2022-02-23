@@ -6163,10 +6163,8 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             }
             MapperService mapperService = createMapperService("test");
-            List<Translog.Operation> luceneOps = readAllOperationsBasedOnSource(engine, Engine.HistorySource.INDEX, mapperService);
-            List<Translog.Operation> translogOps = readAllOperationsBasedOnSource(engine, Engine.HistorySource.TRANSLOG, mapperService);
+            List<Translog.Operation> luceneOps = readAllOperationsBasedOnSource(engine, mapperService);
             assertThat(luceneOps.stream().map(o -> o.seqNo()).collect(Collectors.toList()), containsInAnyOrder(expectedSeqNos.toArray()));
-            assertThat(translogOps.stream().map(o -> o.seqNo()).collect(Collectors.toList()), containsInAnyOrder(expectedSeqNos.toArray()));
         }
     }
 
@@ -6317,7 +6315,7 @@ public class InternalEngineTests extends EngineTestCase {
             if (rarely()) {
                 engine.forceMerge(randomBoolean(), 1, false, false, false, UUIDs.randomBase64UUID());
             }
-            try (Closeable ignored = engine.acquireHistoryRetentionLock(Engine.HistorySource.INDEX)) {
+            try (Closeable ignored = engine.acquireHistoryRetentionLock()) {
                 long minRetainSeqNos = engine.getMinRetainedSeqNo();
                 assertThat(minRetainSeqNos, lessThanOrEqualTo(globalCheckpoint.get() + 1));
                 Long[] expectedOps = existingSeqNos.stream().filter(seqno -> seqno >= minRetainSeqNos).toArray(Long[]::new);

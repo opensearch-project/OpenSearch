@@ -508,18 +508,12 @@ public class IndexLevelReplicationTests extends OpenSearchIndexLevelReplicationT
                         assertThat(snapshot.totalOperations(), equalTo(0));
                     }
                 }
-                try (
-                    Translog.Snapshot snapshot = shard.getHistoryOperations(
-                        "test",
-                        shard.indexSettings().isSoftDeleteEnabled() ? Engine.HistorySource.INDEX : Engine.HistorySource.TRANSLOG,
-                        0
-                    )
-                ) {
+                try (Translog.Snapshot snapshot = shard.newChangesSnapshot("test", 0, Long.MAX_VALUE, false)) {
                     assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedTranslogOps));
                 }
             }
             // the failure replicated directly from the replication channel.
-            indexResp = shards.index(new IndexRequest(index.getName(), "type", "any").source("{}", XContentType.JSON));
+            indexResp = shards.index(new IndexRequest(index.getName()).id("any").source("{}", XContentType.JSON));
             assertThat(indexResp.getFailure().getCause(), equalTo(indexException));
             Translog.NoOp noop2 = new Translog.NoOp(1, primaryTerm, indexException.toString());
             expectedTranslogOps.add(noop2);
@@ -532,13 +526,7 @@ public class IndexLevelReplicationTests extends OpenSearchIndexLevelReplicationT
                         assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(Collections.singletonList(noop2)));
                     }
                 }
-                try (
-                    Translog.Snapshot snapshot = shard.getHistoryOperations(
-                        "test",
-                        shard.indexSettings().isSoftDeleteEnabled() ? Engine.HistorySource.INDEX : Engine.HistorySource.TRANSLOG,
-                        0
-                    )
-                ) {
+                try (Translog.Snapshot snapshot = shard.newChangesSnapshot("test", 0, Long.MAX_VALUE, false)) {
                     assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedTranslogOps));
                 }
             }
