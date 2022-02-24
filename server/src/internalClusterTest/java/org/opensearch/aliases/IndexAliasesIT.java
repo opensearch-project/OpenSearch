@@ -117,7 +117,7 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
         logger.info("--> indexing against [alias1], should fail now");
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> client().index(indexRequest("alias1").type("type1").id("1").source(source("2", "test"), XContentType.JSON)).actionGet()
+            () -> client().index(indexRequest("alias1").id("1").source(source("2", "test"), XContentType.JSON)).actionGet()
         );
         assertThat(
             exception.getMessage(),
@@ -134,9 +134,8 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
         });
 
         logger.info("--> indexing against [alias1], should work now");
-        IndexResponse indexResponse = client().index(
-            indexRequest("alias1").type("type1").id("1").source(source("1", "test"), XContentType.JSON)
-        ).actionGet();
+        IndexResponse indexResponse = client().index(indexRequest("alias1").id("1").source(source("1", "test"), XContentType.JSON))
+            .actionGet();
         assertThat(indexResponse.getIndex(), equalTo("test"));
 
         logger.info("--> creating index [test_x]");
@@ -152,7 +151,7 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
         logger.info("--> indexing against [alias1], should fail now");
         exception = expectThrows(
             IllegalArgumentException.class,
-            () -> client().index(indexRequest("alias1").type("type1").id("1").source(source("2", "test"), XContentType.JSON)).actionGet()
+            () -> client().index(indexRequest("alias1").id("1").source(source("2", "test"), XContentType.JSON)).actionGet()
         );
         assertThat(
             exception.getMessage(),
@@ -164,10 +163,7 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
         );
 
         logger.info("--> deleting against [alias1], should fail now");
-        exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> client().delete(deleteRequest("alias1").type("type1").id("1")).actionGet()
-        );
+        exception = expectThrows(IllegalArgumentException.class, () -> client().delete(deleteRequest("alias1").id("1")).actionGet());
         assertThat(
             exception.getMessage(),
             equalTo(
@@ -183,8 +179,7 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
         });
 
         logger.info("--> indexing against [alias1], should work now");
-        indexResponse = client().index(indexRequest("alias1").type("type1").id("1").source(source("1", "test"), XContentType.JSON))
-            .actionGet();
+        indexResponse = client().index(indexRequest("alias1").id("1").source(source("1", "test"), XContentType.JSON)).actionGet();
         assertThat(indexResponse.getIndex(), equalTo("test"));
 
         assertAliasesVersionIncreases("test_x", () -> {
@@ -193,12 +188,11 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
         });
 
         logger.info("--> indexing against [alias1], should work now");
-        indexResponse = client().index(indexRequest("alias1").type("type1").id("1").source(source("1", "test"), XContentType.JSON))
-            .actionGet();
+        indexResponse = client().index(indexRequest("alias1").id("1").source(source("1", "test"), XContentType.JSON)).actionGet();
         assertThat(indexResponse.getIndex(), equalTo("test_x"));
 
         logger.info("--> deleting against [alias1], should fail now");
-        DeleteResponse deleteResponse = client().delete(deleteRequest("alias1").type("type1").id("1")).actionGet();
+        DeleteResponse deleteResponse = client().delete(deleteRequest("alias1").id("1")).actionGet();
         assertThat(deleteResponse.getIndex(), equalTo("test_x"));
 
         assertAliasesVersionIncreases("test_x", () -> {
@@ -207,8 +201,7 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
         });
 
         logger.info("--> indexing against [alias1], should work against [test_x]");
-        indexResponse = client().index(indexRequest("alias1").type("type1").id("1").source(source("1", "test"), XContentType.JSON))
-            .actionGet();
+        indexResponse = client().index(indexRequest("alias1").id("1").source(source("1", "test"), XContentType.JSON)).actionGet();
         assertThat(indexResponse.getIndex(), equalTo("test_x"));
     }
 
@@ -290,28 +283,16 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
 
         logger.info("--> indexing against [test]");
         client().index(
-            indexRequest("test").type("type1")
-                .id("1")
-                .source(source("1", "foo test"), XContentType.JSON)
-                .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            indexRequest("test").id("1").source(source("1", "foo test"), XContentType.JSON).setRefreshPolicy(RefreshPolicy.IMMEDIATE)
         ).actionGet();
         client().index(
-            indexRequest("test").type("type1")
-                .id("2")
-                .source(source("2", "bar test"), XContentType.JSON)
-                .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            indexRequest("test").id("2").source(source("2", "bar test"), XContentType.JSON).setRefreshPolicy(RefreshPolicy.IMMEDIATE)
         ).actionGet();
         client().index(
-            indexRequest("test").type("type1")
-                .id("3")
-                .source(source("3", "baz test"), XContentType.JSON)
-                .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            indexRequest("test").id("3").source(source("3", "baz test"), XContentType.JSON).setRefreshPolicy(RefreshPolicy.IMMEDIATE)
         ).actionGet();
         client().index(
-            indexRequest("test").type("type1")
-                .id("4")
-                .source(source("4", "something else"), XContentType.JSON)
-                .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            indexRequest("test").id("4").source(source("4", "something else"), XContentType.JSON).setRefreshPolicy(RefreshPolicy.IMMEDIATE)
         ).actionGet();
 
         logger.info("--> checking single filtering alias search");
@@ -408,16 +389,16 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
         );
 
         logger.info("--> indexing against [test1]");
-        client().index(indexRequest("test1").type("type1").id("1").source(source("1", "foo test"), XContentType.JSON)).get();
-        client().index(indexRequest("test1").type("type1").id("2").source(source("2", "bar test"), XContentType.JSON)).get();
-        client().index(indexRequest("test1").type("type1").id("3").source(source("3", "baz test"), XContentType.JSON)).get();
-        client().index(indexRequest("test1").type("type1").id("4").source(source("4", "something else"), XContentType.JSON)).get();
+        client().index(indexRequest("test1").id("1").source(source("1", "foo test"), XContentType.JSON)).get();
+        client().index(indexRequest("test1").id("2").source(source("2", "bar test"), XContentType.JSON)).get();
+        client().index(indexRequest("test1").id("3").source(source("3", "baz test"), XContentType.JSON)).get();
+        client().index(indexRequest("test1").id("4").source(source("4", "something else"), XContentType.JSON)).get();
 
         logger.info("--> indexing against [test2]");
-        client().index(indexRequest("test2").type("type1").id("5").source(source("5", "foo test"), XContentType.JSON)).get();
-        client().index(indexRequest("test2").type("type1").id("6").source(source("6", "bar test"), XContentType.JSON)).get();
-        client().index(indexRequest("test2").type("type1").id("7").source(source("7", "baz test"), XContentType.JSON)).get();
-        client().index(indexRequest("test2").type("type1").id("8").source(source("8", "something else"), XContentType.JSON)).get();
+        client().index(indexRequest("test2").id("5").source(source("5", "foo test"), XContentType.JSON)).get();
+        client().index(indexRequest("test2").id("6").source(source("6", "bar test"), XContentType.JSON)).get();
+        client().index(indexRequest("test2").id("7").source(source("7", "baz test"), XContentType.JSON)).get();
+        client().index(indexRequest("test2").id("8").source(source("8", "something else"), XContentType.JSON)).get();
 
         refresh();
 
@@ -524,17 +505,17 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
         );
 
         logger.info("--> indexing against [test1]");
-        client().index(indexRequest("test1").type("type1").id("11").source(source("11", "foo test1"), XContentType.JSON)).get();
-        client().index(indexRequest("test1").type("type1").id("12").source(source("12", "bar test1"), XContentType.JSON)).get();
-        client().index(indexRequest("test1").type("type1").id("13").source(source("13", "baz test1"), XContentType.JSON)).get();
+        client().index(indexRequest("test1").id("11").source(source("11", "foo test1"), XContentType.JSON)).get();
+        client().index(indexRequest("test1").id("12").source(source("12", "bar test1"), XContentType.JSON)).get();
+        client().index(indexRequest("test1").id("13").source(source("13", "baz test1"), XContentType.JSON)).get();
 
-        client().index(indexRequest("test2").type("type1").id("21").source(source("21", "foo test2"), XContentType.JSON)).get();
-        client().index(indexRequest("test2").type("type1").id("22").source(source("22", "bar test2"), XContentType.JSON)).get();
-        client().index(indexRequest("test2").type("type1").id("23").source(source("23", "baz test2"), XContentType.JSON)).get();
+        client().index(indexRequest("test2").id("21").source(source("21", "foo test2"), XContentType.JSON)).get();
+        client().index(indexRequest("test2").id("22").source(source("22", "bar test2"), XContentType.JSON)).get();
+        client().index(indexRequest("test2").id("23").source(source("23", "baz test2"), XContentType.JSON)).get();
 
-        client().index(indexRequest("test3").type("type1").id("31").source(source("31", "foo test3"), XContentType.JSON)).get();
-        client().index(indexRequest("test3").type("type1").id("32").source(source("32", "bar test3"), XContentType.JSON)).get();
-        client().index(indexRequest("test3").type("type1").id("33").source(source("33", "baz test3"), XContentType.JSON)).get();
+        client().index(indexRequest("test3").id("31").source(source("31", "foo test3"), XContentType.JSON)).get();
+        client().index(indexRequest("test3").id("32").source(source("32", "bar test3"), XContentType.JSON)).get();
+        client().index(indexRequest("test3").id("33").source(source("33", "baz test3"), XContentType.JSON)).get();
 
         refresh();
 
@@ -647,16 +628,16 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
         );
 
         logger.info("--> indexing against [test1]");
-        client().index(indexRequest("test1").type("type1").id("1").source(source("1", "foo test"), XContentType.JSON)).get();
-        client().index(indexRequest("test1").type("type1").id("2").source(source("2", "bar test"), XContentType.JSON)).get();
-        client().index(indexRequest("test1").type("type1").id("3").source(source("3", "baz test"), XContentType.JSON)).get();
-        client().index(indexRequest("test1").type("type1").id("4").source(source("4", "something else"), XContentType.JSON)).get();
+        client().index(indexRequest("test1").id("1").source(source("1", "foo test"), XContentType.JSON)).get();
+        client().index(indexRequest("test1").id("2").source(source("2", "bar test"), XContentType.JSON)).get();
+        client().index(indexRequest("test1").id("3").source(source("3", "baz test"), XContentType.JSON)).get();
+        client().index(indexRequest("test1").id("4").source(source("4", "something else"), XContentType.JSON)).get();
 
         logger.info("--> indexing against [test2]");
-        client().index(indexRequest("test2").type("type1").id("5").source(source("5", "foo test"), XContentType.JSON)).get();
-        client().index(indexRequest("test2").type("type1").id("6").source(source("6", "bar test"), XContentType.JSON)).get();
-        client().index(indexRequest("test2").type("type1").id("7").source(source("7", "baz test"), XContentType.JSON)).get();
-        client().index(indexRequest("test2").type("type1").id("8").source(source("8", "something else"), XContentType.JSON)).get();
+        client().index(indexRequest("test2").id("5").source(source("5", "foo test"), XContentType.JSON)).get();
+        client().index(indexRequest("test2").id("6").source(source("6", "bar test"), XContentType.JSON)).get();
+        client().index(indexRequest("test2").id("7").source(source("7", "baz test"), XContentType.JSON)).get();
+        client().index(indexRequest("test2").id("8").source(source("8", "something else"), XContentType.JSON)).get();
 
         refresh();
 
@@ -744,7 +725,7 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < 10; i++) {
             final String aliasName = "alias" + i;
             assertAliasesVersionIncreases("test", () -> assertAcked(admin().indices().prepareAliases().addAlias("test", aliasName)));
-            client().index(indexRequest(aliasName).type("type1").id("1").source(source("1", "test"), XContentType.JSON)).get();
+            client().index(indexRequest(aliasName).id("1").source(source("1", "test"), XContentType.JSON)).get();
         }
     }
 
@@ -765,7 +746,7 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < 10; i++) {
             final String aliasName = "alias" + i;
             assertAliasesVersionIncreases("test", () -> assertAcked(admin().indices().prepareAliases().addAlias("test", aliasName)));
-            client().index(indexRequest(aliasName).type("type1").id("1").source(source("1", "test"), XContentType.JSON)).get();
+            client().index(indexRequest(aliasName).id("1").source(source("1", "test"), XContentType.JSON)).get();
         }
     }
 
@@ -787,8 +768,7 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
                         "test",
                         () -> assertAcked(admin().indices().prepareAliases().addAlias("test", aliasName))
                     );
-                    client().index(indexRequest(aliasName).type("type1").id("1").source(source("1", "test"), XContentType.JSON))
-                        .actionGet();
+                    client().index(indexRequest(aliasName).id("1").source(source("1", "test"), XContentType.JSON)).actionGet();
                 }
             });
         }

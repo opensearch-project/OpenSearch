@@ -51,7 +51,6 @@ import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.DocumentMissingException;
 import org.opensearch.index.engine.DocumentSourceMissingException;
 import org.opensearch.index.get.GetResult;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
@@ -97,7 +96,7 @@ public class UpdateHelper {
             return prepareUpsert(shardId, request, getResult, nowInMillis);
         } else if (getResult.internalSourceRef() == null) {
             // no source, we can't do anything, throw a failure...
-            throw new DocumentSourceMissingException(shardId, request.type(), request.id());
+            throw new DocumentSourceMissingException(shardId, request.id());
         } else if (request.script() == null && request.doc() != null) {
             // The request has no script, it is a new doc that should be merged with the old document
             return prepareUpdateIndexRequest(shardId, request, getResult, request.detectNoop());
@@ -138,7 +137,7 @@ public class UpdateHelper {
      */
     Result prepareUpsert(ShardId shardId, UpdateRequest request, final GetResult getResult, LongSupplier nowInMillis) {
         if (request.upsertRequest() == null && !request.docAsUpsert()) {
-            throw new DocumentMissingException(shardId, request.type(), request.id());
+            throw new DocumentMissingException(shardId, request.id());
         }
         IndexRequest indexRequest = request.docAsUpsert() ? request.doc() : request.upsertRequest();
         if (request.scriptedUpsert() && request.script() != null) {
@@ -156,7 +155,6 @@ public class UpdateHelper {
                 case NONE:
                     UpdateResponse update = new UpdateResponse(
                         shardId,
-                        MapperService.SINGLE_MAPPING_NAME,
                         getResult.getId(),
                         getResult.getSeqNo(),
                         getResult.getPrimaryTerm(),
@@ -172,7 +170,6 @@ public class UpdateHelper {
         }
 
         indexRequest.index(request.index())
-            .type(request.type())
             .id(request.id())
             .setRefreshPolicy(request.getRefreshPolicy())
             .routing(request.routing())
@@ -221,7 +218,6 @@ public class UpdateHelper {
         if (detectNoop && noop) {
             UpdateResponse update = new UpdateResponse(
                 shardId,
-                MapperService.SINGLE_MAPPING_NAME,
                 getResult.getId(),
                 getResult.getSeqNo(),
                 getResult.getPrimaryTerm(),
@@ -243,7 +239,6 @@ public class UpdateHelper {
             return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
         } else {
             final IndexRequest finalIndexRequest = Requests.indexRequest(request.index())
-                .type(request.type())
                 .id(request.id())
                 .routing(routing)
                 .source(updatedSourceAsMap, updateSourceContentType)
@@ -287,7 +282,6 @@ public class UpdateHelper {
         switch (operation) {
             case INDEX:
                 final IndexRequest indexRequest = Requests.indexRequest(request.index())
-                    .type(request.type())
                     .id(request.id())
                     .routing(routing)
                     .source(updatedSourceAsMap, updateSourceContentType)
@@ -299,7 +293,6 @@ public class UpdateHelper {
                 return new Result(indexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
             case DELETE:
                 DeleteRequest deleteRequest = Requests.deleteRequest(request.index())
-                    .type(request.type())
                     .id(request.id())
                     .routing(routing)
                     .setIfSeqNo(getResult.getSeqNo())
@@ -312,7 +305,6 @@ public class UpdateHelper {
                 // If it was neither an INDEX or DELETE operation, treat it as a noop
                 UpdateResponse update = new UpdateResponse(
                     shardId,
-                    MapperService.SINGLE_MAPPING_NAME,
                     getResult.getId(),
                     getResult.getSeqNo(),
                     getResult.getPrimaryTerm(),

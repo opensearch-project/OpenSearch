@@ -142,7 +142,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         request.routing((metadata.resolveWriteIndexRouting(request.routing(), request.index())));
         // Fail fast on the node that received the request, rather than failing when translating on the index or delete request.
         if (request.routing() == null && metadata.routingRequired(concreteIndex)) {
-            throw new RoutingMissingException(concreteIndex, request.type(), request.id());
+            throw new RoutingMissingException(concreteIndex, request.id());
         }
     }
 
@@ -226,7 +226,6 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     UpdateResponse update = new UpdateResponse(
                         response.getShardInfo(),
                         response.getShardId(),
-                        response.getType(),
                         response.getId(),
                         response.getSeqNo(),
                         response.getPrimaryTerm(),
@@ -267,7 +266,6 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     UpdateResponse update = new UpdateResponse(
                         response.getShardInfo(),
                         response.getShardId(),
-                        response.getType(),
                         response.getId(),
                         response.getSeqNo(),
                         response.getPrimaryTerm(),
@@ -296,7 +294,6 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     UpdateResponse update = new UpdateResponse(
                         response.getShardInfo(),
                         response.getShardId(),
-                        response.getType(),
                         response.getId(),
                         response.getSeqNo(),
                         response.getPrimaryTerm(),

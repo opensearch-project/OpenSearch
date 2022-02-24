@@ -45,7 +45,6 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.index.get.GetResultTests;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
@@ -69,10 +68,10 @@ public class UpdateResponseTests extends OpenSearchTestCase {
 
     public void testToXContent() throws IOException {
         {
-            UpdateResponse updateResponse = new UpdateResponse(new ShardId("index", "index_uuid", 0), "type", "id", -2, 0, 0, NOT_FOUND);
+            UpdateResponse updateResponse = new UpdateResponse(new ShardId("index", "index_uuid", 0), "id", -2, 0, 0, NOT_FOUND);
             String output = Strings.toString(updateResponse);
             assertEquals(
-                "{\"_index\":\"index\",\"_type\":\"_doc\",\"_id\":\"id\",\"_version\":0,\"result\":\"not_found\","
+                "{\"_index\":\"index\",\"_id\":\"id\",\"_version\":0,\"result\":\"not_found\","
                     + "\"_shards\":{\"total\":0,\"successful\":0,\"failed\":0}}",
                 output
             );
@@ -81,7 +80,6 @@ public class UpdateResponseTests extends OpenSearchTestCase {
             UpdateResponse updateResponse = new UpdateResponse(
                 new ReplicationResponse.ShardInfo(10, 6),
                 new ShardId("index", "index_uuid", 1),
-                "type",
                 "id",
                 3,
                 17,
@@ -90,7 +88,7 @@ public class UpdateResponseTests extends OpenSearchTestCase {
             );
             String output = Strings.toString(updateResponse);
             assertEquals(
-                "{\"_index\":\"index\",\"_type\":\"_doc\",\"_id\":\"id\",\"_version\":1,\"result\":\"deleted\","
+                "{\"_index\":\"index\",\"_id\":\"id\",\"_version\":1,\"result\":\"deleted\","
                     + "\"_shards\":{\"total\":10,\"successful\":6,\"failed\":0},\"_seq_no\":3,\"_primary_term\":17}",
                 output
             );
@@ -104,7 +102,6 @@ public class UpdateResponseTests extends OpenSearchTestCase {
             UpdateResponse updateResponse = new UpdateResponse(
                 new ReplicationResponse.ShardInfo(3, 2),
                 new ShardId("books", "books_uuid", 2),
-                "book",
                 "1",
                 7,
                 17,
@@ -115,7 +112,7 @@ public class UpdateResponseTests extends OpenSearchTestCase {
 
             String output = Strings.toString(updateResponse);
             assertEquals(
-                "{\"_index\":\"books\",\"_type\":\"_doc\",\"_id\":\"1\",\"_version\":2,\"result\":\"updated\","
+                "{\"_index\":\"books\",\"_id\":\"1\",\"_version\":2,\"result\":\"updated\","
                     + "\"_shards\":{\"total\":3,\"successful\":2,\"failed\":0},\"_seq_no\":7,\"_primary_term\":17,\"get\":{"
                     + "\"_seq_no\":0,\"_primary_term\":1,\"found\":true,"
                     + "\"_source\":{\"title\":\"Book title\",\"isbn\":\"ABC-123\"},\"fields\":{\"isbn\":[\"ABC-123\"],\"title\":[\"Book "
@@ -211,29 +208,11 @@ public class UpdateResponseTests extends OpenSearchTestCase {
         if (seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
             Tuple<ReplicationResponse.ShardInfo, ReplicationResponse.ShardInfo> shardInfos = RandomObjects.randomShardInfo(random());
 
-            actual = new UpdateResponse(
-                shardInfos.v1(),
-                actualShardId,
-                MapperService.SINGLE_MAPPING_NAME,
-                id,
-                seqNo,
-                primaryTerm,
-                version,
-                result
-            );
-            expected = new UpdateResponse(
-                shardInfos.v2(),
-                expectedShardId,
-                MapperService.SINGLE_MAPPING_NAME,
-                id,
-                seqNo,
-                primaryTerm,
-                version,
-                result
-            );
+            actual = new UpdateResponse(shardInfos.v1(), actualShardId, id, seqNo, primaryTerm, version, result);
+            expected = new UpdateResponse(shardInfos.v2(), expectedShardId, id, seqNo, primaryTerm, version, result);
         } else {
-            actual = new UpdateResponse(actualShardId, MapperService.SINGLE_MAPPING_NAME, id, seqNo, primaryTerm, version, result);
-            expected = new UpdateResponse(expectedShardId, MapperService.SINGLE_MAPPING_NAME, id, seqNo, primaryTerm, version, result);
+            actual = new UpdateResponse(actualShardId, id, seqNo, primaryTerm, version, result);
+            expected = new UpdateResponse(expectedShardId, id, seqNo, primaryTerm, version, result);
         }
 
         if (actualGetResult.isExists()) {

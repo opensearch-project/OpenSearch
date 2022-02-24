@@ -117,7 +117,7 @@ final class RequestConverters {
     }
 
     static Request delete(DeleteRequest deleteRequest) {
-        String endpoint = endpoint(deleteRequest.index(), deleteRequest.type(), deleteRequest.id());
+        String endpoint = endpoint(deleteRequest.index(), deleteRequest.id());
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
 
         Params parameters = new Params();
@@ -184,11 +184,6 @@ final class RequestConverters {
                     metadata.startObject(opType.getLowercase());
                     if (Strings.hasLength(action.index())) {
                         metadata.field("_index", action.index());
-                    }
-                    if (Strings.hasLength(action.type())) {
-                        if (MapperService.SINGLE_MAPPING_NAME.equals(action.type()) == false) {
-                            metadata.field("_type", action.type());
-                        }
                     }
                     if (Strings.hasLength(action.id())) {
                         metadata.field("_id", action.id());
@@ -338,11 +333,9 @@ final class RequestConverters {
 
         String endpoint;
         if (indexRequest.opType() == DocWriteRequest.OpType.CREATE) {
-            endpoint = indexRequest.type().equals(MapperService.SINGLE_MAPPING_NAME)
-                ? endpoint(indexRequest.index(), "_create", indexRequest.id())
-                : endpoint(indexRequest.index(), indexRequest.type(), indexRequest.id(), "_create");
+            endpoint = endpoint(indexRequest.index(), "_create", indexRequest.id());
         } else {
-            endpoint = endpoint(indexRequest.index(), indexRequest.type(), indexRequest.id());
+            endpoint = endpoint(indexRequest.index(), indexRequest.id());
         }
 
         Request request = new Request(method, endpoint);
@@ -371,9 +364,7 @@ final class RequestConverters {
     }
 
     static Request update(UpdateRequest updateRequest) throws IOException {
-        String endpoint = updateRequest.type().equals(MapperService.SINGLE_MAPPING_NAME)
-            ? endpoint(updateRequest.index(), "_update", updateRequest.id())
-            : endpoint(updateRequest.index(), updateRequest.type(), updateRequest.id(), "_update");
+        String endpoint = endpoint(updateRequest.index(), "_update", updateRequest.id());
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
 
         Params parameters = new Params();

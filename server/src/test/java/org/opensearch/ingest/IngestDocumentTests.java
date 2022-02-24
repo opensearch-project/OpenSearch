@@ -92,7 +92,7 @@ public class IngestDocumentTests extends OpenSearchTestCase {
         list2.add("bar");
         list2.add("baz");
         document.put("list2", list2);
-        ingestDocument = new IngestDocument("index", "type", "id", null, null, null, document);
+        ingestDocument = new IngestDocument("index", "id", null, null, null, document);
     }
 
     public void testSimpleGetFieldValue() {
@@ -101,7 +101,6 @@ public class IngestDocumentTests extends OpenSearchTestCase {
         assertThat(ingestDocument.getFieldValue("_source.foo", String.class), equalTo("bar"));
         assertThat(ingestDocument.getFieldValue("_source.int", Integer.class), equalTo(123));
         assertThat(ingestDocument.getFieldValue("_index", String.class), equalTo("index"));
-        assertThat(ingestDocument.getFieldValue("_type", String.class), equalTo("type"));
         assertThat(ingestDocument.getFieldValue("_id", String.class), equalTo("id"));
         assertThat(
             ingestDocument.getFieldValue("_ingest.timestamp", ZonedDateTime.class),
@@ -238,7 +237,6 @@ public class IngestDocumentTests extends OpenSearchTestCase {
     public void testHasField() {
         assertTrue(ingestDocument.hasField("fizz"));
         assertTrue(ingestDocument.hasField("_index"));
-        assertTrue(ingestDocument.hasField("_type"));
         assertTrue(ingestDocument.hasField("_id"));
         assertTrue(ingestDocument.hasField("_source.fizz"));
         assertTrue(ingestDocument.hasField("_ingest.timestamp"));

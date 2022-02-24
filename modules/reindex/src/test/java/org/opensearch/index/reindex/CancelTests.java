@@ -116,7 +116,7 @@ public class CancelTests extends ReindexTestCase {
             false,
             true,
             IntStream.range(0, numDocs)
-                .mapToObj(i -> client().prepareIndex(INDEX, MapperService.SINGLE_MAPPING_NAME, String.valueOf(i)).setSource("n", i))
+                .mapToObj(i -> client().prepareIndex().setIndex(INDEX).setId(String.valueOf(i)).setSource("n", i))
                 .collect(Collectors.toList())
         );
 
@@ -247,17 +247,12 @@ public class CancelTests extends ReindexTestCase {
     }
 
     public void testReindexCancel() throws Exception {
-        testCancel(
-            ReindexAction.NAME,
-            reindex().source(INDEX).destination("dest", MapperService.SINGLE_MAPPING_NAME),
-            (response, total, modified) -> {
-                assertThat(response, matcher().created(modified).reasonCancelled(equalTo("by user request")));
+        testCancel(ReindexAction.NAME, reindex().source(INDEX).destination("dest"), (response, total, modified) -> {
+            assertThat(response, matcher().created(modified).reasonCancelled(equalTo("by user request")));
 
-                refresh("dest");
-                assertHitCount(client().prepareSearch("dest").setSize(0).get(), modified);
-            },
-            equalTo("reindex from [" + INDEX + "] to [dest][" + MapperService.SINGLE_MAPPING_NAME + "]")
-        );
+            refresh("dest");
+            assertHitCount(client().prepareSearch("dest").setSize(0).get(), modified);
+        }, equalTo("reindex from [" + INDEX + "] to [dest]"));
     }
 
     public void testUpdateByQueryCancel() throws Exception {
@@ -294,10 +289,7 @@ public class CancelTests extends ReindexTestCase {
     public void testReindexCancelWithWorkers() throws Exception {
         testCancel(
             ReindexAction.NAME,
-            reindex().source(INDEX)
-                .filter(QueryBuilders.matchAllQuery())
-                .destination("dest", MapperService.SINGLE_MAPPING_NAME)
-                .setSlices(5),
+            reindex().source(INDEX).filter(QueryBuilders.matchAllQuery()).destination("dest").setSlices(5),
             (response, total, modified) -> {
                 assertThat(response, matcher().created(modified).reasonCancelled(equalTo("by user request")).slices(hasSize(5)));
                 refresh("dest");

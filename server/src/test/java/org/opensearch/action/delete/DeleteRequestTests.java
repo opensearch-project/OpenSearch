@@ -42,7 +42,7 @@ public class DeleteRequestTests extends OpenSearchTestCase {
 
     public void testValidation() {
         {
-            final DeleteRequest request = new DeleteRequest("index4", "_doc", "0");
+            final DeleteRequest request = new DeleteRequest("index4", "0");
             final ActionRequestValidationException validate = request.validate();
 
             assertThat(validate, nullValue());
@@ -50,15 +50,7 @@ public class DeleteRequestTests extends OpenSearchTestCase {
 
         {
             // Empty types are accepted but fail validation
-            final DeleteRequest request = new DeleteRequest("index4", "", randomBoolean() ? "" : null);
-            final ActionRequestValidationException validate = request.validate();
-
-            assertThat(validate, not(nullValue()));
-            assertThat(validate.validationErrors(), hasItems("type is missing", "id is missing"));
-        }
-        {
-            // Null types are defaulted
-            final DeleteRequest request = new DeleteRequest("index4", randomBoolean() ? "" : null);
+            final DeleteRequest request = new DeleteRequest("index4", null);
             final ActionRequestValidationException validate = request.validate();
 
             assertThat(validate, not(nullValue()));

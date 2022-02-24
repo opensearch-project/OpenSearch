@@ -142,7 +142,7 @@ public class UpdateRequestTests extends OpenSearchTestCase {
 
     @SuppressWarnings("unchecked")
     public void testFromXContent() throws Exception {
-        UpdateRequest request = new UpdateRequest("test", "type", "1");
+        UpdateRequest request = new UpdateRequest("test", "1");
         // simple script
         request.fromXContent(createParser(XContentFactory.jsonBuilder().startObject().field("script", "script1").endObject()));
         Script script = request.script();
@@ -168,7 +168,7 @@ public class UpdateRequestTests extends OpenSearchTestCase {
         assertThat(params, equalTo(emptyMap()));
 
         // script with params
-        request = new UpdateRequest("test", "type", "1");
+        request = new UpdateRequest("test", "1");
         request.fromXContent(
             createParser(
                 XContentFactory.jsonBuilder()
@@ -192,7 +192,7 @@ public class UpdateRequestTests extends OpenSearchTestCase {
         assertThat(params.size(), equalTo(1));
         assertThat(params.get("param1").toString(), equalTo("value1"));
 
-        request = new UpdateRequest("test", "type", "1");
+        request = new UpdateRequest("test", "1");
         request.fromXContent(
             createParser(
                 XContentFactory.jsonBuilder()
@@ -217,7 +217,7 @@ public class UpdateRequestTests extends OpenSearchTestCase {
         assertThat(params.get("param1").toString(), equalTo("value1"));
 
         // script with params and upsert
-        request = new UpdateRequest("test", "type", "1");
+        request = new UpdateRequest("test", "1");
         request.fromXContent(
             createParser(
                 XContentFactory.jsonBuilder()
@@ -254,7 +254,7 @@ public class UpdateRequestTests extends OpenSearchTestCase {
         assertThat(upsertDoc.get("field1").toString(), equalTo("value1"));
         assertThat(((Map<String, Object>) upsertDoc.get("compound")).get("field2").toString(), equalTo("value2"));
 
-        request = new UpdateRequest("test", "type", "1");
+        request = new UpdateRequest("test", "1");
         request.fromXContent(
             createParser(
                 XContentFactory.jsonBuilder()
@@ -288,7 +288,7 @@ public class UpdateRequestTests extends OpenSearchTestCase {
         assertThat(((Map<String, Object>) upsertDoc.get("compound")).get("field2").toString(), equalTo("value2"));
 
         // script with doc
-        request = new UpdateRequest("test", "type", "1");
+        request = new UpdateRequest("test", "1");
         request.fromXContent(
             createParser(
                 XContentFactory.jsonBuilder()
@@ -308,13 +308,13 @@ public class UpdateRequestTests extends OpenSearchTestCase {
     }
 
     public void testUnknownFieldParsing() throws Exception {
-        UpdateRequest request = new UpdateRequest("test", "type", "1");
+        UpdateRequest request = new UpdateRequest("test", "1");
         XContentParser contentParser = createParser(XContentFactory.jsonBuilder().startObject().field("unknown_field", "test").endObject());
 
         XContentParseException ex = expectThrows(XContentParseException.class, () -> request.fromXContent(contentParser));
         assertEquals("[1:2] [UpdateRequest] unknown field [unknown_field]", ex.getMessage());
 
-        UpdateRequest request2 = new UpdateRequest("test", "type", "1");
+        UpdateRequest request2 = new UpdateRequest("test", "1");
         XContentParser unknownObject = createParser(
             XContentFactory.jsonBuilder()
                 .startObject()
@@ -329,7 +329,7 @@ public class UpdateRequestTests extends OpenSearchTestCase {
     }
 
     public void testFetchSourceParsing() throws Exception {
-        UpdateRequest request = new UpdateRequest("test", "type1", "1");
+        UpdateRequest request = new UpdateRequest("test", "1");
         request.fromXContent(createParser(XContentFactory.jsonBuilder().startObject().field("_source", true).endObject()));
         assertThat(request.fetchSource(), notNullValue());
         assertThat(request.fetchSource().includes().length, equalTo(0));
@@ -370,12 +370,10 @@ public class UpdateRequestTests extends OpenSearchTestCase {
 
     public void testNowInScript() throws IOException {
         // We just upsert one document with now() using a script
-        IndexRequest indexRequest = new IndexRequest("test", "type1", "2").source(
-            jsonBuilder().startObject().field("foo", "bar").endObject()
-        );
+        IndexRequest indexRequest = new IndexRequest("test").id("2").source(jsonBuilder().startObject().field("foo", "bar").endObject());
 
         {
-            UpdateRequest updateRequest = new UpdateRequest("test", "type1", "2").upsert(indexRequest)
+            UpdateRequest updateRequest = new UpdateRequest("test", "2").upsert(indexRequest)
                 .script(mockInlineScript("ctx._source.update_timestamp = ctx._now"))
                 .scriptedUpsert(true);
             long nowInMillis = randomNonNegativeLong();
@@ -388,7 +386,7 @@ public class UpdateRequestTests extends OpenSearchTestCase {
             assertEquals(nowInMillis, indexAction.sourceAsMap().get("update_timestamp"));
         }
         {
-            UpdateRequest updateRequest = new UpdateRequest("test", "type1", "2").upsert(indexRequest)
+            UpdateRequest updateRequest = new UpdateRequest("test", "2").upsert(indexRequest)
                 .script(mockInlineScript("ctx._timestamp = ctx._now"))
                 .scriptedUpsert(true);
             // We simulate that the document is not existing yet
@@ -401,14 +399,13 @@ public class UpdateRequestTests extends OpenSearchTestCase {
 
     public void testIndexTimeout() {
         final GetResult getResult = new GetResult("test", "1", 0, 1, 0, true, new BytesArray("{\"f\":\"v\"}"), null, null);
-        final UpdateRequest updateRequest = new UpdateRequest("test", "type", "1").script(mockInlineScript("return"))
-            .timeout(randomTimeValue());
+        final UpdateRequest updateRequest = new UpdateRequest("test", "1").script(mockInlineScript("return")).timeout(randomTimeValue());
         runTimeoutTest(getResult, updateRequest);
     }
 
     public void testDeleteTimeout() {
         final GetResult getResult = new GetResult("test", "1", 0, 1, 0, true, new BytesArray("{\"f\":\"v\"}"), null, null);
-        final UpdateRequest updateRequest = new UpdateRequest("test", "type", "1").script(mockInlineScript("ctx.op = delete"))
+        final UpdateRequest updateRequest = new UpdateRequest("test", "1").script(mockInlineScript("ctx.op = delete"))
             .timeout(randomTimeValue());
         runTimeoutTest(getResult, updateRequest);
     }
@@ -423,8 +420,8 @@ public class UpdateRequestTests extends OpenSearchTestCase {
             sourceBuilder.field("f", "v");
         }
         sourceBuilder.endObject();
-        final IndexRequest upsert = new IndexRequest("test", "type", "1").source(sourceBuilder);
-        final UpdateRequest updateRequest = new UpdateRequest("test", "type", "1").upsert(upsert)
+        final IndexRequest upsert = new IndexRequest("test").id("1").source(sourceBuilder);
+        final UpdateRequest updateRequest = new UpdateRequest("test", "1").upsert(upsert)
             .script(mockInlineScript("return"))
             .timeout(randomTimeValue());
         runTimeoutTest(getResult, updateRequest);
@@ -514,11 +511,11 @@ public class UpdateRequestTests extends OpenSearchTestCase {
     }
 
     public void testToValidateUpsertRequestAndCAS() {
-        UpdateRequest updateRequest = new UpdateRequest("index", "type", "id");
+        UpdateRequest updateRequest = new UpdateRequest("index", "id");
         updateRequest.setIfSeqNo(1L);
         updateRequest.setIfPrimaryTerm(1L);
         updateRequest.doc("{}", XContentType.JSON);
-        updateRequest.upsert(new IndexRequest("index", "type", "id"));
+        updateRequest.upsert(new IndexRequest("index").id("id"));
         assertThat(
             updateRequest.validate().validationErrors(),
             contains("upsert requests don't support `if_seq_no` and `if_primary_term`")
@@ -526,15 +523,15 @@ public class UpdateRequestTests extends OpenSearchTestCase {
     }
 
     public void testToValidateUpsertRequestWithVersion() {
-        UpdateRequest updateRequest = new UpdateRequest("index", "type", "id");
+        UpdateRequest updateRequest = new UpdateRequest("index", "id");
         updateRequest.doc("{}", XContentType.JSON);
-        updateRequest.upsert(new IndexRequest("index", "type", "1").version(1L));
+        updateRequest.upsert(new IndexRequest("index").id("1").version(1L));
         assertThat(updateRequest.validate().validationErrors(), contains("can't provide version in upsert request"));
     }
 
     public void testValidate() {
         {
-            UpdateRequest request = new UpdateRequest("index", "type", "id");
+            UpdateRequest request = new UpdateRequest("index", "id");
             request.doc("{}", XContentType.JSON);
             ActionRequestValidationException validate = request.validate();
 
@@ -542,27 +539,18 @@ public class UpdateRequestTests extends OpenSearchTestCase {
         }
         {
             // Null types are defaulted to "_doc"
-            UpdateRequest request = new UpdateRequest("index", null, randomBoolean() ? "" : null);
+            UpdateRequest request = new UpdateRequest("index", null);
             request.doc("{}", XContentType.JSON);
             ActionRequestValidationException validate = request.validate();
 
             assertThat(validate, not(nullValue()));
             assertThat(validate.validationErrors(), hasItems("id is missing"));
         }
-        {
-            // Non-null types are accepted but fail validation
-            UpdateRequest request = new UpdateRequest("index", "", randomBoolean() ? "" : null);
-            request.doc("{}", XContentType.JSON);
-            ActionRequestValidationException validate = request.validate();
-
-            assertThat(validate, not(nullValue()));
-            assertThat(validate.validationErrors(), hasItems("type is missing", "id is missing"));
-        }
     }
 
     public void testRoutingExtraction() throws Exception {
         GetResult getResult = new GetResult("test", "1", UNASSIGNED_SEQ_NO, 0, 0, false, null, null, null);
-        IndexRequest indexRequest = new IndexRequest("test", "type", "1");
+        IndexRequest indexRequest = new IndexRequest("test").id("1");
 
         // There is no routing and parent because the document doesn't exist
         assertNull(UpdateHelper.calculateRouting(getResult, null));
@@ -590,7 +578,7 @@ public class UpdateRequestTests extends OpenSearchTestCase {
         ShardId shardId = new ShardId("test", "", 0);
         GetResult getResult = new GetResult("test", "1", 0, 1, 0, true, new BytesArray("{\"body\": \"foo\"}"), null, null);
 
-        UpdateRequest request = new UpdateRequest("test", "type1", "1").fromXContent(
+        UpdateRequest request = new UpdateRequest("test", "1").fromXContent(
             createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"foo\"}}"))
         );
 
@@ -606,7 +594,7 @@ public class UpdateRequestTests extends OpenSearchTestCase {
         assertThat(result.updatedSourceAsMap().get("body").toString(), equalTo("foo"));
 
         // Change the request to be a different doc
-        request = new UpdateRequest("test", "type1", "1").fromXContent(
+        request = new UpdateRequest("test", "1").fromXContent(
             createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"bar\"}}"))
         );
         result = updateHelper.prepareUpdateIndexRequest(shardId, request, getResult, true);
@@ -621,7 +609,7 @@ public class UpdateRequestTests extends OpenSearchTestCase {
         ShardId shardId = new ShardId("test", "", 0);
         GetResult getResult = new GetResult("test", "1", 0, 1, 0, true, new BytesArray("{\"body\": \"bar\"}"), null, null);
 
-        UpdateRequest request = new UpdateRequest("test", "type1", "1").script(mockInlineScript("ctx._source.body = \"foo\""));
+        UpdateRequest request = new UpdateRequest("test", "1").script(mockInlineScript("ctx._source.body = \"foo\""));
 
         UpdateHelper.Result result = updateHelper.prepareUpdateScriptRequest(
             shardId,
@@ -635,7 +623,7 @@ public class UpdateRequestTests extends OpenSearchTestCase {
         assertThat(result.updatedSourceAsMap().get("body").toString(), equalTo("foo"));
 
         // Now where the script changes the op to "delete"
-        request = new UpdateRequest("test", "type1", "1").script(mockInlineScript("ctx.op = delete"));
+        request = new UpdateRequest("test", "1").script(mockInlineScript("ctx.op = delete"));
 
         result = updateHelper.prepareUpdateScriptRequest(shardId, request, getResult, OpenSearchTestCase::randomNonNegativeLong);
 
@@ -645,9 +633,9 @@ public class UpdateRequestTests extends OpenSearchTestCase {
         // We treat everything else as a No-op
         boolean goodNoop = randomBoolean();
         if (goodNoop) {
-            request = new UpdateRequest("test", "type1", "1").script(mockInlineScript("ctx.op = none"));
+            request = new UpdateRequest("test", "1").script(mockInlineScript("ctx.op = none"));
         } else {
-            request = new UpdateRequest("test", "type1", "1").script(mockInlineScript("ctx.op = bad"));
+            request = new UpdateRequest("test", "1").script(mockInlineScript("ctx.op = bad"));
         }
 
         result = updateHelper.prepareUpdateScriptRequest(shardId, request, getResult, OpenSearchTestCase::randomNonNegativeLong);
@@ -657,23 +645,23 @@ public class UpdateRequestTests extends OpenSearchTestCase {
     }
 
     public void testToString() throws IOException {
-        UpdateRequest request = new UpdateRequest("test", "type1", "1").script(mockInlineScript("ctx._source.body = \"foo\""));
+        UpdateRequest request = new UpdateRequest("test", "1").script(mockInlineScript("ctx._source.body = \"foo\""));
         assertThat(
             request.toString(),
             equalTo(
-                "update {[test][type1][1], doc_as_upsert[false], "
+                "update {[test][1], doc_as_upsert[false], "
                     + "script[Script{type=inline, lang='mock', idOrCode='ctx._source.body = \"foo\"', options={}, params={}}], "
                     + "scripted_upsert[false], detect_noop[true]}"
             )
         );
-        request = new UpdateRequest("test", "type1", "1").fromXContent(
+        request = new UpdateRequest("test", "1").fromXContent(
             createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"bar\"}}"))
         );
         assertThat(
             request.toString(),
             equalTo(
-                "update {[test][type1][1], doc_as_upsert[false], "
-                    + "doc[index {[null][_doc][null], source[{\"body\":\"bar\"}]}], scripted_upsert[false], detect_noop[true]}"
+                "update {[test][1], doc_as_upsert[false], "
+                    + "doc[index {[null][null], source[{\"body\":\"bar\"}]}], scripted_upsert[false], detect_noop[true]}"
             )
         );
     }

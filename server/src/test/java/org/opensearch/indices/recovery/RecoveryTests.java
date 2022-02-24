@@ -486,7 +486,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             }
             int inflightDocs = scaledRandomIntBetween(1, 100);
             for (int i = 0; i < inflightDocs; i++) {
-                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "extra_" + i).source("{}", XContentType.JSON);
+                final IndexRequest indexRequest = new IndexRequest(index.getName()).id("extra_" + i).source("{}", XContentType.JSON);
                 final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
                 for (IndexShard replica : randomSubsetOf(shards.getReplicas())) {
                     indexOnReplica(bulkShardRequest, shards, replica);

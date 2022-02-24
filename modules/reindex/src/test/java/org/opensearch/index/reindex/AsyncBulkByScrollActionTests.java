@@ -341,15 +341,7 @@ public class AsyncBulkByScrollActionTests extends OpenSearchTestCase {
                 }
                 final int seqNo = randomInt(20);
                 final int primaryTerm = randomIntBetween(1, 16);
-                final IndexResponse response = new IndexResponse(
-                    shardId,
-                    "type",
-                    "id" + i,
-                    seqNo,
-                    primaryTerm,
-                    randomInt(),
-                    createdResponse
-                );
+                final IndexResponse response = new IndexResponse(shardId, "id" + i, seqNo, primaryTerm, randomInt(), createdResponse);
                 responses[i] = new BulkItemResponse(i, opType, response);
             }
             assertExactlyOnce(onSuccess -> new DummyAsyncBulkByScrollAction().onBulkResponse(new BulkResponse(responses, 0), onSuccess));
@@ -596,7 +588,7 @@ public class AsyncBulkByScrollActionTests extends OpenSearchTestCase {
         DummyAsyncBulkByScrollAction action = new DummyActionWithoutBackoff();
         BulkRequest request = new BulkRequest();
         for (int i = 0; i < size + 1; i++) {
-            request.add(new IndexRequest("index", "type", "id" + i));
+            request.add(new IndexRequest("index").id("id" + i));
         }
         if (failWithRejection) {
             action.sendBulkRequest(request, Assert::fail);
@@ -945,7 +937,6 @@ public class AsyncBulkByScrollActionTests extends OpenSearchTestCase {
                         IndexRequest index = (IndexRequest) item;
                         response = new IndexResponse(
                             shardId,
-                            index.type(),
                             index.id() == null ? "dummy_id" : index.id(),
                             randomInt(20),
                             randomIntBetween(1, 16),
@@ -956,7 +947,6 @@ public class AsyncBulkByScrollActionTests extends OpenSearchTestCase {
                         UpdateRequest update = (UpdateRequest) item;
                         response = new UpdateResponse(
                             shardId,
-                            update.type(),
                             update.id(),
                             randomNonNegativeLong(),
                             randomIntBetween(1, Integer.MAX_VALUE),
@@ -967,7 +957,6 @@ public class AsyncBulkByScrollActionTests extends OpenSearchTestCase {
                         DeleteRequest delete = (DeleteRequest) item;
                         response = new DeleteResponse(
                             shardId,
-                            delete.type(),
                             delete.id(),
                             randomInt(20),
                             randomIntBetween(1, 16),
