@@ -40,6 +40,7 @@ import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.ParseField;
@@ -687,12 +688,20 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         private final int flags;
         private final String useField;
         private final Integer maxExpansions;
+        private final boolean caseInsensitive;
 
-        public Regexp(String pattern, int flags, String useField, Integer maxExpansions) {
+        /**
+         * Constructor
+         *
+         * {@code flags} is Lucene's <a href="https://github.com/apache/lucene/blob/main/lucene/core/src/java/org/apache/lucene/util/automaton/RegExp.java#L391-L411">syntax flags</a>
+         * and {@code caseInsensitive} enables Lucene's only <a href="https://github.com/apache/lucene/blob/main/lucene/core/src/java/org/apache/lucene/util/automaton/RegExp.java#L416">matching flag</a>.
+         */
+        public Regexp(String pattern, int flags, String useField, Integer maxExpansions, boolean caseInsensitive) {
             this.pattern = pattern;
             this.flags = flags;
             this.useField = useField;
             this.maxExpansions = (maxExpansions != null && maxExpansions > 0) ? maxExpansions : null;
+            this.caseInsensitive = caseInsensitive;
         }
 
         public Regexp(StreamInput in) throws IOException {
@@ -700,11 +709,20 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             this.flags = in.readVInt();
             this.useField = in.readOptionalString();
             this.maxExpansions = in.readOptionalVInt();
+            if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
+                this.caseInsensitive = in.readBoolean();
+            } else {
+                this.caseInsensitive = false;
+            }
         }
 
         @Override
         public IntervalsSource getSource(QueryShardContext context, MappedFieldType fieldType) {
-            final org.apache.lucene.util.automaton.RegExp regexp = new org.apache.lucene.util.automaton.RegExp(pattern, flags);
+            final org.apache.lucene.util.automaton.RegExp regexp = new org.apache.lucene.util.automaton.RegExp(
+                pattern,
+                flags,
+                caseInsensitive ? RegExp.ASCII_CASE_INSENSITIVE : 0
+            );
             final CompiledAutomaton automaton = new CompiledAutomaton(regexp.toAutomaton());
 
             if (useField != null) {
@@ -745,12 +763,13 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             return Objects.equals(pattern, regexp.pattern)
                 && Objects.equals(flags, regexp.flags)
                 && Objects.equals(useField, regexp.useField)
-                && Objects.equals(maxExpansions, regexp.maxExpansions);
+                && Objects.equals(maxExpansions, regexp.maxExpansions)
+                && Objects.equals(caseInsensitive, regexp.caseInsensitive);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(pattern, flags, useField, maxExpansions);
+            return Objects.hash(pattern, flags, useField, maxExpansions, caseInsensitive);
         }
 
         @Override
@@ -764,6 +783,9 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             out.writeVInt(flags);
             out.writeOptionalString(useField);
             out.writeOptionalVInt(maxExpansions);
+            if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
+                out.writeBoolean(caseInsensitive);
+            }
         }
 
         @Override
@@ -779,6 +801,9 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             if (maxExpansions != null) {
                 builder.field("max_expansions", maxExpansions);
             }
+            if (caseInsensitive) {
+                builder.field("case_insensitive", caseInsensitive);
+            }
             builder.endObject();
             return builder;
         }
@@ -789,13 +814,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             Integer flagsValue = (Integer) args[2];
             String useField = (String) args[3];
             Integer maxExpansions = (Integer) args[4];
+            boolean caseInsensitive = args[5] != null && (boolean) args[5];
 
             if (flagsValue != null) {
-                return new Regexp(pattern, flagsValue, useField, maxExpansions);
+                return new Regexp(pattern, flagsValue, useField, maxExpansions, caseInsensitive);
             } else if (flags != null) {
-                return new Regexp(pattern, RegexpFlag.resolveValue(flags), useField, maxExpansions);
+                return new Regexp(pattern, RegexpFlag.resolveValue(flags), useField, maxExpansions, caseInsensitive);
             } else {
-                return new Regexp(pattern, DEFAULT_FLAGS_VALUE, useField, maxExpansions);
+                return new Regexp(pattern, DEFAULT_FLAGS_VALUE, useField, maxExpansions, caseInsensitive);
             }
         });
         static {
@@ -804,6 +830,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             PARSER.declareInt(optionalConstructorArg(), new ParseField("flags_value"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("use_field"));
             PARSER.declareInt(optionalConstructorArg(), new ParseField("max_expansions"));
+            PARSER.declareBoolean(optionalConstructorArg(), new ParseField("case_insensitive"));
         }
 
         public static Regexp fromXContent(XContentParser parser) throws IOException {
@@ -824,6 +851,10 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         Integer getMaxExpansions() {
             return maxExpansions;
+        }
+
+        boolean isCaseInsensitive() {
+            return caseInsensitive;
         }
     }
 
