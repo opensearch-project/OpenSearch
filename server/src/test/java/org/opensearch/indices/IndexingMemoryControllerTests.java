@@ -398,7 +398,6 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
 
     EngineConfig configWithRefreshListener(EngineConfig config, ReferenceManager.RefreshListener listener) {
         final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>(config.getInternalRefreshListener());
-        ;
         internalRefreshListener.add(listener);
         return new EngineConfig(
             config.getShardId(),
@@ -422,7 +421,8 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
             config.getGlobalCheckpointSupplier(),
             config.retentionLeasesSupplier(),
             config.getPrimaryTermSupplier(),
-            config.getTombstoneDocSupplier()
+            config.getTombstoneDocSupplier(),
+            config.isPrimary()
         );
     }
 

@@ -64,7 +64,8 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
             null,
             () -> new RetentionLeases(0, 0, Collections.emptyList()),
             null,
-            null
+            null,
+            false
         );
 
         assertNotNull(config.getCodec());

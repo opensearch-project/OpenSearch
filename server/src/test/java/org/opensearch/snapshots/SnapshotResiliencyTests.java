@@ -183,6 +183,8 @@ import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.PeerRecoverySourceService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.indices.replication.SegmentReplicationReplicaService;
+import org.opensearch.indices.replication.copy.PrimaryShardReplicationSource;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.node.ResponseCollectorService;
@@ -1825,6 +1827,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 );
                 nodeConnectionsService = new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService);
                 final MetadataMappingService metadataMappingService = new MetadataMappingService(clusterService, indicesService);
+                SegmentReplicationReplicaService replicaService = new SegmentReplicationReplicaService(threadPool, recoverySettings, transportService);
                 indicesClusterStateService = new IndicesClusterStateService(
                     settings,
                     indicesService,
@@ -1861,7 +1864,15 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         shardStateAction,
                         actionFilters
                     ),
-                    RetentionLeaseSyncer.EMPTY
+                    RetentionLeaseSyncer.EMPTY,
+                    replicaService,
+                    new PrimaryShardReplicationSource(
+                        transportService,
+                        clusterService,
+                        indicesService,
+                        recoverySettings,
+                        replicaService
+                        )
                 );
                 Map<ActionType, TransportAction> actions = new HashMap<>();
                 final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);

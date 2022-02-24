@@ -44,7 +44,6 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.recovery.RecoveryState.FileDetail;
 import org.opensearch.indices.recovery.RecoveryState.Index;
 import org.opensearch.indices.recovery.RecoveryState.Stage;
-import org.opensearch.indices.recovery.RecoveryState.Timer;
 import org.opensearch.indices.recovery.RecoveryState.Translog;
 import org.opensearch.indices.recovery.RecoveryState.VerifyIndex;
 import org.opensearch.test.OpenSearchTestCase;

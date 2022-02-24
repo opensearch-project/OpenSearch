@@ -91,12 +91,14 @@ import org.opensearch.indices.recovery.RecoverySourceHandler;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.recovery.StartRecoveryRequest;
+import org.opensearch.indices.replication.checkpoint.TransportCheckpointPublisher;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositoryIntegTestCase;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.client.NoOpClient;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -459,6 +461,9 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 Collections.emptyList(),
                 clusterSettings
             );
+            // No-op checkpoint publisher for backwards compatibliity
+            NoOpClient noOpClient = new NoOpClient(this.getTestName());
+            TransportCheckpointPublisher checkpointPublisher = new TransportCheckpointPublisher(noOpClient);
             indexShard = new IndexShard(
                 routing,
                 indexSettings,
@@ -479,7 +484,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 Arrays.asList(listeners),
                 globalCheckpointSyncer,
                 retentionLeaseSyncer,
-                breakerService
+                breakerService,
+                checkpointPublisher
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;
