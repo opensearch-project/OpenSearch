@@ -72,6 +72,7 @@ public class ReplicationState {
     public synchronized Stage getStage() {
         return this.stage;
     }
+
     // synchronized is strictly speaking not needed (this is called by a single thread), but just to be safe
     public synchronized void setStage(Stage stage) {
         this.stage = stage;

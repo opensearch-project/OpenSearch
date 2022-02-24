@@ -348,9 +348,7 @@ public class InternalEngine extends Engine {
     @Override
     public void updateCurrentInfos(byte[] infosBytes, long gen, long seqNo) throws IOException {
         assert engineConfig.isPrimary() == false : "Only replicas should update Infos";
-        SegmentInfos infos = SegmentInfos.readCommit(this.store.directory(),
-            toIndexInput(infosBytes),
-            gen);
+        SegmentInfos infos = SegmentInfos.readCommit(this.store.directory(), toIndexInput(infosBytes), gen);
         assert gen == infos.getGeneration();
         externalReaderManager.internalReaderManager.updateSegments(infos);
         externalReaderManager.maybeRefresh();
@@ -359,9 +357,8 @@ public class InternalEngine extends Engine {
 
     private ChecksumIndexInput toIndexInput(byte[] input) {
         return new BufferedChecksumIndexInput(
-            new ByteBuffersIndexInput(
-                new ByteBuffersDataInput(
-                    Arrays.asList(ByteBuffer.wrap(input))), "SegmentInfos"));
+            new ByteBuffersIndexInput(new ByteBuffersDataInput(Arrays.asList(ByteBuffer.wrap(input))), "SegmentInfos")
+        );
     }
 
     private LocalCheckpointTracker createLocalCheckpointTracker(
@@ -737,10 +734,7 @@ public class InternalEngine extends Engine {
         OpenSearchReaderManager internalReaderManager = null;
         try {
             try {
-                final OpenSearchDirectoryReader directoryReader = OpenSearchDirectoryReader.wrap(
-                    getDirectoryReader(),
-                    shardId
-                );
+                final OpenSearchDirectoryReader directoryReader = OpenSearchDirectoryReader.wrap(getDirectoryReader(), shardId);
                 internalReaderManager = new OpenSearchReaderManager(
                     directoryReader,
                     new RamAccountingRefreshListener(engineConfig.getCircuitBreakerService())

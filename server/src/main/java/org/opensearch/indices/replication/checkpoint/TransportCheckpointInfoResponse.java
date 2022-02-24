@@ -22,9 +22,11 @@ public class TransportCheckpointInfoResponse extends TransportResponse {
     private final Store.MetadataSnapshot snapshot;
     private final byte[] infosBytes;
 
-    public TransportCheckpointInfoResponse(final ReplicationCheckpoint checkpoint,
-                                           final Store.MetadataSnapshot snapshot,
-                                           final byte[] infosBytes) {
+    public TransportCheckpointInfoResponse(
+        final ReplicationCheckpoint checkpoint,
+        final Store.MetadataSnapshot snapshot,
+        final byte[] infosBytes
+    ) {
         this.checkpoint = checkpoint;
         this.snapshot = snapshot;
         this.infosBytes = infosBytes;

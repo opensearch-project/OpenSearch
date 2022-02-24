@@ -16,8 +16,7 @@ import java.io.IOException;
 
 public class GetFilesResponse extends TransportResponse {
 
-    public GetFilesResponse(StreamInput in) {
-    }
+    public GetFilesResponse(StreamInput in) {}
 
     public GetFilesResponse() {
 

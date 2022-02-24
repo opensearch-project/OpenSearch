@@ -78,11 +78,13 @@ public class PrimaryShardReplicationSource {
         public static final String FILE_CHUNK = "internal:index/shard/segrep/file_chunk";
     }
 
-    public PrimaryShardReplicationSource(TransportService transportService,
-                                         ClusterService clusterService,
-                                         IndicesService indicesService,
-                                         RecoverySettings recoverySettings,
-                                         SegmentReplicationReplicaService segmentReplicationReplicaShardService) {
+    public PrimaryShardReplicationSource(
+        TransportService transportService,
+        ClusterService clusterService,
+        IndicesService indicesService,
+        RecoverySettings recoverySettings,
+        SegmentReplicationReplicaService segmentReplicationReplicaShardService
+    ) {
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -98,24 +100,44 @@ public class PrimaryShardReplicationSource {
         );
     }
 
-    public void getCheckpointInfo(long replicationId, ReplicationCheckpoint checkpoint, StepListener<TransportCheckpointInfoResponse> listener) {
+    public void getCheckpointInfo(
+        long replicationId,
+        ReplicationCheckpoint checkpoint,
+        StepListener<TransportCheckpointInfoResponse> listener
+    ) {
         final ShardId shardId = checkpoint.getShardId();
         DiscoveryNode primaryNode = getPrimaryNode(shardId);
         final DiscoveryNodes nodes = clusterService.state().nodes();
         final Writeable.Reader<TransportCheckpointInfoResponse> reader = TransportCheckpointInfoResponse::new;
         final ActionListener<TransportCheckpointInfoResponse> responseListener = ActionListener.map(listener, r -> r);
-        StartReplicationRequest request = new StartReplicationRequest(replicationId, getAllocationId(shardId), nodes.getLocalNode(), checkpoint);
+        StartReplicationRequest request = new StartReplicationRequest(
+            replicationId,
+            getAllocationId(shardId),
+            nodes.getLocalNode(),
+            checkpoint
+        );
         executeRetryableAction(primaryNode, GET_CHECKPOINT_INFO, request, responseListener, reader);
     }
 
-    public void getFiles(long replicationId, ReplicationCheckpoint checkpoint, List<StoreFileMetadata> filesToFetch, StepListener<GetFilesResponse> listener) {
+    public void getFiles(
+        long replicationId,
+        ReplicationCheckpoint checkpoint,
+        List<StoreFileMetadata> filesToFetch,
+        StepListener<GetFilesResponse> listener
+    ) {
         final ShardId shardId = checkpoint.getShardId();
         DiscoveryNode primaryNode = getPrimaryNode(shardId);
         final DiscoveryNodes nodes = clusterService.state().nodes();
         final Writeable.Reader<GetFilesResponse> reader = GetFilesResponse::new;
         final ActionListener<GetFilesResponse> responseListener = ActionListener.map(listener, r -> r);
 
-        GetFilesRequest request = new GetFilesRequest(replicationId, getAllocationId(shardId), nodes.getLocalNode(), filesToFetch, checkpoint);
+        GetFilesRequest request = new GetFilesRequest(
+            replicationId,
+            getAllocationId(shardId),
+            nodes.getLocalNode(),
+            filesToFetch,
+            checkpoint
+        );
         executeRetryableAction(primaryNode, GET_FILES, request, responseListener, reader);
     }
 
@@ -205,17 +227,20 @@ public class PrimaryShardReplicationSource {
 
         @Override
         public void messageReceived(final ReplicationFileChunkRequest request, TransportChannel channel, Task task) throws Exception {
-            try (ReplicationCollection.ReplicationRef replicationRef = segmentReplicationReplicaService.getOnGoingReplications().getReplicationSafe(request.getReplicationId(), request.shardId())) {
+            try (
+                ReplicationCollection.ReplicationRef replicationRef = segmentReplicationReplicaService.getOnGoingReplications()
+                    .getReplicationSafe(request.getReplicationId(), request.shardId())
+            ) {
                 final ReplicationTarget replicationTarget = replicationRef.target();
                 final ActionListener<Void> listener = createOrFinishListener(replicationRef, channel, Actions.FILE_CHUNK, request);
                 if (listener == null) {
                     return;
                 }
 
-//                final ReplicationState.Index indexState = replicationTarget.state().getIndex();
-//                if (request.sourceThrottleTimeInNanos() != ReplicationState.Index.UNKNOWN) {
-//                    indexState.addSourceThrottling(request.sourceThrottleTimeInNanos());
-//                }
+                // final ReplicationState.Index indexState = replicationTarget.state().getIndex();
+                // if (request.sourceThrottleTimeInNanos() != ReplicationState.Index.UNKNOWN) {
+                // indexState.addSourceThrottling(request.sourceThrottleTimeInNanos());
+                // }
 
                 RateLimiter rateLimiter = recoverySettings.rateLimiter();
                 if (rateLimiter != null) {
@@ -223,18 +248,12 @@ public class PrimaryShardReplicationSource {
                     if (bytes > rateLimiter.getMinPauseCheckBytes()) {
                         // Time to pause
                         bytesSinceLastPause.addAndGet(-bytes);
-//                        long throttleTimeInNanos = rateLimiter.pause(bytes);
-//                        indexState.addTargetThrottling(throttleTimeInNanos);
-//                        replicationTarget.getIndexShard().replicationStats().addThrottleTime(throttleTimeInNanos);
+                        // long throttleTimeInNanos = rateLimiter.pause(bytes);
+                        // indexState.addTargetThrottling(throttleTimeInNanos);
+                        // replicationTarget.getIndexShard().replicationStats().addThrottleTime(throttleTimeInNanos);
                     }
                 }
-                replicationTarget.writeFileChunk(
-                    request.metadata(),
-                    request.position(),
-                    request.content(),
-                    request.lastChunk(),
-                    listener
-                );
+                replicationTarget.writeFileChunk(request.metadata(), request.position(), request.content(), request.lastChunk(), listener);
             }
         }
     }

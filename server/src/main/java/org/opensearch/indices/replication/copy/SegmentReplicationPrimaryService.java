@@ -83,7 +83,11 @@ public class SegmentReplicationPrimaryService {
     final CopyStateCache commitCache = new CopyStateCache();
 
     @Inject
-    public SegmentReplicationPrimaryService(TransportService transportService, IndicesService indicesService, RecoverySettings recoverySettings) {
+    public SegmentReplicationPrimaryService(
+        TransportService transportService,
+        IndicesService indicesService,
+        RecoverySettings recoverySettings
+    ) {
         this.transportService = transportService;
         this.indicesService = indicesService;
         this.recoverySettings = recoverySettings;
@@ -160,7 +164,9 @@ public class SegmentReplicationPrimaryService {
             final ReplicationCheckpoint checkpoint = request.getCheckpoint();
             logger.trace("Received request for checkpoint {}", checkpoint);
             final CopyState copyState = getCopyState(checkpoint);
-            channel.sendResponse(new TransportCheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataSnapshot(), copyState.getInfosBytes()));
+            channel.sendResponse(
+                new TransportCheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataSnapshot(), copyState.getInfosBytes())
+            );
         }
     }
 
@@ -200,13 +206,9 @@ public class SegmentReplicationPrimaryService {
             request,
             Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
             recoverySettings.getMaxConcurrentFileChunks(),
-            recoverySettings.getMaxConcurrentOperations());
-        logger.debug(
-            "[{}][{}] fetching files for {}",
-            shardId.getIndex().getName(),
-            shardId.id(),
-            request.getTargetNode()
+            recoverySettings.getMaxConcurrentOperations()
         );
+        logger.debug("[{}][{}] fetching files for {}", shardId.getIndex().getName(), shardId.id(), request.getTargetNode());
         // TODO: The calling shard could die between requests without finishing.
         handler.sendFiles(copyState, ActionListener.runAfter(listener, () -> commitCache.removeCopyState(request.getCheckpoint())));
     }
@@ -227,19 +229,24 @@ public class SegmentReplicationPrimaryService {
             }
             final StepListener<ReplicationResponse> addRetentionLeaseStep = new StepListener<>();
             final StepListener<ReplicationResponse> responseListener = new StepListener<>();
-            PrimaryShardReplicationHandler.runUnderPrimaryPermit(() ->
-                    shard.cloneLocalPeerRecoveryRetentionLease(
-                        request.getTargetNode().getId(),
-                        new ThreadedActionListener<>(logger, shard.getThreadPool(), ThreadPool.Names.GENERIC, addRetentionLeaseStep, false)
-                    ),
+            PrimaryShardReplicationHandler.runUnderPrimaryPermit(
+                () -> shard.cloneLocalPeerRecoveryRetentionLease(
+                    request.getTargetNode().getId(),
+                    new ThreadedActionListener<>(logger, shard.getThreadPool(), ThreadPool.Names.GENERIC, addRetentionLeaseStep, false)
+                ),
                 "Add retention lease step",
                 shard,
                 new CancellableThreads(),
                 logger
             );
             addRetentionLeaseStep.whenComplete(r -> {
-                PrimaryShardReplicationHandler.runUnderPrimaryPermit(() -> shard.initiateTracking(targetAllocationId),
-                    shardId + " initiating tracking of " + targetAllocationId, shard, new CancellableThreads(), logger);
+                PrimaryShardReplicationHandler.runUnderPrimaryPermit(
+                    () -> shard.initiateTracking(targetAllocationId),
+                    shardId + " initiating tracking of " + targetAllocationId,
+                    shard,
+                    new CancellableThreads(),
+                    logger
+                );
 
                 PrimaryShardReplicationHandler.runUnderPrimaryPermit(
                     () -> shard.updateLocalCheckpointForShard(targetAllocationId, SequenceNumbers.NO_OPS_PERFORMED),

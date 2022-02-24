@@ -50,18 +50,8 @@ public class ReplicationFailedException extends OpenSearchException {
         this(shard.shardId(), extraInfo, cause);
     }
 
-    public ReplicationFailedException(
-        ShardId shardId,
-        @Nullable String extraInfo,
-        Throwable cause
-    ) {
-        super(
-            shardId
-                + ": Replication failed "
-                + ("on ")
-                + (extraInfo == null ? "" : " (" + extraInfo + ")"),
-            cause
-        );
+    public ReplicationFailedException(ShardId shardId, @Nullable String extraInfo, Throwable cause) {
+        super(shardId + ": Replication failed " + ("on ") + (extraInfo == null ? "" : " (" + extraInfo + ")"), cause);
     }
 
     public ReplicationFailedException(StreamInput in) throws IOException {

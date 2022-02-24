@@ -41,8 +41,6 @@ public class PublishCheckpointRequest extends BroadcastRequest<PublishCheckpoint
 
     @Override
     public String toString() {
-        return "PublishCheckpointRequest{" +
-            "checkpoint=" + checkpoint +
-            '}';
+        return "PublishCheckpointRequest{" + "checkpoint=" + checkpoint + '}';
     }
 }

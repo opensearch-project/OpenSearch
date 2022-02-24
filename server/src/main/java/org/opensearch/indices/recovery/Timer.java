@@ -21,8 +21,7 @@ public class Timer implements Writeable {
     public long time = -1;
     public long stopTime = 0;
 
-    public Timer() {
-    }
+    public Timer() {}
 
     public Timer(StreamInput in) throws IOException {
         startTime = in.readVLong();

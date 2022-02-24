@@ -11,7 +11,6 @@ package org.opensearch.indices.replication.copy;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -62,13 +61,15 @@ public class ReplicationCheckpoint implements Writeable {
         out.writeLong(seqNo);
     }
 
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ReplicationCheckpoint that = (ReplicationCheckpoint) o;
-        return primaryTerm == that.primaryTerm && segmentsGen == that.segmentsGen && seqNo == that.seqNo && Objects.equals(shardId, that.shardId);
+        return primaryTerm == that.primaryTerm
+            && segmentsGen == that.segmentsGen
+            && seqNo == that.seqNo
+            && Objects.equals(shardId, that.shardId);
     }
 
     @Override
@@ -78,11 +79,15 @@ public class ReplicationCheckpoint implements Writeable {
 
     @Override
     public String toString() {
-        return "ReplicationCheckpoint{" +
-            "shardId=" + shardId +
-            ", primaryTerm=" + primaryTerm +
-            ", segmentsGen=" + segmentsGen +
-            ", seqNo=" + seqNo +
-            '}';
+        return "ReplicationCheckpoint{"
+            + "shardId="
+            + shardId
+            + ", primaryTerm="
+            + primaryTerm
+            + ", segmentsGen="
+            + segmentsGen
+            + ", seqNo="
+            + seqNo
+            + '}';
     }
 }

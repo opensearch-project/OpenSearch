@@ -21,26 +21,22 @@ public class TransportCheckpointPublisher {
 
     private final Client client;
 
-    public TransportCheckpointPublisher(
-        Client client) {
+    public TransportCheckpointPublisher(Client client) {
         this.client = client;
     }
 
     public void publish(ReplicationCheckpoint checkpoint) {
         logger.trace("Publishing Checkpoint {}", checkpoint);
-        client.admin()
-            .indices()
-            .publishCheckpoint(new PublishCheckpointRequest(checkpoint),
-                new ActionListener<RefreshResponse>() {
-                    @Override
-                    public void onResponse(RefreshResponse response) {
-                        logger.trace("Successfully published checkpoints");
-                    }
+        client.admin().indices().publishCheckpoint(new PublishCheckpointRequest(checkpoint), new ActionListener<RefreshResponse>() {
+            @Override
+            public void onResponse(RefreshResponse response) {
+                logger.trace("Successfully published checkpoints");
+            }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.error("Publishing Checkpoints from primary to replicas failed", e);
-                    }
-                });
+            @Override
+            public void onFailure(Exception e) {
+                logger.error("Publishing Checkpoints from primary to replicas failed", e);
+            }
+        });
     }
 }

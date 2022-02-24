@@ -156,7 +156,8 @@ public class ReplicaClient {
             position,
             content,
             lastChunk,
-            throttleTimeInNanos);
+            throttleTimeInNanos
+        );
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
         executeRetryableAction(action, request, fileChunkRequestOptions, ActionListener.map(listener, r -> null), reader);
     }

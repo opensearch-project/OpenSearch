@@ -558,9 +558,17 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             clusterService
         );
         final SegmentReplicationReplicaService replicationReplicaService = new SegmentReplicationReplicaService(
-            threadPool, null, transportService);
+            threadPool,
+            null,
+            transportService
+        );
         PrimaryShardReplicationSource replicationSource = new PrimaryShardReplicationSource(
-            transportService, clusterService, null, null, replicationReplicaService);
+            transportService,
+            clusterService,
+            null,
+            null,
+            replicationReplicaService
+        );
         final ShardStateAction shardStateAction = mock(ShardStateAction.class);
         final PrimaryReplicaSyncer primaryReplicaSyncer = mock(PrimaryReplicaSyncer.class);
         return new IndicesClusterStateService(

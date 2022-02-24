@@ -931,9 +931,22 @@ public class Node implements Closeable {
                 }
                 b.bind(SegmentReplicationPrimaryService.class)
                     .toInstance(new SegmentReplicationPrimaryService(transportService, indicesService, recoverySettings));
-                final SegmentReplicationReplicaService segmentReplicationReplicaService = new SegmentReplicationReplicaService(threadPool, recoverySettings, transportService);
+                final SegmentReplicationReplicaService segmentReplicationReplicaService = new SegmentReplicationReplicaService(
+                    threadPool,
+                    recoverySettings,
+                    transportService
+                );
                 b.bind(SegmentReplicationReplicaService.class).toInstance(segmentReplicationReplicaService);
-                b.bind(PrimaryShardReplicationSource.class).toInstance(new PrimaryShardReplicationSource(transportService, clusterService, indicesService, recoverySettings, segmentReplicationReplicaService));
+                b.bind(PrimaryShardReplicationSource.class)
+                    .toInstance(
+                        new PrimaryShardReplicationSource(
+                            transportService,
+                            clusterService,
+                            indicesService,
+                            recoverySettings,
+                            segmentReplicationReplicaService
+                        )
+                    );
                 b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
                 pluginComponents.stream().forEach(p -> b.bind((Class) p.getClass()).toInstance(p));
                 b.bind(PersistentTasksService.class).toInstance(persistentTasksService);

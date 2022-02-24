@@ -251,7 +251,9 @@ public abstract class Engine implements Closeable {
 
     public void updateCurrentInfos(byte[] infosBytes, long gen, long seqNo) throws IOException {};
 
-    public long getProcessedLocalCheckpoint() { return 0L; };
+    public long getProcessedLocalCheckpoint() {
+        return 0L;
+    };
 
     /**
      * A throttling class that can be activated, causing the
@@ -1205,14 +1207,18 @@ public abstract class Engine implements Closeable {
      * until closed.
      * @return {@link SegmentInfosRef} - A ref to segmentInfos that must be closed for segment files to be deleted.
      */
-    public SegmentInfosRef getLatestSegmentInfosSafe() { return null; };
+    public SegmentInfosRef getLatestSegmentInfosSafe() {
+        return null;
+    };
 
     /**
      * Fetch a snapshot of the latest SegmentInfos from the engine.
      * This method does not ensure that segment files are retained in the directory.
      * @return {@link SegmentInfos}
      */
-    public SegmentInfos getLatestSegmentInfos() { return null; };
+    public SegmentInfos getLatestSegmentInfos() {
+        return null;
+    };
 
     /**
      * Snapshots the most recent safe index commit from the engine.

@@ -1827,7 +1827,11 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 );
                 nodeConnectionsService = new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService);
                 final MetadataMappingService metadataMappingService = new MetadataMappingService(clusterService, indicesService);
-                SegmentReplicationReplicaService replicaService = new SegmentReplicationReplicaService(threadPool, recoverySettings, transportService);
+                SegmentReplicationReplicaService replicaService = new SegmentReplicationReplicaService(
+                    threadPool,
+                    recoverySettings,
+                    transportService
+                );
                 indicesClusterStateService = new IndicesClusterStateService(
                     settings,
                     indicesService,
@@ -1866,13 +1870,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     ),
                     RetentionLeaseSyncer.EMPTY,
                     replicaService,
-                    new PrimaryShardReplicationSource(
-                        transportService,
-                        clusterService,
-                        indicesService,
-                        recoverySettings,
-                        replicaService
-                        )
+                    new PrimaryShardReplicationSource(transportService, clusterService, indicesService, recoverySettings, replicaService)
                 );
                 Map<ActionType, TransportAction> actions = new HashMap<>();
                 final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);

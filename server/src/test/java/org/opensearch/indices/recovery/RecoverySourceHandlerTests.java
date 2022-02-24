@@ -152,7 +152,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
     private Executor recoveryExecutor;
 
     private Store.MetadataSnapshot getStoreMetadata(Store store) throws IOException {
-        return store.getMetadata( (IndexCommit) null);
+        return store.getMetadata((IndexCommit) null);
     }
 
     @Before

@@ -57,7 +57,12 @@ public class TransportPublishCheckpointAction extends TransportBroadcastReplicat
     }
 
     @Override
-    protected RefreshResponse newResponse(int successfulShards, int failedShards, int totalNumCopies, List<DefaultShardOperationFailedException> shardFailures) {
+    protected RefreshResponse newResponse(
+        int successfulShards,
+        int failedShards,
+        int totalNumCopies,
+        List<DefaultShardOperationFailedException> shardFailures
+    ) {
         return new RefreshResponse(totalNumCopies, successfulShards, failedShards, shardFailures);
     }
 }
