@@ -45,7 +45,6 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.Engine.Operation.Origin;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.ShardId;
@@ -295,7 +294,7 @@ public class CancelTests extends ReindexTestCase {
                 refresh("dest");
                 assertHitCount(client().prepareSearch("dest").setSize(0).get(), modified);
             },
-            equalTo("reindex from [" + INDEX + "] to [dest][" + MapperService.SINGLE_MAPPING_NAME + "]")
+            equalTo("reindex from [" + INDEX + "] to [dest]")
         );
     }
 

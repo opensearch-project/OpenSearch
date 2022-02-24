@@ -137,7 +137,6 @@ public class ForEachProcessorTests extends OpenSearchTestCase {
         assertThat(ingestDocument.getFieldValue("values.0.index", String.class), equalTo("_index"));
         assertThat(ingestDocument.getFieldValue("values.0.id", String.class), equalTo("_id"));
         assertThat(ingestDocument.getFieldValue("values.1.index", String.class), equalTo("_index"));
-        assertThat(ingestDocument.getFieldValue("values.1.type", String.class), equalTo("_type"));
         assertThat(ingestDocument.getFieldValue("values.1.id", String.class), equalTo("_id"));
     }
 
