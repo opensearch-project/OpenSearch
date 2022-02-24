@@ -248,17 +248,14 @@ public class BulkProcessorIT extends OpenSearchIntegTestCase {
                 if (randomBoolean()) {
                     testDocs++;
                     processor.add(
-                        new IndexRequest("test", "test", Integer.toString(testDocs)).source(Requests.INDEX_CONTENT_TYPE, "field", "value")
+                        new IndexRequest("test").id(Integer.toString(testDocs)).source(Requests.INDEX_CONTENT_TYPE, "field", "value")
                     );
                     multiGetRequestBuilder.add("test", Integer.toString(testDocs));
                 } else {
                     testReadOnlyDocs++;
                     processor.add(
-                        new IndexRequest("test-ro", "test", Integer.toString(testReadOnlyDocs)).source(
-                            Requests.INDEX_CONTENT_TYPE,
-                            "field",
-                            "value"
-                        )
+                        new IndexRequest("test-ro").id(Integer.toString(testReadOnlyDocs))
+                            .source(Requests.INDEX_CONTENT_TYPE, "field", "value")
                     );
                 }
             }
@@ -297,11 +294,8 @@ public class BulkProcessorIT extends OpenSearchIntegTestCase {
         MultiGetRequestBuilder multiGetRequestBuilder = client.prepareMultiGet();
         for (int i = 1; i <= numDocs; i++) {
             processor.add(
-                new IndexRequest("test", "test", Integer.toString(i)).source(
-                    Requests.INDEX_CONTENT_TYPE,
-                    "field",
-                    randomRealisticUnicodeOfLengthBetween(1, 30)
-                )
+                new IndexRequest("test").id(Integer.toString(i))
+                    .source(Requests.INDEX_CONTENT_TYPE, "field", randomRealisticUnicodeOfLengthBetween(1, 30))
             );
             multiGetRequestBuilder.add("test", Integer.toString(i));
         }

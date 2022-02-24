@@ -340,7 +340,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             final DeleteRequest request = context.getRequestToExecute();
             result = primary.applyDeleteOperationOnPrimary(
                 version,
-                request.type(),
+                MapperService.SINGLE_MAPPING_NAME,
                 request.id(),
                 request.versionType(),
                 request.ifSeqNo(),
@@ -353,7 +353,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 request.versionType(),
                 new SourceToParse(
                     request.index(),
-                    request.type(),
+                    MapperService.SINGLE_MAPPING_NAME,
                     request.id(),
                     request.source(),
                     request.getContentType(),
@@ -370,7 +370,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             try {
                 primary.mapperService()
                     .merge(
-                        context.getRequestToExecute().type(),
+                        MapperService.SINGLE_MAPPING_NAME,
                         new CompressedXContent(result.getRequiredMappingUpdate(), XContentType.JSON, ToXContent.EMPTY_PARAMS),
                         MapperService.MergeReason.MAPPING_UPDATE_PREFLIGHT
                     );
@@ -383,7 +383,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             mappingUpdater.updateMappings(
                 result.getRequiredMappingUpdate(),
                 primary.shardId(),
-                context.getRequestToExecute().type(),
+                MapperService.SINGLE_MAPPING_NAME,
                 new ActionListener<Void>() {
                     @Override
                     public void onResponse(Void v) {
@@ -485,7 +485,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 updateResponse = new UpdateResponse(
                     indexResponse.getShardInfo(),
                     indexResponse.getShardId(),
-                    indexResponse.getType(),
                     indexResponse.getId(),
                     indexResponse.getSeqNo(),
                     indexResponse.getPrimaryTerm(),
@@ -518,7 +517,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 updateResponse = new UpdateResponse(
                     deleteResponse.getShardInfo(),
                     deleteResponse.getShardId(),
-                    deleteResponse.getType(),
                     deleteResponse.getId(),
                     deleteResponse.getSeqNo(),
                     deleteResponse.getPrimaryTerm(),
@@ -608,7 +606,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 final ShardId shardId = replica.shardId();
                 final SourceToParse sourceToParse = new SourceToParse(
                     shardId.getIndexName(),
-                    indexRequest.type(),
+                    MapperService.SINGLE_MAPPING_NAME,
                     indexRequest.id(),
                     indexRequest.source(),
                     indexRequest.getContentType(),
@@ -629,7 +627,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     primaryResponse.getSeqNo(),
                     primaryResponse.getPrimaryTerm(),
                     primaryResponse.getVersion(),
-                    deleteRequest.type(),
+                    MapperService.SINGLE_MAPPING_NAME,
                     deleteRequest.id()
                 );
                 break;

@@ -326,7 +326,7 @@ public class UpdateIT extends OpenSearchIntegTestCase {
             DocumentMissingException.class,
             () -> client().prepareUpdate(indexOrAlias(), "type1", "1").setScript(fieldIncScript).execute().actionGet()
         );
-        assertEquals("[type1][1]: document missing", ex.getMessage());
+        assertEquals("[1]: document missing", ex.getMessage());
 
         client().prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
 

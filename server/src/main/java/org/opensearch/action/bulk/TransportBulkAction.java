@@ -949,7 +949,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     indexRequest.opType(),
                     new UpdateResponse(
                         new ShardId(indexRequest.index(), IndexMetadata.INDEX_UUID_NA_VALUE, 0),
-                        indexRequest.type(),
                         id,
                         SequenceNumbers.UNASSIGNED_SEQ_NO,
                         SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
@@ -965,10 +964,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             logger.debug(
                 String.format(
                     Locale.ROOT,
-                    "failed to execute pipeline [%s] for document [%s/%s/%s]",
+                    "failed to execute pipeline [%s] for document [%s/%s]",
                     indexRequest.getPipeline(),
                     indexRequest.index(),
-                    indexRequest.type(),
                     indexRequest.id()
                 ),
                 e

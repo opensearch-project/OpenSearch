@@ -234,11 +234,7 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
         String[] indexShardActions = new String[] { BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]" };
         interceptTransportActions(indexShardActions);
 
-        IndexRequest indexRequest = new IndexRequest(randomIndexOrAlias(), "type", "id").source(
-            Requests.INDEX_CONTENT_TYPE,
-            "field",
-            "value"
-        );
+        IndexRequest indexRequest = new IndexRequest(randomIndexOrAlias()).id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
         internalCluster().coordOnlyNodeClient().index(indexRequest).actionGet();
 
         clearInterceptedActions();
@@ -249,7 +245,7 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
         String[] deleteShardActions = new String[] { BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]" };
         interceptTransportActions(deleteShardActions);
 
-        DeleteRequest deleteRequest = new DeleteRequest(randomIndexOrAlias(), "type", "id");
+        DeleteRequest deleteRequest = new DeleteRequest(randomIndexOrAlias()).id("id");
         internalCluster().coordOnlyNodeClient().delete(deleteRequest).actionGet();
 
         clearInterceptedActions();
@@ -263,7 +259,7 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
 
         String indexOrAlias = randomIndexOrAlias();
         client().prepareIndex(indexOrAlias, "type", "id").setSource("field", "value").get();
-        UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id").doc(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
+        UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "id").doc(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
         UpdateResponse updateResponse = internalCluster().coordOnlyNodeClient().update(updateRequest).actionGet();
         assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
 
@@ -277,7 +273,7 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
         interceptTransportActions(updateShardActions);
 
         String indexOrAlias = randomIndexOrAlias();
-        UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id").upsert(Requests.INDEX_CONTENT_TYPE, "field", "value")
+        UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "id").upsert(Requests.INDEX_CONTENT_TYPE, "field", "value")
             .doc(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
         UpdateResponse updateResponse = internalCluster().coordOnlyNodeClient().update(updateRequest).actionGet();
         assertEquals(DocWriteResponse.Result.CREATED, updateResponse.getResult());
@@ -293,7 +289,7 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
 
         String indexOrAlias = randomIndexOrAlias();
         client().prepareIndex(indexOrAlias, "type", "id").setSource("field", "value").get();
-        UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id").script(
+        UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "id").script(
             new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "ctx.op='delete'", Collections.emptyMap())
         );
         UpdateResponse updateResponse = internalCluster().coordOnlyNodeClient().update(updateRequest).actionGet();
@@ -312,19 +308,19 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
         int numIndexRequests = iterations(1, 10);
         for (int i = 0; i < numIndexRequests; i++) {
             String indexOrAlias = randomIndexOrAlias();
-            bulkRequest.add(new IndexRequest(indexOrAlias, "type", "id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"));
+            bulkRequest.add(new IndexRequest(indexOrAlias).id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"));
             indices.add(indexOrAlias);
         }
         int numDeleteRequests = iterations(1, 10);
         for (int i = 0; i < numDeleteRequests; i++) {
             String indexOrAlias = randomIndexOrAlias();
-            bulkRequest.add(new DeleteRequest(indexOrAlias, "type", "id"));
+            bulkRequest.add(new DeleteRequest(indexOrAlias).id("id"));
             indices.add(indexOrAlias);
         }
         int numUpdateRequests = iterations(1, 10);
         for (int i = 0; i < numUpdateRequests; i++) {
             String indexOrAlias = randomIndexOrAlias();
-            bulkRequest.add(new UpdateRequest(indexOrAlias, "type", "id").doc(Requests.INDEX_CONTENT_TYPE, "field1", "value1"));
+            bulkRequest.add(new UpdateRequest(indexOrAlias, "id").doc(Requests.INDEX_CONTENT_TYPE, "field1", "value1"));
             indices.add(indexOrAlias);
         }
 

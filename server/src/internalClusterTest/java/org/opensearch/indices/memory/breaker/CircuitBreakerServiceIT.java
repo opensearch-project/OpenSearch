@@ -403,7 +403,7 @@ public class CircuitBreakerServiceIT extends OpenSearchIntegTestCase {
         int numRequests = inFlightRequestsLimit.bytesAsInt();
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < numRequests; i++) {
-            IndexRequest indexRequest = new IndexRequest("index", "type", Integer.toString(i));
+            IndexRequest indexRequest = new IndexRequest("index").id(Integer.toString(i));
             indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field", "value", "num", i);
             bulkRequest.add(indexRequest);
         }

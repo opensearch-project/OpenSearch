@@ -268,7 +268,6 @@ class BulkPrimaryExecutionContext {
                     Engine.IndexResult indexResult = (Engine.IndexResult) result;
                     response = new IndexResponse(
                         primary.shardId(),
-                        requestToExecute.type(),
                         requestToExecute.id(),
                         result.getSeqNo(),
                         result.getTerm(),
@@ -279,7 +278,6 @@ class BulkPrimaryExecutionContext {
                     Engine.DeleteResult deleteResult = (Engine.DeleteResult) result;
                     response = new DeleteResponse(
                         primary.shardId(),
-                        requestToExecute.type(),
                         requestToExecute.id(),
                         deleteResult.getSeqNo(),
                         result.getTerm(),

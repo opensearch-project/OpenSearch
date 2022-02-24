@@ -90,7 +90,6 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
             .get();
         assertThat(indexResponse.getIndex(), equalTo(getConcreteIndexName()));
         assertThat(indexResponse.getId(), equalTo("1"));
-        assertThat(indexResponse.getType(), equalTo("type1"));
         logger.info("Refreshing");
         RefreshResponse refreshResponse = refresh();
         assertThat(refreshResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
@@ -145,7 +144,6 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
         DeleteResponse deleteResponse = client().prepareDelete("test", "type1", "1").execute().actionGet();
         assertThat(deleteResponse.getIndex(), equalTo(getConcreteIndexName()));
         assertThat(deleteResponse.getId(), equalTo("1"));
-        assertThat(deleteResponse.getType(), equalTo("type1"));
         logger.info("Refreshing");
         client().admin().indices().refresh(refreshRequest("test")).actionGet();
 
@@ -156,9 +154,9 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
         }
 
         logger.info("Index [type1/1]");
-        client().index(indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
+        client().index(indexRequest("test").id("1").source(source("1", "test"))).actionGet();
         logger.info("Index [type1/2]");
-        client().index(indexRequest("test").type("type1").id("2").source(source("2", "test2"))).actionGet();
+        client().index(indexRequest("test").id("2").source(source("2", "test2"))).actionGet();
 
         logger.info("Flushing");
         FlushResponse flushResult = client().admin().indices().prepareFlush("test").execute().actionGet();

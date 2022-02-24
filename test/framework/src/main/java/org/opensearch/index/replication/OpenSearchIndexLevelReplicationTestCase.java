@@ -246,7 +246,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
 
         public int indexDocs(final int numOfDoc) throws Exception {
             for (int doc = 0; doc < numOfDoc; doc++) {
-                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", Integer.toString(docId.incrementAndGet()))
+                final IndexRequest indexRequest = new IndexRequest(index.getName()).id(Integer.toString(docId.incrementAndGet()))
                     .source("{}", XContentType.JSON);
                 final BulkItemResponse response = index(indexRequest);
                 if (response.isFailed()) {
@@ -260,7 +260,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
 
         public int appendDocs(final int numOfDoc) throws Exception {
             for (int doc = 0; doc < numOfDoc; doc++) {
-                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type").source("{}", XContentType.JSON);
+                final IndexRequest indexRequest = new IndexRequest(index.getName()).source("{}", XContentType.JSON);
                 final BulkItemResponse response = index(indexRequest);
                 if (response.isFailed()) {
                     throw response.getFailure().getCause();

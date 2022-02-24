@@ -105,11 +105,9 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("Indexing...");
-        client().index(indexRequest("test").type("type1").id("1").source(jsonBuilder().startObject().field("text", "lucene").endObject()))
+        client().index(indexRequest("test").id("1").source(jsonBuilder().startObject().field("text", "lucene").endObject())).actionGet();
+        client().index(indexRequest("test").id("2").source(jsonBuilder().startObject().field("text", "lucene release").endObject()))
             .actionGet();
-        client().index(
-            indexRequest("test").type("type1").id("2").source(jsonBuilder().startObject().field("text", "lucene release").endObject())
-        ).actionGet();
         client().admin().indices().refresh(refreshRequest()).actionGet();
 
         logger.info("Running moreLikeThis");
@@ -140,11 +138,9 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("Indexing...");
-        client().index(indexRequest("test").type("type1").id("1").source(jsonBuilder().startObject().field("text", "lucene").endObject()))
+        client().index(indexRequest("test").id("1").source(jsonBuilder().startObject().field("text", "lucene").endObject())).actionGet();
+        client().index(indexRequest("test").id("2").source(jsonBuilder().startObject().field("text", "lucene release").endObject()))
             .actionGet();
-        client().index(
-            indexRequest("test").type("type1").id("2").source(jsonBuilder().startObject().field("text", "lucene release").endObject())
-        ).actionGet();
         client().admin().indices().refresh(refreshRequest()).actionGet();
 
         logger.info("Running moreLikeThis");
@@ -177,14 +173,10 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
         ensureGreen();
 
         client().index(
-            indexRequest("test").type("type")
-                .id("1")
-                .source(jsonBuilder().startObject().field("myField", "and_foo").field("empty", "").endObject())
+            indexRequest("test").id("1").source(jsonBuilder().startObject().field("myField", "and_foo").field("empty", "").endObject())
         ).actionGet();
         client().index(
-            indexRequest("test").type("type")
-                .id("2")
-                .source(jsonBuilder().startObject().field("myField", "and_foo").field("empty", "").endObject())
+            indexRequest("test").id("2").source(jsonBuilder().startObject().field("myField", "and_foo").field("empty", "").endObject())
         ).actionGet();
 
         client().admin().indices().refresh(refreshRequest()).actionGet();
@@ -206,13 +198,10 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("Indexing...");
-        client().index(
-            indexRequest("test").type("type1").id("1").source(jsonBuilder().startObject().field("some_long", 1367484649580L).endObject())
-        ).actionGet();
-        client().index(indexRequest("test").type("type1").id("2").source(jsonBuilder().startObject().field("some_long", 0).endObject()))
+        client().index(indexRequest("test").id("1").source(jsonBuilder().startObject().field("some_long", 1367484649580L).endObject()))
             .actionGet();
-        client().index(indexRequest("test").type("type1").id("3").source(jsonBuilder().startObject().field("some_long", -666).endObject()))
-            .actionGet();
+        client().index(indexRequest("test").id("2").source(jsonBuilder().startObject().field("some_long", 0).endObject())).actionGet();
+        client().index(indexRequest("test").id("3").source(jsonBuilder().startObject().field("some_long", -666).endObject())).actionGet();
 
         client().admin().indices().refresh(refreshRequest()).actionGet();
 
@@ -251,18 +240,14 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("Indexing...");
-        client().index(
-            indexRequest("test").type("type1").id("1").source(jsonBuilder().startObject().field("text", "lucene beta").endObject())
-        ).actionGet();
-        client().index(
-            indexRequest("test").type("type1").id("2").source(jsonBuilder().startObject().field("text", "lucene release").endObject())
-        ).actionGet();
-        client().index(
-            indexRequest("test").type("type1").id("3").source(jsonBuilder().startObject().field("text", "opensearch beta").endObject())
-        ).actionGet();
-        client().index(
-            indexRequest("test").type("type1").id("4").source(jsonBuilder().startObject().field("text", "opensearch release").endObject())
-        ).actionGet();
+        client().index(indexRequest("test").id("1").source(jsonBuilder().startObject().field("text", "lucene beta").endObject()))
+            .actionGet();
+        client().index(indexRequest("test").id("2").source(jsonBuilder().startObject().field("text", "lucene release").endObject()))
+            .actionGet();
+        client().index(indexRequest("test").id("3").source(jsonBuilder().startObject().field("text", "opensearch beta").endObject()))
+            .actionGet();
+        client().index(indexRequest("test").id("4").source(jsonBuilder().startObject().field("text", "opensearch release").endObject()))
+            .actionGet();
         client().admin().indices().refresh(refreshRequest()).actionGet();
 
         logger.info("Running moreLikeThis on index");
@@ -308,15 +293,12 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
 
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
-        client().index(
-            indexRequest(indexName).type(typeName).id("1").source(jsonBuilder().startObject().field("text", "opensearch index").endObject())
-        ).actionGet();
-        client().index(
-            indexRequest(indexName).type(typeName).id("2").source(jsonBuilder().startObject().field("text", "lucene index").endObject())
-        ).actionGet();
-        client().index(
-            indexRequest(indexName).type(typeName).id("3").source(jsonBuilder().startObject().field("text", "opensearch index").endObject())
-        ).actionGet();
+        client().index(indexRequest(indexName).id("1").source(jsonBuilder().startObject().field("text", "opensearch index").endObject()))
+            .actionGet();
+        client().index(indexRequest(indexName).id("2").source(jsonBuilder().startObject().field("text", "lucene index").endObject()))
+            .actionGet();
+        client().index(indexRequest(indexName).id("3").source(jsonBuilder().startObject().field("text", "opensearch index").endObject()))
+            .actionGet();
         refresh(indexName);
 
         SearchResponse response = client().prepareSearch()
@@ -561,8 +543,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
 
         logger.info("Indexing...");
         client().index(
-            indexRequest("test").type("type1")
-                .id("1")
+            indexRequest("test").id("1")
                 .source(
                     jsonBuilder().startObject()
                         .field("text", "Apache Lucene is a free/open source information retrieval software library")
@@ -570,8 +551,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
                 )
         ).actionGet();
         client().index(
-            indexRequest("test").type("type1")
-                .id("2")
+            indexRequest("test").id("2")
                 .source(jsonBuilder().startObject().field("text", "Lucene has been ported to other programming languages").endObject())
         ).actionGet();
         client().admin().indices().refresh(refreshRequest()).actionGet();

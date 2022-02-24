@@ -71,7 +71,6 @@ public class InternalEngineMergeIT extends OpenSearchIntegTestCase {
             for (int j = 0; j < numDocs; ++j) {
                 request.add(
                     Requests.indexRequest("test")
-                        .type("type1")
                         .id(Long.toString(id++))
                         .source(jsonBuilder().startObject().field("l", randomLong()).endObject())
                 );

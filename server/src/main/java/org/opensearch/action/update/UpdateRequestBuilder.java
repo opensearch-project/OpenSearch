@@ -54,15 +54,21 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         super(client, action, new UpdateRequest());
     }
 
+    @Deprecated
     public UpdateRequestBuilder(OpenSearchClient client, UpdateAction action, String index, String type, String id) {
-        super(client, action, new UpdateRequest(index, type, id));
+        super(client, action, new UpdateRequest(index, id));
+    }
+
+    public UpdateRequestBuilder(OpenSearchClient client, UpdateAction action, String index, String id) {
+        super(client, action, new UpdateRequest(index, id));
     }
 
     /**
      * Sets the type of the indexed document.
+     * @deprecated types will be removed
      */
+    @Deprecated
     public UpdateRequestBuilder setType(String type) {
-        request.type(type);
         return this;
     }
 

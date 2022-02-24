@@ -35,7 +35,6 @@ package org.opensearch.rest.action.document;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.index.VersionType;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
@@ -50,19 +49,10 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestDeleteAction.class);
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in "
-        + "document index requests is deprecated, use the /{index}/_doc/{id} endpoint instead.";
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(
-            asList(
-                new Route(DELETE, "/{index}/_doc/{id}"),
-                // Deprecated typed endpoint.
-                new Route(DELETE, "/{index}/{type}/{id}")
-            )
-        );
+        return unmodifiableList(asList(new Route(DELETE, "/{index}/_doc/{id}")));
     }
 
     @Override
@@ -72,14 +62,7 @@ public class RestDeleteAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        DeleteRequest deleteRequest;
-        if (request.hasParam("type")) {
-            deprecationLogger.deprecate("delete_with_types", TYPES_DEPRECATION_MESSAGE);
-            deleteRequest = new DeleteRequest(request.param("index"), request.param("type"), request.param("id"));
-        } else {
-            deleteRequest = new DeleteRequest(request.param("index"), request.param("id"));
-        }
-
+        DeleteRequest deleteRequest = new DeleteRequest(request.param("index"), request.param("id"));
         deleteRequest.routing(request.param("routing"));
         deleteRequest.timeout(request.paramAsTime("timeout", DeleteRequest.DEFAULT_TIMEOUT));
         deleteRequest.setRefreshPolicy(request.param("refresh"));
