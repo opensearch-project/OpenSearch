@@ -231,7 +231,6 @@ class EpochTime {
         .appendLiteral('.')
         .toFormatter(Locale.ROOT);
 
-
     private static final Map<Long, String> SIGN_FORMATTER_LOOKUP = new HashMap<Long, String>() {
         {
             put(POSITIVE, "");
