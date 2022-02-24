@@ -105,7 +105,7 @@ class EpochTime {
     private static final EpochField SIGN = new EpochField(ChronoUnit.FOREVER, ChronoUnit.FOREVER, ValueRange.of(NEGATIVE, POSITIVE)) {
         @Override
         public boolean isSupportedBy(TemporalAccessor temporal) {
-            return true;
+            return temporal.isSupported(ChronoField.INSTANT_SECONDS);
         }
 
         @Override
