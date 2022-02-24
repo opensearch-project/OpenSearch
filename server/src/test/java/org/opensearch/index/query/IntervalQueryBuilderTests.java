@@ -846,7 +846,11 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
     }
 
     private static IntervalsSource buildRegexpSource(String pattern, int flags, Integer maxExpansions) {
-        final RegExp regexp = new RegExp(pattern, flags);
+        return buildRegexpSource(pattern, flags, 0, maxExpansions);
+    }
+
+    private static IntervalsSource buildRegexpSource(String pattern, int flags, int matchFlags, Integer maxExpansions) {
+        final RegExp regexp = new RegExp(pattern, flags, matchFlags);
         CompiledAutomaton automaton = new CompiledAutomaton(regexp.toAutomaton());
 
         if (maxExpansions != null) {
@@ -920,6 +924,15 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
         builder = (IntervalQueryBuilder) parseQuery(regexp_max_expand_json);
         expected = new IntervalQuery(TEXT_FIELD_NAME, buildRegexpSource("te.m", DEFAULT_FLAGS, 500));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String regexp_case_insensitive_json = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": { "
+            + "\"regexp\" : { \"pattern\" : \"TE.M\", \"case_insensitive\" : true } } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(regexp_case_insensitive_json);
+        expected = new IntervalQuery(TEXT_FIELD_NAME, buildRegexpSource("TE.M", DEFAULT_FLAGS, RegExp.ASCII_CASE_INSENSITIVE, null));
         assertEquals(expected, builder.toQuery(createShardContext()));
 
         String regexp_neg_max_expand_json = "{ \"intervals\" : { \""

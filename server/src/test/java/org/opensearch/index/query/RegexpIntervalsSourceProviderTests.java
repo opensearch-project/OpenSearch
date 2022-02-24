@@ -32,7 +32,8 @@ public class RegexpIntervalsSourceProviderTests extends AbstractSerializingTestC
             randomAlphaOfLengthBetween(0, 3) + (randomBoolean() ? ".*?" : "." + randomAlphaOfLength(4)) + randomAlphaOfLengthBetween(0, 5),
             randomBoolean() ? RegexpFlag.resolveValue(randomFrom(FLAGS)) : RegexpFlag.ALL.value(),
             randomBoolean() ? randomAlphaOfLength(10) : null,
-            randomBoolean() ? randomIntBetween(-1, Integer.MAX_VALUE) : null
+            randomBoolean() ? randomIntBetween(-1, Integer.MAX_VALUE) : null,
+            randomBoolean()
         );
     }
 
@@ -42,7 +43,9 @@ public class RegexpIntervalsSourceProviderTests extends AbstractSerializingTestC
         int flags = instance.getFlags();
         String useField = instance.getUseField();
         Integer maxExpansions = instance.getMaxExpansions();
-        int ran = between(0, 3);
+        boolean caseInsensitive = instance.isCaseInsensitive();
+
+        int ran = between(0, 4);
         switch (ran) {
             case 0:
                 pattern += randomBoolean() ? ".*?" : randomAlphaOfLength(5);
@@ -56,10 +59,13 @@ public class RegexpIntervalsSourceProviderTests extends AbstractSerializingTestC
             case 3:
                 maxExpansions = maxExpansions == null ? randomIntBetween(1, Integer.MAX_VALUE) : null;
                 break;
+            case 4:
+                caseInsensitive = !caseInsensitive;
+                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new Regexp(pattern, flags, useField, maxExpansions);
+        return new Regexp(pattern, flags, useField, maxExpansions, caseInsensitive);
     }
 
     @Override
