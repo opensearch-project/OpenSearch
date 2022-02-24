@@ -845,6 +845,10 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         });
     }
 
+    private static IntervalsSource buildRegexpSource(String pattern, int flags, Integer maxExpansions) {
+        return buildRegexpSource(pattern, flags, 0, maxExpansions);
+    }
+
     private static IntervalsSource buildRegexpSource(String pattern, int flags, int matchFlags, Integer maxExpansions) {
         final RegExp regexp = new RegExp(pattern, flags, matchFlags);
         CompiledAutomaton automaton = new CompiledAutomaton(regexp.toAutomaton());
@@ -861,7 +865,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         String json = "{ \"intervals\" : { \"" + TEXT_FIELD_NAME + "\": { " + "\"regexp\" : { \"pattern\" : \"te.m\" } } } }";
 
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
-        Query expected = new IntervalQuery(TEXT_FIELD_NAME, buildRegexpSource("te.m", DEFAULT_FLAGS, 0, null));
+        Query expected = new IntervalQuery(TEXT_FIELD_NAME, buildRegexpSource("te.m", DEFAULT_FLAGS, null));
         assertEquals(expected, builder.toQuery(createShardContext()));
 
         String no_positions_json = "{ \"intervals\" : { \""
@@ -879,7 +883,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + "\"regexp\" : { \"pattern\" : \"te.m\", \"use_field\" : \"masked_field\" } } } }";
 
         builder = (IntervalQueryBuilder) parseQuery(fixed_field_json);
-        expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.fixField(MASKED_FIELD, buildRegexpSource("te.m", DEFAULT_FLAGS, 0, null)));
+        expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.fixField(MASKED_FIELD, buildRegexpSource("te.m", DEFAULT_FLAGS, null)));
         assertEquals(expected, builder.toQuery(createShardContext()));
 
         String fixed_field_json_no_positions = "{ \"intervals\" : { \""
@@ -899,7 +903,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + "\"regexp\" : { \"pattern\" : \"te.m\", \"flags\" : \"NONE\" } } } }";
 
         builder = (IntervalQueryBuilder) parseQuery(flags_json);
-        expected = new IntervalQuery(TEXT_FIELD_NAME, buildRegexpSource("te.m", RegexpFlag.NONE.value(), 0, null));
+        expected = new IntervalQuery(TEXT_FIELD_NAME, buildRegexpSource("te.m", RegexpFlag.NONE.value(), null));
         assertEquals(expected, builder.toQuery(createShardContext()));
 
         String flags_value_json = "{ \"intervals\" : { \""
@@ -910,7 +914,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + "\" } } } }";
 
         builder = (IntervalQueryBuilder) parseQuery(flags_value_json);
-        expected = new IntervalQuery(TEXT_FIELD_NAME, buildRegexpSource("te.m", RegexpFlag.ANYSTRING.value(), 0, null));
+        expected = new IntervalQuery(TEXT_FIELD_NAME, buildRegexpSource("te.m", RegexpFlag.ANYSTRING.value(), null));
         assertEquals(expected, builder.toQuery(createShardContext()));
 
         String regexp_max_expand_json = "{ \"intervals\" : { \""
@@ -919,7 +923,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + "\"regexp\" : { \"pattern\" : \"te.m\", \"max_expansions\" : 500 } } } }";
 
         builder = (IntervalQueryBuilder) parseQuery(regexp_max_expand_json);
-        expected = new IntervalQuery(TEXT_FIELD_NAME, buildRegexpSource("te.m", DEFAULT_FLAGS, 0, 500));
+        expected = new IntervalQuery(TEXT_FIELD_NAME, buildRegexpSource("te.m", DEFAULT_FLAGS, 500));
         assertEquals(expected, builder.toQuery(createShardContext()));
 
         String regexp_case_insensitive_json = "{ \"intervals\" : { \""
@@ -938,7 +942,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
         builder = (IntervalQueryBuilder) parseQuery(regexp_neg_max_expand_json);
         // max expansions use default
-        expected = new IntervalQuery(TEXT_FIELD_NAME, buildRegexpSource("te.m", DEFAULT_FLAGS, 0, null));
+        expected = new IntervalQuery(TEXT_FIELD_NAME, buildRegexpSource("te.m", DEFAULT_FLAGS, null));
         assertEquals(expected, builder.toQuery(createShardContext()));
 
         String regexp_over_max_expand_json = "{ \"intervals\" : { \""
@@ -958,7 +962,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + "\"regexp\" : { \"pattern\" : \"te.m\", \"flags\": \"NONE\", \"max_expansions\" : 500 } } } }";
 
         builder = (IntervalQueryBuilder) parseQuery(regexp_max_expand_with_flags_json);
-        expected = new IntervalQuery(TEXT_FIELD_NAME, buildRegexpSource("te.m", RegexpFlag.NONE.value(), 0, 500));
+        expected = new IntervalQuery(TEXT_FIELD_NAME, buildRegexpSource("te.m", RegexpFlag.NONE.value(), 500));
         assertEquals(expected, builder.toQuery(createShardContext()));
     }
 

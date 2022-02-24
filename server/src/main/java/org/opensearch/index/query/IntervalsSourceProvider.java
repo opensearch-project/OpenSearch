@@ -690,6 +690,12 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         private final Integer maxExpansions;
         private final boolean caseInsensitive;
 
+        /**
+         * Constructor
+         *
+         * {@code flags} is Lucene's <a href="https://github.com/apache/lucene/blob/main/lucene/core/src/java/org/apache/lucene/util/automaton/RegExp.java#L391-L411">syntax flags</a>
+         * and {@code caseInsensitive} enables Lucene's only <a href="https://github.com/apache/lucene/blob/main/lucene/core/src/java/org/apache/lucene/util/automaton/RegExp.java#L416">matching flag</a>.
+         */
         public Regexp(String pattern, int flags, String useField, Integer maxExpansions, boolean caseInsensitive) {
             this.pattern = pattern;
             this.flags = flags;
