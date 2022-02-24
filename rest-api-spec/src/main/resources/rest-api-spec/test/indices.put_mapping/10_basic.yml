@@ -64,11 +64,39 @@
 
 ---
 "Put mappings with explicit _doc type":
+  - skip:
+          version:     " - 1.99.99"
+          reason:      "deprecation message changed in 2.0"
   - do:
       indices.create:
         index: test_index
 
   - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test_index
+        body:
+          _doc:
+            properties:
+              field:
+                type: keyword
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "Types cannot be provided in put mapping requests" }
+
+---
+"Put mappings with explicit _doc type bwc":
+  - skip:
+          version:     "2.0.0 - "
+          reason:      "old deprecation message for pre 2.0"
+          features:    "node_selector"
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      node_selector:
+        version: " - 1.99.99"
       catch: bad_request
       indices.put_mapping:
         index: test_index
