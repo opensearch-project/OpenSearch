@@ -58,9 +58,6 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 import static org.opensearch.rest.RestStatus.OK;
 
 public class RestValidateQueryAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestValidateQueryAction.class);
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" + " Specifying types in validate query requests is deprecated.";
-
     @Override
     public List<Route> routes() {
         return unmodifiableList(
@@ -68,9 +65,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
                 new Route(GET, "/_validate/query"),
                 new Route(POST, "/_validate/query"),
                 new Route(GET, "/{index}/_validate/query"),
-                new Route(POST, "/{index}/_validate/query"),
-                new Route(GET, "/{index}/{type}/_validate/query"),
-                new Route(POST, "/{index}/{type}/_validate/query")
+                new Route(POST, "/{index}/_validate/query")
             )
         );
     }
@@ -85,11 +80,6 @@ public class RestValidateQueryAction extends BaseRestHandler {
         ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest(Strings.splitStringByCommaToArray(request.param("index")));
         validateQueryRequest.indicesOptions(IndicesOptions.fromRequest(request, validateQueryRequest.indicesOptions()));
         validateQueryRequest.explain(request.paramAsBoolean("explain", false));
-
-        if (request.hasParam("type")) {
-            deprecationLogger.deprecate("validate_query_with_types", TYPES_DEPRECATION_MESSAGE);
-            validateQueryRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
-        }
 
         validateQueryRequest.rewrite(request.paramAsBoolean("rewrite", false));
         validateQueryRequest.allShards(request.paramAsBoolean("all_shards", false));
