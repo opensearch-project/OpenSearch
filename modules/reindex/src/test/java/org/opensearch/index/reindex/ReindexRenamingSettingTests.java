@@ -39,6 +39,9 @@ public class ReindexRenamingSettingTests extends OpenSearchTestCase {
         );
     }
 
+    /**
+     * Validate the default value of the both settings is the same.
+     */
     public void testSettingFallback() {
         assertEquals(
             TransportReindexAction.REMOTE_CLUSTER_ALLOWLIST.get(Settings.EMPTY),
@@ -46,15 +49,38 @@ public class ReindexRenamingSettingTests extends OpenSearchTestCase {
         );
     }
 
+    /**
+     * Validate the new setting can be configured correctly and it doesn't impact the old setting.
+     */
     public void testSettingGetValue() {
         Settings settings = Settings.builder().put("reindex.remote.allowlist", "127.0.0.1:*").build();
         assertEquals(TransportReindexAction.REMOTE_CLUSTER_ALLOWLIST.get(settings), Arrays.asList("127.0.0.1:*"));
-        assertEquals(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.get(settings), Arrays.asList());
+        assertEquals(
+            TransportReindexAction.REMOTE_CLUSTER_WHITELIST.get(settings),
+            TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getDefault(Settings.EMPTY)
+        );
     }
 
+    /**
+     * Validate the value of the old setting will be applied to the new setting, if the new setting is not configured.
+     */
     public void testSettingGetValueWithFallback() {
         Settings settings = Settings.builder().put("reindex.remote.whitelist", "127.0.0.1:*").build();
         assertEquals(TransportReindexAction.REMOTE_CLUSTER_ALLOWLIST.get(settings), Arrays.asList("127.0.0.1:*"));
         assertSettingDeprecationsAndWarnings(new Setting<?>[] { TransportReindexAction.REMOTE_CLUSTER_WHITELIST });
     }
+
+    /**
+     * Validate the value of the old setting will be ignored, if the new setting is configured.
+     */
+    public void testSettingGetValueWhenBothAreConfigured() {
+        Settings settings = Settings.builder()
+            .put("reindex.remote.allowlist", "127.0.0.1:*")
+            .put("reindex.remote.whitelist", "[::1]:*, 127.0.0.1:*")
+            .build();
+        assertEquals(TransportReindexAction.REMOTE_CLUSTER_ALLOWLIST.get(settings), Arrays.asList("127.0.0.1:*"));
+        assertEquals(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.get(settings), Arrays.asList("[::1]:*", "127.0.0.1:*"));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { TransportReindexAction.REMOTE_CLUSTER_WHITELIST });
+    }
+
 }
