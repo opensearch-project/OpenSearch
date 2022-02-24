@@ -806,23 +806,23 @@ public class IngestDocumentTests extends OpenSearchTestCase {
 
     public void testRemoveField() {
         ingestDocument.removeField("foo");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(7));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("foo"), equalTo(false));
         ingestDocument.removeField("_index");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(7));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(6));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("_index"), equalTo(false));
         ingestDocument.removeField("_source.fizz");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(6));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(5));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("fizz"), equalTo(false));
         assertThat(ingestDocument.getIngestMetadata().size(), equalTo(1));
         ingestDocument.removeField("_ingest.timestamp");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(6));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(5));
         assertThat(ingestDocument.getIngestMetadata().size(), equalTo(0));
     }
 
     public void testRemoveInnerField() {
         ingestDocument.removeField("fizz.buzz");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(9));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
         assertThat(ingestDocument.getSourceAndMetadata().get("fizz"), instanceOf(Map.class));
         @SuppressWarnings("unchecked")
         Map<String, Object> map = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("fizz");
@@ -831,17 +831,17 @@ public class IngestDocumentTests extends OpenSearchTestCase {
 
         ingestDocument.removeField("fizz.foo_null");
         assertThat(map.size(), equalTo(2));
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(9));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
 
         ingestDocument.removeField("fizz.1");
         assertThat(map.size(), equalTo(1));
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(9));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
 
         ingestDocument.removeField("fizz.list");
         assertThat(map.size(), equalTo(0));
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(9));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
     }
 
@@ -877,7 +877,7 @@ public class IngestDocumentTests extends OpenSearchTestCase {
 
     public void testRemoveIngestObject() {
         ingestDocument.removeField("_ingest");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(7));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("_ingest"), equalTo(false));
     }
 
@@ -899,7 +899,7 @@ public class IngestDocumentTests extends OpenSearchTestCase {
 
     public void testListRemoveField() {
         ingestDocument.removeField("list.0.field");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(9));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("list"), equalTo(true));
         Object object = ingestDocument.getSourceAndMetadata().get("list");
         assertThat(object, instanceOf(List.class));

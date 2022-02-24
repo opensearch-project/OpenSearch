@@ -653,7 +653,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             );
             assertEquals(RestStatus.NOT_FOUND, exception.status());
             assertEquals(
-                "OpenSearch exception [type=document_missing_exception, reason=[_doc][does_not_exist]: document missing]",
+                "OpenSearch exception [type=document_missing_exception, reason=[does_not_exist]: document missing]",
                 exception.getMessage()
             );
         }

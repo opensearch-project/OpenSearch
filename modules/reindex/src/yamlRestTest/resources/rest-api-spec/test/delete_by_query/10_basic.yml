@@ -203,7 +203,6 @@
   - do:
       index:
         index:   test
-        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
@@ -212,7 +211,6 @@
   - do:
       index:
         index:   test
-        type:    _doc
         id:      1
         body:    { "text": "test2" }
 
