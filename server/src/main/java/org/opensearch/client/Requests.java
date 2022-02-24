@@ -98,6 +98,7 @@ public class Requests {
 
     /**
      * Create an index request against a specific index.
+     * Note that setting {@link IndexRequest#id(String)} is optional.
      *
      * @param index The index name to index the request against
      * @return The index request
@@ -109,6 +110,7 @@ public class Requests {
 
     /**
      * Creates a delete request against a specific index.
+     * Note that  {@link DeleteRequest#id(String)} must be set.
      *
      * @param index The index name to delete from
      * @return The delete request

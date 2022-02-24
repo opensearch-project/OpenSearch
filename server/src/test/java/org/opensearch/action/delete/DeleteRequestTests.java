@@ -49,7 +49,6 @@ public class DeleteRequestTests extends OpenSearchTestCase {
         }
 
         {
-            // Empty types are accepted but fail validation
             final DeleteRequest request = new DeleteRequest("index4", null);
             final ActionRequestValidationException validate = request.validate();
 
