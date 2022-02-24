@@ -21,7 +21,7 @@ import java.util.List;
  * after it is deprecated, so that the backwards compatibility is maintained.
  * The test can be removed along with removing support of the deprecated setting.
  */
-public class ReindexRenamingSettingTests extends OpenSearchTestCase {
+public class ReindexRenamedSettingTests extends OpenSearchTestCase {
     ReindexPlugin plugin;
 
     @Before
