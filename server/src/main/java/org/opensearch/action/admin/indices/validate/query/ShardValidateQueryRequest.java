@@ -34,7 +34,6 @@ package org.opensearch.action.admin.indices.validate.query;
 
 import org.opensearch.Version;
 import org.opensearch.action.support.broadcast.BroadcastShardRequest;
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.index.query.QueryBuilder;
