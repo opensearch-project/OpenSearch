@@ -312,13 +312,8 @@ public class SyncedFlushService implements IndexEventListener {
                 } else {
                     final String sharedSyncId = sharedExistingSyncId(presyncResponses);
                     if (sharedSyncId != null) {
-                        assert presyncResponses.values()
-                            .stream()
-                            .allMatch(r -> r.existingSyncId.equals(sharedSyncId)) : "Not all shards have the same existing sync id ["
-                                + sharedSyncId
-                                + "], responses ["
-                                + presyncResponses
-                                + "]";
+                        assert presyncResponses.values().stream().allMatch(r -> r.existingSyncId.equals(sharedSyncId))
+                            : "Not all shards have the same existing sync id [" + sharedSyncId + "], responses [" + presyncResponses + "]";
                         reportSuccessWithExistingSyncId(shardId, sharedSyncId, activeShards, totalShards, presyncResponses, actionListener);
                     } else {
                         String syncId = UUIDs.randomBase64UUID();

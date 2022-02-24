@@ -424,17 +424,12 @@ public class ZenDiscoveryUnitTests extends OpenSearchTestCase {
 
     private Set<DiscoveryNode> fdNodesForState(ClusterState clusterState, DiscoveryNode localNode) {
         final Set<DiscoveryNode> discoveryNodes = new HashSet<>();
-        clusterState.getNodes()
-            .getNodes()
-            .valuesIt()
-            .forEachRemaining(
-                discoveryNode -> {
-                    // the local node isn't part of the nodes that are pinged (don't ping ourselves)
-                    if (discoveryNode.getId().equals(localNode.getId()) == false) {
-                        discoveryNodes.add(discoveryNode);
-                    }
-                }
-            );
+        clusterState.getNodes().getNodes().valuesIt().forEachRemaining(discoveryNode -> {
+            // the local node isn't part of the nodes that are pinged (don't ping ourselves)
+            if (discoveryNode.getId().equals(localNode.getId()) == false) {
+                discoveryNodes.add(discoveryNode);
+            }
+        });
         return discoveryNodes;
     }
 

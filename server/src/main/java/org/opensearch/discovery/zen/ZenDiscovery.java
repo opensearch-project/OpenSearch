@@ -748,8 +748,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         }
 
         assert newClusterState.nodes().getMasterNode() != null : "received a cluster state without a master";
-        assert !newClusterState.blocks()
-            .hasGlobalBlock(noMasterBlockService.getNoMasterBlock()) : "received a cluster state with a master block";
+        assert !newClusterState.blocks().hasGlobalBlock(noMasterBlockService.getNoMasterBlock())
+            : "received a cluster state with a master block";
 
         if (currentState.nodes().isLocalNodeElectedMaster() && newClusterState.nodes().isLocalNodeElectedMaster() == false) {
             handleAnotherMaster(
@@ -985,9 +985,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 return null;
             }
         } else {
-            assert !activeMasters.contains(
-                localNode
-            ) : "local node should never be elected as master when other nodes indicate an active master";
+            assert !activeMasters.contains(localNode)
+                : "local node should never be elected as master when other nodes indicate an active master";
             // lets tie break between discovered nodes
             return electMaster.tieBreakActiveMasters(activeMasters);
         }
@@ -1033,10 +1032,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
         if (clusterState.nodes().getMasterNodeId() != null) {
             // remove block if it already exists before adding new one
-            assert clusterState.blocks()
-                .hasGlobalBlockWithId(
-                    noMasterBlockService.getNoMasterBlock().id()
-                ) == false : "NO_MASTER_BLOCK should only be added by ZenDiscovery";
+            assert clusterState.blocks().hasGlobalBlockWithId(noMasterBlockService.getNoMasterBlock().id()) == false
+                : "NO_MASTER_BLOCK should only be added by ZenDiscovery";
             ClusterBlocks clusterBlocks = ClusterBlocks.builder()
                 .blocks(clusterState.blocks())
                 .addGlobalBlock(noMasterBlockService.getNoMasterBlock())
