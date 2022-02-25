@@ -1198,7 +1198,6 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
 
     public void testValidateQuery() throws Exception {
         String[] indices = OpenSearchTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
-        String[] types = OpenSearchTestCase.randomBoolean() ? OpenSearchTestCase.generateRandomStringArray(5, 5, false, false) : null;
         ValidateQueryRequest validateQueryRequest;
         if (OpenSearchTestCase.randomBoolean()) {
             validateQueryRequest = new ValidateQueryRequest(indices);
@@ -1206,7 +1205,6 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
             validateQueryRequest = new ValidateQueryRequest();
             validateQueryRequest.indices(indices);
         }
-        validateQueryRequest.types(types);
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomIndicesOptions(
             validateQueryRequest::indicesOptions,
@@ -1223,9 +1221,6 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         if (indices != null && indices.length > 0) {
             endpoint.add(String.join(",", indices));
-            if (types != null && types.length > 0) {
-                endpoint.add(String.join(",", types));
-            }
         }
         endpoint.add("_validate/query");
         Assert.assertThat(request.getEndpoint(), equalTo(endpoint.toString()));
