@@ -233,12 +233,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                     indexShard.prepareForIndexRecovery();
                     final long startingSeqNo = indexShard.recoverLocallyUpToGlobalCheckpoint();
-                    assert startingSeqNo == UNASSIGNED_SEQ_NO
-                        || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG : "unexpected recovery stage ["
-                            + recoveryTarget.state().getStage()
-                            + "] starting seqno [ "
-                            + startingSeqNo
-                            + "]";
+                    assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG
+                        : "unexpected recovery stage [" + recoveryTarget.state().getStage() + "] starting seqno [ " + startingSeqNo + "]";
                     startRequest = getStartRecoveryRequest(logger, clusterService.localNode(), recoveryTarget, startingSeqNo);
                     requestToSend = startRequest;
                     actionName = PeerRecoverySourceService.Actions.START_RECOVERY;
@@ -469,18 +465,15 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 request.maxSeqNoOfUpdatesOrDeletesOnPrimary(),
                 request.retentionLeases(),
                 request.mappingVersionOnPrimary(),
-                ActionListener.wrap(
-                    checkpoint -> listener.onResponse(null),
-                    e -> {
-                        // do not retry if the mapping on replica is at least as recent as the mapping
-                        // that the primary used to index the operations in the request.
-                        if (mappingVersionOnTarget < request.mappingVersionOnPrimary() && e instanceof MapperException) {
-                            retryOnMappingException.accept(e);
-                        } else {
-                            listener.onFailure(e);
-                        }
+                ActionListener.wrap(checkpoint -> listener.onResponse(null), e -> {
+                    // do not retry if the mapping on replica is at least as recent as the mapping
+                    // that the primary used to index the operations in the request.
+                    if (mappingVersionOnTarget < request.mappingVersionOnPrimary() && e instanceof MapperException) {
+                        retryOnMappingException.accept(e);
+                    } else {
+                        listener.onFailure(e);
                     }
-                )
+                })
             );
         }
     }

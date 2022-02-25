@@ -481,8 +481,8 @@ public class InternalEngine extends Engine {
 
             }
             syncTranslog(); // to persist noops associated with the advancement of the local checkpoint
-            assert localCheckpointTracker
-                .getPersistedCheckpoint() == maxSeqNo : "persisted local checkpoint did not advance to max seq no; is ["
+            assert localCheckpointTracker.getPersistedCheckpoint() == maxSeqNo
+                : "persisted local checkpoint did not advance to max seq no; is ["
                     + localCheckpointTracker.getPersistedCheckpoint()
                     + "], max seq no ["
                     + maxSeqNo
@@ -863,8 +863,8 @@ public class InternalEngine extends Engine {
                 } else if (op.seqNo() > docAndSeqNo.seqNo) {
                     status = OpVsLuceneDocStatus.OP_NEWER;
                 } else if (op.seqNo() == docAndSeqNo.seqNo) {
-                    assert localCheckpointTracker.hasProcessed(op.seqNo())
-                        || softDeleteEnabled == false : "local checkpoint tracker is not updated seq_no=" + op.seqNo() + " id=" + op.id();
+                    assert localCheckpointTracker.hasProcessed(op.seqNo()) || softDeleteEnabled == false
+                        : "local checkpoint tracker is not updated seq_no=" + op.seqNo() + " id=" + op.id();
                     status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
                 } else {
                     status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
@@ -1353,10 +1353,10 @@ public class InternalEngine extends Engine {
             int reservedDocs,
             IndexResult earlyResultOnPreFlightError
         ) {
-            assert useLuceneUpdateDocument == false
-                || indexIntoLucene : "use lucene update is set to true, but we're not indexing into lucene";
-            assert (indexIntoLucene
-                && earlyResultOnPreFlightError != null) == false : "can only index into lucene or have a preflight result but not both."
+            assert useLuceneUpdateDocument == false || indexIntoLucene
+                : "use lucene update is set to true, but we're not indexing into lucene";
+            assert (indexIntoLucene && earlyResultOnPreFlightError != null) == false
+                : "can only index into lucene or have a preflight result but not both."
                     + "indexIntoLucene: "
                     + indexIntoLucene
                     + "  earlyResultOnPreFlightError:"
@@ -1718,8 +1718,8 @@ public class InternalEngine extends Engine {
             int reservedDocs,
             DeleteResult earlyResultOnPreflightError
         ) {
-            assert (deleteFromLucene
-                && earlyResultOnPreflightError != null) == false : "can only delete from lucene or have a preflight result but not both."
+            assert (deleteFromLucene && earlyResultOnPreflightError != null) == false
+                : "can only delete from lucene or have a preflight result but not both."
                     + "deleteFromLucene: "
                     + deleteFromLucene
                     + "  earlyResultOnPreFlightError:"
@@ -1827,9 +1827,8 @@ public class InternalEngine extends Engine {
                         tombstone.version().setLongValue(1L);
                         assert tombstone.docs().size() == 1 : "Tombstone should have a single doc [" + tombstone + "]";
                         final ParseContext.Document doc = tombstone.docs().get(0);
-                        assert doc.getField(
-                            SeqNoFieldMapper.TOMBSTONE_NAME
-                        ) != null : "Noop tombstone document but _tombstone field is not set [" + doc + " ]";
+                        assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null
+                            : "Noop tombstone document but _tombstone field is not set [" + doc + " ]";
                         doc.add(softDeletesField);
                         indexWriter.addDocument(doc);
                     } catch (final Exception ex) {
@@ -2457,9 +2456,8 @@ public class InternalEngine extends Engine {
     @Override
     protected final void closeNoLock(String reason, CountDownLatch closedLatch) {
         if (isClosed.compareAndSet(false, true)) {
-            assert rwl.isWriteLockedByCurrentThread()
-                || failEngineLock
-                    .isHeldByCurrentThread() : "Either the write lock must be held or the engine must be currently be failing itself";
+            assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread()
+                : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
                 this.versionMap.clear();
                 if (internalReaderManager != null) {
