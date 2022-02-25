@@ -40,6 +40,7 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
@@ -544,7 +545,9 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
         if (type.equals("text")) {
             textMappings += ",fielddata=true";
         }
-        assertAcked(prepareCreate(INDEX_NAME).addMapping(TEXT_FIELD, textMappings, CLASS_FIELD, "type=keyword"));
+        assertAcked(
+            prepareCreate(INDEX_NAME).addMapping(MapperService.SINGLE_MAPPING_NAME, TEXT_FIELD, textMappings, CLASS_FIELD, "type=keyword")
+        );
         String[] gb = { "0", "1" };
         List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
         for (int i = 0; i < randomInt(20); i++) {
