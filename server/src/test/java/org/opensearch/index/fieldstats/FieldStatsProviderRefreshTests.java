@@ -128,7 +128,7 @@ public class FieldStatsProviderRefreshTests extends OpenSearchSingleNodeTestCase
     }
 
     private void indexDocument(String id, String sValue) {
-        IndexResponse response = client().prepareIndex("index", "type", id).setSource("s", sValue).get();
+        IndexResponse response = client().prepareIndex("index").setId(id).setSource("s", sValue).get();
         assertThat(response.status(), anyOf(equalTo(RestStatus.OK), equalTo(RestStatus.CREATED)));
     }
 }

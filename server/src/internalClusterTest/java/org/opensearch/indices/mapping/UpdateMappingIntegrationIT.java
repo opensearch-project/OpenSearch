@@ -112,7 +112,8 @@ public class UpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
             String type = "type";
             String fieldName = "field_" + type + "_" + rec;
             indexRequests.add(
-                client().prepareIndex("test", type, Integer.toString(rec))
+                client().prepareIndex("test")
+                    .setId(Integer.toString(rec))
                     .setTimeout(TimeValue.timeValueMinutes(5))
                     .setSource(fieldName, "some_value")
             );

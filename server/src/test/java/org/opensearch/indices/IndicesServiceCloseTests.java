@@ -179,7 +179,7 @@ public class IndicesServiceCloseTests extends OpenSearchTestCase {
                 .prepareCreate("test")
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
         );
-        node.client().prepareIndex("test", "_doc", "1").setSource(Collections.emptyMap()).get();
+        node.client().prepareIndex("test").setId("1").setSource(Collections.emptyMap()).get();
         OpenSearchAssertions.assertAllSuccessful(node.client().admin().indices().prepareRefresh("test").get());
 
         assertEquals(2, indicesService.indicesRefCount.refCount());
@@ -213,7 +213,7 @@ public class IndicesServiceCloseTests extends OpenSearchTestCase {
                         .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true)
                 )
         );
-        node.client().prepareIndex("test", "_doc", "1").setSource(Collections.singletonMap("foo", 3L)).get();
+        node.client().prepareIndex("test").setId("1").setSource(Collections.singletonMap("foo", 3L)).get();
         OpenSearchAssertions.assertAllSuccessful(node.client().admin().indices().prepareRefresh("test").get());
 
         assertEquals(2, indicesService.indicesRefCount.refCount());
@@ -256,7 +256,7 @@ public class IndicesServiceCloseTests extends OpenSearchTestCase {
                         .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true)
                 )
         );
-        node.client().prepareIndex("test", "_doc", "1").setSource(Collections.singletonMap("foo", 3L)).get();
+        node.client().prepareIndex("test").setId("1").setSource(Collections.singletonMap("foo", 3L)).get();
         OpenSearchAssertions.assertAllSuccessful(node.client().admin().indices().prepareRefresh("test").get());
 
         assertEquals(2, indicesService.indicesRefCount.refCount());
@@ -298,7 +298,7 @@ public class IndicesServiceCloseTests extends OpenSearchTestCase {
                         .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true)
                 )
         );
-        node.client().prepareIndex("test", "_doc", "1").setSource(Collections.singletonMap("foo", 3L)).get();
+        node.client().prepareIndex("test").setId("1").setSource(Collections.singletonMap("foo", 3L)).get();
         OpenSearchAssertions.assertAllSuccessful(node.client().admin().indices().prepareRefresh("test").get());
 
         assertEquals(2, indicesService.indicesRefCount.refCount());

@@ -150,7 +150,8 @@ public class SplitIndexIT extends OpenSearchIntegTestCase {
 
         BiFunction<String, Integer, IndexRequestBuilder> indexFunc = (index, id) -> {
             try {
-                return client().prepareIndex(index, "t1", Integer.toString(id))
+                return client().prepareIndex(index)
+                    .setId(Integer.toString(id))
                     .setSource(
                         jsonBuilder().startObject()
                             .field("foo", "bar")
@@ -523,7 +524,8 @@ public class SplitIndexIT extends OpenSearchIntegTestCase {
                 .put("number_of_replicas", 0)
         ).addMapping("type", "id", "type=keyword,doc_values=true").get();
         for (int i = 0; i < 20; i++) {
-            client().prepareIndex("source", "type", Integer.toString(i))
+            client().prepareIndex("source")
+                .setId(Integer.toString(i))
                 .setSource("{\"foo\" : \"bar\", \"id\" : " + i + "}", XContentType.JSON)
                 .get();
         }

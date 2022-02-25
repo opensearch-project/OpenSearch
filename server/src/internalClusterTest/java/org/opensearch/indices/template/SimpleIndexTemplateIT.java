@@ -182,10 +182,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
         assertThat(response.getIndexTemplates(), hasSize(2));
 
         // index something into test_index, will match on both templates
-        client().prepareIndex("test_index", "type1", "1")
-            .setSource("field1", "value1", "field2", "value 2")
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        client().prepareIndex("test_index").setId("1").setSource("field1", "value1", "field2", "value 2").setRefreshPolicy(IMMEDIATE).get();
 
         ensureGreen();
         SearchResponse searchResponse = client().prepareSearch("test_index")
@@ -200,10 +197,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
         // field2 is not stored.
         assertThat(searchResponse.getHits().getAt(0).field("field2"), nullValue());
 
-        client().prepareIndex("text_index", "type1", "1")
-            .setSource("field1", "value1", "field2", "value 2")
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        client().prepareIndex("text_index").setId("1").setSource("field1", "value1", "field2", "value 2").setRefreshPolicy(IMMEDIATE).get();
 
         ensureGreen();
         // now only match on one template (template_1)
@@ -570,11 +564,11 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test_index"));
         ensureGreen();
 
-        client().prepareIndex("test_index", "_doc", "1").setSource("type", "type1", "field", "A value").get();
-        client().prepareIndex("test_index", "_doc", "2").setSource("type", "type2", "field", "B value").get();
-        client().prepareIndex("test_index", "_doc", "3").setSource("type", "typeX", "field", "C value").get();
-        client().prepareIndex("test_index", "_doc", "4").setSource("type", "typeY", "field", "D value").get();
-        client().prepareIndex("test_index", "_doc", "5").setSource("type", "typeZ", "field", "E value").get();
+        client().prepareIndex("test_index").setId("1").setSource("type", "type1", "field", "A value").get();
+        client().prepareIndex("test_index").setId("2").setSource("type", "type2", "field", "B value").get();
+        client().prepareIndex("test_index").setId("3").setSource("type", "typeX", "field", "C value").get();
+        client().prepareIndex("test_index").setId("4").setSource("type", "typeY", "field", "D value").get();
+        client().prepareIndex("test_index").setId("5").setSource("type", "typeZ", "field", "E value").get();
 
         GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().setIndices("test_index").get();
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
@@ -637,8 +631,8 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get("test_index").size(), equalTo(1));
 
-        client().prepareIndex("test_index", "_doc", "1").setSource("field", "value1").get();
-        client().prepareIndex("test_index", "_doc", "2").setSource("field", "value2").get();
+        client().prepareIndex("test_index").setId("1").setSource("field", "value1").get();
+        client().prepareIndex("test_index").setId("2").setSource("field", "value2").get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test_index").get();
@@ -676,8 +670,8 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get("test_index").size(), equalTo(3));
 
-        client().prepareIndex("test_index", "_doc", "1").setSource("field", "value1").get();
-        client().prepareIndex("test_index", "_doc", "2").setSource("field", "value2").get();
+        client().prepareIndex("test_index").setId("1").setSource("field", "value1").get();
+        client().prepareIndex("test_index").setId("2").setSource("field", "value2").get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test_index").get();
@@ -838,7 +832,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             .addAlias(new Alias("alias4").filter(termQuery("field", "value")))
             .get();
 
-        client().prepareIndex("a1", "test", "test").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("a1").setId("test").setSource("{}", XContentType.JSON).get();
         BulkResponse response = client().prepareBulk().add(new IndexRequest("a2").id("test").source("{}", XContentType.JSON)).get();
         assertThat(response.hasFailures(), is(false));
         assertThat(response.getItems()[0].isFailed(), equalTo(false));
@@ -854,7 +848,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
         // So the aliases defined in the index template for this index will not fail
         // even though the fields in the alias fields don't exist yet and indexing into
         // an index that doesn't exist yet will succeed
-        client().prepareIndex("b1", "test", "test").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("b1").setId("test").setSource("{}", XContentType.JSON).get();
 
         response = client().prepareBulk().add(new IndexRequest("b2").id("test").source("{}", XContentType.JSON)).get();
         assertThat(response.hasFailures(), is(false));
@@ -972,9 +966,9 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             )
             .get();
 
-        client().prepareIndex("ax", "type1", "1").setSource("field1", "value1", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("ax").setId("1").setSource("field1", "value1", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
 
-        client().prepareIndex("bx", "type1", "1").setSource("field1", "value1", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("bx").setId("1").setSource("field1", "value1", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
 
         ensureGreen();
 

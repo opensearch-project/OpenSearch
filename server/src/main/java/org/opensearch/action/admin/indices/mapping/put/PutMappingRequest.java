@@ -263,9 +263,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
-            if (type != null) {
-                builder.startObject(type);
-            }
 
             for (int i = 0; i < source.length; i++) {
                 String fieldName = source[i++].toString();
@@ -302,9 +299,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
                 builder.endObject();
             }
             builder.endObject();
-            if (type != null) {
-                builder.endObject();
-            }
             builder.endObject();
             return builder;
         } catch (Exception e) {

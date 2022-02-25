@@ -335,7 +335,7 @@ public class ClusterRerouteIT extends OpenSearchIntegTestCase {
         );
 
         if (closed == false) {
-            client().prepareIndex("test", "type", "1").setSource("field", "value").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+            client().prepareIndex("test").setId("1").setSource("field", "value").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         }
         final Index index = resolveIndex("test");
 

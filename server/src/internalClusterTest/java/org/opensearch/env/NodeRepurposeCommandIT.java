@@ -65,7 +65,7 @@ public class NodeRepurposeCommandIT extends OpenSearchIntegTestCase {
         prepareCreate(indexName, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)).get();
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex(indexName, "type1", "1").setSource("field1", "value1").get();
+        client().prepareIndex(indexName).setId("1").setSource("field1", "value1").get();
 
         ensureGreen();
 

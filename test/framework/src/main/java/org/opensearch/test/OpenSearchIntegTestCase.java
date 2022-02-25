@@ -1331,6 +1331,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      *   client().prepareIndex(index, type).setSource(source).execute().actionGet();
      * </pre>
      */
+    @Deprecated
     protected final IndexResponse index(String index, String type, XContentBuilder source) {
         return client().prepareIndex(index).setSource(source).execute().actionGet();
     }
@@ -1342,7 +1343,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * </pre>
      */
     protected final IndexResponse index(String index, String type, String id, Map<String, Object> source) {
-        return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+        return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
     /**
@@ -1351,8 +1352,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      *   return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
      * </pre>
      */
+    @Deprecated
     protected final IndexResponse index(String index, String type, String id, XContentBuilder source) {
-        return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+        return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
     /**
@@ -1361,8 +1363,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      *   return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
      * </pre>
      */
+    @Deprecated
     protected final IndexResponse index(String index, String type, String id, Object... source) {
-        return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+        return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
     /**
@@ -1373,8 +1376,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * <p>
      * where source is a JSON String.
      */
+    @Deprecated
     protected final IndexResponse index(String index, String type, String id, String source) {
-        return client().prepareIndex(index, type, id).setSource(source, XContentType.JSON).execute().actionGet();
+        return client().prepareIndex(index).setId(id).setSource(source, XContentType.JSON).execute().actionGet();
     }
 
     /**

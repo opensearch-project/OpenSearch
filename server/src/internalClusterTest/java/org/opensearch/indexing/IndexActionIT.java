@@ -128,15 +128,15 @@ public class IndexActionIT extends OpenSearchIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").execute().actionGet();
+        IndexResponse indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1").execute().actionGet();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
-        indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_2").execute().actionGet();
+        indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_2").execute().actionGet();
         assertEquals(DocWriteResponse.Result.UPDATED, indexResponse.getResult());
 
         client().prepareDelete("test", "1").execute().actionGet();
 
-        indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_2").execute().actionGet();
+        indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_2").execute().actionGet();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
     }
@@ -145,14 +145,14 @@ public class IndexActionIT extends OpenSearchIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").execute().actionGet();
+        IndexResponse indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1").execute().actionGet();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
         client().prepareDelete("test", "1").execute().actionGet();
 
         flush();
 
-        indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_2").execute().actionGet();
+        indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_2").execute().actionGet();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
     }
 
@@ -194,7 +194,8 @@ public class IndexActionIT extends OpenSearchIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        IndexResponse indexResponse = client().prepareIndex("test", "type", "1")
+        IndexResponse indexResponse = client().prepareIndex("test")
+            .setId("1")
             .setSource("field1", "value1_1")
             .setVersion(123)
             .setVersionType(VersionType.EXTERNAL)
@@ -208,7 +209,7 @@ public class IndexActionIT extends OpenSearchIntegTestCase {
         ensureGreen();
 
         BulkResponse bulkResponse = client().prepareBulk()
-            .add(client().prepareIndex("test", "type", "1").setSource("field1", "value1_1"))
+            .add(client().prepareIndex("test").setId("1").setSource("field1", "value1_1"))
             .execute()
             .actionGet();
         assertThat(bulkResponse.hasFailures(), equalTo(false));
@@ -289,7 +290,7 @@ public class IndexActionIT extends OpenSearchIntegTestCase {
     public void testDocumentWithBlankFieldName() {
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> { client().prepareIndex("test", "type", "1").setSource("", "value1_2").execute().actionGet(); }
+            () -> { client().prepareIndex("test").setId("1").setSource("", "value1_2").execute().actionGet(); }
         );
         assertThat(e.getMessage(), containsString("failed to parse"));
         assertThat(e.getRootCause().getMessage(), containsString("field name cannot be an empty string"));

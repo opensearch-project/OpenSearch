@@ -173,7 +173,8 @@ public class SimpleSortIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
             builders.add(
-                client().prepareIndex("test", "type1", Integer.toString(i))
+                client().prepareIndex("test")
+                    .setId(Integer.toString(i))
                     .setSource(
                         jsonBuilder().startObject()
                             .field("str_value", new String(new char[] { (char) (97 + i), (char) (97 + i) }))
@@ -265,7 +266,8 @@ public class SimpleSortIT extends OpenSearchIntegTestCase {
         ensureGreen();
 
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "type1", "" + i)
+            client().prepareIndex("test")
+                .setId("" + i)
                 .setSource(
                     jsonBuilder().startObject()
                         .field("ord", i)
@@ -282,7 +284,7 @@ public class SimpleSortIT extends OpenSearchIntegTestCase {
         }
 
         for (int i = 10; i < 20; i++) { // add some docs that don't have values in those fields
-            client().prepareIndex("test", "type1", "" + i).setSource(jsonBuilder().startObject().field("ord", i).endObject()).get();
+            client().prepareIndex("test").setId("" + i).setSource(jsonBuilder().startObject().field("ord", i).endObject()).get();
         }
         client().admin().indices().prepareRefresh("test").get();
 
@@ -464,7 +466,8 @@ public class SimpleSortIT extends OpenSearchIntegTestCase {
         );
         ensureGreen();
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "test", Integer.toString(i))
+            client().prepareIndex("test")
+                .setId(Integer.toString(i))
                 .setSource(jsonBuilder().startObject().field("value", "" + i).endObject())
                 .get();
         }

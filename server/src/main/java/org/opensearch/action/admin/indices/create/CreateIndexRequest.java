@@ -229,7 +229,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * @param type   The mapping type
      * @param source The mapping source
      * @param xContentType The content type of the source
+     * @deprecated types are being removed
      */
+    @Deprecated
     public CreateIndexRequest mapping(String type, String source, XContentType xContentType) {
         return mapping(type, new BytesArray(source), xContentType);
     }
@@ -240,7 +242,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * @param type   The mapping type
      * @param source The mapping source
      * @param xContentType the content type of the mapping source
+     * @deprecated types are being removed
      */
+    @Deprecated
     private CreateIndexRequest mapping(String type, BytesReference source, XContentType xContentType) {
         Objects.requireNonNull(xContentType);
         Map<String, Object> mappingAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
@@ -260,7 +264,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      *
      * @param type   The mapping type
      * @param source The mapping source
+     * @deprecated types are being removed
      */
+    @Deprecated
     public CreateIndexRequest mapping(String type, XContentBuilder source) {
         return mapping(type, BytesReference.bytes(source), source.contentType());
     }
@@ -270,7 +276,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      *
      * @param type   The mapping type
      * @param source The mapping source
+     * @deprecated types are being removed
      */
+    @Deprecated
     public CreateIndexRequest mapping(String type, Map<String, ?> source) {
         if (mappings.containsKey(type)) {
             throw new IllegalStateException("mappings for type \"" + type + "\" were already defined");
@@ -292,7 +300,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     /**
      * A specialized simplified mapping source method, takes the form of simple properties definition:
      * ("field1", "type=string,store=true").
+     * @deprecated types are being removed
      */
+    @Deprecated
     public CreateIndexRequest mapping(String type, Object... source) {
         mapping(type, PutMappingRequest.buildFromSimplifiedDef(type, source));
         return this;

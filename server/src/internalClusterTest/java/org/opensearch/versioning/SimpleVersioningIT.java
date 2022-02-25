@@ -81,7 +81,8 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
 
         // this should conflict with the delete command transaction which told us that the object was deleted at version 17.
         assertFutureThrows(
-            client().prepareIndex("test", "type", "1")
+            client().prepareIndex("test")
+                .setId("1")
                 .setSource("field1", "value1_1")
                 .setVersion(13)
                 .setVersionType(VersionType.EXTERNAL)
@@ -89,7 +90,8 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
             VersionConflictEngineException.class
         );
 
-        IndexResponse indexResponse = client().prepareIndex("test", "type", "1")
+        IndexResponse indexResponse = client().prepareIndex("test")
+            .setId("1")
             .setSource("field1", "value1_1")
             .setVersion(18)
             .setVersionType(VersionType.EXTERNAL)
@@ -101,21 +103,24 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
     public void testExternalGTE() throws Exception {
         createIndex("test");
 
-        IndexResponse indexResponse = client().prepareIndex("test", "type", "1")
+        IndexResponse indexResponse = client().prepareIndex("test")
+            .setId("1")
             .setSource("field1", "value1_1")
             .setVersion(12)
             .setVersionType(VersionType.EXTERNAL_GTE)
             .get();
         assertThat(indexResponse.getVersion(), equalTo(12L));
 
-        indexResponse = client().prepareIndex("test", "type", "1")
+        indexResponse = client().prepareIndex("test")
+            .setId("1")
             .setSource("field1", "value1_2")
             .setVersion(12)
             .setVersionType(VersionType.EXTERNAL_GTE)
             .get();
         assertThat(indexResponse.getVersion(), equalTo(12L));
 
-        indexResponse = client().prepareIndex("test", "type", "1")
+        indexResponse = client().prepareIndex("test")
+            .setId("1")
             .setSource("field1", "value1_2")
             .setVersion(14)
             .setVersionType(VersionType.EXTERNAL_GTE)
@@ -123,7 +128,8 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
         assertThat(indexResponse.getVersion(), equalTo(14L));
 
         assertRequestBuilderThrows(
-            client().prepareIndex("test", "type", "1")
+            client().prepareIndex("test")
+                .setId("1")
                 .setSource("field1", "value1_1")
                 .setVersion(13)
                 .setVersionType(VersionType.EXTERNAL_GTE),
@@ -170,7 +176,8 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        IndexResponse indexResponse = client().prepareIndex("test", "type", "1")
+        IndexResponse indexResponse = client().prepareIndex("test")
+            .setId("1")
             .setSource("field1", "value1_1")
             .setVersion(12)
             .setVersionType(VersionType.EXTERNAL)
@@ -178,7 +185,8 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
             .actionGet();
         assertThat(indexResponse.getVersion(), equalTo(12L));
 
-        indexResponse = client().prepareIndex("test", "type", "1")
+        indexResponse = client().prepareIndex("test")
+            .setId("1")
             .setSource("field1", "value1_1")
             .setVersion(14)
             .setVersionType(VersionType.EXTERNAL)
@@ -187,7 +195,8 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
         assertThat(indexResponse.getVersion(), equalTo(14L));
 
         assertFutureThrows(
-            client().prepareIndex("test", "type", "1")
+            client().prepareIndex("test")
+                .setId("1")
                 .setSource("field1", "value1_1")
                 .setVersion(13)
                 .setVersionType(VersionType.EXTERNAL)
@@ -230,7 +239,8 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
 
         // TODO: This behavior breaks rest api returning http status 201
         // good news is that it this is only the case until deletes GC kicks in.
-        indexResponse = client().prepareIndex("test", "type", "1")
+        indexResponse = client().prepareIndex("test")
+            .setId("1")
             .setSource("field1", "value1_1")
             .setVersion(19)
             .setVersionType(VersionType.EXTERNAL)
@@ -250,7 +260,8 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
         Thread.sleep(300); // gc works based on estimated sampled time. Give it a chance...
 
         // And now we have previous version return -1
-        indexResponse = client().prepareIndex("test", "type", "1")
+        indexResponse = client().prepareIndex("test")
+            .setId("1")
             .setSource("field1", "value1_1")
             .setVersion(20)
             .setVersionType(VersionType.EXTERNAL)
@@ -287,7 +298,8 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
             VersionConflictEngineException.class
         );
 
-        IndexResponse indexResponse = client().prepareIndex("test", "type", "1")
+        IndexResponse indexResponse = client().prepareIndex("test")
+            .setId("1")
             .setSource("field1", "value1_1")
             .setCreate(true)
             .execute()
@@ -299,26 +311,26 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").execute().actionGet();
+        IndexResponse indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1").execute().actionGet();
         assertThat(indexResponse.getSeqNo(), equalTo(0L));
         assertThat(indexResponse.getPrimaryTerm(), equalTo(1L));
 
-        indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_2").setIfSeqNo(0L).setIfPrimaryTerm(1).get();
+        indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_2").setIfSeqNo(0L).setIfPrimaryTerm(1).get();
         assertThat(indexResponse.getSeqNo(), equalTo(1L));
         assertThat(indexResponse.getPrimaryTerm(), equalTo(1L));
 
         assertFutureThrows(
-            client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setIfSeqNo(10).setIfPrimaryTerm(1).execute(),
+            client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setIfSeqNo(10).setIfPrimaryTerm(1).execute(),
             VersionConflictEngineException.class
         );
 
         assertFutureThrows(
-            client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setIfSeqNo(10).setIfPrimaryTerm(2).execute(),
+            client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setIfSeqNo(10).setIfPrimaryTerm(2).execute(),
             VersionConflictEngineException.class
         );
 
         assertFutureThrows(
-            client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setIfSeqNo(1).setIfPrimaryTerm(2).execute(),
+            client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setIfSeqNo(1).setIfPrimaryTerm(2).execute(),
             VersionConflictEngineException.class
         );
 
@@ -384,21 +396,21 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").get();
+        IndexResponse indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1").get();
         assertThat(indexResponse.getSeqNo(), equalTo(0L));
 
         client().admin().indices().prepareFlush().execute().actionGet();
-        indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_2").setIfSeqNo(0).setIfPrimaryTerm(1).get();
+        indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_2").setIfSeqNo(0).setIfPrimaryTerm(1).get();
         assertThat(indexResponse.getSeqNo(), equalTo(1L));
 
         client().admin().indices().prepareFlush().execute().actionGet();
         assertRequestBuilderThrows(
-            client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setIfSeqNo(0).setIfPrimaryTerm(1),
+            client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setIfSeqNo(0).setIfPrimaryTerm(1),
             VersionConflictEngineException.class
         );
 
         assertRequestBuilderThrows(
-            client().prepareIndex("test", "type", "1").setCreate(true).setSource("field1", "value1_1"),
+            client().prepareIndex("test").setId("1").setCreate(true).setSource("field1", "value1_1"),
             VersionConflictEngineException.class
         );
 
@@ -431,7 +443,7 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
         ensureGreen();
 
         BulkResponse bulkResponse = client().prepareBulk()
-            .add(client().prepareIndex("test", "type", "1").setSource("field1", "value1_1"))
+            .add(client().prepareIndex("test").setId("1").setSource("field1", "value1_1"))
             .execute()
             .actionGet();
         assertThat(bulkResponse.hasFailures(), equalTo(false));
@@ -723,7 +735,8 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
                                 }
                             } else {
                                 try {
-                                    idVersion.response = client().prepareIndex("test", "type", id)
+                                    idVersion.response = client().prepareIndex("test")
+                                        .setId(id)
                                         .setSource("foo", "bar")
                                         .setVersion(version)
                                         .setVersionType(VersionType.EXTERNAL)
@@ -806,7 +819,8 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
         client().admin().indices().prepareUpdateSettings("test").setSettings(newSettings).execute().actionGet();
 
         // Index a doc:
-        client().prepareIndex("test", "type", "id")
+        client().prepareIndex("test")
+            .setId("id")
             .setSource("foo", "bar")
             .setOpType(DocWriteRequest.OpType.INDEX)
             .setVersion(10)
@@ -846,7 +860,8 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
         client().admin().indices().prepareUpdateSettings("test").setSettings(newSettings).execute().actionGet();
 
         // Index a doc:
-        client().prepareIndex("test", "type", "id")
+        client().prepareIndex("test")
+            .setId("id")
             .setSource("foo", "bar")
             .setOpType(DocWriteRequest.OpType.INDEX)
             .setVersion(10)
@@ -869,14 +884,16 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
     public void testSpecialVersioning() {
         internalCluster().ensureAtLeastNumDataNodes(2);
         createIndex("test", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build());
-        IndexResponse doc1 = client().prepareIndex("test", "type", "1")
+        IndexResponse doc1 = client().prepareIndex("test")
+            .setId("1")
             .setSource("field", "value1")
             .setVersion(0)
             .setVersionType(VersionType.EXTERNAL)
             .execute()
             .actionGet();
         assertThat(doc1.getVersion(), equalTo(0L));
-        IndexResponse doc2 = client().prepareIndex("test", "type", "1")
+        IndexResponse doc2 = client().prepareIndex("test")
+            .setId("1")
             .setSource("field", "value2")
             .setVersion(Versions.MATCH_ANY)
             .setVersionType(VersionType.INTERNAL)
@@ -884,14 +901,16 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
             .actionGet();
         assertThat(doc2.getVersion(), equalTo(1L));
         client().prepareDelete("test", "1").get(); // v2
-        IndexResponse doc3 = client().prepareIndex("test", "type", "1")
+        IndexResponse doc3 = client().prepareIndex("test")
+            .setId("1")
             .setSource("field", "value3")
             .setVersion(Versions.MATCH_DELETED)
             .setVersionType(VersionType.INTERNAL)
             .execute()
             .actionGet();
         assertThat(doc3.getVersion(), equalTo(3L));
-        IndexResponse doc4 = client().prepareIndex("test", "type", "1")
+        IndexResponse doc4 = client().prepareIndex("test")
+            .setId("1")
             .setSource("field", "value4")
             .setVersion(4L)
             .setVersionType(VersionType.EXTERNAL_GTE)

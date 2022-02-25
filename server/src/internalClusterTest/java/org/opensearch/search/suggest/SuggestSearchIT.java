@@ -804,9 +804,9 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
         ensureGreen();
         indexRandom(
             true,
-            client().prepareIndex("test", "type1", "1").setSource("field1", "foobar1").setRouting("1"),
-            client().prepareIndex("test", "type1", "2").setSource("field1", "foobar2").setRouting("2"),
-            client().prepareIndex("test", "type1", "3").setSource("field1", "foobar3").setRouting("3")
+            client().prepareIndex("test").setId("1").setSource("field1", "foobar1").setRouting("1"),
+            client().prepareIndex("test").setId("2").setSource("field1", "foobar2").setRouting("2"),
+            client().prepareIndex("test").setId("3").setSource("field1", "foobar3").setRouting("3")
         );
 
         Suggest suggest = searchSuggest(

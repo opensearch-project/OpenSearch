@@ -173,7 +173,7 @@ public class BackgroundIndexer implements AutoCloseable {
                                         bulkRequest.add(client.prepareIndex(index).setSource(generateSource(id, threadRandom)));
                                     } else {
                                         bulkRequest.add(
-                                            client.prepareIndex(index, type, Long.toString(id)).setSource(generateSource(id, threadRandom))
+                                            client.prepareIndex(index).setId(Long.toString(id)).setSource(generateSource(id, threadRandom))
                                         );
                                     }
                                 }
@@ -214,7 +214,8 @@ public class BackgroundIndexer implements AutoCloseable {
                                     }
                                 } else {
                                     try {
-                                        IndexResponse indexResponse = client.prepareIndex(index, type, Long.toString(id))
+                                        IndexResponse indexResponse = client.prepareIndex(index)
+                                            .setId(Long.toString(id))
                                             .setTimeout(timeout)
                                             .setSource(generateSource(id, threadRandom))
                                             .get();

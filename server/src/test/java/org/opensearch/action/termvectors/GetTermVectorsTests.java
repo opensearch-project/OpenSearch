@@ -188,7 +188,8 @@ public class GetTermVectorsTests extends OpenSearchSingleNodeTestCase {
             .build();
         createIndex("test", setting, "type1", mapping);
 
-        client().prepareIndex("test", "type1", Integer.toString(1))
+        client().prepareIndex("test")
+            .setId(Integer.toString(1))
             .setSource(jsonBuilder().startObject().field("field", queryString).endObject())
             .execute()
             .actionGet();

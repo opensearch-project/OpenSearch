@@ -53,7 +53,8 @@ public abstract class AbstractNumericTestCase extends OpenSearchIntegTestCase {
         final int numDocs = 10;
         for (int i = 0; i < numDocs; i++) { // TODO randomize the size and the params in here?
             builders.add(
-                client().prepareIndex("idx", "type", String.valueOf(i))
+                client().prepareIndex("idx")
+                    .setId(String.valueOf(i))
                     .setSource(
                         jsonBuilder().startObject()
                             .field("value", i + 1)
@@ -79,7 +80,8 @@ public abstract class AbstractNumericTestCase extends OpenSearchIntegTestCase {
         builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             builders.add(
-                client().prepareIndex("empty_bucket_idx", "type", String.valueOf(i))
+                client().prepareIndex("empty_bucket_idx")
+                    .setId(String.valueOf(i))
                     .setSource(jsonBuilder().startObject().field("value", i * 2).endObject())
             );
         }

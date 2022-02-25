@@ -93,7 +93,8 @@ public class SimpleRoutingIT extends OpenSearchIntegTestCase {
         ensureGreen();
         String routingValue = findNonMatchingRoutingValue("test", "1");
         logger.info("--> indexing with id [1], and routing [{}]", routingValue);
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setRouting(routingValue)
             .setSource("field", "value1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
@@ -122,7 +123,8 @@ public class SimpleRoutingIT extends OpenSearchIntegTestCase {
         }
 
         logger.info("--> indexing with id [1], and routing [0]");
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setRouting(routingValue)
             .setSource("field", "value1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
@@ -143,7 +145,8 @@ public class SimpleRoutingIT extends OpenSearchIntegTestCase {
         String routingValue = findNonMatchingRoutingValue("test", "1");
 
         logger.info("--> indexing with id [1], and routing [{}]", routingValue);
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setRouting(routingValue)
             .setSource("field", "value1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
@@ -217,7 +220,8 @@ public class SimpleRoutingIT extends OpenSearchIntegTestCase {
 
         String secondRoutingValue = "1";
         logger.info("--> indexing with id [{}], and routing [{}]", routingValue, secondRoutingValue);
-        client().prepareIndex("test", "type1", routingValue)
+        client().prepareIndex("test")
+            .setId(routingValue)
             .setRouting(secondRoutingValue)
             .setSource("field", "value1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
@@ -364,7 +368,8 @@ public class SimpleRoutingIT extends OpenSearchIntegTestCase {
         String routingValue = findNonMatchingRoutingValue("test", "1");
 
         logger.info("--> indexing with id [1], and routing [{}]", routingValue);
-        client().prepareIndex(indexOrAlias(), "type1", "1")
+        client().prepareIndex(indexOrAlias())
+            .setId("1")
             .setRouting(routingValue)
             .setSource("field", "value1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
@@ -373,7 +378,7 @@ public class SimpleRoutingIT extends OpenSearchIntegTestCase {
 
         logger.info("--> indexing with id [1], with no routing, should fail");
         try {
-            client().prepareIndex(indexOrAlias(), "type1", "1").setSource("field", "value1").get();
+            client().prepareIndex(indexOrAlias()).setId("1").setSource("field", "value1").get();
             fail("index with missing routing when routing is required should fail");
         } catch (OpenSearchException e) {
             assertThat(e.unwrapCause(), instanceOf(RoutingMissingException.class));
@@ -555,9 +560,10 @@ public class SimpleRoutingIT extends OpenSearchIntegTestCase {
         ensureGreen();
         String routingValue = findNonMatchingRoutingValue("test", "1");
         logger.info("--> indexing with id [1], and routing [{}]", routingValue);
-        client().prepareIndex(indexOrAlias(), "type1", "1").setRouting(routingValue).setSource("field", "value1").get();
+        client().prepareIndex(indexOrAlias()).setId("1").setRouting(routingValue).setSource("field", "value1").get();
         logger.info("--> indexing with id [2], and routing [{}]", routingValue);
-        client().prepareIndex(indexOrAlias(), "type1", "2")
+        client().prepareIndex(indexOrAlias())
+            .setId("2")
             .setRouting(routingValue)
             .setSource("field", "value2")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)

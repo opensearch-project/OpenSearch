@@ -96,8 +96,8 @@ public class GeoDistanceSortBuilderIT extends OpenSearchIntegTestCase {
         logger.info("d2: {}", d2Builder);
         indexRandom(
             true,
-            client().prepareIndex("index", "type", "d1").setSource(d1Builder),
-            client().prepareIndex("index", "type", "d2").setSource(d2Builder)
+            client().prepareIndex("index").setId("d1").setSource(d1Builder),
+            client().prepareIndex("index").setId("d2").setSource(d2Builder)
         );
         GeoPoint[] q = new GeoPoint[2];
         if (randomBoolean()) {
@@ -187,8 +187,8 @@ public class GeoDistanceSortBuilderIT extends OpenSearchIntegTestCase {
         logger.info("d2: {}", d2Builder);
         indexRandom(
             true,
-            client().prepareIndex("index", "type", "d1").setSource(d1Builder),
-            client().prepareIndex("index", "type", "d2").setSource(d2Builder)
+            client().prepareIndex("index").setId("d1").setSource(d1Builder),
+            client().prepareIndex("index").setId("d2").setSource(d2Builder)
         );
         GeoPoint q = new GeoPoint(0, 0);
 
@@ -259,8 +259,8 @@ public class GeoDistanceSortBuilderIT extends OpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex("index", "type", "d1").setSource(d1Builder),
-            client().prepareIndex("index", "type", "d2").setSource(d2Builder)
+            client().prepareIndex("index").setId("d1").setSource(d1Builder),
+            client().prepareIndex("index").setId("d2").setSource(d2Builder)
         );
 
         List<GeoPoint> qPoints = Arrays.asList(new GeoPoint(2, 1), new GeoPoint(2, 2), new GeoPoint(2, 3), new GeoPoint(2, 4));
@@ -309,9 +309,11 @@ public class GeoDistanceSortBuilderIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("index").addMapping("type", LOCATION_FIELD, "type=geo_point"));
         indexRandom(
             true,
-            client().prepareIndex("index", "type", "d1")
+            client().prepareIndex("index")
+                .setId("d1")
                 .setSource(jsonBuilder().startObject().startObject(LOCATION_FIELD).field("lat", 1).field("lon", 1).endObject().endObject()),
-            client().prepareIndex("index", "type", "d2")
+            client().prepareIndex("index")
+                .setId("d2")
                 .setSource(jsonBuilder().startObject().startObject(LOCATION_FIELD).field("lat", 1).field("lon", 2).endObject().endObject())
         );
 

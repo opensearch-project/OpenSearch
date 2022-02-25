@@ -272,7 +272,7 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
         assertNull(meta.index("test"));
 
         test = createIndex("test");
-        client().prepareIndex("test", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         client().admin().indices().prepareFlush("test").get();
         assertHitCount(client().prepareSearch("test").get(), 1);
         IndexMetadata secondMetadata = clusterService.state().metadata().index("test");
