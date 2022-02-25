@@ -63,7 +63,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-
 /**
  * Orchestrates a replication event for a replica shard.
  */
@@ -96,7 +95,12 @@ public class ReplicationTarget extends AbstractRefCounted {
      * @param source     source of the recovery where we recover from
      * @param listener   called when recovery is completed/failed
      */
-    public ReplicationTarget(ReplicationCheckpoint checkpoint, IndexShard indexShard, PrimaryShardReplicationSource source, SegmentReplicationReplicaService.ReplicationListener listener) {
+    public ReplicationTarget(
+        ReplicationCheckpoint checkpoint,
+        IndexShard indexShard,
+        PrimaryShardReplicationSource source,
+        SegmentReplicationReplicaService.ReplicationListener listener
+    ) {
         super("replication_status");
         this.checkpoint = checkpoint;
         this.indexShard = indexShard;
@@ -107,13 +111,7 @@ public class ReplicationTarget extends AbstractRefCounted {
         this.store = indexShard.store();
         final String tempFilePrefix = REPLICATION_PREFIX + UUIDs.randomBase64UUID() + ".";
         state = new ReplicationState(new RecoveryState.Index());
-        this.multiFileWriter = new MultiFileWriter(
-            indexShard.store(),
-            state.getIndex(),
-            tempFilePrefix,
-            logger,
-            this::ensureRefCount
-        );
+        this.multiFileWriter = new MultiFileWriter(indexShard.store(), state.getIndex(), tempFilePrefix, logger, this::ensureRefCount);
         ;
         // make sure the store is not released until we are done.
         store.incRef();
@@ -128,10 +126,12 @@ public class ReplicationTarget extends AbstractRefCounted {
         source.getCheckpointInfo(replicationId, checkpoint, checkpointInfoListener);
 
         checkpointInfoListener.whenComplete(checkpointInfo -> getFiles(checkpointInfo, getFilesListener), listener::onFailure);
-        getFilesListener.whenComplete(response -> finalizeReplication(checkpointInfoListener.result(), finalizeListener), listener::onFailure);
+        getFilesListener.whenComplete(
+            response -> finalizeReplication(checkpointInfoListener.result(), finalizeListener),
+            listener::onFailure
+        );
         finalizeListener.whenComplete(r -> listener.onResponse(new ReplicationResponse()), listener::onFailure);
     }
-
 
     public Store store() {
         ensureRefCount();
@@ -209,7 +209,8 @@ public class ReplicationTarget extends AbstractRefCounted {
         return state;
     }
 
-    private void getFiles(TransportCheckpointInfoResponse checkpointInfo, StepListener<GetFilesResponse> getFilesListener) throws IOException {
+    private void getFiles(TransportCheckpointInfoResponse checkpointInfo, StepListener<GetFilesResponse> getFilesListener)
+        throws IOException {
         final Store.MetadataSnapshot snapshot = checkpointInfo.getSnapshot();
         Store.MetadataSnapshot localMetadata = getMetadataSnapshot();
         final Store.RecoveryDiff diff = snapshot.recoveryDiff(localMetadata);
@@ -300,7 +301,7 @@ public class ReplicationTarget extends AbstractRefCounted {
                 listener.onReplicationFailure(state(), e, sendShardFailure);
             } finally {
                 try {
-//                    cancellableThreads.cancel("failed recovery [" + ExceptionsHelper.stackTrace(e) + "]");
+                    // cancellableThreads.cancel("failed recovery [" + ExceptionsHelper.stackTrace(e) + "]");
                 } finally {
                     // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
                     decRef();
@@ -318,7 +319,7 @@ public class ReplicationTarget extends AbstractRefCounted {
         if (finished.compareAndSet(false, true)) {
             try {
                 logger.debug("recovery canceled (reason: [{}])", reason);
-//                cancellableThreads.cancel(reason);
+                // cancellableThreads.cancel(reason);
             } finally {
                 // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
                 decRef();

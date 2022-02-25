@@ -15,5 +15,7 @@ public class PublishCheckpointAction extends ActionType<RefreshResponse> {
     public static final PublishCheckpointAction INSTANCE = new PublishCheckpointAction();
     public static final String NAME = "indices:admin/publishCheckpoint";
 
-    private PublishCheckpointAction() {super(NAME, RefreshResponse::new);}
+    private PublishCheckpointAction() {
+        super(NAME, RefreshResponse::new);
+    }
 }

@@ -107,7 +107,8 @@ public class PrimaryShardReplicationHandler {
         GetFilesRequest request,
         int fileChunkSizeInBytes,
         int maxConcurrentFileChunks,
-        int maxConcurrentOperations) {
+        int maxConcurrentOperations
+    ) {
         this.replicationId = replicationId;
         this.shard = shard;
         this.targetNode = targetNode;
@@ -137,17 +138,17 @@ public class PrimaryShardReplicationHandler {
             };
 
             runUnderPrimaryPermit(() -> {
-                    final IndexShardRoutingTable routingTable = shard.getReplicationGroup().getRoutingTable();
-                    ShardRouting targetShardRouting = routingTable.getByAllocationId(request.getTargetAllocationId());
-                    if (targetShardRouting == null) {
-                        logger.debug(
-                            "delaying replication of {} as it is not listed as assigned to target node {}",
-                            shard.shardId(),
-                            request.getTargetNode()
-                        );
-                        throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
-                    }
-                },
+                final IndexShardRoutingTable routingTable = shard.getReplicationGroup().getRoutingTable();
+                ShardRouting targetShardRouting = routingTable.getByAllocationId(request.getTargetAllocationId());
+                if (targetShardRouting == null) {
+                    logger.debug(
+                        "delaying replication of {} as it is not listed as assigned to target node {}",
+                        shard.shardId(),
+                        request.getTargetNode()
+                    );
+                    throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
+                }
+            },
                 shardId + " validating recovery target [" + request.getTargetAllocationId() + "] registered ",
                 shard,
                 cancellableThreads,
@@ -159,7 +160,8 @@ public class PrimaryShardReplicationHandler {
                 // TODO: Segrep - Need validation here.
                 final Store.MetadataSnapshot metadataSnapshot = copyState.getMetadataSnapshot();
                 final Map<String, StoreFileMetadata> metadataMap = metadataSnapshot.asMap();
-                final StoreFileMetadata[] storeFileMetadata = request.getFilesToFetch().stream()
+                final StoreFileMetadata[] storeFileMetadata = request.getFilesToFetch()
+                    .stream()
                     .filter(file -> metadataMap.containsKey(file.name()))
                     .toArray(StoreFileMetadata[]::new);
                 sendFiles(shard.store(), storeFileMetadata, sendFileStep);
@@ -246,12 +248,7 @@ public class PrimaryShardReplicationHandler {
 
     @Override
     public String toString() {
-        return "SegmentReplicationSourceHandler{"
-            + "shardId="
-            + shard.shardId()
-            + ", targetNode="
-            + request.getTargetNode()
-            + '}';
+        return "SegmentReplicationSourceHandler{" + "shardId=" + shard.shardId() + ", targetNode=" + request.getTargetNode() + '}';
     }
 
     private static class FileChunk implements MultiChunkTransfer.ChunkRequest, Releasable {
@@ -353,7 +350,7 @@ public class PrimaryShardReplicationHandler {
 
             @Override
             protected void handleError(StoreFileMetadata md, Exception e) throws Exception {
-                handleErrorOnSendFiles(store, e, new StoreFileMetadata[]{md});
+                handleErrorOnSendFiles(store, e, new StoreFileMetadata[] { md });
             }
 
             @Override

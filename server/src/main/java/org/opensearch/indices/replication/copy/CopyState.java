@@ -30,11 +30,15 @@ public class CopyState extends AbstractRefCounted {
         super("replication-nrt-state");
         this.segmentInfosRef = shard.getLatestSegmentInfosSafe();
         final SegmentInfos segmentInfos = segmentInfosRef.getSegmentInfos();
-        this.checkpoint = new ReplicationCheckpoint(shard.shardId(), shard.getOperationPrimaryTerm(), segmentInfos.getGeneration(), shard.getProcessedLocalCheckpoint());
+        this.checkpoint = new ReplicationCheckpoint(
+            shard.shardId(),
+            shard.getOperationPrimaryTerm(),
+            segmentInfos.getGeneration(),
+            shard.getProcessedLocalCheckpoint()
+        );
         this.metadataSnapshot = shard.store().getMetadata(segmentInfos);
         ByteBuffersDataOutput buffer = new ByteBuffersDataOutput();
-        try (ByteBuffersIndexOutput tmpIndexOutput =
-                 new ByteBuffersIndexOutput(buffer, "temporary", "temporary")) {
+        try (ByteBuffersIndexOutput tmpIndexOutput = new ByteBuffersIndexOutput(buffer, "temporary", "temporary")) {
             segmentInfos.write(tmpIndexOutput);
         }
         this.infosBytes = buffer.toArrayCopy();
@@ -52,7 +56,7 @@ public class CopyState extends AbstractRefCounted {
         return infosBytes;
     }
 
-        @Override
+    @Override
     protected void closeInternal() {
         try {
             segmentInfosRef.close();
@@ -63,11 +67,15 @@ public class CopyState extends AbstractRefCounted {
 
     @Override
     public String toString() {
-        return "CopyState{" +
-            "SegmentInfosRef=" + segmentInfosRef +
-            ", checkpoint=" + checkpoint +
-            ", metadataSnapshot=" + metadataSnapshot +
-            ", refcount=" + refCount() +
-            '}';
+        return "CopyState{"
+            + "SegmentInfosRef="
+            + segmentInfosRef
+            + ", checkpoint="
+            + checkpoint
+            + ", metadataSnapshot="
+            + metadataSnapshot
+            + ", refcount="
+            + refCount()
+            + '}';
     }
 }

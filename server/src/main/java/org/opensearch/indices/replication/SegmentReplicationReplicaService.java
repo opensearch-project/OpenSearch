@@ -70,9 +70,11 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
 
     private final ReplicationCollection onGoingReplications;
 
-    public SegmentReplicationReplicaService(final ThreadPool threadPool,
-                                            final RecoverySettings recoverySettings,
-                                            final TransportService transportService) {
+    public SegmentReplicationReplicaService(
+        final ThreadPool threadPool,
+        final RecoverySettings recoverySettings,
+        final TransportService transportService
+    ) {
         this.threadPool = threadPool;
         this.recoverySettings = recoverySettings;
         this.transportService = transportService;
@@ -86,20 +88,25 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
         }
     }
 
-    public void prepareForReplication(IndexShard indexShard, DiscoveryNode targetNode, DiscoveryNode sourceNode, ActionListener<TrackShardResponse> listener) {
+    public void prepareForReplication(
+        IndexShard indexShard,
+        DiscoveryNode targetNode,
+        DiscoveryNode sourceNode,
+        ActionListener<TrackShardResponse> listener
+    ) {
         setupReplicaShard(indexShard);
         final TimeValue initialDelay = TimeValue.timeValueMillis(200);
         final TimeValue timeout = recoverySettings.internalActionRetryTimeout();
         final RetryableAction retryableAction = new RetryableAction(logger, threadPool, initialDelay, timeout, listener) {
             @Override
             public void tryAction(ActionListener listener) {
-                transportService.sendRequest(sourceNode,
+                transportService.sendRequest(
+                    sourceNode,
                     SegmentReplicationPrimaryService.Actions.TRACK_SHARD,
                     new TrackShardRequest(indexShard.shardId(), indexShard.routingEntry().allocationId().getId(), targetNode),
-                    TransportRequestOptions.builder()
-                        .withTimeout(recoverySettings.internalActionTimeout())
-                        .build(),
-                    new ActionListenerResponseHandler<>(listener, TrackShardResponse::new));
+                    TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
+                    new ActionListenerResponseHandler<>(listener, TrackShardResponse::new)
+                );
             }
 
             @Override
@@ -118,7 +125,8 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
             return cause instanceof ConnectTransportException;
         } else if (e instanceof RemoteTransportException) {
             final Throwable cause = ExceptionsHelper.unwrapCause(e);
-            return cause instanceof CircuitBreakingException || cause instanceof OpenSearchRejectedExecutionException
+            return cause instanceof CircuitBreakingException
+                || cause instanceof OpenSearchRejectedExecutionException
                 || cause instanceof DelayRecoveryException;
         }
         return false;
@@ -131,8 +139,11 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
         try {
             store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion);
             final String translogUUID = Translog.createEmptyTranslog(
-                indexShard.shardPath().resolveTranslog(), SequenceNumbers.NO_OPS_PERFORMED, indexShard.shardId(),
-                indexShard.getPendingPrimaryTerm());
+                indexShard.shardPath().resolveTranslog(),
+                SequenceNumbers.NO_OPS_PERFORMED,
+                indexShard.shardId(),
+                indexShard.getPendingPrimaryTerm()
+            );
             store.associateIndexWithNewTranslog(translogUUID);
             indexShard.persistRetentionLeases();
             indexShard.openEngineAndRecoverFromTranslog();
@@ -143,8 +154,19 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
         }
     }
 
-    public void startReplication(final ReplicationCheckpoint checkpoint, final IndexShard indexShard, PrimaryShardReplicationSource source, final ReplicationListener listener) {
-        final long replicationId = onGoingReplications.startReplication(checkpoint, indexShard, source, listener, recoverySettings.activityTimeout());
+    public void startReplication(
+        final ReplicationCheckpoint checkpoint,
+        final IndexShard indexShard,
+        PrimaryShardReplicationSource source,
+        final ReplicationListener listener
+    ) {
+        final long replicationId = onGoingReplications.startReplication(
+            checkpoint,
+            indexShard,
+            source,
+            listener,
+            recoverySettings.activityTimeout()
+        );
         logger.trace("Starting replication {}", replicationId);
         threadPool.generic().execute(new ReplicationRunner(replicationId));
     }
@@ -189,7 +211,10 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
         public void onFailure(Exception e) {
             try (ReplicationCollection.ReplicationRef replicationRef = onGoingReplications.getReplication(replicationId)) {
                 if (replicationRef != null) {
-                    logger.error(() -> new ParameterizedMessage("unexpected error during replication [{}], failing shard", replicationId), e);
+                    logger.error(
+                        () -> new ParameterizedMessage("unexpected error during replication [{}], failing shard", replicationId),
+                        e
+                    );
                     onGoingReplications.failReplication(
                         replicationId,
                         new ReplicationFailedException(replicationRef.target().getIndexShard(), "unexpected error", e),
@@ -197,7 +222,10 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
                     );
                 } else {
                     logger.debug(
-                        () -> new ParameterizedMessage("unexpected error during replication, but replication id [{}] is finished", replicationId),
+                        () -> new ParameterizedMessage(
+                            "unexpected error during replication, but replication id [{}] is finished",
+                            replicationId
+                        ),
                         e
                     );
                 }
@@ -224,7 +252,7 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
 
         @Override
         public void onResponse(ReplicationResponse replicationResponse) {
-//            final TimeValue replicationTime = new TimeValue(timer.time());
+            // final TimeValue replicationTime = new TimeValue(timer.time());
             logger.trace("Replication complete {}", replicationId);
             onGoingReplications.markReplicationAsDone(replicationId);
         }
@@ -262,4 +290,3 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
         void onReplicationFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure);
     }
 }
-

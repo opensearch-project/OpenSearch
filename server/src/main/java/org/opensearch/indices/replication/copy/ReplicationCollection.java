@@ -195,7 +195,7 @@ public class ReplicationCollection {
         boolean cancelled = false;
         List<ReplicationTarget> matchedRecoveries = new ArrayList<>();
         synchronized (onGoingReplications) {
-            for (Iterator<ReplicationTarget> it = onGoingReplications.values().iterator(); it.hasNext(); ) {
+            for (Iterator<ReplicationTarget> it = onGoingReplications.values().iterator(); it.hasNext();) {
                 ReplicationTarget status = it.next();
                 if (status.getIndexShard().shardId().equals(shardId)) {
                     matchedRecoveries.add(status);

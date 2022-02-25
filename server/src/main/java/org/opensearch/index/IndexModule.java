@@ -523,7 +523,8 @@ public final class IndexModule {
                 expressionResolver,
                 valuesSourceRegistry,
                 recoveryStateFactory,
-                checkpointPublisher);
+                checkpointPublisher
+            );
             success = true;
             return indexService;
         } finally {

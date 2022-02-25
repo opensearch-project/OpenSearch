@@ -50,7 +50,8 @@ public class TransportPublishShardCheckpointAction extends TransportReplicationA
         ShardStateAction shardStateAction,
         ActionFilters actionFilters,
         SegmentReplicationReplicaService segmentCopyService,
-        PrimaryShardReplicationSource source) {
+        PrimaryShardReplicationSource source
+    ) {
         super(
             settings,
             ACTION_NAME,
@@ -74,12 +75,20 @@ public class TransportPublishShardCheckpointAction extends TransportReplicationA
     }
 
     @Override
-    protected void shardOperationOnPrimary(ShardPublishCheckpointRequest shardRequest, IndexShard primary, ActionListener<PrimaryResult<ShardPublishCheckpointRequest, ReplicationResponse>> listener) {
+    protected void shardOperationOnPrimary(
+        ShardPublishCheckpointRequest shardRequest,
+        IndexShard primary,
+        ActionListener<PrimaryResult<ShardPublishCheckpointRequest, ReplicationResponse>> listener
+    ) {
         ActionListener.completeWith(listener, () -> new PrimaryResult<>(shardRequest, new ReplicationResponse()));
     }
 
     @Override
-    protected void shardOperationOnReplica(ShardPublishCheckpointRequest shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
+    protected void shardOperationOnReplica(
+        ShardPublishCheckpointRequest shardRequest,
+        IndexShard replica,
+        ActionListener<ReplicaResult> listener
+    ) {
         ActionListener.completeWith(listener, () -> {
             PublishCheckpointRequest request = shardRequest.getRequest();
             logger.trace("Checkpoint received on replica {}", request);
@@ -87,7 +96,7 @@ public class TransportPublishShardCheckpointAction extends TransportReplicationA
                 replica.onNewCheckpoint(request, source, replicationService);
             }
             // TODO: Segrep - These requests are getting routed to all shards across all indices.
-            //  We should only publish to replicas of the updated index.
+            // We should only publish to replicas of the updated index.
             return new ReplicaResult();
         });
     }

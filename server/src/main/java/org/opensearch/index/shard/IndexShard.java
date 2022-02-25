@@ -328,7 +328,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Runnable globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final CircuitBreakerService circuitBreakerService,
-        final TransportCheckpointPublisher checkpointPublisher) throws IOException {
+        final TransportCheckpointPublisher checkpointPublisher
+    ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
         this.shardRouting = shardRouting;
@@ -1526,7 +1527,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public ReplicationCheckpoint getLatestReplicationCheckpoint() {
-        return new ReplicationCheckpoint(this.shardId, getOperationPrimaryTerm(), getLatestSegmentInfos().getGeneration(), getProcessedLocalCheckpoint());
+        return new ReplicationCheckpoint(
+            this.shardId,
+            getOperationPrimaryTerm(),
+            getLatestSegmentInfos().getGeneration(),
+            getProcessedLocalCheckpoint()
+        );
     }
 
     public void updateCurrentInfos(long gen, byte[] infosBytes, long seqNo) throws IOException {
@@ -2038,7 +2044,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void openEngineAndSkipTranslogRecovery() throws IOException {
         assert routingEntry().recoverySource().getType() == RecoverySource.Type.PEER : "not a peer recovery [" + routingEntry() + "]";
         // TODO: Segrep - fix initial recovery stages from ReplicationTarget.
-//        recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
+        // recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
         loadGlobalCheckpointToReplicationTracker();
         innerOpenEngineAndTranslog(replicationTracker);
         getEngine().skipTranslogRecovery();
@@ -2075,7 +2081,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // which settings changes could possibly have happened, so here we forcefully push any config changes to the new engine.
         onSettingsChanged();
         // TODO: Segrep - Fix
-//        assert assertSequenceNumbersInCommit();
+        // assert assertSequenceNumbersInCommit();
         recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
     }
 
@@ -2731,7 +2737,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert assertPrimaryMode();
         verifyNotClosed();
         // TODO: Segrep - Fix retention leases
-//        replicationTracker.renewPeerRecoveryRetentionLeases();
+        // replicationTracker.renewPeerRecoveryRetentionLeases();
         final Tuple<Boolean, RetentionLeases> retentionLeases = getRetentionLeases(true);
         if (retentionLeases.v1()) {
             logger.trace("syncing retention leases [{}] after expiration check", retentionLeases.v2());
@@ -3093,19 +3099,29 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 try {
                     markAsRecovering("from " + recoveryState.getSourceNode(), recoveryState);
                     IndexShard indexShard = this;
-                    segmentReplicationReplicaService.prepareForReplication(this, recoveryState.getTargetNode(), recoveryState.getSourceNode(), new ActionListener<TrackShardResponse>() {
-                        @Override
-                        public void onResponse(TrackShardResponse unused) {
-                            replicationListener.onReplicationDone(replicationState);
-                            recoveryState.getIndex().setFileDetailsComplete();
-                            finalizeRecovery();
-                            postRecovery("Shard setup complete.");
+                    segmentReplicationReplicaService.prepareForReplication(
+                        this,
+                        recoveryState.getTargetNode(),
+                        recoveryState.getSourceNode(),
+                        new ActionListener<TrackShardResponse>() {
+                            @Override
+                            public void onResponse(TrackShardResponse unused) {
+                                replicationListener.onReplicationDone(replicationState);
+                                recoveryState.getIndex().setFileDetailsComplete();
+                                finalizeRecovery();
+                                postRecovery("Shard setup complete.");
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                replicationListener.onReplicationFailure(
+                                    replicationState,
+                                    new ReplicationFailedException(indexShard, e),
+                                    true
+                                );
+                            }
                         }
-                        @Override
-                        public void onFailure(Exception e) {
-                            replicationListener.onReplicationFailure(replicationState, new ReplicationFailedException(indexShard, e), true);
-                        }
-                    });
+                    );
                 } catch (Exception e) {
                     logger.error("Error preparing the shard for Segment replication", e);
                     failShard("corrupted preexisting index", e);
@@ -3719,9 +3735,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Invoked when a new checkpoint is received from a primary shard.  Starts the copy process.
      */
-    public synchronized void onNewCheckpoint(final PublishCheckpointRequest request,
-                                final PrimaryShardReplicationSource source,
-                                final SegmentReplicationReplicaService segmentReplicationReplicaService) {
+    public synchronized void onNewCheckpoint(
+        final PublishCheckpointRequest request,
+        final PrimaryShardReplicationSource source,
+        final SegmentReplicationReplicaService segmentReplicationReplicaService
+    ) {
         logger.debug("Checkpoint received {}", request.getCheckpoint());
         ReplicationCheckpoint localCheckpoint = getLatestReplicationCheckpoint();
         logger.debug("Local Checkpoint {}", getLatestReplicationCheckpoint());
@@ -3742,19 +3760,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final ReplicationCheckpoint checkpoint = request.getCheckpoint();
             logger.trace("Received new checkpoint {}", checkpoint);
             // TODO: segrep - these are the states set after we perform our initial store recovery.
-            segmentReplicationReplicaService.startReplication(checkpoint, this, source, new SegmentReplicationReplicaService.ReplicationListener() {
-                @Override
-                public void onReplicationDone(ReplicationState state) {
-                    markReplicationComplete();
-                    logger.debug("Replication complete to {}", getLatestReplicationCheckpoint());
-                }
+            segmentReplicationReplicaService.startReplication(
+                checkpoint,
+                this,
+                source,
+                new SegmentReplicationReplicaService.ReplicationListener() {
+                    @Override
+                    public void onReplicationDone(ReplicationState state) {
+                        markReplicationComplete();
+                        logger.debug("Replication complete to {}", getLatestReplicationCheckpoint());
+                    }
 
-                @Override
-                public void onReplicationFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
-                    markReplicationComplete();
-                    logger.error("Failure", e);
+                    @Override
+                    public void onReplicationFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
+                        markReplicationComplete();
+                        logger.error("Failure", e);
+                    }
                 }
-            });
+            );
         } catch (Exception e) {
             logger.error("Error", e);
         }

@@ -79,7 +79,8 @@ public final class ReplicationFileChunkRequest extends TransportRequest {
         long position,
         BytesReference content,
         boolean lastChunk,
-        long sourceThrottleTimeInNanos) {
+        long sourceThrottleTimeInNanos
+    ) {
         this.replicationId = replicationId;
         this.requestSeqNo = requestSeqNo;
         this.shardId = shardId;

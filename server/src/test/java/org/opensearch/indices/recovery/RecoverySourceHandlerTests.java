@@ -151,6 +151,10 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
     private ThreadPool threadPool;
     private Executor recoveryExecutor;
 
+    private Store.MetadataSnapshot getStoreMetadata(Store store) throws IOException {
+        return store.getMetadata((IndexCommit) null);
+    }
+
     @Before
     public void setUpThreadPool() {
         if (randomBoolean()) {
@@ -187,7 +191,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         writer.commit();
         writer.close();
 
-        Store.MetadataSnapshot metadata = store.getMetadata(null);
+        Store.MetadataSnapshot metadata = getStoreMetadata(store);
         List<StoreFileMetadata> metas = new ArrayList<>();
         for (StoreFileMetadata md : metadata) {
             metas.add(md);
@@ -222,7 +226,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         PlainActionFuture<Void> sendFilesFuture = new PlainActionFuture<>();
         handler.sendFiles(store, metas.toArray(new StoreFileMetadata[0]), () -> 0, sendFilesFuture);
         sendFilesFuture.actionGet();
-        Store.MetadataSnapshot targetStoreMetadata = targetStore.getMetadata(null);
+        Store.MetadataSnapshot targetStoreMetadata = getStoreMetadata(targetStore);
         Store.RecoveryDiff recoveryDiff = targetStoreMetadata.recoveryDiff(metadata);
         assertEquals(metas.size(), recoveryDiff.identical.size());
         assertEquals(0, recoveryDiff.different.size());
@@ -509,7 +513,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         writer.commit();
         writer.close();
 
-        Store.MetadataSnapshot metadata = store.getMetadata(null);
+        Store.MetadataSnapshot metadata = getStoreMetadata(store);
         List<StoreFileMetadata> metas = new ArrayList<>();
         for (StoreFileMetadata md : metadata) {
             metas.add(md);
@@ -590,7 +594,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         writer.commit();
         writer.close();
 
-        Store.MetadataSnapshot metadata = store.getMetadata(null);
+        Store.MetadataSnapshot metadata = getStoreMetadata(store);
         List<StoreFileMetadata> metas = new ArrayList<>();
         for (StoreFileMetadata md : metadata) {
             metas.add(md);

@@ -66,6 +66,8 @@ import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
+import org.opensearch.indices.replication.SegmentReplicationReplicaService;
+import org.opensearch.indices.replication.copy.PrimaryShardReplicationSource;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -555,6 +557,18 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             null,
             clusterService
         );
+        final SegmentReplicationReplicaService replicationReplicaService = new SegmentReplicationReplicaService(
+            threadPool,
+            null,
+            transportService
+        );
+        PrimaryShardReplicationSource replicationSource = new PrimaryShardReplicationSource(
+            transportService,
+            clusterService,
+            null,
+            null,
+            replicationReplicaService
+        );
         final ShardStateAction shardStateAction = mock(ShardStateAction.class);
         final PrimaryReplicaSyncer primaryReplicaSyncer = mock(PrimaryReplicaSyncer.class);
         return new IndicesClusterStateService(
@@ -562,6 +576,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             indicesService,
             clusterService,
             threadPool,
+            replicationReplicaService,
+            replicationSource,
             recoveryTargetService,
             shardStateAction,
             null,

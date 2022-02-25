@@ -21,11 +21,13 @@ public class GetFilesRequest extends SegmentReplicationTransportRequest {
     private final List<StoreFileMetadata> filesToFetch;
     private final ReplicationCheckpoint checkpoint;
 
-    public GetFilesRequest(long replicationId,
-                           String targetAllocationId,
-                           DiscoveryNode targetNode,
-                           List<StoreFileMetadata> filesToFetch,
-                           ReplicationCheckpoint checkpoint) {
+    public GetFilesRequest(
+        long replicationId,
+        String targetAllocationId,
+        DiscoveryNode targetNode,
+        List<StoreFileMetadata> filesToFetch,
+        ReplicationCheckpoint checkpoint
+    ) {
         super(replicationId, targetAllocationId, targetNode);
         this.filesToFetch = filesToFetch;
         this.checkpoint = checkpoint;
@@ -41,11 +43,9 @@ public class GetFilesRequest extends SegmentReplicationTransportRequest {
         return filesToFetch;
     }
 
-
     public ReplicationCheckpoint getCheckpoint() {
         return checkpoint;
     }
-
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {

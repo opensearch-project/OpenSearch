@@ -23,10 +23,12 @@ public class StartReplicationRequest extends SegmentReplicationTransportRequest 
         checkpoint = new ReplicationCheckpoint(in);
     }
 
-    public StartReplicationRequest(long replicationId,
-                                   String targetAllocationId,
-                                   DiscoveryNode targetNode,
-                                   ReplicationCheckpoint checkpoint) {
+    public StartReplicationRequest(
+        long replicationId,
+        String targetAllocationId,
+        DiscoveryNode targetNode,
+        ReplicationCheckpoint checkpoint
+    ) {
         super(replicationId, targetAllocationId, targetNode);
         this.checkpoint = checkpoint;
     }

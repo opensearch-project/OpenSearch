@@ -158,7 +158,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final GlobalCheckpointSyncAction globalCheckpointSyncAction,
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final SegmentReplicationReplicaService replicationReplicaService,
-        final PrimaryShardReplicationSource replicationSource) {
+        final PrimaryShardReplicationSource replicationSource
+    ) {
         this(
             settings,
             indicesService,
@@ -757,7 +758,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
         return sourceNode;
     }
-
 
     private class ReplicationListener implements SegmentReplicationReplicaService.ReplicationListener {
 

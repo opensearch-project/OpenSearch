@@ -32,6 +32,7 @@
 
 package org.opensearch.indices.recovery;
 
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.Version;
@@ -85,7 +86,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             indexDoc(sourceShard, "_doc", Integer.toString(i));
         }
         sourceShard.flush(new FlushRequest());
-        Store.MetadataSnapshot sourceSnapshot = sourceShard.store().getMetadata(null);
+        Store.MetadataSnapshot sourceSnapshot = sourceShard.store().getMetadata((IndexCommit) null);
         List<StoreFileMetadata> mdFiles = new ArrayList<>();
         for (StoreFileMetadata md : sourceSnapshot) {
             mdFiles.add(md);

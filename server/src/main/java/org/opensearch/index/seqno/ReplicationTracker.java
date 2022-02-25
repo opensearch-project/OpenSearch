@@ -904,8 +904,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         }
 
         if (primaryMode && indexSettings.isSoftDeleteEnabled() && hasAllPeerRecoveryRetentionLeases) {
-            // TODO: Segrep - This blows up during segrep because we don't have a retention lease for replicas on the primary - we can ignore for poc.
-//             all tracked shard copies have a corresponding peer-recovery retention lease
+            // TODO: Segrep - This blows up during segrep because we don't have a retention lease for replicas on the primary - we can
+            // ignore for poc.
+            // all tracked shard copies have a corresponding peer-recovery retention lease
             for (final ShardRouting shardRouting : routingTable.assignedShards()) {
                 if (checkpoints.get(shardRouting.allocationId().getId()).tracked) {
                     assert retentionLeases.contains(

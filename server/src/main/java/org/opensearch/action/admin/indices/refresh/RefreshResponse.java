@@ -65,7 +65,12 @@ public class RefreshResponse extends BroadcastResponse {
         super(in);
     }
 
-    public RefreshResponse(int totalShards, int successfulShards, int failedShards, List<DefaultShardOperationFailedException> shardFailures) {
+    public RefreshResponse(
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<DefaultShardOperationFailedException> shardFailures
+    ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
     }
 

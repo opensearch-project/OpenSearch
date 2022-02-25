@@ -171,7 +171,8 @@ public final class EngineConfig {
         Supplier<RetentionLeases> retentionLeasesSupplier,
         LongSupplier primaryTermSupplier,
         TombstoneDocSupplier tombstoneDocSupplier,
-        boolean isPrimary) {
+        boolean isPrimary
+    ) {
         this(
             shardId,
             threadPool,
@@ -194,7 +195,8 @@ public final class EngineConfig {
             circuitBreakerService,
             globalCheckpointSupplier,
             retentionLeasesSupplier,
-            isPrimary, primaryTermSupplier,
+            isPrimary,
+            primaryTermSupplier,
             tombstoneDocSupplier
         );
     }
@@ -224,7 +226,8 @@ public final class EngineConfig {
         CircuitBreakerService circuitBreakerService,
         LongSupplier globalCheckpointSupplier,
         Supplier<RetentionLeases> retentionLeasesSupplier,
-        boolean isPrimary, LongSupplier primaryTermSupplier,
+        boolean isPrimary,
+        LongSupplier primaryTermSupplier,
         TombstoneDocSupplier tombstoneDocSupplier
     ) {
         this.shardId = shardId;
