@@ -143,7 +143,7 @@ public class CloseIndexIT extends OpenSearchIntegTestCase {
             false,
             randomBoolean(),
             IntStream.range(0, nbDocs)
-                .mapToObj(i -> client().prepareIndex(indexName, "_doc", String.valueOf(i)).setSource("num", i))
+                .mapToObj(i -> client().prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i))
                 .collect(toList())
         );
 
@@ -164,7 +164,7 @@ public class CloseIndexIT extends OpenSearchIntegTestCase {
                 false,
                 randomBoolean(),
                 IntStream.range(0, randomIntBetween(1, 10))
-                    .mapToObj(i -> client().prepareIndex(indexName, "_doc", String.valueOf(i)).setSource("num", i))
+                    .mapToObj(i -> client().prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i))
                     .collect(toList())
             );
         }
@@ -207,7 +207,7 @@ public class CloseIndexIT extends OpenSearchIntegTestCase {
             false,
             randomBoolean(),
             IntStream.range(0, nbDocs)
-                .mapToObj(i -> client().prepareIndex(indexName, "_doc", String.valueOf(i)).setSource("num", i))
+                .mapToObj(i -> client().prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i))
                 .collect(toList())
         );
         ensureYellowAndNoInitializingShards(indexName);
@@ -268,7 +268,7 @@ public class CloseIndexIT extends OpenSearchIntegTestCase {
                     false,
                     randomBoolean(),
                     IntStream.range(0, 10)
-                        .mapToObj(n -> client().prepareIndex(indexName, "_doc", String.valueOf(n)).setSource("num", n))
+                        .mapToObj(n -> client().prepareIndex(indexName).setId(String.valueOf(n)).setSource("num", n))
                         .collect(toList())
                 );
             }
@@ -395,7 +395,7 @@ public class CloseIndexIT extends OpenSearchIntegTestCase {
             false,
             randomBoolean(),
             IntStream.range(0, nbDocs)
-                .mapToObj(i -> client().prepareIndex(indexName, "_doc", String.valueOf(i)).setSource("num", i))
+                .mapToObj(i -> client().prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i))
                 .collect(toList())
         );
         ensureGreen(indexName);

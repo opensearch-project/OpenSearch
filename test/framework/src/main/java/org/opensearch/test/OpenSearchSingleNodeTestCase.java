@@ -304,7 +304,9 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
 
     /**
      * Create a new index on the singleton node with the provided index settings.
+     * @deprecated types are being removed
      */
+    @Deprecated
     protected IndexService createIndex(String index, Settings settings, String type, XContentBuilder mappings) {
         CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);
         if (type != null && mappings != null) {
@@ -315,7 +317,9 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
 
     /**
      * Create a new index on the singleton node with the provided index settings.
+     * @deprecated types are being removed
      */
+    @Deprecated
     protected IndexService createIndex(String index, Settings settings, String type, Object... mappings) {
         CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);
         if (type != null) {

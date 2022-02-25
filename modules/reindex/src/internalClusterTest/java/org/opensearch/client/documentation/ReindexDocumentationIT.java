@@ -302,7 +302,7 @@ public class ReindexDocumentationIT extends OpenSearchIntegTestCase {
             false,
             true,
             IntStream.range(0, numDocs)
-                .mapToObj(i -> client().prepareIndex(INDEX_NAME, "_doc", Integer.toString(i)).setSource("n", Integer.toString(i)))
+                .mapToObj(i -> client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("n", Integer.toString(i)))
                 .collect(Collectors.toList())
         );
 

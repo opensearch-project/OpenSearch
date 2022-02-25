@@ -212,7 +212,7 @@ public class MockDiskUsagesIT extends OpenSearchIntegTestCase {
             assertThat("node2 has 2 shards", shardCountByNodeId.get(nodeIds.get(2)), equalTo(2));
         }
 
-        client().prepareIndex("test", "doc", "1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        client().prepareIndex("test").setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         assertSearchHits(client().prepareSearch("test").get(), "1");
 
         // Move all nodes above the low watermark so no shard movement can occur, and at least one node above the flood stage watermark so
@@ -249,7 +249,8 @@ public class MockDiskUsagesIT extends OpenSearchIntegTestCase {
         // Attempt to create a new document until DiskUsageMonitor unblocks the index
         assertBusy(() -> {
             try {
-                client().prepareIndex("test", "doc", "3")
+                client().prepareIndex("test")
+                    .setId("3")
                     .setSource("foo", "bar")
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                     .get();

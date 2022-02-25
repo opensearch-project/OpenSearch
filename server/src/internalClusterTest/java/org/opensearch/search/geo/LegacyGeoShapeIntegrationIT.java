@@ -183,7 +183,7 @@ public class LegacyGeoShapeIntegrationIT extends OpenSearchIntegTestCase {
                 .endObject()
         );
 
-        indexRandom(true, client().prepareIndex("test", "geometry", "0").setSource("shape", polygonGeoJson));
+        indexRandom(true, client().prepareIndex("test").setId("0").setSource("shape", polygonGeoJson));
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
     }
@@ -215,7 +215,7 @@ public class LegacyGeoShapeIntegrationIT extends OpenSearchIntegTestCase {
             + "    }\n"
             + "}";
 
-        indexRandom(true, client().prepareIndex("test", "doc", "0").setSource(source, XContentType.JSON).setRouting("ABC"));
+        indexRandom(true, client().prepareIndex("test").setId("0").setSource(source, XContentType.JSON).setRouting("ABC"));
 
         SearchResponse searchResponse = client().prepareSearch("test")
             .setQuery(geoShapeQuery("shape", "0", "doc").indexedShapeIndex("test").indexedShapeRouting("ABC"))
@@ -238,7 +238,7 @@ public class LegacyGeoShapeIntegrationIT extends OpenSearchIntegTestCase {
         );
         ensureGreen();
 
-        indexRandom(true, client().prepareIndex("test", "_doc", "0").setSource("shape", (ToXContent) (builder, params) -> {
+        indexRandom(true, client().prepareIndex("test").setId("0").setSource("shape", (ToXContent) (builder, params) -> {
             builder.startObject()
                 .field("type", "circle")
                 .startArray("coordinates")

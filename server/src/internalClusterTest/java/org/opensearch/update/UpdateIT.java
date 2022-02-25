@@ -328,7 +328,7 @@ public class UpdateIT extends OpenSearchIntegTestCase {
         );
         assertEquals("[1]: document missing", ex.getMessage());
 
-        client().prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
+        client().prepareIndex("test").setId("1").setSource("field", 1).execute().actionGet();
 
         UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "1").setScript(fieldIncScript).execute().actionGet();
         assertThat(updateResponse.getVersion(), equalTo(2L));
@@ -399,7 +399,7 @@ public class UpdateIT extends OpenSearchIntegTestCase {
         }
 
         // check _source parameter
-        client().prepareIndex("test", "type1", "1").setSource("field1", 1, "field2", 2).execute().actionGet();
+        client().prepareIndex("test").setId("1").setSource("field1", 1, "field2", 2).execute().actionGet();
         updateResponse = client().prepareUpdate(indexOrAlias(), "1")
             .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, FIELD_INC_SCRIPT, Collections.singletonMap("field", "field1")))
             .setFetchSource("field1", "field2")
@@ -414,7 +414,7 @@ public class UpdateIT extends OpenSearchIntegTestCase {
 
         // check updates without script
         // add new field
-        client().prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
+        client().prepareIndex("test").setId("1").setSource("field", 1).execute().actionGet();
         client().prepareUpdate(indexOrAlias(), "1")
             .setDoc(XContentFactory.jsonBuilder().startObject().field("field2", 2).endObject())
             .execute()
@@ -446,7 +446,7 @@ public class UpdateIT extends OpenSearchIntegTestCase {
         testMap.put("commonkey", testMap2);
         testMap.put("map1", 8);
 
-        client().prepareIndex("test", "type1", "1").setSource("map", testMap).execute().actionGet();
+        client().prepareIndex("test").setId("1").setSource("map", testMap).execute().actionGet();
         client().prepareUpdate(indexOrAlias(), "1")
             .setDoc(XContentFactory.jsonBuilder().startObject().field("map", testMap3).endObject())
             .execute()
@@ -470,7 +470,7 @@ public class UpdateIT extends OpenSearchIntegTestCase {
         createTestIndex();
         ensureGreen();
 
-        IndexResponse result = client().prepareIndex("test", "type1", "1").setSource("field", 1).get();
+        IndexResponse result = client().prepareIndex("test").setId("1").setSource("field", 1).get();
         expectThrows(
             VersionConflictEngineException.class,
             () -> client().prepareUpdate(indexOrAlias(), "1")

@@ -149,7 +149,8 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             builders.add(
-                client().prepareIndex("empty_bucket_idx", "type", "" + i)
+                client().prepareIndex("empty_bucket_idx")
+                    .setId("" + i)
                     .setSource(jsonBuilder().startObject().field("value", i * 2).endObject())
             );
         }
@@ -1042,7 +1043,8 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
         IndexRequestBuilder[] reqs = new IndexRequestBuilder[5];
         ZonedDateTime date = date("2014-03-11T00:00:00+00:00");
         for (int i = 0; i < reqs.length; i++) {
-            reqs[i] = client().prepareIndex("idx2", "type", "" + i)
+            reqs[i] = client().prepareIndex("idx2")
+                .setId("" + i)
                 .setSource(jsonBuilder().startObject().timeField("date", date).endObject());
             date = date.plusHours(1);
         }
@@ -1327,7 +1329,8 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
         prepareCreate("idx2").addMapping("type", mappingJson, XContentType.JSON).get();
         IndexRequestBuilder[] reqs = new IndexRequestBuilder[5];
         for (int i = 0; i < reqs.length; i++) {
-            reqs[i] = client().prepareIndex("idx2", "type", "" + i)
+            reqs[i] = client().prepareIndex("idx2")
+                .setId("" + i)
                 .setSource(jsonBuilder().startObject().field("date", "10-03-2014").endObject());
         }
         indexRandom(true, reqs);
@@ -1616,8 +1619,8 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
         String date2 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(date(2, 1));
         indexRandom(
             true,
-            client().prepareIndex("cache_test_idx", "type", "1").setSource("d", date),
-            client().prepareIndex("cache_test_idx", "type", "2").setSource("d", date2)
+            client().prepareIndex("cache_test_idx").setId("1").setSource("d", date),
+            client().prepareIndex("cache_test_idx").setId("2").setSource("d", date2)
         );
 
         // Make sure we are starting with a clear cache
@@ -1829,8 +1832,8 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
      */
     public void testDateNanosHistogram() throws Exception {
         assertAcked(prepareCreate("nanos").addMapping("_doc", "date", "type=date_nanos").get());
-        indexRandom(true, client().prepareIndex("nanos", "_doc", "1").setSource("date", "2000-01-01"));
-        indexRandom(true, client().prepareIndex("nanos", "_doc", "2").setSource("date", "2000-01-02"));
+        indexRandom(true, client().prepareIndex("nanos").setId("1").setSource("date", "2000-01-01"));
+        indexRandom(true, client().prepareIndex("nanos").setId("2").setSource("date", "2000-01-02"));
 
         // Search interval 24 hours
         SearchResponse r = client().prepareSearch("nanos")

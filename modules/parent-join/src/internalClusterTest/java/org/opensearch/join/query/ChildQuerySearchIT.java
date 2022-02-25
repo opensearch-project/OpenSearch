@@ -534,7 +534,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         createIndexRequest("test", "parent", "1", null, "p_field", 1).get();
         createIndexRequest("test", "child", "2", "1", "c_field", 1).get();
 
-        client().prepareIndex("test", "doc", "3").setSource("p_field", 1).get();
+        client().prepareIndex("test").setId("3").setSource("p_field", 1).get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -801,7 +801,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         createIndexRequest("test", "child", "2", "1", "c_field", 1).get();
         client().admin().indices().prepareFlush("test").get();
 
-        client().prepareIndex("test", "doc", "3").setSource("p_field", 2).get();
+        client().prepareIndex("test").setId("3").setSource("p_field", 2).get();
 
         refresh();
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -1326,7 +1326,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         ensureGreen();
 
         String parentId = "p1";
-        client().prepareIndex("test", "doc", parentId).setSource("p_field", "1").get();
+        client().prepareIndex("test").setId(parentId).setSource("p_field", "1").get();
         refresh();
 
         try {

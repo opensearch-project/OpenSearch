@@ -479,7 +479,7 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
         List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = 0; i < data.length; i++) {
             String[] parts = data[i].split("\t");
-            indexRequestBuilders.add(client().prepareIndex("test", "_doc", "" + i).setSource("class", parts[0], "text", parts[1]));
+            indexRequestBuilders.add(client().prepareIndex("test").setId("" + i).setSource("class", parts[0], "text", parts[1]));
         }
         indexRandom(true, false, indexRequestBuilders);
     }
@@ -581,8 +581,8 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
         );
         indexRandom(
             true,
-            client().prepareIndex("cache_test_idx", "type", "1").setSource("s", 1),
-            client().prepareIndex("cache_test_idx", "type", "2").setSource("s", 2)
+            client().prepareIndex("cache_test_idx").setId("1").setSource("s", 1),
+            client().prepareIndex("cache_test_idx").setId("2").setSource("s", 2)
         );
 
         // Make sure we are starting with a clear cache

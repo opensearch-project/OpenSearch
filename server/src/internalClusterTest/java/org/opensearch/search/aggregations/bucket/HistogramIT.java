@@ -183,7 +183,8 @@ public class HistogramIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer"));
         for (int i = 0; i < 2; i++) {
             builders.add(
-                client().prepareIndex("empty_bucket_idx", "type", "" + i)
+                client().prepareIndex("empty_bucket_idx")
+                    .setId("" + i)
                     .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, i * 2).endObject())
             );
         }
@@ -1126,8 +1127,8 @@ public class HistogramIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("decimal_values").addMapping("type", "d", "type=float").get());
         indexRandom(
             true,
-            client().prepareIndex("decimal_values", "type", "1").setSource("d", -0.6),
-            client().prepareIndex("decimal_values", "type", "2").setSource("d", 0.1)
+            client().prepareIndex("decimal_values").setId("1").setSource("d", -0.6),
+            client().prepareIndex("decimal_values").setId("2").setSource("d", 0.1)
         );
 
         SearchResponse r = client().prepareSearch("decimal_values")
@@ -1156,8 +1157,8 @@ public class HistogramIT extends OpenSearchIntegTestCase {
         );
         indexRandom(
             true,
-            client().prepareIndex("cache_test_idx", "type", "1").setSource("d", -0.6),
-            client().prepareIndex("cache_test_idx", "type", "2").setSource("d", 0.1)
+            client().prepareIndex("cache_test_idx").setId("1").setSource("d", -0.6),
+            client().prepareIndex("cache_test_idx").setId("2").setSource("d", 0.1)
         );
 
         // Make sure we are starting with a clear cache
@@ -1351,9 +1352,9 @@ public class HistogramIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type", "d", "type=double").get());
         indexRandom(
             true,
-            client().prepareIndex("test", "type", "1").setSource("d", -0.6),
-            client().prepareIndex("test", "type", "2").setSource("d", 0.5),
-            client().prepareIndex("test", "type", "3").setSource("d", 0.1)
+            client().prepareIndex("test").setId("1").setSource("d", -0.6),
+            client().prepareIndex("test").setId("2").setSource("d", 0.5),
+            client().prepareIndex("test").setId("3").setSource("d", 0.1)
         );
 
         SearchResponse r = client().prepareSearch("test")

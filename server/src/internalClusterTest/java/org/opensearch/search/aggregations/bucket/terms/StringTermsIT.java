@@ -222,7 +222,8 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
         for (int i = 0; i < 2; i++) {
             builders.add(
-                client().prepareIndex("empty_bucket_idx", "type", "" + i)
+                client().prepareIndex("empty_bucket_idx")
+                    .setId("" + i)
                     .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, i * 2).endObject())
             );
         }
@@ -1267,8 +1268,8 @@ public class StringTermsIT extends AbstractTermsTestCase {
         );
         indexRandom(
             true,
-            client().prepareIndex("cache_test_idx", "type", "1").setSource("s", "foo"),
-            client().prepareIndex("cache_test_idx", "type", "2").setSource("s", "bar")
+            client().prepareIndex("cache_test_idx").setId("1").setSource("s", "foo"),
+            client().prepareIndex("cache_test_idx").setId("2").setSource("s", "bar")
         );
 
         // Make sure we are starting with a clear cache

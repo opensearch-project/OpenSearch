@@ -107,7 +107,8 @@ public class ExtendedStatsBucketIT extends OpenSearchIntegTestCase {
             // creates 6 documents where the value of the field is 0, 1, 2, 3,
             // 3, 5
             builders.add(
-                client().prepareIndex("idx_gappy", "type", "" + i)
+                client().prepareIndex("idx_gappy")
+                    .setId("" + i)
                     .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, i == 4 ? 3 : i).endObject())
             );
         }
@@ -115,7 +116,8 @@ public class ExtendedStatsBucketIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer"));
         for (int i = 0; i < 2; i++) {
             builders.add(
-                client().prepareIndex("empty_bucket_idx", "type", "" + i)
+                client().prepareIndex("empty_bucket_idx")
+                    .setId("" + i)
                     .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, i * 2).endObject())
             );
         }

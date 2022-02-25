@@ -83,7 +83,8 @@ public class WaitUntilRefreshIT extends OpenSearchIntegTestCase {
     }
 
     public void testIndex() {
-        IndexResponse index = client().prepareIndex("test", "index", "1")
+        IndexResponse index = client().prepareIndex("test")
+            .setId("1")
             .setSource("foo", "bar")
             .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
             .get();
@@ -94,7 +95,7 @@ public class WaitUntilRefreshIT extends OpenSearchIntegTestCase {
 
     public void testDelete() throws InterruptedException, ExecutionException {
         // Index normally
-        indexRandom(true, client().prepareIndex("test", "test", "1").setSource("foo", "bar"));
+        indexRandom(true, client().prepareIndex("test").setId("1").setSource("foo", "bar"));
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get(), "1");
 
         // Now delete with blockUntilRefresh
@@ -106,7 +107,7 @@ public class WaitUntilRefreshIT extends OpenSearchIntegTestCase {
 
     public void testUpdate() throws InterruptedException, ExecutionException {
         // Index normally
-        indexRandom(true, client().prepareIndex("test", "test", "1").setSource("foo", "bar"));
+        indexRandom(true, client().prepareIndex("test").setId("1").setSource("foo", "bar"));
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get(), "1");
 
         // Update with RefreshPolicy.WAIT_UNTIL
@@ -141,7 +142,7 @@ public class WaitUntilRefreshIT extends OpenSearchIntegTestCase {
     public void testBulk() {
         // Index by bulk with RefreshPolicy.WAIT_UNTIL
         BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
-        bulk.add(client().prepareIndex("test", "test", "1").setSource("foo", "bar"));
+        bulk.add(client().prepareIndex("test").setId("1").setSource("foo", "bar"));
         assertBulkSuccess(bulk.get());
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get(), "1");
 
@@ -169,7 +170,8 @@ public class WaitUntilRefreshIT extends OpenSearchIntegTestCase {
      */
     public void testNoRefreshInterval() throws InterruptedException, ExecutionException {
         client().admin().indices().prepareUpdateSettings("test").setSettings(singletonMap("index.refresh_interval", -1)).get();
-        ActionFuture<IndexResponse> index = client().prepareIndex("test", "index", "1")
+        ActionFuture<IndexResponse> index = client().prepareIndex("test")
+            .setId("1")
             .setSource("foo", "bar")
             .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
             .execute();

@@ -82,7 +82,8 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
         searchResponse = client().prepareSearch("test").setQuery(termQuery("n_field1", "n_value1_1")).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
 
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("field1", "value1")
@@ -133,7 +134,8 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
 
         // add another doc, one that would match if it was not nested...
 
-        client().prepareIndex("test", "type1", "2")
+        client().prepareIndex("test")
+            .setId("2")
             .setSource(
                 jsonBuilder().startObject()
                     .field("field1", "value1")
@@ -231,7 +233,8 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
         );
 
         ensureGreen();
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("field", "value")
@@ -389,7 +392,8 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
 
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("field1", "value1")
@@ -407,7 +411,8 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
             )
             .get();
 
-        client().prepareIndex("test", "type1", "2")
+        client().prepareIndex("test")
+            .setId("2")
             .setSource(
                 jsonBuilder().startObject()
                     .field("field1", "value2")
@@ -448,7 +453,8 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
 
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("field1", "value1")
@@ -500,7 +506,8 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
         );
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("field1", 1)
@@ -515,7 +522,8 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
                     .endObject()
             )
             .get();
-        client().prepareIndex("test", "type1", "2")
+        client().prepareIndex("test")
+            .setId("2")
             .setSource(
                 jsonBuilder().startObject()
                     .field("field1", 2)
@@ -530,7 +538,8 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
                     .endObject()
             )
             .get();
-        client().prepareIndex("test", "type1", "3")
+        client().prepareIndex("test")
+            .setId("3")
             .setSource(
                 jsonBuilder().startObject()
                     .field("field1", 3)
@@ -600,7 +609,8 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
         );
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("field1", 1)
@@ -617,7 +627,8 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
                     .endObject()
             )
             .get();
-        client().prepareIndex("test", "type1", "2")
+        client().prepareIndex("test")
+            .setId("2")
             .setSource(
                 jsonBuilder().startObject()
                     .field("field1", 2)
@@ -636,7 +647,8 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
             .get();
         // Doc with missing nested docs if nested filter is used
         refresh();
-        client().prepareIndex("test", "type1", "3")
+        client().prepareIndex("test")
+            .setId("3")
             .setSource(
                 jsonBuilder().startObject()
                     .field("field1", 3)
@@ -739,7 +751,8 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
         );
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 "{\n"
                     + "  \"acl\": [\n"
@@ -793,7 +806,8 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
             )
             .get();
 
-        client().prepareIndex("test", "type1", "2")
+        client().prepareIndex("test")
+            .setId("2")
             .setSource(
                 "{\n"
                     + "  \"acl\": [\n"
@@ -979,7 +993,8 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
         );
         ensureGreen();
 
-        client().prepareIndex("test", "test-type", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 "{\n"
                     + "  \"nested1\": [\n"
@@ -997,7 +1012,8 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
             )
             .get();
 
-        client().prepareIndex("test", "test-type", "2")
+        client().prepareIndex("test")
+            .setId("2")
             .setSource(
                 "{\n"
                     + "  \"nested1\": [\n"
@@ -1071,7 +1087,8 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
         ensureGreen();
 
         // sum: 11
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("grand_parent_values", 1L)
@@ -1113,7 +1130,8 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
             .get();
 
         // sum: 7
-        client().prepareIndex("test", "type1", "2")
+        client().prepareIndex("test")
+            .setId("2")
             .setSource(
                 jsonBuilder().startObject()
                     .field("grand_parent_values", 2L)
@@ -1155,7 +1173,8 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
             .get();
 
         // sum: 2
-        client().prepareIndex("test", "type1", "3")
+        client().prepareIndex("test")
+            .setId("3")
             .setSource(
                 jsonBuilder().startObject()
                     .field("grand_parent_values", 3L)
@@ -1469,7 +1488,8 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
             )
         );
 
-        IndexResponse indexResponse1 = client().prepareIndex("test", "type", "1")
+        IndexResponse indexResponse1 = client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("officelocation", "gendale")
@@ -1522,7 +1542,8 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
             .get();
         assertTrue(indexResponse1.getShardInfo().getSuccessful() > 0);
 
-        IndexResponse indexResponse2 = client().prepareIndex("test", "type", "2")
+        IndexResponse indexResponse2 = client().prepareIndex("test")
+            .setId("2")
             .setSource(
                 jsonBuilder().startObject()
                     .field("officelocation", "gendale")
@@ -1603,8 +1624,8 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
         }
         assertAcked(prepareCreate("test").setSettings(settingsBuilder).addMapping("type"));
 
-        client().prepareIndex("test", "type", "0").setSource("field", "value").get();
-        client().prepareIndex("test", "type", "1").setSource("field", "value").get();
+        client().prepareIndex("test").setId("0").setSource("field", "value").get();
+        client().prepareIndex("test").setId("1").setSource("field", "value").get();
         refresh();
         ensureSearchable("test");
 
@@ -1623,11 +1644,11 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
             .endArray()
             .endObject();
         // index simple data
-        client().prepareIndex("test", "type", "2").setSource(builder).get();
-        client().prepareIndex("test", "type", "3").setSource(builder).get();
-        client().prepareIndex("test", "type", "4").setSource(builder).get();
-        client().prepareIndex("test", "type", "5").setSource(builder).get();
-        client().prepareIndex("test", "type", "6").setSource(builder).get();
+        client().prepareIndex("test").setId("2").setSource(builder).get();
+        client().prepareIndex("test").setId("3").setSource(builder).get();
+        client().prepareIndex("test").setId("4").setSource(builder).get();
+        client().prepareIndex("test").setId("5").setSource(builder).get();
+        client().prepareIndex("test").setId("6").setSource(builder).get();
         refresh();
         ensureSearchable("test");
 

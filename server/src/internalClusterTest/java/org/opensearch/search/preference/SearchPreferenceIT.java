@@ -83,7 +83,7 @@ public class SearchPreferenceIT extends OpenSearchIntegTestCase {
         );
         ensureGreen();
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "type1", "" + i).setSource("field1", "value1").get();
+            client().prepareIndex("test").setId("" + i).setSource("field1", "value1").get();
         }
         refresh();
         internalCluster().stopRandomDataNode();

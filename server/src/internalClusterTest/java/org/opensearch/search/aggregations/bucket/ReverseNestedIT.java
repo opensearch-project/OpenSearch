@@ -569,7 +569,8 @@ public class ReverseNestedIT extends OpenSearchIntegTestCase {
                 .addMapping("product", mapping)
         );
 
-        client().prepareIndex("idx3", "product", "1")
+        client().prepareIndex("idx3")
+            .setId("1")
             .setRefreshPolicy(IMMEDIATE)
             .setSource(
                 jsonBuilder().startObject()

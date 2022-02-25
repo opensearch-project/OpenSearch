@@ -256,14 +256,14 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
         assertThat(getResponse.pipelines().size(), equalTo(1));
         assertThat(getResponse.pipelines().get(0).getId(), equalTo("_id"));
 
-        client().prepareIndex("test", "type", "1").setPipeline("_id").setSource("field", "value", "fail", false).get();
+        client().prepareIndex("test").setId("1").setPipeline("_id").setSource("field", "value", "fail", false).get();
 
         Map<String, Object> doc = client().prepareGet("test", "1").get().getSourceAsMap();
         assertThat(doc.get("field"), equalTo("value"));
         assertThat(doc.get("processed"), equalTo(true));
 
         client().prepareBulk()
-            .add(client().prepareIndex("test", "type", "2").setSource("field", "value2", "fail", false).setPipeline("_id"))
+            .add(client().prepareIndex("test").setId("2").setSource("field", "value2", "fail", false).setPipeline("_id"))
             .get();
         doc = client().prepareGet("test", "2").get().getSourceAsMap();
         assertThat(doc.get("field"), equalTo("value2"));

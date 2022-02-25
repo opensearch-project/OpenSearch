@@ -255,7 +255,7 @@ public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
         String aMonthAgo = DateTimeFormatter.ISO_LOCAL_DATE.format(now.plus(1, ChronoUnit.MONTHS));
         String aMonthFromNow = DateTimeFormatter.ISO_LOCAL_DATE.format(now.minus(1, ChronoUnit.MONTHS));
 
-        client().prepareIndex("test", "type", "1").setSource("past", aMonthAgo, "future", aMonthFromNow).get();
+        client().prepareIndex("test").setId("1").setSource("past", aMonthAgo, "future", aMonthFromNow).get();
 
         refresh();
 
@@ -322,10 +322,10 @@ public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
             .addMapping("type1", "field", "type=text,analyzer=whitespace")
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1))
             .get();
-        client().prepareIndex("test", "type1", "1").setSource("field", "quick lazy huge brown pidgin").get();
-        client().prepareIndex("test", "type1", "2").setSource("field", "the quick brown fox").get();
-        client().prepareIndex("test", "type1", "3").setSource("field", "the quick lazy huge brown fox jumps over the tree").get();
-        client().prepareIndex("test", "type1", "4").setSource("field", "the lazy dog quacks like a duck").get();
+        client().prepareIndex("test").setId("1").setSource("field", "quick lazy huge brown pidgin").get();
+        client().prepareIndex("test").setId("2").setSource("field", "the quick brown fox").get();
+        client().prepareIndex("test").setId("3").setSource("field", "the quick lazy huge brown fox jumps over the tree").get();
+        client().prepareIndex("test").setId("4").setSource("field", "the lazy dog quacks like a duck").get();
         refresh();
 
         // prefix queries
@@ -386,10 +386,10 @@ public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
             .get();
         // We are relying on specific routing behaviors for the result to be right, so
         // we cannot randomize the number of shards or change ids here.
-        client().prepareIndex("test", "type1", "1").setSource("field", "quick lazy huge brown pidgin").get();
-        client().prepareIndex("test", "type1", "2").setSource("field", "the quick brown fox").get();
-        client().prepareIndex("test", "type1", "3").setSource("field", "the quick lazy huge brown fox jumps over the tree").get();
-        client().prepareIndex("test", "type1", "4").setSource("field", "the lazy dog quacks like a duck").get();
+        client().prepareIndex("test").setId("1").setSource("field", "quick lazy huge brown pidgin").get();
+        client().prepareIndex("test").setId("2").setSource("field", "the quick brown fox").get();
+        client().prepareIndex("test").setId("3").setSource("field", "the quick lazy huge brown fox jumps over the tree").get();
+        client().prepareIndex("test").setId("4").setSource("field", "the lazy dog quacks like a duck").get();
         refresh();
 
         // prefix queries
@@ -488,7 +488,7 @@ public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
             .addMapping("_doc", "user", "type=integer", "followers", "type=integer")
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put("index.number_of_routing_shards", 2))
             .get();
-        client().prepareIndex("twitter", "_doc", "1").setSource("followers", new int[] { 1, 2, 3 }).get();
+        client().prepareIndex("twitter").setId("1").setSource("followers", new int[] { 1, 2, 3 }).get();
         refresh();
 
         TermsQueryBuilder termsLookupQuery = QueryBuilders.termsLookupQuery("user", new TermsLookup("twitter", "_doc", "1", "followers"));

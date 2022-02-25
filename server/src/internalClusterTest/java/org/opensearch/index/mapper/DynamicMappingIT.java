@@ -68,9 +68,9 @@ public class DynamicMappingIT extends OpenSearchIntegTestCase {
     public void testConflictingDynamicMappings() {
         // we don't use indexRandom because the order of requests is important here
         createIndex("index");
-        client().prepareIndex("index", "type", "1").setSource("foo", 3).get();
+        client().prepareIndex("index").setId("1").setSource("foo", 3).get();
         try {
-            client().prepareIndex("index", "type", "2").setSource("foo", "bar").get();
+            client().prepareIndex("index").setId("2").setSource("foo", "bar").get();
             fail("Indexing request should have failed!");
         } catch (MapperParsingException e) {
             // general case, the parsing code complains that it can't parse "bar" as a "long"
@@ -86,10 +86,10 @@ public class DynamicMappingIT extends OpenSearchIntegTestCase {
     public void testConflictingDynamicMappingsBulk() {
         // we don't use indexRandom because the order of requests is important here
         createIndex("index");
-        client().prepareIndex("index", "type", "1").setSource("foo", 3).get();
-        BulkResponse bulkResponse = client().prepareBulk().add(client().prepareIndex("index", "type", "1").setSource("foo", 3)).get();
+        client().prepareIndex("index").setId("1").setSource("foo", 3).get();
+        BulkResponse bulkResponse = client().prepareBulk().add(client().prepareIndex("index").setId("1").setSource("foo", 3)).get();
         assertFalse(bulkResponse.hasFailures());
-        bulkResponse = client().prepareBulk().add(client().prepareIndex("index", "type", "2").setSource("foo", "bar")).get();
+        bulkResponse = client().prepareBulk().add(client().prepareIndex("index").setId("2").setSource("foo", "bar")).get();
         assertTrue(bulkResponse.hasFailures());
     }
 
@@ -117,7 +117,7 @@ public class DynamicMappingIT extends OpenSearchIntegTestCase {
                         startLatch.await();
                         assertEquals(
                             DocWriteResponse.Result.CREATED,
-                            client().prepareIndex("index", "type", id).setSource("field" + id, "bar").get().getResult()
+                            client().prepareIndex("index").setId(id).setSource("field" + id, "bar").get().getResult()
                         );
                     } catch (Exception e) {
                         error.compareAndSet(null, e);

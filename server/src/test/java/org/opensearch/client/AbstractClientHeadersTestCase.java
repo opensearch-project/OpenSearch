@@ -128,7 +128,8 @@ public abstract class AbstractClientHeadersTestCase extends OpenSearchTestCase {
             .cluster()
             .prepareDeleteStoredScript("id")
             .execute(new AssertingActionListener<>(DeleteStoredScriptAction.NAME, client.threadPool()));
-        client.prepareIndex("idx", "type", "id")
+        client.prepareIndex("idx")
+            .setId("id")
             .setSource("source", XContentType.JSON)
             .execute(new AssertingActionListener<>(IndexAction.NAME, client.threadPool()));
 

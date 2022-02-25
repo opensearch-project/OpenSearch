@@ -208,7 +208,8 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
 
         client().admin().indices().preparePutMapping().setType("type1").setSource(mapping, XContentType.JSON).get();
 
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject().field("field1", "value1").field("field2", "value2").field("field3", "value3").endObject()
             )
@@ -302,19 +303,22 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
 
         client().admin().indices().preparePutMapping().setType("type1").setSource(mapping, XContentType.JSON).get();
 
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject().field("test", "value beck").field("num1", 1.0f).field("date", "1970-01-01T00:00:00").endObject()
             )
             .get();
         client().admin().indices().prepareFlush().get();
-        client().prepareIndex("test", "type1", "2")
+        client().prepareIndex("test")
+            .setId("2")
             .setSource(
                 jsonBuilder().startObject().field("test", "value beck").field("num1", 2.0f).field("date", "1970-01-01T00:00:25").endObject()
             )
             .get();
         client().admin().indices().prepareFlush().get();
-        client().prepareIndex("test", "type1", "3")
+        client().prepareIndex("test")
+            .setId("3")
             .setSource(
                 jsonBuilder().startObject().field("test", "value beck").field("num1", 3.0f).field("date", "1970-01-01T00:02:00").endObject()
             )
@@ -403,9 +407,10 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
         indexRandom(
             true,
             false,
-            client().prepareIndex("test", "doc", "1")
+            client().prepareIndex("test")
+                .setId("1")
                 .setSource(jsonBuilder().startObject().field("date", "1970-01-01T00:00:00.000Z").endObject()),
-            client().prepareIndex("test", "doc", "2").setSource(jsonBuilder().startObject().field("date", date).endObject())
+            client().prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("date", date).endObject())
         );
 
         SearchResponse response = client().prepareSearch()
@@ -443,7 +448,8 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
         int numDocs = randomIntBetween(1, 30);
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
+            indexRequestBuilders[i] = client().prepareIndex("test")
+                .setId(Integer.toString(i))
                 .setSource(jsonBuilder().startObject().field("num1", i).endObject());
         }
         indexRandom(true, indexRequestBuilders);
@@ -505,7 +511,8 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
     public void testScriptFieldUsingSource() throws Exception {
         createIndex("test");
 
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .startObject("obj1")
@@ -566,7 +573,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
     }
 
     public void testScriptFieldsForNullReturn() throws Exception {
-        client().prepareIndex("test", "type1", "1").setSource("foo", "bar").setRefreshPolicy("true").get();
+        client().prepareIndex("test").setId("1").setSource("foo", "bar").setRefreshPolicy("true").get();
 
         SearchResponse response = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -585,7 +592,8 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
     public void testPartialFields() throws Exception {
         createIndex("test");
 
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 XContentFactory.jsonBuilder()
                     .startObject()
@@ -666,7 +674,8 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
         client().admin().indices().preparePutMapping().setType("type1").setSource(mapping, XContentType.JSON).get();
 
         ZonedDateTime date = ZonedDateTime.of(2012, 3, 22, 0, 0, 0, 0, ZoneOffset.UTC);
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("byte_field", (byte) 1)
@@ -731,7 +740,8 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
     }
 
     public void testSearchFieldsMetadata() throws Exception {
-        client().prepareIndex("my-index", "my-type1", "1")
+        client().prepareIndex("my-index")
+            .setId("1")
             .setRouting("1")
             .setSource(jsonBuilder().startObject().field("field1", "value").endObject())
             .setRefreshPolicy(IMMEDIATE)
@@ -745,7 +755,8 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
     }
 
     public void testSearchFieldsNonLeafField() throws Exception {
-        client().prepareIndex("my-index", "my-type1", "1")
+        client().prepareIndex("my-index")
+            .setId("1")
             .setSource(jsonBuilder().startObject().startObject("field1").field("field2", "value1").endObject().endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
@@ -817,7 +828,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
                 .endObject()
         );
 
-        client().prepareIndex("my-index", "doc", "1").setRefreshPolicy(IMMEDIATE).setSource(source, XContentType.JSON).get();
+        client().prepareIndex("my-index").setId("1").setRefreshPolicy(IMMEDIATE).setSource(source, XContentType.JSON).get();
 
         String field = "field1.field2.field3.field4";
 
@@ -831,7 +842,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
     // see #8203
     public void testSingleValueFieldDatatField() throws ExecutionException, InterruptedException {
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("type", "test_field", "type=keyword").get());
-        indexRandom(true, client().prepareIndex("test", "type", "1").setSource("test_field", "foobar"));
+        indexRandom(true, client().prepareIndex("test").setId("1").setSource("test_field", "foobar"));
         refresh();
         SearchResponse searchResponse = client().prepareSearch("test")
             .setSource(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).docValueField("test_field"))
@@ -898,7 +909,8 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
         client().admin().indices().preparePutMapping().setType("type1").setSource(mapping, XContentType.JSON).get();
 
         ZonedDateTime date = ZonedDateTime.of(2012, 3, 22, 0, 0, 0, 0, ZoneOffset.UTC);
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("text_field", "foo")
@@ -1124,7 +1136,8 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (int i = 0; i < numDocs; ++i) {
             reqs.add(
-                client().prepareIndex("index", "type", Integer.toString(i))
+                client().prepareIndex("index")
+                    .setId(Integer.toString(i))
                     .setSource(
                         "s",
                         Integer.toString(i),
@@ -1382,7 +1395,8 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex("test", "doc", "1")
+            client().prepareIndex("test")
+                .setId("1")
                 .setRouting("1")
                 .setSource(jsonBuilder().startObject().field("field1", "value").endObject())
         );

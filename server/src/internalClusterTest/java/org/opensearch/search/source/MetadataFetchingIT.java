@@ -55,7 +55,7 @@ public class MetadataFetchingIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test"));
         ensureGreen();
 
-        client().prepareIndex("test", "_doc", "1").setSource("field", "value").get();
+        client().prepareIndex("test").setId("1").setSource("field", "value").get();
         refresh();
 
         SearchResponse response = client().prepareSearch("test").storedFields("_none_").setFetchSource(false).setVersion(true).get();
@@ -71,7 +71,7 @@ public class MetadataFetchingIT extends OpenSearchIntegTestCase {
     public void testInnerHits() {
         assertAcked(prepareCreate("test").addMapping("_doc", "nested", "type=nested"));
         ensureGreen();
-        client().prepareIndex("test", "_doc", "1").setSource("field", "value", "nested", Collections.singletonMap("title", "foo")).get();
+        client().prepareIndex("test").setId("1").setSource("field", "value", "nested", Collections.singletonMap("title", "foo")).get();
         refresh();
 
         SearchResponse response = client().prepareSearch("test")
@@ -98,7 +98,7 @@ public class MetadataFetchingIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test"));
         ensureGreen();
 
-        client().prepareIndex("test", "_doc", "1").setSource("field", "value").setRouting("toto").get();
+        client().prepareIndex("test").setId("1").setSource("field", "value").setRouting("toto").get();
         refresh();
 
         SearchResponse response = client().prepareSearch("test").storedFields("_none_").setFetchSource(false).get();

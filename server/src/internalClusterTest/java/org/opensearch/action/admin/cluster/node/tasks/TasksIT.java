@@ -319,9 +319,7 @@ public class TasksIT extends OpenSearchIntegTestCase {
         ensureGreen("test"); // Make sure all shards are allocated to catch replication tasks
         // ensures the mapping is available on all nodes so we won't retry the request (in case replicas don't have the right mapping).
         client().admin().indices().preparePutMapping("test").setType("doc").setSource("foo", "type=keyword").get();
-        client().prepareBulk()
-            .add(client().prepareIndex("test", "doc", "test_id").setSource("{\"foo\": \"bar\"}", XContentType.JSON))
-            .get();
+        client().prepareBulk().add(client().prepareIndex("test").setId("test_id").setSource("{\"foo\": \"bar\"}", XContentType.JSON)).get();
 
         // the bulk operation should produce one main task
         List<TaskInfo> topTask = findEvents(BulkAction.NAME, Tuple::v1);
@@ -370,7 +368,8 @@ public class TasksIT extends OpenSearchIntegTestCase {
         registerTaskManagerListeners(SearchAction.NAME + "[*]");  // shard task
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated to catch replication tasks
-        client().prepareIndex("test", "doc", "test_id")
+        client().prepareIndex("test")
+            .setId("test_id")
             .setSource("{\"foo\": \"bar\"}", XContentType.JSON)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
