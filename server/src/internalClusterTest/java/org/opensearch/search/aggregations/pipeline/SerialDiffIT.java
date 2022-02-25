@@ -168,7 +168,7 @@ public class SerialDiffIT extends OpenSearchIntegTestCase {
         for (PipelineAggregationHelperTests.MockBucket mockBucket : mockHisto) {
             for (double value : mockBucket.docValues) {
                 builders.add(
-                    client().prepareIndex("idx", "type")
+                    client().prepareIndex("idx")
                         .setSource(jsonBuilder().startObject().field(INTERVAL_FIELD, mockBucket.key).field(VALUE_FIELD, value).endObject())
                 );
             }

@@ -264,7 +264,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         ensureGreen();
 
         XContentBuilder docSource = gcb.toXContent(jsonBuilder().startObject().field("geo"), null).endObject();
-        client().prepareIndex("test", "_doc").setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
 
         // Create a random geometry collection to query
         GeometryCollectionBuilder queryCollection = RandomShapeGenerator.createGeometryCollection(random());

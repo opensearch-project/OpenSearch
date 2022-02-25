@@ -2068,10 +2068,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
             .endObject();
         assertAcked(prepareCreate("test").addMapping("type", mapping));
 
-        IndexRequestBuilder indexRequest = client().prepareIndex("test", "type")
-            .setId("1")
-            .setRouting("custom")
-            .setSource("field", "value");
+        IndexRequestBuilder indexRequest = client().prepareIndex("test").setId("1").setRouting("custom").setSource("field", "value");
         indexRandom(true, false, indexRequest);
         client().admin()
             .cluster()

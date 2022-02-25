@@ -741,7 +741,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         final int numdocs = randomIntBetween(10, 100);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test-idx", "_doc").setId(Integer.toString(i)).setSource("field1", "Foo bar " + i);
+            builders[i] = client().prepareIndex("test-idx").setId(Integer.toString(i)).setSource("field1", "Foo bar " + i);
         }
         indexRandom(true, builders);
         flushAndRefresh();

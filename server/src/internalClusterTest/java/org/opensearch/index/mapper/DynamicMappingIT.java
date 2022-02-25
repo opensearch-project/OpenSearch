@@ -146,7 +146,7 @@ public class DynamicMappingIT extends OpenSearchIntegTestCase {
     public void testPreflightCheckAvoidsMaster() throws InterruptedException {
         createIndex("index", Settings.builder().put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 2).build());
         ensureGreen("index");
-        client().prepareIndex("index", MapperService.SINGLE_MAPPING_NAME).setId("1").setSource("field1", "value1").get();
+        client().prepareIndex("index").setId("1").setSource("field1", "value1").get();
 
         final CountDownLatch masterBlockedLatch = new CountDownLatch(1);
         final CountDownLatch indexingCompletedLatch = new CountDownLatch(1);
@@ -167,9 +167,7 @@ public class DynamicMappingIT extends OpenSearchIntegTestCase {
             });
 
         masterBlockedLatch.await();
-        final IndexRequestBuilder indexRequestBuilder = client().prepareIndex("index", MapperService.SINGLE_MAPPING_NAME)
-            .setId("2")
-            .setSource("field2", "value2");
+        final IndexRequestBuilder indexRequestBuilder = client().prepareIndex("index").setId("2").setSource("field2", "value2");
         try {
             assertThat(
                 expectThrows(IllegalArgumentException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10))).getMessage(),
@@ -184,7 +182,7 @@ public class DynamicMappingIT extends OpenSearchIntegTestCase {
         createIndex("test");
         final ClusterService clusterService = internalCluster().clusterService();
         final long previousVersion = clusterService.state().metadata().index("test").getMappingVersion();
-        client().prepareIndex("test", "_doc").setId("1").setSource("field", "text").get();
+        client().prepareIndex("test").setId("1").setSource("field", "text").get();
         assertBusy(() -> assertThat(clusterService.state().metadata().index("test").getMappingVersion(), equalTo(1 + previousVersion)));
     }
 }

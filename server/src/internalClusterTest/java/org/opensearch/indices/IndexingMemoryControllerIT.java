@@ -121,14 +121,14 @@ public class IndexingMemoryControllerIT extends OpenSearchSingleNodeTestCase {
         );
         IndexShard shard = indexService.getShard(0);
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("index", "_doc").setId(Integer.toString(i)).setSource("field", "value").get();
+            client().prepareIndex("index").setId(Integer.toString(i)).setSource("field", "value").get();
         }
         // Force merge so we know all merges are done before we start deleting:
         ForceMergeResponse r = client().admin().indices().prepareForceMerge().setMaxNumSegments(1).execute().actionGet();
         assertNoFailures(r);
         final RefreshStats refreshStats = shard.refreshStats();
         for (int i = 0; i < 100; i++) {
-            client().prepareDelete("index", "_doc", Integer.toString(i)).get();
+            client().prepareDelete("index", Integer.toString(i)).get();
         }
         // need to assert busily as IndexingMemoryController refreshes in background
         assertBusy(() -> assertThat(shard.refreshStats().getTotal(), greaterThan(refreshStats.getTotal() + 1)));

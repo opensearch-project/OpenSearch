@@ -140,7 +140,7 @@ public class ExplainableScriptIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
         for (int i = 0; i < 20; i++) {
             indexRequests.add(
-                client().prepareIndex("test", "type")
+                client().prepareIndex("test")
                     .setId(Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("number_field", i).field("text", "text").endObject())
             );

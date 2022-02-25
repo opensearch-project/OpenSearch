@@ -63,7 +63,7 @@ public class HiddenIndexIT extends OpenSearchIntegTestCase {
         assertAcked(
             client().admin().indices().prepareCreate("hidden-index").setSettings(Settings.builder().put("index.hidden", true).build()).get()
         );
-        client().prepareIndex("hidden-index", "_doc").setSource("foo", "bar").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        client().prepareIndex("hidden-index").setSource("foo", "bar").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
 
         // default not visible to wildcard expansion
         SearchResponse searchResponse = client().prepareSearch(randomFrom("*", "_all", "h*", "*index"))
@@ -95,7 +95,7 @@ public class HiddenIndexIT extends OpenSearchIntegTestCase {
                 .setSettings(Settings.builder().put("index.hidden", true).build())
                 .get()
         );
-        client().prepareIndex(".hidden-index", "_doc").setSource("foo", "bar").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        client().prepareIndex(".hidden-index").setSource("foo", "bar").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         searchResponse = client().prepareSearch(randomFrom(".*", ".hidden-*")).setSize(1000).setQuery(QueryBuilders.matchAllQuery()).get();
         matchedHidden = Arrays.stream(searchResponse.getHits().getHits()).anyMatch(hit -> ".hidden-index".equals(hit.getIndex()));
         assertTrue(matchedHidden);

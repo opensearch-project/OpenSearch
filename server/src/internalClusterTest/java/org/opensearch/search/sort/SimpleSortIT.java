@@ -372,17 +372,11 @@ public class SimpleSortIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type1", mapping, XContentType.JSON));
         ensureGreen();
 
-        client().prepareIndex("test", "type1")
-            .setSource(jsonBuilder().startObject().field("id", "1").field("svalue", "aaa").endObject())
-            .get();
+        client().prepareIndex("test").setSource(jsonBuilder().startObject().field("id", "1").field("svalue", "aaa").endObject()).get();
 
-        client().prepareIndex("test", "type1")
-            .setSource(jsonBuilder().startObject().field("id", "2").nullField("svalue").endObject())
-            .get();
+        client().prepareIndex("test").setSource(jsonBuilder().startObject().field("id", "2").nullField("svalue").endObject()).get();
 
-        client().prepareIndex("test", "type1")
-            .setSource(jsonBuilder().startObject().field("id", "3").field("svalue", "bbb").endObject())
-            .get();
+        client().prepareIndex("test").setSource(jsonBuilder().startObject().field("id", "3").field("svalue", "bbb").endObject()).get();
 
         flush();
         refresh();

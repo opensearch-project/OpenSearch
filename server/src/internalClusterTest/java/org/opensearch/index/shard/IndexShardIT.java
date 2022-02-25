@@ -195,17 +195,17 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
         client().prepareIndex("test", "bar", "2").setSource("{}", XContentType.JSON).get();
         assertTrue(needsSync.test(translog));
         setDurability(shard, Translog.Durability.REQUEST);
-        client().prepareDelete("test", "bar", "1").get();
+        client().prepareDelete("test", "1").get();
         assertFalse(needsSync.test(translog));
 
         setDurability(shard, Translog.Durability.ASYNC);
-        client().prepareDelete("test", "bar", "2").get();
+        client().prepareDelete("test", "2").get();
         assertTrue(translog.syncNeeded());
         setDurability(shard, Translog.Durability.REQUEST);
         assertNoFailures(
             client().prepareBulk()
                 .add(client().prepareIndex("test", "bar", "3").setSource("{}", XContentType.JSON))
-                .add(client().prepareDelete("test", "bar", "1"))
+                .add(client().prepareDelete("test", "1"))
                 .get()
         );
         assertFalse(needsSync.test(translog));
@@ -214,7 +214,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
         assertNoFailures(
             client().prepareBulk()
                 .add(client().prepareIndex("test", "bar", "4").setSource("{}", XContentType.JSON))
-                .add(client().prepareDelete("test", "bar", "3"))
+                .add(client().prepareDelete("test", "3"))
                 .get()
         );
         setDurability(shard, Translog.Durability.REQUEST);
@@ -267,7 +267,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
         );
         for (int i = 0; i < 50; i++) {
-            client().prepareIndex("test", "test").setSource("{}", XContentType.JSON).get();
+            client().prepareIndex("test").setSource("{}", XContentType.JSON).get();
         }
         ensureGreen("test");
         InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
@@ -365,7 +365,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
                     .build()
             )
             .get();
-        client().prepareIndex("test", "_doc")
+        client().prepareIndex("test")
             .setId("0")
             .setSource("{}", XContentType.JSON)
             .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE)
@@ -413,7 +413,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
                     .build()
             )
             .get();
-        client().prepareDelete("test", "_doc", "2").get();
+        client().prepareDelete("test", "2").get();
         logger.info(
             "--> translog size after delete: [{}] num_ops [{}] generation [{}]",
             translog.stats().getUncommittedSizeInBytes(),
@@ -588,7 +588,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
         IndexService indexService = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = indexService.getShardOrNull(0);
         client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
-        client().prepareDelete("test", "test", "0").get();
+        client().prepareDelete("test", "0").get();
         client().prepareIndex("test", "test", "1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
 
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = directoryReader -> directoryReader;
@@ -758,7 +758,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
                     .setSource("{}", XContentType.JSON)
                     .get();
             } else {
-                client().prepareDelete("index", randomFrom("_doc", "user_doc"), randomFrom("1", "2")).get();
+                client().prepareDelete("index", randomFrom("1", "2")).get();
             }
         }
         IndexShard shard = indexService.getShard(0);

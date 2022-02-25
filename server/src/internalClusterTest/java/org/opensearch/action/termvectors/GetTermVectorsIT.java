@@ -186,7 +186,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
 
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         for (int i = 0; i < 6; i++) {
-            indexBuilders.add(client().prepareIndex().setIndex("test").setType("type1").setId(String.valueOf(i)).setSource("field" + i, i));
+            indexBuilders.add(client().prepareIndex().setIndex("test").setId(String.valueOf(i)).setSource("field" + i, i));
         }
         indexRandom(true, indexBuilders);
 
@@ -575,9 +575,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         for (String indexName : indexNames) {
             for (int id = 0; id < content.length; id++) {
-                indexBuilders.add(
-                    client().prepareIndex().setIndex(indexName).setType("type1").setId(String.valueOf(id)).setSource("field1", content[id])
-                );
+                indexBuilders.add(client().prepareIndex().setIndex(indexName).setId(String.valueOf(id)).setSource("field1", content[id]));
             }
         }
         indexRandom(true, indexBuilders);
@@ -680,9 +678,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
 
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         for (int i = 0; i < content.length; i++) {
-            indexBuilders.add(
-                client().prepareIndex().setIndex("test").setType("type1").setId(String.valueOf(i)).setSource("field1", content[i])
-            );
+            indexBuilders.add(client().prepareIndex().setIndex("test").setId(String.valueOf(i)).setSource("field1", content[i]));
         }
         indexRandom(true, indexBuilders);
 
@@ -1111,7 +1107,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 indexBuilders.add(
                     client().prepareIndex()
                         .setIndex(indexName)
-                        .setType("type1")
                         .setId(String.valueOf(id))
                         .setSource("field1", content[id], "field2", content[id])
                 );

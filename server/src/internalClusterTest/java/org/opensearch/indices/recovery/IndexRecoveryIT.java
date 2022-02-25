@@ -172,7 +172,6 @@ import static org.hamcrest.Matchers.not;
 public class IndexRecoveryIT extends OpenSearchIntegTestCase {
 
     private static final String INDEX_NAME = "test-idx-1";
-    private static final String INDEX_TYPE = "test-type-1";
     private static final String REPO_NAME = "test-repo-1";
     private static final String SNAP_NAME = "test-snap-1";
 
@@ -414,7 +413,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         int numDocs = randomIntBetween(10, 200);
         final IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex(INDEX_NAME, INDEX_TYPE)
+            docs[i] = client().prepareIndex(INDEX_NAME)
                 .setSource("foo-int", randomInt(), "foo-string", randomAlphaOfLength(32), "foo-float", randomFloat());
         }
         indexRandom(randomBoolean(), docs);
@@ -828,7 +827,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         final IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
 
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex(name, INDEX_TYPE)
+            docs[i] = client().prepareIndex(name)
                 .setSource("foo-int", randomInt(), "foo-string", randomAlphaOfLength(32), "foo-float", randomFloat());
         }
 
@@ -881,14 +880,14 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         // is a mix of file chunks and translog ops
         int threeFourths = (int) (numDocs * 0.75);
         for (int i = 0; i < threeFourths; i++) {
-            requests.add(client().prepareIndex(indexName, "type").setSource("{}", XContentType.JSON));
+            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
         flush(indexName);
         requests.clear();
 
         for (int i = threeFourths; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName, "type").setSource("{}", XContentType.JSON));
+            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
         ensureSearchable(indexName);
@@ -1080,7 +1079,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> requests = new ArrayList<>();
         int numDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName, "type").setSource("{}", XContentType.JSON));
+            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
         ensureSearchable(indexName);
@@ -1234,7 +1233,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> requests = new ArrayList<>();
         int numDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName, "type").setSource("{}", XContentType.JSON));
+            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
         ensureSearchable(indexName);
@@ -1377,7 +1376,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         final List<IndexRequestBuilder> requests = new ArrayList<>();
         final int replicatedDocCount = scaledRandomIntBetween(25, 250);
         while (requests.size() < replicatedDocCount) {
-            requests.add(client().prepareIndex(indexName, "_doc").setSource("{}", XContentType.JSON));
+            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
         if (randomBoolean()) {
@@ -1399,7 +1398,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
 
         final int numNewDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numNewDocs; i++) {
-            client().prepareIndex(indexName, "_doc").setSource("{}", XContentType.JSON).setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+            client().prepareIndex(indexName).setSource("{}", XContentType.JSON).setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         }
         // Flush twice to update the safe commit's local checkpoint
         assertThat(client().admin().indices().prepareFlush(indexName).setForce(true).execute().get().getFailedShards(), equalTo(0));
@@ -1562,7 +1561,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             randomBoolean(),
             false,
             randomBoolean(),
-            IntStream.range(0, numDocs).mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n)).collect(toList())
+            IntStream.range(0, numDocs).mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList())
         );
         client().admin().indices().prepareRefresh(indexName).get(); // avoid refresh when we are failing a shard
         String failingNode = randomFrom(nodes);
@@ -1658,9 +1657,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, between(0, 100))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n))
-                .collect(toList())
+            IntStream.range(0, between(0, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList())
         );
         ensureGreen(indexName);
 
@@ -1731,9 +1728,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, between(0, 100))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n))
-                .collect(toList())
+            IntStream.range(0, between(0, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList())
         );
         ensureGreen(indexName);
 
@@ -1767,7 +1762,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
                         randomBoolean(),
                         randomBoolean(),
                         IntStream.range(0, between(1, 100))
-                            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n))
+                            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
                             .collect(toList())
                     );
 
@@ -1826,9 +1821,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             randomBoolean(),
             false,
             randomBoolean(),
-            IntStream.range(0, between(0, 100))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n))
-                .collect(toList())
+            IntStream.range(0, between(0, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList())
         );
         ensureGreen(indexName);
 
@@ -1912,7 +1905,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
                         randomBoolean(),
                         randomBoolean(),
                         IntStream.range(0, newDocCount)
-                            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n))
+                            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
                             .collect(toList())
                     );
 
@@ -1964,9 +1957,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, between(0, 100))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n))
-                .collect(toList())
+            IntStream.range(0, between(0, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList())
         );
 
         final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
@@ -1985,9 +1976,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, between(0, 100))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n))
-                .collect(toList())
+            IntStream.range(0, between(0, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList())
         );
 
         assertAcked(
@@ -2056,7 +2045,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             false,
             randomBoolean(),
             IntStream.range(0, randomIntBetween(0, 10))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n))
+                .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
                 .collect(toList())
         );
 
@@ -2088,7 +2077,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             false,
             randomBoolean(),
             IntStream.range(0, randomIntBetween(0, 10))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n))
+                .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
                 .collect(toList())
         );
 
@@ -2117,7 +2106,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
                 .get()
         );
         final List<IndexRequestBuilder> indexRequests = IntStream.range(0, between(10, 500))
-            .mapToObj(n -> client().prepareIndex(indexName, "type").setSource("foo", "bar"))
+            .mapToObj(n -> client().prepareIndex(indexName).setSource("foo", "bar"))
             .collect(Collectors.toList());
         indexRandom(randomBoolean(), true, true, indexRequests);
         ensureGreen();
@@ -2179,7 +2168,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             indexers[i] = new Thread(() -> {
                 while (stopped.get() == false) {
                     try {
-                        IndexResponse response = client().prepareIndex(indexName, "_doc")
+                        IndexResponse response = client().prepareIndex(indexName)
                             .setSource(Collections.singletonMap("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON)
                             .get();
                         assertThat(response.getResult(), isOneOf(CREATED, UPDATED));
@@ -2233,7 +2222,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         );
         ensureGreen(indexName);
         final List<IndexRequestBuilder> indexRequests = IntStream.range(0, between(10, 500))
-            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("foo", "bar"))
+            .mapToObj(n -> client().prepareIndex(indexName).setSource("foo", "bar"))
             .collect(Collectors.toList());
         indexRandom(randomBoolean(), true, true, indexRequests);
         assertThat(client().admin().indices().prepareFlush(indexName).get().getFailedShards(), equalTo(0));

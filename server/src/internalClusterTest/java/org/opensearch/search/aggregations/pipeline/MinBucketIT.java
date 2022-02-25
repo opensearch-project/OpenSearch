@@ -88,7 +88,7 @@ public class MinBucketIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             int fieldValue = randomIntBetween(minRandomValue, maxRandomValue);
             builders.add(
-                client().prepareIndex("idx", "type")
+                client().prepareIndex("idx")
                     .setSource(
                         jsonBuilder().startObject()
                             .field(SINGLE_VALUED_FIELD_NAME, fieldValue)

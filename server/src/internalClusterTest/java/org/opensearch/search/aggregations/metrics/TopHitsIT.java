@@ -243,7 +243,7 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
             }
             builder.endArray().endObject();
 
-            builders.add(client().prepareIndex("articles", "article").setSource(builder));
+            builders.add(client().prepareIndex("articles").setSource(builder));
         }
 
         builders.add(

@@ -107,7 +107,7 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
 
         final IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> client().prepareIndex("index", "_doc").setId("1").setSource(Collections.singletonMap("field", "value")).get()
+            () -> client().prepareIndex("index").setId("1").setSource(Collections.singletonMap("field", "value")).get()
         );
         assertThat(e, hasToString(containsString("final pipeline [final_pipeline] can't change the target index")));
     }
@@ -128,7 +128,7 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
         BytesReference finalPipelineBody = new BytesArray("{\"processors\": [{\"final\": {\"exists\":\"no_such_field\"}}]}");
         client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
 
-        IndexResponse indexResponse = client().prepareIndex("index", "_doc")
+        IndexResponse indexResponse = client().prepareIndex("index")
             .setId("1")
             .setSource(Collections.singletonMap("field", "value"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -155,7 +155,7 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
         BytesReference finalPipelineBody = new BytesArray("{\"processors\": [{\"final\": {}}]}");
         client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
 
-        IndexResponse indexResponse = client().prepareIndex("index", "_doc")
+        IndexResponse indexResponse = client().prepareIndex("index")
             .setId("1")
             .setSource(Collections.singletonMap("field", "value"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -185,7 +185,7 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
             .putPipeline(new PutPipelineRequest("target_default_pipeline", targetPipeline, XContentType.JSON))
             .actionGet();
 
-        IndexResponse indexResponse = client().prepareIndex("index", "_doc")
+        IndexResponse indexResponse = client().prepareIndex("index")
             .setId("1")
             .setSource(Collections.singletonMap("field", "value"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)

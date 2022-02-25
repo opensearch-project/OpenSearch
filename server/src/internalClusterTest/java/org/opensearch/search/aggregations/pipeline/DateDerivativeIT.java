@@ -81,12 +81,11 @@ public class DateDerivativeIT extends OpenSearchIntegTestCase {
     }
 
     private static IndexRequestBuilder indexDoc(String idx, ZonedDateTime date, int value) throws Exception {
-        return client().prepareIndex(idx, "type")
-            .setSource(jsonBuilder().startObject().timeField("date", date).field("value", value).endObject());
+        return client().prepareIndex(idx).setSource(jsonBuilder().startObject().timeField("date", date).field("value", value).endObject());
     }
 
     private IndexRequestBuilder indexDoc(int month, int day, int value) throws Exception {
-        return client().prepareIndex("idx", "type")
+        return client().prepareIndex("idx")
             .setSource(
                 jsonBuilder().startObject()
                     .field("value", value)

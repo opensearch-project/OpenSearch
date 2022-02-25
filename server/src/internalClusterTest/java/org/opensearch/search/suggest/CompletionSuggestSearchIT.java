@@ -49,6 +49,7 @@ import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.mapper.MapperParsingException;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -96,7 +97,6 @@ import static org.hamcrest.Matchers.notNullValue;
 @SuppressCodecs("*") // requires custom completion format
 public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
     private final String INDEX = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
-    private final String TYPE = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
     private final String FIELD = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
     private final CompletionMappingBuilder completionMappingBuilder = new CompletionMappingBuilder();
 
@@ -117,7 +117,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
             String value = "a" + randomAlphaOfLengthBetween(1, 10);
             entries[i] = value;
             indexRequestBuilders.add(
-                client().prepareIndex(INDEX, TYPE, "" + i)
+                client().prepareIndex(INDEX)
+                    .setId("" + i)
                     .setSource(
                         jsonBuilder().startObject().startObject(FIELD).field("input", value).field("weight", 10).endObject().endObject()
                     )
@@ -139,7 +140,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = 1; i <= numDocs; i++) {
             indexRequestBuilders.add(
-                client().prepareIndex(INDEX, TYPE, "" + i)
+                client().prepareIndex(INDEX)
+                    .setId("" + i)
                     .setSource(
                         jsonBuilder().startObject()
                             .startObject(FIELD)
@@ -166,7 +168,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = 1; i <= numDocs; i++) {
             indexRequestBuilders.add(
-                client().prepareIndex(INDEX, TYPE, "" + i)
+                client().prepareIndex(INDEX)
+                    .setId("" + i)
                     .setSource(
                         jsonBuilder().startObject()
                             .startObject(FIELD)
@@ -202,7 +205,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = 1; i <= numDocs; i++) {
             indexRequestBuilders.add(
-                client().prepareIndex(INDEX, TYPE, "" + i)
+                client().prepareIndex(INDEX)
+                    .setId("" + i)
                     .setSource(
                         jsonBuilder().startObject()
                             .startObject(FIELD)
@@ -225,7 +229,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = 1; i <= numDocs; i++) {
             indexRequestBuilders.add(
-                client().prepareIndex(INDEX, TYPE, "" + i)
+                client().prepareIndex(INDEX)
+                    .setId("" + i)
                     .setSource(
                         jsonBuilder().startObject()
                             .startObject(FIELD)
@@ -248,7 +253,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             indexRequestBuilders.add(
-                client().prepareIndex(INDEX, TYPE, "" + i)
+                client().prepareIndex(INDEX)
+                    .setId("" + i)
                     .setSource(
                         jsonBuilder().startObject()
                             .startObject(FIELD)
@@ -282,7 +288,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = 1; i <= numDocs; i++) {
             indexRequestBuilders.add(
-                client().prepareIndex(INDEX, TYPE, "" + i)
+                client().prepareIndex(INDEX)
+                    .setId("" + i)
                     .setSource(
                         jsonBuilder().startObject()
                             .startObject(FIELD)
@@ -317,7 +324,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = 1; i <= numDocs; i++) {
             indexRequestBuilders.add(
-                client().prepareIndex(INDEX, TYPE, "" + i)
+                client().prepareIndex(INDEX)
+                    .setId("" + i)
                     .setSource(
                         jsonBuilder().startObject()
                             .startObject(FIELD)
@@ -355,7 +363,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = 1; i <= numDocs; i++) {
             indexRequestBuilders.add(
-                client().prepareIndex(INDEX, TYPE, "" + i)
+                client().prepareIndex(INDEX)
+                    .setId("" + i)
                     .setSource(
                         jsonBuilder().startObject()
                             .startObject(FIELD)
@@ -419,7 +428,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         List<String> similarNames = Arrays.asList("the", "The Prodigy", "The Verve", "The the");
         // the weight is 1000 divided by string length, so the results are easy to to check
         for (String similarName : similarNames) {
-            client().prepareIndex(INDEX, TYPE, similarName)
+            client().prepareIndex(INDEX)
+                .setId(similarName)
                 .setSource(
                     jsonBuilder().startObject()
                         .startObject(FIELD)
@@ -443,7 +453,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
 
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> client().prepareIndex(INDEX, TYPE, "1")
+            () -> client().prepareIndex(INDEX)
+                .setId("1")
                 .setSource(
                     jsonBuilder().startObject()
                         .startObject(FIELD)
@@ -462,7 +473,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
     public void testThatWeightCanBeAString() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
-        client().prepareIndex(INDEX, TYPE, "1")
+        client().prepareIndex(INDEX)
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .startObject(FIELD)
@@ -500,7 +512,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
 
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> client().prepareIndex(INDEX, TYPE, "1")
+            () -> client().prepareIndex(INDEX)
+                .setId("1")
                 .setSource(
                     jsonBuilder().startObject()
                         .startObject(FIELD)
@@ -523,7 +536,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
 
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> client().prepareIndex(INDEX, TYPE, "1")
+            () -> client().prepareIndex(INDEX)
+                .setId("1")
                 .setSource(
                     jsonBuilder().startObject()
                         .startObject(FIELD)
@@ -542,7 +556,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
     public void testThatInputCanBeAStringInsteadOfAnArray() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
-        client().prepareIndex(INDEX, TYPE, "1")
+        client().prepareIndex(INDEX)
+            .setId("1")
             .setSource(jsonBuilder().startObject().startObject(FIELD).field("input", "Foo Fighters").endObject().endObject())
             .get();
 
@@ -555,7 +570,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         completionMappingBuilder.preserveSeparators(false);
         createIndexAndMapping(completionMappingBuilder);
 
-        client().prepareIndex(INDEX, TYPE, "1")
+        client().prepareIndex(INDEX)
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .startObject(FIELD)
@@ -568,7 +584,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
             )
             .get();
 
-        client().prepareIndex(INDEX, TYPE, "2")
+        client().prepareIndex(INDEX)
+            .setId("2")
             .setSource(
                 jsonBuilder().startObject()
                     .startObject(FIELD)
@@ -590,13 +607,15 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         completionMappingBuilder.preserveSeparators(true);
         createIndexAndMapping(completionMappingBuilder);
 
-        client().prepareIndex(INDEX, TYPE, "1")
+        client().prepareIndex(INDEX)
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject().startObject(FIELD).startArray("input").value("Foo Fighters").endArray().endObject().endObject()
             )
             .get();
 
-        client().prepareIndex(INDEX, TYPE, "2")
+        client().prepareIndex(INDEX)
+            .setId("2")
             .setSource(jsonBuilder().startObject().startObject(FIELD).startArray("input").value("Foof").endArray().endObject().endObject())
             .get();
 
@@ -608,7 +627,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
     public void testThatMultipleInputsAreSupported() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
-        client().prepareIndex(INDEX, TYPE, "1")
+        client().prepareIndex(INDEX)
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .startObject(FIELD)
@@ -630,7 +650,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
     public void testThatShortSyntaxIsWorking() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
-        client().prepareIndex(INDEX, TYPE, "1")
+        client().prepareIndex(INDEX)
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject().startArray(FIELD).value("The Prodigy Firestarter").value("Firestarter").endArray().endObject()
             )
@@ -647,7 +668,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         completionMappingBuilder.searchAnalyzer("classic").indexAnalyzer("classic").preservePositionIncrements(false);
         createIndexAndMapping(completionMappingBuilder);
 
-        client().prepareIndex(INDEX, TYPE, "1")
+        client().prepareIndex(INDEX)
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject().startObject(FIELD).startArray("input").value("The Beatles").endArray().endObject().endObject()
             )
@@ -660,7 +682,7 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
 
     public void testThatUpgradeToMultiFieldsWorks() throws Exception {
         final XContentBuilder mapping = jsonBuilder().startObject()
-            .startObject(TYPE)
+            .startObject(MapperService.SINGLE_MAPPING_NAME)
             .startObject("properties")
             .startObject(FIELD)
             .field("type", "text")
@@ -668,8 +690,9 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
             .endObject()
             .endObject()
             .endObject();
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping));
-        client().prepareIndex(INDEX, TYPE, "1")
+        assertAcked(prepareCreate(INDEX).addMapping(MapperService.SINGLE_MAPPING_NAME, mapping));
+        client().prepareIndex(INDEX)
+            .setId("1")
             .setRefreshPolicy(IMMEDIATE)
             .setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject())
             .get();
@@ -678,10 +701,10 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         AcknowledgedResponse putMappingResponse = client().admin()
             .indices()
             .preparePutMapping(INDEX)
-            .setType(TYPE)
+            .setType(MapperService.SINGLE_MAPPING_NAME)
             .setSource(
                 jsonBuilder().startObject()
-                    .startObject(TYPE)
+                    .startObject(MapperService.SINGLE_MAPPING_NAME)
                     .startObject("properties")
                     .startObject(FIELD)
                     .field("type", "text")
@@ -706,7 +729,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
             .get();
         assertSuggestions(searchResponse, "suggs");
 
-        client().prepareIndex(INDEX, TYPE, "1")
+        client().prepareIndex(INDEX)
+            .setId("1")
             .setRefreshPolicy(IMMEDIATE)
             .setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject())
             .get();
@@ -723,7 +747,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
     public void testThatFuzzySuggesterWorks() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
-        client().prepareIndex(INDEX, TYPE, "1")
+        client().prepareIndex(INDEX)
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject().startObject(FIELD).startArray("input").value("Nirvana").endArray().endObject().endObject()
             )
@@ -750,7 +775,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
     public void testThatFuzzySuggesterSupportsEditDistances() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
-        client().prepareIndex(INDEX, TYPE, "1")
+        client().prepareIndex(INDEX)
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject().startObject(FIELD).startArray("input").value("Nirvana").endArray().endObject().endObject()
             )
@@ -784,7 +810,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
     public void testThatFuzzySuggesterSupportsTranspositions() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
-        client().prepareIndex(INDEX, TYPE, "1")
+        client().prepareIndex(INDEX)
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject().startObject(FIELD).startArray("input").value("Nirvana").endArray().endObject().endObject()
             )
@@ -818,7 +845,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
     public void testThatFuzzySuggesterSupportsMinPrefixLength() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
-        client().prepareIndex(INDEX, TYPE, "1")
+        client().prepareIndex(INDEX)
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject().startObject(FIELD).startArray("input").value("Nirvana").endArray().endObject().endObject()
             )
@@ -854,7 +882,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
     public void testThatFuzzySuggesterSupportsNonPrefixLength() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
-        client().prepareIndex(INDEX, TYPE, "1")
+        client().prepareIndex(INDEX)
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject().startObject(FIELD).startArray("input").value("Nirvana").endArray().endObject().endObject()
             )
@@ -890,7 +919,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
     public void testThatFuzzySuggesterIsUnicodeAware() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
-        client().prepareIndex(INDEX, TYPE, "1")
+        client().prepareIndex(INDEX)
+            .setId("1")
             .setSource(jsonBuilder().startObject().startObject(FIELD).startArray("input").value("ööööö").endArray().endObject().endObject())
             .get();
 
@@ -937,10 +967,10 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         AcknowledgedResponse putMappingResponse = client().admin()
             .indices()
             .preparePutMapping(INDEX)
-            .setType(TYPE)
+            .setType(MapperService.SINGLE_MAPPING_NAME)
             .setSource(
                 jsonBuilder().startObject()
-                    .startObject(TYPE)
+                    .startObject(MapperService.SINGLE_MAPPING_NAME)
                     .startObject("properties")
                     .startObject(FIELD)
                     .field("type", "completion")
@@ -958,10 +988,12 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         assertThat(putMappingResponse.isAcknowledged(), is(true));
 
         // Index two entities
-        client().prepareIndex(INDEX, TYPE, "1")
+        client().prepareIndex(INDEX)
+            .setId("1")
             .setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").field(otherField, "WHATEVER").endObject())
             .get();
-        client().prepareIndex(INDEX, TYPE, "2")
+        client().prepareIndex(INDEX)
+            .setId("2")
             .setSource(jsonBuilder().startObject().field(FIELD, "Bar Fighters").field(otherField, "WHATEVER2").endObject())
             .get();
 
@@ -1021,7 +1053,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
     public void testThatSortingOnCompletionFieldReturnsUsefulException() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
-        client().prepareIndex(INDEX, TYPE, "1")
+        client().prepareIndex(INDEX)
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject().startObject(FIELD).startArray("input").value("Nirvana").endArray().endObject().endObject()
             )
@@ -1050,7 +1083,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         completionMappingBuilder.indexAnalyzer("simple");
         createIndexAndMappingAndSettings(settingsBuilder.build(), completionMappingBuilder);
 
-        client().prepareIndex(INDEX, TYPE, "1")
+        client().prepareIndex(INDEX)
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .startObject(FIELD)
@@ -1064,7 +1098,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
             .get();
 
         // Higher weight so it's ranked first:
-        client().prepareIndex(INDEX, TYPE, "2")
+        client().prepareIndex(INDEX)
+            .setId("2")
             .setSource(
                 jsonBuilder().startObject()
                     .startObject(FIELD)
@@ -1096,7 +1131,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         createIndexAndMapping(completionMappingBuilder);
 
         try {
-            client().prepareIndex(INDEX, TYPE, "1")
+            client().prepareIndex(INDEX)
+                .setId("1")
                 .setSource(
                     jsonBuilder().startObject()
                         .startObject(FIELD)
@@ -1128,7 +1164,7 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
             weights[id] = Math.max(weight, weights[id]);
             String suggestion = "suggestion-" + String.format(Locale.ENGLISH, "%03d", id);
             indexRequestBuilders.add(
-                client().prepareIndex(INDEX, TYPE)
+                client().prepareIndex(INDEX)
                     .setSource(
                         jsonBuilder().startObject()
                             .startObject(FIELD)
@@ -1252,7 +1288,6 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
 
     private void createIndexAndMappingAndSettings(Settings settings, CompletionMappingBuilder completionMappingBuilder) throws IOException {
         XContentBuilder mapping = jsonBuilder().startObject()
-            .startObject(TYPE)
             .startObject("properties")
             .startObject("test_field")
             .field("type", "keyword")
@@ -1288,14 +1323,14 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
 
             mapping = mapping.endArray();
         }
-        mapping = mapping.endObject().endObject().endObject().endObject();
+        mapping = mapping.endObject().endObject().endObject();
 
         assertAcked(
             client().admin()
                 .indices()
                 .prepareCreate(INDEX)
                 .setSettings(Settings.builder().put(indexSettings()).put(settings))
-                .addMapping(TYPE, mapping)
+                .addMapping(MapperService.SINGLE_MAPPING_NAME, mapping)
                 .get()
         );
     }
@@ -1311,17 +1346,18 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
             completionMappingBuilder
         );
 
-        client().prepareIndex(INDEX, TYPE, "1")
+        client().prepareIndex(INDEX)
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject().startObject(FIELD).startArray("input").value("The Beatles").endArray().endObject().endObject()
             )
             .get();
-        client().prepareIndex(INDEX, TYPE, "2").setSource(jsonBuilder().startObject().field("somefield", "somevalue").endObject()).get();
+        client().prepareIndex(INDEX).setId("2").setSource(jsonBuilder().startObject().field("somefield", "somevalue").endObject()).get();
         ForceMergeResponse actionGet = client().admin().indices().prepareForceMerge().setFlush(true).setMaxNumSegments(1).get();
         assertAllSuccessful(actionGet);
         refresh();
         // update the first one and then merge.. the target segment will have no value in FIELD
-        client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder().startObject().field("somefield", "somevalue").endObject()).get();
+        client().prepareIndex(INDEX).setId("1").setSource(jsonBuilder().startObject().field("somefield", "somevalue").endObject()).get();
         actionGet = client().admin().indices().prepareForceMerge().setFlush(true).setMaxNumSegments(1).get();
         assertAllSuccessful(actionGet);
         refresh();
@@ -1343,9 +1379,9 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
                 .indices()
                 .prepareCreate(INDEX)
                 .addMapping(
-                    TYPE,
+                    MapperService.SINGLE_MAPPING_NAME,
                     jsonBuilder().startObject()
-                        .startObject(TYPE)
+                        .startObject(MapperService.SINGLE_MAPPING_NAME)
                         .startObject("properties")
                         .startObject(FIELD)
                         .field("type", "completion")
@@ -1358,7 +1394,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         );
         // can cause stack overflow without the default max_input_length
         String longString = replaceReservedChars(randomRealisticUnicodeOfLength(randomIntBetween(5000, 10000)), (char) 0x01);
-        client().prepareIndex(INDEX, TYPE, "1")
+        client().prepareIndex(INDEX)
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject().startObject(FIELD).startArray("input").value(longString).endArray().endObject().endObject()
             )
@@ -1374,9 +1411,9 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
                 .indices()
                 .prepareCreate(INDEX)
                 .addMapping(
-                    TYPE,
+                    MapperService.SINGLE_MAPPING_NAME,
                     jsonBuilder().startObject()
-                        .startObject(TYPE)
+                        .startObject(MapperService.SINGLE_MAPPING_NAME)
                         .startObject("properties")
                         .startObject(FIELD)
                         .field("type", "completion")
@@ -1391,7 +1428,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         String string = "foo" + (char) 0x00 + "bar";
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> client().prepareIndex(INDEX, TYPE, "1")
+            () -> client().prepareIndex(INDEX)
+                .setId("1")
                 .setSource(
                     jsonBuilder().startObject()
                         .startObject(FIELD)
@@ -1414,9 +1452,9 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
                 .indices()
                 .prepareCreate(INDEX)
                 .addMapping(
-                    TYPE,
+                    MapperService.SINGLE_MAPPING_NAME,
                     jsonBuilder().startObject()
-                        .startObject(TYPE)
+                        .startObject(MapperService.SINGLE_MAPPING_NAME)
                         .startObject("properties")
                         .startObject(FIELD)
                         .field("type", "completion")
@@ -1428,7 +1466,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
                 .get()
         );
         String string = "foo bar";
-        client().prepareIndex(INDEX, TYPE, "1")
+        client().prepareIndex(INDEX)
+            .setId("1")
             .setSource(jsonBuilder().startObject().field(FIELD, string).endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
@@ -1451,7 +1490,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = 1; i <= numDocs; i++) {
             indexRequestBuilders.add(
-                client().prepareIndex(INDEX, TYPE, "" + i)
+                client().prepareIndex(INDEX)
+                    .setId("" + i)
                     .setSource(
                         jsonBuilder().startObject()
                             .startObject(FIELD)
@@ -1470,7 +1510,7 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
     public void testSuggestWithFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject(TYPE)
+            .startObject(MapperService.SINGLE_MAPPING_NAME)
             .startObject("properties")
             .startObject(FIELD)
             .field("type", "completion")
@@ -1482,12 +1522,12 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
             .endObject()
             .endObject()
             .endObject();
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping));
+        assertAcked(prepareCreate(INDEX).addMapping(MapperService.SINGLE_MAPPING_NAME, mapping));
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex(INDEX, TYPE).setSource(FIELD, "apple"));
-        builders.add(client().prepareIndex(INDEX, TYPE).setSource(FIELD, "mango"));
-        builders.add(client().prepareIndex(INDEX, TYPE).setSource(FIELD, "papaya"));
+        builders.add(client().prepareIndex(INDEX).setSource(FIELD, "apple"));
+        builders.add(client().prepareIndex(INDEX).setSource(FIELD, "mango"));
+        builders.add(client().prepareIndex(INDEX).setSource(FIELD, "papaya"));
         indexRandom(true, false, builders);
 
         CompletionSuggestionBuilder suggestionBuilder = SuggestBuilders.completionSuggestion("alias").text("app");
@@ -1501,7 +1541,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = 1; i <= numDocs; i++) {
             indexRequestBuilders.add(
-                client().prepareIndex(INDEX, TYPE, "" + i)
+                client().prepareIndex(INDEX)
+                    .setId("" + i)
                     .setSource(
                         jsonBuilder().startObject()
                             .startObject(FIELD)

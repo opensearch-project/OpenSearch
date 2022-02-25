@@ -128,10 +128,10 @@ public class BulkIntegrationIT extends OpenSearchIntegTestCase {
         assertThat(bulkResponse.getItems()[0].getResponse().status(), equalTo(RestStatus.CREATED));
         assertThat(client().prepareGet("index3", "id").setRouting("1").get().getSource().get("foo"), equalTo("baz"));
 
-        bulkResponse = client().prepareBulk().add(client().prepareUpdate("alias1", "type", "id").setDoc("foo", "updated")).get();
+        bulkResponse = client().prepareBulk().add(client().prepareUpdate("alias1", "id").setDoc("foo", "updated")).get();
         assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
         assertThat(client().prepareGet("index3", "id").setRouting("1").get().getSource().get("foo"), equalTo("updated"));
-        bulkResponse = client().prepareBulk().add(client().prepareDelete("alias1", "type", "id")).get();
+        bulkResponse = client().prepareBulk().add(client().prepareDelete("alias1", "id")).get();
         assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
         assertFalse(client().prepareGet("index3", "id").setRouting("1").get().isExists());
     }
@@ -200,7 +200,7 @@ public class BulkIntegrationIT extends OpenSearchIntegTestCase {
                 while (stopped.get() == false && docID.get() < 5000) {
                     String id = Integer.toString(docID.incrementAndGet());
                     try {
-                        IndexResponse response = client().prepareIndex(index, "_doc")
+                        IndexResponse response = client().prepareIndex(index)
                             .setId(id)
                             .setSource(Collections.singletonMap("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON)
                             .get();

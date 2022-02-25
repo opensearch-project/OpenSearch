@@ -165,7 +165,7 @@ public class NoMasterNodeIT extends OpenSearchIntegTestCase {
         checkUpdateAction(
             false,
             timeout,
-            clientToMasterlessNode.prepareUpdate("test", "type1", "1")
+            clientToMasterlessNode.prepareUpdate("test", "1")
                 .setScript(new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "test script", Collections.emptyMap()))
                 .setTimeout(timeout)
         );
@@ -173,7 +173,7 @@ public class NoMasterNodeIT extends OpenSearchIntegTestCase {
         checkUpdateAction(
             true,
             timeout,
-            clientToMasterlessNode.prepareUpdate("no_index", "type1", "1")
+            clientToMasterlessNode.prepareUpdate("no_index", "1")
                 .setScript(new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "test script", Collections.emptyMap()))
                 .setTimeout(timeout)
         );
@@ -292,7 +292,7 @@ public class NoMasterNodeIT extends OpenSearchIntegTestCase {
         TimeValue timeout = TimeValue.timeValueMillis(200);
         long now = System.currentTimeMillis();
         try {
-            clientToMasterlessNode.prepareUpdate("test1", "type1", "1")
+            clientToMasterlessNode.prepareUpdate("test1", "1")
                 .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2")
                 .setTimeout(timeout)
                 .get();
@@ -330,7 +330,7 @@ public class NoMasterNodeIT extends OpenSearchIntegTestCase {
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
         ).get();
         client().admin().cluster().prepareHealth("_all").setWaitForGreenStatus().get();
-        client().prepareIndex("test1", "type1").setId("1").setSource("field", "value1").get();
+        client().prepareIndex("test1").setId("1").setSource("field", "value1").get();
         refresh();
 
         ensureGreen("test1");
@@ -388,20 +388,20 @@ public class NoMasterNodeIT extends OpenSearchIntegTestCase {
         );
 
         TimeValue timeout = TimeValue.timeValueMillis(200);
-        client(randomFrom(nodesWithShards)).prepareUpdate("test1", "type1", "1")
+        client(randomFrom(nodesWithShards)).prepareUpdate("test1", "1")
             .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2")
             .setTimeout(timeout)
             .get();
 
         expectThrows(
             Exception.class,
-            () -> client(partitionedNode).prepareUpdate("test1", "type1", "1")
+            () -> client(partitionedNode).prepareUpdate("test1", "1")
                 .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2")
                 .setTimeout(timeout)
                 .get()
         );
 
-        client(randomFrom(nodesWithShards)).prepareIndex("test1", "type1")
+        client(randomFrom(nodesWithShards)).prepareIndex("test1")
             .setId("1")
             .setSource(XContentFactory.jsonBuilder().startObject().endObject())
             .setTimeout(timeout)
@@ -410,7 +410,7 @@ public class NoMasterNodeIT extends OpenSearchIntegTestCase {
         // dynamic mapping updates fail
         expectThrows(
             MasterNotDiscoveredException.class,
-            () -> client(randomFrom(nodesWithShards)).prepareIndex("test1", "type1")
+            () -> client(randomFrom(nodesWithShards)).prepareIndex("test1")
                 .setId("1")
                 .setSource(XContentFactory.jsonBuilder().startObject().field("new_field", "value").endObject())
                 .setTimeout(timeout)
@@ -420,7 +420,7 @@ public class NoMasterNodeIT extends OpenSearchIntegTestCase {
         // dynamic index creation fails
         expectThrows(
             MasterNotDiscoveredException.class,
-            () -> client(randomFrom(nodesWithShards)).prepareIndex("test2", "type1")
+            () -> client(randomFrom(nodesWithShards)).prepareIndex("test2")
                 .setId("1")
                 .setSource(XContentFactory.jsonBuilder().startObject().endObject())
                 .setTimeout(timeout)
@@ -429,7 +429,7 @@ public class NoMasterNodeIT extends OpenSearchIntegTestCase {
 
         expectThrows(
             Exception.class,
-            () -> client(partitionedNode).prepareIndex("test1", "type1")
+            () -> client(partitionedNode).prepareIndex("test1")
                 .setId("1")
                 .setSource(XContentFactory.jsonBuilder().startObject().endObject())
                 .setTimeout(timeout)

@@ -199,7 +199,7 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         assertThat(response.getSourceAsMap().get("field1").toString(), equalTo("value1_2"));
         assertThat(response.getSourceAsMap().get("field2").toString(), equalTo("value2_2"));
 
-        DeleteResponse deleteResponse = client().prepareDelete("test", "type1", "1").get();
+        DeleteResponse deleteResponse = client().prepareDelete("test", "1").get();
         assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
 
         response = client().prepareGet(indexOrAlias(), "1").get();
@@ -756,7 +756,7 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
         ensureGreen();
         String doc = "{\n" + "  \"text\": \"some text.\"\n" + "}\n";
-        client().prepareIndex("test", "_doc").setId("1").setSource(doc, XContentType.JSON).setRouting("1").get();
+        client().prepareIndex("test").setId("1").setSource(doc, XContentType.JSON).setRouting("1").get();
         String[] fieldsList = { "_routing" };
         // before refresh - document is only in translog
         assertGetFieldsAlwaysWorks(indexOrAlias(), "_doc", "1", fieldsList, "1");

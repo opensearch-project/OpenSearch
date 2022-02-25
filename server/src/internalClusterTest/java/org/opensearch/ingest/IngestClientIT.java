@@ -319,7 +319,7 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
         client().admin().cluster().putPipeline(putPipelineRequest).get();
 
         BulkItemResponse item = client(masterOnlyNode).prepareBulk()
-            .add(client().prepareIndex("test", "type").setSource("field", "value2", "drop", true).setPipeline("_id"))
+            .add(client().prepareIndex("test").setSource("field", "value2", "drop", true).setPipeline("_id"))
             .get()
             .getItems()[0];
         assertFalse(item.isFailed());
@@ -451,7 +451,7 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
             client().admin().cluster().putPipeline(putPipelineRequest).get();
         }
 
-        client().prepareIndex("test", "_doc").setId("1").setSource("{}", XContentType.JSON).setPipeline("1").get();
+        client().prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).setPipeline("1").get();
         Map<String, Object> inserted = client().prepareGet("test", "1").get().getSourceAsMap();
         assertThat(inserted.get("readme"), equalTo("pipeline with id [3] is a bad pipeline"));
     }

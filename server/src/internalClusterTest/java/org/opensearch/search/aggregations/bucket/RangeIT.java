@@ -123,7 +123,7 @@ public class RangeIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             builders.add(
-                client().prepareIndex("idx", "type")
+                client().prepareIndex("idx")
                     .setSource(
                         jsonBuilder().startObject()
                             .field(SINGLE_VALUED_FIELD_NAME, i + 1)
@@ -154,10 +154,10 @@ public class RangeIT extends OpenSearchIntegTestCase {
         prepareCreate("old_index").addMapping("_doc", "distance", "type=double", "route_length_miles", "type=alias,path=distance").get();
         prepareCreate("new_index").addMapping("_doc", "route_length_miles", "type=double").get();
 
-        builders.add(client().prepareIndex("old_index", "_doc").setSource("distance", 42.0));
-        builders.add(client().prepareIndex("old_index", "_doc").setSource("distance", 50.5));
-        builders.add(client().prepareIndex("new_index", "_doc").setSource("route_length_miles", 100.2));
-        builders.add(client().prepareIndex("new_index", "_doc").setSource(Collections.emptyMap()));
+        builders.add(client().prepareIndex("old_index").setSource("distance", 42.0));
+        builders.add(client().prepareIndex("old_index").setSource("distance", 50.5));
+        builders.add(client().prepareIndex("new_index").setSource("route_length_miles", 100.2));
+        builders.add(client().prepareIndex("new_index").setSource(Collections.emptyMap()));
 
         indexRandom(true, builders);
         ensureSearchable();

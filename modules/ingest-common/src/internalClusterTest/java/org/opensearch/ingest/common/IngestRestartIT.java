@@ -114,7 +114,7 @@ public class IngestRestartIT extends OpenSearchIntegTestCase {
 
         Exception e = expectThrows(
             Exception.class,
-            () -> client().prepareIndex("index", "doc")
+            () -> client().prepareIndex("index")
                 .setId("1")
                 .setSource("x", 0)
                 .setPipeline(pipelineId)

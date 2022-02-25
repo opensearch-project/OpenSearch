@@ -113,7 +113,6 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         indexBuilders.add(
             client().prepareIndex()
-                .setType("type1")
                 .setId("1")
                 .setIndex("test")
                 .setSource(
@@ -128,7 +127,6 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         );
         indexBuilders.add(
             client().prepareIndex()
-                .setType("type1")
                 .setId("2")
                 .setIndex("test")
                 .setSource(
@@ -146,7 +144,6 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         for (int i = 1; i <= numDummyDocs; i++) {
             indexBuilders.add(
                 client().prepareIndex()
-                    .setType("type1")
                     .setId(Integer.toString(i + 3))
                     .setIndex("test")
                     .setSource(
@@ -244,14 +241,12 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         indexBuilders.add(
             client().prepareIndex()
-                .setType("type1")
                 .setId("1")
                 .setIndex("test")
                 .setSource(jsonBuilder().startObject().field("test", "value").field("num", 0.5).endObject())
         );
         indexBuilders.add(
             client().prepareIndex()
-                .setType("type1")
                 .setId("2")
                 .setIndex("test")
                 .setSource(jsonBuilder().startObject().field("test", "value").field("num", 1.7).endObject())
@@ -262,7 +257,6 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < numDummyDocs; i++) {
             indexBuilders.add(
                 client().prepareIndex()
-                    .setType("type1")
                     .setId(Integer.toString(i + 3))
                     .setIndex("test")
                     .setSource(jsonBuilder().startObject().field("test", "value").field("num", 3.0 + i).endObject())
@@ -360,7 +354,6 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         indexBuilders.add(
             client().prepareIndex()
-                .setType("type1")
                 .setId("1")
                 .setIndex("test")
                 .setSource(
@@ -375,7 +368,6 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         );
         indexBuilders.add(
             client().prepareIndex()
-                .setType("type1")
                 .setId("2")
                 .setIndex("test")
                 .setSource(
@@ -459,7 +451,6 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         );
 
         client().prepareIndex()
-            .setType("type1")
             .setId("1")
             .setIndex("test")
             .setSource(
@@ -528,7 +519,6 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         );
 
         client().prepareIndex()
-            .setType("type1")
             .setId("1")
             .setIndex("test")
             .setRefreshPolicy(IMMEDIATE)
@@ -900,7 +890,6 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
 
             indexBuilders.add(
                 client().prepareIndex()
-                    .setType("type")
                     .setId(Integer.toString(i))
                     .setIndex("test")
                     .setSource(
@@ -1098,7 +1087,6 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
 
         // Index for testing MIN and MAX
         IndexRequestBuilder doc1 = client().prepareIndex()
-            .setType("type1")
             .setId("1")
             .setIndex("test")
             .setSource(
@@ -1117,7 +1105,6 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
                     .endObject()
             );
         IndexRequestBuilder doc2 = client().prepareIndex()
-            .setType("type1")
             .setId("2")
             .setIndex("test")
             .setSource(
@@ -1171,14 +1158,12 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         // Now test AVG and SUM
 
         doc1 = client().prepareIndex()
-            .setType("type1")
             .setId("1")
             .setIndex("test")
             .setSource(
                 jsonBuilder().startObject().field("test", "value").startArray("num").value(0.0).value(1.0).value(2.0).endArray().endObject()
             );
         doc2 = client().prepareIndex()
-            .setType("type1")
             .setId("2")
             .setIndex("test")
             .setSource(jsonBuilder().startObject().field("test", "value").field("num", 1.0).endObject());

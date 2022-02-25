@@ -433,7 +433,7 @@ public class CloseIndexIT extends OpenSearchIntegTestCase {
                 randomBoolean(),
                 randomBoolean(),
                 IntStream.range(0, randomIntBetween(0, 50))
-                    .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n))
+                    .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
                     .collect(toList())
             );
             ensureGreen(indexName);
@@ -480,7 +480,7 @@ public class CloseIndexIT extends OpenSearchIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             IntStream.range(0, randomIntBetween(0, 50))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n))
+                .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
                 .collect(toList())
         );
         ensureGreen(indexName);
@@ -492,7 +492,7 @@ public class CloseIndexIT extends OpenSearchIntegTestCase {
                 Client client = client(dataNodes.get(0));
                 int moreDocs = randomIntBetween(1, 50);
                 for (int i = 0; i < moreDocs; i++) {
-                    client.prepareIndex(indexName, "_doc").setSource("num", i).get();
+                    client.prepareIndex(indexName).setSource("num", i).get();
                 }
                 assertAcked(client.admin().indices().prepareClose(indexName));
                 return super.onNodeStopped(nodeName);
@@ -529,7 +529,7 @@ public class CloseIndexIT extends OpenSearchIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             IntStream.range(0, randomIntBetween(0, 50))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n))
+                .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
                 .collect(toList())
         );
         assertAcked(client().admin().indices().prepareClose(indexName).setWaitForActiveShards(ActiveShardCount.ALL));
@@ -557,7 +557,7 @@ public class CloseIndexIT extends OpenSearchIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             IntStream.range(0, randomIntBetween(0, 50))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n))
+                .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
                 .collect(toList())
         );
         ensureGreen(indexName);

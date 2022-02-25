@@ -302,7 +302,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
                         } catch (InterruptedException e) {
                             throw new AssertionError(e);
                         }
-                        client().prepareIndex("index", "type")
+                        client().prepareIndex("index")
                             .setSource("field", "value")
                             .setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()))
                             .execute(new ActionListener<IndexResponse>() {
@@ -1315,7 +1315,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         createIndex("test");
         int numDocs = randomIntBetween(1, 20);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("test", "_doc").setSource("f", "v").get();
+            client().prepareIndex("test").setSource("f", "v").get();
         }
         client().admin().indices().prepareRefresh("test").get();
         AtomicBoolean stopped = new AtomicBoolean(false);
