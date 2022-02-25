@@ -160,7 +160,7 @@ public class HiddenIndexIT extends OpenSearchIntegTestCase {
 
         GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings("a_hidden_index").get();
         assertThat(mappingsResponse.mappings().size(), is(1));
-        MappingMetadata mappingMetadata = mappingsResponse.mappings().get("a_hidden_index").get("_doc");
+        MappingMetadata mappingMetadata = mappingsResponse.mappings().get("a_hidden_index");
         assertNotNull(mappingMetadata);
         Map<String, Object> propertiesMap = (Map<String, Object>) mappingMetadata.getSourceAsMap().get("properties");
         assertNotNull(propertiesMap);

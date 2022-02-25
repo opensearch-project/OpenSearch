@@ -68,7 +68,7 @@ public class SizeMappingIT extends OpenSearchIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
 
         // check mapping again
-        assertSizeMappingEnabled(index, type, true);
+        assertSizeMappingEnabled(index, true);
 
         // update some field in the mapping
         XContentBuilder updateMappingBuilder = jsonBuilder().startObject()
@@ -87,7 +87,7 @@ public class SizeMappingIT extends OpenSearchIntegTestCase {
         assertAcked(putMappingResponse);
 
         // make sure size field is still in mapping
-        assertSizeMappingEnabled(index, type, true);
+        assertSizeMappingEnabled(index, true);
     }
 
     public void testThatSizeCanBeSwitchedOnAndOff() throws Exception {
@@ -98,7 +98,7 @@ public class SizeMappingIT extends OpenSearchIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
 
         // check mapping again
-        assertSizeMappingEnabled(index, type, true);
+        assertSizeMappingEnabled(index, true);
 
         // update some field in the mapping
         XContentBuilder updateMappingBuilder = jsonBuilder().startObject()
@@ -115,18 +115,17 @@ public class SizeMappingIT extends OpenSearchIntegTestCase {
         assertAcked(putMappingResponse);
 
         // make sure size field is still in mapping
-        assertSizeMappingEnabled(index, type, false);
+        assertSizeMappingEnabled(index, false);
     }
 
-    private void assertSizeMappingEnabled(String index, String type, boolean enabled) throws IOException {
+    private void assertSizeMappingEnabled(String index, boolean enabled) throws IOException {
         String errMsg = String.format(
             Locale.ROOT,
-            "Expected size field mapping to be " + (enabled ? "enabled" : "disabled") + " for %s/%s",
-            index,
-            type
+            "Expected size field mapping to be " + (enabled ? "enabled" : "disabled") + " for %s",
+            index
         );
-        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(index).addTypes(type).get();
-        Map<String, Object> mappingSource = getMappingsResponse.getMappings().get(index).get(type).getSourceAsMap();
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(index).get();
+        Map<String, Object> mappingSource = getMappingsResponse.getMappings().get(index).getSourceAsMap();
         assertThat(errMsg, mappingSource, hasKey("_size"));
         String sizeAsString = mappingSource.get("_size").toString();
         assertThat(sizeAsString, is(notNullValue()));

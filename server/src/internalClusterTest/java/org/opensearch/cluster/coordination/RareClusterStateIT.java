@@ -53,7 +53,6 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.discovery.Discovery;
@@ -269,14 +268,7 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
 
         // ...and wait for mappings to be available on master
         assertBusy(() -> {
-            ImmutableOpenMap<String, MappingMetadata> indexMappings = client().admin()
-                .indices()
-                .prepareGetMappings("index")
-                .get()
-                .getMappings()
-                .get("index");
-            assertNotNull(indexMappings);
-            MappingMetadata typeMappings = indexMappings.get("type");
+            MappingMetadata typeMappings = client().admin().indices().prepareGetMappings("index").get().getMappings().get("index");
             assertNotNull(typeMappings);
             Object properties;
             try {

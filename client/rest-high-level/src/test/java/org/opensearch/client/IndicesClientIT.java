@@ -128,7 +128,6 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.action.admin.indices.RestCreateIndexAction;
 import org.opensearch.rest.action.admin.indices.RestGetIndexTemplateAction;
-import org.opensearch.rest.action.admin.indices.RestGetIndicesAction;
 import org.opensearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.opensearch.rest.action.admin.indices.RestRolloverIndexAction;
 
@@ -485,33 +484,6 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         // noinspection unchecked
         Map<String, Object> fieldMapping = (Map<String, Object>) ((Map<String, Object>) o).get("field-1");
         assertEquals("integer", fieldMapping.get("type"));
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testGetIndexWithTypes() throws IOException {
-        String indexName = "get_index_test";
-        Settings basicSettings = Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0).build();
-        String mappings = "\"properties\":{\"field-1\":{\"type\":\"integer\"}}";
-        createIndex(indexName, basicSettings, mappings);
-
-        org.opensearch.action.admin.indices.get.GetIndexRequest getIndexRequest =
-            new org.opensearch.action.admin.indices.get.GetIndexRequest().indices(indexName).includeDefaults(false);
-        org.opensearch.action.admin.indices.get.GetIndexResponse getIndexResponse = execute(
-            getIndexRequest,
-            highLevelClient().indices()::get,
-            highLevelClient().indices()::getAsync,
-            expectWarningsOnce(RestGetIndicesAction.TYPES_DEPRECATION_MESSAGE)
-        );
-
-        // default settings should be null
-        assertNull(getIndexResponse.getSetting(indexName, "index.refresh_interval"));
-        assertEquals("1", getIndexResponse.getSetting(indexName, SETTING_NUMBER_OF_SHARDS));
-        assertEquals("0", getIndexResponse.getSetting(indexName, SETTING_NUMBER_OF_REPLICAS));
-        assertNotNull(getIndexResponse.getMappings().get(indexName));
-        MappingMetadata mappingMetadata = getIndexResponse.getMappings().get(indexName).get("_doc");
-        assertNotNull(mappingMetadata);
-        assertEquals("_doc", mappingMetadata.type());
-        assertEquals("{\"properties\":{\"field-1\":{\"type\":\"integer\"}}}", mappingMetadata.source().string());
     }
 
     @SuppressWarnings("unchecked")

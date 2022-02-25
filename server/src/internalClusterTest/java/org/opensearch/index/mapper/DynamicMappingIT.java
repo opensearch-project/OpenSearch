@@ -38,7 +38,6 @@ import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.metadata.MappingMetadata;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -94,11 +93,9 @@ public class DynamicMappingIT extends OpenSearchIntegTestCase {
     }
 
     private static void assertMappingsHaveField(GetMappingsResponse mappings, String index, String field) throws IOException {
-        ImmutableOpenMap<String, MappingMetadata> indexMappings = mappings.getMappings().get("index");
+        MappingMetadata indexMappings = mappings.getMappings().get("index");
         assertNotNull(indexMappings);
-        MappingMetadata typeMappings = indexMappings.get(MapperService.SINGLE_MAPPING_NAME);
-        assertNotNull(typeMappings);
-        Map<String, Object> typeMappingsMap = typeMappings.getSourceAsMap();
+        Map<String, Object> typeMappingsMap = indexMappings.getSourceAsMap();
         Map<String, Object> properties = (Map<String, Object>) typeMappingsMap.get("properties");
         assertTrue("Could not find [" + field + "] in " + typeMappingsMap.toString(), properties.containsKey(field));
     }

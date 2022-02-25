@@ -35,12 +35,10 @@ package org.opensearch.client.documentation;
 import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.MappingMetadata;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static java.util.Collections.singletonMap;
-import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * This class is used to generate the Java indices administration documentation.
@@ -73,8 +71,6 @@ public class IndicesDocumentationIT extends OpenSearchIntegTestCase {
         // end::index-with-mapping
         GetMappingsResponse getMappingsResponse = client.admin().indices().prepareGetMappings("twitter").get();
         assertEquals(1, getMappingsResponse.getMappings().size());
-        ImmutableOpenMap<String, MappingMetadata> indexMapping = getMappingsResponse.getMappings().get("twitter");
-        assertThat(indexMapping.get("_doc"), instanceOf(MappingMetadata.class));
 
         // we need to delete in order to create a fresh new index with another type
         client.admin().indices().prepareDelete("twitter").get();
@@ -108,11 +104,8 @@ public class IndicesDocumentationIT extends OpenSearchIntegTestCase {
         // end::putMapping-request-source
         getMappingsResponse = client.admin().indices().prepareGetMappings("twitter").get();
         assertEquals(1, getMappingsResponse.getMappings().size());
-        indexMapping = getMappingsResponse.getMappings().get("twitter");
-        assertEquals(
-            singletonMap("properties", singletonMap("name", singletonMap("type", "text"))),
-            indexMapping.get("_doc").getSourceAsMap()
-        );
+        MappingMetadata indexMapping = getMappingsResponse.getMappings().get("twitter");
+        assertEquals(singletonMap("properties", singletonMap("name", singletonMap("type", "text"))), indexMapping.getSourceAsMap());
     }
 
 }
