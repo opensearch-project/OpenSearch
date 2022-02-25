@@ -125,6 +125,7 @@ thirdPartyAudit {
   )
 
   ignoreMissingClasses(
+    'com.google.api.client.json.gson.GsonFactory',
     'com.google.appengine.api.datastore.Blob',
     'com.google.appengine.api.datastore.DatastoreService',
     'com.google.appengine.api.datastore.DatastoreServiceFactory',
