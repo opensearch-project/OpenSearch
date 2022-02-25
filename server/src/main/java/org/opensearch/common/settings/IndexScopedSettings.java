@@ -97,6 +97,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INDEX_DATA_PATH_SETTING,
                 IndexMetadata.INDEX_FORMAT_SETTING,
                 IndexMetadata.INDEX_HIDDEN_SETTING,
+                IndexMetadata.INDEX_SEGMENT_REPLICATION_SETTING,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING,
@@ -187,7 +188,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.FINAL_PIPELINE,
                 MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING,
                 ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING,
-                IndexSettings.INDEX_SEGMENT_REPLICATION_SETTING,
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
