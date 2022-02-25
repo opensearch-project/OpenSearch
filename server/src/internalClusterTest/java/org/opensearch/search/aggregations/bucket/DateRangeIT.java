@@ -79,7 +79,7 @@ import static org.hamcrest.core.IsNull.nullValue;
 public class DateRangeIT extends OpenSearchIntegTestCase {
 
     private static IndexRequestBuilder indexDoc(int month, int day, int value) throws Exception {
-        return client().prepareIndex("idx", "type")
+        return client().prepareIndex("idx")
             .setSource(
                 jsonBuilder().startObject()
                     .field("value", value)

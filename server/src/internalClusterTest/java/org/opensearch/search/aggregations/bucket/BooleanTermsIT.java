@@ -86,7 +86,7 @@ public class BooleanTermsIT extends OpenSearchIntegTestCase {
                 default:
                     throw new AssertionError();
             }
-            builders[i] = client().prepareIndex("idx", "type")
+            builders[i] = client().prepareIndex("idx")
                 .setSource(
                     jsonBuilder().startObject()
                         .field(SINGLE_VALUED_FIELD_NAME, singleValue)

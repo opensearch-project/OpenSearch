@@ -244,7 +244,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         final String indexName = "index-one";
         createIndex(indexName);
-        client().prepareIndex(indexName, "_doc").setSource("foo", "bar").get();
+        client().prepareIndex(indexName).setSource("foo", "bar").get();
 
         blockDataNode(repoName, dataNode);
 

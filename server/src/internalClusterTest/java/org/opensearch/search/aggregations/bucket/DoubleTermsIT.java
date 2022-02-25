@@ -147,7 +147,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < NUM_DOCS; i++) {
             builders.add(
-                client().prepareIndex("idx", "type")
+                client().prepareIndex("idx")
                     .setSource(
                         jsonBuilder().startObject()
                             .field(SINGLE_VALUED_FIELD_NAME, (double) i)
@@ -164,7 +164,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         }
         for (int i = 0; i < 100; i++) {
             builders.add(
-                client().prepareIndex("high_card_idx", "type")
+                client().prepareIndex("high_card_idx")
                     .setSource(
                         jsonBuilder().startObject()
                             .field(SINGLE_VALUED_FIELD_NAME, (double) i)
@@ -240,44 +240,44 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         assertAcked(prepareCreate("sort_idx").addMapping("multi_sort_type", SINGLE_VALUED_FIELD_NAME, "type=double"));
         for (int i = 1; i <= 3; i++) {
             builders.add(
-                client().prepareIndex("sort_idx", "multi_sort_type")
+                client().prepareIndex("sort_idx")
                     .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 1).field("l", 1).field("d", i).endObject())
             );
             builders.add(
-                client().prepareIndex("sort_idx", "multi_sort_type")
+                client().prepareIndex("sort_idx")
                     .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 2).field("l", 2).field("d", i).endObject())
             );
         }
         builders.add(
-            client().prepareIndex("sort_idx", "multi_sort_type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 3).field("l", 3).field("d", 1).endObject())
         );
         builders.add(
-            client().prepareIndex("sort_idx", "multi_sort_type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 3).field("l", 3).field("d", 2).endObject())
         );
         builders.add(
-            client().prepareIndex("sort_idx", "multi_sort_type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 4).field("l", 3).field("d", 1).endObject())
         );
         builders.add(
-            client().prepareIndex("sort_idx", "multi_sort_type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 4).field("l", 3).field("d", 3).endObject())
         );
         builders.add(
-            client().prepareIndex("sort_idx", "multi_sort_type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 5).field("l", 5).field("d", 1).endObject())
         );
         builders.add(
-            client().prepareIndex("sort_idx", "multi_sort_type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 5).field("l", 5).field("d", 2).endObject())
         );
         builders.add(
-            client().prepareIndex("sort_idx", "multi_sort_type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 6).field("l", 5).field("d", 1).endObject())
         );
         builders.add(
-            client().prepareIndex("sort_idx", "multi_sort_type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 7).field("l", 5).field("d", 1).endObject())
         );
     }

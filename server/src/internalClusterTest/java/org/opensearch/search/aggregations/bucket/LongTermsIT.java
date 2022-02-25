@@ -133,7 +133,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
         createIndex("idx", "high_card_idx");
         IndexRequestBuilder[] lowCardBuilders = new IndexRequestBuilder[NUM_DOCS];
         for (int i = 0; i < lowCardBuilders.length; i++) {
-            lowCardBuilders[i] = client().prepareIndex("idx", "type")
+            lowCardBuilders[i] = client().prepareIndex("idx")
                 .setSource(
                     jsonBuilder().startObject()
                         .field(SINGLE_VALUED_FIELD_NAME, i)
@@ -149,7 +149,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
         indexRandom(true, lowCardBuilders);
         IndexRequestBuilder[] highCardBuilders = new IndexRequestBuilder[100]; // TODO randomize the size?
         for (int i = 0; i < highCardBuilders.length; i++) {
-            highCardBuilders[i] = client().prepareIndex("high_card_idx", "type")
+            highCardBuilders[i] = client().prepareIndex("high_card_idx")
                 .setSource(
                     jsonBuilder().startObject()
                         .field(SINGLE_VALUED_FIELD_NAME, i)
@@ -227,44 +227,44 @@ public class LongTermsIT extends AbstractTermsTestCase {
         createIndex("sort_idx");
         for (int i = 1; i <= 3; i++) {
             builders.add(
-                client().prepareIndex("sort_idx", "multi_sort_type")
+                client().prepareIndex("sort_idx")
                     .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 1).field("l", 1).field("d", i).endObject())
             );
             builders.add(
-                client().prepareIndex("sort_idx", "multi_sort_type")
+                client().prepareIndex("sort_idx")
                     .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 2).field("l", 2).field("d", i).endObject())
             );
         }
         builders.add(
-            client().prepareIndex("sort_idx", "multi_sort_type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 3).field("l", 3).field("d", 1).endObject())
         );
         builders.add(
-            client().prepareIndex("sort_idx", "multi_sort_type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 3).field("l", 3).field("d", 2).endObject())
         );
         builders.add(
-            client().prepareIndex("sort_idx", "multi_sort_type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 4).field("l", 3).field("d", 1).endObject())
         );
         builders.add(
-            client().prepareIndex("sort_idx", "multi_sort_type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 4).field("l", 3).field("d", 3).endObject())
         );
         builders.add(
-            client().prepareIndex("sort_idx", "multi_sort_type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 5).field("l", 5).field("d", 1).endObject())
         );
         builders.add(
-            client().prepareIndex("sort_idx", "multi_sort_type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 5).field("l", 5).field("d", 2).endObject())
         );
         builders.add(
-            client().prepareIndex("sort_idx", "multi_sort_type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 6).field("l", 5).field("d", 1).endObject())
         );
         builders.add(
-            client().prepareIndex("sort_idx", "multi_sort_type")
+            client().prepareIndex("sort_idx")
                 .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 7).field("l", 5).field("d", 1).endObject())
         );
     }

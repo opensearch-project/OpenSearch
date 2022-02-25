@@ -106,7 +106,7 @@ public class ReindexFromRemoteWithAuthTests extends OpenSearchSingleNodeTestCase
 
     @Before
     public void setupSourceIndex() {
-        client().prepareIndex("source", "test").setSource("test", "test").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        client().prepareIndex("source").setSource("test", "test").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
     }
 
     @Before

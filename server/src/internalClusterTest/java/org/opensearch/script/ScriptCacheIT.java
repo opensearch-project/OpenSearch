@@ -90,17 +90,14 @@ public class ScriptCacheIT extends OpenSearchIntegTestCase {
     }
 
     public void testPainlessCompilationLimit429Error() throws Exception {
-        client().prepareIndex("test", "1")
-            .setId("1")
-            .setSource(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
-            .get();
+        client().prepareIndex("test").setId("1").setSource(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject()).get();
         ensureGreen();
         Map<String, Object> params = new HashMap<>();
         params.put("field", "field");
         Script script = new Script(ScriptType.INLINE, "mockscript", "increase_field", params);
         ExecutionException exception = expectThrows(
             ExecutionException.class,
-            () -> client().prepareUpdate("test", "1", "1").setScript(script).execute().get()
+            () -> client().prepareUpdate("test", "1").setScript(script).execute().get()
         );
         Throwable rootCause = getRootCause(exception);
         assertTrue(rootCause instanceof OpenSearchException);

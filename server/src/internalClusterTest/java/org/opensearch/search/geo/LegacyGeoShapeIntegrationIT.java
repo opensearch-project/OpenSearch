@@ -267,7 +267,7 @@ public class LegacyGeoShapeIntegrationIT extends OpenSearchIntegTestCase {
             );
             ensureGreen();
 
-            indexRandom(true, client().prepareIndex("test", "_doc").setId("0").setSource("shape", (ToXContent) (builder, params) -> {
+            indexRandom(true, client().prepareIndex("test").setId("0").setSource("shape", (ToXContent) (builder, params) -> {
                 builder.startObject()
                     .field("type", "circle")
                     .startArray("coordinates")

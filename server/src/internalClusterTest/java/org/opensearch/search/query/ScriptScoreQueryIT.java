@@ -157,7 +157,7 @@ public class ScriptScoreQueryIT extends OpenSearchIntegTestCase {
             assertAcked(prepareCreate("test-index").addMapping("_doc", "field1", "type=text", "field2", "type=double"));
             int docCount = 10;
             for (int i = 1; i <= docCount; i++) {
-                client().prepareIndex("test-index", "_doc").setId("" + i).setSource("field1", "text" + (i % 2), "field2", i).get();
+                client().prepareIndex("test-index").setId("" + i).setSource("field1", "text" + (i % 2), "field2", i).get();
             }
             refresh();
 

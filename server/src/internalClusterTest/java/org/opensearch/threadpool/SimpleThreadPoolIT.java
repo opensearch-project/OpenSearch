@@ -72,7 +72,7 @@ public class SimpleThreadPoolIT extends OpenSearchIntegTestCase {
         int numDocs = randomIntBetween(2, 100);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; ++i) {
-            builders[i] = client().prepareIndex("idx", "type")
+            builders[i] = client().prepareIndex("idx")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("str_value", "s" + i)

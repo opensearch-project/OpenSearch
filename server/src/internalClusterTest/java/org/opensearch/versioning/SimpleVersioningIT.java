@@ -72,7 +72,7 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
         // Note - external version doesn't throw version conflicts on deletes of non existent records.
         // This is different from internal versioning
 
-        DeleteResponse deleteResponse = client().prepareDelete("test", "type", "1")
+        DeleteResponse deleteResponse = client().prepareDelete("test", "1")
             .setVersion(17)
             .setVersionType(VersionType.EXTERNAL)
             .execute()
@@ -140,13 +140,13 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
 
         // deleting with a lower version fails.
         assertRequestBuilderThrows(
-            client().prepareDelete("test", "type", "1").setVersion(2).setVersionType(VersionType.EXTERNAL_GTE),
+            client().prepareDelete("test", "1").setVersion(2).setVersionType(VersionType.EXTERNAL_GTE),
             VersionConflictEngineException.class
         );
 
         // Delete with a higher or equal version deletes all versions up to the given one.
         long v = randomIntBetween(14, 17);
-        DeleteResponse deleteResponse = client().prepareDelete("test", "type", "1")
+        DeleteResponse deleteResponse = client().prepareDelete("test", "1")
             .setVersion(v)
             .setVersionType(VersionType.EXTERNAL_GTE)
             .execute()
@@ -156,16 +156,12 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
 
         // Deleting with a lower version keeps on failing after a delete.
         assertFutureThrows(
-            client().prepareDelete("test", "type", "1").setVersion(2).setVersionType(VersionType.EXTERNAL_GTE).execute(),
+            client().prepareDelete("test", "1").setVersion(2).setVersionType(VersionType.EXTERNAL_GTE).execute(),
             VersionConflictEngineException.class
         );
 
         // But delete with a higher version is OK.
-        deleteResponse = client().prepareDelete("test", "type", "1")
-            .setVersion(18)
-            .setVersionType(VersionType.EXTERNAL_GTE)
-            .execute()
-            .actionGet();
+        deleteResponse = client().prepareDelete("test", "1").setVersion(18).setVersionType(VersionType.EXTERNAL_GTE).execute().actionGet();
         assertEquals(DocWriteResponse.Result.NOT_FOUND, deleteResponse.getResult());
         assertThat(deleteResponse.getVersion(), equalTo(18L));
     }
@@ -208,12 +204,12 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
 
         // deleting with a lower version fails.
         assertFutureThrows(
-            client().prepareDelete("test", "type", "1").setVersion(2).setVersionType(VersionType.EXTERNAL).execute(),
+            client().prepareDelete("test", "1").setVersion(2).setVersionType(VersionType.EXTERNAL).execute(),
             VersionConflictEngineException.class
         );
 
         // Delete with a higher version deletes all versions up to the given one.
-        DeleteResponse deleteResponse = client().prepareDelete("test", "type", "1")
+        DeleteResponse deleteResponse = client().prepareDelete("test", "1")
             .setVersion(17)
             .setVersionType(VersionType.EXTERNAL)
             .execute()
@@ -223,16 +219,12 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
 
         // Deleting with a lower version keeps on failing after a delete.
         assertFutureThrows(
-            client().prepareDelete("test", "type", "1").setVersion(2).setVersionType(VersionType.EXTERNAL).execute(),
+            client().prepareDelete("test", "1").setVersion(2).setVersionType(VersionType.EXTERNAL).execute(),
             VersionConflictEngineException.class
         );
 
         // But delete with a higher version is OK.
-        deleteResponse = client().prepareDelete("test", "type", "1")
-            .setVersion(18)
-            .setVersionType(VersionType.EXTERNAL)
-            .execute()
-            .actionGet();
+        deleteResponse = client().prepareDelete("test", "1").setVersion(18).setVersionType(VersionType.EXTERNAL).execute().actionGet();
         assertEquals(DocWriteResponse.Result.NOT_FOUND, deleteResponse.getResult());
         assertThat(deleteResponse.getVersion(), equalTo(18L));
 
@@ -246,11 +238,7 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
             .actionGet();
         assertThat(indexResponse.getVersion(), equalTo(19L));
 
-        deleteResponse = client().prepareDelete("test", "type", "1")
-            .setVersion(20)
-            .setVersionType(VersionType.EXTERNAL)
-            .execute()
-            .actionGet();
+        deleteResponse = client().prepareDelete("test", "1").setVersion(20).setVersionType(VersionType.EXTERNAL).execute().actionGet();
         assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
         assertThat(deleteResponse.getVersion(), equalTo(20L));
 
@@ -295,7 +283,7 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
         ensureGreen();
 
         assertFutureThrows(
-            client().prepareDelete("test", "type", "1").setIfSeqNo(17).setIfPrimaryTerm(10).execute(),
+            client().prepareDelete("test", "1").setIfSeqNo(17).setIfPrimaryTerm(10).execute(),
             VersionConflictEngineException.class
         );
 
@@ -335,15 +323,15 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
         );
 
         assertRequestBuilderThrows(
-            client().prepareDelete("test", "type", "1").setIfSeqNo(10).setIfPrimaryTerm(1),
+            client().prepareDelete("test", "1").setIfSeqNo(10).setIfPrimaryTerm(1),
             VersionConflictEngineException.class
         );
         assertRequestBuilderThrows(
-            client().prepareDelete("test", "type", "1").setIfSeqNo(10).setIfPrimaryTerm(2),
+            client().prepareDelete("test", "1").setIfSeqNo(10).setIfPrimaryTerm(2),
             VersionConflictEngineException.class
         );
         assertRequestBuilderThrows(
-            client().prepareDelete("test", "type", "1").setIfSeqNo(1).setIfPrimaryTerm(2),
+            client().prepareDelete("test", "1").setIfSeqNo(1).setIfPrimaryTerm(2),
             VersionConflictEngineException.class
         );
 
@@ -367,27 +355,27 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
             assertThat(searchResponse.getHits().getAt(0).getVersion(), equalTo(Versions.NOT_FOUND));
         }
 
-        DeleteResponse deleteResponse = client().prepareDelete("test", "type", "1").setIfSeqNo(1).setIfPrimaryTerm(1).get();
+        DeleteResponse deleteResponse = client().prepareDelete("test", "1").setIfSeqNo(1).setIfPrimaryTerm(1).get();
         assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
         assertThat(deleteResponse.getSeqNo(), equalTo(2L));
         assertThat(deleteResponse.getPrimaryTerm(), equalTo(1L));
 
         assertRequestBuilderThrows(
-            client().prepareDelete("test", "type", "1").setIfSeqNo(1).setIfPrimaryTerm(1),
+            client().prepareDelete("test", "1").setIfSeqNo(1).setIfPrimaryTerm(1),
             VersionConflictEngineException.class
         );
         assertRequestBuilderThrows(
-            client().prepareDelete("test", "type", "1").setIfSeqNo(3).setIfPrimaryTerm(12),
+            client().prepareDelete("test", "1").setIfSeqNo(3).setIfPrimaryTerm(12),
             VersionConflictEngineException.class
         );
         assertRequestBuilderThrows(
-            client().prepareDelete("test", "type", "1").setIfSeqNo(1).setIfPrimaryTerm(2),
+            client().prepareDelete("test", "1").setIfSeqNo(1).setIfPrimaryTerm(2),
             VersionConflictEngineException.class
         );
 
         // the doc is deleted. Even when we hit the deleted seqNo, a conditional delete should fail.
         assertRequestBuilderThrows(
-            client().prepareDelete("test", "type", "1").setIfSeqNo(2).setIfPrimaryTerm(1),
+            client().prepareDelete("test", "1").setIfSeqNo(2).setIfPrimaryTerm(1),
             VersionConflictEngineException.class
         );
     }
@@ -415,7 +403,7 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
         );
 
         assertRequestBuilderThrows(
-            client().prepareDelete("test", "type", "1").setIfSeqNo(0).setIfPrimaryTerm(1),
+            client().prepareDelete("test", "1").setIfSeqNo(0).setIfPrimaryTerm(1),
             VersionConflictEngineException.class
         );
 
@@ -723,7 +711,7 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
                             long version = idVersion.version;
                             if (idVersion.delete) {
                                 try {
-                                    idVersion.response = client().prepareDelete("test", "type", id)
+                                    idVersion.response = client().prepareDelete("test", id)
                                         .setVersion(version)
                                         .setVersionType(VersionType.EXTERNAL)
                                         .execute()
@@ -832,7 +820,7 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
         }
 
         // Delete it
-        client().prepareDelete("test", "type", "id").setVersion(11).setVersionType(VersionType.EXTERNAL).execute().actionGet();
+        client().prepareDelete("test", "id").setVersion(11).setVersionType(VersionType.EXTERNAL).execute().actionGet();
 
         // Real-time get should reflect delete:
         assertThat("doc should have been deleted", client().prepareGet("test", "id").execute().actionGet().getVersion(), equalTo(-1L));
@@ -842,7 +830,7 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
         Thread.sleep(1000);
 
         // Delete an unrelated doc (provokes pruning deletes from versionMap)
-        client().prepareDelete("test", "type", "id2").setVersion(11).setVersionType(VersionType.EXTERNAL).execute().actionGet();
+        client().prepareDelete("test", "id2").setVersion(11).setVersionType(VersionType.EXTERNAL).execute().actionGet();
 
         // Real-time get should still reflect delete:
         assertThat("doc should have been deleted", client().prepareGet("test", "id").execute().actionGet().getVersion(), equalTo(-1L));
@@ -872,7 +860,7 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
         }
 
         // Delete it
-        client().prepareDelete("test", "type", "id").setVersion(11).setVersionType(VersionType.EXTERNAL).execute().actionGet();
+        client().prepareDelete("test", "id").setVersion(11).setVersionType(VersionType.EXTERNAL).execute().actionGet();
 
         // Real-time get should reflect delete even though index.gc_deletes is 0:
         assertThat("doc should have been deleted", client().prepareGet("test", "id").execute().actionGet().getVersion(), equalTo(-1L));
@@ -895,7 +883,7 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
             .execute()
             .actionGet();
         assertThat(doc2.getVersion(), equalTo(1L));
-        client().prepareDelete("test", "type", "1").get(); // v2
+        client().prepareDelete("test", "1").get(); // v2
         IndexResponse doc3 = client().prepareIndex("test", "type", "1")
             .setSource("field", "value3")
             .setVersion(Versions.MATCH_DELETED)

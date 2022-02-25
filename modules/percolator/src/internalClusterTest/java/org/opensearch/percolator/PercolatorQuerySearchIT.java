@@ -1215,7 +1215,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
                     .addMapping("_doc", "id", "type=keyword", "field1", "type=keyword", "query", "type=percolator")
             );
 
-            client().prepareIndex("test", "_doc")
+            client().prepareIndex("test")
                 .setId("1")
                 .setSource(jsonBuilder().startObject().field("id", "1").field("query", matchQuery("field1", "value")).endObject())
                 .get();
@@ -1264,13 +1264,13 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
 
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("_doc", "d", "type=date", "q", "type=percolator"));
 
-        client().prepareIndex("test", "_doc")
+        client().prepareIndex("test")
             .setId("1")
             .setSource(jsonBuilder().startObject().field("q", boolQuery().must(rangeQuery("d").gt("now"))).endObject())
             .execute()
             .actionGet();
 
-        client().prepareIndex("test", "_doc")
+        client().prepareIndex("test")
             .setId("2")
             .setSource(jsonBuilder().startObject().field("q", boolQuery().must(rangeQuery("d").lt("now"))).endObject())
             .execute()

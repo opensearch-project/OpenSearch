@@ -227,7 +227,7 @@ public class MockDiskUsagesIT extends OpenSearchIntegTestCase {
 
         assertBusy(
             () -> assertBlocked(
-                client().prepareIndex().setIndex("test").setType("doc").setId("1").setSource("foo", "bar"),
+                client().prepareIndex().setIndex("test").setId("1").setSource("foo", "bar"),
                 IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK
             )
         );
@@ -236,7 +236,7 @@ public class MockDiskUsagesIT extends OpenSearchIntegTestCase {
 
         // Cannot add further documents
         assertBlocked(
-            client().prepareIndex().setIndex("test").setType("doc").setId("2").setSource("foo", "bar"),
+            client().prepareIndex().setIndex("test").setId("2").setSource("foo", "bar"),
             IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK
         );
         assertSearchHits(client().prepareSearch("test").get(), "1");

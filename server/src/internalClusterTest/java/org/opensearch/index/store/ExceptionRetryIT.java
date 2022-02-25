@@ -127,7 +127,7 @@ public class ExceptionRetryIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             XContentBuilder doc = null;
             doc = jsonBuilder().startObject().field("foo", "bar").endObject();
-            bulkBuilder.add(client.prepareIndex("index", "type").setSource(doc));
+            bulkBuilder.add(client.prepareIndex("index").setSource(doc));
         }
 
         BulkResponse response = bulkBuilder.get();

@@ -156,7 +156,7 @@ public class ReverseNestedIT extends OpenSearchIntegTestCase {
             source.startObject().field("field2", value1).endObject();
         }
         source.endArray().endObject();
-        indexRandom(false, client().prepareIndex("idx1", "type").setRouting("1").setSource(source));
+        indexRandom(false, client().prepareIndex("idx1").setRouting("1").setSource(source));
     }
 
     private void insertIdx2(String[][] values) throws Exception {
@@ -169,7 +169,7 @@ public class ReverseNestedIT extends OpenSearchIntegTestCase {
             source.endArray().endObject();
         }
         source.endArray().endObject();
-        indexRandom(false, client().prepareIndex("idx2", "type").setRouting("1").setSource(source));
+        indexRandom(false, client().prepareIndex("idx2").setRouting("1").setSource(source));
     }
 
     public void testSimpleReverseNestedToRoot() throws Exception {

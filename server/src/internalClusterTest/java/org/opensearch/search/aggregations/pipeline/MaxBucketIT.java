@@ -102,7 +102,7 @@ public class MaxBucketIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             int fieldValue = randomIntBetween(minRandomValue, maxRandomValue);
             builders.add(
-                client().prepareIndex("idx", "type")
+                client().prepareIndex("idx")
                     .setSource(
                         jsonBuilder().startObject()
                             .field(SINGLE_VALUED_FIELD_NAME, fieldValue)
@@ -565,7 +565,7 @@ public class MaxBucketIT extends OpenSearchIntegTestCase {
             .field("@timestamp", "2018-07-08T08:07:00.599Z")
             .endObject();
 
-        client().prepareIndex("foo_2", "doc").setSource(docBuilder).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        client().prepareIndex("foo_2").setSource(docBuilder).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         client().admin().indices().prepareRefresh();
 

@@ -610,9 +610,9 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
 
         logger.info("Indexing...");
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex("test", "type1").setSource("text", "lucene").setId("1"));
-        builders.add(client().prepareIndex("test", "type1").setSource("text", "lucene release").setId("2"));
-        builders.add(client().prepareIndex("test", "type1").setSource("text", "apache lucene").setId("3"));
+        builders.add(client().prepareIndex("test").setSource("text", "lucene").setId("1"));
+        builders.add(client().prepareIndex("test").setSource("text", "lucene release").setId("2"));
+        builders.add(client().prepareIndex("test").setSource("text", "apache lucene").setId("3"));
         indexRandom(true, builders);
 
         logger.info("Running MoreLikeThis");

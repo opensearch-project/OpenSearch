@@ -281,7 +281,7 @@ public class GlobalCheckpointSyncIT extends OpenSearchIntegTestCase {
         logger.info("numDocs {}", numDocs);
         long maxSeqNo = 0;
         for (int i = 0; i < numDocs; i++) {
-            maxSeqNo = client().prepareIndex("test", "_doc").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get().getSeqNo();
+            maxSeqNo = client().prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get().getSeqNo();
             logger.info("got {}", maxSeqNo);
         }
         for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {

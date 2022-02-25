@@ -79,8 +79,8 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
         );
         indexRandom(
             true,
-            client.prepareIndex("index", "type").setSource("f", "2014-03-10T00:00:00.000Z"),
-            client.prepareIndex("index", "type").setSource("f", "2014-05-13T00:00:00.000Z")
+            client.prepareIndex("index").setSource("f", "2014-03-10T00:00:00.000Z"),
+            client.prepareIndex("index").setSource("f", "2014-05-13T00:00:00.000Z")
         );
         ensureSearchable("index");
 
@@ -590,7 +590,7 @@ public class IndicesRequestCacheIT extends OpenSearchIntegTestCase {
                 )
                 .get()
         );
-        indexRandom(true, client.prepareIndex("index", "_doc").setSource("k", "hello"));
+        indexRandom(true, client.prepareIndex("index").setSource("k", "hello"));
         ensureSearchable("index");
 
         int expectedHits = 0;

@@ -121,7 +121,7 @@ public class SearchPreferenceIT extends OpenSearchIntegTestCase {
         );
         ensureGreen();
 
-        client().prepareIndex("test", "type1").setSource("field1", "value1").get();
+        client().prepareIndex("test").setSource("field1", "value1").get();
         refresh();
 
         final Client client = internalCluster().smartClient();
@@ -137,7 +137,7 @@ public class SearchPreferenceIT extends OpenSearchIntegTestCase {
         client().admin().indices().prepareCreate("test").setSettings("{\"number_of_replicas\": 1}", XContentType.JSON).get();
         ensureGreen();
 
-        client().prepareIndex("test", "type1").setSource("field1", "value1").get();
+        client().prepareIndex("test").setSource("field1", "value1").get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).get();
@@ -170,7 +170,7 @@ public class SearchPreferenceIT extends OpenSearchIntegTestCase {
             )
         );
         ensureGreen();
-        client().prepareIndex("test", "type1").setSource("field1", "value1").get();
+        client().prepareIndex("test").setSource("field1", "value1").get();
         refresh();
 
         final Client client = internalCluster().smartClient();
@@ -240,7 +240,7 @@ public class SearchPreferenceIT extends OpenSearchIntegTestCase {
             )
         );
         ensureGreen();
-        client().prepareIndex("test", "_doc").setSource("field1", "value1").get();
+        client().prepareIndex("test").setSource("field1", "value1").get();
         refresh();
 
         final String customPreference = randomAlphaOfLength(10);

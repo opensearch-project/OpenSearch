@@ -98,7 +98,7 @@ public class IndexingMasterFailoverIT extends OpenSearchIntegTestCase {
                 }
                 for (int i = 0; i < 10; i++) {
                     // index data with mapping changes
-                    IndexResponse response = client(dataNode).prepareIndex("myindex", "mytype").setSource("field_" + i, "val").get();
+                    IndexResponse response = client(dataNode).prepareIndex("myindex").setSource("field_" + i, "val").get();
                     assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
                 }
             }

@@ -387,8 +387,8 @@ public class GeoDistanceSortBuilderIT extends OpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex("test1", "type").setSource("str_field", "bcd", "long_field", 3, "double_field", 0.65),
-            client().prepareIndex("test2", "type").setSource()
+            client().prepareIndex("test1").setSource("str_field", "bcd", "long_field", 3, "double_field", 0.65),
+            client().prepareIndex("test2").setSource()
         );
 
         SearchResponse resp = client().prepareSearch("test1", "test2")
