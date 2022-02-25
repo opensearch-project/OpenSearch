@@ -105,7 +105,7 @@ public class ShardValidateQueryRequest extends BroadcastShardRequest {
         super.writeTo(out);
         out.writeNamedWriteable(query);
         if (out.getVersion().before(Version.V_2_0_0)) {
-            out.writeInt(0); // no types to filter
+            out.writeVInt(0); // no types to filter
         }
         filteringAliases.writeTo(out);
         out.writeBoolean(explain);
