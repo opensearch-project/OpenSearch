@@ -29,10 +29,13 @@ public class ReindexRenamedSettingTests extends OpenSearchTestCase {
         this.plugin = new ReindexPlugin();
     }
 
+    /**
+     * Validate the both settings are known and supported.
+     */
     public void testReindexSettingsExist() {
         List<Setting<?>> settings = plugin.getSettings();
         assertTrue(
-            "Both 'reindex.remote.allowlist' and its predecessor should exist in settings of Reindex plugin",
+            "Both 'reindex.remote.allowlist' and its predecessor should be supported settings of Reindex plugin",
             settings.containsAll(
                 Arrays.asList(TransportReindexAction.REMOTE_CLUSTER_WHITELIST, TransportReindexAction.REMOTE_CLUSTER_ALLOWLIST)
             )
@@ -50,7 +53,7 @@ public class ReindexRenamedSettingTests extends OpenSearchTestCase {
     }
 
     /**
-     * Validate the new setting can be configured correctly and it doesn't impact the old setting.
+     * Validate the new setting can be configured correctly, and it doesn't impact the old setting.
      */
     public void testSettingGetValue() {
         Settings settings = Settings.builder().put("reindex.remote.allowlist", "127.0.0.1:*").build();

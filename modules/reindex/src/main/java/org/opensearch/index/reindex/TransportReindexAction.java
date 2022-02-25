@@ -56,7 +56,7 @@ import java.util.function.Function;
 import static java.util.Collections.emptyList;
 
 public class TransportReindexAction extends HandledTransportAction<ReindexRequest, BulkByScrollResponse> {
-    public static final Setting<List<String>> REMOTE_CLUSTER_WHITELIST = Setting.listSetting(
+    static final Setting<List<String>> REMOTE_CLUSTER_WHITELIST = Setting.listSetting(
         "reindex.remote.whitelist",
         emptyList(),
         Function.identity(),
