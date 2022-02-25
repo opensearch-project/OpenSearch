@@ -709,7 +709,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             this.flags = in.readVInt();
             this.useField = in.readOptionalString();
             this.maxExpansions = in.readOptionalVInt();
-            if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
                 this.caseInsensitive = in.readBoolean();
             } else {
                 this.caseInsensitive = false;
@@ -783,7 +783,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             out.writeVInt(flags);
             out.writeOptionalString(useField);
             out.writeOptionalVInt(maxExpansions);
-            if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
                 out.writeBoolean(caseInsensitive);
             }
         }
