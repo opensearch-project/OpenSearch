@@ -46,21 +46,12 @@ import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.index.mapper.MapperService;
 
 /**
  * A bulk request holds an ordered {@link IndexRequest}s and {@link DeleteRequest}s and allows to executes
  * it in a single batch.
  */
 public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkResponse> implements WriteRequestBuilder<BulkRequestBuilder> {
-
-    /**
-     * @deprecated use {@link #BulkRequestBuilder(OpenSearchClient, BulkAction, String)} instead
-     */
-    @Deprecated
-    public BulkRequestBuilder(OpenSearchClient client, BulkAction action, @Nullable String globalIndex, @Nullable String globalType) {
-        super(client, action, new BulkRequest(globalIndex, globalType));
-    }
 
     public BulkRequestBuilder(OpenSearchClient client, BulkAction action, @Nullable String globalIndex) {
         super(client, action, new BulkRequest(globalIndex));
@@ -130,27 +121,10 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
 
     /**
      * Adds a framed data in binary format
-     * @deprecated use {@link #add(byte[], int, int, String, XContentType)} instead
-     */
-    @Deprecated
-    public BulkRequestBuilder add(
-        byte[] data,
-        int from,
-        int length,
-        @Nullable String defaultIndex,
-        @Nullable String defaultType,
-        XContentType xContentType
-    ) throws Exception {
-        request.add(data, from, length, defaultIndex, defaultType, xContentType);
-        return this;
-    }
-
-    /**
-     * Adds a framed data in binary format
      */
     public BulkRequestBuilder add(byte[] data, int from, int length, @Nullable String defaultIndex, XContentType xContentType)
         throws Exception {
-        request.add(data, from, length, defaultIndex, MapperService.SINGLE_MAPPING_NAME, xContentType);
+        request.add(data, from, length, defaultIndex, xContentType);
         return this;
     }
 

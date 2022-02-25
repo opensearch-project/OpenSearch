@@ -50,7 +50,6 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.index.VersionType;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.script.Script;
 import org.opensearch.search.sort.SortOrder;
@@ -210,14 +209,6 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     }
 
     /**
-     * Set the document type for the destination index
-     */
-    public ReindexRequest setDestDocType(String docType) {
-        this.getDestination().type(docType);
-        return this;
-    }
-
-    /**
      * Set the routing to decide which shard the documents need to be routed to
      */
     public ReindexRequest setDestRouting(String routing) {
@@ -303,9 +294,6 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         }
         searchToString(b);
         b.append(" to [").append(destination.index()).append(']');
-        if (destination.type() != null) {
-            b.append('[').append(destination.type()).append(']');
-        }
         return b.toString();
     }
 
@@ -327,10 +315,6 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             // build destination
             builder.startObject("dest");
             builder.field("index", getDestination().index());
-            String type = getDestination().type();
-            if (type != null && type.equals(MapperService.SINGLE_MAPPING_NAME) == false) {
-                builder.field("type", getDestination().type());
-            }
             if (getDestination().routing() != null) {
                 builder.field("routing", getDestination().routing());
             }
@@ -384,10 +368,6 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
 
         ObjectParser<IndexRequest, Void> destParser = new ObjectParser<>("dest");
         destParser.declareString(IndexRequest::index, new ParseField("index"));
-        destParser.declareString((request, type) -> {
-            deprecationLogger.deprecate("reindex_with_types", TYPES_DEPRECATION_MESSAGE);
-            request.type(type);
-        }, new ParseField("type"));
         destParser.declareString(IndexRequest::routing, new ParseField("routing"));
         destParser.declareString(IndexRequest::opType, new ParseField("op_type"));
         destParser.declareString(IndexRequest::setPipeline, new ParseField("pipeline"));

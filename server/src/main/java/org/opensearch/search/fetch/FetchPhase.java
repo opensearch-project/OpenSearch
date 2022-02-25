@@ -330,7 +330,7 @@ public class FetchPhase {
         Text typeText = documentMapper.typeText();
 
         if (fieldsVisitor == null) {
-            SearchHit hit = new SearchHit(docId, null, typeText, null, null);
+            SearchHit hit = new SearchHit(docId, null, null, null);
             return new HitContext(hit, subReaderContext, subDocId, lookup.source());
         } else {
             SearchHit hit;
@@ -340,9 +340,9 @@ public class FetchPhase {
                 Map<String, DocumentField> docFields = new HashMap<>();
                 Map<String, DocumentField> metaFields = new HashMap<>();
                 fillDocAndMetaFields(context, fieldsVisitor, storedToRequestedFields, docFields, metaFields);
-                hit = new SearchHit(docId, uid.id(), typeText, docFields, metaFields);
+                hit = new SearchHit(docId, uid.id(), docFields, metaFields);
             } else {
-                hit = new SearchHit(docId, uid.id(), typeText, emptyMap(), emptyMap());
+                hit = new SearchHit(docId, uid.id(), emptyMap(), emptyMap());
             }
 
             HitContext hitContext = new HitContext(hit, subReaderContext, subDocId, lookup.source());
@@ -420,7 +420,6 @@ public class FetchPhase {
         }
 
         DocumentMapper documentMapper = context.mapperService().documentMapper();
-        Text typeText = documentMapper.typeText();
 
         ObjectMapper nestedObjectMapper = documentMapper.findNestedObjectMapper(nestedDocId, context, subReaderContext);
         assert nestedObjectMapper != null;
@@ -432,7 +431,7 @@ public class FetchPhase {
             nestedObjectMapper
         );
 
-        SearchHit hit = new SearchHit(nestedTopDocId, rootId.id(), typeText, nestedIdentity, docFields, metaFields);
+        SearchHit hit = new SearchHit(nestedTopDocId, rootId.id(), nestedIdentity, docFields, metaFields);
         HitContext hitContext = new HitContext(hit, subReaderContext, nestedDocId, new SourceLookup());  // Use a clean, fresh SourceLookup
                                                                                                          // for the nested context
 

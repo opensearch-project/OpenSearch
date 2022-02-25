@@ -115,25 +115,25 @@ public class NoMasterNodeIT extends OpenSearchIntegTestCase {
         });
 
         assertRequestBuilderThrows(
-            clientToMasterlessNode.prepareGet("test", "type1", "1"),
+            clientToMasterlessNode.prepareGet("test", "1"),
             ClusterBlockException.class,
             RestStatus.SERVICE_UNAVAILABLE
         );
 
         assertRequestBuilderThrows(
-            clientToMasterlessNode.prepareGet("no_index", "type1", "1"),
+            clientToMasterlessNode.prepareGet("no_index", "1"),
             ClusterBlockException.class,
             RestStatus.SERVICE_UNAVAILABLE
         );
 
         assertRequestBuilderThrows(
-            clientToMasterlessNode.prepareMultiGet().add("test", "type1", "1"),
+            clientToMasterlessNode.prepareMultiGet().add("test", "1"),
             ClusterBlockException.class,
             RestStatus.SERVICE_UNAVAILABLE
         );
 
         assertRequestBuilderThrows(
-            clientToMasterlessNode.prepareMultiGet().add("no_index", "type1", "1"),
+            clientToMasterlessNode.prepareMultiGet().add("no_index", "1"),
             ClusterBlockException.class,
             RestStatus.SERVICE_UNAVAILABLE
         );
@@ -275,7 +275,7 @@ public class NoMasterNodeIT extends OpenSearchIntegTestCase {
             assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
         });
 
-        GetResponse getResponse = clientToMasterlessNode.prepareGet("test1", "type1", "1").get();
+        GetResponse getResponse = clientToMasterlessNode.prepareGet("test1", "1").get();
         assertExists(getResponse);
 
         SearchResponse countResponse = clientToMasterlessNode.prepareSearch("test1").setAllowPartialSearchResults(true).setSize(0).get();
@@ -371,10 +371,10 @@ public class NoMasterNodeIT extends OpenSearchIntegTestCase {
             }
         });
 
-        GetResponse getResponse = client(randomFrom(nodesWithShards)).prepareGet("test1", "type1", "1").get();
+        GetResponse getResponse = client(randomFrom(nodesWithShards)).prepareGet("test1", "1").get();
         assertExists(getResponse);
 
-        expectThrows(Exception.class, () -> client(partitionedNode).prepareGet("test1", "type1", "1").get());
+        expectThrows(Exception.class, () -> client(partitionedNode).prepareGet("test1", "1").get());
 
         SearchResponse countResponse = client(randomFrom(nodesWithShards)).prepareSearch("test1")
             .setAllowPartialSearchResults(true)

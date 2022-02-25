@@ -135,7 +135,7 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
             refresh();
         }
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareGet("test", "type", "1").get().getVersion(), equalTo(14L));
+            assertThat(client().prepareGet("test", "1").get().getVersion(), equalTo(14L));
         }
 
         // deleting with a lower version fails.
@@ -203,7 +203,7 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
             refresh();
         }
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareGet("test", "type", "1").execute().actionGet().getVersion(), equalTo(14L));
+            assertThat(client().prepareGet("test", "1").execute().actionGet().getVersion(), equalTo(14L));
         }
 
         // deleting with a lower version fails.
@@ -349,7 +349,7 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
 
         client().admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
-            final GetResponse response = client().prepareGet("test", "type", "1").get();
+            final GetResponse response = client().prepareGet("test", "1").get();
             assertThat(response.getSeqNo(), equalTo(1L));
             assertThat(response.getPrimaryTerm(), equalTo(1L));
         }
@@ -420,7 +420,7 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
         );
 
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareGet("test", "type", "1").execute().actionGet().getVersion(), equalTo(2L));
+            assertThat(client().prepareGet("test", "1").execute().actionGet().getVersion(), equalTo(2L));
         }
 
         client().admin().indices().prepareRefresh().execute().actionGet();
@@ -578,8 +578,6 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
                     sb.append(deleteResponse.getIndex());
                     sb.append(" id=");
                     sb.append(deleteResponse.getId());
-                    sb.append(" type=");
-                    sb.append(deleteResponse.getType());
                     sb.append(" version=");
                     sb.append(deleteResponse.getVersion());
                     sb.append(" found=");
@@ -590,8 +588,6 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
                     sb.append(indexResponse.getIndex());
                     sb.append(" id=");
                     sb.append(indexResponse.getId());
-                    sb.append(" type=");
-                    sb.append(indexResponse.getType());
                     sb.append(" version=");
                     sb.append(indexResponse.getVersion());
                     sb.append(" created=");
@@ -787,7 +783,7 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
             } else {
                 expected = -1;
             }
-            long actualVersion = client().prepareGet("test", "type", id).execute().actionGet().getVersion();
+            long actualVersion = client().prepareGet("test", id).execute().actionGet().getVersion();
             if (actualVersion != expected) {
                 logger.error("--> FAILED: idVersion={} actualVersion= {}", idVersion, actualVersion);
                 failed = true;
@@ -839,11 +835,7 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
         client().prepareDelete("test", "type", "id").setVersion(11).setVersionType(VersionType.EXTERNAL).execute().actionGet();
 
         // Real-time get should reflect delete:
-        assertThat(
-            "doc should have been deleted",
-            client().prepareGet("test", "type", "id").execute().actionGet().getVersion(),
-            equalTo(-1L)
-        );
+        assertThat("doc should have been deleted", client().prepareGet("test", "id").execute().actionGet().getVersion(), equalTo(-1L));
 
         // ThreadPool.relativeTimeInMillis has default granularity of 200 msec, so we must sleep at least that long; sleep much longer in
         // case system is busy:
@@ -853,11 +845,7 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
         client().prepareDelete("test", "type", "id2").setVersion(11).setVersionType(VersionType.EXTERNAL).execute().actionGet();
 
         // Real-time get should still reflect delete:
-        assertThat(
-            "doc should have been deleted",
-            client().prepareGet("test", "type", "id").execute().actionGet().getVersion(),
-            equalTo(-1L)
-        );
+        assertThat("doc should have been deleted", client().prepareGet("test", "id").execute().actionGet().getVersion(), equalTo(-1L));
     }
 
     public void testGCDeletesZero() throws Exception {
@@ -887,11 +875,7 @@ public class SimpleVersioningIT extends OpenSearchIntegTestCase {
         client().prepareDelete("test", "type", "id").setVersion(11).setVersionType(VersionType.EXTERNAL).execute().actionGet();
 
         // Real-time get should reflect delete even though index.gc_deletes is 0:
-        assertThat(
-            "doc should have been deleted",
-            client().prepareGet("test", "type", "id").execute().actionGet().getVersion(),
-            equalTo(-1L)
-        );
+        assertThat("doc should have been deleted", client().prepareGet("test", "id").execute().actionGet().getVersion(), equalTo(-1L));
     }
 
     public void testSpecialVersioning() {

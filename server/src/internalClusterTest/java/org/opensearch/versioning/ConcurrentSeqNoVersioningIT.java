@@ -255,7 +255,8 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                             version = version.previousTerm();
                         }
 
-                        IndexRequest indexRequest = new IndexRequest("test", "type", partition.id).source("value", random.nextInt())
+                        IndexRequest indexRequest = new IndexRequest("test").id(partition.id)
+                            .source("value", random.nextInt())
                             .setIfPrimaryTerm(version.primaryTerm)
                             .setIfSeqNo(version.seqNo);
                         Consumer<HistoryOutput> historyResponse = partition.invoke(version);

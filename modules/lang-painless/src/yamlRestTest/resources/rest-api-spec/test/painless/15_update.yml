@@ -21,7 +21,6 @@
 
   - match: { _index:   test_1 }
   - match: { _id:      "1"    }
-  - match: { _type:    _doc   }
   - match: { _version: 2      }
 
   - do:
@@ -43,7 +42,6 @@
 
   - match: { _index:   test_1 }
   - match: { _id:      "1"    }
-  - match: { _type:    _doc   }
   - match: { _version: 3      }
 
   - do:
@@ -65,7 +63,6 @@
 
   - match: { _index:   test_1 }
   - match: { _id:      "1"    }
-  - match: { _type:    _doc   }
   - match: { _version: 4      }
 
   - do:
@@ -89,7 +86,6 @@
 
   - match: { _index:   test_1 }
   - match: { _id:      "1"    }
-  - match: { _type:    _doc   }
   - match: { _version: 5      }
 
   - do:

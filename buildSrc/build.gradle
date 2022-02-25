@@ -102,7 +102,7 @@ dependencies {
 
   api localGroovy()
 
-  api 'commons-codec:commons-codec:1.13'
+  api 'commons-codec:commons-codec:1.15'
   api 'org.apache.commons:commons-compress:1.21'
   api 'org.apache.ant:ant:1.10.12'
   api 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'

@@ -32,7 +32,7 @@
 
 package org.opensearch.index.shard;
 
-import org.opensearch.common.Nullable;
+import org.opensearch.Version;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -40,9 +40,9 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 public class IndexingStats implements Writeable, ToXContentFragment {
@@ -219,47 +219,30 @@ public class IndexingStats implements Writeable, ToXContentFragment {
 
     private final Stats totalStats;
 
-    @Nullable
-    private Map<String, Stats> typeStats;
-
     public IndexingStats() {
         totalStats = new Stats();
     }
 
     public IndexingStats(StreamInput in) throws IOException {
         totalStats = new Stats(in);
-        if (in.readBoolean()) {
-            typeStats = in.readMap(StreamInput::readString, Stats::new);
+        if (in.getVersion().before(Version.V_2_0_0)) {
+            if (in.readBoolean()) {
+                Map<String, Stats> typeStats = in.readMap(StreamInput::readString, Stats::new);
+                assert typeStats.size() == 1;
+                assert typeStats.containsKey(MapperService.SINGLE_MAPPING_NAME);
+            }
         }
     }
 
-    public IndexingStats(Stats totalStats, @Nullable Map<String, Stats> typeStats) {
+    public IndexingStats(Stats totalStats) {
         this.totalStats = totalStats;
-        this.typeStats = typeStats;
     }
 
     public void add(IndexingStats indexingStats) {
-        add(indexingStats, true);
-    }
-
-    public void add(IndexingStats indexingStats, boolean includeTypes) {
         if (indexingStats == null) {
             return;
         }
         addTotals(indexingStats);
-        if (includeTypes && indexingStats.typeStats != null && !indexingStats.typeStats.isEmpty()) {
-            if (typeStats == null) {
-                typeStats = new HashMap<>(indexingStats.typeStats.size());
-            }
-            for (Map.Entry<String, Stats> entry : indexingStats.typeStats.entrySet()) {
-                Stats stats = typeStats.get(entry.getKey());
-                if (stats == null) {
-                    typeStats.put(entry.getKey(), entry.getValue());
-                } else {
-                    stats.add(entry.getValue());
-                }
-            }
-        }
     }
 
     public void addTotals(IndexingStats indexingStats) {
@@ -273,31 +256,16 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         return this.totalStats;
     }
 
-    @Nullable
-    public Map<String, Stats> getTypeStats() {
-        return this.typeStats;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(Fields.INDEXING);
         totalStats.toXContent(builder, params);
-        if (typeStats != null && !typeStats.isEmpty()) {
-            builder.startObject(Fields.TYPES);
-            for (Map.Entry<String, Stats> entry : typeStats.entrySet()) {
-                builder.startObject(entry.getKey());
-                entry.getValue().toXContent(builder, params);
-                builder.endObject();
-            }
-            builder.endObject();
-        }
         builder.endObject();
         return builder;
     }
 
     static final class Fields {
         static final String INDEXING = "indexing";
-        static final String TYPES = "types";
         static final String INDEX_TOTAL = "index_total";
         static final String INDEX_TIME = "index_time";
         static final String INDEX_TIME_IN_MILLIS = "index_time_in_millis";
@@ -316,11 +284,8 @@ public class IndexingStats implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         totalStats.writeTo(out);
-        if (typeStats == null || typeStats.isEmpty()) {
+        if (out.getVersion().before(Version.V_2_0_0)) {
             out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeMap(typeStats, StreamOutput::writeString, (stream, stats) -> stats.writeTo(stream));
         }
     }
 }

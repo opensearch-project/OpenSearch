@@ -51,7 +51,6 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.get.GetResult;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.test.AbstractQueryTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.test.geo.RandomShapeGenerator;
@@ -94,12 +93,9 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
 
     @Override
     protected GetResponse executeGet(GetRequest getRequest) {
-        String indexedType = indexedShapeType != null ? indexedShapeType : MapperService.SINGLE_MAPPING_NAME;
-
         assertThat(indexedShapeToReturn, notNullValue());
         assertThat(indexedShapeId, notNullValue());
         assertThat(getRequest.id(), equalTo(indexedShapeId));
-        assertThat(getRequest.type(), equalTo(indexedType));
         assertThat(getRequest.routing(), equalTo(indexedShapeRouting));
         String expectedShapeIndex = indexedShapeIndex == null ? GeoShapeQueryBuilder.DEFAULT_SHAPE_INDEX_NAME : indexedShapeIndex;
         assertThat(getRequest.index(), equalTo(expectedShapeIndex));
@@ -116,9 +112,7 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
         } catch (IOException ex) {
             throw new OpenSearchException("boom", ex);
         }
-        return new GetResponse(
-            new GetResult(indexedShapeIndex, indexedType, indexedShapeId, 0, 1, 0, true, new BytesArray(json), null, null)
-        );
+        return new GetResponse(new GetResult(indexedShapeIndex, indexedShapeId, 0, 1, 0, true, new BytesArray(json), null, null));
     }
 
     @After

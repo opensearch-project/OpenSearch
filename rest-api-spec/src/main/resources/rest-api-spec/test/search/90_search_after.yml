@@ -38,7 +38,6 @@
   - match: {hits.total: 3 }
   - length: {hits.hits: 1 }
   - match: {hits.hits.0._index: test }
-  - match: {hits.hits.0._type: _doc }
   - match: {hits.hits.0._id: "172" }
   - match: {hits.hits.0.sort: [24, 172] }
 
@@ -57,7 +56,6 @@
   - match: {hits.total: 3 }
   - length: {hits.hits: 1 }
   - match: {hits.hits.0._index: test }
-  - match: {hits.hits.0._type:  _doc }
   - match: {hits.hits.0._id: "42" }
   - match: {hits.hits.0.sort: [18, 42] }
 
@@ -76,7 +74,6 @@
   - match: {hits.total: 3}
   - length: {hits.hits: 1 }
   - match: {hits.hits.0._index: test }
-  - match: {hits.hits.0._type: _doc }
   - match: {hits.hits.0._id: "1" }
   - match: {hits.hits.0.sort: [18, 1] }
 

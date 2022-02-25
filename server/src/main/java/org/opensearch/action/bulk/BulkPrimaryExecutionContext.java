@@ -251,7 +251,7 @@ class BulkPrimaryExecutionContext {
             docWriteRequest.opType(),
             // Make sure to use getCurrentItem().index() here, if you use docWriteRequest.index() it will use the
             // concrete index instead of an alias if used!
-            new BulkItemResponse.Failure(getCurrentItem().index(), docWriteRequest.type(), docWriteRequest.id(), cause)
+            new BulkItemResponse.Failure(getCurrentItem().index(), docWriteRequest.id(), cause)
         );
         markAsCompleted(executionResult);
     }
@@ -268,7 +268,6 @@ class BulkPrimaryExecutionContext {
                     Engine.IndexResult indexResult = (Engine.IndexResult) result;
                     response = new IndexResponse(
                         primary.shardId(),
-                        requestToExecute.type(),
                         requestToExecute.id(),
                         result.getSeqNo(),
                         result.getTerm(),
@@ -279,7 +278,6 @@ class BulkPrimaryExecutionContext {
                     Engine.DeleteResult deleteResult = (Engine.DeleteResult) result;
                     response = new DeleteResponse(
                         primary.shardId(),
-                        requestToExecute.type(),
                         requestToExecute.id(),
                         deleteResult.getSeqNo(),
                         result.getTerm(),
@@ -304,7 +302,6 @@ class BulkPrimaryExecutionContext {
                     // concrete index instead of an alias if used!
                     new BulkItemResponse.Failure(
                         request.index(),
-                        docWriteRequest.type(),
                         docWriteRequest.id(),
                         result.getFailure(),
                         result.getSeqNo(),

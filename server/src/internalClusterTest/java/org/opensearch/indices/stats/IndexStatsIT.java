@@ -694,7 +694,7 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
         assertThat(stats.getTotal().getRefresh(), notNullValue());
 
         // check get
-        GetResponse getResponse = client().prepareGet("test2", "type", "1").execute().actionGet();
+        GetResponse getResponse = client().prepareGet("test2", "1").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
 
         stats = client().admin().indices().prepareStats().execute().actionGet();
@@ -703,7 +703,7 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
         assertThat(stats.getTotal().getGet().getMissingCount(), equalTo(0L));
 
         // missing get
-        getResponse = client().prepareGet("test2", "type", "2").execute().actionGet();
+        getResponse = client().prepareGet("test2", "2").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
 
         stats = client().admin().indices().prepareStats().execute().actionGet();
@@ -1076,40 +1076,6 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
         stats = builder.setGroups("*r").execute().actionGet();
         assertThat(stats.getTotal().search.getGroupStats().get("bar").getQueryCount(), greaterThan(0L));
         assertThat(stats.getTotal().search.getGroupStats().containsKey("baz"), is(false));
-
-    }
-
-    public void testTypesParam() throws Exception {
-        createIndex("test1");
-        createIndex("test2");
-
-        ensureGreen();
-
-        client().prepareIndex("test1", "bar", Integer.toString(1)).setSource("foo", "bar").execute().actionGet();
-        client().prepareIndex("test2", "baz", Integer.toString(1)).setSource("foo", "bar").execute().actionGet();
-        refresh();
-
-        IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
-        IndicesStatsResponse stats = builder.execute().actionGet();
-
-        assertThat(stats.getTotal().indexing.getTotal().getIndexCount(), greaterThan(0L));
-        assertThat(stats.getTotal().indexing.getTypeStats(), is(nullValue()));
-
-        stats = builder.setTypes("bar").execute().actionGet();
-        assertThat(stats.getTotal().indexing.getTypeStats().get("bar").getIndexCount(), greaterThan(0L));
-        assertThat(stats.getTotal().indexing.getTypeStats().containsKey("baz"), is(false));
-
-        stats = builder.setTypes("bar", "baz").execute().actionGet();
-        assertThat(stats.getTotal().indexing.getTypeStats().get("bar").getIndexCount(), greaterThan(0L));
-        assertThat(stats.getTotal().indexing.getTypeStats().get("baz").getIndexCount(), greaterThan(0L));
-
-        stats = builder.setTypes("*").execute().actionGet();
-        assertThat(stats.getTotal().indexing.getTypeStats().get("bar").getIndexCount(), greaterThan(0L));
-        assertThat(stats.getTotal().indexing.getTypeStats().get("baz").getIndexCount(), greaterThan(0L));
-
-        stats = builder.setTypes("*r").execute().actionGet();
-        assertThat(stats.getTotal().indexing.getTypeStats().get("bar").getIndexCount(), greaterThan(0L));
-        assertThat(stats.getTotal().indexing.getTypeStats().containsKey("baz"), is(false));
 
     }
 

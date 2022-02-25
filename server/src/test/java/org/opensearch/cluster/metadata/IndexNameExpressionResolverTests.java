@@ -1776,7 +1776,7 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
         assertArrayEquals(new String[] { "test-alias" }, strings);
         DocWriteRequest request = randomFrom(
             new IndexRequest("test-alias"),
-            new UpdateRequest("test-alias", "_type", "_id"),
+            new UpdateRequest("test-alias", "_id"),
             new DeleteRequest("test-alias")
         );
         IllegalArgumentException exception = expectThrows(
@@ -1811,7 +1811,7 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
         assertArrayEquals(new String[] { "test-alias" }, strings);
         DocWriteRequest request = randomFrom(
             new IndexRequest("test-alias"),
-            new UpdateRequest("test-alias", "_type", "_id"),
+            new UpdateRequest("test-alias", "_id"),
             new DeleteRequest("test-alias")
         );
         IllegalArgumentException exception = expectThrows(

@@ -512,8 +512,8 @@ public abstract class AbstractClient implements Client {
     }
 
     @Override
-    public BulkRequestBuilder prepareBulk(@Nullable String globalIndex, @Nullable String globalType) {
-        return new BulkRequestBuilder(this, BulkAction.INSTANCE, globalIndex, globalType);
+    public BulkRequestBuilder prepareBulk(@Nullable String globalIndex) {
+        return new BulkRequestBuilder(this, BulkAction.INSTANCE, globalIndex);
     }
 
     @Override
@@ -532,8 +532,8 @@ public abstract class AbstractClient implements Client {
     }
 
     @Override
-    public GetRequestBuilder prepareGet(String index, String type, String id) {
-        return prepareGet().setIndex(index).setType(type).setId(id);
+    public GetRequestBuilder prepareGet(String index, String id) {
+        return prepareGet().setIndex(index).setId(id);
     }
 
     @Override
@@ -632,8 +632,8 @@ public abstract class AbstractClient implements Client {
     }
 
     @Override
-    public ExplainRequestBuilder prepareExplain(String index, String type, String id) {
-        return new ExplainRequestBuilder(this, ExplainAction.INSTANCE, index, type, id);
+    public ExplainRequestBuilder prepareExplain(String index, String id) {
+        return new ExplainRequestBuilder(this, ExplainAction.INSTANCE, index, id);
     }
 
     @Override

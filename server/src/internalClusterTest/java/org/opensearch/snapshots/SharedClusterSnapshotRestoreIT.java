@@ -73,6 +73,7 @@ import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineTestCase;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
@@ -288,12 +289,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         Path absolutePath = randomRepoPath().toAbsolutePath();
         logger.info("Path [{}]", absolutePath);
         String restoredIndexName = indexName + "-restored";
-        String typeName = "actions";
         String expectedValue = "expected";
 
         // Write a document
         String docId = Integer.toString(randomInt());
-        index(indexName, typeName, docId, "value", expectedValue);
+        index(indexName, MapperService.SINGLE_MAPPING_NAME, docId, "value", expectedValue);
 
         createRepository(repoName, "fs", absolutePath);
         createSnapshot(repoName, snapshotName, Collections.singletonList(indexName));
@@ -305,7 +305,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
-        assertThat(client().prepareGet(restoredIndexName, typeName, docId).get().isExists(), equalTo(true));
+        assertThat(client().prepareGet(restoredIndexName, docId).get().isExists(), equalTo(true));
     }
 
     public void testFreshIndexUUID() {
