@@ -1288,7 +1288,6 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
 
     private void createIndexAndMappingAndSettings(Settings settings, CompletionMappingBuilder completionMappingBuilder) throws IOException {
         XContentBuilder mapping = jsonBuilder().startObject()
-            .startObject(MapperService.SINGLE_MAPPING_NAME)
             .startObject("properties")
             .startObject("test_field")
             .field("type", "keyword")
@@ -1324,7 +1323,7 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
 
             mapping = mapping.endArray();
         }
-        mapping = mapping.endObject().endObject().endObject().endObject();
+        mapping = mapping.endObject().endObject().endObject();
 
         assertAcked(
             client().admin()
