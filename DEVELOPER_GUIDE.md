@@ -33,8 +33,6 @@
       - [runtimeOnly](#runtimeonly)
       - [compileOnly](#compileonly)
       - [testImplementation](#testimplementation)
-    - [Gradle Plugins](#gradle-plugins)
-      - [Distribution Download Plugin](#distribution-download-plugin)
   - [Misc](#misc)
     - [git-secrets](#git-secrets)
       - [Installation](#installation)
@@ -341,15 +339,6 @@ somehow. OpenSearch plugins use this configuration to include dependencies that 
 
 Code that is on the classpath for compiling tests that are part of this project but not production code. The canonical example
 of this is `junit`.
-
-### Gradle Plugins
-
-#### Distribution Download Plugin
-
-The Distribution Download plugin downloads the latest version of OpenSearch by default, and supports overriding this behavior by setting `customDistributionUrl`.
-```
-./gradlew integTest -DcustomDistributionUrl="https://ci.opensearch.org/ci/dbc/bundle-build/1.2.0/1127/linux/x64/dist/opensearch-1.2.0-linux-x64.tar.gz"
-```
 
 ## Misc
 
