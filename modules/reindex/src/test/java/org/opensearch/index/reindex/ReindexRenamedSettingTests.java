@@ -8,7 +8,6 @@
 
 package org.opensearch.index.reindex;
 
-import org.junit.Before;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
@@ -22,12 +21,7 @@ import java.util.List;
  * The test can be removed along with removing support of the deprecated setting.
  */
 public class ReindexRenamedSettingTests extends OpenSearchTestCase {
-    ReindexPlugin plugin;
-
-    @Before
-    public void setup() {
-        this.plugin = new ReindexPlugin();
-    }
+    private final ReindexPlugin plugin = new ReindexPlugin();
 
     /**
      * Validate the both settings are known and supported.
