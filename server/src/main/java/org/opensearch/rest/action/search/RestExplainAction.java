@@ -35,7 +35,6 @@ package org.opensearch.rest.action.search;
 import org.opensearch.action.explain.ExplainRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
@@ -55,20 +54,10 @@ import static org.opensearch.rest.RestRequest.Method.POST;
  * Rest action for computing a score explanation for specific documents.
  */
 public class RestExplainAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestExplainAction.class);
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " + "Specifying a type in explain requests is deprecated.";
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(
-            asList(
-                new Route(GET, "/{index}/_explain/{id}"),
-                new Route(POST, "/{index}/_explain/{id}"),
-                // Deprecated typed endpoints.
-                new Route(GET, "/{index}/{type}/{id}/_explain"),
-                new Route(POST, "/{index}/{type}/{id}/_explain")
-            )
-        );
+        return unmodifiableList(asList(new Route(GET, "/{index}/_explain/{id}"), new Route(POST, "/{index}/_explain/{id}")));
     }
 
     @Override
@@ -78,14 +67,7 @@ public class RestExplainAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        ExplainRequest explainRequest;
-        if (request.hasParam("type")) {
-            deprecationLogger.deprecate("explain_with_types", TYPES_DEPRECATION_MESSAGE);
-            explainRequest = new ExplainRequest(request.param("index"), request.param("type"), request.param("id"));
-        } else {
-            explainRequest = new ExplainRequest(request.param("index"), request.param("id"));
-        }
-
+        ExplainRequest explainRequest = new ExplainRequest(request.param("index"), request.param("id"));
         explainRequest.parent(request.param("parent"));
         explainRequest.routing(request.param("routing"));
         explainRequest.preference(request.param("preference"));

@@ -73,7 +73,6 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.text.Text;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
@@ -288,7 +287,7 @@ public class AsyncBulkByScrollActionTests extends OpenSearchTestCase {
     public void testScrollResponseBatchingBehavior() throws Exception {
         int maxBatches = randomIntBetween(0, 100);
         for (int batches = 1; batches < maxBatches; batches++) {
-            Hit hit = new ScrollableHitSource.BasicHit("index", "type", "id", 0);
+            Hit hit = new ScrollableHitSource.BasicHit("index", "id", 0);
             ScrollableHitSource.Response response = new ScrollableHitSource.Response(false, emptyList(), 1, singletonList(hit), null);
             DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction();
             simulateScrollResponse(action, System.nanoTime(), 0, response);
@@ -315,7 +314,7 @@ public class AsyncBulkByScrollActionTests extends OpenSearchTestCase {
                     responses[i] = new BulkItemResponse(
                         i,
                         randomFrom(DocWriteRequest.OpType.values()),
-                        new Failure(shardId.getIndexName(), "type", "id" + i, new VersionConflictEngineException(shardId, "id", "test"))
+                        new Failure(shardId.getIndexName(), "id" + i, new VersionConflictEngineException(shardId, "id", "test"))
                     );
                     continue;
                 }
@@ -342,15 +341,7 @@ public class AsyncBulkByScrollActionTests extends OpenSearchTestCase {
                 }
                 final int seqNo = randomInt(20);
                 final int primaryTerm = randomIntBetween(1, 16);
-                final IndexResponse response = new IndexResponse(
-                    shardId,
-                    "type",
-                    "id" + i,
-                    seqNo,
-                    primaryTerm,
-                    randomInt(),
-                    createdResponse
-                );
+                final IndexResponse response = new IndexResponse(shardId, "id" + i, seqNo, primaryTerm, randomInt(), createdResponse);
                 responses[i] = new BulkItemResponse(i, opType, response);
             }
             assertExactlyOnce(onSuccess -> new DummyAsyncBulkByScrollAction().onBulkResponse(new BulkResponse(responses, 0), onSuccess));
@@ -433,7 +424,7 @@ public class AsyncBulkByScrollActionTests extends OpenSearchTestCase {
      * Mimicks bulk indexing failures.
      */
     public void testBulkFailuresAbortRequest() throws Exception {
-        Failure failure = new Failure("index", "type", "id", new RuntimeException("test"));
+        Failure failure = new Failure("index", "id", new RuntimeException("test"));
         DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction();
         BulkResponse bulkResponse = new BulkResponse(
             new BulkItemResponse[] { new BulkItemResponse(0, DocWriteRequest.OpType.CREATE, failure) },
@@ -456,7 +447,7 @@ public class AsyncBulkByScrollActionTests extends OpenSearchTestCase {
                 throw new RuntimeException("surprise");
             }
         };
-        ScrollableHitSource.BasicHit hit = new ScrollableHitSource.BasicHit("index", "type", "id", 0);
+        ScrollableHitSource.BasicHit hit = new ScrollableHitSource.BasicHit("index", "id", 0);
         hit.setSource(new BytesArray("{}"), XContentType.JSON);
         ScrollableHitSource.Response response = new ScrollableHitSource.Response(false, emptyList(), 1, singletonList(hit), null);
         simulateScrollResponse(action, System.nanoTime(), 0, response);
@@ -541,7 +532,7 @@ public class AsyncBulkByScrollActionTests extends OpenSearchTestCase {
         action.start();
 
         // create a simulated response.
-        SearchHit hit = new SearchHit(0, "id", new Text("type"), emptyMap(), emptyMap()).sourceRef(new BytesArray("{}"));
+        SearchHit hit = new SearchHit(0, "id", emptyMap(), emptyMap()).sourceRef(new BytesArray("{}"));
         SearchHits hits = new SearchHits(
             IntStream.range(0, 100).mapToObj(i -> hit).toArray(SearchHit[]::new),
             new TotalHits(0, TotalHits.Relation.EQUAL_TO),
@@ -597,7 +588,7 @@ public class AsyncBulkByScrollActionTests extends OpenSearchTestCase {
         DummyAsyncBulkByScrollAction action = new DummyActionWithoutBackoff();
         BulkRequest request = new BulkRequest();
         for (int i = 0; i < size + 1; i++) {
-            request.add(new IndexRequest("index", "type", "id" + i));
+            request.add(new IndexRequest("index").id("id" + i));
         }
         if (failWithRejection) {
             action.sendBulkRequest(request, Assert::fail);
@@ -946,7 +937,6 @@ public class AsyncBulkByScrollActionTests extends OpenSearchTestCase {
                         IndexRequest index = (IndexRequest) item;
                         response = new IndexResponse(
                             shardId,
-                            index.type(),
                             index.id() == null ? "dummy_id" : index.id(),
                             randomInt(20),
                             randomIntBetween(1, 16),
@@ -957,7 +947,6 @@ public class AsyncBulkByScrollActionTests extends OpenSearchTestCase {
                         UpdateRequest update = (UpdateRequest) item;
                         response = new UpdateResponse(
                             shardId,
-                            update.type(),
                             update.id(),
                             randomNonNegativeLong(),
                             randomIntBetween(1, Integer.MAX_VALUE),
@@ -968,7 +957,6 @@ public class AsyncBulkByScrollActionTests extends OpenSearchTestCase {
                         DeleteRequest delete = (DeleteRequest) item;
                         response = new DeleteResponse(
                             shardId,
-                            delete.type(),
                             delete.id(),
                             randomInt(20),
                             randomIntBetween(1, 16),
@@ -982,12 +970,7 @@ public class AsyncBulkByScrollActionTests extends OpenSearchTestCase {
                         responses[i] = new BulkItemResponse(
                             i,
                             item.opType(),
-                            new Failure(
-                                response.getIndex(),
-                                response.getType(),
-                                response.getId(),
-                                new OpenSearchRejectedExecutionException()
-                            )
+                            new Failure(response.getIndex(), response.getId(), new OpenSearchRejectedExecutionException())
                         );
                     } else {
                         responses[i] = new BulkItemResponse(i, item.opType(), response);

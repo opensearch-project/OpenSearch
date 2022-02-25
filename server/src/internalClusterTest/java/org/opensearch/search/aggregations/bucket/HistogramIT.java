@@ -1391,7 +1391,6 @@ public class HistogramIT extends OpenSearchIntegTestCase {
 
     private void assertMultiSortResponse(long[] expectedKeys, BucketOrder... order) {
         SearchResponse response = client().prepareSearch("sort_idx")
-            .setTypes("type")
             .addAggregation(
                 histogram("histo").field(SINGLE_VALUED_FIELD_NAME)
                     .interval(1)

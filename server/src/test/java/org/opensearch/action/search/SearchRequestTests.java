@@ -127,7 +127,6 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         SearchRequest searchRequest = new SearchRequest();
         assertNotNull(searchRequest.indices());
         assertNotNull(searchRequest.indicesOptions());
-        assertNotNull(searchRequest.types());
         assertNotNull(searchRequest.searchType());
 
         NullPointerException e = expectThrows(NullPointerException.class, () -> searchRequest.indices((String[]) null));
@@ -137,11 +136,6 @@ public class SearchRequestTests extends AbstractSearchTestCase {
 
         e = expectThrows(NullPointerException.class, () -> searchRequest.indicesOptions(null));
         assertEquals("indicesOptions must not be null", e.getMessage());
-
-        e = expectThrows(NullPointerException.class, () -> searchRequest.types((String[]) null));
-        assertEquals("types must not be null", e.getMessage());
-        e = expectThrows(NullPointerException.class, () -> searchRequest.types((String) null));
-        assertEquals("type must not be null", e.getMessage());
 
         e = expectThrows(NullPointerException.class, () -> searchRequest.searchType((SearchType) null));
         assertEquals("searchType must not be null", e.getMessage());
@@ -242,7 +236,6 @@ public class SearchRequestTests extends AbstractSearchTestCase {
                 )
             )
         );
-        mutators.add(() -> mutation.types(ArrayUtils.concat(searchRequest.types(), new String[] { randomAlphaOfLength(10) })));
         mutators.add(() -> mutation.preference(randomValueOtherThan(searchRequest.preference(), () -> randomAlphaOfLengthBetween(3, 10))));
         mutators.add(() -> mutation.routing(randomValueOtherThan(searchRequest.routing(), () -> randomAlphaOfLengthBetween(3, 10))));
         mutators.add(() -> mutation.requestCache((randomValueOtherThan(searchRequest.requestCache(), OpenSearchTestCase::randomBoolean))));
@@ -273,13 +266,13 @@ public class SearchRequestTests extends AbstractSearchTestCase {
     }
 
     public void testDescriptionForDefault() {
-        assertThat(toDescription(new SearchRequest()), equalTo("indices[], types[], search_type[QUERY_THEN_FETCH], source[]"));
+        assertThat(toDescription(new SearchRequest()), equalTo("indices[], search_type[QUERY_THEN_FETCH], source[]"));
     }
 
     public void testDescriptionIncludesScroll() {
         assertThat(
             toDescription(new SearchRequest().scroll(TimeValue.timeValueMinutes(5))),
-            equalTo("indices[], types[], search_type[QUERY_THEN_FETCH], scroll[5m], source[]")
+            equalTo("indices[], search_type[QUERY_THEN_FETCH], scroll[5m], source[]")
         );
     }
 

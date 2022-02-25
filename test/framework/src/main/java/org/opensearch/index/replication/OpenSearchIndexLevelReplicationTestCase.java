@@ -152,11 +152,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
-            .put(
-                IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(),
-                randomBoolean() ? IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.get(Settings.EMPTY) : between(0, 1000)
-            )
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000))
             .put(indexSettings)
             .build();
         IndexMetadata.Builder metadata = IndexMetadata.builder(index.getName()).settings(settings).primaryTerm(0, randomIntBetween(1, 100));
@@ -250,7 +246,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
 
         public int indexDocs(final int numOfDoc) throws Exception {
             for (int doc = 0; doc < numOfDoc; doc++) {
-                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", Integer.toString(docId.incrementAndGet()))
+                final IndexRequest indexRequest = new IndexRequest(index.getName()).id(Integer.toString(docId.incrementAndGet()))
                     .source("{}", XContentType.JSON);
                 final BulkItemResponse response = index(indexRequest);
                 if (response.isFailed()) {
@@ -264,7 +260,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
 
         public int appendDocs(final int numOfDoc) throws Exception {
             for (int doc = 0; doc < numOfDoc; doc++) {
-                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type").source("{}", XContentType.JSON);
+                final IndexRequest indexRequest = new IndexRequest(index.getName()).source("{}", XContentType.JSON);
                 final BulkItemResponse response = index(indexRequest);
                 if (response.isFailed()) {
                     throw response.getFailure().getCause();
@@ -355,10 +351,8 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
         }
 
         public synchronized void addReplica(IndexShard replica) throws IOException {
-            assert shardRoutings().stream()
-                .anyMatch(shardRouting -> shardRouting.isSameAllocation(replica.routingEntry())) == false : "replica with aId ["
-                    + replica.routingEntry().allocationId()
-                    + "] already exists";
+            assert shardRoutings().stream().anyMatch(shardRouting -> shardRouting.isSameAllocation(replica.routingEntry())) == false
+                : "replica with aId [" + replica.routingEntry().allocationId() + "] already exists";
             replicas.add(replica);
             if (replicationTargets != null) {
                 replicationTargets.addReplica(replica);

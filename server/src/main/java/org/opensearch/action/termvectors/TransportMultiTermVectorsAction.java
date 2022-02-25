@@ -92,7 +92,6 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
                         null,
                         new MultiTermVectorsResponse.Failure(
                             termVectorsRequest.index(),
-                            termVectorsRequest.type(),
                             termVectorsRequest.id(),
                             new IndexNotFoundException(termVectorsRequest.index())
                         )
@@ -108,9 +107,8 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
                         null,
                         new MultiTermVectorsResponse.Failure(
                             concreteSingleIndex,
-                            termVectorsRequest.type(),
                             termVectorsRequest.id(),
-                            new RoutingMissingException(concreteSingleIndex, termVectorsRequest.type(), termVectorsRequest.id())
+                            new RoutingMissingException(concreteSingleIndex, termVectorsRequest.id())
                         )
                     )
                 );
@@ -166,12 +164,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
                             shardRequest.locations.get(i),
                             new MultiTermVectorsItemResponse(
                                 null,
-                                new MultiTermVectorsResponse.Failure(
-                                    shardRequest.index(),
-                                    termVectorsRequest.type(),
-                                    termVectorsRequest.id(),
-                                    e
-                                )
+                                new MultiTermVectorsResponse.Failure(shardRequest.index(), termVectorsRequest.id(), e)
                             )
                         );
                     }

@@ -1,5 +1,5 @@
 {
-    "person":{
+    "_doc":{
         "_meta":{
             "param1":"value1"
         },

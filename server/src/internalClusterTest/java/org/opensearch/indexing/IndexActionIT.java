@@ -99,7 +99,7 @@ public class IndexActionIT extends OpenSearchIntegTestCase {
                 }
                 try {
                     logger.debug("running search with a specific type");
-                    SearchResponse response = client().prepareSearch("test").setTypes("type").get();
+                    SearchResponse response = client().prepareSearch("test").get();
                     if (response.getHits().getTotalHits().value != numOfDocs) {
                         final String message = "Count is "
                             + response.getHits().getTotalHits().value

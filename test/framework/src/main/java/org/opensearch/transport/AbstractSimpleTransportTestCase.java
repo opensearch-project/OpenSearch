@@ -107,6 +107,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.opensearch.transport.TransportHandshaker.V_3_0_0;
 import static org.opensearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -2226,10 +2227,10 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 TransportRequestOptions.Type.STATE
             );
             try (Transport.Connection connection = serviceA.openConnection(node, builder.build())) {
-                // OpenSearch [1.0:2.0) in bwc mode should only "upgrade" to Legacy v7.10.2
+                // OpenSearch [1.0:3.0) in bwc mode should only "upgrade" to Legacy v7.10.2
                 assertEquals(
                     connection.getVersion(),
-                    version.onOrAfter(Version.V_1_0_0) && version.before(Version.V_2_0_0) ? LegacyESVersion.V_7_10_2 : version
+                    version.onOrAfter(Version.V_1_0_0) && version.before(V_3_0_0) ? LegacyESVersion.V_7_10_2 : version
                 );
             }
         }
@@ -2275,7 +2276,9 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
             serviceA.getOriginalTransport().openConnection(node, connectionProfile, future);
             try (Transport.Connection connection = future.actionGet()) {
-                assertEquals(Version.V_2_0_0, connection.getVersion());
+                // OpenSearch sends a handshake version spoofed as Legacy version 7_10_2
+                // todo change for OpenSearch 3.0.0 when Legacy compatibility is removed
+                assertEquals(LegacyESVersion.V_7_10_2, connection.getVersion());
             }
         }
     }
@@ -2482,31 +2485,26 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
         MockTransportService serviceC = buildService("TS_C", version0, Settings.EMPTY);
         CountDownLatch receivedLatch = new CountDownLatch(1);
         CountDownLatch sendResponseLatch = new CountDownLatch(1);
-        serviceC.registerRequestHandler(
-            "internal:action",
-            ThreadPool.Names.SAME,
-            TestRequest::new,
-            (request, channel, task) -> {
-                // don't block on a network thread here
-                threadPool.generic().execute(new AbstractRunnable() {
-                    @Override
-                    public void onFailure(Exception e) {
-                        try {
-                            channel.sendResponse(e);
-                        } catch (IOException e1) {
-                            throw new UncheckedIOException(e1);
-                        }
+        serviceC.registerRequestHandler("internal:action", ThreadPool.Names.SAME, TestRequest::new, (request, channel, task) -> {
+            // don't block on a network thread here
+            threadPool.generic().execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        channel.sendResponse(e);
+                    } catch (IOException e1) {
+                        throw new UncheckedIOException(e1);
                     }
+                }
 
-                    @Override
-                    protected void doRun() throws Exception {
-                        receivedLatch.countDown();
-                        sendResponseLatch.await();
-                        channel.sendResponse(TransportResponse.Empty.INSTANCE);
-                    }
-                });
-            }
-        );
+                @Override
+                protected void doRun() throws Exception {
+                    receivedLatch.countDown();
+                    sendResponseLatch.await();
+                    channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                }
+            });
+        });
         serviceC.start();
         serviceC.acceptIncomingRequests();
         CountDownLatch responseLatch = new CountDownLatch(1);
@@ -2561,31 +2559,26 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
         MockTransportService serviceC = buildService("TS_C", version0, Settings.EMPTY);
         CountDownLatch receivedLatch = new CountDownLatch(1);
         CountDownLatch sendResponseLatch = new CountDownLatch(1);
-        serviceB.registerRequestHandler(
-            "internal:action",
-            ThreadPool.Names.SAME,
-            TestRequest::new,
-            (request, channel, task) -> {
-                // don't block on a network thread here
-                threadPool.generic().execute(new AbstractRunnable() {
-                    @Override
-                    public void onFailure(Exception e) {
-                        try {
-                            channel.sendResponse(e);
-                        } catch (IOException e1) {
-                            throw new UncheckedIOException(e1);
-                        }
+        serviceB.registerRequestHandler("internal:action", ThreadPool.Names.SAME, TestRequest::new, (request, channel, task) -> {
+            // don't block on a network thread here
+            threadPool.generic().execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        channel.sendResponse(e);
+                    } catch (IOException e1) {
+                        throw new UncheckedIOException(e1);
                     }
+                }
 
-                    @Override
-                    protected void doRun() throws Exception {
-                        receivedLatch.countDown();
-                        sendResponseLatch.await();
-                        channel.sendResponse(TransportResponse.Empty.INSTANCE);
-                    }
-                });
-            }
-        );
+                @Override
+                protected void doRun() throws Exception {
+                    receivedLatch.countDown();
+                    sendResponseLatch.await();
+                    channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                }
+            });
+        });
         serviceC.start();
         serviceC.acceptIncomingRequests();
         CountDownLatch responseLatch = new CountDownLatch(1);
@@ -2685,31 +2678,26 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
         CountDownLatch sendResponseLatch = new CountDownLatch(1);
         Exception ex = new RuntimeException("boom");
         ex.setStackTrace(new StackTraceElement[0]);
-        serviceB.registerRequestHandler(
-            "internal:action",
-            ThreadPool.Names.SAME,
-            TestRequest::new,
-            (request, channel, task) -> {
-                // don't block on a network thread here
-                threadPool.generic().execute(new AbstractRunnable() {
-                    @Override
-                    public void onFailure(Exception e) {
-                        try {
-                            channel.sendResponse(e);
-                        } catch (IOException e1) {
-                            throw new UncheckedIOException(e1);
-                        }
+        serviceB.registerRequestHandler("internal:action", ThreadPool.Names.SAME, TestRequest::new, (request, channel, task) -> {
+            // don't block on a network thread here
+            threadPool.generic().execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        channel.sendResponse(e);
+                    } catch (IOException e1) {
+                        throw new UncheckedIOException(e1);
                     }
+                }
 
-                    @Override
-                    protected void doRun() throws Exception {
-                        receivedLatch.countDown();
-                        sendResponseLatch.await();
-                        onFailure(ex);
-                    }
-                });
-            }
-        );
+                @Override
+                protected void doRun() throws Exception {
+                    receivedLatch.countDown();
+                    sendResponseLatch.await();
+                    onFailure(ex);
+                }
+            });
+        });
         serviceC.start();
         serviceC.acceptIncomingRequests();
         CountDownLatch responseLatch = new CountDownLatch(1);

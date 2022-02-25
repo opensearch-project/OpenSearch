@@ -32,8 +32,6 @@
 
 package org.opensearch.common.util;
 
-import org.apache.lucene.store.ByteArrayDataInput;
-import org.apache.lucene.store.ByteArrayDataOutput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -78,44 +76,6 @@ public class ByteUtilsTests extends OpenSearchTestCase {
         }
         for (int i = 0; i < data.length; ++i) {
             assertEquals(data[i], ByteUtils.readDoubleLE(encoded, i * 8), Double.MIN_VALUE);
-        }
-    }
-
-    public void testVLong() throws IOException {
-        final long[] data = new long[scaledRandomIntBetween(1000, 10000)];
-        for (int i = 0; i < data.length; ++i) {
-            switch (randomInt(4)) {
-                case 0:
-                    data[i] = 0;
-                    break;
-                case 1:
-                    data[i] = Long.MAX_VALUE;
-                    break;
-                case 2:
-                    data[i] = Long.MIN_VALUE;
-                    break;
-                case 3:
-                    data[i] = randomInt(1 << randomIntBetween(2, 30));
-                    break;
-                case 4:
-                    data[i] = randomLong();
-                    break;
-                default:
-                    throw new AssertionError();
-            }
-        }
-        final byte[] encoded = new byte[ByteUtils.MAX_BYTES_VLONG * data.length];
-        ByteArrayDataOutput out = new ByteArrayDataOutput(encoded);
-        for (int i = 0; i < data.length; ++i) {
-            final int pos = out.getPosition();
-            ByteUtils.writeVLong(out, data[i]);
-            if (data[i] < 0) {
-                assertEquals(ByteUtils.MAX_BYTES_VLONG, out.getPosition() - pos);
-            }
-        }
-        final ByteArrayDataInput in = new ByteArrayDataInput(encoded);
-        for (int i = 0; i < data.length; ++i) {
-            assertEquals(data[i], ByteUtils.readVLong(in));
         }
     }
 

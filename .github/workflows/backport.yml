@@ -1,6 +1,6 @@
 name: Backport
 on:
-  pull_request:
+  pull_request_target:
     types:
       - closed
       - labeled
@@ -13,7 +13,16 @@ jobs:
       pull-requests: write
     name: Backport
     steps:
-      - name: Backport
-        uses: tibdex/backport@v1
+      - name: GitHub App token
+        id: github_app_token
+        uses: tibdex/github-app-token@v1.5.0
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          app_id: ${{ secrets.APP_ID }}
+          private_key: ${{ secrets.APP_PRIVATE_KEY }}
+          installation_id: 22958780
+
+      - name: Backport
+        uses: VachaShah/backport@v1.1.4
+        with:
+          github_token: ${{ steps.github_app_token.outputs.token }}
+          branch_name: backport/backport-${{ github.event.number }}

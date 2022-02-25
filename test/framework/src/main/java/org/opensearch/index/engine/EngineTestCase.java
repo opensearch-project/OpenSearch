@@ -71,7 +71,6 @@ import org.opensearch.common.CheckedBiFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.Strings;
-import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
@@ -200,11 +199,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                 IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD.getKey(),
                 between(10, 10 * IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD.get(Settings.EMPTY))
             )
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
-            .put(
-                IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(),
-                randomBoolean() ? IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.get(Settings.EMPTY) : between(0, 1000)
-            )
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000))
             .build();
     }
 
@@ -352,8 +347,6 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                 assertMaxSeqNoInCommitUserData(replicaEngine);
                 assertAtMostOneLuceneDocumentPerSequenceNumber(replicaEngine);
             }
-            assertThat(engine.config().getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING).getUsed(), equalTo(0L));
-            assertThat(replicaEngine.config().getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING).getUsed(), equalTo(0L));
         } finally {
             IOUtils.close(replicaEngine, storeReplica, engine, store, () -> terminate(threadPool));
         }
@@ -977,7 +970,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     }
 
     protected Engine.Get newGet(boolean realtime, ParsedDocument doc) {
-        return new Engine.Get(realtime, realtime, doc.type(), doc.id(), newUid(doc));
+        return new Engine.Get(realtime, realtime, doc.id(), newUid(doc));
     }
 
     protected Engine.Index indexForDoc(ParsedDocument doc) {
@@ -1362,13 +1355,9 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     /**
      * Reads all engine operations that have been processed by the engine from Lucene index/Translog based on source.
      */
-    public static List<Translog.Operation> readAllOperationsBasedOnSource(
-        Engine engine,
-        Engine.HistorySource historySource,
-        MapperService mapper
-    ) throws IOException {
+    public static List<Translog.Operation> readAllOperationsBasedOnSource(Engine engine, MapperService mapper) throws IOException {
         final List<Translog.Operation> operations = new ArrayList<>();
-        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", historySource, mapper, 0, Long.MAX_VALUE, false)) {
+        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", mapper, 0, Long.MAX_VALUE, false)) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
                 operations.add(op);
@@ -1381,10 +1370,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
      * Asserts the provided engine has a consistent document history between translog and Lucene index.
      */
     public static void assertConsistentHistoryBetweenTranslogAndLuceneIndex(Engine engine, MapperService mapper) throws IOException {
-        if (mapper == null
-            || mapper.documentMapper() == null
-            || engine.config().getIndexSettings().isSoftDeleteEnabled() == false
-            || (engine instanceof InternalEngine) == false) {
+        if (mapper == null || mapper.documentMapper() == null || (engine instanceof InternalEngine) == false) {
             return;
         }
         final List<Translog.Operation> translogOps = new ArrayList<>();
@@ -1406,8 +1392,12 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         final long globalCheckpoint = EngineTestCase.getTranslog(engine).getLastSyncedGlobalCheckpoint();
         final long retainedOps = engine.config().getIndexSettings().getSoftDeleteRetentionOperations();
         final long seqNoForRecovery;
-        try (Engine.IndexCommitRef safeCommit = engine.acquireSafeIndexCommit()) {
-            seqNoForRecovery = Long.parseLong(safeCommit.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1;
+        if (engine.config().getIndexSettings().isSoftDeleteEnabled()) {
+            try (Engine.IndexCommitRef safeCommit = engine.acquireSafeIndexCommit()) {
+                seqNoForRecovery = Long.parseLong(safeCommit.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1;
+            }
+        } else {
+            seqNoForRecovery = engine.getMinRetainedSeqNo();
         }
         final long minSeqNoToRetain = Math.min(seqNoForRecovery, globalCheckpoint + 1 - retainedOps);
         for (Translog.Operation translogOp : translogOps) {

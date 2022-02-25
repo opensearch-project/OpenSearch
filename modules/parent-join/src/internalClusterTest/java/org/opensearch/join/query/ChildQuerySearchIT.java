@@ -201,7 +201,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
         // TEST FETCHING _parent from child
         SearchResponse searchResponse;
-        searchResponse = client().prepareSearch("test").setQuery(idsQuery("doc").addIds("c1")).get();
+        searchResponse = client().prepareSearch("test").setQuery(idsQuery().addIds("c1")).get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("c1"));
@@ -608,7 +608,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertHitCount(searchResponse, 1L);
         assertThat(searchResponse.getHits().getAt(0).getExplanation().getDescription(), containsString("join value p1"));
 
-        ExplainResponse explainResponse = client().prepareExplain("test", "doc", parentId)
+        ExplainResponse explainResponse = client().prepareExplain("test", parentId)
             .setQuery(hasChildQuery("child", termQuery("c_field", "1"), ScoreMode.Max))
             .get();
         assertThat(explainResponse.isExists(), equalTo(true));

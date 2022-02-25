@@ -71,7 +71,6 @@ import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.seqno.ReplicationTracker;
-import org.opensearch.indices.flush.SyncedFlushService;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.OpenSearchTestCase;
@@ -101,6 +100,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
@@ -727,7 +727,8 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
             Response response = adminClient().performRequest(new Request("GET", "/_slm/policy"));
             policies = entityAsMap(response);
         } catch (ResponseException e) {
-            if (RestStatus.METHOD_NOT_ALLOWED.getStatus() == e.getResponse().getStatusLine().getStatusCode()) {
+            if (RestStatus.METHOD_NOT_ALLOWED.getStatus() == e.getResponse().getStatusLine().getStatusCode()
+                || RestStatus.BAD_REQUEST.getStatus() == e.getResponse().getStatusLine().getStatusCode()) {
                 // If bad request returned, SLM is not enabled.
                 return;
             }
@@ -1269,13 +1270,27 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
         return minVersion;
     }
 
-    protected static void performSyncedFlush(String indexName, boolean retryOnConflict) throws Exception {
+    protected void syncedFlush(String indexName, boolean retryOnConflict) throws Exception {
         final Request request = new Request("POST", indexName + "/_flush/synced");
-        final List<String> expectedWarnings = Collections.singletonList(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE);
         final Builder options = RequestOptions.DEFAULT.toBuilder();
-        options.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false);
+        // 8.0 kept in warning message for legacy purposes TODO: changge to 3.0
+        final List<String> warningMessage = Arrays.asList(
+            "Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead."
+        );
+        final List<String> expectedWarnings = Arrays.asList(
+            "Synced flush was removed and a normal flush was performed instead. This transition will be removed in a future version."
+        );
+        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_2_0_0))) {
+            options.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false);
+        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(LegacyESVersion.V_7_6_0))) {
+            options.setWarningsHandler(
+                warnings -> warnings.isEmpty() == false
+                    && warnings.equals(expectedWarnings) == false
+                    && warnings.equals(warningMessage) == false
+            );
+        }
         request.setOptions(options);
-        // We have to spin a synced-flush request because we fire the global checkpoint sync for the last write operation.
+        // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
         // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
         assertBusy(() -> {
             try {
@@ -1291,6 +1306,26 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
                 }
             }
         });
+        // ensure the global checkpoint is synced; otherwise we might trim the commit with syncId
+        ensureGlobalCheckpointSynced(indexName);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void ensureGlobalCheckpointSynced(String index) throws Exception {
+        assertBusy(() -> {
+            Map<?, ?> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
+            List<Map<?, ?>> shardStats = (List<Map<?, ?>>) XContentMapValues.extractValue("indices." + index + ".shards.0", stats);
+            shardStats.stream()
+                .map(shard -> (Map<?, ?>) XContentMapValues.extractValue("seq_no", shard))
+                .filter(Objects::nonNull)
+                .forEach(seqNoStat -> {
+                    long globalCheckpoint = ((Number) XContentMapValues.extractValue("global_checkpoint", seqNoStat)).longValue();
+                    long localCheckpoint = ((Number) XContentMapValues.extractValue("local_checkpoint", seqNoStat)).longValue();
+                    long maxSeqNo = ((Number) XContentMapValues.extractValue("max_seq_no", seqNoStat)).longValue();
+                    assertThat(shardStats.toString(), localCheckpoint, equalTo(maxSeqNo));
+                    assertThat(shardStats.toString(), globalCheckpoint, equalTo(maxSeqNo));
+                });
+        }, 60, TimeUnit.SECONDS);
     }
 
     static final Pattern CREATE_INDEX_MULTIPLE_MATCHING_TEMPLATES = Pattern.compile(

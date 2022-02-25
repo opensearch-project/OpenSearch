@@ -85,7 +85,6 @@ public class ReadOnlyEngine extends Engine {
     private final OpenSearchReaderManager readerManager;
     private final IndexCommit indexCommit;
     private final Lock indexWriterLock;
-    private final RamAccountingRefreshListener refreshListener;
     private final SafeCommitInfo safeCommitInfo;
     private final CompletionStatsCache completionStatsCache;
     private final boolean requireCompleteHistory;
@@ -114,7 +113,6 @@ public class ReadOnlyEngine extends Engine {
         boolean requireCompleteHistory
     ) {
         super(config);
-        this.refreshListener = new RamAccountingRefreshListener(engineConfig.getCircuitBreakerService());
         this.requireCompleteHistory = requireCompleteHistory;
         try {
             Store store = config.getStore();
@@ -135,14 +133,13 @@ public class ReadOnlyEngine extends Engine {
                 this.seqNoStats = seqNoStats;
                 this.indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, directory);
                 reader = wrapReader(open(indexCommit), readerWrapperFunction);
-                readerManager = new OpenSearchReaderManager(reader, refreshListener);
+                readerManager = new OpenSearchReaderManager(reader);
                 assert translogStats != null || obtainLock : "mutiple translogs instances should not be opened at the same time";
                 this.translogStats = translogStats != null ? translogStats : translogStats(config, lastCommittedSegmentInfos);
                 this.indexWriterLock = indexWriterLock;
                 this.safeCommitInfo = new SafeCommitInfo(seqNoStats.getLocalCheckpoint(), lastCommittedSegmentInfos.totalMaxDoc());
 
                 completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
-                // no need to register a refresh listener to invalidate completionStatsCache since this engine is readonly
 
                 success = true;
             } finally {
@@ -200,16 +197,13 @@ public class ReadOnlyEngine extends Engine {
         DirectoryReader reader,
         Function<DirectoryReader, DirectoryReader> readerWrapperFunction
     ) throws IOException {
-        if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
-            reader = new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
-        }
         reader = readerWrapperFunction.apply(reader);
         return OpenSearchDirectoryReader.wrap(reader, engineConfig.getShardId());
     }
 
     protected DirectoryReader open(IndexCommit commit) throws IOException {
         assert Transports.assertNotTransportThread("opening index commit of a read-only engine");
-        return DirectoryReader.open(commit);
+        return new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(commit), Lucene.SOFT_DELETES_FIELD);
     }
 
     @Override
@@ -332,7 +326,7 @@ public class ReadOnlyEngine extends Engine {
     public void syncTranslog() {}
 
     @Override
-    public Closeable acquireHistoryRetentionLock(HistorySource historySource) {
+    public Closeable acquireHistoryRetentionLock() {
         return () -> {};
     }
 
@@ -343,40 +337,11 @@ public class ReadOnlyEngine extends Engine {
         long fromSeqNo,
         long toSeqNo,
         boolean requiredFullRange
-    ) throws IOException {
-        if (engineConfig.getIndexSettings().isSoftDeleteEnabled() == false) {
-            throw new IllegalStateException("accessing changes snapshot requires soft-deletes enabled");
-        }
-        return newEmptySnapshot();
-    }
-
-    @Override
-    public Translog.Snapshot readHistoryOperations(
-        String reason,
-        HistorySource historySource,
-        MapperService mapperService,
-        long startingSeqNo
     ) {
         return newEmptySnapshot();
     }
 
-    @Override
-    public int estimateNumberOfHistoryOperations(
-        String reason,
-        HistorySource historySource,
-        MapperService mapperService,
-        long startingSeqNo
-    ) {
-        return 0;
-    }
-
-    @Override
-    public boolean hasCompleteOperationHistory(
-        String reason,
-        HistorySource historySource,
-        MapperService mapperService,
-        long startingSeqNo
-    ) {
+    public boolean hasCompleteOperationHistory(String reason, long startingSeqNo) {
         // we can do operation-based recovery if we don't have to replay any operation.
         return startingSeqNo > seqNoStats.getMaxSeqNo();
     }
@@ -441,15 +406,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) {
-        // we can't do synced flushes this would require an indexWriter which we don't have
-        throw new UnsupportedOperationException("syncedFlush is not supported on a read-only engine");
-    }
-
-    @Override
-    public CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
-        return new CommitId(lastCommittedSegmentInfos.getId());
-    }
+    public void flush(boolean force, boolean waitIfOngoing) throws EngineException {}
 
     @Override
     public void forceMerge(
@@ -529,10 +486,6 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public void updateMaxUnsafeAutoIdTimestamp(long newTimestamp) {
 
-    }
-
-    protected void processReader(OpenSearchDirectoryReader reader) {
-        refreshListener.accept(reader, null);
     }
 
     @Override

@@ -156,9 +156,8 @@ public class ExistsIT extends OpenSearchIntegTestCase {
             } catch (AssertionError e) {
                 for (SearchHit searchHit : allDocs.getHits()) {
                     final String index = searchHit.getIndex();
-                    final String type = searchHit.getType();
                     final String id = searchHit.getId();
-                    final ExplainResponse explanation = client().prepareExplain(index, type, id)
+                    final ExplainResponse explanation = client().prepareExplain(index, id)
                         .setQuery(QueryBuilders.existsQuery(fieldName))
                         .get();
                     logger.info(

@@ -102,8 +102,6 @@ public class CircuitBreakerServiceIT extends OpenSearchIntegTestCase {
             HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING,
             HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING,
             HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING,
-            HierarchyCircuitBreakerService.ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING,
-            HierarchyCircuitBreakerService.ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING,
             HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING,
             HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING,
             HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING
@@ -405,7 +403,7 @@ public class CircuitBreakerServiceIT extends OpenSearchIntegTestCase {
         int numRequests = inFlightRequestsLimit.bytesAsInt();
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < numRequests; i++) {
-            IndexRequest indexRequest = new IndexRequest("index", "type", Integer.toString(i));
+            IndexRequest indexRequest = new IndexRequest("index").id(Integer.toString(i));
             indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field", "value", "num", i);
             bulkRequest.add(indexRequest);
         }

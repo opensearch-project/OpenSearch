@@ -121,7 +121,7 @@ public abstract class AbstractClientHeadersTestCase extends OpenSearchTestCase {
         // validation in the settings??? - ugly and conceptually wrong)
 
         // choosing arbitrary top level actions to test
-        client.prepareGet("idx", "type", "id").execute(new AssertingActionListener<>(GetAction.NAME, client.threadPool()));
+        client.prepareGet("idx", "id").execute(new AssertingActionListener<>(GetAction.NAME, client.threadPool()));
         client.prepareSearch().execute(new AssertingActionListener<>(SearchAction.NAME, client.threadPool()));
         client.prepareDelete("idx", "type", "id").execute(new AssertingActionListener<>(DeleteAction.NAME, client.threadPool()));
         client.admin()
@@ -156,7 +156,7 @@ public abstract class AbstractClientHeadersTestCase extends OpenSearchTestCase {
         expected.put("key1", key1Val);
         expected.put("key2", "val 2");
         client.threadPool().getThreadContext().putHeader("key1", key1Val);
-        client.prepareGet("idx", "type", "id").execute(new AssertingActionListener<>(GetAction.NAME, expected, client.threadPool()));
+        client.prepareGet("idx", "id").execute(new AssertingActionListener<>(GetAction.NAME, expected, client.threadPool()));
 
         client.admin()
             .cluster()

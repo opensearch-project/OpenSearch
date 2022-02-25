@@ -35,6 +35,9 @@ import org.opensearch.Version;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
@@ -51,6 +54,7 @@ import org.opensearch.threadpool.TestThreadPool;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -58,12 +62,16 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
-import static org.opensearch.cluster.routing.OperationRouting.IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE;
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.object.HasToString.hasToString;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 
 public class OperationRoutingTests extends OpenSearchTestCase {
     public void testGenerateShardId() {
@@ -658,6 +666,125 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         terminate(threadPool);
     }
 
+    // Regression test to ignore awareness attributes. This test creates shards in different zones and simulates stress
+    // on nodes in one zone to test if Adapative Replica Selection smartly routes the request to a node in different zone
+    // by ignoring the zone awareness attributes.
+    public void testAdaptiveReplicaSelectionWithZoneAwarenessIgnored() throws Exception {
+        final int numIndices = 2;
+        final int numShards = 1;
+        final int numReplicas = 1;
+        final String[] indexNames = new String[numIndices];
+        for (int i = 0; i < numIndices; i++) {
+            indexNames[i] = "test" + i;
+        }
+
+        DiscoveryNode[] allNodes = setupNodes();
+        ClusterState state = ClusterStateCreationUtils.state(allNodes[0], allNodes[3], allNodes);
+        // Updates cluster state by assigning shard copies on nodes
+        state = updateStatetoTestARS(indexNames, numShards, numReplicas, allNodes, state);
+
+        Settings awarenessSetting = Settings.builder().put("cluster.routing.allocation.awareness.attributes", "zone").build();
+        TestThreadPool threadPool = new TestThreadPool("testThatOnlyNodesSupport");
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+
+        OperationRouting opRouting = new OperationRouting(
+            awarenessSetting,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        opRouting.setUseAdaptiveReplicaSelection(true);
+        assertTrue(opRouting.ignoreAwarenessAttributes());
+        List<ShardRouting> searchedShards = new ArrayList<>(numShards);
+        Set<String> selectedNodes = new HashSet<>(numShards);
+        ResponseCollectorService collector = new ResponseCollectorService(clusterService);
+        Map<String, Long> outstandingRequests = new HashMap<>();
+
+        GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(
+            state,
+            indexNames,
+            null,
+            null,
+            collector,
+            outstandingRequests
+        );
+        assertThat("One group per index shard", groupIterator.size(), equalTo(numIndices * numShards));
+
+        // Test that the shards use a round-robin pattern when there are no stats
+        assertThat(groupIterator.size(), equalTo(numIndices * numShards));
+        assertThat(groupIterator.get(0).size(), equalTo(numReplicas + 1));
+
+        ShardRouting firstChoice = groupIterator.get(0).nextOrNull();
+        assertNotNull(firstChoice);
+        searchedShards.add(firstChoice);
+        selectedNodes.add(firstChoice.currentNodeId());
+
+        groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, outstandingRequests);
+
+        assertThat(groupIterator.size(), equalTo(numIndices * numShards));
+        assertThat(groupIterator.get(0).size(), equalTo(numReplicas + 1));
+        ShardRouting secondChoice = groupIterator.get(0).nextOrNull();
+        assertNotNull(secondChoice);
+        searchedShards.add(secondChoice);
+        selectedNodes.add(secondChoice.currentNodeId());
+
+        // All the shards should be ranked equally since there are no stats yet
+        assertTrue(selectedNodes.contains("node_b2"));
+
+        // Since the primary shards are divided randomly between node_a0 and node_a1
+        assertTrue(selectedNodes.contains("node_a0") || selectedNodes.contains("node_a1"));
+
+        // Now let's start adding node metrics, since that will affect which node is chosen. Adding more load to node_b2
+        collector.addNodeStatistics("node_a0", 1, TimeValue.timeValueMillis(50).nanos(), TimeValue.timeValueMillis(50).nanos());
+        collector.addNodeStatistics("node_a1", 20, TimeValue.timeValueMillis(100).nanos(), TimeValue.timeValueMillis(150).nanos());
+        collector.addNodeStatistics("node_b2", 40, TimeValue.timeValueMillis(250).nanos(), TimeValue.timeValueMillis(250).nanos());
+        outstandingRequests.put("node_a0", 1L);
+        outstandingRequests.put("node_a1", 1L);
+        outstandingRequests.put("node_b2", 1L);
+
+        groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, outstandingRequests);
+        // node_a0 or node_a1 should be the lowest ranked node to start
+        groupIterator.forEach(shardRoutings -> assertThat(shardRoutings.nextOrNull().currentNodeId(), containsString("node_a")));
+
+        // Adding more load to node_a0
+        collector.addNodeStatistics("node_a0", 10, TimeValue.timeValueMillis(200).nanos(), TimeValue.timeValueMillis(150).nanos());
+        groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, outstandingRequests);
+
+        // Adding more load to node_a0 and node_a1 from zone-a
+        collector.addNodeStatistics("node_a1", 100, TimeValue.timeValueMillis(300).nanos(), TimeValue.timeValueMillis(250).nanos());
+        collector.addNodeStatistics("node_a0", 100, TimeValue.timeValueMillis(300).nanos(), TimeValue.timeValueMillis(250).nanos());
+        groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, outstandingRequests);
+        // ARS should pick node_b2 from zone-b since both node_a0 and node_a1 are overloaded
+        groupIterator.forEach(shardRoutings -> assertThat(shardRoutings.nextOrNull().currentNodeId(), containsString("node_b")));
+
+        IOUtils.close(clusterService);
+        terminate(threadPool);
+    }
+
+    private DiscoveryNode[] setupNodes() {
+        // Sets up two data nodes in zone-a and one data node in zone-b
+        List<String> zones = Arrays.asList("a", "a", "b");
+        DiscoveryNode[] allNodes = new DiscoveryNode[4];
+        int i = 0;
+        for (String zone : zones) {
+            DiscoveryNode node = new DiscoveryNode(
+                "node_" + zone + i,
+                buildNewFakeTransportAddress(),
+                singletonMap("zone", zone),
+                Collections.singleton(DiscoveryNodeRole.DATA_ROLE),
+                Version.CURRENT
+            );
+            allNodes[i++] = node;
+        }
+        DiscoveryNode master = new DiscoveryNode(
+            "master",
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
+        );
+        allNodes[i] = master;
+        return allNodes;
+    }
+
     public void testAllocationAwarenessDeprecation() {
         OperationRouting routing = new OperationRouting(
             Settings.builder()
@@ -665,7 +792,53 @@ public class OperationRoutingTests extends OpenSearchTestCase {
                 .build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
-        assertWarnings(IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE);
     }
 
+    /**
+     * The following setup is created to test ARS
+     */
+    private ClusterState updateStatetoTestARS(
+        String[] indices,
+        int numberOfShards,
+        int numberOfReplicas,
+        DiscoveryNode[] nodes,
+        ClusterState state
+    ) {
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        Metadata.Builder metadataBuilder = Metadata.builder();
+        ClusterState.Builder clusterState = ClusterState.builder(state);
+
+        for (String index : indices) {
+            IndexMetadata indexMetadata = IndexMetadata.builder(index)
+                .settings(
+                    Settings.builder()
+                        .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                        .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
+                        .put(SETTING_CREATION_DATE, System.currentTimeMillis())
+                )
+                .build();
+            metadataBuilder.put(indexMetadata, false).generateClusterUuidIfNeeded();
+            IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
+            for (int i = 0; i < numberOfShards; i++) {
+                final ShardId shardId = new ShardId(index, "_na_", i);
+                IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+                // Assign all the primary shards on nodes in zone-a (node_a0 or node_a1)
+                indexShardRoutingBuilder.addShard(
+                    TestShardRouting.newShardRouting(index, i, nodes[randomInt(1)].getId(), null, true, ShardRoutingState.STARTED)
+                );
+                for (int replica = 0; replica < numberOfReplicas; replica++) {
+                    // Assign all the replicas on nodes in zone-b (node_b2)
+                    indexShardRoutingBuilder.addShard(
+                        TestShardRouting.newShardRouting(index, i, nodes[2].getId(), null, false, ShardRoutingState.STARTED)
+                    );
+                }
+                indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder.build());
+            }
+            routingTableBuilder.add(indexRoutingTableBuilder.build());
+        }
+        clusterState.metadata(metadataBuilder);
+        clusterState.routingTable(routingTableBuilder.build());
+        return clusterState.build();
+    }
 }

@@ -35,7 +35,6 @@ package org.opensearch.index.engine;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.BiConsumer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -62,8 +61,6 @@ import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 class OpenSearchReaderManager extends ReferenceManager<OpenSearchDirectoryReader> {
     protected static Logger logger = LogManager.getLogger(OpenSearchReaderManager.class);
 
-    private final BiConsumer<OpenSearchDirectoryReader, OpenSearchDirectoryReader> refreshListener;
-
     private volatile SegmentInfos currentInfos;
 
     /**
@@ -72,15 +69,9 @@ class OpenSearchReaderManager extends ReferenceManager<OpenSearchDirectoryReader
      * the incoming reference.
      *
      * @param reader            the directoryReader to use for future reopens
-     * @param refreshListener   A consumer that is called every time a new reader is opened
      */
-    OpenSearchReaderManager(
-        OpenSearchDirectoryReader reader,
-        BiConsumer<OpenSearchDirectoryReader, OpenSearchDirectoryReader> refreshListener
-    ) {
+    OpenSearchReaderManager(OpenSearchDirectoryReader reader) {
         this.current = reader;
-        this.refreshListener = refreshListener;
-        refreshListener.accept(current, null);
     }
 
     @Override
@@ -110,9 +101,6 @@ class OpenSearchReaderManager extends ReferenceManager<OpenSearchDirectoryReader
             DirectoryReader innerReader = StandardDirectoryReader.open(referenceToRefresh.directory(), currentInfos, subs, null);
             reader = OpenSearchDirectoryReader.wrap(innerReader, referenceToRefresh.shardId());
             logger.trace("updated to SegmentInfosVersion=" + currentInfos.getVersion() + " reader=" + innerReader);
-        }
-        if (reader != null) {
-            refreshListener.accept(reader, referenceToRefresh);
         }
         return reader;
     }

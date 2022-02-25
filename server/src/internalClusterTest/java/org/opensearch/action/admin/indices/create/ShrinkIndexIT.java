@@ -240,10 +240,8 @@ public class ShrinkIndexIT extends OpenSearchIntegTestCase {
                         final String s = Integer.toString(id);
                         final int hash = Math.floorMod(Murmur3HashFunction.hash(s), numberOfShards);
                         if (hash == shardId) {
-                            final IndexRequest request = new IndexRequest("source", "type", s).source(
-                                "{ \"f\": \"" + s + "\"}",
-                                XContentType.JSON
-                            );
+                            final IndexRequest request = new IndexRequest("source").id(s)
+                                .source("{ \"f\": \"" + s + "\"}", XContentType.JSON);
                             client().index(request).get();
                             break;
                         } else {
@@ -667,7 +665,7 @@ public class ShrinkIndexIT extends OpenSearchIntegTestCase {
                 IndexService indexShards = service.indexService(target.getIndex());
                 IndexShard shard = indexShards.getShard(0);
                 assertTrue(shard.isActive());
-                shard.checkIdle(0);
+                shard.flushOnIdle(0);
                 assertFalse(shard.isActive());
             }
         }

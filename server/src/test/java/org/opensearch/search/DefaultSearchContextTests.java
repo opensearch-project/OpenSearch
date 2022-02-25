@@ -97,7 +97,6 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
         when(shardSearchRequest.searchType()).thenReturn(SearchType.DEFAULT);
         ShardId shardId = new ShardId("index", UUID.randomUUID().toString(), 1);
         when(shardSearchRequest.shardId()).thenReturn(shardId);
-        when(shardSearchRequest.types()).thenReturn(new String[] {});
 
         ThreadPool threadPool = new TestThreadPool(this.getClass().getName());
         IndexShard indexShard = mock(IndexShard.class);

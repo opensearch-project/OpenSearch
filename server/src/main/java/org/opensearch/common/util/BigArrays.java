@@ -455,12 +455,11 @@ public class BigArrays {
     private <T extends AbstractBigArray> T resizeInPlace(T array, long newSize) {
         final long oldMemSize = array.ramBytesUsed();
         final long oldSize = array.size();
-        assert oldMemSize == array.ramBytesEstimated(
-            oldSize
-        ) : "ram bytes used should equal that which was previously estimated: ramBytesUsed="
-            + oldMemSize
-            + ", ramBytesEstimated="
-            + array.ramBytesEstimated(oldSize);
+        assert oldMemSize == array.ramBytesEstimated(oldSize)
+            : "ram bytes used should equal that which was previously estimated: ramBytesUsed="
+                + oldMemSize
+                + ", ramBytesEstimated="
+                + array.ramBytesEstimated(oldSize);
         final long estimatedIncreaseInBytes = array.ramBytesEstimated(newSize) - oldMemSize;
         adjustBreaker(estimatedIncreaseInBytes, false);
         array.resize(newSize);

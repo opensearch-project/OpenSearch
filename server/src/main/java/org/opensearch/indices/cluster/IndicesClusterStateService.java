@@ -76,7 +76,6 @@ import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.indices.flush.SyncedFlushService;
 import org.opensearch.indices.recovery.PeerRecoverySourceService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryFailedException;
@@ -151,7 +150,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final NodeMappingRefreshAction nodeMappingRefreshAction,
         final RepositoriesService repositoriesService,
         final SearchService searchService,
-        final SyncedFlushService syncedFlushService,
         final PeerRecoverySourceService peerRecoverySourceService,
         final SnapshotShardsService snapshotShardsService,
         final PrimaryReplicaSyncer primaryReplicaSyncer,
@@ -172,7 +170,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             nodeMappingRefreshAction,
             repositoriesService,
             searchService,
-            syncedFlushService,
             peerRecoverySourceService,
             snapshotShardsService,
             primaryReplicaSyncer,
@@ -194,7 +191,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final NodeMappingRefreshAction nodeMappingRefreshAction,
         final RepositoriesService repositoriesService,
         final SearchService searchService,
-        final SyncedFlushService syncedFlushService,
         final PeerRecoverySourceService peerRecoverySourceService,
         final SnapshotShardsService snapshotShardsService,
         final PrimaryReplicaSyncer primaryReplicaSyncer,
@@ -204,13 +200,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.settings = settings;
         this.segmentReplicationReplicaService = replicationReplicaService;
         this.replicationSource = replicationSource;
-        this.buildInIndexListener = Arrays.asList(
-            peerRecoverySourceService,
-            recoveryTargetService,
-            searchService,
-            syncedFlushService,
-            snapshotShardsService
-        );
+        this.buildInIndexListener = Arrays.asList(peerRecoverySourceService, recoveryTargetService, searchService, snapshotShardsService);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -664,13 +654,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         ClusterState clusterState
     ) {
         final ShardRouting currentRoutingEntry = shard.routingEntry();
-        assert currentRoutingEntry.isSameAllocation(
-            shardRouting
-        ) : "local shard has a different allocation id but wasn't cleaned by removeShards. "
-            + "cluster state: "
-            + shardRouting
-            + " local: "
-            + currentRoutingEntry;
+        assert currentRoutingEntry.isSameAllocation(shardRouting)
+            : "local shard has a different allocation id but wasn't cleaned by removeShards. "
+                + "cluster state: "
+                + shardRouting
+                + " local: "
+                + currentRoutingEntry;
 
         final long primaryTerm;
         try {

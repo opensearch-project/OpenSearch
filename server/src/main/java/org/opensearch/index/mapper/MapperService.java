@@ -41,7 +41,6 @@ import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
-import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -115,7 +114,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         MAPPING_RECOVERY;
     }
 
-    public static final String DEFAULT_MAPPING = "_default_";
     public static final String SINGLE_MAPPING_NAME = "_doc";
     public static final Setting<Long> INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.nested_fields.limit",
@@ -175,10 +173,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private final IndexAnalyzers indexAnalyzers;
 
-    private volatile String defaultMappingSource;
-
     private volatile DocumentMapper mapper;
-    private volatile DocumentMapper defaultMapper;
 
     private final DocumentMapperParser documentParser;
     private final Version indexVersionCreated;
@@ -231,12 +226,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             && indexSettings.getIndexVersionCreated().onOrAfter(LegacyESVersion.V_7_0_0)) {
             throw new IllegalArgumentException("Setting " + INDEX_MAPPER_DYNAMIC_SETTING.getKey() + " was removed after version 6.0.0");
         }
-
-        defaultMappingSource = "{\"_default_\":{}}";
-
-        if (logger.isTraceEnabled()) {
-            logger.trace("default mapping source[{}]", defaultMappingSource);
-        }
     }
 
     public boolean hasNested() {
@@ -286,9 +275,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (mapper != null) {
             existingMappers.add(mapper.type());
         }
-        if (defaultMapper != null) {
-            existingMappers.add(DEFAULT_MAPPING);
-        }
         final Map<String, DocumentMapper> updatedEntries;
         try {
             // only update entries if needed
@@ -304,13 +290,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
         for (DocumentMapper documentMapper : updatedEntries.values()) {
             String mappingType = documentMapper.type();
-            MappingMetadata mappingMetadata;
-            if (mappingType.equals(MapperService.DEFAULT_MAPPING)) {
-                mappingMetadata = newIndexMetadata.defaultMapping();
-            } else {
-                mappingMetadata = newIndexMetadata.mapping();
-                assert mappingType.equals(mappingMetadata.type());
-            }
+            MappingMetadata mappingMetadata = newIndexMetadata.mapping();
+            assert mappingType.equals(mappingMetadata.type());
             CompressedXContent incomingMappingSource = mappingMetadata.source();
 
             String op = existingMappers.contains(mappingType) ? "updated" : "added";
@@ -351,20 +332,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 // if the mapping version is unchanged, then there should not be any updates and all mappings should be the same
                 assert updatedEntries.isEmpty() : updatedEntries;
 
-                MappingMetadata defaultMapping = newIndexMetadata.defaultMapping();
-                if (defaultMapping != null) {
-                    final CompressedXContent currentSource = currentIndexMetadata.defaultMapping().source();
-                    final CompressedXContent newSource = defaultMapping.source();
-                    assert currentSource.equals(newSource) : "expected current mapping ["
-                        + currentSource
-                        + "] for type ["
-                        + defaultMapping.type()
-                        + "] "
-                        + "to be the same as new mapping ["
-                        + newSource
-                        + "]";
-                }
-
                 MappingMetadata mapping = newIndexMetadata.mapping();
                 if (mapping != null) {
                     final CompressedXContent currentSource = currentIndexMetadata.mapping().source();
@@ -400,13 +367,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                     + "]";
                 assert updatedEntries.isEmpty() == false;
                 for (final DocumentMapper documentMapper : updatedEntries.values()) {
-                    final MappingMetadata currentMapping;
-                    if (documentMapper.type().equals(MapperService.DEFAULT_MAPPING)) {
-                        currentMapping = currentIndexMetadata.defaultMapping();
-                    } else {
-                        currentMapping = currentIndexMetadata.mapping();
-                        assert currentMapping == null || documentMapper.type().equals(currentMapping.type());
-                    }
+                    final MappingMetadata currentMapping = currentIndexMetadata.mapping();
+                    assert currentMapping == null || documentMapper.type().equals(currentMapping.type());
                     if (currentMapping != null) {
                         final CompressedXContent currentSource = currentMapping.source();
                         final CompressedXContent newSource = documentMapper.mappingSource();
@@ -448,7 +410,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason) {
-        return internalMerge(Collections.singletonMap(type, mappingSource), reason).get(type);
+        return internalMerge(Collections.singletonMap(type, mappingSource), reason).values().iterator().next();
     }
 
     private synchronized Map<String, DocumentMapper> internalMerge(IndexMetadata indexMetadata, MergeReason reason) {
@@ -462,52 +424,21 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private synchronized Map<String, DocumentMapper> internalMerge(Map<String, CompressedXContent> mappings, MergeReason reason) {
-        DocumentMapper defaultMapper = null;
-        String defaultMappingSource = null;
-
-        if (mappings.containsKey(DEFAULT_MAPPING)) {
-            // verify we can parse it
-            // NOTE: never apply the default here
-            try {
-                defaultMapper = documentParser.parse(DEFAULT_MAPPING, mappings.get(DEFAULT_MAPPING));
-            } catch (Exception e) {
-                throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, DEFAULT_MAPPING, e.getMessage());
-            }
-            defaultMappingSource = mappings.get(DEFAULT_MAPPING).string();
-        }
-
-        final String defaultMappingSourceOrLastStored;
-        if (defaultMappingSource != null) {
-            defaultMappingSourceOrLastStored = defaultMappingSource;
-        } else {
-            defaultMappingSourceOrLastStored = this.defaultMappingSource;
-        }
-
         DocumentMapper documentMapper = null;
         for (Map.Entry<String, CompressedXContent> entry : mappings.entrySet()) {
             String type = entry.getKey();
-            if (type.equals(DEFAULT_MAPPING)) {
-                continue;
-            }
-
             if (documentMapper != null) {
                 throw new IllegalArgumentException("Cannot put multiple mappings: " + mappings.keySet());
             }
 
-            final boolean applyDefault =
-                // the default was already applied if we are recovering
-                reason != MergeReason.MAPPING_RECOVERY
-                    // only apply the default mapping if we don't have the type yet
-                    && this.mapper == null;
-
             try {
-                documentMapper = documentParser.parse(type, entry.getValue(), applyDefault ? defaultMappingSourceOrLastStored : null);
+                documentMapper = documentParser.parse(type, entry.getValue());
             } catch (Exception e) {
                 throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
             }
         }
 
-        return internalMerge(defaultMapper, defaultMappingSource, documentMapper, reason);
+        return internalMerge(documentMapper, reason);
     }
 
     static void validateTypeName(String type) {
@@ -535,25 +466,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    private synchronized Map<String, DocumentMapper> internalMerge(
-        @Nullable DocumentMapper defaultMapper,
-        @Nullable String defaultMappingSource,
-        DocumentMapper mapper,
-        MergeReason reason
-    ) {
-
+    private synchronized Map<String, DocumentMapper> internalMerge(DocumentMapper mapper, MergeReason reason) {
         Map<String, DocumentMapper> results = new LinkedHashMap<>(2);
-
-        if (defaultMapper != null) {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(LegacyESVersion.V_7_0_0)) {
-                throw new IllegalArgumentException(DEFAULT_MAPPING_ERROR_MESSAGE);
-            } else if (reason == MergeReason.MAPPING_UPDATE) { // only log in case of explicit mapping updates
-                deprecationLogger.deprecate("default_mapping_not_allowed", DEFAULT_MAPPING_ERROR_MESSAGE);
-            }
-            assert defaultMapper.type().equals(DEFAULT_MAPPING);
-            results.put(DEFAULT_MAPPING, defaultMapper);
-        }
-
         DocumentMapper newMapper = null;
         if (mapper != null) {
             // check naming
@@ -580,10 +494,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
 
         // commit the change
-        if (defaultMappingSource != null) {
-            this.defaultMappingSource = defaultMappingSource;
-            this.defaultMapper = defaultMapper;
-        }
         if (newMapper != null) {
             this.mapper = newMapper;
         }
@@ -595,7 +505,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private boolean assertSerialization(DocumentMapper mapper) {
         // capture the source now, it may change due to concurrent parsing
         final CompressedXContent mappingSource = mapper.mappingSource();
-        DocumentMapper newMapper = parse(mapper.type(), mappingSource, false);
+        DocumentMapper newMapper = parse(mapper.type(), mappingSource);
 
         if (newMapper.mappingSource().equals(mappingSource) == false) {
             throw new IllegalStateException(
@@ -609,8 +519,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return true;
     }
 
-    public DocumentMapper parse(String mappingType, CompressedXContent mappingSource, boolean applyDefault) throws MapperParsingException {
-        return documentParser.parse(mappingType, mappingSource, applyDefault ? defaultMappingSource : null);
+    public DocumentMapper parse(String mappingType, CompressedXContent mappingSource) throws MapperParsingException {
+        return documentParser.parse(mappingType, mappingSource);
     }
 
     /**
@@ -621,16 +531,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Return the {@link DocumentMapper} for the given type. By using the special
-     * {@value #DEFAULT_MAPPING} type, you can get a {@link DocumentMapper} for
-     * the default mapping.
+     * Return the {@link DocumentMapper} for the given type.
      */
     public DocumentMapper documentMapper(String type) {
         if (mapper != null && type.equals(mapper.type())) {
             return mapper;
-        }
-        if (DEFAULT_MAPPING.equals(type)) {
-            return defaultMapper;
         }
         return null;
     }
@@ -646,15 +551,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public static boolean isMappingSourceTyped(String type, CompressedXContent mappingSource) {
         Map<String, Object> root = XContentHelper.convertToMap(mappingSource.compressedReference(), true, XContentType.JSON).v2();
         return isMappingSourceTyped(type, root);
-    }
-
-    /**
-     * If the _type name is _doc and there is no _doc top-level key then this means that we
-     * are handling a typeless call. In such a case, we override _doc with the actual type
-     * name in the mappings. This allows to use typeless APIs on typed indices.
-     */
-    public String getTypeForUpdate(String type, CompressedXContent mappingSource) {
-        return isMappingSourceTyped(type, mappingSource) == false ? resolveDocumentType(type) : type;
     }
 
     /**
@@ -683,7 +579,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (mapper != null) {
             return new DocumentMapperForType(mapper, null);
         }
-        mapper = parse(type, null, true);
+        mapper = parse(type, null);
         return new DocumentMapperForType(mapper, mapper.mapping());
     }
 

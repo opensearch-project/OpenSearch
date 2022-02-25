@@ -33,10 +33,17 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.UnknownHostException;
+import java.util.Collections;
 import java.util.Enumeration;
+
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.CoreMatchers.nullValue;
+import static org.junit.Assume.assumeThat;
 
 public class InetAddressesTests extends OpenSearchTestCase {
     public void testForStringBogusInput() {
@@ -147,11 +154,12 @@ public class InetAddressesTests extends OpenSearchTestCase {
         String scopeId = null;
         while (interfaces.hasMoreElements()) {
             final NetworkInterface nint = interfaces.nextElement();
-            if (nint.isLoopback()) {
+            if (nint.isLoopback() && Collections.list(nint.getInetAddresses()).stream().anyMatch(Inet6Address.class::isInstance)) {
                 scopeId = nint.getName();
                 break;
             }
         }
+        assumeThat("The loopback interface has no IPv6 address assigned", scopeId, is(not(nullValue())));
         assertNotNull(scopeId);
         String ipStr = "0:0:0:0:0:0:0:1%" + scopeId;
         InetAddress ipv6Addr = InetAddress.getByName(ipStr);

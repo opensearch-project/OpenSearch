@@ -36,8 +36,9 @@ import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
 import org.opensearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.ValueFetcher;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.fetch.FetchSubPhase;
-import org.opensearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -58,24 +59,20 @@ public final class HighlightUtils {
     /**
      * Load field values for highlighting.
      */
-    public static List<Object> loadFieldValues(MappedFieldType fieldType, FetchSubPhase.HitContext hitContext, boolean forceSource)
-        throws IOException {
-        // percolator needs to always load from source, thus it sets the global force source to true
-        List<Object> textsToHighlight;
+    public static List<Object> loadFieldValues(
+        MappedFieldType fieldType,
+        QueryShardContext context,
+        FetchSubPhase.HitContext hitContext,
+        boolean forceSource
+    ) throws IOException {
         if (forceSource == false && fieldType.isStored()) {
             CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(singleton(fieldType.name()), false);
             hitContext.reader().document(hitContext.docId(), fieldVisitor);
-            textsToHighlight = fieldVisitor.fields().get(fieldType.name());
-            if (textsToHighlight == null) {
-                // Can happen if the document doesn't have the field to highlight
-                textsToHighlight = Collections.emptyList();
-            }
-        } else {
-            SourceLookup sourceLookup = hitContext.sourceLookup();
-            textsToHighlight = sourceLookup.extractRawValues(fieldType.name());
+            List<Object> textsToHighlight = fieldVisitor.fields().get(fieldType.name());
+            return textsToHighlight != null ? textsToHighlight : Collections.emptyList();
         }
-        assert textsToHighlight != null;
-        return textsToHighlight;
+        ValueFetcher fetcher = fieldType.valueFetcher(context, null, null);
+        return fetcher.fetchValues(hitContext.sourceLookup());
     }
 
     public static class Encoders {

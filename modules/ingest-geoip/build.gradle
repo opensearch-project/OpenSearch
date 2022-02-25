@@ -39,11 +39,11 @@ opensearchplugin {
 }
 
 dependencies {
-  api('com.maxmind.geoip2:geoip2:2.13.1')
+  api('com.maxmind.geoip2:geoip2:2.16.1')
   // geoip2 dependencies:
   api("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
   api("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
-  api('com.maxmind.db:maxmind-db:1.3.1')
+  api('com.maxmind.db:maxmind-db:2.0.0')
 
   testImplementation 'org.elasticsearch:geolite2-databases:20191119'
 }
@@ -71,10 +71,8 @@ tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
           // geoip WebServiceClient needs apache http client, but we're not using WebServiceClient:
           'org.apache.http.HttpEntity',
-          'org.apache.http.HttpHost',
           'org.apache.http.HttpResponse',
           'org.apache.http.StatusLine',
-          'org.apache.http.auth.UsernamePasswordCredentials',
           'org.apache.http.client.config.RequestConfig$Builder',
           'org.apache.http.client.config.RequestConfig',
           'org.apache.http.client.methods.CloseableHttpResponse',

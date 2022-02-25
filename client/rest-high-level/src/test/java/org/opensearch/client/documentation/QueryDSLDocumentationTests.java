@@ -88,7 +88,6 @@ import static org.opensearch.index.query.QueryBuilders.spanTermQuery;
 import static org.opensearch.index.query.QueryBuilders.spanWithinQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.index.query.QueryBuilders.termsQuery;
-import static org.opensearch.index.query.QueryBuilders.typeQuery;
 import static org.opensearch.index.query.QueryBuilders.wildcardQuery;
 import static org.opensearch.index.query.QueryBuilders.wrapperQuery;
 import static org.opensearch.index.query.functionscore.ScoreFunctionBuilders.exponentialDecayFunction;
@@ -445,12 +444,6 @@ public class QueryDSLDocumentationTests extends OpenSearchTestCase {
         termsQuery("tags",                                           // <1>
                 "blue", "pill");                                     // <2>
         // end::terms
-    }
-
-    public void testType() {
-        // tag::type
-        typeQuery("my_type");                                        // <1>
-        // end::type
     }
 
     public void testWildcard() {

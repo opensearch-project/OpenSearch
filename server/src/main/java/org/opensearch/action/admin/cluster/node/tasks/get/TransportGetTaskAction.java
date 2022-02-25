@@ -187,24 +187,17 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         TaskInfo snapshotOfRunningTask,
         ActionListener<GetTaskResponse> listener
     ) {
-        getFinishedTaskFromIndex(
-            thisTask,
-            request,
-            ActionListener.delegateResponse(
-                listener,
-                (delegatedListener, e) -> {
-                    /*
-                     * We couldn't load the task from the task index. Instead of 404 we should use the snapshot we took after it finished. If
-                     * the error isn't a 404 then we'll just throw it back to the user.
-                     */
-                    if (ExceptionsHelper.unwrap(e, ResourceNotFoundException.class) != null) {
-                        delegatedListener.onResponse(new GetTaskResponse(new TaskResult(true, snapshotOfRunningTask)));
-                    } else {
-                        delegatedListener.onFailure(e);
-                    }
-                }
-            )
-        );
+        getFinishedTaskFromIndex(thisTask, request, ActionListener.delegateResponse(listener, (delegatedListener, e) -> {
+            /*
+             * We couldn't load the task from the task index. Instead of 404 we should use the snapshot we took after it finished. If
+             * the error isn't a 404 then we'll just throw it back to the user.
+             */
+            if (ExceptionsHelper.unwrap(e, ResourceNotFoundException.class) != null) {
+                delegatedListener.onResponse(new GetTaskResponse(new TaskResult(true, snapshotOfRunningTask)));
+            } else {
+                delegatedListener.onFailure(e);
+            }
+        }));
     }
 
     /**
@@ -213,7 +206,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
      * coordinating node if the node is no longer part of the cluster.
      */
     void getFinishedTaskFromIndex(Task thisTask, GetTaskRequest request, ActionListener<GetTaskResponse> listener) {
-        GetRequest get = new GetRequest(TaskResultsService.TASK_INDEX, TaskResultsService.TASK_TYPE, request.getTaskId().toString());
+        GetRequest get = new GetRequest(TaskResultsService.TASK_INDEX, request.getTaskId().toString());
         get.setParentTask(clusterService.localNode().getId(), thisTask.getId());
 
         client.get(get, ActionListener.wrap(r -> onGetFinishedTaskFromIndex(r, listener), e -> {

@@ -34,7 +34,6 @@ package org.opensearch.action.get;
 
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
-import org.opensearch.common.Nullable;
 
 /**
  * A multi get document action request builder.
@@ -45,21 +44,21 @@ public class MultiGetRequestBuilder extends ActionRequestBuilder<MultiGetRequest
         super(client, action, new MultiGetRequest());
     }
 
-    public MultiGetRequestBuilder add(String index, @Nullable String type, String id) {
-        request.add(index, type, id);
+    public MultiGetRequestBuilder add(String index, String id) {
+        request.add(index, id);
         return this;
     }
 
-    public MultiGetRequestBuilder add(String index, @Nullable String type, Iterable<String> ids) {
+    public MultiGetRequestBuilder add(String index, Iterable<String> ids) {
         for (String id : ids) {
-            request.add(index, type, id);
+            request.add(index, id);
         }
         return this;
     }
 
-    public MultiGetRequestBuilder add(String index, @Nullable String type, String... ids) {
+    public MultiGetRequestBuilder add(String index, String... ids) {
         for (String id : ids) {
-            request.add(index, type, id);
+            request.add(index, id);
         }
         return this;
     }

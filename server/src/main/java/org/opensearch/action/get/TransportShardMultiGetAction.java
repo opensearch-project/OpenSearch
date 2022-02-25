@@ -134,25 +134,14 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
             MultiGetRequest.Item item = request.items.get(i);
             try {
                 GetResult getResult = indexShard.getService()
-                    .get(
-                        item.type(),
-                        item.id(),
-                        item.storedFields(),
-                        request.realtime(),
-                        item.version(),
-                        item.versionType(),
-                        item.fetchSourceContext()
-                    );
+                    .get(item.id(), item.storedFields(), request.realtime(), item.version(), item.versionType(), item.fetchSourceContext());
                 response.add(request.locations.get(i), new GetResponse(getResult));
             } catch (RuntimeException e) {
                 if (TransportActions.isShardNotAvailableException(e)) {
                     throw e;
                 } else {
-                    logger.debug(
-                        () -> new ParameterizedMessage("{} failed to execute multi_get for [{}]/[{}]", shardId, item.type(), item.id()),
-                        e
-                    );
-                    response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), item.type(), item.id(), e));
+                    logger.debug(() -> new ParameterizedMessage("{} failed to execute multi_get for [{}]", shardId, item.id()), e);
+                    response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), item.id(), e));
                 }
             }
         }

@@ -48,7 +48,7 @@ plugins {
   id 'lifecycle-base'
   id 'opensearch.docker-support'
   id 'opensearch.global-build-info'
-  id "com.diffplug.spotless" version "5.6.1" apply false
+  id "com.diffplug.spotless" version "6.3.0" apply false
 }
 
 apply from: 'gradle/build-complete.gradle'
@@ -272,6 +272,14 @@ allprojects {
     // see https://discuss.gradle.org/t/add-custom-javadoc-option-that-does-not-take-an-argument/5959
     javadoc.options.encoding = 'UTF8'
     javadoc.options.addStringOption('Xdoclint:all,-missing', '-quiet')
+  }
+
+  // support for reproducible builds
+  tasks.withType(AbstractArchiveTask).configureEach {
+    // ignore file timestamps
+    // be consistent in archive file order
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
   }
 
   project.afterEvaluate {

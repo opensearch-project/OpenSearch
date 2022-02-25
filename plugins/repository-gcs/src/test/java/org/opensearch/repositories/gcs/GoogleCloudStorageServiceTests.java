@@ -35,7 +35,7 @@ package org.opensearch.repositories.gcs;
 import com.google.auth.Credentials;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;
-
+import org.hamcrest.Matchers;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Setting;
@@ -43,7 +43,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
-import org.hamcrest.Matchers;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -51,9 +50,9 @@ import java.util.Base64;
 import java.util.Locale;
 import java.util.UUID;
 
-import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
 

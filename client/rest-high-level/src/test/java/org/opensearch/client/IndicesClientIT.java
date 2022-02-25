@@ -46,7 +46,6 @@ import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.flush.FlushResponse;
-import org.opensearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.opensearch.action.admin.indices.open.OpenIndexRequest;
@@ -126,15 +125,11 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.indices.flush.SyncedFlushService;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.action.admin.indices.RestCreateIndexAction;
-import org.opensearch.rest.action.admin.indices.RestGetFieldMappingAction;
 import org.opensearch.rest.action.admin.indices.RestGetIndexTemplateAction;
 import org.opensearch.rest.action.admin.indices.RestGetIndicesAction;
-import org.opensearch.rest.action.admin.indices.RestGetMappingAction;
 import org.opensearch.rest.action.admin.indices.RestPutIndexTemplateAction;
-import org.opensearch.rest.action.admin.indices.RestPutMappingAction;
 import org.opensearch.rest.action.admin.indices.RestRolloverIndexAction;
 
 import java.io.IOException;
@@ -583,32 +578,6 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings.properties.field.type", getIndexResponse));
     }
 
-    public void testPutMappingWithTypes() throws IOException {
-        String indexName = "mapping_index";
-        createIndex(indexName, Settings.EMPTY);
-
-        org.opensearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest =
-            new org.opensearch.action.admin.indices.mapping.put.PutMappingRequest(indexName);
-        putMappingRequest.type("some_type");
-
-        XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
-        mappingBuilder.startObject().startObject("properties").startObject("field");
-        mappingBuilder.field("type", "text");
-        mappingBuilder.endObject().endObject().endObject();
-        putMappingRequest.source(mappingBuilder);
-
-        AcknowledgedResponse putMappingResponse = execute(
-            putMappingRequest,
-            highLevelClient().indices()::putMapping,
-            highLevelClient().indices()::putMappingAsync,
-            expectWarningsOnce(RestPutMappingAction.TYPES_DEPRECATION_MESSAGE)
-        );
-        assertTrue(putMappingResponse.isAcknowledged());
-
-        Map<String, Object> getIndexResponse = getAsMap(indexName);
-        assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings.properties.field.type", getIndexResponse));
-    }
-
     public void testGetMapping() throws IOException {
         String indexName = "test";
         createIndex(indexName, Settings.EMPTY);
@@ -639,47 +608,6 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         );
 
         Map<String, Object> mappings = getMappingsResponse.mappings().get(indexName).sourceAsMap();
-        Map<String, String> type = new HashMap<>();
-        type.put("type", "text");
-        Map<String, Object> field = new HashMap<>();
-        field.put("field", type);
-        Map<String, Object> expected = new HashMap<>();
-        expected.put("properties", field);
-        assertThat(mappings, equalTo(expected));
-    }
-
-    public void testGetMappingWithTypes() throws IOException {
-        String indexName = "test";
-        createIndex(indexName, Settings.EMPTY);
-
-        PutMappingRequest putMappingRequest = new PutMappingRequest(indexName);
-        XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
-        mappingBuilder.startObject().startObject("properties").startObject("field");
-        mappingBuilder.field("type", "text");
-        mappingBuilder.endObject().endObject().endObject();
-        putMappingRequest.source(mappingBuilder);
-
-        AcknowledgedResponse putMappingResponse = execute(
-            putMappingRequest,
-            highLevelClient().indices()::putMapping,
-            highLevelClient().indices()::putMappingAsync
-        );
-        assertTrue(putMappingResponse.isAcknowledged());
-
-        Map<String, Object> getIndexResponse = getAsMap(indexName);
-        assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings.properties.field.type", getIndexResponse));
-
-        org.opensearch.action.admin.indices.mapping.get.GetMappingsRequest request =
-            new org.opensearch.action.admin.indices.mapping.get.GetMappingsRequest().indices(indexName);
-
-        org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse getMappingsResponse = execute(
-            request,
-            highLevelClient().indices()::getMapping,
-            highLevelClient().indices()::getMappingAsync,
-            expectWarningsOnce(RestGetMappingAction.TYPES_DEPRECATION_MESSAGE)
-        );
-
-        Map<String, Object> mappings = getMappingsResponse.getMappings().get(indexName).get("_doc").sourceAsMap();
         Map<String, String> type = new HashMap<>();
         type.put("type", "text");
         Map<String, Object> field = new HashMap<>();
@@ -722,45 +650,6 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
             "field",
             new BytesArray("{\"field\":{\"type\":\"text\"}}")
         );
-        assertThat(fieldMappingMap, equalTo(Collections.singletonMap("field", metadata)));
-    }
-
-    public void testGetFieldMappingWithTypes() throws IOException {
-        String indexName = "test";
-        createIndex(indexName, Settings.EMPTY);
-
-        PutMappingRequest putMappingRequest = new PutMappingRequest(indexName);
-        XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
-        mappingBuilder.startObject().startObject("properties").startObject("field");
-        mappingBuilder.field("type", "text");
-        mappingBuilder.endObject().endObject().endObject();
-        putMappingRequest.source(mappingBuilder);
-
-        AcknowledgedResponse putMappingResponse = execute(
-            putMappingRequest,
-            highLevelClient().indices()::putMapping,
-            highLevelClient().indices()::putMappingAsync
-        );
-        assertTrue(putMappingResponse.isAcknowledged());
-
-        org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsRequest getFieldMappingsRequest =
-            new org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsRequest().indices(indexName).types("_doc").fields("field");
-
-        org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsResponse getFieldMappingsResponse = execute(
-            getFieldMappingsRequest,
-            highLevelClient().indices()::getFieldMapping,
-            highLevelClient().indices()::getFieldMappingAsync,
-            expectWarningsOnce(RestGetFieldMappingAction.TYPES_DEPRECATION_MESSAGE)
-        );
-
-        final Map<String, org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata> fieldMappingMap =
-            getFieldMappingsResponse.mappings().get(indexName).get("_doc");
-
-        final org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata metadata =
-            new org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata(
-                "field",
-                new BytesArray("{\"field\":{\"type\":\"text\"}}")
-            );
         assertThat(fieldMappingMap, equalTo(Collections.singletonMap("field", metadata)));
     }
 
@@ -1075,39 +964,6 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
             OpenSearchException exception = expectThrows(
                 OpenSearchException.class,
                 () -> execute(flushRequest, highLevelClient().indices()::flush, highLevelClient().indices()::flushAsync)
-            );
-            assertEquals(RestStatus.NOT_FOUND, exception.status());
-        }
-    }
-
-    public void testSyncedFlush() throws IOException {
-        {
-            String index = "index";
-            Settings settings = Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build();
-            createIndex(index, settings);
-            SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(index);
-            SyncedFlushResponse flushResponse = execute(
-                syncedFlushRequest,
-                highLevelClient().indices()::flushSynced,
-                highLevelClient().indices()::flushSyncedAsync,
-                expectWarningsOnce(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE)
-            );
-            assertThat(flushResponse.totalShards(), equalTo(1));
-            assertThat(flushResponse.successfulShards(), equalTo(1));
-            assertThat(flushResponse.failedShards(), equalTo(0));
-        }
-        {
-            String nonExistentIndex = "non_existent_index";
-            assertFalse(indexExists(nonExistentIndex));
-            SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(nonExistentIndex);
-            OpenSearchException exception = expectThrows(
-                OpenSearchException.class,
-                () -> execute(
-                    syncedFlushRequest,
-                    highLevelClient().indices()::flushSynced,
-                    highLevelClient().indices()::flushSyncedAsync,
-                    expectWarningsOnce(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE)
-                )
             );
             assertEquals(RestStatus.NOT_FOUND, exception.status());
         }

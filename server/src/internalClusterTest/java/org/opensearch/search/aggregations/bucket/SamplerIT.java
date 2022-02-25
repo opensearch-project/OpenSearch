@@ -120,7 +120,6 @@ public class SamplerIT extends OpenSearchIntegTestCase {
         // statement
         boolean asc = randomBoolean();
         SearchResponse response = client().prepareSearch("test")
-            .setTypes("book")
             .setSearchType(SearchType.QUERY_THEN_FETCH)
             .addAggregation(
                 terms("genres").field("genre")

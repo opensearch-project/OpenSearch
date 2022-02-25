@@ -89,17 +89,12 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                 if ((item.routing() == null) && (clusterState.getMetadata().routingRequired(concreteSingleIndex))) {
                     responses.set(
                         i,
-                        newItemFailure(
-                            concreteSingleIndex,
-                            item.type(),
-                            item.id(),
-                            new RoutingMissingException(concreteSingleIndex, item.type(), item.id())
-                        )
+                        newItemFailure(concreteSingleIndex, item.id(), new RoutingMissingException(concreteSingleIndex, item.id()))
                     );
                     continue;
                 }
             } catch (Exception e) {
-                responses.set(i, newItemFailure(item.index(), item.type(), item.id(), e));
+                responses.set(i, newItemFailure(item.index(), item.id(), e));
                 continue;
             }
 
@@ -148,7 +143,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                     // create failures for all relevant requests
                     for (int i = 0; i < shardRequest.locations.size(); i++) {
                         MultiGetRequest.Item item = shardRequest.items.get(i);
-                        responses.set(shardRequest.locations.get(i), newItemFailure(shardRequest.index(), item.type(), item.id(), e));
+                        responses.set(shardRequest.locations.get(i), newItemFailure(shardRequest.index(), item.id(), e));
                     }
                     if (counter.decrementAndGet() == 0) {
                         finishHim();
@@ -162,7 +157,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
         }
     }
 
-    private static MultiGetItemResponse newItemFailure(String index, String type, String id, Exception exception) {
-        return new MultiGetItemResponse(null, new MultiGetResponse.Failure(index, type, id, exception));
+    private static MultiGetItemResponse newItemFailure(String index, String id, Exception exception) {
+        return new MultiGetItemResponse(null, new MultiGetResponse.Failure(index, id, exception));
     }
 }

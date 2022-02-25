@@ -61,8 +61,8 @@ dependencies {
   api 'com.google.api:api-common:1.8.1'
   api 'com.google.api:gax:1.54.0'
   api 'org.threeten:threetenbp:1.4.4'
-  api 'com.google.protobuf:protobuf-java-util:3.11.3'
-  api 'com.google.protobuf:protobuf-java:3.11.3'
+  api 'com.google.protobuf:protobuf-java-util:3.19.3'
+  api 'com.google.protobuf:protobuf-java:3.19.3'
   api 'com.google.code.gson:gson:2.8.9'
   api 'com.google.api.grpc:proto-google-common-protos:1.16.0'
   api 'com.google.api.grpc:proto-google-iam-v1:0.12.0'
@@ -165,39 +165,23 @@ thirdPartyAudit {
     'org.apache.http.client.RedirectHandler',
     'org.apache.http.client.RequestDirector',
     'org.apache.http.client.UserTokenHandler',
-    'org.apache.http.client.methods.HttpDelete',
     'org.apache.http.client.methods.HttpEntityEnclosingRequestBase',
-    'org.apache.http.client.methods.HttpGet',
-    'org.apache.http.client.methods.HttpHead',
-    'org.apache.http.client.methods.HttpOptions',
-    'org.apache.http.client.methods.HttpPost',
-    'org.apache.http.client.methods.HttpPut',
     'org.apache.http.client.methods.HttpRequestBase',
-    'org.apache.http.client.methods.HttpTrace',
     'org.apache.http.config.SocketConfig',
     'org.apache.http.config.SocketConfig$Builder',
     'org.apache.http.conn.ClientConnectionManager',
     'org.apache.http.conn.ConnectionKeepAliveStrategy',
     'org.apache.http.conn.params.ConnManagerParams',
-    'org.apache.http.conn.params.ConnPerRouteBean',
     'org.apache.http.conn.params.ConnRouteParams',
     'org.apache.http.conn.routing.HttpRoutePlanner',
     'org.apache.http.conn.scheme.PlainSocketFactory',
-    'org.apache.http.conn.scheme.Scheme',
     'org.apache.http.conn.scheme.SchemeRegistry',
-    'org.apache.http.conn.ssl.SSLConnectionSocketFactory',
     'org.apache.http.conn.ssl.SSLSocketFactory',
     'org.apache.http.conn.ssl.X509HostnameVerifier',
     'org.apache.http.entity.AbstractHttpEntity',
     'org.apache.http.impl.client.DefaultHttpClient',
-    'org.apache.http.impl.client.DefaultHttpRequestRetryHandler',
     'org.apache.http.impl.client.HttpClientBuilder',
     'org.apache.http.impl.conn.PoolingHttpClientConnectionManager',
-    'org.apache.http.impl.conn.ProxySelectorRoutePlanner',
-    'org.apache.http.impl.conn.SystemDefaultRoutePlanner',
-    'org.apache.http.impl.conn.tsccm.ThreadSafeClientConnManager',
-    'org.apache.http.message.BasicHttpResponse',
-    'org.apache.http.params.BasicHttpParams',
     'org.apache.http.params.HttpConnectionParams',
     'org.apache.http.params.HttpParams',
     'org.apache.http.params.HttpProtocolParams',

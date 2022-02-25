@@ -1096,23 +1096,12 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
         Settings indexSettings = Settings.builder()
             .put("index.version.created", Version.CURRENT)
-            .put(INDEX_SOFT_DELETES_SETTING.getKey(), false)
             .put(SETTING_NUMBER_OF_REPLICAS, 0)
             .put(SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         List<AliasMetadata> aliases = singletonList(AliasMetadata.builder("alias1").build());
-        IndexMetadata indexMetadata = buildIndexMetadata(
-            "test",
-            aliases,
-            () -> null,
-            () -> null,
-            indexSettings,
-            4,
-            sourceIndexMetadata,
-            false
-        );
+        IndexMetadata indexMetadata = buildIndexMetadata("test", aliases, () -> null, indexSettings, 4, sourceIndexMetadata, false);
 
-        assertThat(indexMetadata.getSettings().getAsBoolean(INDEX_SOFT_DELETES_SETTING.getKey(), true), is(false));
         assertThat(indexMetadata.getAliases().size(), is(1));
         assertThat(indexMetadata.getAliases().keys().iterator().next().value, is("alias1"));
         assertThat("The source index primary term must be used", indexMetadata.primaryTerm(0), is(3L));
@@ -1154,36 +1143,27 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertThat(targetRoutingNumberOfShards, is(6));
     }
 
-    public void testSoftDeletesDisabledDeprecation() {
-        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
-        request.settings(Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), false).build());
-        aggregateIndexSettings(
-            ClusterState.EMPTY_STATE,
-            request,
-            Settings.EMPTY,
-            null,
-            Settings.EMPTY,
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            randomShardLimitService(),
-            Collections.emptySet()
-        );
-        assertWarnings(
-            "Creating indices with soft-deletes disabled is deprecated and will be removed in future OpenSearch versions. "
-                + "Please do not specify value for setting [index.soft_deletes.enabled] of index [test]."
-        );
-        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
-        if (randomBoolean()) {
-            request.settings(Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
-        }
-        aggregateIndexSettings(
-            ClusterState.EMPTY_STATE,
-            request,
-            Settings.EMPTY,
-            null,
-            Settings.EMPTY,
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            randomShardLimitService(),
-            Collections.emptySet()
+    public void testSoftDeletesDisabledIsRejected() {
+        final IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> {
+            request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+            request.settings(Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), false).build());
+            aggregateIndexSettings(
+                ClusterState.EMPTY_STATE,
+                request,
+                Settings.EMPTY,
+                null,
+                Settings.EMPTY,
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                randomShardLimitService(),
+                Collections.emptySet()
+            );
+        });
+        assertThat(
+            error.getMessage(),
+            equalTo(
+                "Creating indices with soft-deletes disabled is no longer supported. "
+                    + "Please do not specify a value for setting [index.soft_deletes.enabled]."
+            )
         );
     }
 

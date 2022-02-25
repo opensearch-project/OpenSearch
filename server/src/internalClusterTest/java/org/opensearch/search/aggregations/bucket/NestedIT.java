@@ -478,7 +478,6 @@ public class NestedIT extends OpenSearchIntegTestCase {
         indexRandom(true, indexRequests);
 
         SearchResponse response = client().prepareSearch("idx2")
-            .setTypes("provider")
             .addAggregation(
                 terms("startDate").field("dates.month.start")
                     .subAggregation(
@@ -586,7 +585,6 @@ public class NestedIT extends OpenSearchIntegTestCase {
         refresh();
 
         SearchResponse response = client().prepareSearch("idx4")
-            .setTypes("product")
             .addAggregation(
                 terms("category").field("categories")
                     .subAggregation(nested("property", "property").subAggregation(terms("property_id").field("property.id")))

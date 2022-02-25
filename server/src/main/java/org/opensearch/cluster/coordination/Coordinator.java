@@ -1207,8 +1207,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private ClusterState clusterStateWithNoMasterBlock(ClusterState clusterState) {
         if (clusterState.nodes().getMasterNodeId() != null) {
             // remove block if it already exists before adding new one
-            assert clusterState.blocks()
-                .hasGlobalBlockWithId(NO_MASTER_BLOCK_ID) == false : "NO_MASTER_BLOCK should only be added by Coordinator";
+            assert clusterState.blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID) == false
+                : "NO_MASTER_BLOCK should only be added by Coordinator";
             final ClusterBlocks clusterBlocks = ClusterBlocks.builder()
                 .blocks(clusterState.blocks())
                 .addGlobalBlock(noMasterBlockService.getNoMasterBlock())

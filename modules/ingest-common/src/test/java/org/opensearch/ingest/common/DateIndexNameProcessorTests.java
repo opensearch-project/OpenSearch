@@ -60,7 +60,6 @@ public class DateIndexNameProcessorTests extends OpenSearchTestCase {
         );
         IngestDocument document = new IngestDocument(
             "_index",
-            "_type",
             "_id",
             null,
             null,
@@ -83,7 +82,6 @@ public class DateIndexNameProcessorTests extends OpenSearchTestCase {
         );
         IngestDocument document = new IngestDocument(
             "_index",
-            "_type",
             "_id",
             null,
             null,
@@ -104,19 +102,11 @@ public class DateIndexNameProcessorTests extends OpenSearchTestCase {
             "m",
             "yyyyMMdd"
         );
-        IngestDocument document = new IngestDocument(
-            "_index",
-            "_type",
-            "_id",
-            null,
-            null,
-            null,
-            Collections.singletonMap("_field", "1000500")
-        );
+        IngestDocument document = new IngestDocument("_index", "_id", null, null, null, Collections.singletonMap("_field", "1000500"));
         dateProcessor.execute(document);
         assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{19700101||/m{yyyyMMdd|UTC}}>"));
 
-        document = new IngestDocument("_index", "_type", "_id", null, null, null, Collections.singletonMap("_field", 1000500L));
+        document = new IngestDocument("_index", "_id", null, null, null, Collections.singletonMap("_field", 1000500L));
         dateProcessor.execute(document);
         assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{19700101||/m{yyyyMMdd|UTC}}>"));
     }
@@ -131,15 +121,7 @@ public class DateIndexNameProcessorTests extends OpenSearchTestCase {
             "m",
             "yyyyMMdd"
         );
-        IngestDocument document = new IngestDocument(
-            "_index",
-            "_type",
-            "_id",
-            null,
-            null,
-            null,
-            Collections.singletonMap("_field", "1000.5")
-        );
+        IngestDocument document = new IngestDocument("_index", "_id", null, null, null, Collections.singletonMap("_field", "1000.5"));
         dateProcessor.execute(document);
         assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{19700101||/m{yyyyMMdd|UTC}}>"));
     }
@@ -160,7 +142,7 @@ public class DateIndexNameProcessorTests extends OpenSearchTestCase {
             indexNameFormat
         );
 
-        IngestDocument document = new IngestDocument("_index", "_type", "_id", null, null, null, Collections.singletonMap("_field", date));
+        IngestDocument document = new IngestDocument("_index", "_id", null, null, null, Collections.singletonMap("_field", date));
         dateProcessor.execute(document);
 
         assertThat(

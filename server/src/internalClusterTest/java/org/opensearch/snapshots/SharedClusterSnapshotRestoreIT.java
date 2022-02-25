@@ -73,6 +73,7 @@ import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineTestCase;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
@@ -102,7 +103,6 @@ import java.util.stream.IntStream;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
-import static org.opensearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.opensearch.index.shard.IndexShardTests.getEngineFromShard;
 import static org.opensearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -289,12 +289,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         Path absolutePath = randomRepoPath().toAbsolutePath();
         logger.info("Path [{}]", absolutePath);
         String restoredIndexName = indexName + "-restored";
-        String typeName = "actions";
         String expectedValue = "expected";
 
         // Write a document
         String docId = Integer.toString(randomInt());
-        index(indexName, typeName, docId, "value", expectedValue);
+        index(indexName, MapperService.SINGLE_MAPPING_NAME, docId, "value", expectedValue);
 
         createRepository(repoName, "fs", absolutePath);
         createSnapshot(repoName, snapshotName, Collections.singletonList(indexName));
@@ -306,7 +305,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
-        assertThat(client().prepareGet(restoredIndexName, typeName, docId).get().isExists(), equalTo(true));
+        assertThat(client().prepareGet(restoredIndexName, docId).get().isExists(), equalTo(true));
     }
 
     public void testFreshIndexUUID() {
@@ -1416,12 +1415,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             List<SnapshotIndexShardStatus> shards = snapshotStatus.getShards();
             for (SnapshotIndexShardStatus status : shards) {
                 // we flush before the snapshot such that we have to process the segments_N files plus the .del file
-                if (INDEX_SOFT_DELETES_SETTING.get(settings)) {
-                    // soft-delete generates DV files.
-                    assertThat(status.getStats().getProcessedFileCount(), greaterThan(2));
-                } else {
-                    assertThat(status.getStats().getProcessedFileCount(), equalTo(2));
-                }
+                // soft-delete generates DV files.
+                assertThat(status.getStats().getProcessedFileCount(), greaterThan(2));
             }
         }
     }

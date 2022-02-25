@@ -40,7 +40,6 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.translog.Translog;
@@ -757,39 +756,5 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         indexSettings.updateIndexMetadata(newIndexMeta("index", newSettings.build()));
         assertThat(indexSettings.getTranslogRetentionAge().millis(), equalTo(-1L));
         assertThat(indexSettings.getTranslogRetentionSize().getBytes(), equalTo(-1L));
-    }
-
-    public void testUpdateTranslogRetentionSettingsWithSoftDeletesDisabled() {
-        Settings.Builder settings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
-
-        TimeValue ageSetting = TimeValue.timeValueHours(12);
-        if (randomBoolean()) {
-            ageSetting = randomBoolean() ? TimeValue.MINUS_ONE : TimeValue.timeValueMillis(randomIntBetween(0, 10000));
-            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), ageSetting);
-        }
-        ByteSizeValue sizeSetting = new ByteSizeValue(512, ByteSizeUnit.MB);
-        if (randomBoolean()) {
-            sizeSetting = randomBoolean() ? new ByteSizeValue(-1) : new ByteSizeValue(randomIntBetween(0, 1024));
-            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), sizeSetting);
-        }
-        IndexMetadata metadata = newIndexMeta("index", settings.build());
-        IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
-        assertThat(indexSettings.getTranslogRetentionAge(), equalTo(ageSetting));
-        assertThat(indexSettings.getTranslogRetentionSize(), equalTo(sizeSetting));
-
-        Settings.Builder newSettings = Settings.builder().put(settings.build());
-        if (randomBoolean()) {
-            ageSetting = randomBoolean() ? TimeValue.MINUS_ONE : TimeValue.timeValueMillis(randomIntBetween(0, 10000));
-            newSettings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), ageSetting);
-        }
-        if (randomBoolean()) {
-            sizeSetting = randomBoolean() ? new ByteSizeValue(-1) : new ByteSizeValue(randomIntBetween(0, 1024));
-            newSettings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), sizeSetting);
-        }
-        indexSettings.updateIndexMetadata(newIndexMeta("index", newSettings.build()));
-        assertThat(indexSettings.getTranslogRetentionAge(), equalTo(ageSetting));
-        assertThat(indexSettings.getTranslogRetentionSize(), equalTo(sizeSetting));
     }
 }

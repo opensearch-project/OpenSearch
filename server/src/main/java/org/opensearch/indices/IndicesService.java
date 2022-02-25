@@ -865,8 +865,8 @@ public class IndicesService extends AbstractLifecycleComponent
             recoveryListener,
             repositoriesService,
             (type, mapping) -> {
-                assert recoveryState.getRecoverySource()
-                    .getType() == RecoverySource.Type.LOCAL_SHARDS : "mapping update consumer only required by local shards recovery";
+                assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
+                    : "mapping update consumer only required by local shards recovery";
                 client.admin()
                     .indices()
                     .preparePutMapping()

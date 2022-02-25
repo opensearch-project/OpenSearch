@@ -36,11 +36,14 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.IntervalQuery;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
@@ -134,10 +137,24 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
     static IntervalsSourceProvider.Combine createRandomCombine(int depth, boolean useScripts) {
         int count = randomInt(5) + 1;
         List<IntervalsSourceProvider> subSources = createRandomSourceList(depth, useScripts, count);
-        boolean ordered = randomBoolean();
+        IntervalMode mode;
+        switch (randomIntBetween(0, 2)) {
+            case 0:
+                mode = IntervalMode.ORDERED;
+                break;
+            case 1:
+                mode = IntervalMode.UNORDERED;
+                break;
+            case 2:
+                mode = IntervalMode.UNORDERED_NO_OVERLAP;
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
+        }
+
         int maxGaps = randomInt(5) - 1;
         IntervalsSourceProvider.IntervalFilter filter = createRandomFilter(depth + 1, useScripts);
-        return new IntervalsSourceProvider.Combine(subSources, ordered, maxGaps, filter);
+        return new IntervalsSourceProvider.Combine(subSources, mode, maxGaps, filter);
     }
 
     static List<IntervalsSourceProvider> createRandomSourceList(int depth, boolean useScripts, int count) {
@@ -170,10 +187,23 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             words.add(randomRealisticUnicodeOfLengthBetween(4, 20));
         }
         String text = String.join(" ", words);
-        boolean mOrdered = randomBoolean();
+        IntervalMode mMode;
+        switch (randomIntBetween(0, 2)) {
+            case 0:
+                mMode = IntervalMode.ORDERED;
+                break;
+            case 1:
+                mMode = IntervalMode.UNORDERED;
+                break;
+            case 2:
+                mMode = IntervalMode.UNORDERED_NO_OVERLAP;
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
+        }
         int maxMGaps = randomInt(5) - 1;
         String analyzer = randomFrom("simple", "keyword", "whitespace");
-        return new IntervalsSourceProvider.Match(text, maxMGaps, mOrdered, analyzer, createRandomFilter(depth + 1, useScripts), useField);
+        return new IntervalsSourceProvider.Match(text, maxMGaps, mMode, analyzer, createRandomFilter(depth + 1, useScripts), useField);
     }
 
     @Override
@@ -187,7 +217,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         IntervalsSourceProvider.IntervalFilter scriptFilter = new IntervalsSourceProvider.IntervalFilter(
             new Script(ScriptType.INLINE, "mockscript", "1", Collections.emptyMap())
         );
-        IntervalsSourceProvider source = new IntervalsSourceProvider.Match("text", 0, true, "simple", scriptFilter, null);
+        IntervalsSourceProvider source = new IntervalsSourceProvider.Match("text", 0, IntervalMode.ORDERED, "simple", scriptFilter, null);
         queryBuilder = new IntervalQueryBuilder(TEXT_FIELD_NAME, source);
         rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
         assertNotNull(rewriteQuery.toQuery(context));
@@ -240,7 +270,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + "\" : { "
             + "       \"match\" : { "
             + "           \"query\" : \"Hello world\","
-            + "           \"ordered\" : true },"
+            + "           \"mode\" : \"ordered\" },"
             + "       \"boost\" : 2 } } }";
 
         builder = (IntervalQueryBuilder) parseQuery(json);
@@ -256,9 +286,93 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + "\" : { "
             + "       \"match\" : { "
             + "           \"query\" : \"Hello world\","
+            + "           \"mode\" : \"unordered_no_overlap\" },"
+            + "       \"boost\" : 2 } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(json);
+        expected = new BoostQuery(
+            new IntervalQuery(TEXT_FIELD_NAME, Intervals.unorderedNoOverlaps(Intervals.term("hello"), Intervals.term("world"))),
+            2
+        );
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        json = "{ \"intervals\" : "
+            + "{ \""
+            + TEXT_FIELD_NAME
+            + "\" : { "
+            + "       \"match\" : { "
+            + "           \"query\" : \"Hello world\","
+            + "           \"mode\" : \"unordered_no_overlap\","
+            + "           \"max_gaps\" : 11 },"
+            + "       \"boost\" : 2 } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(json);
+        expected = new BoostQuery(
+            new IntervalQuery(
+                TEXT_FIELD_NAME,
+                Intervals.maxgaps(11, Intervals.unorderedNoOverlaps(Intervals.term("hello"), Intervals.term("world")))
+            ),
+            2
+        );
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        json = "{ \"intervals\" : "
+            + "{ \""
+            + TEXT_FIELD_NAME
+            + "\" : { "
+            + "       \"match\" : { "
+            + "           \"query\" : \"Hello Open Search\","
+            + "           \"mode\" : \"unordered_no_overlap\" },"
+            + "       \"boost\" : 3 } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(json);
+        expected = new BoostQuery(
+            new IntervalQuery(
+                TEXT_FIELD_NAME,
+                Intervals.unorderedNoOverlaps(
+                    Intervals.unorderedNoOverlaps(Intervals.term("hello"), Intervals.term("open")),
+                    Intervals.term("search")
+                )
+            ),
+            3
+        );
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        json = "{ \"intervals\" : "
+            + "{ \""
+            + TEXT_FIELD_NAME
+            + "\" : { "
+            + "       \"match\" : { "
+            + "           \"query\" : \"Hello Open Search\","
+            + "           \"mode\" : \"unordered_no_overlap\","
+            + "           \"max_gaps\": 12 },"
+            + "       \"boost\" : 3 } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(json);
+        expected = new BoostQuery(
+            new IntervalQuery(
+                TEXT_FIELD_NAME,
+                Intervals.maxgaps(
+                    12,
+                    Intervals.unorderedNoOverlaps(
+                        Intervals.maxgaps(12, Intervals.unorderedNoOverlaps(Intervals.term("hello"), Intervals.term("open"))),
+                        Intervals.term("search")
+                    )
+                )
+            ),
+            3
+        );
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        json = "{ \"intervals\" : "
+            + "{ \""
+            + TEXT_FIELD_NAME
+            + "\" : { "
+            + "       \"match\" : { "
+            + "           \"query\" : \"Hello world\","
             + "           \"max_gaps\" : 10,"
             + "           \"analyzer\" : \"whitespace\","
-            + "           \"ordered\" : true } } } }";
+            + "           \"mode\" : \"ordered\" } } } }";
 
         builder = (IntervalQueryBuilder) parseQuery(json);
         expected = new IntervalQuery(
@@ -278,7 +392,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + "           \"use_field\" : \""
             + MASKED_FIELD
             + "\","
-            + "           \"ordered\" : true } } } }";
+            + "           \"mode\" : \"ordered\" } } } }";
 
         builder = (IntervalQueryBuilder) parseQuery(json);
         expected = new IntervalQuery(
@@ -295,7 +409,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + "           \"query\" : \"Hello world\","
             + "           \"max_gaps\" : 10,"
             + "           \"analyzer\" : \"whitespace\","
-            + "           \"ordered\" : true,"
+            + "           \"mode\" : \"ordered\","
             + "           \"filter\" : {"
             + "               \"containing\" : {"
             + "                   \"match\" : { \"query\" : \"blah\" } } } } } } }";
@@ -347,11 +461,11 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + TEXT_FIELD_NAME
             + "\": {"
             + "       \"all_of\" : {"
-            + "           \"ordered\" : true,"
+            + "           \"mode\" : \"ordered\","
             + "           \"intervals\" : ["
             + "               { \"match\" : { \"query\" : \"one\" } },"
             + "               { \"all_of\" : { "
-            + "                   \"ordered\" : false,"
+            + "                   \"mode\" : \"unordered\","
             + "                   \"intervals\" : ["
             + "                       { \"match\" : { \"query\" : \"two\" } },"
             + "                       { \"match\" : { \"query\" : \"three\" } } ] } } ],"
@@ -378,6 +492,52 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         );
         assertEquals(expected, builder.toQuery(createShardContext()));
 
+        json = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": {"
+            + "       \"all_of\" : {"
+            + "           \"mode\" : \"unordered_no_overlap\","
+            + "           \"intervals\" : ["
+            + "               { \"match\" : { \"query\" : \"one\" } },"
+            + "               { \"match\" : { \"query\" : \"two\" } } ],"
+            + "           \"max_gaps\" : 30 },"
+            + "       \"boost\" : 1.5 } } }";
+        builder = (IntervalQueryBuilder) parseQuery(json);
+        expected = new BoostQuery(
+            new IntervalQuery(
+                TEXT_FIELD_NAME,
+                Intervals.maxgaps(30, Intervals.unorderedNoOverlaps(Intervals.term("one"), Intervals.term("two")))
+            ),
+            1.5f
+        );
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        json = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": {"
+            + "       \"all_of\" : {"
+            + "           \"mode\" : \"unordered_no_overlap\","
+            + "           \"intervals\" : ["
+            + "               { \"match\" : { \"query\" : \"one\" } },"
+            + "               { \"match\" : { \"query\" : \"two\" } },"
+            + "               { \"match\" : { \"query\" : \"three\" } } ],"
+            + "           \"max_gaps\" : 3 },"
+            + "       \"boost\" : 3.5 } } }";
+        builder = (IntervalQueryBuilder) parseQuery(json);
+        expected = new BoostQuery(
+            new IntervalQuery(
+                TEXT_FIELD_NAME,
+                Intervals.maxgaps(
+                    3,
+                    Intervals.unorderedNoOverlaps(
+                        Intervals.maxgaps(3, Intervals.unorderedNoOverlaps(Intervals.term("one"), Intervals.term("two"))),
+                        Intervals.term("three")
+                    )
+                )
+            ),
+            3.5f
+        );
+        assertEquals(expected, builder.toQuery(createShardContext()));
     }
 
     public void testCombineDisjunctionInterval() throws IOException {
@@ -386,7 +546,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + TEXT_FIELD_NAME
             + "\": { "
             + "       \"all_of\" : {"
-            + "           \"ordered\" : true,"
+            + "           \"mode\" : \"ordered\","
             + "           \"intervals\" : ["
             + "               { \"match\" : { \"query\" : \"atmosphere\" } },"
             + "               { \"any_of\" : {"
@@ -413,7 +573,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
     }
 
     public void testNonIndexedFields() throws IOException {
-        IntervalsSourceProvider provider = new IntervalsSourceProvider.Match("test", 0, true, null, null, null);
+        IntervalsSourceProvider provider = new IntervalsSourceProvider.Match("test", 0, IntervalMode.ORDERED, null, null, null);
         IntervalQueryBuilder b = new IntervalQueryBuilder("no_such_field", provider);
         assertThat(b.toQuery(createShardContext()), equalTo(new MatchNoDocsQuery()));
 
@@ -443,7 +603,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + "           \"use_field\" : \""
             + NO_POSITIONS_FIELD
             + "\","
-            + "           \"ordered\" : true } } } }";
+            + "           \"mode\" : \"ordered\" } } } }";
 
         e = expectThrows(IllegalArgumentException.class, () -> {
             IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
@@ -653,6 +813,156 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
         builder = (IntervalQueryBuilder) parseQuery(fixed_field_analyzer_json);
         expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.fixField(MASKED_FIELD, Intervals.wildcard(new BytesRef("Te?m"))));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String wildcard_max_expand_json = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": { "
+            + "\"wildcard\" : { \"pattern\" : \"Te?m\", \"max_expansions\" : 500 } } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(wildcard_max_expand_json);
+        expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.wildcard(new BytesRef("te?m"), 500));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String wildcard_neg_max_expand_json = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": { "
+            + "\"wildcard\" : { \"pattern\" : \"Te?m\", \"max_expansions\" : -20 } } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(wildcard_neg_max_expand_json);
+        expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.wildcard(new BytesRef("te?m"))); // max expansions use default
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String wildcard_over_max_expand_json = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": { "
+            + "\"wildcard\" : { \"pattern\" : \"Te?m\", \"max_expansions\" : "
+            + (BooleanQuery.getMaxClauseCount() + 1)
+            + " } } } }";
+        expectThrows(IllegalArgumentException.class, () -> {
+            IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(wildcard_over_max_expand_json);
+            builder1.toQuery(createShardContext());
+        });
+    }
+
+    private static IntervalsSource buildRegexpSource(String pattern, int flags, Integer maxExpansions) {
+        return buildRegexpSource(pattern, flags, 0, maxExpansions);
+    }
+
+    private static IntervalsSource buildRegexpSource(String pattern, int flags, int matchFlags, Integer maxExpansions) {
+        final RegExp regexp = new RegExp(pattern, flags, matchFlags);
+        CompiledAutomaton automaton = new CompiledAutomaton(regexp.toAutomaton());
+
+        if (maxExpansions != null) {
+            return Intervals.multiterm(automaton, maxExpansions, regexp.toString());
+        } else {
+            return Intervals.multiterm(automaton, regexp.toString());
+        }
+    }
+
+    public void testRegexp() throws IOException {
+        final int DEFAULT_FLAGS = RegexpFlag.ALL.value();
+        String json = "{ \"intervals\" : { \"" + TEXT_FIELD_NAME + "\": { " + "\"regexp\" : { \"pattern\" : \"te.m\" } } } }";
+
+        IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
+        Query expected = new IntervalQuery(TEXT_FIELD_NAME, buildRegexpSource("te.m", DEFAULT_FLAGS, null));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String no_positions_json = "{ \"intervals\" : { \""
+            + NO_POSITIONS_FIELD
+            + "\": { "
+            + "\"regexp\" : { \"pattern\" : \"[Tt]erm\" } } } }";
+        expectThrows(IllegalArgumentException.class, () -> {
+            IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(no_positions_json);
+            builder1.toQuery(createShardContext());
+        });
+
+        String fixed_field_json = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": { "
+            + "\"regexp\" : { \"pattern\" : \"te.m\", \"use_field\" : \"masked_field\" } } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(fixed_field_json);
+        expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.fixField(MASKED_FIELD, buildRegexpSource("te.m", DEFAULT_FLAGS, null)));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String fixed_field_json_no_positions = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": { "
+            + "\"regexp\" : { \"pattern\" : \"te.m\", \"use_field\" : \""
+            + NO_POSITIONS_FIELD
+            + "\" } } } }";
+        expectThrows(IllegalArgumentException.class, () -> {
+            IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(fixed_field_json_no_positions);
+            builder1.toQuery(createShardContext());
+        });
+
+        String flags_json = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": { "
+            + "\"regexp\" : { \"pattern\" : \"te.m\", \"flags\" : \"NONE\" } } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(flags_json);
+        expected = new IntervalQuery(TEXT_FIELD_NAME, buildRegexpSource("te.m", RegexpFlag.NONE.value(), null));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String flags_value_json = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": { "
+            + "\"regexp\" : { \"pattern\" : \"te.m\", \"flags_value\" : \""
+            + RegexpFlag.ANYSTRING.value()
+            + "\" } } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(flags_value_json);
+        expected = new IntervalQuery(TEXT_FIELD_NAME, buildRegexpSource("te.m", RegexpFlag.ANYSTRING.value(), null));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String regexp_max_expand_json = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": { "
+            + "\"regexp\" : { \"pattern\" : \"te.m\", \"max_expansions\" : 500 } } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(regexp_max_expand_json);
+        expected = new IntervalQuery(TEXT_FIELD_NAME, buildRegexpSource("te.m", DEFAULT_FLAGS, 500));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String regexp_case_insensitive_json = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": { "
+            + "\"regexp\" : { \"pattern\" : \"TE.M\", \"case_insensitive\" : true } } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(regexp_case_insensitive_json);
+        expected = new IntervalQuery(TEXT_FIELD_NAME, buildRegexpSource("TE.M", DEFAULT_FLAGS, RegExp.ASCII_CASE_INSENSITIVE, null));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String regexp_neg_max_expand_json = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": { "
+            + "\"regexp\" : { \"pattern\" : \"te.m\", \"max_expansions\" : -20 } } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(regexp_neg_max_expand_json);
+        // max expansions use default
+        expected = new IntervalQuery(TEXT_FIELD_NAME, buildRegexpSource("te.m", DEFAULT_FLAGS, null));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String regexp_over_max_expand_json = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": { "
+            + "\"regexp\" : { \"pattern\" : \"te.m\", \"max_expansions\" : "
+            + (BooleanQuery.getMaxClauseCount() + 1)
+            + " } } } }";
+        expectThrows(IllegalArgumentException.class, () -> {
+            IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(regexp_over_max_expand_json);
+            builder1.toQuery(createShardContext());
+        });
+
+        String regexp_max_expand_with_flags_json = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": { "
+            + "\"regexp\" : { \"pattern\" : \"te.m\", \"flags\": \"NONE\", \"max_expansions\" : 500 } } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(regexp_max_expand_with_flags_json);
+        expected = new IntervalQuery(TEXT_FIELD_NAME, buildRegexpSource("te.m", RegexpFlag.NONE.value(), 500));
         assertEquals(expected, builder.toQuery(createShardContext()));
     }
 

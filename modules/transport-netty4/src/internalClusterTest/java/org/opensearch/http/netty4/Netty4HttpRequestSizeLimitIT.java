@@ -94,7 +94,7 @@ public class Netty4HttpRequestSizeLimitIT extends OpenSearchNetty4IntegTestCase 
 
         List<Tuple<String, CharSequence>> requests = new ArrayList<>();
         for (int i = 0; i < 150; i++) {
-            requests.add(Tuple.tuple("/index/type/_bulk", bulkRequest));
+            requests.add(Tuple.tuple("/index/_bulk", bulkRequest));
         }
 
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);

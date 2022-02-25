@@ -1,10 +1,7 @@
 ---
 "Copy settings during shrink index":
   - skip:
-      version: " - 6.9.99"
-      reason: expects warnings that pre-7.0.0 will not send
-      features: [allowed_warnings, arbitrary_key]
-
+        features: allowed_warnings
   - do:
       nodes.info:
         node_id: data:true
