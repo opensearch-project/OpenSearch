@@ -915,9 +915,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         if (indexSettings.getRefreshInterval().millis() > 0 || force) {
             for (IndexShard shard : this.shards.values()) {
                 try {
-                    if (shard.routingEntry().primary()) {
-                        shard.scheduledRefresh();
-                    }
+                    shard.scheduledRefresh();
                 } catch (IndexShardClosedException | AlreadyClosedException ex) {
                     // fine - continue;
                 }

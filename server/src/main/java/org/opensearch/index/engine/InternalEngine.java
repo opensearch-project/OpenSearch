@@ -277,17 +277,17 @@ public class InternalEngine extends Engine {
                 );
                 this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
                 // TODO: Segrep - should have a separate read only engine rather than all this conditional logic.
-                if (engineConfig.isPrimary()) {
-                    writer = createWriter();
-                    bootstrapAppendOnlyInfoFromWriter(writer);
-                    final Map<String, String> commitData = commitDataAsMap(writer);
-                    historyUUID = loadHistoryUUID(commitData);
-                    forceMergeUUID = commitData.get(FORCE_MERGE_UUID_KEY);
-                } else {
+                if ((engineConfig.getIndexSettings().isSegrepEnabled()) && engineConfig.isPrimary() == false) {
                     // Segrep - hack to make this engine read only and not use
                     writer = null;
                     historyUUID = null;
                     forceMergeUUID = null;
+                } else {
+                        writer = createWriter();
+                        bootstrapAppendOnlyInfoFromWriter(writer);
+                        final Map<String, String> commitData = commitDataAsMap(writer);
+                        historyUUID = loadHistoryUUID(commitData);
+                        forceMergeUUID = commitData.get(FORCE_MERGE_UUID_KEY);
                 }
                 indexWriter = writer;
             } catch (IOException | TranslogCorruptedException e) {
@@ -582,7 +582,8 @@ public class InternalEngine extends Engine {
                 translog.currentFileGeneration()
             )
         );
-        if (engineConfig.isPrimary()) {
+        boolean segrep = engineConfig.getIndexSettings().isSegrepEnabled();
+        if ((segrep == false) || (segrep && engineConfig.isPrimary())) {
             flush(false, true);
         }
         translog.trimUnreferencedReaders();
@@ -652,7 +653,8 @@ public class InternalEngine extends Engine {
 
     private void revisitIndexDeletionPolicyOnTranslogSynced() throws IOException {
         if (combinedDeletionPolicy.hasUnreferencedCommits()) {
-            if (engineConfig.isPrimary()) {
+            boolean segrep = engineConfig.getIndexSettings().isSegrepEnabled();
+            if ((segrep == false) || (segrep && engineConfig.isPrimary())) {
                 indexWriter.deleteUnusedFiles();
             }
         }
@@ -715,8 +717,8 @@ public class InternalEngine extends Engine {
     }
 
     private DirectoryReader getDirectoryReader() throws IOException {
-        // replicas should create the reader from store, we don't want an open IW on replicas.
-        if (engineConfig.isPrimary() == false) {
+        // for segment replication: replicas should create the reader from store, we don't want an open IW on replicas.
+        if (engineConfig.getIndexSettings().isSegrepEnabled() && engineConfig.isPrimary() == false) {
             return DirectoryReader.open(store.directory());
         }
         return DirectoryReader.open(indexWriter);
@@ -1980,7 +1982,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
-        if (engineConfig.isPrimary() == false) {
+        if ((engineConfig.getIndexSettings().isSegrepEnabled()) && (engineConfig.isPrimary() == false)) {
             return;
         }
         ensureOpen();
@@ -2440,7 +2442,8 @@ public class InternalEngine extends Engine {
                 // no need to commit in this case!, we snapshot before we close the shard, so translog and all sync'ed
                 logger.trace("rollback indexWriter");
                 try {
-                    if (engineConfig.isPrimary()) {
+                    boolean segrep = engineConfig.getIndexSettings().isSegrepEnabled();
+                    if (segrep == false || (segrep && engineConfig.isPrimary())) {
                         indexWriter.rollback();
                     }
                 } catch (AlreadyClosedException ex) {

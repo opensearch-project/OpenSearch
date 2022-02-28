@@ -845,8 +845,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         boolean isRetry,
         SourceToParse sourceToParse
     ) throws IOException {
-        Boolean isSegRepEnabled = indexSettings.isSegrepEnabled();
-        if (isSegRepEnabled != null && isSegRepEnabled) {
+        if (indexSettings.isSegrepEnabled()) {
             Engine.Index index;
             try {
                 index = parseSourceAndPrepareIndex(
@@ -3073,32 +3072,35 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             case PEER:
                 try {
                     markAsRecovering("from " + recoveryState.getSourceNode(), recoveryState);
-                    IndexShard indexShard = this;
-                    segmentReplicationReplicaService.prepareForReplication(
-                        this,
-                        recoveryState.getTargetNode(),
-                        recoveryState.getSourceNode(),
-                        new ActionListener<TrackShardResponse>() {
-                            @Override
-                            public void onResponse(TrackShardResponse unused) {
-                                replicationListener.onReplicationDone(replicationState);
-                                recoveryState.getIndex().setFileDetailsComplete();
-                                finalizeRecovery();
-                                postRecovery("Shard setup complete.");
-                            }
+                    if (indexSettings.isSegrepEnabled()) {
+                        IndexShard indexShard = this;
+                        segmentReplicationReplicaService.prepareForReplication(
+                            this,
+                            recoveryState.getTargetNode(),
+                            recoveryState.getSourceNode(),
+                            new ActionListener<TrackShardResponse>() {
+                                @Override
+                                public void onResponse(TrackShardResponse unused) {
+                                    replicationListener.onReplicationDone(replicationState);
+                                    recoveryState.getIndex().setFileDetailsComplete();
+                                    finalizeRecovery();
+                                    postRecovery("Shard setup complete.");
+                                }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                replicationListener.onReplicationFailure(
-                                    replicationState,
-                                    new ReplicationFailedException(indexShard, e),
-                                    true
-                                );
+                                @Override
+                                public void onFailure(Exception e) {
+                                    replicationListener.onReplicationFailure(
+                                        replicationState,
+                                        new ReplicationFailedException(indexShard, e),
+                                        true
+                                    );
+                                }
                             }
-                        }
-                    );
+                        );
+                    } else {
+                        peerRecoveryTargetService.startRecovery(this, recoveryState.getSourceNode(), recoveryListener);
+                    }
                 } catch (Exception e) {
-                    logger.error("Error preparing the shard for Segment replication", e);
                     failShard("corrupted preexisting index", e);
                     recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true);
                 }
@@ -3295,31 +3297,37 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 this.warmer.warm(reader);
             }
         };
-        return this.engineConfigFactory.newEngineConfig(
-            shardId,
-            threadPool,
-            indexSettings,
-            warmer,
-            store,
-            indexSettings.getMergePolicy(),
-            mapperService != null ? mapperService.indexAnalyzer() : null,
-            similarityService.similarity(mapperService),
-            codecService,
-            shardEventListener,
-            indexCache != null ? indexCache.query() : null,
-            cachingPolicy,
-            translogConfig,
-            IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
-            Arrays.asList(refreshListeners, refreshPendingLocationListener),
-            Arrays.asList(new RefreshMetricUpdater(refreshMetric), checkpointRefreshListener),
-            indexSort,
-            circuitBreakerService,
-            globalCheckpointSupplier,
-            replicationTracker::getRetentionLeases,
-            () -> getOperationPrimaryTerm(),
-            tombstoneDocSupplier(),
-            shardRouting.primary()
-        );
+        final List<ReferenceManager.RefreshListener> internalRefreshListener;
+        if (indexSettings.isSegrepEnabled()) {
+            internalRefreshListener = Arrays.asList(new RefreshMetricUpdater(refreshMetric), checkpointRefreshListener);
+        } else {
+            internalRefreshListener = Collections.singletonList(new RefreshMetricUpdater(refreshMetric));
+        }
+            return this.engineConfigFactory.newEngineConfig(
+                shardId,
+                threadPool,
+                indexSettings,
+                warmer,
+                store,
+                indexSettings.getMergePolicy(),
+                mapperService != null ? mapperService.indexAnalyzer() : null,
+                similarityService.similarity(mapperService),
+                codecService,
+                shardEventListener,
+                indexCache != null ? indexCache.query() : null,
+                cachingPolicy,
+                translogConfig,
+                IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
+                Arrays.asList(refreshListeners, refreshPendingLocationListener),
+                internalRefreshListener,
+                indexSort,
+                circuitBreakerService,
+                globalCheckpointSupplier,
+                replicationTracker::getRetentionLeases,
+                () -> getOperationPrimaryTerm(),
+                tombstoneDocSupplier(),
+                shardRouting.primary()
+            );
     }
 
     /**
@@ -3910,8 +3918,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public boolean scheduledRefresh() {
         // skip if not primary shard.
         // TODO: Segrep - should split into primary/replica classes.
-        if (shardRouting.primary() == false) {
-            return false;
+        if ((indexSettings.isSegrepEnabled()) &&(shardRouting.primary() == false) ) {
+                return false;
         }
         verifyNotClosed();
         boolean listenerNeedsRefresh = refreshListeners.refreshNeeded();
