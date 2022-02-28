@@ -36,7 +36,7 @@ dependencies {
   compileOnly project(":server")
   compileOnly project(":libs:opensearch-cli")
   api "org.bouncycastle:bcpg-fips:1.0.5.1"
-  api "org.bouncycastle:bc-fips:1.0.2.1"
+  api "org.bouncycastle:bc-fips:1.0.2.3"
   testImplementation project(":test:framework")
   testImplementation 'com.google.jimfs:jimfs:1.2'
   testRuntimeOnly 'com.google.guava:guava:31.0.1-jre'
