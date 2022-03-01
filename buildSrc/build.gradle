@@ -159,7 +159,7 @@ if (project != rootProject) {
 
   allprojects {
     targetCompatibility = 8
-    sourceCompatibility = 11
+    sourceCompatibility = 8
   }
 
   // groovydoc succeeds, but has some weird internal exception...

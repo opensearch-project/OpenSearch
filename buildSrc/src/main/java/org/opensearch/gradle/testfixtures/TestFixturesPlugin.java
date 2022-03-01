@@ -64,9 +64,9 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.function.BiConsumer;
-import java.util.List;
 import java.util.Optional;
 
 public class TestFixturesPlugin implements Plugin<Project> {
@@ -143,7 +143,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
             composeExtension.setUseComposeFiles(Collections.singletonList(DOCKER_COMPOSE_YML));
             composeExtension.setRemoveContainers(true);
 
-            Optional<String> dockerCompose = List.of(DOCKER_COMPOSE_BINARIES)
+            Optional<String> dockerCompose = Arrays.asList(DOCKER_COMPOSE_BINARIES)
                 .stream()
                 .filter(path -> project.file(path).exists())
                 .findFirst();
