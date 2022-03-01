@@ -158,7 +158,7 @@ if (project != rootProject) {
   apply plugin: 'opensearch.publish'
 
   allprojects {
-    targetCompatibility = 11
+    targetCompatibility = 8
     sourceCompatibility = 11
   }
 
