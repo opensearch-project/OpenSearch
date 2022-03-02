@@ -104,17 +104,20 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
             String index = in.readString();
             if (in.getVersion().before(Version.V_2_0_0)) {
                 int numMappings = in.readVInt();
-                assert numMappings == 0 || numMappings == 1 : "Expected 0 or 1 mappings but got " + numMappings;
-                if (numMappings == 1) {
+                if (numMappings == 0) {
+                    mappingsMapBuilder.put(index, MappingMetadata.EMPTY_MAPPINGS);
+                } else if (numMappings == 1) {
                     String type = in.readString();
-                    assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but got [" + type + "]";
+                    if (MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
+                        throw new IllegalStateException("Expected " + MapperService.SINGLE_MAPPING_NAME + " but got [" + type + "]");
+                    }
                     mappingsMapBuilder.put(index, new MappingMetadata(in));
                 } else {
-                    mappingsMapBuilder.put(index, MappingMetadata.EMPTY_MAPPINGS);
+                    throw new IllegalStateException("Expected 0 or 1 mappings but got: " + numMappings);
                 }
             } else {
-                boolean hasMapping = in.readBoolean();
-                mappingsMapBuilder.put(index, hasMapping ? new MappingMetadata(in) : MappingMetadata.EMPTY_MAPPINGS);
+                final MappingMetadata metadata = in.readOptionalWriteable(MappingMetadata::new);
+                mappingsMapBuilder.put(index, metadata != null ? metadata : MappingMetadata.EMPTY_MAPPINGS);
             }
         }
         mappings = mappingsMapBuilder.build();
@@ -246,10 +249,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                     indexEntry.value.writeTo(out);
                 }
             } else {
-                out.writeBoolean(indexEntry.value != MappingMetadata.EMPTY_MAPPINGS);
-                if (indexEntry.value != MappingMetadata.EMPTY_MAPPINGS) {
-                    indexEntry.value.writeTo(out);
-                }
+                out.writeOptionalWriteable(indexEntry.value);
             }
         }
         out.writeVInt(aliases.size());
