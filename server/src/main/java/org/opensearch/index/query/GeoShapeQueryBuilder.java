@@ -34,7 +34,6 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
-import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.geo.ShapeRelation;
@@ -97,31 +96,20 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
         super(fieldName, shape);
     }
 
-    public GeoShapeQueryBuilder(
-        String fieldName,
-        Supplier<Geometry> shapeSupplier,
-        String indexedShapeId,
-        @Nullable String indexedShapeType
-    ) {
-        super(fieldName, shapeSupplier, indexedShapeId, indexedShapeType);
-    }
-
     /**
      * Creates a new GeoShapeQueryBuilder whose Query will be against the given
-     * field name and will use the Shape found with the given ID in the given
-     * type
+     * field name and will use the Shape found with the given shape id and supplier
      *
      * @param fieldName
      *            Name of the field that will be filtered
+     * @param shapeSupplier     A shape supplier
      * @param indexedShapeId
      *            ID of the indexed Shape that will be used in the Query
-     * @param indexedShapeType
-     *            Index type of the indexed Shapes
      * @deprecated use {@link #GeoShapeQueryBuilder(String, String)} instead
      */
     @Deprecated
-    public GeoShapeQueryBuilder(String fieldName, String indexedShapeId, String indexedShapeType) {
-        super(fieldName, indexedShapeId, indexedShapeType);
+    public GeoShapeQueryBuilder(String fieldName, Supplier<Geometry> shapeSupplier, String indexedShapeId) {
+        super(fieldName, shapeSupplier, indexedShapeId);
     }
 
     /**
@@ -223,13 +211,8 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
     }
 
     @Override
-    protected GeoShapeQueryBuilder newShapeQueryBuilder(
-        String fieldName,
-        Supplier<Geometry> shapeSupplier,
-        String indexedShapeId,
-        String indexedShapeType
-    ) {
-        return new GeoShapeQueryBuilder(fieldName, shapeSupplier, indexedShapeId, indexedShapeType);
+    protected GeoShapeQueryBuilder newShapeQueryBuilder(String fieldName, Supplier<Geometry> shapeSupplier, String indexedShapeId) {
+        return new GeoShapeQueryBuilder(fieldName, shapeSupplier, indexedShapeId);
     }
 
     @Override
@@ -291,14 +274,11 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
         );
 
         GeoShapeQueryBuilder builder;
-        if (pgsqp.type != null) {
-            deprecationLogger.deprecate("geo_share_query_with_types", TYPES_DEPRECATION_MESSAGE);
-        }
 
         if (pgsqp.shape != null) {
             builder = new GeoShapeQueryBuilder(pgsqp.fieldName, pgsqp.shape);
         } else {
-            builder = new GeoShapeQueryBuilder(pgsqp.fieldName, pgsqp.id, pgsqp.type);
+            builder = new GeoShapeQueryBuilder(pgsqp.fieldName, pgsqp.id);
         }
 
         if (pgsqp.index != null) {
