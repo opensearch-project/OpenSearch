@@ -50,7 +50,6 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -196,13 +195,9 @@ public class GetIndexTemplatesResponseTests extends OpenSearchTestCase {
                 templateBuilder.version(between(0, 100));
             }
             if (randomBoolean()) {
-                try {
-                    Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(mappingString), true, XContentType.JSON).v2();
-                    MappingMetadata mapping = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, map);
-                    templateBuilder.mapping(mapping);
-                } catch (IOException ex) {
-                    throw new UncheckedIOException(ex);
-                }
+                Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(mappingString), true, XContentType.JSON).v2();
+                MappingMetadata mapping = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, map);
+                templateBuilder.mapping(mapping);
             }
             templates.add(templateBuilder.build());
         }

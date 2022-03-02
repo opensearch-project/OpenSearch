@@ -371,7 +371,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 primary.mapperService()
                     .merge(
                         MapperService.SINGLE_MAPPING_NAME,
-                        new CompressedXContent(result.getRequiredMappingUpdate(), XContentType.JSON, ToXContent.EMPTY_PARAMS),
+                        new CompressedXContent(result.getRequiredMappingUpdate(), ToXContent.EMPTY_PARAMS),
                         MapperService.MergeReason.MAPPING_UPDATE_PREFLIGHT
                     );
             } catch (Exception e) {

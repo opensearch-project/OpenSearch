@@ -102,8 +102,8 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
         // double check that submitting the filtered mappings to an unfiltered index leads to the same get field mappings output
         // as the one coming from a filtered index with same mappings
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("filtered").get();
-        ImmutableOpenMap<String, MappingMetadata> filtered = getMappingsResponse.getMappings().get("filtered");
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("_doc", filtered.get("_doc").getSourceAsMap()));
+        MappingMetadata filtered = getMappingsResponse.getMappings().get("filtered");
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("_doc", filtered.getSourceAsMap()));
         GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings("test").setFields("*").get();
         assertEquals(1, response.mappings().size());
         assertFieldMappings(response.mappings().get("test"), FILTERED_FLAT_FIELDS);
@@ -121,8 +121,8 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
         // double check that submitting the filtered mappings to an unfiltered index leads to the same field_caps output
         // as the one coming from a filtered index with same mappings
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("filtered").get();
-        ImmutableOpenMap<String, MappingMetadata> filteredMapping = getMappingsResponse.getMappings().get("filtered");
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("_doc", filteredMapping.get("_doc").getSourceAsMap()));
+        MappingMetadata filteredMapping = getMappingsResponse.getMappings().get("filtered");
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("_doc", filteredMapping.getSourceAsMap()));
         FieldCapabilitiesResponse test = client().fieldCaps(new FieldCapabilitiesRequest().fields("*").indices("test")).actionGet();
         // properties.value is an object field in the new mapping
         filteredFields.add("properties.value");
@@ -161,12 +161,12 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
         assertEquals("Some unexpected fields were returned: " + fields.keySet(), 0, fields.size());
     }
 
-    private void assertExpectedMappings(ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings) {
+    private void assertExpectedMappings(ImmutableOpenMap<String, MappingMetadata> mappings) {
         assertEquals(2, mappings.size());
         assertNotFiltered(mappings.get("index1"));
-        ImmutableOpenMap<String, MappingMetadata> filtered = mappings.get("filtered");
+        MappingMetadata filtered = mappings.get("filtered");
         assertFiltered(filtered);
-        assertMappingsAreValid(filtered.get("_doc").getSourceAsMap());
+        assertMappingsAreValid(filtered.getSourceAsMap());
     }
 
     private void assertMappingsAreValid(Map<String, Object> sourceAsMap) {
@@ -179,9 +179,7 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static void assertFiltered(ImmutableOpenMap<String, MappingMetadata> mappings) {
-        assertEquals(1, mappings.size());
-        MappingMetadata mappingMetadata = mappings.get("_doc");
+    private static void assertFiltered(MappingMetadata mappingMetadata) {
         assertNotNull(mappingMetadata);
         Map<String, Object> sourceAsMap = mappingMetadata.getSourceAsMap();
         assertEquals(4, sourceAsMap.size());
@@ -226,9 +224,7 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static void assertNotFiltered(ImmutableOpenMap<String, MappingMetadata> mappings) {
-        assertEquals(1, mappings.size());
-        MappingMetadata mappingMetadata = mappings.get("_doc");
+    private static void assertNotFiltered(MappingMetadata mappingMetadata) {
         assertNotNull(mappingMetadata);
         Map<String, Object> sourceAsMap = mappingMetadata.getSourceAsMap();
         assertEquals(4, sourceAsMap.size());
