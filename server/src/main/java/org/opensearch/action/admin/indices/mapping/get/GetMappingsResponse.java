@@ -65,13 +65,16 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
             String index = in.readString();
             if (in.getVersion().before(Version.V_2_0_0)) {
                 int mappingCount = in.readVInt();
-                assert mappingCount == 1 || mappingCount == 0 : "Expected 0 or 1 mappings but got " + mappingCount;
-                if (mappingCount == 1) {
+                if (mappingCount == 0) {
+                    indexMapBuilder.put(index, MappingMetadata.EMPTY_MAPPINGS);
+                } else if (mappingCount == 1) {
                     String type = in.readString();
-                    assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected type [_doc] but got [" + type + "]";
+                    if (MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
+                        throw new IllegalStateException("Expected " + MapperService.SINGLE_MAPPING_NAME + " but got [" + type + "]");
+                    }
                     indexMapBuilder.put(index, new MappingMetadata(in));
                 } else {
-                    indexMapBuilder.put(index, MappingMetadata.EMPTY_MAPPINGS);
+                    throw new IllegalStateException("Expected 0 or 1 mappings but got: " + mappingCount);
                 }
             } else {
                 boolean hasMapping = in.readBoolean();
@@ -101,10 +104,7 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
                     indexEntry.value.writeTo(out);
                 }
             } else {
-                out.writeBoolean(indexEntry.value != MappingMetadata.EMPTY_MAPPINGS);
-                if (indexEntry.value != MappingMetadata.EMPTY_MAPPINGS) {
-                    indexEntry.value.writeTo(out);
-                }
+                out.writeOptionalWriteable(indexEntry.value);
             }
         }
     }
