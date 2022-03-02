@@ -143,10 +143,7 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
     }
 
     public void testNoIndexedShape() throws IOException {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new GeoShapeQueryBuilder(fieldName(), null, "null")
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new GeoShapeQueryBuilder(fieldName(), null, null));
         assertEquals("either shape or indexedShapeId is required", e.getMessage());
     }
 

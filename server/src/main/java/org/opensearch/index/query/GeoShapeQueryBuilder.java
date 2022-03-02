@@ -42,7 +42,6 @@ import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.geo.parsers.ShapeParser;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.geometry.Geometry;
@@ -61,8 +60,6 @@ import java.util.function.Supplier;
  */
 public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQueryBuilder> {
     public static final String NAME = "geo_shape";
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(GeoShapeQueryBuilder.class);
-
     protected static final ParseField STRATEGY_FIELD = new ParseField("strategy");
 
     private SpatialStrategy strategy;
@@ -96,18 +93,6 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
         super(fieldName, shape);
     }
 
-    /**
-     * Creates a new GeoShapeQueryBuilder whose Query will be against the given
-     * field name and will use the Shape found with the given shape id and supplier
-     *
-     * @param fieldName
-     *            Name of the field that will be filtered
-     * @param shapeSupplier     A shape supplier
-     * @param indexedShapeId
-     *            ID of the indexed Shape that will be used in the Query
-     * @deprecated use {@link #GeoShapeQueryBuilder(String, String)} instead
-     */
-    @Deprecated
     public GeoShapeQueryBuilder(String fieldName, Supplier<Geometry> shapeSupplier, String indexedShapeId) {
         super(fieldName, shapeSupplier, indexedShapeId);
     }
