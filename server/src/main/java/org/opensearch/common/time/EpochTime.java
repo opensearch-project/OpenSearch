@@ -128,8 +128,7 @@ class EpochTime {
             if (instantSecondsInMillis >= 0) {
                 if (temporal.isSupported(ChronoField.NANO_OF_SECOND)) {
                     return instantSecondsInMillis + (temporal.getLong(ChronoField.NANO_OF_SECOND) / 1_000_000);
-                }
-                else {
+                } else {
                     return instantSecondsInMillis + temporal.getLong(ChronoField.MILLI_OF_SECOND);
                 }
             } else { // negative timestamp
