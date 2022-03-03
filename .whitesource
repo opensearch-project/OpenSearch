@@ -6,7 +6,7 @@
     "baseBranches": ["1.x"]
   },
   "checkRunSettings": {
-    "vulnerableCheckRunConclusionLevel": "failure",
+    "vulnerableCheckRunConclusionLevel": "none",
     "displayMode": "diff"
   },
   "issueSettings": {
