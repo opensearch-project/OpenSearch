@@ -63,8 +63,8 @@ import org.gradle.external.javadoc.CoreJavadocOptions;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.io.File;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.opensearch.gradle.util.Util.toStringable;
@@ -212,10 +212,12 @@ public class OpenSearchJavaPlugin implements Plugin<Project> {
                 public void execute(Task task) {
                     // this doFirst is added before the info plugin, therefore it will run
                     // after the doFirst added by the info plugin, and we can override attributes
-                    jarTask.getManifest()
-                        .attributes(
-                            Map.of("Build-Date", BuildParams.getBuildDate(), "Build-Java-Version", BuildParams.getGradleJavaVersion())
-                        );
+                    jarTask.getManifest().attributes(new HashMap<String, Object>() {
+                        {
+                            put("Build-Date", BuildParams.getBuildDate());
+                            put("Build-Java-Version", BuildParams.getGradleJavaVersion());
+                        }
+                    });
                 }
             });
         });
