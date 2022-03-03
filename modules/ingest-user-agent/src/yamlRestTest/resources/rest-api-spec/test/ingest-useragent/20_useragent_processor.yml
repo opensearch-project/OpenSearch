@@ -83,10 +83,10 @@
   - skip:
       version : "all"
       reason  : "tracked at https://github.com/elastic/elasticsearch/issues/52266"
-      features: warnings
+      features: allowed_warnings
 
   - do:
-      warnings:
+      allowed_warnings:
         - "setting [ecs] to false for non-common schema format is deprecated and will be removed in 8.0, set to true or remove to use the non-deprecated format"
         - "the [os_major] property is deprecated for the user-agent processor"
       ingest.put_pipeline:

@@ -80,8 +80,10 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.opensearch.search.sort.FieldSortBuilder.getMinMaxOrNull;
 import static org.opensearch.search.sort.FieldSortBuilder.getPrimaryFieldSortOrNull;
@@ -89,6 +91,8 @@ import static org.opensearch.search.sort.NestedSortBuilderTests.createRandomNest
 import static org.hamcrest.Matchers.instanceOf;
 
 public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder> {
+
+    private Set<String> assertedWarnings = new HashSet<>();
 
     /**
      * {@link #provideMappedFieldType(String)} will return a
@@ -694,14 +698,17 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     @Override
     protected void assertWarnings(FieldSortBuilder testItem) {
         List<String> expectedWarnings = new ArrayList<>();
-        if (testItem.getNestedFilter() != null) {
-            expectedWarnings.add("[nested_filter] has been deprecated in favour for the [nested] parameter");
+        String nestedFilterDeprecationWarning = "[nested_filter] has been deprecated in favour for the [nested] parameter";
+        String nestedPathDeprecationWarning = "[nested_path] has been deprecated in favor of the [nested] parameter";
+        if (testItem.getNestedFilter() != null && !assertedWarnings.contains(nestedFilterDeprecationWarning)) {
+            expectedWarnings.add(nestedFilterDeprecationWarning);
         }
-        if (testItem.getNestedPath() != null) {
-            expectedWarnings.add("[nested_path] has been deprecated in favor of the [nested] parameter");
+        if (testItem.getNestedPath() != null && !assertedWarnings.contains(nestedPathDeprecationWarning)) {
+            expectedWarnings.add(nestedPathDeprecationWarning);
         }
         if (expectedWarnings.isEmpty() == false) {
             assertWarnings(expectedWarnings.toArray(new String[expectedWarnings.size()]));
+            assertedWarnings.addAll(expectedWarnings);
         }
     }
 

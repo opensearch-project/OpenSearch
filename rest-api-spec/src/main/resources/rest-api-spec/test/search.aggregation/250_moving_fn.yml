@@ -37,11 +37,11 @@ setup:
   - skip:
       version: " - 7.1.99"
       reason:  "interval deprecation added in 7.2"
-      features: "warnings"
+      features: "allowed_warnings"
 
   - do:
       catch: /\[window\] must be a positive, non-zero integer\./
-      warnings:
+      allowed_warnings:
         - "[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future."
       search:
         rest_total_hits_as_int: true

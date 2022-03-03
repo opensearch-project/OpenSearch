@@ -64,12 +64,16 @@ import org.opensearch.test.geo.RandomGeoGenerator;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanceSortBuilder> {
+
+    private Set<String> assertedWarnings = new HashSet<>();
 
     @Override
     protected GeoDistanceSortBuilder createTestItem() {
@@ -407,14 +411,17 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
     @Override
     protected void assertWarnings(GeoDistanceSortBuilder testItem) {
         List<String> expectedWarnings = new ArrayList<>();
-        if (testItem.getNestedFilter() != null) {
-            expectedWarnings.add("[nested_filter] has been deprecated in favour of the [nested] parameter");
+        String nestedFilterDeprecationWarning = "[nested_filter] has been deprecated in favour of the [nested] parameter";
+        String nestedPathDeprecationWarning = "[nested_path] has been deprecated in favour of the [nested] parameter";
+        if (testItem.getNestedFilter() != null && !assertedWarnings.contains(nestedFilterDeprecationWarning)) {
+            expectedWarnings.add(nestedFilterDeprecationWarning);
         }
-        if (testItem.getNestedPath() != null) {
-            expectedWarnings.add("[nested_path] has been deprecated in favour of the [nested] parameter");
+        if (testItem.getNestedPath() != null && !assertedWarnings.contains(nestedPathDeprecationWarning)) {
+            expectedWarnings.add(nestedPathDeprecationWarning);
         }
         if (expectedWarnings.isEmpty() == false) {
             assertWarnings(expectedWarnings.toArray(new String[expectedWarnings.size()]));
+            assertedWarnings.addAll(expectedWarnings);
         }
     }
 
