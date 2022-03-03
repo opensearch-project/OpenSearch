@@ -372,13 +372,13 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             try {
                 // we flush first to make sure we get the latest writes snapshotted
                 snapshotRef = indexShard.acquireLastIndexCommit(true);
-                final IndexCommit snapshotIndexCommit = snapshotRef.getIndexCommit();
+                final IndexCommit snapshotIndexCommit = snapshotRef.get();
                 repository.snapshotShard(
                     indexShard.store(),
                     indexShard.mapperService(),
                     snapshot.getSnapshotId(),
                     indexId,
-                    snapshotRef.getIndexCommit(),
+                    snapshotRef.get(),
                     getShardStateId(indexShard, snapshotIndexCommit),
                     snapshotStatus,
                     version,

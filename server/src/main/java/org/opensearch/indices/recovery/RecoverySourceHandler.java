@@ -268,7 +268,7 @@ public class RecoverySourceHandler {
                 // advances and not when creating a new safe commit. In any case this is a best-effort thing since future recoveries can
                 // always fall back to file-based ones, and only really presents a problem if this primary fails before things have settled
                 // down.
-                startingSeqNo = Long.parseLong(safeCommitRef.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1L;
+                startingSeqNo = Long.parseLong(safeCommitRef.get().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1L;
                 logger.trace("performing file-based recovery followed by history replay starting at [{}]", startingSeqNo);
 
                 try {
@@ -307,7 +307,7 @@ public class RecoverySourceHandler {
 
                     deleteRetentionLeaseStep.whenComplete(ignored -> {
                         assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[phase1]");
-                        phase1(safeCommitRef.getIndexCommit(), startingSeqNo, () -> estimateNumOps, sendFileStep);
+                        phase1(safeCommitRef.get(), startingSeqNo, () -> estimateNumOps, sendFileStep);
                     }, onFailure);
 
                 } catch (final Exception e) {
@@ -470,7 +470,7 @@ public class RecoverySourceHandler {
     private Engine.IndexCommitRef acquireSafeCommit(IndexShard shard) {
         final Engine.IndexCommitRef commitRef = shard.acquireSafeIndexCommit();
         final AtomicBoolean closed = new AtomicBoolean(false);
-        return new Engine.IndexCommitRef(commitRef.getIndexCommit(), () -> {
+        return new Engine.IndexCommitRef(commitRef.get(), () -> {
             if (closed.compareAndSet(false, true)) {
                 runWithGenericThreadPool(commitRef::close);
             }

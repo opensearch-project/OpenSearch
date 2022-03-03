@@ -4127,10 +4127,10 @@ public class IndexShardTests extends IndexShardTestCase {
                 readyToSnapshotLatch.await();
                 shard.snapshotStoreMetadata();
                 try (Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(randomBoolean())) {
-                    shard.store().getMetadata(indexCommitRef.getIndexCommit());
+                    shard.store().getMetadata(indexCommitRef.get());
                 }
                 try (Engine.IndexCommitRef indexCommitRef = shard.acquireSafeIndexCommit()) {
-                    shard.store().getMetadata(indexCommitRef.getIndexCommit());
+                    shard.store().getMetadata(indexCommitRef.get());
                 }
             } catch (InterruptedException | IOException e) {
                 throw new AssertionError(e);
