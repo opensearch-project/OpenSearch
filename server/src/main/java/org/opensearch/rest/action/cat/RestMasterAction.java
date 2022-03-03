@@ -44,14 +44,15 @@ import org.opensearch.rest.action.RestResponseListener;
 
 import java.util.List;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
 public class RestMasterAction extends AbstractCatAction {
 
     @Override
-    public List<Route> routes() {
-        return singletonList(new Route(GET, "/_cat/master"));
+    public List<ReplacedRoute> replacedRoutes() {
+        return singletonList(new ReplacedRoute(GET, "/_cat/cluster_manager", "/_cat/master"));
     }
 
     @Override
