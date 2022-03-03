@@ -345,7 +345,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                 filterFunctions[i++] = scoreFunction;
             } else {
                 Query filter = builder.toQuery(context);
-                filterFunctions[i++] = new FunctionScoreQuery.FilterScoreFunction(filter, builder.queryName(), scoreFunction);
+                filterFunctions[i++] = new FunctionScoreQuery.FilterScoreFunction(filter, scoreFunction, builder.queryName());
             }
         }
 

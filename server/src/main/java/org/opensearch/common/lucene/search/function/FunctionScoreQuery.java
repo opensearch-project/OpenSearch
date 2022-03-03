@@ -79,20 +79,20 @@ public class FunctionScoreQuery extends Query {
          * @param function score function
          */
         public FilterScoreFunction(Query filter, ScoreFunction function) {
-            this(filter, null, function);
+            this(filter, function, null);
         }
 
         /**
          * Creates a FilterScoreFunction with query and function.
          * @param filter filter query
-         * @param queryName filter query name
          * @param function score function
+         * @param queryName filter query name
          */
-        public FilterScoreFunction(Query filter, @Nullable String queryName, ScoreFunction function) {
+        public FilterScoreFunction(Query filter, ScoreFunction function, @Nullable String queryName) {
             super(function.getDefaultScoreCombiner());
             this.filter = filter;
-            this.queryName = queryName;
             this.function = function;
+            this.queryName = queryName;
         }
 
         @Override
@@ -127,7 +127,7 @@ public class FunctionScoreQuery extends Query {
             if (newFilter == filter) {
                 return this;
             }
-            return new FilterScoreFunction(newFilter, queryName, function);
+            return new FilterScoreFunction(newFilter, function, queryName);
         }
 
         @Override
