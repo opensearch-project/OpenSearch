@@ -845,7 +845,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         boolean isRetry,
         SourceToParse sourceToParse
     ) throws IOException {
-        Boolean isSegRepEnabled = indexSettings.getValue(IndexSettings.INDEX_SEGMENT_REPLICATION_SETTING);
+        Boolean isSegRepEnabled = indexSettings.isSegrepEnabled();
         if (isSegRepEnabled != null && isSegRepEnabled) {
             Engine.Index index;
             try {

@@ -503,22 +503,13 @@ public final class IndexSettings {
         Setting.Property.IndexScope
     );
 
-    /**
-     * Used to specify if the index should use segment replication. If false, document replication is used.
-     */
-    public static final Setting<Boolean> INDEX_SEGMENT_REPLICATION_SETTING = Setting.boolSetting(
-        "index.replication.segment_replication",
-        false,
-        Property.IndexScope,
-        Property.Final
-    );
-
     private final Index index;
     private final Version version;
     private final Logger logger;
     private final String nodeName;
     private final Settings nodeSettings;
     private final int numberOfShards;
+    private final Boolean isSegrepEnabled;
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
     private volatile Settings settings;
     private volatile IndexMetadata indexMetadata;
@@ -661,7 +652,7 @@ public final class IndexSettings {
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
-
+        isSegrepEnabled = settings.getAsBoolean(IndexMetadata.SETTING_SEGMENT_REPLICATION, false);
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
@@ -889,6 +880,10 @@ public final class IndexSettings {
      */
     public int getNumberOfReplicas() {
         return settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, null);
+    }
+
+    public boolean isSegrepEnabled() {
+        return isSegrepEnabled;
     }
 
     /**
