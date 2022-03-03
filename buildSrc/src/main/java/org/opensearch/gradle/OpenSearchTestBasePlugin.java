@@ -49,6 +49,7 @@ import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.testing.Test;
 
 import java.io.File;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.opensearch.gradle.util.FileUtils.mkdirs;
@@ -95,7 +96,7 @@ public class OpenSearchTestBasePlugin implements Plugin<Project> {
 
             // We specifically use an anonymous inner class here because lambda task actions break Gradle cacheability
             // See: https://docs.gradle.org/current/userguide/more_about_tasks.html#sec:how_does_it_work
-            test.doFirst(new Action<>() {
+            test.doFirst(new Action<Task>() {
                 @Override
                 public void execute(Task t) {
                     mkdirs(testOutputDir);
@@ -137,20 +138,16 @@ public class OpenSearchTestBasePlugin implements Plugin<Project> {
                 test.jvmArgs("-ea", "-esa");
             }
 
-            Map<String, String> sysprops = Map.of(
-                "java.awt.headless",
-                "true",
-                "tests.gradle",
-                "true",
-                "tests.artifact",
-                project.getName(),
-                "tests.task",
-                test.getPath(),
-                "tests.security.manager",
-                "true",
-                "jna.nosys",
-                "true"
-            );
+            Map<String, String> sysprops = new HashMap<String, String>() {
+                {
+                    put("java.awt.headless", "true");
+                    put("tests.gradle", "true");
+                    put("tests.artifact", project.getName());
+                    put("tests.task", test.getPath());
+                    put("tests.security.manager", "true");
+                    put("jna.nosys", "true");
+                }
+            };
             test.systemProperties(sysprops);
 
             // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability experimentation
