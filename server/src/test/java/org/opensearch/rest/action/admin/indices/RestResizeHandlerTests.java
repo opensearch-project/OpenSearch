@@ -39,13 +39,17 @@ import org.opensearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 import static org.mockito.Mockito.mock;
 
 public class RestResizeHandlerTests extends OpenSearchTestCase {
+
+    private Set<String> assertedWarnings = new HashSet<>();
 
     public void testShrinkCopySettingsDeprecated() throws IOException {
         final RestResizeHandler.RestShrinkIndexAction handler = new RestResizeHandler.RestShrinkIndexAction();
@@ -80,9 +84,11 @@ public class RestResizeHandlerTests extends OpenSearchTestCase {
             );
             assertThat(e, hasToString(containsString("parameter [copy_settings] can not be explicitly set to [false]")));
         } else {
+            String expectedWarning = "parameter [copy_settings] is deprecated and will be removed in 8.0.0";
             handler.prepareRequest(request, mock(NodeClient.class));
-            if ("".equals(copySettings) || "true".equals(copySettings)) {
-                assertWarnings("parameter [copy_settings] is deprecated and will be removed in 8.0.0");
+            if (("".equals(copySettings) || "true".equals(copySettings)) && !assertedWarnings.contains(expectedWarning)) {
+                assertWarnings(expectedWarning);
+                assertedWarnings.add(expectedWarning);
             }
         }
     }
