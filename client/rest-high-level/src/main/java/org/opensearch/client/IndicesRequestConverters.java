@@ -202,31 +202,6 @@ final class IndicesRequestConverters {
         return request;
     }
 
-    /**
-     * converter for the legacy server-side {@link org.opensearch.action.admin.indices.mapping.put.PutMappingRequest} that still supports
-     * types
-     */
-    @Deprecated
-    static Request putMapping(org.opensearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest) throws IOException {
-        // The concreteIndex is an internal concept, not applicable to requests made over the REST API.
-        if (putMappingRequest.getConcreteIndex() != null) {
-            throw new IllegalArgumentException("concreteIndex cannot be set on PutMapping requests made over the REST API");
-        }
-
-        Request request = new Request(
-            HttpPut.METHOD_NAME,
-            RequestConverters.endpoint(putMappingRequest.indices(), "_mapping", putMappingRequest.type())
-        );
-
-        RequestConverters.Params parameters = new RequestConverters.Params();
-        parameters.withTimeout(putMappingRequest.timeout());
-        parameters.withMasterTimeout(putMappingRequest.masterNodeTimeout());
-        parameters.putParam(INCLUDE_TYPE_NAME_PARAMETER, "true");
-        request.addParameters(parameters.asMap());
-        request.setEntity(RequestConverters.createEntity(putMappingRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
     static Request getMappings(GetMappingsRequest getMappingsRequest) {
         String[] indices = getMappingsRequest.indices() == null ? Strings.EMPTY_ARRAY : getMappingsRequest.indices();
 

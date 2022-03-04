@@ -457,59 +457,6 @@ public final class IndicesClient {
     }
 
     /**
-     * Updates the mappings on an index using the Put Mapping API.
-     *
-     * @param putMappingRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
-     *
-     * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The method
-     * {@link #putMapping(PutMappingRequest, RequestOptions)} should be used instead, which accepts a new request object.
-     */
-    @Deprecated
-    public AcknowledgedResponse putMapping(
-        org.opensearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest,
-        RequestOptions options
-    ) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(
-            putMappingRequest,
-            IndicesRequestConverters::putMapping,
-            options,
-            AcknowledgedResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Asynchronously updates the mappings on an index using the Put Mapping API.
-     *
-     * @param putMappingRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     *
-     * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The
-     * method {@link #putMappingAsync(PutMappingRequest, RequestOptions, ActionListener)} should be used instead,
-     * which accepts a new request object.
-     * @return cancellable that may be used to cancel the request
-     */
-    @Deprecated
-    public Cancellable putMappingAsync(
-        org.opensearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest,
-        RequestOptions options,
-        ActionListener<AcknowledgedResponse> listener
-    ) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(
-            putMappingRequest,
-            IndicesRequestConverters::putMapping,
-            options,
-            AcknowledgedResponse::fromXContent,
-            listener,
-            emptySet()
-        );
-    }
-
-    /**
      * Retrieves the mappings on an index or indices using the Get Mapping API.
      *
      * @param getMappingsRequest the request

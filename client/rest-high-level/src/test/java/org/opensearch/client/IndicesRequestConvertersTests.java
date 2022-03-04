@@ -254,37 +254,6 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
         RequestConvertersTests.assertToXContentBody(putMappingRequest, request.getEntity());
     }
 
-    public void testPutMappingWithTypes() throws IOException {
-        org.opensearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest =
-            new org.opensearch.action.admin.indices.mapping.put.PutMappingRequest();
-
-        String[] indices = RequestConvertersTests.randomIndicesNames(0, 5);
-        putMappingRequest.indices(indices);
-
-        String type = OpenSearchTestCase.randomAlphaOfLengthBetween(3, 10);
-        putMappingRequest.type(type);
-
-        Map<String, String> expectedParams = new HashMap<>();
-
-        RequestConvertersTests.setRandomTimeout(putMappingRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-        RequestConvertersTests.setRandomMasterTimeout(putMappingRequest, expectedParams);
-        expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
-
-        Request request = IndicesRequestConverters.putMapping(putMappingRequest);
-        StringJoiner endpoint = new StringJoiner("/", "/", "");
-        String index = String.join(",", indices);
-        if (Strings.hasLength(index)) {
-            endpoint.add(index);
-        }
-        endpoint.add("_mapping");
-        endpoint.add(type);
-        Assert.assertEquals(endpoint.toString(), request.getEndpoint());
-
-        Assert.assertEquals(expectedParams, request.getParameters());
-        Assert.assertEquals(HttpPut.METHOD_NAME, request.getMethod());
-        RequestConvertersTests.assertToXContentBody(putMappingRequest, request.getEntity());
-    }
-
     public void testGetMapping() {
         GetMappingsRequest getMappingRequest = new GetMappingsRequest();
 
