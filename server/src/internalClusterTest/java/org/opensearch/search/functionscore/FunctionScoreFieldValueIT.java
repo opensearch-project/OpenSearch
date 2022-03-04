@@ -35,10 +35,13 @@ package org.opensearch.search.functionscore;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.lucene.search.function.FieldValueFactorFunction;
+import org.opensearch.search.SearchHit;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
@@ -162,5 +165,48 @@ public class FunctionScoreFieldValueIT extends OpenSearchIntegTestCase {
             // This is fine, the query will throw an exception if executed
             // locally, instead of just having failures
         }
+    }
+
+    public void testFieldValueFactorExplain() throws IOException {
+        assertAcked(
+            prepareCreate("test").addMapping(
+                "type1",
+                jsonBuilder().startObject()
+                    .startObject("type1")
+                    .startObject("properties")
+                    .startObject("test")
+                    .field("type", randomFrom(new String[] { "short", "float", "long", "integer", "double" }))
+                    .endObject()
+                    .startObject("body")
+                    .field("type", "text")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            ).get()
+        );
+
+        client().prepareIndex("test").setId("1").setSource("test", 5, "body", "foo").get();
+        client().prepareIndex("test").setId("2").setSource("test", 17, "body", "foo").get();
+        client().prepareIndex("test").setId("3").setSource("body", "bar").get();
+
+        refresh();
+
+        // document 2 scores higher because 17 > 5
+        final String functionName = "func1";
+        final String queryName = "query";
+        SearchResponse response = client().prepareSearch("test")
+            .setExplain(true)
+            .setQuery(
+                functionScoreQuery(simpleQueryStringQuery("foo").queryName(queryName), fieldValueFactorFunction("test", functionName))
+            )
+            .get();
+        assertOrderedSearchHits(response, "2", "1");
+        SearchHit firstHit = response.getHits().getAt(0);
+        assertThat(firstHit.getExplanation().getDetails(), arrayWithSize(2));
+        // "description": "sum of: (_name: query)"
+        assertThat(firstHit.getExplanation().getDetails()[0].getDescription(), containsString("_name: " + queryName));
+        // "description": "field value function(_name: func1): none(doc['test'].value * factor=1.0)"
+        assertThat(firstHit.getExplanation().getDetails()[1].toString(), containsString("_name: " + functionName));
     }
 }

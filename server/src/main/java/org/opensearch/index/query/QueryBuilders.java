@@ -33,6 +33,7 @@
 package org.opensearch.index.query;
 
 import org.apache.lucene.search.join.ScoreMode;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.ShapeRelation;
@@ -452,7 +453,17 @@ public final class QueryBuilders {
      * @param function The function builder used to custom score
      */
     public static FunctionScoreQueryBuilder functionScoreQuery(ScoreFunctionBuilder function) {
-        return new FunctionScoreQueryBuilder(function);
+        return functionScoreQuery(function, null);
+    }
+
+    /**
+     * A query that allows to define a custom scoring function.
+     *
+     * @param function The function builder used to custom score
+     * @param queryName The query name
+     */
+    public static FunctionScoreQueryBuilder functionScoreQuery(ScoreFunctionBuilder function, @Nullable String queryName) {
+        return new FunctionScoreQueryBuilder(function, queryName);
     }
 
     /**
