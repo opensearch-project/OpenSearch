@@ -218,7 +218,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      * mapping fields will automatically be put on the top level mapping object.
      */
     public PutMappingRequest source(Object... source) {
-        return source(buildFromSimplifiedDef(MapperService.SINGLE_MAPPING_NAME, source));
+        return source(buildFromSimplifiedDef(source));
     }
 
     public String origin() {
@@ -232,8 +232,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     }
 
     /**
-     * @param type
-     *            the mapping type
      * @param source
      *            consisting of field/properties pairs (e.g. "field1",
      *            "type=string,store=true")
@@ -241,7 +239,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      *             if the number of the source arguments is not divisible by two
      * @return the mappings definition
      */
-    public static XContentBuilder buildFromSimplifiedDef(String type, Object... source) {
+    public static XContentBuilder buildFromSimplifiedDef(Object... source) {
         if (source.length % 2 != 0) {
             throw new IllegalArgumentException("mapping source must be pairs of fieldnames and properties definition.");
         }

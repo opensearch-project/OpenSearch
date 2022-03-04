@@ -304,7 +304,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      */
     @Deprecated
     public CreateIndexRequest mapping(String type, Object... source) {
-        mapping(type, PutMappingRequest.buildFromSimplifiedDef(type, source));
+        mapping(type, PutMappingRequest.buildFromSimplifiedDef(source));
         return this;
     }
 

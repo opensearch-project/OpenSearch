@@ -92,14 +92,14 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
     }
 
     /**
-     * Test that {@link PutMappingRequest#buildFromSimplifiedDef(String, Object...)}
+     * Test that {@link PutMappingRequest#buildFromSimplifiedDef(Object...)}
      * rejects inputs where the {@code Object...} varargs of field name and properties are not
      * paired correctly
      */
     public void testBuildFromSimplifiedDef() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> PutMappingRequest.buildFromSimplifiedDef("type", "only_field")
+            () -> PutMappingRequest.buildFromSimplifiedDef("only_field")
         );
         assertEquals("mapping source must be pairs of fieldnames and properties definition.", e.getMessage());
     }
