@@ -1522,8 +1522,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         );
     }
 
-    public void updateCurrentInfos(long gen, byte[] infosBytes, long seqNo) throws IOException {
-        getEngine().updateCurrentInfos(infosBytes, gen, seqNo);
+    public void updateCurrentInfos(SegmentInfos infos, long seqNo) throws IOException {
+        getEngine().updateCurrentInfos(infos, seqNo);
     }
 
     /**
