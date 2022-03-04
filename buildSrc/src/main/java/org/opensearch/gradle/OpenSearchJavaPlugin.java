@@ -270,7 +270,9 @@ public class OpenSearchJavaPlugin implements Plugin<Project> {
              * that the default will change to html5 in the future.
              */
             CoreJavadocOptions javadocOptions = (CoreJavadocOptions) javadoc.getOptions();
-            javadocOptions.addBooleanOption("html5", true);
+            if (BuildParams.getRuntimeJavaVersion().compareTo(JavaVersion.VERSION_1_8) > 0) {
+                javadocOptions.addBooleanOption("html5", true);
+            }
         });
 
         TaskProvider<Javadoc> javadoc = project.getTasks().withType(Javadoc.class).named("javadoc");
