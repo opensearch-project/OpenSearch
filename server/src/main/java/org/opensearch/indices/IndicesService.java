@@ -742,8 +742,7 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     private EngineConfigFactory getEngineConfigFactory(final IndexSettings idxSettings) {
-        final IndexService indexService = indices.get(idxSettings.getUUID());
-        return new EngineConfigFactory(this.pluginsService, idxSettings, (indexService != null) ? indexService.mapperService() : null);
+        return new EngineConfigFactory(this.pluginsService, idxSettings);
     }
 
     private EngineFactory getEngineFactory(final IndexSettings idxSettings) {

@@ -42,30 +42,23 @@ import java.util.function.Supplier;
  * A factory to create an EngineConfig based on custom plugin overrides
  */
 public class EngineConfigFactory {
-    private final CodecService codecService;
+    private final CodecServiceFactory codecServiceFactory;
     private final TranslogDeletionPolicyFactory translogDeletionPolicyFactory;
 
     /** default ctor primarily used for tests without plugins */
     public EngineConfigFactory(IndexSettings idxSettings) {
-        this(Collections.emptyList(), idxSettings, null);
+        this(Collections.emptyList(), idxSettings);
     }
 
     /**
      * Construct a factory using the plugin service and provided index settings
      */
     public EngineConfigFactory(PluginsService pluginsService, IndexSettings idxSettings) {
-        this(pluginsService.filterPlugins(EnginePlugin.class), idxSettings, null);
-    }
-
-    /**
-     * Construct a factory using the plugin service, provided index settings and mapper service
-     */
-    public EngineConfigFactory(PluginsService pluginsService, IndexSettings idxSettings, MapperService mapperService) {
-        this(pluginsService.filterPlugins(EnginePlugin.class), idxSettings, mapperService);
+        this(pluginsService.filterPlugins(EnginePlugin.class), idxSettings);
     }
 
     /* private constructor to construct the factory from specific EnginePlugins and IndexSettings */
-    EngineConfigFactory(Collection<EnginePlugin> enginePlugins, IndexSettings idxSettings, MapperService mapperService) {
+    EngineConfigFactory(Collection<EnginePlugin> enginePlugins, IndexSettings idxSettings) {
         Optional<CodecService> codecService = Optional.empty();
         String codecServiceOverridingPlugin = null;
         Optional<CodecServiceFactory> codecServiceFactory = Optional.empty();
@@ -119,12 +112,65 @@ public class EngineConfigFactory {
             );
         }
 
-        this.codecService = codecService.isPresent() ? codecService.get() : codecServiceFactory.map(factory -> {
-            final CodecServiceConfig config = new CodecServiceConfig(idxSettings, mapperService);
-            return factory.createCodecService(config);
-        }).orElse(null);
-
+        final CodecService instance = codecService.orElse(null);
+        this.codecServiceFactory = (instance != null) ? (config) -> instance : codecServiceFactory.orElse(null);
         this.translogDeletionPolicyFactory = translogDeletionPolicyFactory.orElse((idxs, rtls) -> null);
+    }
+
+    /**
+     * Instantiates a new EngineConfig from the provided custom overrides
+     * @deprecated please use overloaded {@code newEngineConfig} with {@link MapperService}
+     */
+    @Deprecated
+    public EngineConfig newEngineConfig(
+        ShardId shardId,
+        ThreadPool threadPool,
+        IndexSettings indexSettings,
+        Engine.Warmer warmer,
+        Store store,
+        MergePolicy mergePolicy,
+        Analyzer analyzer,
+        Similarity similarity,
+        CodecService codecService,
+        Engine.EventListener eventListener,
+        QueryCache queryCache,
+        QueryCachingPolicy queryCachingPolicy,
+        TranslogConfig translogConfig,
+        TimeValue flushMergesAfter,
+        List<ReferenceManager.RefreshListener> externalRefreshListener,
+        List<ReferenceManager.RefreshListener> internalRefreshListener,
+        Sort indexSort,
+        CircuitBreakerService circuitBreakerService,
+        LongSupplier globalCheckpointSupplier,
+        Supplier<RetentionLeases> retentionLeasesSupplier,
+        LongSupplier primaryTermSupplier,
+        EngineConfig.TombstoneDocSupplier tombstoneDocSupplier
+    ) {
+        return newEngineConfig(
+            shardId,
+            threadPool,
+            indexSettings,
+            warmer,
+            store,
+            mergePolicy,
+            analyzer,
+            similarity,
+            codecService,
+            eventListener,
+            queryCache,
+            queryCachingPolicy,
+            translogConfig,
+            flushMergesAfter,
+            externalRefreshListener,
+            internalRefreshListener,
+            indexSort,
+            circuitBreakerService,
+            globalCheckpointSupplier,
+            retentionLeasesSupplier,
+            primaryTermSupplier,
+            tombstoneDocSupplier,
+            null
+        );
     }
 
     /** Instantiates a new EngineConfig from the provided custom overrides */
@@ -150,7 +196,8 @@ public class EngineConfigFactory {
         LongSupplier globalCheckpointSupplier,
         Supplier<RetentionLeases> retentionLeasesSupplier,
         LongSupplier primaryTermSupplier,
-        EngineConfig.TombstoneDocSupplier tombstoneDocSupplier
+        EngineConfig.TombstoneDocSupplier tombstoneDocSupplier,
+        MapperService mapperService
     ) {
 
         return new EngineConfig(
@@ -162,7 +209,9 @@ public class EngineConfigFactory {
             mergePolicy,
             analyzer,
             similarity,
-            this.codecService != null ? this.codecService : codecService,
+            this.codecServiceFactory != null
+                ? this.codecServiceFactory.createCodecService(new CodecServiceConfig(indexSettings, mapperService))
+                : codecService,
             eventListener,
             queryCache,
             queryCachingPolicy,

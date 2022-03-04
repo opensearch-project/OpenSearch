@@ -41,7 +41,7 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
             .build();
         List<EnginePlugin> plugins = Collections.singletonList(new FooEnginePlugin());
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", meta.getSettings());
-        EngineConfigFactory factory = new EngineConfigFactory(plugins, indexSettings, null);
+        EngineConfigFactory factory = new EngineConfigFactory(plugins, indexSettings);
 
         EngineConfig config = factory.newEngineConfig(
             null,
@@ -82,7 +82,7 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
         List<EnginePlugin> plugins = Arrays.asList(new FooEnginePlugin(), new BarEnginePlugin());
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", meta.getSettings());
 
-        expectThrows(IllegalStateException.class, () -> new EngineConfigFactory(plugins, indexSettings, null));
+        expectThrows(IllegalStateException.class, () -> new EngineConfigFactory(plugins, indexSettings));
     }
 
     public void testCreateEngineConfigFromFactoryMultipleCodecServiceAndFactoryIllegalStateException() {
@@ -94,7 +94,7 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
         List<EnginePlugin> plugins = Arrays.asList(new FooEnginePlugin(), new BakEnginePlugin());
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", meta.getSettings());
 
-        expectThrows(IllegalStateException.class, () -> new EngineConfigFactory(plugins, indexSettings, null));
+        expectThrows(IllegalStateException.class, () -> new EngineConfigFactory(plugins, indexSettings));
     }
 
     public void testCreateEngineConfigFromFactoryMultipleCustomTranslogDeletionPolicyFactoryIllegalStateException() {
@@ -106,7 +106,7 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
         List<EnginePlugin> plugins = Arrays.asList(new FooEnginePlugin(), new BazEnginePlugin());
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", meta.getSettings());
 
-        expectThrows(IllegalStateException.class, () -> new EngineConfigFactory(plugins, indexSettings, null));
+        expectThrows(IllegalStateException.class, () -> new EngineConfigFactory(plugins, indexSettings));
     }
 
     public void testCreateCodecServiceFromFactory() {
@@ -118,7 +118,7 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
         List<EnginePlugin> plugins = Arrays.asList(new BakEnginePlugin());
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", meta.getSettings());
 
-        EngineConfigFactory factory = new EngineConfigFactory(plugins, indexSettings, null);
+        EngineConfigFactory factory = new EngineConfigFactory(plugins, indexSettings);
         EngineConfig config = factory.newEngineConfig(
             null,
             null,
