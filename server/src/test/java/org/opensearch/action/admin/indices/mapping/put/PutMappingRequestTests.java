@@ -66,13 +66,9 @@ import static org.hamcrest.Matchers.containsString;
 public class PutMappingRequestTests extends OpenSearchTestCase {
 
     public void testValidation() {
-        PutMappingRequest r = new PutMappingRequest("myindex").type("");
+        PutMappingRequest r = new PutMappingRequest("myindex");
         ActionRequestValidationException ex = r.validate();
-        assertNotNull("type validation should fail", ex);
-        assertTrue(ex.getMessage().contains("type is empty"));
 
-        r.type("mytype");
-        ex = r.validate();
         assertNotNull("source validation should fail", ex);
         assertTrue(ex.getMessage().contains("source is missing"));
 
@@ -110,7 +106,6 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
 
     public void testToXContent() throws IOException {
         PutMappingRequest request = new PutMappingRequest("foo");
-        request.type("my_type");
 
         XContentBuilder mapping = JsonXContent.contentBuilder().startObject();
         mapping.startObject("properties");
@@ -128,7 +123,6 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
 
     public void testToXContentWithEmptySource() throws IOException {
         PutMappingRequest request = new PutMappingRequest("foo");
-        request.type("my_type");
 
         String actualRequestBody = Strings.toString(request);
         String expectedRequestBody = "{}";
@@ -166,10 +160,7 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
         String index = randomAlphaOfLength(5);
 
         PutMappingRequest request = new PutMappingRequest(index);
-
-        String type = randomAlphaOfLength(5);
-        request.type(type);
-        request.source(RandomCreateIndexGenerator.randomMapping(type));
+        request.source(RandomCreateIndexGenerator.randomMapping("_doc"));
 
         return request;
     }

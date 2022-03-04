@@ -47,7 +47,7 @@ public class PathMatchDynamicTemplateTests extends OpenSearchSingleNodeTestCase 
     public void testSimple() throws Exception {
         String mapping = copyToStringFromClasspath("/org/opensearch/index/mapper/dynamictemplate/pathmatch/test-mapping.json");
         IndexService index = createIndex("test");
-        client().admin().indices().preparePutMapping("test").setType("person").setSource(mapping, XContentType.JSON).get();
+        client().admin().indices().preparePutMapping("test").setSource(mapping, XContentType.JSON).get();
 
         MapperService mapperService = index.mapperService();
 
@@ -57,7 +57,6 @@ public class PathMatchDynamicTemplateTests extends OpenSearchSingleNodeTestCase 
         client().admin()
             .indices()
             .preparePutMapping("test")
-            .setType("person")
             .setSource(parsedDoc.dynamicMappingsUpdate().toString(), XContentType.JSON)
             .get();
         Document doc = parsedDoc.rootDoc();

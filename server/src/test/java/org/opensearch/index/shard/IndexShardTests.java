@@ -108,6 +108,7 @@ import org.opensearch.index.fielddata.IndexFieldDataService;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperParsingException;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
@@ -168,7 +169,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongFunction;
@@ -3129,8 +3129,8 @@ public class IndexShardTests extends IndexShardTestCase {
             targetShard = newShard(targetRouting);
             targetShard.markAsRecovering("store", new RecoveryState(targetShard.routingEntry(), localNode, null));
 
-            BiConsumer<String, MappingMetadata> mappingConsumer = (type, mapping) -> {
-                assertNull(requestedMappingUpdates.put(type, mapping));
+            Consumer<MappingMetadata> mappingConsumer = mapping -> {
+                assertNull(requestedMappingUpdates.put(MapperService.SINGLE_MAPPING_NAME, mapping));
             };
 
             final IndexShard differentIndex = newShard(new ShardId("index_2", "index_2", 0), true);

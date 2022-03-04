@@ -39,7 +39,6 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
@@ -64,9 +63,10 @@ public class MetadataMappingServiceTests extends OpenSearchSingleNodeTestCase {
         final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         // TODO - it will be nice to get a random mapping generator
-        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest().type("type");
+        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest(
+            "{ \"properties\": { \"field\": { \"type\": \"text\" }}}"
+        );
         request.indices(new Index[] { indexService.index() });
-        request.source("{ \"properties\": { \"field\": { \"type\": \"text\" }}}");
         final ClusterStateTaskExecutor.ClusterTasksResult<PutMappingClusterStateUpdateRequest> result = mappingService.putMappingExecutor
             .execute(clusterService.state(), Collections.singletonList(request));
         // the task completed successfully
@@ -86,8 +86,9 @@ public class MetadataMappingServiceTests extends OpenSearchSingleNodeTestCase {
 
         final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest().type("type");
-        request.source("{ \"properties\" { \"field\": { \"type\": \"text\" }}}");
+        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest(
+            "{ \"properties\" { \"field\": { \"type\": \"text\" }}}"
+        );
         ClusterState result = mappingService.putMappingExecutor.execute(
             clusterService.state(),
             Collections.singletonList(request)
@@ -105,9 +106,10 @@ public class MetadataMappingServiceTests extends OpenSearchSingleNodeTestCase {
         final long previousVersion = indexService.getMetadata().getMappingVersion();
         final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest().type("type");
+        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest(
+            "{ \"properties\": { \"field\": { \"type\": \"text\" }}}"
+        );
         request.indices(new Index[] { indexService.index() });
-        request.source("{ \"properties\": { \"field\": { \"type\": \"text\" }}}");
         final ClusterStateTaskExecutor.ClusterTasksResult<PutMappingClusterStateUpdateRequest> result = mappingService.putMappingExecutor
             .execute(clusterService.state(), Collections.singletonList(request));
         assertThat(result.executionResults.size(), equalTo(1));
@@ -120,34 +122,12 @@ public class MetadataMappingServiceTests extends OpenSearchSingleNodeTestCase {
         final long previousVersion = indexService.getMetadata().getMappingVersion();
         final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest().type("type");
+        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest("{ \"properties\": {}}");
         request.indices(new Index[] { indexService.index() });
-        request.source("{ \"properties\": {}}");
         final ClusterStateTaskExecutor.ClusterTasksResult<PutMappingClusterStateUpdateRequest> result = mappingService.putMappingExecutor
             .execute(clusterService.state(), Collections.singletonList(request));
         assertThat(result.executionResults.size(), equalTo(1));
         assertTrue(result.executionResults.values().iterator().next().isSuccess());
         assertThat(result.resultingState.metadata().index("test").getMappingVersion(), equalTo(previousVersion));
-    }
-
-    public void testMappingUpdateAccepts_docAsType() throws Exception {
-        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test").addMapping("my_type"));
-        final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
-        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest().type(
-            MapperService.SINGLE_MAPPING_NAME
-        );
-        request.indices(new Index[] { indexService.index() });
-        request.source("{ \"properties\": { \"foo\": { \"type\": \"keyword\" } }}");
-        final ClusterStateTaskExecutor.ClusterTasksResult<PutMappingClusterStateUpdateRequest> result = mappingService.putMappingExecutor
-            .execute(clusterService.state(), Collections.singletonList(request));
-        assertThat(result.executionResults.size(), equalTo(1));
-        assertTrue(result.executionResults.values().iterator().next().isSuccess());
-        MappingMetadata mappingMetadata = result.resultingState.metadata().index("test").mapping();
-        assertEquals("my_type", mappingMetadata.type());
-        assertEquals(
-            Collections.singletonMap("properties", Collections.singletonMap("foo", Collections.singletonMap("type", "keyword"))),
-            mappingMetadata.sourceAsMap()
-        );
     }
 }

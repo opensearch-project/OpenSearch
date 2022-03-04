@@ -146,7 +146,6 @@ public class TaskResultsService {
                 client.admin()
                     .indices()
                     .preparePutMapping(TASK_INDEX)
-                    .setType(TASK_TYPE)
                     .setSource(taskResultIndexMapping(), XContentType.JSON)
                     .execute(ActionListener.delegateFailure(listener, (l, r) -> doStoreResult(taskResult, listener)));
             } else {

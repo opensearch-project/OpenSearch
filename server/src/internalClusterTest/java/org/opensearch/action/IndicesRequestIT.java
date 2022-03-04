@@ -545,8 +545,7 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
     public void testPutMapping() {
         interceptTransportActions(PutMappingAction.NAME);
 
-        PutMappingRequest putMappingRequest = new PutMappingRequest(randomUniqueIndicesOrAliases()).type("type")
-            .source("field", "type=text");
+        PutMappingRequest putMappingRequest = new PutMappingRequest(randomUniqueIndicesOrAliases()).source("field", "type=text");
         internalCluster().coordOnlyNodeClient().admin().indices().putMapping(putMappingRequest).actionGet();
 
         clearInterceptedActions();

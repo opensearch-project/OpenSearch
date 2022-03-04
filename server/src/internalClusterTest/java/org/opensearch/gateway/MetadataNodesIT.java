@@ -135,7 +135,6 @@ public class MetadataNodesIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .preparePutMapping(index)
-            .setType("_doc")
             .setSource(
                 jsonBuilder().startObject()
                     .startObject("properties")
@@ -173,7 +172,6 @@ public class MetadataNodesIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .preparePutMapping(index)
-            .setType("_doc")
             .setSource(
                 jsonBuilder().startObject()
                     .startObject("properties")

@@ -284,7 +284,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         NumShards numShards = getNumShards("test-idx");
 
-        assertAcked(client().admin().indices().preparePutMapping("test-idx").setType("_doc").setSource("baz", "type=text"));
+        assertAcked(client().admin().indices().preparePutMapping("test-idx").setSource("baz", "type=text"));
         ensureGreen();
 
         logger.info("--> snapshot it");
@@ -310,7 +310,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                     .put("refresh_interval", 5, TimeUnit.SECONDS)
             )
         );
-        assertAcked(client().admin().indices().preparePutMapping("test-idx").setType("_doc").setSource("foo", "type=text"));
+        assertAcked(client().admin().indices().preparePutMapping("test-idx").setSource("foo", "type=text"));
         ensureGreen();
 
         logger.info("--> close index");
@@ -735,7 +735,6 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             client().admin()
                 .indices()
                 .preparePutMapping("test-idx")
-                .setType("_doc")
                 .setSource("field1", "type=text,analyzer=standard,search_analyzer=my_analyzer")
         );
         final int numdocs = randomIntBetween(10, 100);

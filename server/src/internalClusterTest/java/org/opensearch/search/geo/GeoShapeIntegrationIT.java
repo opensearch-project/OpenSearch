@@ -206,7 +206,7 @@ public class GeoShapeIntegrationIT extends OpenSearchIntegTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin().indices().preparePutMapping("test").setType("geometry").setSource(update, XContentType.JSON).get()
+            () -> client().admin().indices().preparePutMapping("test").setSource(update, XContentType.JSON).get()
         );
         assertThat(e.getMessage(), containsString("using [BKD] strategy cannot be merged with"));
     }

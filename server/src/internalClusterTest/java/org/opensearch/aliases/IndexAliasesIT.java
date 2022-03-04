@@ -470,9 +470,7 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
         logger.info("--> creating indices");
         createIndex("test1", "test2", "test3");
 
-        assertAcked(
-            client().admin().indices().preparePutMapping("test1", "test2", "test3").setType("type1").setSource("name", "type=text")
-        );
+        assertAcked(client().admin().indices().preparePutMapping("test1", "test2", "test3").setSource("name", "type=text"));
 
         ensureGreen();
 
@@ -862,11 +860,7 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
         createIndex("bazbar");
 
         assertAcked(
-            client().admin()
-                .indices()
-                .preparePutMapping("foobar", "test", "test123", "foobarbaz", "bazbar")
-                .setType("type")
-                .setSource("field", "type=text")
+            client().admin().indices().preparePutMapping("foobar", "test", "test123", "foobarbaz", "bazbar").setSource("field", "type=text")
         );
         ensureGreen();
 
