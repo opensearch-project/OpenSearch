@@ -173,7 +173,10 @@ public class OpenSearchJavaPlugin implements Plugin<Project> {
                 // workaround for https://github.com/gradle/gradle/issues/14141
                 compileTask.getConventionMapping().map("sourceCompatibility", () -> java.getSourceCompatibility().toString());
                 compileTask.getConventionMapping().map("targetCompatibility", () -> java.getTargetCompatibility().toString());
-                compileOptions.getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
+                // The '--release is available from JDK-9 and above
+                if (BuildParams.getRuntimeJavaVersion().compareTo(JavaVersion.VERSION_1_8) > 0) {
+                    compileOptions.getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
+                }
             });
             // also apply release flag to groovy, which is used in build-tools
             project.getTasks().withType(GroovyCompile.class).configureEach(compileTask -> {
