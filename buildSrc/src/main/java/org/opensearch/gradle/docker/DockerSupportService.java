@@ -49,6 +49,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -280,7 +281,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
      */
     private Optional<String> getDockerPath() {
         // Check if the Docker binary exists
-        return List.of(DOCKER_BINARIES).stream().filter(path -> new File(path).exists()).findFirst();
+        return Arrays.asList(DOCKER_BINARIES).stream().filter(path -> new File(path).exists()).findFirst();
     }
 
     /**
@@ -291,7 +292,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
      */
     private Optional<String> getDockerComposePath() {
         // Check if the Docker binary exists
-        return List.of(DOCKER_COMPOSE_BINARIES).stream().filter(path -> new File(path).exists()).findFirst();
+        return Arrays.asList(DOCKER_COMPOSE_BINARIES).stream().filter(path -> new File(path).exists()).findFirst();
     }
 
     private void throwDockerRequiredException(final String message) {

@@ -126,23 +126,28 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         );
         assertAcked(prepareCreate("test").addMapping("type1", mapping, XContentType.JSON));
 
-        client().prepareIndex("test", "type1", "10990239")
+        client().prepareIndex("test")
+            .setId("10990239")
             .setSource(jsonBuilder().startObject().startArray("appAccountIds").value(14).value(179).endArray().endObject())
             .execute()
             .actionGet();
-        client().prepareIndex("test", "type1", "10990473")
+        client().prepareIndex("test")
+            .setId("10990473")
             .setSource(jsonBuilder().startObject().startArray("appAccountIds").value(14).endArray().endObject())
             .execute()
             .actionGet();
-        client().prepareIndex("test", "type1", "10990513")
+        client().prepareIndex("test")
+            .setId("10990513")
             .setSource(jsonBuilder().startObject().startArray("appAccountIds").value(14).value(179).endArray().endObject())
             .execute()
             .actionGet();
-        client().prepareIndex("test", "type1", "10990695")
+        client().prepareIndex("test")
+            .setId("10990695")
             .setSource(jsonBuilder().startObject().startArray("appAccountIds").value(14).endArray().endObject())
             .execute()
             .actionGet();
-        client().prepareIndex("test", "type1", "11026351")
+        client().prepareIndex("test")
+            .setId("11026351")
             .setSource(jsonBuilder().startObject().startArray("appAccountIds").value(14).endArray().endObject())
             .execute()
             .actionGet();
@@ -309,12 +314,14 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
 
     public void testSingleNodeWithFlush() throws Exception {
         internalCluster().startNode();
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(jsonBuilder().startObject().field("field", "value1").endObject())
             .execute()
             .actionGet();
         flush();
-        client().prepareIndex("test", "type1", "2")
+        client().prepareIndex("test")
+            .setId("2")
             .setSource(jsonBuilder().startObject().field("field", "value2").endObject())
             .execute()
             .actionGet();
@@ -352,12 +359,14 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         final String firstNode = internalCluster().startNode();
         internalCluster().startNode();
 
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(jsonBuilder().startObject().field("field", "value1").endObject())
             .execute()
             .actionGet();
         flush();
-        client().prepareIndex("test", "type1", "2")
+        client().prepareIndex("test")
+            .setId("2")
             .setSource(jsonBuilder().startObject().field("field", "value2").endObject())
             .execute()
             .actionGet();
@@ -408,12 +417,14 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         Settings node2DataPathSettings = internalCluster().dataPathSettings(nodes.get(1));
 
         assertAcked(client().admin().indices().prepareCreate("test"));
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(jsonBuilder().startObject().field("field", "value1").endObject())
             .execute()
             .actionGet();
         client().admin().indices().prepareFlush().execute().actionGet();
-        client().prepareIndex("test", "type1", "2")
+        client().prepareIndex("test")
+            .setId("2")
             .setSource(jsonBuilder().startObject().field("field", "value2").endObject())
             .execute()
             .actionGet();
@@ -433,7 +444,8 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         internalCluster().stopRandomDataNode();
 
         logger.info("--> one node is closed - start indexing data into the second one");
-        client().prepareIndex("test", "type1", "3")
+        client().prepareIndex("test")
+            .setId("3")
             .setSource(jsonBuilder().startObject().field("field", "value3").endObject())
             .execute()
             .actionGet();
@@ -530,7 +542,7 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         logger.info("--> indexing docs");
         int numDocs = randomIntBetween(1, 1024);
         for (int i = 0; i < numDocs; i++) {
-            client(primaryNode).prepareIndex("test", "type").setSource("field", "value").execute().actionGet();
+            client(primaryNode).prepareIndex("test").setSource("field", "value").execute().actionGet();
         }
 
         client(primaryNode).admin().indices().prepareFlush("test").setForce(true).get();
@@ -563,7 +575,7 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
             public Settings onNodeStopped(String nodeName) throws Exception {
                 // index some more documents; we expect to reuse the files that already exist on the replica
                 for (int i = 0; i < moreDocs; i++) {
-                    client(primaryNode).prepareIndex("test", "type").setSource("field", "value").execute().actionGet();
+                    client(primaryNode).prepareIndex("test").setSource("field", "value").execute().actionGet();
                 }
 
                 // prevent a sequence-number-based recovery from being possible

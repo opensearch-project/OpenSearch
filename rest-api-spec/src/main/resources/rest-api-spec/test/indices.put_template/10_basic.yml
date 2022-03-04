@@ -1,9 +1,5 @@
 ---
 "Put template":
-  - skip:
-      version: " - 6.99.99"
-      reason:  include_type_name defaults to true before 7.0.0
-
   - do:
       indices.put_template:
         name: test
@@ -28,10 +24,6 @@
 
 ---
 "Put multiple template":
-  - skip:
-      version: " - 6.99.99"
-      reason:  include_type_name defaults to true before 7.0.0
-
   - do:
       indices.put_template:
         name: test
@@ -56,10 +48,6 @@
 
 ---
 "Put template with empty mappings":
-  - skip:
-      version: " - 6.99.99"
-      reason:  include_type_name defaults to true before 7.0.0
-
   - do:
       indices.put_template:
         name: test
@@ -241,10 +229,6 @@
 
 ---
 "Put template with explicit _doc type":
-  - skip:
-      version: " - 6.99.99"
-      reason: include_type_name defaults to true before 7.0
-
   - do:
       catch: bad_request
       indices.put_template:

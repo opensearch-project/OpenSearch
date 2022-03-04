@@ -423,14 +423,10 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
             public void onResponse(GetResponse response) {
                 try {
                     if (!response.isExists()) {
-                        throw new IllegalArgumentException(
-                            "Shape with ID [" + getRequest.id() + "] in type [" + getRequest.type() + "] not found"
-                        );
+                        throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] not found");
                     }
                     if (response.isSourceEmpty()) {
-                        throw new IllegalArgumentException(
-                            "Shape with ID [" + getRequest.id() + "] in type [" + getRequest.type() + "] source disabled"
-                        );
+                        throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] source disabled");
                     }
 
                     String[] pathElements = path.split("\\.");
@@ -549,12 +545,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
         } else if (this.shape == null) {
             SetOnce<Geometry> supplier = new SetOnce<>();
             queryRewriteContext.registerAsyncAction((client, listener) -> {
-                GetRequest getRequest;
-                if (indexedShapeType == null) {
-                    getRequest = new GetRequest(indexedShapeIndex, indexedShapeId);
-                } else {
-                    getRequest = new GetRequest(indexedShapeIndex, indexedShapeType, indexedShapeId);
-                }
+                GetRequest getRequest = new GetRequest(indexedShapeIndex, indexedShapeId);
                 getRequest.routing(indexedShapeRouting);
                 fetch(client, getRequest, indexedShapePath, ActionListener.wrap(builder -> {
                     supplier.set(builder);

@@ -93,9 +93,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -385,8 +383,12 @@ public class OpenSearchNode implements TestClusterConfiguration {
     private Provider<RegularFile> maybeCreatePluginOrModuleDependency(String path) {
         Configuration configuration = pluginAndModuleConfigurations.computeIfAbsent(
             path,
-            key -> project.getConfigurations()
-                .detachedConfiguration(project.getDependencies().project(Map.of("path", path, "configuration", "zip")))
+            key -> project.getConfigurations().detachedConfiguration(project.getDependencies().project(new HashMap<String, String>() {
+                {
+                    put("path", path);
+                    put("configuration", "zip");
+                }
+            }))
         );
         Provider<File> fileProvider = configuration.getElements()
             .map(
@@ -679,10 +681,6 @@ public class OpenSearchNode implements TestClusterConfiguration {
         setting("node.attr.upgraded", "true");
     }
 
-    private boolean isSettingTrue(String name) {
-        return Boolean.valueOf(settings.getOrDefault(name, "false").toString());
-    }
-
     private void copyExtraConfigFiles() {
         if (extraConfigFiles.isEmpty() == false) {
             logToProcessStdout("Setting up " + extraConfigFiles.size() + " additional config files");
@@ -910,7 +908,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
         } catch (IOException e) {
             throw new TestClustersException("Failed to start " + currentConfig.command + " process for " + this, e);
         }
-        reaper.registerPid(toString(), opensearchProcess.pid());
+        // reaper.registerPid(toString(), opensearchProcess.pid());
     }
 
     @Internal
@@ -977,7 +975,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
         LOGGER.info("Stopping `{}`, tailLogs: {}", this, tailLogs);
         requireNonNull(opensearchProcess, "Can't stop `" + this + "` as it was not started or already stopped.");
         // Test clusters are not reused, don't spend time on a graceful shutdown
-        stopHandle(opensearchProcess.toHandle(), true);
+        stopHandle(opensearchProcess, true);
         reaper.unregister(toString());
         if (tailLogs) {
             logFileContents("Standard output of node", currentConfig.stdoutFile);
@@ -1002,9 +1000,9 @@ public class OpenSearchNode implements TestClusterConfiguration {
         this.nameCustomization = nameCustomizer;
     }
 
-    private void stopHandle(ProcessHandle processHandle, boolean forcibly) {
+    private void stopHandle(Process process, boolean forcibly) {
         // No-op if the process has already exited by itself.
-        if (processHandle.isAlive() == false) {
+        if (process.isAlive() == false) {
             LOGGER.info("Process was not running when we tried to terminate it.");
             return;
         }
@@ -1013,19 +1011,19 @@ public class OpenSearchNode implements TestClusterConfiguration {
         // they'll be recorded as having failed and won't restart when the cluster restarts.
         // ES could actually be a child when there's some wrapper process like on Windows,
         // and in that case the ML processes will be grandchildren of the wrapper.
-        List<ProcessHandle> children = processHandle.children().collect(Collectors.toList());
+        // List<Process> children = process.children().collect(Collectors.toList());
         try {
-            logProcessInfo(
-                "Terminating " + currentConfig.command + " process" + (forcibly ? " forcibly " : "gracefully") + ":",
-                processHandle.info()
-            );
+            // logProcessInfo(
+            // "Terminating " + currentConfig.command + " process" + (forcibly ? " forcibly " : "gracefully") + ":",
+            // process.info()
+            // );
 
             if (forcibly) {
-                processHandle.destroyForcibly();
+                process.destroyForcibly();
             } else {
-                processHandle.destroy();
-                waitForProcessToExit(processHandle);
-                if (processHandle.isAlive() == false) {
+                process.destroy();
+                waitForProcessToExit(process);
+                if (process.isAlive() == false) {
                     return;
                 }
                 LOGGER.info(
@@ -1033,19 +1031,25 @@ public class OpenSearchNode implements TestClusterConfiguration {
                     OPENSEARCH_DESTROY_TIMEOUT,
                     OPENSEARCH_DESTROY_TIMEOUT_UNIT
                 );
-                processHandle.destroyForcibly();
+                process.destroyForcibly();
             }
 
-            waitForProcessToExit(processHandle);
-            if (processHandle.isAlive()) {
+            waitForProcessToExit(process);
+            if (process.isAlive()) {
                 throw new TestClustersException("Was not able to terminate " + currentConfig.command + " process for " + this);
             }
         } finally {
-            children.forEach(each -> stopHandle(each, forcibly));
+            // children.forEach(each -> stopHandle(each, forcibly));
         }
+
+        // waitForProcessToExit(process);
+        // if (process.isAlive()) {
+        // throw new TestClustersException("Was not able to terminate " + currentConfig.command + " process for " + this);
+        // }
     }
 
-    private void logProcessInfo(String prefix, ProcessHandle.Info info) {
+    /*
+    private void logProcessInfo(String prefix, Process info) {
         LOGGER.info(
             prefix + " commandLine:`{}` command:`{}` args:`{}`",
             info.commandLine().orElse("-"),
@@ -1053,6 +1057,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
             Arrays.stream(info.arguments().orElse(new String[] {})).map(each -> "'" + each + "'").collect(Collectors.joining(" "))
         );
     }
+    */
 
     private void logFileContents(String description, Path from) {
         final Map<String, Integer> errorsAndWarnings = new LinkedHashMap<>();
@@ -1121,16 +1126,14 @@ public class OpenSearchNode implements TestClusterConfiguration {
         return line;
     }
 
-    private void waitForProcessToExit(ProcessHandle processHandle) {
+    private void waitForProcessToExit(Process process) {
         try {
-            processHandle.onExit().get(OPENSEARCH_DESTROY_TIMEOUT, OPENSEARCH_DESTROY_TIMEOUT_UNIT);
+            process.waitFor(OPENSEARCH_DESTROY_TIMEOUT, OPENSEARCH_DESTROY_TIMEOUT_UNIT);
         } catch (InterruptedException e) {
             LOGGER.info("Interrupted while waiting for {} process", currentConfig.command, e);
             Thread.currentThread().interrupt();
-        } catch (ExecutionException e) {
+        } catch (NullPointerException e) {
             LOGGER.info("Failure while waiting for process to exist", e);
-        } catch (TimeoutException e) {
-            LOGGER.info("Timed out waiting for process to exit", e);
         }
     }
 

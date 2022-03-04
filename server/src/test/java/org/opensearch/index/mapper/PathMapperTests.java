@@ -46,7 +46,7 @@ public class PathMapperTests extends OpenSearchSingleNodeTestCase {
         String mapping = copyToStringFromClasspath("/org/opensearch/index/mapper/path/test-mapping.json");
         DocumentMapper docMapper = createIndex("test").mapperService()
             .documentMapperParser()
-            .parse("person", new CompressedXContent(mapping));
+            .parse(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping));
 
         // test full name
         assertThat(docMapper.mappers().getMapper("first1"), nullValue());

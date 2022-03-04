@@ -111,7 +111,7 @@ public class SearchStatsIT extends OpenSearchIntegTestCase {
         );
         int docsTest1 = scaledRandomIntBetween(3 * shardsIdx1, 5 * shardsIdx1);
         for (int i = 0; i < docsTest1; i++) {
-            client().prepareIndex("test1", "type", Integer.toString(i)).setSource("field", "value").get();
+            client().prepareIndex("test1").setId(Integer.toString(i)).setSource("field", "value").get();
             if (rarely()) {
                 refresh();
             }
@@ -123,7 +123,7 @@ public class SearchStatsIT extends OpenSearchIntegTestCase {
         );
         int docsTest2 = scaledRandomIntBetween(3 * shardsIdx2, 5 * shardsIdx2);
         for (int i = 0; i < docsTest2; i++) {
-            client().prepareIndex("test2", "type", Integer.toString(i)).setSource("field", "value").get();
+            client().prepareIndex("test2").setId(Integer.toString(i)).setSource("field", "value").get();
             if (rarely()) {
                 refresh();
             }
@@ -207,7 +207,8 @@ public class SearchStatsIT extends OpenSearchIntegTestCase {
         final int docs = scaledRandomIntBetween(20, 50);
         for (int s = 0; s < numAssignedShards(index); s++) {
             for (int i = 0; i < docs; i++) {
-                client().prepareIndex(index, "type", Integer.toString(s * docs + i))
+                client().prepareIndex(index)
+                    .setId(Integer.toString(s * docs + i))
                     .setSource("field", "value")
                     .setRouting(Integer.toString(s))
                     .get();

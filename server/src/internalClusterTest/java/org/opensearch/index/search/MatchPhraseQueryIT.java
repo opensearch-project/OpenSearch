@@ -82,8 +82,8 @@ public class MatchPhraseQueryIT extends OpenSearchIntegTestCase {
 
     private List<IndexRequestBuilder> getIndexRequests() {
         List<IndexRequestBuilder> requests = new ArrayList<>();
-        requests.add(client().prepareIndex(INDEX, "band").setSource("name", "the beatles"));
-        requests.add(client().prepareIndex(INDEX, "band").setSource("name", "led zeppelin"));
+        requests.add(client().prepareIndex(INDEX).setSource("name", "the beatles"));
+        requests.add(client().prepareIndex(INDEX).setSource("name", "led zeppelin"));
         return requests;
     }
 }

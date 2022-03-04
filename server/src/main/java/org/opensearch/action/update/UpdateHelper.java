@@ -82,8 +82,7 @@ public class UpdateHelper {
      * Prepares an update request by converting it into an index or delete request or an update response (no action).
      */
     public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis) {
-        final GetResult getResult = indexShard.getService()
-            .getForUpdate(request.type(), request.id(), request.ifSeqNo(), request.ifPrimaryTerm());
+        final GetResult getResult = indexShard.getService().getForUpdate(request.id(), request.ifSeqNo(), request.ifPrimaryTerm());
         return prepare(indexShard.shardId(), request, getResult, nowInMillis);
     }
 
@@ -97,7 +96,7 @@ public class UpdateHelper {
             return prepareUpsert(shardId, request, getResult, nowInMillis);
         } else if (getResult.internalSourceRef() == null) {
             // no source, we can't do anything, throw a failure...
-            throw new DocumentSourceMissingException(shardId, request.type(), request.id());
+            throw new DocumentSourceMissingException(shardId, request.id());
         } else if (request.script() == null && request.doc() != null) {
             // The request has no script, it is a new doc that should be merged with the old document
             return prepareUpdateIndexRequest(shardId, request, getResult, request.detectNoop());
@@ -138,7 +137,7 @@ public class UpdateHelper {
      */
     Result prepareUpsert(ShardId shardId, UpdateRequest request, final GetResult getResult, LongSupplier nowInMillis) {
         if (request.upsertRequest() == null && !request.docAsUpsert()) {
-            throw new DocumentMissingException(shardId, request.type(), request.id());
+            throw new DocumentMissingException(shardId, request.id());
         }
         IndexRequest indexRequest = request.docAsUpsert() ? request.doc() : request.upsertRequest();
         if (request.scriptedUpsert() && request.script() != null) {
@@ -156,7 +155,6 @@ public class UpdateHelper {
                 case NONE:
                     UpdateResponse update = new UpdateResponse(
                         shardId,
-                        getResult.getType(),
                         getResult.getId(),
                         getResult.getSeqNo(),
                         getResult.getPrimaryTerm(),
@@ -172,7 +170,6 @@ public class UpdateHelper {
         }
 
         indexRequest.index(request.index())
-            .type(request.type())
             .id(request.id())
             .setRefreshPolicy(request.getRefreshPolicy())
             .routing(request.routing())
@@ -221,7 +218,6 @@ public class UpdateHelper {
         if (detectNoop && noop) {
             UpdateResponse update = new UpdateResponse(
                 shardId,
-                getResult.getType(),
                 getResult.getId(),
                 getResult.getSeqNo(),
                 getResult.getPrimaryTerm(),
@@ -243,7 +239,6 @@ public class UpdateHelper {
             return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
         } else {
             final IndexRequest finalIndexRequest = Requests.indexRequest(request.index())
-                .type(request.type())
                 .id(request.id())
                 .routing(routing)
                 .source(updatedSourceAsMap, updateSourceContentType)
@@ -271,7 +266,6 @@ public class UpdateHelper {
         Map<String, Object> ctx = new HashMap<>(16);
         ctx.put(ContextFields.OP, UpdateOpType.INDEX.toString()); // The default operation is "index"
         ctx.put(ContextFields.INDEX, getResult.getIndex());
-        ctx.put(ContextFields.TYPE, getResult.getType());
         ctx.put(ContextFields.ID, getResult.getId());
         ctx.put(ContextFields.VERSION, getResult.getVersion());
         ctx.put(ContextFields.ROUTING, routing);
@@ -288,7 +282,6 @@ public class UpdateHelper {
         switch (operation) {
             case INDEX:
                 final IndexRequest indexRequest = Requests.indexRequest(request.index())
-                    .type(request.type())
                     .id(request.id())
                     .routing(routing)
                     .source(updatedSourceAsMap, updateSourceContentType)
@@ -300,7 +293,6 @@ public class UpdateHelper {
                 return new Result(indexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
             case DELETE:
                 DeleteRequest deleteRequest = Requests.deleteRequest(request.index())
-                    .type(request.type())
                     .id(request.id())
                     .routing(routing)
                     .setIfSeqNo(getResult.getSeqNo())
@@ -313,7 +305,6 @@ public class UpdateHelper {
                 // If it was neither an INDEX or DELETE operation, treat it as a noop
                 UpdateResponse update = new UpdateResponse(
                     shardId,
-                    getResult.getType(),
                     getResult.getId(),
                     getResult.getSeqNo(),
                     getResult.getPrimaryTerm(),
@@ -386,7 +377,6 @@ public class UpdateHelper {
         // TODO when using delete/none, we can still return the source as bytes by generating it (using the sourceContentType)
         return new GetResult(
             concreteIndex,
-            request.type(),
             request.id(),
             seqNo,
             primaryTerm,

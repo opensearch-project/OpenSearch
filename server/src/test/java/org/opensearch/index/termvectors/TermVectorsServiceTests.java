@@ -72,7 +72,7 @@ public class TermVectorsServiceTests extends OpenSearchSingleNodeTestCase {
         createIndex("test", Settings.EMPTY, "type1", mapping);
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "0").setSource("field", "foo bar").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("0").setSource("field", "foo bar").setRefreshPolicy(IMMEDIATE).get();
 
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));
@@ -107,7 +107,7 @@ public class TermVectorsServiceTests extends OpenSearchSingleNodeTestCase {
         BulkRequestBuilder bulk = client().prepareBulk();
         for (int i = 0; i < max; i++) {
             bulk.add(
-                client().prepareIndex("test", "_doc", Integer.toString(i)).setSource("text", "the quick brown fox jumped over the lazy dog")
+                client().prepareIndex("test").setId(Integer.toString(i)).setSource("text", "the quick brown fox jumped over the lazy dog")
             );
         }
         bulk.get();
@@ -148,7 +148,7 @@ public class TermVectorsServiceTests extends OpenSearchSingleNodeTestCase {
         BulkRequestBuilder bulk = client().prepareBulk();
         for (int i = 0; i < max; i++) {
             bulk.add(
-                client().prepareIndex("test", "_doc", Integer.toString(i)).setSource("text", "the quick brown fox jumped over the lazy dog")
+                client().prepareIndex("test").setId(Integer.toString(i)).setSource("text", "the quick brown fox jumped over the lazy dog")
             );
         }
         bulk.get();

@@ -137,11 +137,11 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
         ensureGreen();
 
         BulkResponse bulkResponse = client().prepareBulk()
-            .add(client().prepareIndex().setIndex(indexOrAlias()).setType("type1").setId("1").setSource("field", 1))
-            .add(client().prepareIndex().setIndex(indexOrAlias()).setType("type1").setId("2").setSource("field", 2).setCreate(true))
-            .add(client().prepareIndex().setIndex(indexOrAlias()).setType("type1").setId("3").setSource("field", 3))
-            .add(client().prepareIndex().setIndex(indexOrAlias()).setType("type1").setId("4").setSource("field", 4))
-            .add(client().prepareIndex().setIndex(indexOrAlias()).setType("type1").setId("5").setSource("field", 5))
+            .add(client().prepareIndex().setIndex(indexOrAlias()).setId("1").setSource("field", 1))
+            .add(client().prepareIndex().setIndex(indexOrAlias()).setId("2").setSource("field", 2).setCreate(true))
+            .add(client().prepareIndex().setIndex(indexOrAlias()).setId("3").setSource("field", 3))
+            .add(client().prepareIndex().setIndex(indexOrAlias()).setId("4").setSource("field", 4))
+            .add(client().prepareIndex().setIndex(indexOrAlias()).setId("5").setSource("field", 5))
             .execute()
             .actionGet();
 
@@ -154,12 +154,11 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
         final Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "ctx._source.field += 1", Collections.emptyMap());
 
         bulkResponse = client().prepareBulk()
-            .add(client().prepareUpdate().setIndex(indexOrAlias()).setType("type1").setId("1").setScript(script))
-            .add(client().prepareUpdate().setIndex(indexOrAlias()).setType("type1").setId("2").setScript(script).setRetryOnConflict(3))
+            .add(client().prepareUpdate().setIndex(indexOrAlias()).setId("1").setScript(script))
+            .add(client().prepareUpdate().setIndex(indexOrAlias()).setId("2").setScript(script).setRetryOnConflict(3))
             .add(
                 client().prepareUpdate()
                     .setIndex(indexOrAlias())
-                    .setType("type1")
                     .setId("3")
                     .setDoc(jsonBuilder().startObject().field("field1", "test").endObject())
             )
@@ -177,17 +176,17 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
         assertThat(bulkResponse.getItems()[2].getResponse().getId(), equalTo("3"));
         assertThat(bulkResponse.getItems()[2].getResponse().getVersion(), equalTo(2L));
 
-        GetResponse getResponse = client().prepareGet().setIndex("test").setType("type1").setId("1").execute().actionGet();
+        GetResponse getResponse = client().prepareGet().setIndex("test").setId("1").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getVersion(), equalTo(2L));
         assertThat(((Number) getResponse.getSource().get("field")).longValue(), equalTo(2L));
 
-        getResponse = client().prepareGet().setIndex("test").setType("type1").setId("2").execute().actionGet();
+        getResponse = client().prepareGet().setIndex("test").setId("2").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getVersion(), equalTo(2L));
         assertThat(((Number) getResponse.getSource().get("field")).longValue(), equalTo(3L));
 
-        getResponse = client().prepareGet().setIndex("test").setType("type1").setId("3").execute().actionGet();
+        getResponse = client().prepareGet().setIndex("test").setId("3").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getVersion(), equalTo(2L));
         assertThat(getResponse.getSource().get("field1").toString(), equalTo("test"));
@@ -196,13 +195,12 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
             .add(
                 client().prepareUpdate()
                     .setIndex(indexOrAlias())
-                    .setType("type1")
                     .setId("6")
                     .setScript(script)
                     .setUpsert(jsonBuilder().startObject().field("field", 0).endObject())
             )
-            .add(client().prepareUpdate().setIndex(indexOrAlias()).setType("type1").setId("7").setScript(script))
-            .add(client().prepareUpdate().setIndex(indexOrAlias()).setType("type1").setId("2").setScript(script))
+            .add(client().prepareUpdate().setIndex(indexOrAlias()).setId("7").setScript(script))
+            .add(client().prepareUpdate().setIndex(indexOrAlias()).setId("2").setScript(script))
             .get();
 
         assertThat(bulkResponse.hasFailures(), equalTo(true));
@@ -217,15 +215,15 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
         assertThat(bulkResponse.getItems()[2].getResponse().getIndex(), equalTo("test"));
         assertThat(bulkResponse.getItems()[2].getResponse().getVersion(), equalTo(3L));
 
-        getResponse = client().prepareGet().setIndex("test").setType("type1").setId("6").execute().actionGet();
+        getResponse = client().prepareGet().setIndex("test").setId("6").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getVersion(), equalTo(1L));
         assertThat(((Number) getResponse.getSource().get("field")).longValue(), equalTo(0L));
 
-        getResponse = client().prepareGet().setIndex("test").setType("type1").setId("7").execute().actionGet();
+        getResponse = client().prepareGet().setIndex("test").setId("7").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
 
-        getResponse = client().prepareGet().setIndex("test").setType("type1").setId("2").execute().actionGet();
+        getResponse = client().prepareGet().setIndex("test").setId("2").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getVersion(), equalTo(3L));
         assertThat(((Number) getResponse.getSource().get("field")).longValue(), equalTo(4L));
@@ -273,9 +271,9 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
         createIndex("test", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build());
         ensureGreen();
         BulkResponse bulkResponse = client().prepareBulk()
-            .add(client().prepareIndex("test", "type", "1").setCreate(true).setSource("field", "1"))
-            .add(client().prepareIndex("test", "type", "2").setCreate(true).setSource("field", "1"))
-            .add(client().prepareIndex("test", "type", "1").setSource("field", "2"))
+            .add(client().prepareIndex("test").setId("1").setCreate(true).setSource("field", "1"))
+            .add(client().prepareIndex("test").setId("2").setCreate(true).setSource("field", "1"))
+            .add(client().prepareIndex("test").setId("1").setSource("field", "2"))
             .get();
 
         assertEquals(DocWriteResponse.Result.CREATED, bulkResponse.getItems()[0].getResponse().getResult());
@@ -286,19 +284,9 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
         assertThat(bulkResponse.getItems()[2].getResponse().getSeqNo(), equalTo(2L));
 
         bulkResponse = client().prepareBulk()
-            .add(
-                client().prepareUpdate("test", "type", "1")
-                    .setIfSeqNo(40L)
-                    .setIfPrimaryTerm(20)
-                    .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "2")
-            )
-            .add(client().prepareUpdate("test", "type", "2").setDoc(Requests.INDEX_CONTENT_TYPE, "field", "2"))
-            .add(
-                client().prepareUpdate("test", "type", "1")
-                    .setIfSeqNo(2L)
-                    .setIfPrimaryTerm(1)
-                    .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "3")
-            )
+            .add(client().prepareUpdate("test", "1").setIfSeqNo(40L).setIfPrimaryTerm(20).setDoc(Requests.INDEX_CONTENT_TYPE, "field", "2"))
+            .add(client().prepareUpdate("test", "2").setDoc(Requests.INDEX_CONTENT_TYPE, "field", "2"))
+            .add(client().prepareUpdate("test", "1").setIfSeqNo(2L).setIfPrimaryTerm(1).setDoc(Requests.INDEX_CONTENT_TYPE, "field", "3"))
             .get();
 
         assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("version conflict"));
@@ -306,9 +294,9 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
         assertThat(bulkResponse.getItems()[2].getResponse().getSeqNo(), equalTo(4L));
 
         bulkResponse = client().prepareBulk()
-            .add(client().prepareIndex("test", "type", "e1").setSource("field", "1").setVersion(10).setVersionType(VersionType.EXTERNAL))
-            .add(client().prepareIndex("test", "type", "e2").setSource("field", "1").setVersion(10).setVersionType(VersionType.EXTERNAL))
-            .add(client().prepareIndex("test", "type", "e1").setSource("field", "2").setVersion(12).setVersionType(VersionType.EXTERNAL))
+            .add(client().prepareIndex("test").setId("e1").setSource("field", "1").setVersion(10).setVersionType(VersionType.EXTERNAL))
+            .add(client().prepareIndex("test").setId("e2").setSource("field", "1").setVersion(10).setVersionType(VersionType.EXTERNAL))
+            .add(client().prepareIndex("test").setId("e1").setSource("field", "2").setVersion(12).setVersionType(VersionType.EXTERNAL))
             .get();
 
         assertEquals(DocWriteResponse.Result.CREATED, bulkResponse.getItems()[0].getResponse().getResult());
@@ -319,18 +307,8 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
         assertThat(bulkResponse.getItems()[2].getResponse().getVersion(), equalTo(12L));
 
         bulkResponse = client().prepareBulk()
-            .add(
-                client().prepareUpdate("test", "type", "e1")
-                    .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "2")
-                    .setIfSeqNo(10L)
-                    .setIfPrimaryTerm(1)
-            )
-            .add(
-                client().prepareUpdate("test", "type", "e1")
-                    .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "3")
-                    .setIfSeqNo(20L)
-                    .setIfPrimaryTerm(1)
-            )
+            .add(client().prepareUpdate("test", "e1").setDoc(Requests.INDEX_CONTENT_TYPE, "field", "2").setIfSeqNo(10L).setIfPrimaryTerm(1))
+            .add(client().prepareUpdate("test", "e1").setDoc(Requests.INDEX_CONTENT_TYPE, "field", "3").setIfSeqNo(20L).setIfPrimaryTerm(1))
             .get();
 
         assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("version conflict"));
@@ -342,9 +320,9 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
         ensureGreen();
 
         BulkResponse bulkResponse = client().prepareBulk()
-            .add(client().prepareIndex().setIndex("test").setType("type1").setId("1").setSource("field", 1))
-            .add(client().prepareIndex().setIndex("test").setType("type1").setId("2").setSource("field", 1))
-            .add(client().prepareIndex().setIndex("test").setType("type1").setId("3").setSource("field", 1))
+            .add(client().prepareIndex().setIndex("test").setId("1").setSource("field", 1))
+            .add(client().prepareIndex().setIndex("test").setId("2").setSource("field", 1))
+            .add(client().prepareIndex().setIndex("test").setId("3").setSource("field", 1))
             .execute()
             .actionGet();
 
@@ -355,7 +333,6 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
             .add(
                 client().prepareUpdate()
                     .setIndex("test")
-                    .setType("type1")
                     .setId("1")
                     .setFetchSource("field", null)
                     .setScript(
@@ -370,7 +347,6 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
             .add(
                 client().prepareUpdate()
                     .setIndex("test")
-                    .setType("type1")
                     .setId("2")
                     .setFetchSource("field", null)
                     .setScript(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "ctx._source.field += 1", Collections.emptyMap()))
@@ -378,7 +354,6 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
             .add(
                 client().prepareUpdate()
                     .setIndex("test")
-                    .setType("type1")
                     .setId("3")
                     .setFetchSource("field", null)
                     .setScript(
@@ -425,7 +400,6 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
             builder.add(
                 client().prepareUpdate()
                     .setIndex("test")
-                    .setType("type1")
                     .setId(Integer.toString(i))
                     .setFetchSource("counter", null)
                     .setScript(script)
@@ -440,14 +414,13 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
             assertThat(response.getItems()[i].getId(), equalTo(Integer.toString(i)));
             assertThat(response.getItems()[i].getVersion(), equalTo(1L));
             assertThat(response.getItems()[i].getIndex(), equalTo("test"));
-            assertThat(response.getItems()[i].getType(), equalTo("type1"));
             assertThat(response.getItems()[i].getOpType(), equalTo(OpType.UPDATE));
             assertThat(response.getItems()[i].getResponse().getId(), equalTo(Integer.toString(i)));
             assertThat(response.getItems()[i].getResponse().getVersion(), equalTo(1L));
             assertThat(((UpdateResponse) response.getItems()[i].getResponse()).getGetResult().sourceAsMap().get("counter"), equalTo(1));
 
             for (int j = 0; j < 5; j++) {
-                GetResponse getResponse = client().prepareGet("test", "type1", Integer.toString(i)).execute().actionGet();
+                GetResponse getResponse = client().prepareGet("test", Integer.toString(i)).execute().actionGet();
                 assertThat(getResponse.isExists(), equalTo(true));
                 assertThat(getResponse.getVersion(), equalTo(1L));
                 assertThat(((Number) getResponse.getSource().get("counter")).longValue(), equalTo(1L));
@@ -458,7 +431,6 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             UpdateRequestBuilder updateBuilder = client().prepareUpdate()
                 .setIndex("test")
-                .setType("type1")
                 .setId(Integer.toString(i))
                 .setFetchSource("counter", null);
             if (i % 2 == 0) {
@@ -480,7 +452,6 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
             assertThat(response.getItems()[i].getId(), equalTo(Integer.toString(i)));
             assertThat(response.getItems()[i].getVersion(), equalTo(2L));
             assertThat(response.getItems()[i].getIndex(), equalTo("test"));
-            assertThat(response.getItems()[i].getType(), equalTo("type1"));
             assertThat(response.getItems()[i].getOpType(), equalTo(OpType.UPDATE));
             assertThat(response.getItems()[i].getResponse().getId(), equalTo(Integer.toString(i)));
             assertThat(response.getItems()[i].getResponse().getVersion(), equalTo(2L));
@@ -490,7 +461,7 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
         builder = client().prepareBulk();
         int maxDocs = numDocs / 2 + numDocs;
         for (int i = (numDocs / 2); i < maxDocs; i++) {
-            builder.add(client().prepareUpdate().setIndex("test").setType("type1").setId(Integer.toString(i)).setScript(script));
+            builder.add(client().prepareUpdate().setIndex("test").setId(Integer.toString(i)).setScript(script));
         }
         response = builder.execute().actionGet();
         assertThat(response.hasFailures(), equalTo(true));
@@ -504,7 +475,6 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
                 assertThat(response.getItems()[i].getId(), equalTo(Integer.toString(id)));
                 assertThat(response.getItems()[i].getVersion(), equalTo(3L));
                 assertThat(response.getItems()[i].getIndex(), equalTo("test"));
-                assertThat(response.getItems()[i].getType(), equalTo("type1"));
                 assertThat(response.getItems()[i].getOpType(), equalTo(OpType.UPDATE));
             }
         }
@@ -514,7 +484,6 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
             builder.add(
                 client().prepareUpdate()
                     .setIndex("test")
-                    .setType("type1")
                     .setId(Integer.toString(i))
                     .setScript(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "ctx.op = \"none\"", Collections.emptyMap()))
             );
@@ -526,7 +495,6 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
             assertThat(response.getItems()[i].getItemId(), equalTo(i));
             assertThat(response.getItems()[i].getId(), equalTo(Integer.toString(i)));
             assertThat(response.getItems()[i].getIndex(), equalTo("test"));
-            assertThat(response.getItems()[i].getType(), equalTo("type1"));
             assertThat(response.getItems()[i].getOpType(), equalTo(OpType.UPDATE));
         }
 
@@ -535,7 +503,6 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
             builder.add(
                 client().prepareUpdate()
                     .setIndex("test")
-                    .setType("type1")
                     .setId(Integer.toString(i))
                     .setScript(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "ctx.op = \"delete\"", Collections.emptyMap()))
             );
@@ -550,10 +517,9 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
             assertThat(itemResponse.getItemId(), equalTo(i));
             assertThat(itemResponse.getId(), equalTo(Integer.toString(i)));
             assertThat(itemResponse.getIndex(), equalTo("test"));
-            assertThat(itemResponse.getType(), equalTo("type1"));
             assertThat(itemResponse.getOpType(), equalTo(OpType.UPDATE));
             for (int j = 0; j < 5; j++) {
-                GetResponse getResponse = client().prepareGet("test", "type1", Integer.toString(i)).get();
+                GetResponse getResponse = client().prepareGet("test", Integer.toString(i)).get();
                 assertThat(getResponse.isExists(), equalTo(false));
             }
         }
@@ -572,7 +538,7 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < numDocs;) {
             final BulkRequestBuilder builder = client().prepareBulk();
             for (int j = 0; j < bulk && i < numDocs; j++, i++) {
-                builder.add(client().prepareIndex("test", "type1", Integer.toString(i)).setSource("val", i));
+                builder.add(client().prepareIndex("test").setId(Integer.toString(i)).setSource("val", i));
             }
             logger.info("bulk indexing {}-{}", i - bulk, i - 1);
             BulkResponse response = builder.get();
@@ -604,7 +570,7 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
                 }
                 BulkRequestBuilder requestBuilder = client().prepareBulk();
                 requestBuilder.add(
-                    client().prepareUpdate("test", "type", "1")
+                    client().prepareUpdate("test", "1")
                         .setIfSeqNo(0L)
                         .setIfPrimaryTerm(1)
                         .setDoc(Requests.INDEX_CONTENT_TYPE, "field", threadID)
@@ -648,7 +614,7 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
             } else {
                 name = "test";
             }
-            builder.add(client().prepareIndex().setIndex(name).setType("type1").setId("1").setSource("field", 1));
+            builder.add(client().prepareIndex().setIndex(name).setId("1").setSource("field", 1));
         }
         BulkResponse bulkResponse = builder.get();
         assertThat(bulkResponse.hasFailures(), is(expectFailure));
@@ -661,21 +627,21 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
     // issue 6630
     public void testThatFailedUpdateRequestReturnsCorrectType() throws Exception {
         BulkResponse indexBulkItemResponse = client().prepareBulk()
-            .add(new IndexRequest("test", "type", "3").source("{ \"title\" : \"Great Title of doc 3\" }", XContentType.JSON))
-            .add(new IndexRequest("test", "type", "4").source("{ \"title\" : \"Great Title of doc 4\" }", XContentType.JSON))
-            .add(new IndexRequest("test", "type", "5").source("{ \"title\" : \"Great Title of doc 5\" }", XContentType.JSON))
-            .add(new IndexRequest("test", "type", "6").source("{ \"title\" : \"Great Title of doc 6\" }", XContentType.JSON))
+            .add(new IndexRequest("test").id("3").source("{ \"title\" : \"Great Title of doc 3\" }", XContentType.JSON))
+            .add(new IndexRequest("test").id("4").source("{ \"title\" : \"Great Title of doc 4\" }", XContentType.JSON))
+            .add(new IndexRequest("test").id("5").source("{ \"title\" : \"Great Title of doc 5\" }", XContentType.JSON))
+            .add(new IndexRequest("test").id("6").source("{ \"title\" : \"Great Title of doc 6\" }", XContentType.JSON))
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .get();
         assertNoFailures(indexBulkItemResponse);
 
         BulkResponse bulkItemResponse = client().prepareBulk()
-            .add(new IndexRequest("test", "type", "1").source("{ \"title\" : \"Great Title of doc 1\" }", XContentType.JSON))
-            .add(new IndexRequest("test", "type", "2").source("{ \"title\" : \"Great Title of doc 2\" }", XContentType.JSON))
-            .add(new UpdateRequest("test", "type", "3").doc("{ \"date\" : \"2014-01-30T23:59:57\"}", XContentType.JSON))
-            .add(new UpdateRequest("test", "type", "4").doc("{ \"date\" : \"2014-13-30T23:59:57\"}", XContentType.JSON))
-            .add(new DeleteRequest("test", "type", "5"))
-            .add(new DeleteRequest("test", "type", "6"))
+            .add(new IndexRequest("test").id("1").source("{ \"title\" : \"Great Title of doc 1\" }", XContentType.JSON))
+            .add(new IndexRequest("test").id("2").source("{ \"title\" : \"Great Title of doc 2\" }", XContentType.JSON))
+            .add(new UpdateRequest("test", "3").doc("{ \"date\" : \"2014-01-30T23:59:57\"}", XContentType.JSON))
+            .add(new UpdateRequest("test", "4").doc("{ \"date\" : \"2014-13-30T23:59:57\"}", XContentType.JSON))
+            .add(new DeleteRequest("test", "5"))
+            .add(new DeleteRequest("test", "6"))
             .get();
 
         assertNoFailures(indexBulkItemResponse);
@@ -696,11 +662,11 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
     public void testThatMissingIndexDoesNotAbortFullBulkRequest() throws Exception {
         createIndex("bulkindex1", "bulkindex2");
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(new IndexRequest("bulkindex1", "index1_type", "1").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo1"))
-            .add(new IndexRequest("bulkindex2", "index2_type", "1").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo2"))
-            .add(new IndexRequest("bulkindex2", "index2_type").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo2"))
-            .add(new UpdateRequest("bulkindex2", "index2_type", "2").doc(Requests.INDEX_CONTENT_TYPE, "foo", "bar"))
-            .add(new DeleteRequest("bulkindex2", "index2_type", "3"))
+        bulkRequest.add(new IndexRequest("bulkindex1").id("1").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo1"))
+            .add(new IndexRequest("bulkindex2").id("1").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo2"))
+            .add(new IndexRequest("bulkindex2").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo2"))
+            .add(new UpdateRequest("bulkindex2", "2").doc(Requests.INDEX_CONTENT_TYPE, "foo", "bar"))
+            .add(new DeleteRequest("bulkindex2", "3"))
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
 
         client().bulk(bulkRequest).get();
@@ -710,11 +676,11 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
         assertBusy(() -> assertAcked(client().admin().indices().prepareClose("bulkindex2")));
 
         BulkRequest bulkRequest2 = new BulkRequest();
-        bulkRequest2.add(new IndexRequest("bulkindex1", "index1_type", "1").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo1"))
-            .add(new IndexRequest("bulkindex2", "index2_type", "1").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo2"))
-            .add(new IndexRequest("bulkindex2", "index2_type").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo2"))
-            .add(new UpdateRequest("bulkindex2", "index2_type", "2").doc(Requests.INDEX_CONTENT_TYPE, "foo", "bar"))
-            .add(new DeleteRequest("bulkindex2", "index2_type", "3"))
+        bulkRequest2.add(new IndexRequest("bulkindex1").id("1").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo1"))
+            .add(new IndexRequest("bulkindex2").id("1").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo2"))
+            .add(new IndexRequest("bulkindex2").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo2"))
+            .add(new UpdateRequest("bulkindex2", "2").doc(Requests.INDEX_CONTENT_TYPE, "foo", "bar"))
+            .add(new DeleteRequest("bulkindex2", "3"))
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
 
         BulkResponse bulkResponse = client().bulk(bulkRequest2).get();
@@ -726,13 +692,13 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
     public void testFailedRequestsOnClosedIndex() throws Exception {
         createIndex("bulkindex1");
 
-        client().prepareIndex("bulkindex1", "index1_type", "1").setSource("text", "test").get();
+        client().prepareIndex("bulkindex1").setId("1").setSource("text", "test").get();
         assertBusy(() -> assertAcked(client().admin().indices().prepareClose("bulkindex1")));
 
         BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(RefreshPolicy.IMMEDIATE);
-        bulkRequest.add(new IndexRequest("bulkindex1", "index1_type", "1").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo1"))
-            .add(new UpdateRequest("bulkindex1", "index1_type", "1").doc(Requests.INDEX_CONTENT_TYPE, "foo", "bar"))
-            .add(new DeleteRequest("bulkindex1", "index1_type", "1"));
+        bulkRequest.add(new IndexRequest("bulkindex1").id("1").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo1"))
+            .add(new UpdateRequest("bulkindex1", "1").doc(Requests.INDEX_CONTENT_TYPE, "foo", "bar"))
+            .add(new DeleteRequest("bulkindex1", "1"));
 
         BulkResponse bulkResponse = client().bulk(bulkRequest).get();
         assertThat(bulkResponse.hasFailures(), is(true));
@@ -749,21 +715,9 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
     // issue 9821
     public void testInvalidIndexNamesCorrectOpType() {
         BulkResponse bulkResponse = client().prepareBulk()
-            .add(
-                client().prepareIndex()
-                    .setIndex("INVALID.NAME")
-                    .setType("type1")
-                    .setId("1")
-                    .setSource(Requests.INDEX_CONTENT_TYPE, "field", 1)
-            )
-            .add(
-                client().prepareUpdate()
-                    .setIndex("INVALID.NAME")
-                    .setType("type1")
-                    .setId("1")
-                    .setDoc(Requests.INDEX_CONTENT_TYPE, "field", randomInt())
-            )
-            .add(client().prepareDelete().setIndex("INVALID.NAME").setType("type1").setId("1"))
+            .add(client().prepareIndex().setIndex("INVALID.NAME").setId("1").setSource(Requests.INDEX_CONTENT_TYPE, "field", 1))
+            .add(client().prepareUpdate().setIndex("INVALID.NAME").setId("1").setDoc(Requests.INDEX_CONTENT_TYPE, "field", randomInt()))
+            .add(client().prepareDelete().setIndex("INVALID.NAME").setId("1"))
             .get();
         assertThat(bulkResponse.getItems().length, is(3));
         assertThat(bulkResponse.getItems()[0].getOpType(), is(OpType.INDEX));

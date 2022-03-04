@@ -304,7 +304,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * ("field1", "type=string,store=true").
      */
     public PutIndexTemplateRequest mapping(String type, Object... source) {
-        mapping(type, PutMappingRequest.buildFromSimplifiedDef(type, source));
+        mapping(type, PutMappingRequest.buildFromSimplifiedDef(source));
         return this;
     }
 

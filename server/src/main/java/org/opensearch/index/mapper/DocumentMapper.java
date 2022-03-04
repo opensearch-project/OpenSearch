@@ -153,7 +153,7 @@ public class DocumentMapper implements ToXContentFragment {
         this.fieldMappers = MappingLookup.fromMapping(this.mapping, indexAnalyzers.getDefaultIndexAnalyzer());
 
         try {
-            mappingSource = new CompressedXContent(this, XContentType.JSON, ToXContent.EMPTY_PARAMS);
+            mappingSource = new CompressedXContent(this, ToXContent.EMPTY_PARAMS);
         } catch (Exception e) {
             throw new OpenSearchGenerationException("failed to serialize source for type [" + type + "]", e);
         }

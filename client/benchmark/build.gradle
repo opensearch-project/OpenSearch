@@ -43,7 +43,7 @@ mainClassName = 'org.opensearch.client.benchmark.BenchmarkMain'
 test.enabled = false
 
 dependencies {
-  api 'org.apache.commons:commons-math3:3.2'
+  api 'org.apache.commons:commons-math3:3.6.1'
 
   api project(":client:rest")
   // bottleneck should be the client, not OpenSearch

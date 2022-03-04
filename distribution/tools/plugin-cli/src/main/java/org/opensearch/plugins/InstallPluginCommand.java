@@ -218,11 +218,23 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             Arrays.asList("b", "batch"),
             "Enable batch mode explicitly, automatic confirmation of security permission"
         );
-        this.arguments = parser.nonOptions("plugin id");
+        this.arguments = parser.nonOptions("plugin <name|Zip File|URL>");
     }
 
     @Override
     protected void printAdditionalHelp(Terminal terminal) {
+        terminal.println("Plugins are packaged as zip files. Each packaged plugin must contain a plugin properties file.");
+        terminal.println("");
+
+        // List possible plugin id inputs
+        terminal.println("The install command takes a plugin id, which may be any of the following:");
+        terminal.println("  An official opensearch plugin name");
+        terminal.println("  Maven coordinates to a plugin zip");
+        terminal.println("  A URL to a plugin zip");
+        terminal.println("  A local zip file");
+        terminal.println("");
+
+        // List official opensearch plugin names
         terminal.println("The following official plugins may be installed by name:");
         for (String plugin : OFFICIAL_PLUGINS) {
             terminal.println("  " + plugin);

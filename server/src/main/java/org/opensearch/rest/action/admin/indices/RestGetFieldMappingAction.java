@@ -68,15 +68,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(
-            asList(
-                new Route(GET, "/_mapping/field/{fields}"),
-                new Route(GET, "/_mapping/{type}/field/{fields}"),
-                new Route(GET, "/{index}/_mapping/field/{fields}"),
-                new Route(GET, "/{index}/{type}/_mapping/field/{fields}"),
-                new Route(GET, "/{index}/_mapping/{type}/field/{fields}")
-            )
-        );
+        return unmodifiableList(asList(new Route(GET, "/_mapping/field/{fields}"), new Route(GET, "/{index}/_mapping/field/{fields}")));
     }
 
     @Override
@@ -87,20 +79,19 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
         final String[] fields = Strings.splitStringByCommaToArray(request.param("fields"));
 
-        boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
-        if (includeTypeName == false && types.length > 0) {
-            throw new IllegalArgumentException("Types cannot be specified unless include_type_name" + " is set to true.");
-        }
+        GetFieldMappingsRequest getMappingsRequest = new GetFieldMappingsRequest();
+        getMappingsRequest.indices(indices).fields(fields).includeDefaults(request.paramAsBoolean("include_defaults", false));
+        getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
+
         if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
+            boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+            if (includeTypeName) {
+                throw new IllegalArgumentException(INCLUDE_TYPE_NAME_PARAMETER + " no longer supports the value [true].");
+            }
             deprecationLogger.deprecate("get_field_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
         }
-
-        GetFieldMappingsRequest getMappingsRequest = new GetFieldMappingsRequest();
-        getMappingsRequest.indices(indices).types(types).fields(fields).includeDefaults(request.paramAsBoolean("include_defaults", false));
-        getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
 
         if (request.hasParam("local")) {
             deprecationLogger.deprecate(
@@ -116,7 +107,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
                 public RestResponse buildResponse(GetFieldMappingsResponse response, XContentBuilder builder) throws Exception {
                     Map<String, Map<String, Map<String, FieldMappingMetadata>>> mappingsByIndex = response.mappings();
 
-                    boolean isPossibleSingleFieldRequest = indices.length == 1 && types.length == 1 && fields.length == 1;
+                    boolean isPossibleSingleFieldRequest = indices.length == 1 && fields.length == 1;
                     if (isPossibleSingleFieldRequest && isFieldMappingMissingField(mappingsByIndex)) {
                         return new BytesRestResponse(OK, builder.startObject().endObject());
                     }
@@ -126,7 +117,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
                         status = NOT_FOUND;
                     }
                     response.toXContent(builder, request);
-                    return new BytesRestResponse(status, builder);
+                    return new BytesRestResponse(RestStatus.OK, builder);
                 }
             });
     }

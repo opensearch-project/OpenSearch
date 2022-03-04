@@ -109,7 +109,7 @@ public class MappingUpdatedAction {
      * {@code timeout} is the master node timeout ({@link MasterNodeRequest#masterNodeTimeout()}),
      * potentially waiting for a master node to be available.
      */
-    public void updateMappingOnMaster(Index index, String type, Mapping mappingUpdate, ActionListener<Void> listener) {
+    public void updateMappingOnMaster(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {
 
         final RunOnce release = new RunOnce(() -> semaphore.release());
         try {
@@ -121,7 +121,7 @@ public class MappingUpdatedAction {
         }
         boolean successFullySent = false;
         try {
-            sendUpdateMapping(index, type, mappingUpdate, ActionListener.runBefore(listener, release::run));
+            sendUpdateMapping(index, mappingUpdate, ActionListener.runBefore(listener, release::run));
             successFullySent = true;
         } finally {
             if (successFullySent == false) {
@@ -136,10 +136,9 @@ public class MappingUpdatedAction {
     }
 
     // can be overridden by tests
-    protected void sendUpdateMapping(Index index, String type, Mapping mappingUpdate, ActionListener<Void> listener) {
+    protected void sendUpdateMapping(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {
         PutMappingRequest putMappingRequest = new PutMappingRequest();
         putMappingRequest.setConcreteIndex(index);
-        putMappingRequest.type(type);
         putMappingRequest.source(mappingUpdate.toString(), XContentType.JSON);
         putMappingRequest.masterNodeTimeout(dynamicMappingUpdateTimeout);
         putMappingRequest.timeout(TimeValue.ZERO);

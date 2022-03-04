@@ -293,7 +293,8 @@ public class ScriptedMetricIT extends OpenSearchIntegTestCase {
         numDocs = randomIntBetween(10, 100);
         for (int i = 0; i < numDocs; i++) {
             builders.add(
-                client().prepareIndex("idx", "type", "" + i)
+                client().prepareIndex("idx")
+                    .setId("" + i)
                     .setSource(
                         jsonBuilder().startObject().field("value", randomAlphaOfLengthBetween(5, 15)).field("l_value", i).endObject()
                     )
@@ -313,7 +314,8 @@ public class ScriptedMetricIT extends OpenSearchIntegTestCase {
         builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             builders.add(
-                client().prepareIndex("empty_bucket_idx", "type", "" + i)
+                client().prepareIndex("empty_bucket_idx")
+                    .setId("" + i)
                     .setSource(jsonBuilder().startObject().field("value", i * 2).endObject())
             );
         }
@@ -1187,8 +1189,8 @@ public class ScriptedMetricIT extends OpenSearchIntegTestCase {
         );
         indexRandom(
             true,
-            client().prepareIndex("cache_test_idx", "type", "1").setSource("s", 1),
-            client().prepareIndex("cache_test_idx", "type", "2").setSource("s", 2)
+            client().prepareIndex("cache_test_idx").setId("1").setSource("s", 1),
+            client().prepareIndex("cache_test_idx").setId("2").setSource("s", 2)
         );
 
         // Make sure we are starting with a clear cache

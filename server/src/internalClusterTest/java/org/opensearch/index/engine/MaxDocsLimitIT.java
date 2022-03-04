@@ -123,7 +123,7 @@ public class MaxDocsLimitIT extends OpenSearchIntegTestCase {
         assertThat(indexingResult.numSuccess, equalTo(0));
         final IllegalArgumentException deleteError = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareDelete("test", "_doc", "any-id").get()
+            () -> client().prepareDelete("test", "any-id").get()
         );
         assertThat(deleteError.getMessage(), containsString("Number of documents in the index can't exceed [" + maxDocs.get() + "]"));
         client().admin().indices().prepareRefresh("test").get();
@@ -206,7 +206,7 @@ public class MaxDocsLimitIT extends OpenSearchIntegTestCase {
                 phaser.arriveAndAwaitAdvance();
                 while (completedRequests.incrementAndGet() <= numRequests) {
                     try {
-                        final IndexResponse resp = client().prepareIndex("test", "_doc").setSource("{}", XContentType.JSON).get();
+                        final IndexResponse resp = client().prepareIndex("test").setSource("{}", XContentType.JSON).get();
                         numSuccess.incrementAndGet();
                         assertThat(resp.status(), equalTo(RestStatus.CREATED));
                     } catch (IllegalArgumentException e) {

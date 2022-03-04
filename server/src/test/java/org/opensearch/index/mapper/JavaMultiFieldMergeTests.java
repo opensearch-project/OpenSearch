@@ -50,20 +50,22 @@ public class JavaMultiFieldMergeTests extends OpenSearchSingleNodeTestCase {
         String mapping = copyToStringFromClasspath("/org/opensearch/index/mapper/multifield/merge/test-mapping1.json");
         MapperService mapperService = createIndex("test").mapperService();
 
-        mapperService.merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
         assertTrue(mapperService.fieldType("name").isSearchable());
         assertThat(mapperService.fieldType("name.indexed"), nullValue());
 
         BytesReference json = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("name", "some name").endObject());
-        Document doc = mapperService.documentMapper().parse(new SourceToParse("test", "person", "1", json, XContentType.JSON)).rootDoc();
+        Document doc = mapperService.documentMapper()
+            .parse(new SourceToParse("test", MapperService.SINGLE_MAPPING_NAME, "1", json, XContentType.JSON))
+            .rootDoc();
         IndexableField f = doc.getField("name");
         assertThat(f, notNullValue());
         f = doc.getField("name.indexed");
         assertThat(f, nullValue());
 
         mapping = copyToStringFromClasspath("/org/opensearch/index/mapper/multifield/merge/test-mapping2.json");
-        mapperService.merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
         assertTrue(mapperService.fieldType("name").isSearchable());
 
@@ -72,14 +74,16 @@ public class JavaMultiFieldMergeTests extends OpenSearchSingleNodeTestCase {
         assertThat(mapperService.fieldType("name.not_indexed2"), nullValue());
         assertThat(mapperService.fieldType("name.not_indexed3"), nullValue());
 
-        doc = mapperService.documentMapper().parse(new SourceToParse("test", "person", "1", json, XContentType.JSON)).rootDoc();
+        doc = mapperService.documentMapper()
+            .parse(new SourceToParse("test", MapperService.SINGLE_MAPPING_NAME, "1", json, XContentType.JSON))
+            .rootDoc();
         f = doc.getField("name");
         assertThat(f, notNullValue());
         f = doc.getField("name.indexed");
         assertThat(f, notNullValue());
 
         mapping = copyToStringFromClasspath("/org/opensearch/index/mapper/multifield/merge/test-mapping3.json");
-        mapperService.merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
         assertTrue(mapperService.fieldType("name").isSearchable());
 
@@ -89,7 +93,7 @@ public class JavaMultiFieldMergeTests extends OpenSearchSingleNodeTestCase {
         assertThat(mapperService.fieldType("name.not_indexed3"), nullValue());
 
         mapping = copyToStringFromClasspath("/org/opensearch/index/mapper/multifield/merge/test-mapping4.json");
-        mapperService.merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
         assertTrue(mapperService.fieldType("name").isSearchable());
 
@@ -103,20 +107,22 @@ public class JavaMultiFieldMergeTests extends OpenSearchSingleNodeTestCase {
         String mapping = copyToStringFromClasspath("/org/opensearch/index/mapper/multifield/merge/test-mapping1.json");
         MapperService mapperService = createIndex("test").mapperService();
 
-        mapperService.merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
         assertTrue(mapperService.fieldType("name").isSearchable());
         assertThat(mapperService.fieldType("name.indexed"), nullValue());
 
         BytesReference json = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("name", "some name").endObject());
-        Document doc = mapperService.documentMapper().parse(new SourceToParse("test", "person", "1", json, XContentType.JSON)).rootDoc();
+        Document doc = mapperService.documentMapper()
+            .parse(new SourceToParse("test", MapperService.SINGLE_MAPPING_NAME, "1", json, XContentType.JSON))
+            .rootDoc();
         IndexableField f = doc.getField("name");
         assertThat(f, notNullValue());
         f = doc.getField("name.indexed");
         assertThat(f, nullValue());
 
         mapping = copyToStringFromClasspath("/org/opensearch/index/mapper/multifield/merge/upgrade1.json");
-        mapperService.merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
         assertTrue(mapperService.fieldType("name").isSearchable());
 
@@ -125,14 +131,16 @@ public class JavaMultiFieldMergeTests extends OpenSearchSingleNodeTestCase {
         assertThat(mapperService.fieldType("name.not_indexed2"), nullValue());
         assertThat(mapperService.fieldType("name.not_indexed3"), nullValue());
 
-        doc = mapperService.documentMapper().parse(new SourceToParse("test", "person", "1", json, XContentType.JSON)).rootDoc();
+        doc = mapperService.documentMapper()
+            .parse(new SourceToParse("test", MapperService.SINGLE_MAPPING_NAME, "1", json, XContentType.JSON))
+            .rootDoc();
         f = doc.getField("name");
         assertThat(f, notNullValue());
         f = doc.getField("name.indexed");
         assertThat(f, notNullValue());
 
         mapping = copyToStringFromClasspath("/org/opensearch/index/mapper/multifield/merge/upgrade2.json");
-        mapperService.merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
         assertTrue(mapperService.fieldType("name").isSearchable());
 
@@ -143,7 +151,11 @@ public class JavaMultiFieldMergeTests extends OpenSearchSingleNodeTestCase {
 
         mapping = copyToStringFromClasspath("/org/opensearch/index/mapper/multifield/merge/upgrade3.json");
         try {
-            mapperService.merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+            mapperService.merge(
+                MapperService.SINGLE_MAPPING_NAME,
+                new CompressedXContent(mapping),
+                MapperService.MergeReason.MAPPING_UPDATE
+            );
             fail();
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("Cannot update parameter [index] from [true] to [false]"));
