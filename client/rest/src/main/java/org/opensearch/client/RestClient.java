@@ -343,6 +343,7 @@ public class RestClient implements Closeable {
         if (isSuccessfulResponse(statusCode) || request.ignoreErrorCodes.contains(response.getStatusLine().getStatusCode())) {
             onResponse(node);
             if (request.warningsHandler.warningsShouldFailRequest(response.getWarnings())) {
+                logger.warn(Arrays.toString(response.getWarnings().toArray()));
                 throw new WarningFailureException(response);
             }
             return new ResponseOrResponseException(response);
