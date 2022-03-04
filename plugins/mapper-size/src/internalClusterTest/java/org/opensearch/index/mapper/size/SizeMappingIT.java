@@ -36,6 +36,7 @@ import org.opensearch.action.get.GetResponse;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.plugin.mapper.MapperSizePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -62,7 +63,7 @@ public class SizeMappingIT extends OpenSearchIntegTestCase {
     // issue 5053
     public void testThatUpdatingMappingShouldNotRemoveSizeMappingConfiguration() throws Exception {
         String index = "foo";
-        String type = "mytype";
+        String type = MapperService.SINGLE_MAPPING_NAME;
 
         XContentBuilder builder = jsonBuilder().startObject().startObject("_size").field("enabled", true).endObject().endObject();
         assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
