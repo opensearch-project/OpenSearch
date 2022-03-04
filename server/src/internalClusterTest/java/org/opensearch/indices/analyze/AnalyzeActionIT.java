@@ -155,7 +155,7 @@ public class AnalyzeActionIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         ensureGreen();
 
-        client().admin().indices().preparePutMapping("test").setType("document").setSource("simple", "type=text,analyzer=simple").get();
+        client().admin().indices().preparePutMapping("test").setSource("simple", "type=text,analyzer=simple").get();
 
         for (int i = 0; i < 10; i++) {
             final AnalyzeRequestBuilder requestBuilder = client().admin().indices().prepareAnalyze("THIS IS A TEST");
@@ -201,7 +201,6 @@ public class AnalyzeActionIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .preparePutMapping("test")
-            .setType("document")
             .setSource("simple", "type=text,analyzer=simple,position_increment_gap=100")
             .get();
 
@@ -304,7 +303,6 @@ public class AnalyzeActionIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .preparePutMapping("test")
-            .setType("document")
             .setSource("simple", "type=text,analyzer=simple,position_increment_gap=100")
             .get();
 

@@ -110,20 +110,14 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
             docType,
             new CompressedXContent(
                 Strings.toString(
-                    PutMappingRequest.buildFromSimplifiedDef(
-                        docType,
-                        queryField,
-                        "type=percolator",
-                        aliasField,
-                        "type=alias,path=" + queryField
-                    )
+                    PutMappingRequest.buildFromSimplifiedDef(queryField, "type=percolator", aliasField, "type=alias,path=" + queryField)
                 )
             ),
             MapperService.MergeReason.MAPPING_UPDATE
         );
         mapperService.merge(
             docType,
-            new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(docType, TEXT_FIELD_NAME, "type=text"))),
+            new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(TEXT_FIELD_NAME, "type=text"))),
             MapperService.MergeReason.MAPPING_UPDATE
         );
     }

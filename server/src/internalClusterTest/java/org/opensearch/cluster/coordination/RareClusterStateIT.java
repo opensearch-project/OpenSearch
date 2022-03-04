@@ -176,14 +176,16 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
         internalCluster().startMasterOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
-        prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)).addMapping("type").get();
+        prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+            .addMapping(MapperService.SINGLE_MAPPING_NAME)
+            .get();
         ensureGreen("test");
 
         // block none master node.
         BlockClusterStateProcessing disruption = new BlockClusterStateProcessing(dataNode, random());
         internalCluster().setDisruptionScheme(disruption);
         logger.info("--> indexing a doc");
-        index("test", "type", "1");
+        index("test", MapperService.SINGLE_MAPPING_NAME, "1");
         refresh();
         disruption.startDisrupting();
         logger.info("--> delete index and recreate it");
@@ -263,7 +265,7 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
 
         // Add a new mapping...
         ActionFuture<AcknowledgedResponse> putMappingResponse = executeAndCancelCommittedPublication(
-            client().admin().indices().preparePutMapping("index").setType("type").setSource("field", "type=long")
+            client().admin().indices().preparePutMapping("index").setSource("field", "type=long")
         );
 
         // ...and wait for mappings to be available on master
@@ -353,7 +355,7 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
         internalCluster().setDisruptionScheme(disruption);
         disruption.startDisrupting();
         final ActionFuture<AcknowledgedResponse> putMappingResponse = executeAndCancelCommittedPublication(
-            client().admin().indices().preparePutMapping("index").setType("type").setSource("field", "type=long")
+            client().admin().indices().preparePutMapping("index").setSource("field", "type=long")
         );
 
         final Index index = resolveIndex("index");
@@ -363,7 +365,7 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
             final IndexService indexService = indicesService.indexServiceSafe(index);
             assertNotNull(indexService);
             final MapperService mapperService = indexService.mapperService();
-            DocumentMapper mapper = mapperService.documentMapper("type");
+            DocumentMapper mapper = mapperService.documentMapper(MapperService.SINGLE_MAPPING_NAME);
             assertNotNull(mapper);
             assertNotNull(mapper.mappers().getMapper("field"));
         });
@@ -387,7 +389,7 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
             final IndexService indexService = indicesService.indexServiceSafe(index);
             assertNotNull(indexService);
             final MapperService mapperService = indexService.mapperService();
-            DocumentMapper mapper = mapperService.documentMapper("type");
+            DocumentMapper mapper = mapperService.documentMapper(MapperService.SINGLE_MAPPING_NAME);
             assertNotNull(mapper);
             assertNotNull(mapper.mappers().getMapper("field2"));
         });

@@ -1634,7 +1634,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
         assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), equalTo(0L));
 
         // Now add nested mapping
-        assertAcked(client().admin().indices().preparePutMapping("test").setType("type").setSource("array1", "type=nested"));
+        assertAcked(client().admin().indices().preparePutMapping("test").setSource("array1", "type=nested"));
 
         XContentBuilder builder = jsonBuilder().startObject()
             .startArray("array1")

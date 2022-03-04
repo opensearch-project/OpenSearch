@@ -85,8 +85,6 @@ public class RestPutMappingAction extends BaseRestHandler {
             deprecationLogger.deprecate("put_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 
-        putMappingRequest.type(MapperService.SINGLE_MAPPING_NAME);
-
         Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false, request.getXContentType()).v2();
 
         if (includeTypeName == false && MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, sourceAsMap)) {

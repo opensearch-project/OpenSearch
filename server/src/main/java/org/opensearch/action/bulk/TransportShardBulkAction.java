@@ -162,10 +162,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener
     ) {
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
-        performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis, (update, shardId, type, mappingListener) -> {
+        performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis, (update, shardId, mappingListener) -> {
             assert update != null;
             assert shardId != null;
-            mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), type, update, mappingListener);
+            mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), update, mappingListener);
         }, mappingUpdateListener -> observer.waitForNextChange(new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {
@@ -380,37 +380,32 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 return true;
             }
 
-            mappingUpdater.updateMappings(
-                result.getRequiredMappingUpdate(),
-                primary.shardId(),
-                MapperService.SINGLE_MAPPING_NAME,
-                new ActionListener<Void>() {
-                    @Override
-                    public void onResponse(Void v) {
-                        context.markAsRequiringMappingUpdate();
-                        waitForMappingUpdate.accept(ActionListener.runAfter(new ActionListener<Void>() {
-                            @Override
-                            public void onResponse(Void v) {
-                                assert context.requiresWaitingForMappingUpdate();
-                                context.resetForExecutionForRetry();
-                            }
+            mappingUpdater.updateMappings(result.getRequiredMappingUpdate(), primary.shardId(), new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void v) {
+                    context.markAsRequiringMappingUpdate();
+                    waitForMappingUpdate.accept(ActionListener.runAfter(new ActionListener<Void>() {
+                        @Override
+                        public void onResponse(Void v) {
+                            assert context.requiresWaitingForMappingUpdate();
+                            context.resetForExecutionForRetry();
+                        }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                context.failOnMappingUpdate(e);
-                            }
-                        }, () -> itemDoneListener.onResponse(null)));
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        onComplete(exceptionToResult(e, primary, isDelete, version), context, updateResult);
-                        // Requesting mapping update failed, so we don't have to wait for a cluster state update
-                        assert context.isInitial();
-                        itemDoneListener.onResponse(null);
-                    }
+                        @Override
+                        public void onFailure(Exception e) {
+                            context.failOnMappingUpdate(e);
+                        }
+                    }, () -> itemDoneListener.onResponse(null)));
                 }
-            );
+
+                @Override
+                public void onFailure(Exception e) {
+                    onComplete(exceptionToResult(e, primary, isDelete, version), context, updateResult);
+                    // Requesting mapping update failed, so we don't have to wait for a cluster state update
+                    assert context.isInitial();
+                    itemDoneListener.onResponse(null);
+                }
+            });
             return false;
         } else {
             onComplete(result, context, updateResult);

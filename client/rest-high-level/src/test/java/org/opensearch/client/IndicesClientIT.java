@@ -1595,38 +1595,6 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testPutTemplateWithTypes() throws Exception {
-        org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest putTemplateRequest =
-            new org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest().name("my-template")
-                .patterns(Arrays.asList("pattern-1", "name-*"))
-                .order(10)
-                .create(randomBoolean())
-                .settings(Settings.builder().put("number_of_shards", "3").put("number_of_replicas", "0"))
-                .mapping("doc", "host_name", "type=keyword", "description", "type=text")
-                .alias(new Alias("alias-1").indexRouting("abc"))
-                .alias(new Alias("{index}-write").searchRouting("xyz"));
-
-        AcknowledgedResponse putTemplateResponse = execute(
-            putTemplateRequest,
-            highLevelClient().indices()::putTemplate,
-            highLevelClient().indices()::putTemplateAsync,
-            expectWarningsOnce(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
-        );
-        assertThat(putTemplateResponse.isAcknowledged(), equalTo(true));
-
-        Map<String, Object> templates = getAsMap("/_template/my-template");
-        assertThat(templates.keySet(), hasSize(1));
-        assertThat(extractValue("my-template.order", templates), equalTo(10));
-        assertThat(extractRawValues("my-template.index_patterns", templates), contains("pattern-1", "name-*"));
-        assertThat(extractValue("my-template.settings.index.number_of_shards", templates), equalTo("3"));
-        assertThat(extractValue("my-template.settings.index.number_of_replicas", templates), equalTo("0"));
-        assertThat(extractValue("my-template.mappings.properties.host_name.type", templates), equalTo("keyword"));
-        assertThat(extractValue("my-template.mappings.properties.description.type", templates), equalTo("text"));
-        assertThat((Map<String, String>) extractValue("my-template.aliases.alias-1", templates), hasEntry("index_routing", "abc"));
-        assertThat((Map<String, String>) extractValue("my-template.aliases.{index}-write", templates), hasEntry("search_routing", "xyz"));
-    }
-
-    @SuppressWarnings("unchecked")
     public void testPutTemplate() throws Exception {
         PutIndexTemplateRequest putTemplateRequest = new PutIndexTemplateRequest("my-template").patterns(
             Arrays.asList("pattern-1", "name-*")

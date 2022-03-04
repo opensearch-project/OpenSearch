@@ -1434,12 +1434,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
                 .put("index.number_of_shards", 1)
                 .build()
         );
-        client().admin()
-            .indices()
-            .preparePutMapping("test")
-            .setType("_doc")
-            .setSource("test_field", "type=text,analyzer=test_analyzer")
-            .get();
+        client().admin().indices().preparePutMapping("test").setSource("test_field", "type=text,analyzer=test_analyzer").get();
         int numDocs = between(1, 10);
         for (int i = 0; i < numDocs; i++) {
             client().prepareIndex("test")

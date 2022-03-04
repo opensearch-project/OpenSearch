@@ -701,7 +701,6 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         AcknowledgedResponse putMappingResponse = client().admin()
             .indices()
             .preparePutMapping(INDEX)
-            .setType(MapperService.SINGLE_MAPPING_NAME)
             .setSource(
                 jsonBuilder().startObject()
                     .startObject(MapperService.SINGLE_MAPPING_NAME)
@@ -967,7 +966,6 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         AcknowledgedResponse putMappingResponse = client().admin()
             .indices()
             .preparePutMapping(INDEX)
-            .setType(MapperService.SINGLE_MAPPING_NAME)
             .setSource(
                 jsonBuilder().startObject()
                     .startObject(MapperService.SINGLE_MAPPING_NAME)

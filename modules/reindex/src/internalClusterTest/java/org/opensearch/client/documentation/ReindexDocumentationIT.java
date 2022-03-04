@@ -114,7 +114,7 @@ public class ReindexDocumentationIT extends OpenSearchIntegTestCase {
         Client client = client();
         client.admin().indices().prepareCreate("foo").get();
         client.admin().indices().prepareCreate("bar").get();
-        client.admin().indices().preparePutMapping(INDEX_NAME).setType("_doc").setSource("cat", "type=keyword").get();
+        client.admin().indices().preparePutMapping(INDEX_NAME).setSource("cat", "type=keyword").get();
         {
             // tag::update-by-query
             UpdateByQueryRequestBuilder updateByQuery =

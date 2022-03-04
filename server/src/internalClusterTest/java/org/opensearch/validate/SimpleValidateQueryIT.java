@@ -39,6 +39,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
@@ -77,11 +78,10 @@ public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .preparePutMapping("test")
-            .setType("type1")
             .setSource(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
+                    .startObject(MapperService.SINGLE_MAPPING_NAME)
                     .startObject("properties")
                     .startObject("foo")
                     .field("type", "text")
@@ -179,11 +179,10 @@ public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .preparePutMapping("test")
-            .setType("type1")
             .setSource(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
+                    .startObject(MapperService.SINGLE_MAPPING_NAME)
                     .startObject("properties")
                     .startObject("foo")
                     .field("type", "text")
@@ -319,7 +318,7 @@ public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate("test")
-            .addMapping("type1", "field", "type=text,analyzer=whitespace")
+            .addMapping(MapperService.SINGLE_MAPPING_NAME, "field", "type=text,analyzer=whitespace")
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1))
             .get();
         client().prepareIndex("test").setId("1").setSource("field", "quick lazy huge brown pidgin").get();
@@ -381,7 +380,7 @@ public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate("test")
-            .addMapping("type1", "field", "type=text,analyzer=whitespace")
+            .addMapping(MapperService.SINGLE_MAPPING_NAME, "field", "type=text,analyzer=whitespace")
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put("index.number_of_routing_shards", 2))
             .get();
         // We are relying on specific routing behaviors for the result to be right, so

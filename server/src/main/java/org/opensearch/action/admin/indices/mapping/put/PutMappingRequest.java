@@ -35,6 +35,7 @@ package org.opensearch.action.admin.indices.mapping.put;
 import com.carrotsearch.hppc.ObjectHashSet;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchGenerationException;
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
@@ -52,6 +53,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.Index;
+import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -63,7 +65,7 @@ import java.util.Objects;
 import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
- * Puts mapping definition registered under a specific type into one or more indices. Best created with
+ * Puts mapping definition into one or more indices. Best created with
  * {@link org.opensearch.client.Requests#putMappingRequest(String...)}.
  * <p>
  * If the mappings already exists, the new mappings will be merged with the new one. If there are elements
@@ -95,8 +97,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
 
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
 
-    private String type;
-
     private String source;
     private String origin = "";
 
@@ -108,7 +108,12 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         super(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        type = in.readOptionalString();
+        if (in.getVersion().before(Version.V_2_0_0)) {
+            String type = in.readOptionalString();
+            if (MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
+                throw new IllegalArgumentException("Expected type [_doc] but received [" + type + "]");
+            }
+        }
         source = in.readString();
         if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
             in.readBoolean(); // updateAllTypes
@@ -133,11 +138,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (type == null) {
-            validationException = addValidationError("mapping type is missing", validationException);
-        } else if (type.isEmpty()) {
-            validationException = addValidationError("mapping type is empty", validationException);
-        }
         if (source == null) {
             validationException = addValidationError("mapping source is missing", validationException);
         } else if (source.isEmpty()) {
@@ -204,21 +204,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     }
 
     /**
-     * The mapping type.
-     */
-    public String type() {
-        return type;
-    }
-
-    /**
-     * The type of the mappings.
-     */
-    public PutMappingRequest type(String type) {
-        this.type = type;
-        return this;
-    }
-
-    /**
      * The mapping source definition.
      */
     public String source() {
@@ -233,7 +218,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      * mapping fields will automatically be put on the top level mapping object.
      */
     public PutMappingRequest source(Object... source) {
-        return source(buildFromSimplifiedDef(type, source));
+        return source(buildFromSimplifiedDef(source));
     }
 
     public String origin() {
@@ -247,8 +232,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     }
 
     /**
-     * @param type
-     *            the mapping type
      * @param source
      *            consisting of field/properties pairs (e.g. "field1",
      *            "type=string,store=true")
@@ -256,7 +239,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      *             if the number of the source arguments is not divisible by two
      * @return the mappings definition
      */
-    public static XContentBuilder buildFromSimplifiedDef(String type, Object... source) {
+    public static XContentBuilder buildFromSimplifiedDef(Object... source) {
         if (source.length % 2 != 0) {
             throw new IllegalArgumentException("mapping source must be pairs of fieldnames and properties definition.");
         }
@@ -360,7 +343,9 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
         indicesOptions.writeIndicesOptions(out);
-        out.writeOptionalString(type);
+        if (out.getVersion().before(Version.V_2_0_0)) {
+            out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
+        }
         out.writeString(source);
         if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
             out.writeBoolean(true); // updateAllTypes

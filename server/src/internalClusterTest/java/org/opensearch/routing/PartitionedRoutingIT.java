@@ -37,6 +37,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.mockito.internal.util.collections.Sets;
@@ -62,7 +63,11 @@ public class PartitionedRoutingIT extends OpenSearchIntegTestCase {
                             .put("index.number_of_routing_shards", shards)
                             .put("index.routing_partition_size", partitionSize)
                     )
-                    .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}", XContentType.JSON)
+                    .addMapping(
+                        MapperService.SINGLE_MAPPING_NAME,
+                        "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"_routing\":{\"required\":true}}}",
+                        XContentType.JSON
+                    )
                     .execute()
                     .actionGet();
                 ensureGreen();
@@ -96,7 +101,11 @@ public class PartitionedRoutingIT extends OpenSearchIntegTestCase {
                     .put("index.number_of_replicas", numberOfReplicas())
                     .put("index.routing_partition_size", partitionSize)
             )
-            .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}", XContentType.JSON)
+            .addMapping(
+                MapperService.SINGLE_MAPPING_NAME,
+                "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"_routing\":{\"required\":true}}}",
+                XContentType.JSON
+            )
             .execute()
             .actionGet();
         ensureGreen();

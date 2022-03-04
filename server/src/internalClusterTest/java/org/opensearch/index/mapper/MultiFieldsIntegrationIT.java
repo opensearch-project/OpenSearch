@@ -76,7 +76,7 @@ public class MultiFieldsIntegrationIT extends OpenSearchIntegTestCase {
         searchResponse = client().prepareSearch("my-index").setQuery(matchQuery("title.not_analyzed", "Multi fields")).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
-        assertAcked(client().admin().indices().preparePutMapping("my-index").setType("my-type").setSource(createPutMappingSource()));
+        assertAcked(client().admin().indices().preparePutMapping("my-index").setSource(createPutMappingSource()));
 
         getMappingsResponse = client().admin().indices().prepareGetMappings("my-index").get();
         mappingMetadata = getMappingsResponse.mappings().get("my-index");
