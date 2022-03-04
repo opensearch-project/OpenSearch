@@ -72,10 +72,13 @@ public class MultiFieldTests extends OpenSearchSingleNodeTestCase {
         IndexService indexService = createIndex("test");
         MapperService mapperService = indexService.mapperService();
 
-        indexService.mapperService().merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        indexService.mapperService()
+            .merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/opensearch/index/mapper/multifield/test-data.json"));
-        Document doc = mapperService.documentMapper().parse(new SourceToParse("test", "person", "1", json, XContentType.JSON)).rootDoc();
+        Document doc = mapperService.documentMapper()
+            .parse(new SourceToParse("test", MapperService.SINGLE_MAPPING_NAME, "1", json, XContentType.JSON))
+            .rootDoc();
 
         IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));
@@ -139,7 +142,7 @@ public class MultiFieldTests extends OpenSearchSingleNodeTestCase {
     public void testBuildThenParse() throws Exception {
         IndexService indexService = createIndex("test");
         DocumentMapper builderDocMapper = new DocumentMapper.Builder(
-            new RootObjectMapper.Builder("person").add(
+            new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME).add(
                 new TextFieldMapper.Builder("name", createDefaultIndexAnalyzers()).store(true)
                     .addMultiField(new TextFieldMapper.Builder("indexed", createDefaultIndexAnalyzers()).index(true))
                     .addMultiField(new TextFieldMapper.Builder("not_indexed", createDefaultIndexAnalyzers()).index(false).store(true))
@@ -151,10 +154,11 @@ public class MultiFieldTests extends OpenSearchSingleNodeTestCase {
         // reparse it
         DocumentMapper docMapper = indexService.mapperService()
             .documentMapperParser()
-            .parse("person", new CompressedXContent(builtMapping));
+            .parse(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(builtMapping));
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/opensearch/index/mapper/multifield/test-data.json"));
-        Document doc = docMapper.parse(new SourceToParse("test", "person", "1", json, XContentType.JSON)).rootDoc();
+        Document doc = docMapper.parse(new SourceToParse("test", MapperService.SINGLE_MAPPING_NAME, "1", json, XContentType.JSON))
+            .rootDoc();
 
         IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));
