@@ -80,7 +80,7 @@ public interface EnginePlugin {
      * the {@link CodecServiceFactory} through the plugin can ignore this method and the default Codec specified in the
      * {@link IndexSettings} will be used.
      */
-    default Optional<CodecServiceFactory> getCustomCodecServiceFactory() {
+    default Optional<CodecServiceFactory> getCustomCodecServiceFactory(IndexSettings indexSettings) {
         return Optional.empty();
     }
 

@@ -182,7 +182,7 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
         }
 
         @Override
-        public Optional<CodecServiceFactory> getCustomCodecServiceFactory() {
+        public Optional<CodecServiceFactory> getCustomCodecServiceFactory(IndexSettings indexSettings) {
             return Optional.of(config -> new CodecService(config.getMapperService(), LogManager.getLogger(getClass())));
         }
     }

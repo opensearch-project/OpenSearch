@@ -98,9 +98,9 @@ public class EngineConfigFactory {
             }
             // get overriding CodecServiceFactory from EnginePlugin
             if (codecServiceFactory.isPresent() == false) {
-                codecServiceFactory = enginePlugin.getCustomCodecServiceFactory();
+                codecServiceFactory = enginePlugin.getCustomCodecServiceFactory(idxSettings);
                 codecServiceFactoryOverridingPlugin = enginePlugin.getClass().getName();
-            } else if (enginePlugin.getCustomCodecServiceFactory().isPresent()) {
+            } else if (enginePlugin.getCustomCodecServiceFactory(idxSettings).isPresent()) {
                 throw new IllegalStateException(
                     "existing codec service factory already overridden in: "
                         + codecServiceFactoryOverridingPlugin
