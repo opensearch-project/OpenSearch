@@ -101,7 +101,11 @@ public class PartitionedRoutingIT extends OpenSearchIntegTestCase {
                     .put("index.number_of_replicas", numberOfReplicas())
                     .put("index.routing_partition_size", partitionSize)
             )
-            .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}", XContentType.JSON)
+            .addMapping(
+                MapperService.SINGLE_MAPPING_NAME,
+                "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"_routing\":{\"required\":true}}}",
+                XContentType.JSON
+            )
             .execute()
             .actionGet();
         ensureGreen();
