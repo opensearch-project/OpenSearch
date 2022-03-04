@@ -250,7 +250,7 @@ public class InternalEngine extends Engine {
             mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
             throttle = new IndexThrottle();
             try {
-                store.trimUnsafeCommits(config().getTranslogConfig().getTranslogPath());
+                store.trimUnsafeCommits(engineConfig.getTranslogConfig().getTranslogPath());
                 translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier(), seqNo -> {
                     final LocalCheckpointTracker tracker = getLocalCheckpointTracker();
                     assert tracker != null || getTranslog().isOpen() == false;
