@@ -166,7 +166,6 @@ import org.opensearch.indices.replication.copy.PrimaryShardReplicationSource;
 import org.opensearch.indices.replication.copy.ReplicationCheckpoint;
 import org.opensearch.indices.replication.copy.ReplicationFailedException;
 import org.opensearch.indices.replication.copy.SegmentReplicationState;
-import org.opensearch.indices.replication.copy.TrackShardResponse;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.rest.RestStatus;
@@ -1349,6 +1348,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void forceMerge(ForceMergeRequest forceMerge) throws IOException {
+        if (indexSettings.isSegrepEnabled() && shardRouting.primary() == false) {
+            return;
+        }
         verifyActive();
         if (logger.isTraceEnabled()) {
             logger.trace("force merge with {}", forceMerge);
@@ -1444,8 +1446,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         );
     }
 
-    public void updateCurrentInfos(long gen, byte[] infosBytes, long seqNo) throws IOException {
-        getEngine().updateCurrentInfos(infosBytes, gen, seqNo);
+    public void updateCurrentInfos(SegmentInfos infos, long seqNo) throws IOException {
+        getEngine().updateCurrentInfos(infos, seqNo);
     }
 
     /**
@@ -1952,6 +1954,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // TODO: Segrep - fix initial recovery stages from ReplicationTarget.
         if (indexSettings.isSegrepEnabled() == false) {
             recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
+        } else {
+            recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
+            recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
         }
         loadGlobalCheckpointToReplicationTracker();
         innerOpenEngineAndTranslog(replicationTracker);
@@ -3011,25 +3016,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 try {
                     markAsRecovering("from " + recoveryState.getSourceNode(), recoveryState);
                     if (indexSettings.isSegrepEnabled()) {
-                        IndexShard indexShard = this;
-                        segmentReplicationReplicaService.prepareForReplication(
+                        markAsReplicating();
+                        segmentReplicationReplicaService.startRecovery(
                             this,
                             recoveryState.getTargetNode(),
                             recoveryState.getSourceNode(),
-                            new ActionListener<TrackShardResponse>() {
-                                @Override
-                                public void onResponse(TrackShardResponse unused) {
-                                    segRepListener.onReplicationDone(segRepState);
-                                    recoveryState.getIndex().setFileDetailsComplete();
-                                    finalizeRecovery();
-                                    postRecovery("Shard setup complete.");
-                                }
-
-                                @Override
-                                public void onFailure(Exception e) {
-                                    segRepListener.onReplicationFailure(segRepState, new ReplicationFailedException(indexShard, e), true);
-                                }
-                            }
+                            replicationSource,
+                            segRepListener
                         );
                     } else {
                         peerRecoveryTargetService.startRecovery(this, recoveryState.getSourceNode(), recoveryListener);
@@ -3669,14 +3662,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return;
         }
         if (isReplicating()) {
-            logger.info("Ignore - shard is currently replicating to a checkpoint");
+            logger.debug("Ignore - shard is currently replicating to a checkpoint");
             return;
         }
         try {
             markAsReplicating();
             final ReplicationCheckpoint checkpoint = request.getCheckpoint();
             logger.trace("Received new checkpoint {}", checkpoint);
-            // TODO: segrep - these are the states set after we perform our initial store recovery.
             segmentReplicationReplicaService.startReplication(
                 checkpoint,
                 this,
@@ -3684,7 +3676,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 new SegmentReplicationReplicaService.SegmentReplicationListener() {
                     @Override
                     public void onReplicationDone(SegmentReplicationState state) {
-                        markReplicationComplete();
                         logger.debug("Replication complete to {}", getLatestReplicationCheckpoint());
                     }
 
@@ -3694,7 +3685,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         ReplicationFailedException e,
                         boolean sendShardFailure
                     ) {
-                        markReplicationComplete();
                         logger.error("Failure", e);
                     }
                 }
