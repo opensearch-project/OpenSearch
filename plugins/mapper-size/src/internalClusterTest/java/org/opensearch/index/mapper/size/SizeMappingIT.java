@@ -88,7 +88,7 @@ public class SizeMappingIT extends OpenSearchIntegTestCase {
 
     public void testThatSizeCanBeSwitchedOnAndOff() throws Exception {
         String index = "foo";
-        String type = "mytype";
+        String type = MapperService.SINGLE_MAPPING_NAME;
 
         XContentBuilder builder = jsonBuilder().startObject().startObject("_size").field("enabled", true).endObject().endObject();
         assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
@@ -124,7 +124,7 @@ public class SizeMappingIT extends OpenSearchIntegTestCase {
     }
 
     public void testBasic() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "_size", "enabled=true"));
+        assertAcked(prepareCreate("test").addMapping(MapperService.SINGLE_MAPPING_NAME, "_size", "enabled=true"));
         final String source = "{\"f\":10}";
         indexRandom(true, client().prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
         GetResponse getResponse = client().prepareGet("test", "1").setStoredFields("_size").get();
