@@ -15,7 +15,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -32,24 +32,31 @@
 
 package org.opensearch.common.concurrent;
 
-import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.util.concurrent.AbstractRefCounted;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-public abstract class AbstractRefCountedReleasable<T> extends AbstractRefCounted implements Releasable {
+/**
+ * Encapsulates logic for a one-way gate. Guarantees idempotency via the {@link AtomicBoolean} instance
+ * and the return value of the {@link #close()} function.
+ */
+public class OneWayGate {
 
-    private final T ref;
+    private final AtomicBoolean closed = new AtomicBoolean();
 
-    public AbstractRefCountedReleasable(String name, T ref) {
-        super(name);
-        this.ref = ref;
+    /**
+     * Closes the gate and sets the internal boolean value in an idempotent
+     * fashion. This is a one-way operation and cannot be reset.
+     * @return true if the gate was closed in this invocation,
+     * false if the gate was already closed
+     */
+    public boolean close() {
+        return closed.compareAndSet(false, true);
     }
 
-    @Override
-    public void close() {
-        decRef();
-    }
-
-    public T get() {
-        return ref;
+    /**
+     * Indicates if the gate has been closed.
+     * @return true if the gate is closed, false otherwise
+     */
+    public boolean isClosed() {
+        return closed.get();
     }
 }

@@ -30,18 +30,38 @@
  * GitHub history for details.
  */
 
-package org.opensearch.discovery.ec2;
+package org.opensearch.common.concurrent;
 
-import com.amazonaws.services.ec2.AmazonEC2;
-import org.opensearch.common.concurrent.RefCountedReleasable;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.util.concurrent.AbstractRefCounted;
 
 /**
- * Handles the shutdown of the wrapped {@link AmazonEC2} using reference
- * counting.
+ * Decorator class that wraps an object reference as a {@link AbstractRefCounted} instance.
+ * In addition to a {@link String} name, it accepts a {@link Runnable} shutdown hook that is
+ * invoked when the reference count reaches zero i.e. on {@link #closeInternal()}.
  */
-public class AmazonEc2Reference extends RefCountedReleasable<AmazonEC2> {
+public class RefCountedReleasable<T> extends AbstractRefCounted implements Releasable {
 
-    AmazonEc2Reference(AmazonEC2 client) {
-        super("AWS_EC2_CLIENT", client, client::shutdown);
+    private final T ref;
+    private final Runnable shutdownRunnable;
+
+    public RefCountedReleasable(String name, T ref, Runnable shutdownRunnable) {
+        super(name);
+        this.ref = ref;
+        this.shutdownRunnable = shutdownRunnable;
+    }
+
+    @Override
+    public void close() {
+        decRef();
+    }
+
+    public T get() {
+        return ref;
+    }
+
+    @Override
+    protected void closeInternal() {
+        shutdownRunnable.run();
     }
 }

@@ -34,21 +34,15 @@ package org.opensearch.repositories.s3;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
-import org.opensearch.common.concurrent.AbstractRefCountedReleasable;
+import org.opensearch.common.concurrent.RefCountedReleasable;
 
 /**
  * Handles the shutdown of the wrapped {@link AmazonS3Client} using reference
  * counting.
  */
-public class AmazonS3Reference extends AbstractRefCountedReleasable<AmazonS3> {
+public class AmazonS3Reference extends RefCountedReleasable<AmazonS3> {
 
     AmazonS3Reference(AmazonS3 client) {
-        super("AWS_S3_CLIENT", client);
+        super("AWS_S3_CLIENT", client, client::shutdown);
     }
-
-    @Override
-    protected void closeInternal() {
-        get().shutdown();
-    }
-
 }

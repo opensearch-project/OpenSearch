@@ -15,7 +15,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -30,18 +30,38 @@
  * GitHub history for details.
  */
 
-package org.opensearch.discovery.ec2;
+package org.opensearch.common.concurrent;
 
-import com.amazonaws.services.ec2.AmazonEC2;
-import org.opensearch.common.concurrent.RefCountedReleasable;
+import org.opensearch.common.CheckedRunnable;
+
+import java.io.Closeable;
+import java.io.IOException;
 
 /**
- * Handles the shutdown of the wrapped {@link AmazonEC2} using reference
- * counting.
+ * Decorator class that wraps an object reference with a {@link CheckedRunnable} that is
+ * invoked when {@link #close()} is called. The internal {@link OneWayGate} instance ensures
+ * that this is invoked only once. See also {@link GatedAutoCloseable}
  */
-public class AmazonEc2Reference extends RefCountedReleasable<AmazonEC2> {
+public class GatedCloseable<T> implements Closeable {
 
-    AmazonEc2Reference(AmazonEC2 client) {
-        super("AWS_EC2_CLIENT", client, client::shutdown);
+    private final T ref;
+    private final CheckedRunnable<IOException> onClose;
+    private final OneWayGate gate;
+
+    public GatedCloseable(T ref, CheckedRunnable<IOException> onClose) {
+        this.ref = ref;
+        this.onClose = onClose;
+        gate = new OneWayGate();
+    }
+
+    public T get() {
+        return ref;
+    }
+
+    @Override
+    public void close() throws IOException {
+        if (gate.close()) {
+            onClose.run();
+        }
     }
 }
