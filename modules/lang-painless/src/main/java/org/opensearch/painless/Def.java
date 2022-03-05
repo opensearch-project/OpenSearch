@@ -482,13 +482,8 @@ public final class Def {
      * This method traverses {@code recieverClass}'s class hierarchy (including interfaces)
      * until it finds a matching allowlisted getter. If one is not found, it throws an exception.
      * Otherwise it returns a handle to the matching getter.
-<<<<<<< HEAD
      * <p>
-     * @param painlessLookup the whitelist
-=======
-     * </p>
      * @param painlessLookup the allowlist
->>>>>>> be64af2f90c... Replace exclusionary words whitelist and blacklist in the places that won't impact backwards compatibility (#2178)
      * @param receiverClass Class of the object to retrieve the field from.
      * @param name Name of the field.
      * @return pointer to matching field. never returns null.
@@ -542,13 +537,8 @@ public final class Def {
      * This method traverses {@code recieverClass}'s class hierarchy (including interfaces)
      * until it finds a matching allowlisted setter. If one is not found, it throws an exception.
      * Otherwise it returns a handle to the matching setter.
-<<<<<<< HEAD
      * <p>
-     * @param painlessLookup the whitelist
-=======
-     * </p>
      * @param painlessLookup the allowlist
->>>>>>> be64af2f90c... Replace exclusionary words whitelist and blacklist in the places that won't impact backwards compatibility (#2178)
      * @param receiverClass Class of the object to retrieve the field from.
      * @param name Name of the field.
      * @return pointer to matching field. never returns null.
