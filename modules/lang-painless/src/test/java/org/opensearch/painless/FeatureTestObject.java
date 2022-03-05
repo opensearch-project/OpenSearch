@@ -35,7 +35,7 @@ package org.opensearch.painless;
 import java.util.List;
 import java.util.function.Function;
 
-/** Currently just a dummy class for testing a few features not yet exposed by whitelist! */
+/** Currently just a dummy class for testing a few features not yet exposed by allowlist! */
 public class FeatureTestObject {
     /** static method that returns true */
     public static boolean overloadedStatic() {
@@ -47,7 +47,7 @@ public class FeatureTestObject {
         return whatToReturn;
     }
 
-    /** static method only whitelisted as a static */
+    /** static method only allowlisted as a static */
     public static float staticAddFloatsTest(float x, float y) {
         return x + y;
     }

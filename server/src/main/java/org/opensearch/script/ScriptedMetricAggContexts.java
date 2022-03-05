@@ -126,7 +126,7 @@ public class ScriptedMetricAggContexts {
             return state;
         }
 
-        // Return the doc as a map (instead of LeafDocLookup) in order to abide by type whitelisting rules for
+        // Return the doc as a map (instead of LeafDocLookup) in order to abide by type allowlisting rules for
         // Painless scripts.
         public Map<String, ScriptDocValues<?>> getDoc() {
             return leafLookup == null ? null : leafLookup.doc();
