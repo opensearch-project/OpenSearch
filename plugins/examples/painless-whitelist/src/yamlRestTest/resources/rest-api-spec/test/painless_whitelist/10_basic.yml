@@ -1,4 +1,4 @@
-# Integration tests for the painless whitelist example plugin
+# Integration tests for the painless allowlist example plugin
 #
 "Plugin loaded":
     - skip:

@@ -52,7 +52,7 @@ import java.util.Objects;
  *       a thread must have {@code modifyThread} to even terminate its own pool, leaving
  *       system threads unprotected.
  * </ul>
- * This class throws exception on {@code exitVM} calls, and provides a whitelist where calls
+ * This class throws exception on {@code exitVM} calls, and provides an allowlist where calls
  * from exit are allowed.
  * <p>
  * Additionally it enforces threadgroup security with the following rules:

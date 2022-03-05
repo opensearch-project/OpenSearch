@@ -61,7 +61,7 @@ class InheritingState implements State {
     private final Map<Class<? extends Annotation>, Scope> scopes = new HashMap<>();
     private final List<MatcherAndConverter> converters = new ArrayList<>();
     private final List<TypeListenerBinding> listenerBindings = new ArrayList<>();
-    private WeakKeySet blacklistedKeys = new WeakKeySet();
+    private WeakKeySet denylistedKeys = new WeakKeySet();
     private final Object lock;
 
     InheritingState(State parent) {
@@ -145,17 +145,17 @@ class InheritingState implements State {
     @Override
     public void blacklist(Key<?> key) {
         parent.blacklist(key);
-        blacklistedKeys.add(key);
+        denylistedKeys.add(key);
     }
 
     @Override
     public boolean isBlacklisted(Key<?> key) {
-        return blacklistedKeys.contains(key);
+        return denylistedKeys.contains(key);
     }
 
     @Override
     public void clearBlacklisted() {
-        blacklistedKeys = new WeakKeySet();
+        denylistedKeys = new WeakKeySet();
     }
 
     @Override

@@ -53,9 +53,9 @@ public class AugmentationTests extends ScriptTestCase {
     @BeforeClass
     public static void beforeClass() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = newDefaultContexts();
-        List<Whitelist> digestWhitelist = new ArrayList<>(Whitelist.BASE_WHITELISTS);
-        digestWhitelist.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.opensearch.ingest.txt"));
-        contexts.put(DigestTestScript.CONTEXT, digestWhitelist);
+        List<Whitelist> digestAllowlist = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+        digestAllowlist.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.opensearch.ingest.txt"));
+        contexts.put(DigestTestScript.CONTEXT, digestAllowlist);
         SCRIPT_ENGINE = new PainlessScriptEngine(Settings.EMPTY, contexts);
     }
 
