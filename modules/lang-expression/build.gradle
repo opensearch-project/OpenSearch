@@ -40,7 +40,7 @@ dependencies {
   api 'org.antlr:antlr4-runtime:4.9.3'
   api 'org.ow2.asm:asm:9.2'
   api 'org.ow2.asm:asm-commons:5.0.4'
-  api 'org.ow2.asm:asm-tree:5.0.4'
+  api 'org.ow2.asm:asm-tree:9.2'
 }
 restResources {
   restApi {
