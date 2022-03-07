@@ -221,6 +221,10 @@ public class InternalEngine extends Engine {
     @Nullable
     private volatile String forceMergeUUID;
 
+    private boolean isReadOnlyReplica() {
+        return engineConfig.getIndexSettings().isSegrepEnabled() && engineConfig.isReadOnly();
+    }
+
     public InternalEngine(EngineConfig engineConfig) {
         this(engineConfig, IndexWriter.MAX_DOCS, LocalCheckpointTracker::new);
     }
@@ -277,7 +281,7 @@ public class InternalEngine extends Engine {
                 );
                 this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
                 // TODO: Segrep - should have a separate read only engine rather than all this conditional logic.
-                if ((engineConfig.getIndexSettings().isSegrepEnabled()) && engineConfig.isPrimary() == false) {
+                if (isReadOnlyReplica()) {
                     // Segrep - hack to make this engine read only and not use
                     writer = null;
                     historyUUID = null;
@@ -346,7 +350,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public void updateCurrentInfos(byte[] infosBytes, long gen, long seqNo) throws IOException {
-        assert engineConfig.isPrimary() == false : "Only replicas should update Infos";
+        assert engineConfig.isReadOnly() == true : "Only replicas should update Infos";
         SegmentInfos infos = SegmentInfos.readCommit(this.store.directory(), toIndexInput(infosBytes), gen);
         assert gen == infos.getGeneration();
         externalReaderManager.internalReaderManager.updateSegments(infos);
@@ -582,8 +586,7 @@ public class InternalEngine extends Engine {
                 translog.currentFileGeneration()
             )
         );
-        boolean segrep = engineConfig.getIndexSettings().isSegrepEnabled();
-        if ((segrep == false) || (segrep && engineConfig.isPrimary())) {
+        if (isReadOnlyReplica() == false) {
             flush(false, true);
         }
         translog.trimUnreferencedReaders();
@@ -653,8 +656,7 @@ public class InternalEngine extends Engine {
 
     private void revisitIndexDeletionPolicyOnTranslogSynced() throws IOException {
         if (combinedDeletionPolicy.hasUnreferencedCommits()) {
-            boolean segrep = engineConfig.getIndexSettings().isSegrepEnabled();
-            if ((segrep == false) || (segrep && engineConfig.isPrimary())) {
+            if (isReadOnlyReplica() == false) {
                 indexWriter.deleteUnusedFiles();
             }
         }
@@ -718,7 +720,7 @@ public class InternalEngine extends Engine {
 
     private DirectoryReader getDirectoryReader() throws IOException {
         // for segment replication: replicas should create the reader from store, we don't want an open IW on replicas.
-        if (engineConfig.getIndexSettings().isSegrepEnabled() && engineConfig.isPrimary() == false) {
+        if (isReadOnlyReplica()) {
             return DirectoryReader.open(store.directory());
         }
         return DirectoryReader.open(indexWriter);
@@ -1982,7 +1984,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
-        if ((engineConfig.getIndexSettings().isSegrepEnabled()) && (engineConfig.isPrimary() == false)) {
+        if (isReadOnlyReplica()) {
             return;
         }
         ensureOpen();
@@ -2275,7 +2277,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public SegmentInfosRef getLatestSegmentInfosSafe() {
-        assert (engineConfig.isPrimary());
+        assert (engineConfig.isReadOnly() == false);
         final SegmentInfos segmentInfos = getLatestSegmentInfos();
         try {
             indexWriter.incRefDeleter(segmentInfos);
@@ -2442,8 +2444,7 @@ public class InternalEngine extends Engine {
                 // no need to commit in this case!, we snapshot before we close the shard, so translog and all sync'ed
                 logger.trace("rollback indexWriter");
                 try {
-                    boolean segrep = engineConfig.getIndexSettings().isSegrepEnabled();
-                    if (segrep == false || (segrep && engineConfig.isPrimary())) {
+                    if (isReadOnlyReplica() == false) {
                         indexWriter.rollback();
                     }
                 } catch (AlreadyClosedException ex) {
