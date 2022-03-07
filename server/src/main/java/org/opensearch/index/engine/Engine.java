@@ -730,7 +730,7 @@ public abstract class Engine implements Closeable {
     /**
      * Acquires a lock on the translog files and Lucene soft-deleted documents to prevent them from being trimmed
      */
-    public abstract Closeable acquireHistoryRetentionLock(HistorySource historySource);
+    public abstract Closeable acquireHistoryRetentionLock();
 
     /**
      * Creates a new history snapshot from Lucene for reading operations whose seqno in the requesting seqno range (both inclusive).
@@ -744,51 +744,7 @@ public abstract class Engine implements Closeable {
         boolean requiredFullRange
     ) throws IOException;
 
-    /**
-     * Creates a new history snapshot from either Lucene/Translog for reading operations whose seqno in the requesting
-     * seqno range (both inclusive).
-     */
-    public Translog.Snapshot newChangesSnapshot(
-        String source,
-        HistorySource historySource,
-        MapperService mapperService,
-        long fromSeqNo,
-        long toSeqNo,
-        boolean requiredFullRange
-    ) throws IOException {
-        return newChangesSnapshot(source, mapperService, fromSeqNo, toSeqNo, requiredFullRange);
-    }
-
-    /**
-     * Creates a new history snapshot for reading operations since {@code startingSeqNo} (inclusive).
-     * The returned snapshot can be retrieved from either Lucene index or translog files.
-     */
-    public abstract Translog.Snapshot readHistoryOperations(
-        String reason,
-        HistorySource historySource,
-        MapperService mapperService,
-        long startingSeqNo
-    ) throws IOException;
-
-    /**
-     * Returns the estimated number of history operations whose seq# at least {@code startingSeqNo}(inclusive) in this engine.
-     */
-    public abstract int estimateNumberOfHistoryOperations(
-        String reason,
-        HistorySource historySource,
-        MapperService mapperService,
-        long startingSeqNo
-    ) throws IOException;
-
-    /**
-     * Checks if this engine has every operations since  {@code startingSeqNo}(inclusive) in its history (either Lucene or translog)
-     */
-    public abstract boolean hasCompleteOperationHistory(
-        String reason,
-        HistorySource historySource,
-        MapperService mapperService,
-        long startingSeqNo
-    ) throws IOException;
+    public abstract boolean hasCompleteOperationHistory(String reason, long startingSeqNo);
 
     /**
      * Gets the minimum retained sequence number for this engine.
@@ -1704,16 +1660,15 @@ public abstract class Engine implements Closeable {
     public static class Get {
         private final boolean realtime;
         private final Term uid;
-        private final String type, id;
+        private final String id;
         private final boolean readFromTranslog;
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
         private long ifSeqNo = UNASSIGNED_SEQ_NO;
         private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
-        public Get(boolean realtime, boolean readFromTranslog, String type, String id, Term uid) {
+        public Get(boolean realtime, boolean readFromTranslog, String id, Term uid) {
             this.realtime = realtime;
-            this.type = type;
             this.id = id;
             this.uid = uid;
             this.readFromTranslog = readFromTranslog;
@@ -1721,10 +1676,6 @@ public abstract class Engine implements Closeable {
 
         public boolean realtime() {
             return this.realtime;
-        }
-
-        public String type() {
-            return type;
         }
 
         public String id() {
@@ -2034,12 +1985,4 @@ public abstract class Engine implements Closeable {
      * to advance this marker to at least the given sequence number.
      */
     public abstract void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary);
-
-    /**
-     * Whether we should read history operations from translog or Lucene index
-     */
-    public enum HistorySource {
-        TRANSLOG,
-        INDEX
-    }
 }

@@ -35,7 +35,6 @@ package org.opensearch.action.search;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.document.DocumentField;
-import org.opensearch.common.text.Text;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.InnerHitBuilder;
 import org.opensearch.index.query.QueryBuilder;
@@ -66,8 +65,8 @@ public class ExpandSearchPhaseTests extends OpenSearchTestCase {
             for (int innerHitNum = 0; innerHitNum < numInnerHits; innerHitNum++) {
                 SearchHits hits = new SearchHits(
                     new SearchHit[] {
-                        new SearchHit(innerHitNum, "ID", new Text("type"), Collections.emptyMap(), Collections.emptyMap()),
-                        new SearchHit(innerHitNum + 1, "ID", new Text("type"), Collections.emptyMap(), Collections.emptyMap()) },
+                        new SearchHit(innerHitNum, "ID", Collections.emptyMap(), Collections.emptyMap()),
+                        new SearchHit(innerHitNum + 1, "ID", Collections.emptyMap(), Collections.emptyMap()) },
                     new TotalHits(2, TotalHits.Relation.EQUAL_TO),
                     1.0F
                 );
@@ -136,7 +135,6 @@ public class ExpandSearchPhaseTests extends OpenSearchTestCase {
                     new SearchHit(
                         1,
                         "ID",
-                        new Text("type"),
                         Collections.singletonMap("someField", new DocumentField("someField", Collections.singletonList(collapseValue))),
                         Collections.emptyMap()
                     ) },
@@ -165,8 +163,8 @@ public class ExpandSearchPhaseTests extends OpenSearchTestCase {
 
         SearchHits collapsedHits = new SearchHits(
             new SearchHit[] {
-                new SearchHit(2, "ID", new Text("type"), Collections.emptyMap(), Collections.emptyMap()),
-                new SearchHit(3, "ID", new Text("type"), Collections.emptyMap(), Collections.emptyMap()) },
+                new SearchHit(2, "ID", Collections.emptyMap(), Collections.emptyMap()),
+                new SearchHit(3, "ID", Collections.emptyMap(), Collections.emptyMap()) },
             new TotalHits(1, TotalHits.Relation.EQUAL_TO),
             1.0F
         );
@@ -209,14 +207,12 @@ public class ExpandSearchPhaseTests extends OpenSearchTestCase {
                 new SearchHit(
                     1,
                     "ID",
-                    new Text("type"),
                     Collections.singletonMap("someField", new DocumentField("someField", Collections.singletonList(collapseValue))),
                     Collections.emptyMap()
                 ),
                 new SearchHit(
                     2,
                     "ID2",
-                    new Text("type"),
                     Collections.singletonMap("someField", new DocumentField("someField", Collections.singletonList(collapseValue))),
                     Collections.emptyMap()
                 ) },
@@ -246,14 +242,12 @@ public class ExpandSearchPhaseTests extends OpenSearchTestCase {
                 new SearchHit(
                     1,
                     "ID",
-                    new Text("type"),
                     Collections.singletonMap("someField", new DocumentField("someField", Collections.singletonList(null))),
                     Collections.emptyMap()
                 ),
                 new SearchHit(
                     2,
                     "ID2",
-                    new Text("type"),
                     Collections.singletonMap("someField", new DocumentField("someField", Collections.singletonList(null))),
                     Collections.emptyMap()
                 ) },

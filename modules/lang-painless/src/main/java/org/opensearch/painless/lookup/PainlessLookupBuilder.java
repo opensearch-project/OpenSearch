@@ -126,107 +126,107 @@ public final class PainlessLookupBuilder {
         }
     }
 
-    public static PainlessLookup buildFromWhitelists(List<Whitelist> whitelists) {
+    public static PainlessLookup buildFromWhitelists(List<Whitelist> allowlists) {
         PainlessLookupBuilder painlessLookupBuilder = new PainlessLookupBuilder();
         String origin = "internal error";
 
         try {
-            for (Whitelist whitelist : whitelists) {
-                for (WhitelistClass whitelistClass : whitelist.whitelistClasses) {
-                    origin = whitelistClass.origin;
+            for (Whitelist allowlist : allowlists) {
+                for (WhitelistClass allowlistClass : allowlist.whitelistClasses) {
+                    origin = allowlistClass.origin;
                     painlessLookupBuilder.addPainlessClass(
-                        whitelist.classLoader,
-                        whitelistClass.javaClassName,
-                        whitelistClass.painlessAnnotations.containsKey(NoImportAnnotation.class) == false
+                        allowlist.classLoader,
+                        allowlistClass.javaClassName,
+                        allowlistClass.painlessAnnotations.containsKey(NoImportAnnotation.class) == false
                     );
                 }
             }
 
-            for (Whitelist whitelist : whitelists) {
-                for (WhitelistClass whitelistClass : whitelist.whitelistClasses) {
-                    String targetCanonicalClassName = whitelistClass.javaClassName.replace('$', '.');
+            for (Whitelist allowlist : allowlists) {
+                for (WhitelistClass allowlistClass : allowlist.whitelistClasses) {
+                    String targetCanonicalClassName = allowlistClass.javaClassName.replace('$', '.');
 
-                    for (WhitelistConstructor whitelistConstructor : whitelistClass.whitelistConstructors) {
-                        origin = whitelistConstructor.origin;
+                    for (WhitelistConstructor allowlistConstructor : allowlistClass.whitelistConstructors) {
+                        origin = allowlistConstructor.origin;
                         painlessLookupBuilder.addPainlessConstructor(
                             targetCanonicalClassName,
-                            whitelistConstructor.canonicalTypeNameParameters,
-                            whitelistConstructor.painlessAnnotations
+                            allowlistConstructor.canonicalTypeNameParameters,
+                            allowlistConstructor.painlessAnnotations
                         );
                     }
 
-                    for (WhitelistMethod whitelistMethod : whitelistClass.whitelistMethods) {
-                        origin = whitelistMethod.origin;
+                    for (WhitelistMethod allowlistMethod : allowlistClass.whitelistMethods) {
+                        origin = allowlistMethod.origin;
                         painlessLookupBuilder.addPainlessMethod(
-                            whitelist.classLoader,
+                            allowlist.classLoader,
                             targetCanonicalClassName,
-                            whitelistMethod.augmentedCanonicalClassName,
-                            whitelistMethod.methodName,
-                            whitelistMethod.returnCanonicalTypeName,
-                            whitelistMethod.canonicalTypeNameParameters,
-                            whitelistMethod.painlessAnnotations
+                            allowlistMethod.augmentedCanonicalClassName,
+                            allowlistMethod.methodName,
+                            allowlistMethod.returnCanonicalTypeName,
+                            allowlistMethod.canonicalTypeNameParameters,
+                            allowlistMethod.painlessAnnotations
                         );
                     }
 
-                    for (WhitelistField whitelistField : whitelistClass.whitelistFields) {
-                        origin = whitelistField.origin;
+                    for (WhitelistField allowlistField : allowlistClass.whitelistFields) {
+                        origin = allowlistField.origin;
                         painlessLookupBuilder.addPainlessField(
                             targetCanonicalClassName,
-                            whitelistField.fieldName,
-                            whitelistField.canonicalTypeNameParameter
+                            allowlistField.fieldName,
+                            allowlistField.canonicalTypeNameParameter
                         );
                     }
                 }
 
-                for (WhitelistMethod whitelistStatic : whitelist.whitelistImportedMethods) {
-                    origin = whitelistStatic.origin;
+                for (WhitelistMethod allowlistStatic : allowlist.whitelistImportedMethods) {
+                    origin = allowlistStatic.origin;
                     painlessLookupBuilder.addImportedPainlessMethod(
-                        whitelist.classLoader,
-                        whitelistStatic.augmentedCanonicalClassName,
-                        whitelistStatic.methodName,
-                        whitelistStatic.returnCanonicalTypeName,
-                        whitelistStatic.canonicalTypeNameParameters,
-                        whitelistStatic.painlessAnnotations
+                        allowlist.classLoader,
+                        allowlistStatic.augmentedCanonicalClassName,
+                        allowlistStatic.methodName,
+                        allowlistStatic.returnCanonicalTypeName,
+                        allowlistStatic.canonicalTypeNameParameters,
+                        allowlistStatic.painlessAnnotations
                     );
                 }
 
-                for (WhitelistClassBinding whitelistClassBinding : whitelist.whitelistClassBindings) {
-                    origin = whitelistClassBinding.origin;
+                for (WhitelistClassBinding allowlistClassBinding : allowlist.whitelistClassBindings) {
+                    origin = allowlistClassBinding.origin;
                     painlessLookupBuilder.addPainlessClassBinding(
-                        whitelist.classLoader,
-                        whitelistClassBinding.targetJavaClassName,
-                        whitelistClassBinding.methodName,
-                        whitelistClassBinding.returnCanonicalTypeName,
-                        whitelistClassBinding.canonicalTypeNameParameters,
-                        whitelistClassBinding.painlessAnnotations
+                        allowlist.classLoader,
+                        allowlistClassBinding.targetJavaClassName,
+                        allowlistClassBinding.methodName,
+                        allowlistClassBinding.returnCanonicalTypeName,
+                        allowlistClassBinding.canonicalTypeNameParameters,
+                        allowlistClassBinding.painlessAnnotations
                     );
                 }
 
-                for (WhitelistInstanceBinding whitelistInstanceBinding : whitelist.whitelistInstanceBindings) {
-                    origin = whitelistInstanceBinding.origin;
+                for (WhitelistInstanceBinding allowlistInstanceBinding : allowlist.whitelistInstanceBindings) {
+                    origin = allowlistInstanceBinding.origin;
                     painlessLookupBuilder.addPainlessInstanceBinding(
-                        whitelistInstanceBinding.targetInstance,
-                        whitelistInstanceBinding.methodName,
-                        whitelistInstanceBinding.returnCanonicalTypeName,
-                        whitelistInstanceBinding.canonicalTypeNameParameters
+                        allowlistInstanceBinding.targetInstance,
+                        allowlistInstanceBinding.methodName,
+                        allowlistInstanceBinding.returnCanonicalTypeName,
+                        allowlistInstanceBinding.canonicalTypeNameParameters
                     );
                 }
             }
         } catch (Exception exception) {
-            throw new IllegalArgumentException("error loading whitelist(s) " + origin, exception);
+            throw new IllegalArgumentException("error loading allowlist(s) " + origin, exception);
         }
 
         return painlessLookupBuilder.build();
     }
 
     // javaClassNamesToClasses is all the classes that need to be available to the custom classloader
-    // including classes used as part of imported methods and class bindings but not necessarily whitelisted
+    // including classes used as part of imported methods and class bindings but not necessarily allowlisted
     // individually. The values of javaClassNamesToClasses are a superset of the values of
     // canonicalClassNamesToClasses.
     private final Map<String, Class<?>> javaClassNamesToClasses;
-    // canonicalClassNamesToClasses is all the whitelisted classes available in a Painless script including
+    // canonicalClassNamesToClasses is all the allowlisted classes available in a Painless script including
     // classes with imported canonical names but does not include classes from imported methods or class
-    // bindings unless also whitelisted separately. The values of canonicalClassNamesToClasses are a subset
+    // bindings unless also allowlisted separately. The values of canonicalClassNamesToClasses are a subset
     // of the values of javaClassNamesToClasses.
     private final Map<String, Class<?>> canonicalClassNamesToClasses;
     private final Map<Class<?>, PainlessClassBuilder> classesToPainlessClassBuilders;
@@ -2060,7 +2060,7 @@ public final class PainlessLookupBuilder {
     /**
      * Creates a {@link Map} of PainlessMethodKeys to {@link PainlessMethod}s per {@link PainlessClass} stored as
      * {@link PainlessClass#runtimeMethods} identical to {@link PainlessClass#methods} with the exception of generated
-     * bridge methods. A generated bridge method is created for each whitelisted method that has at least one parameter
+     * bridge methods. A generated bridge method is created for each allowlisted method that has at least one parameter
      * with a boxed type to cast from other numeric primitive/boxed types in a symmetric was not handled by
      * {@link MethodHandle#asType(MethodType)}. As an example {@link MethodHandle#asType(MethodType)} legally casts
      * from {@link Integer} to long but not from int to {@link Long}. Generated bridge methods cover the latter case.

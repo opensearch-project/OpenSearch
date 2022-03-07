@@ -659,34 +659,20 @@ public class MetadataTests extends OpenSearchTestCase {
             .build();
 
         {
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(
-                Strings.EMPTY_ARRAY,
-                Strings.EMPTY_ARRAY,
-                MapperPlugin.NOOP_FIELD_FILTER
-            );
+            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(Strings.EMPTY_ARRAY, MapperPlugin.NOOP_FIELD_FILTER);
             assertEquals(0, mappings.size());
         }
         {
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(
+            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index1" },
-                new String[] { "notfound" },
-                MapperPlugin.NOOP_FIELD_FILTER
-            );
-            assertEquals(0, mappings.size());
-        }
-        {
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(
-                new String[] { "index1" },
-                Strings.EMPTY_ARRAY,
                 MapperPlugin.NOOP_FIELD_FILTER
             );
             assertEquals(1, mappings.size());
             assertIndexMappingsNotFiltered(mappings, "index1");
         }
         {
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(
+            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index1", "index2" },
-                new String[] { randomBoolean() ? "_doc" : "_all" },
                 MapperPlugin.NOOP_FIELD_FILTER
             );
             assertEquals(2, mappings.size());
@@ -715,43 +701,19 @@ public class MetadataTests extends OpenSearchTestCase {
             .build();
 
         {
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(
+            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index1" },
-                randomBoolean() ? Strings.EMPTY_ARRAY : new String[] { "_all" },
                 MapperPlugin.NOOP_FIELD_FILTER
             );
-            ImmutableOpenMap<String, MappingMetadata> index1 = mappings.get("index1");
-            MappingMetadata mappingMetadata = index1.get("_doc");
+            MappingMetadata mappingMetadata = mappings.get("index1");
             assertSame(originalMappingMetadata, mappingMetadata);
         }
         {
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(
+            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index1" },
-                randomBoolean() ? Strings.EMPTY_ARRAY : new String[] { "_all" },
                 index -> field -> randomBoolean()
             );
-            ImmutableOpenMap<String, MappingMetadata> index1 = mappings.get("index1");
-            MappingMetadata mappingMetadata = index1.get("_doc");
-            assertNotSame(originalMappingMetadata, mappingMetadata);
-        }
-        {
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(
-                new String[] { "index1" },
-                new String[] { "_doc" },
-                MapperPlugin.NOOP_FIELD_FILTER
-            );
-            ImmutableOpenMap<String, MappingMetadata> index1 = mappings.get("index1");
-            MappingMetadata mappingMetadata = index1.get("_doc");
-            assertSame(originalMappingMetadata, mappingMetadata);
-        }
-        {
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(
-                new String[] { "index1" },
-                new String[] { "_doc" },
-                index -> field -> randomBoolean()
-            );
-            ImmutableOpenMap<String, MappingMetadata> index1 = mappings.get("index1");
-            MappingMetadata mappingMetadata = index1.get("_doc");
+            MappingMetadata mappingMetadata = mappings.get("index1");
             assertNotSame(originalMappingMetadata, mappingMetadata);
         }
     }
@@ -802,9 +764,8 @@ public class MetadataTests extends OpenSearchTestCase {
             .build();
 
         {
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(
+            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index1", "index2", "index3" },
-                new String[] { "_doc" },
                 index -> {
                     if (index.equals("index1")) {
                         return field -> field.startsWith("name.") == false
@@ -822,11 +783,7 @@ public class MetadataTests extends OpenSearchTestCase {
             assertIndexMappingsNoFields(mappings, "index2");
             assertIndexMappingsNotFiltered(mappings, "index3");
 
-            ImmutableOpenMap<String, MappingMetadata> index1Mappings = mappings.get("index1");
-            assertNotNull(index1Mappings);
-
-            assertEquals(1, index1Mappings.size());
-            MappingMetadata docMapping = index1Mappings.get("_doc");
+            MappingMetadata docMapping = mappings.get("index1");
             assertNotNull(docMapping);
 
             Map<String, Object> sourceAsMap = docMapping.getSourceAsMap();
@@ -868,17 +825,14 @@ public class MetadataTests extends OpenSearchTestCase {
         }
 
         {
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(
+            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index1", "index2", "index3" },
-                new String[] { "_doc" },
                 index -> field -> (index.equals("index3") && field.endsWith("keyword"))
             );
 
             assertIndexMappingsNoFields(mappings, "index1");
             assertIndexMappingsNoFields(mappings, "index2");
-            ImmutableOpenMap<String, MappingMetadata> index3 = mappings.get("index3");
-            assertEquals(1, index3.size());
-            MappingMetadata mappingMetadata = index3.get("_doc");
+            MappingMetadata mappingMetadata = mappings.get("index3");
             Map<String, Object> sourceAsMap = mappingMetadata.getSourceAsMap();
             assertEquals(3, sourceAsMap.size());
             assertTrue(sourceAsMap.containsKey("_routing"));
@@ -906,9 +860,8 @@ public class MetadataTests extends OpenSearchTestCase {
         }
 
         {
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(
+            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index1", "index2", "index3" },
-                new String[] { "_doc" },
                 index -> field -> (index.equals("index2"))
             );
 
@@ -928,14 +881,8 @@ public class MetadataTests extends OpenSearchTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static void assertIndexMappingsNoFields(
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings,
-        String index
-    ) {
-        ImmutableOpenMap<String, MappingMetadata> indexMappings = mappings.get(index);
-        assertNotNull(indexMappings);
-        assertEquals(1, indexMappings.size());
-        MappingMetadata docMapping = indexMappings.get("_doc");
+    private static void assertIndexMappingsNoFields(ImmutableOpenMap<String, MappingMetadata> mappings, String index) {
+        MappingMetadata docMapping = mappings.get(index);
         assertNotNull(docMapping);
         Map<String, Object> sourceAsMap = docMapping.getSourceAsMap();
         assertEquals(3, sourceAsMap.size());
@@ -946,15 +893,8 @@ public class MetadataTests extends OpenSearchTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static void assertIndexMappingsNotFiltered(
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings,
-        String index
-    ) {
-        ImmutableOpenMap<String, MappingMetadata> indexMappings = mappings.get(index);
-        assertNotNull(indexMappings);
-
-        assertEquals(1, indexMappings.size());
-        MappingMetadata docMapping = indexMappings.get("_doc");
+    private static void assertIndexMappingsNotFiltered(ImmutableOpenMap<String, MappingMetadata> mappings, String index) {
+        MappingMetadata docMapping = mappings.get(index);
         assertNotNull(docMapping);
 
         Map<String, Object> sourceAsMap = docMapping.getSourceAsMap();

@@ -475,8 +475,8 @@ public class TDigestPercentilesIT extends AbstractNumericTestCase {
         );
         indexRandom(
             true,
-            client().prepareIndex("cache_test_idx", "type", "1").setSource("s", 1),
-            client().prepareIndex("cache_test_idx", "type", "2").setSource("s", 2)
+            client().prepareIndex("cache_test_idx").setId("1").setSource("s", 1),
+            client().prepareIndex("cache_test_idx").setId("2").setSource("s", 2)
         );
 
         // Make sure we are starting with a clear cache

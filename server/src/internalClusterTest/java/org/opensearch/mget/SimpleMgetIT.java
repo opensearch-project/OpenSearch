@@ -62,14 +62,15 @@ public class SimpleMgetIT extends OpenSearchIntegTestCase {
     public void testThatMgetShouldWorkWithOneIndexMissing() throws IOException {
         createIndex("test");
 
-        client().prepareIndex("test", "test", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
         MultiGetResponse mgetResponse = client().prepareMultiGet()
-            .add(new MultiGetRequest.Item("test", "test", "1"))
-            .add(new MultiGetRequest.Item("nonExistingIndex", "test", "1"))
+            .add(new MultiGetRequest.Item("test", "1"))
+            .add(new MultiGetRequest.Item("nonExistingIndex", "1"))
             .get();
         assertThat(mgetResponse.getResponses().length, is(2));
 
@@ -84,7 +85,7 @@ public class SimpleMgetIT extends OpenSearchIntegTestCase {
             is("nonExistingIndex")
         );
 
-        mgetResponse = client().prepareMultiGet().add(new MultiGetRequest.Item("nonExistingIndex", "test", "1")).get();
+        mgetResponse = client().prepareMultiGet().add(new MultiGetRequest.Item("nonExistingIndex", "1")).get();
         assertThat(mgetResponse.getResponses().length, is(1));
         assertThat(mgetResponse.getResponses()[0].getIndex(), is("nonExistingIndex"));
         assertThat(mgetResponse.getResponses()[0].isFailed(), is(true));
@@ -99,14 +100,15 @@ public class SimpleMgetIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("multiIndexAlias")));
         assertAcked(prepareCreate("test2").addAlias(new Alias("multiIndexAlias")));
 
-        client().prepareIndex("test", "test", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
         MultiGetResponse mgetResponse = client().prepareMultiGet()
-            .add(new MultiGetRequest.Item("test", "test", "1"))
-            .add(new MultiGetRequest.Item("multiIndexAlias", "test", "1"))
+            .add(new MultiGetRequest.Item("test", "1"))
+            .add(new MultiGetRequest.Item("multiIndexAlias", "1"))
             .get();
         assertThat(mgetResponse.getResponses().length, is(2));
 
@@ -117,7 +119,7 @@ public class SimpleMgetIT extends OpenSearchIntegTestCase {
         assertThat(mgetResponse.getResponses()[1].isFailed(), is(true));
         assertThat(mgetResponse.getResponses()[1].getFailure().getMessage(), containsString("more than one index"));
 
-        mgetResponse = client().prepareMultiGet().add(new MultiGetRequest.Item("multiIndexAlias", "test", "1")).get();
+        mgetResponse = client().prepareMultiGet().add(new MultiGetRequest.Item("multiIndexAlias", "1")).get();
         assertThat(mgetResponse.getResponses().length, is(1));
         assertThat(mgetResponse.getResponses()[0].getIndex(), is("multiIndexAlias"));
         assertThat(mgetResponse.getResponses()[0].isFailed(), is(true));
@@ -139,12 +141,13 @@ public class SimpleMgetIT extends OpenSearchIntegTestCase {
                 )
         );
 
-        client().prepareIndex("alias1", "test", "1")
+        client().prepareIndex("alias1")
+            .setId("1")
             .setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        MultiGetResponse mgetResponse = client().prepareMultiGet().add(new MultiGetRequest.Item("alias1", "test", "1")).get();
+        MultiGetResponse mgetResponse = client().prepareMultiGet().add(new MultiGetRequest.Item("alias1", "1")).get();
         assertEquals(1, mgetResponse.getResponses().length);
 
         assertEquals("test", mgetResponse.getResponses()[0].getIndex());
@@ -165,20 +168,20 @@ public class SimpleMgetIT extends OpenSearchIntegTestCase {
                 .endObject()
         );
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test", "type", Integer.toString(i)).setSource(sourceBytesRef, XContentType.JSON).get();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource(sourceBytesRef, XContentType.JSON).get();
         }
 
         MultiGetRequestBuilder request = client().prepareMultiGet();
         for (int i = 0; i < 100; i++) {
             if (i % 2 == 0) {
                 request.add(
-                    new MultiGetRequest.Item(indexOrAlias(), "type", Integer.toString(i)).fetchSourceContext(
+                    new MultiGetRequest.Item(indexOrAlias(), Integer.toString(i)).fetchSourceContext(
                         new FetchSourceContext(true, new String[] { "included" }, new String[] { "*.hidden_field" })
                     )
                 );
             } else {
                 request.add(
-                    new MultiGetRequest.Item(indexOrAlias(), "type", Integer.toString(i)).fetchSourceContext(new FetchSourceContext(false))
+                    new MultiGetRequest.Item(indexOrAlias(), Integer.toString(i)).fetchSourceContext(new FetchSourceContext(false))
                 );
             }
         }
@@ -212,15 +215,16 @@ public class SimpleMgetIT extends OpenSearchIntegTestCase {
         final String id = routingKeyForShard("test", 0);
         final String routingOtherShard = routingKeyForShard("test", 1);
 
-        client().prepareIndex("test", "test", id)
+        client().prepareIndex("test")
+            .setId(id)
             .setRefreshPolicy(IMMEDIATE)
             .setRouting(routingOtherShard)
             .setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
             .get();
 
         MultiGetResponse mgetResponse = client().prepareMultiGet()
-            .add(new MultiGetRequest.Item(indexOrAlias(), "test", id).routing(routingOtherShard))
-            .add(new MultiGetRequest.Item(indexOrAlias(), "test", id))
+            .add(new MultiGetRequest.Item(indexOrAlias(), id).routing(routingOtherShard))
+            .add(new MultiGetRequest.Item(indexOrAlias(), id))
             .get();
 
         assertThat(mgetResponse.getResponses().length, is(2));

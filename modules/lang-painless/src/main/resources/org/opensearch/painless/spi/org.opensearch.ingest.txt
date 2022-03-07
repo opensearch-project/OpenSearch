@@ -17,7 +17,7 @@
 # under the License.
 #
 
-# This file contains a whitelist for the ingest scripts
+# This file contains an allowlist for the ingest scripts
 
 class java.lang.String {
   String org.opensearch.painless.api.Augmentation sha1()

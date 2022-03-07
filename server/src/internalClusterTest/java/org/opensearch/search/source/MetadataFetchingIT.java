@@ -55,25 +55,23 @@ public class MetadataFetchingIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test"));
         ensureGreen();
 
-        client().prepareIndex("test", "_doc", "1").setSource("field", "value").get();
+        client().prepareIndex("test").setId("1").setSource("field", "value").get();
         refresh();
 
         SearchResponse response = client().prepareSearch("test").storedFields("_none_").setFetchSource(false).setVersion(true).get();
         assertThat(response.getHits().getAt(0).getId(), nullValue());
-        assertThat(response.getHits().getAt(0).getType(), equalTo("_doc"));
         assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
         assertThat(response.getHits().getAt(0).getVersion(), notNullValue());
 
         response = client().prepareSearch("test").storedFields("_none_").get();
         assertThat(response.getHits().getAt(0).getId(), nullValue());
-        assertThat(response.getHits().getAt(0).getType(), equalTo("_doc"));
         assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
     }
 
     public void testInnerHits() {
         assertAcked(prepareCreate("test").addMapping("_doc", "nested", "type=nested"));
         ensureGreen();
-        client().prepareIndex("test", "_doc", "1").setSource("field", "value", "nested", Collections.singletonMap("title", "foo")).get();
+        client().prepareIndex("test").setId("1").setSource("field", "value", "nested", Collections.singletonMap("title", "foo")).get();
         refresh();
 
         SearchResponse response = client().prepareSearch("test")
@@ -88,13 +86,11 @@ public class MetadataFetchingIT extends OpenSearchIntegTestCase {
             .get();
         assertThat(response.getHits().getTotalHits().value, equalTo(1L));
         assertThat(response.getHits().getAt(0).getId(), nullValue());
-        assertThat(response.getHits().getAt(0).getType(), equalTo("_doc"));
         assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
         assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
         SearchHits hits = response.getHits().getAt(0).getInnerHits().get("nested");
         assertThat(hits.getTotalHits().value, equalTo(1L));
         assertThat(hits.getAt(0).getId(), nullValue());
-        assertThat(hits.getAt(0).getType(), equalTo("_doc"));
         assertThat(hits.getAt(0).getSourceAsString(), nullValue());
     }
 
@@ -102,18 +98,16 @@ public class MetadataFetchingIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test"));
         ensureGreen();
 
-        client().prepareIndex("test", "_doc", "1").setSource("field", "value").setRouting("toto").get();
+        client().prepareIndex("test").setId("1").setSource("field", "value").setRouting("toto").get();
         refresh();
 
         SearchResponse response = client().prepareSearch("test").storedFields("_none_").setFetchSource(false).get();
         assertThat(response.getHits().getAt(0).getId(), nullValue());
-        assertThat(response.getHits().getAt(0).getType(), equalTo("_doc"));
         assertThat(response.getHits().getAt(0).field("_routing"), nullValue());
         assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
 
         response = client().prepareSearch("test").storedFields("_none_").get();
         assertThat(response.getHits().getAt(0).getId(), nullValue());
-        assertThat(response.getHits().getAt(0).getType(), equalTo("_doc"));
         assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
     }
 

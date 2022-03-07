@@ -56,7 +56,7 @@ public class CopyToMapperIntegrationIT extends OpenSearchIntegTestCase {
         int recordCount = between(1, 200);
 
         for (int i = 0; i < recordCount * 2; i++) {
-            client().prepareIndex("test-idx", "_doc", Integer.toString(i)).setSource("test_field", "test " + i, "even", i % 2 == 0).get();
+            client().prepareIndex("test-idx").setId(Integer.toString(i)).setSource("test_field", "test " + i, "even", i % 2 == 0).get();
         }
         client().admin().indices().prepareRefresh("test-idx").execute().actionGet();
 
@@ -92,7 +92,7 @@ public class CopyToMapperIntegrationIT extends OpenSearchIntegTestCase {
                 .endObject()
         );
         assertAcked(client().admin().indices().prepareCreate("test-idx").addMapping("_doc", mapping, XContentType.JSON));
-        client().prepareIndex("test-idx", "_doc", "1").setSource("foo", "bar").get();
+        client().prepareIndex("test-idx").setId("1").setSource("foo", "bar").get();
         client().admin().indices().prepareRefresh("test-idx").execute().actionGet();
         SearchResponse response = client().prepareSearch("test-idx").setQuery(QueryBuilders.termQuery("root.top.child", "bar")).get();
         assertThat(response.getHits().getTotalHits().value, equalTo(1L));

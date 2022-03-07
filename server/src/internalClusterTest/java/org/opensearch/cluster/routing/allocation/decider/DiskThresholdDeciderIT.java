@@ -302,7 +302,7 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
         while (true) {
             final IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[scaledRandomIntBetween(100, 10000)];
             for (int i = 0; i < indexRequestBuilders.length; i++) {
-                indexRequestBuilders[i] = client().prepareIndex(indexName, "_doc").setSource("field", randomAlphaOfLength(10));
+                indexRequestBuilders[i] = client().prepareIndex(indexName).setSource("field", randomAlphaOfLength(10));
             }
             indexRandom(true, indexRequestBuilders);
             forceMerge();

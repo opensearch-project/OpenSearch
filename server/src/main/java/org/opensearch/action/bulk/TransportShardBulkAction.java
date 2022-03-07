@@ -162,10 +162,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener
     ) {
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
-        performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis, (update, shardId, type, mappingListener) -> {
+        performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis, (update, shardId, mappingListener) -> {
             assert update != null;
             assert shardId != null;
-            mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), type, update, mappingListener);
+            mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), update, mappingListener);
         }, mappingUpdateListener -> observer.waitForNextChange(new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {
@@ -311,7 +311,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 case UPDATED:
                     IndexRequest indexRequest = updateResult.action();
                     IndexMetadata metadata = context.getPrimary().indexSettings().getIndexMetadata();
-                    MappingMetadata mappingMd = metadata.mappingOrDefault();
+                    MappingMetadata mappingMd = metadata.mapping();
                     indexRequest.process(metadata.getCreationVersion(), mappingMd, updateRequest.concreteIndex());
                     context.setRequestToExecute(indexRequest);
                     break;
@@ -340,7 +340,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             final DeleteRequest request = context.getRequestToExecute();
             result = primary.applyDeleteOperationOnPrimary(
                 version,
-                request.type(),
+                MapperService.SINGLE_MAPPING_NAME,
                 request.id(),
                 request.versionType(),
                 request.ifSeqNo(),
@@ -353,7 +353,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 request.versionType(),
                 new SourceToParse(
                     request.index(),
-                    request.type(),
+                    MapperService.SINGLE_MAPPING_NAME,
                     request.id(),
                     request.source(),
                     request.getContentType(),
@@ -370,8 +370,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             try {
                 primary.mapperService()
                     .merge(
-                        context.getRequestToExecute().type(),
-                        new CompressedXContent(result.getRequiredMappingUpdate(), XContentType.JSON, ToXContent.EMPTY_PARAMS),
+                        MapperService.SINGLE_MAPPING_NAME,
+                        new CompressedXContent(result.getRequiredMappingUpdate(), ToXContent.EMPTY_PARAMS),
                         MapperService.MergeReason.MAPPING_UPDATE_PREFLIGHT
                     );
             } catch (Exception e) {
@@ -380,37 +380,32 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 return true;
             }
 
-            mappingUpdater.updateMappings(
-                result.getRequiredMappingUpdate(),
-                primary.shardId(),
-                context.getRequestToExecute().type(),
-                new ActionListener<Void>() {
-                    @Override
-                    public void onResponse(Void v) {
-                        context.markAsRequiringMappingUpdate();
-                        waitForMappingUpdate.accept(ActionListener.runAfter(new ActionListener<Void>() {
-                            @Override
-                            public void onResponse(Void v) {
-                                assert context.requiresWaitingForMappingUpdate();
-                                context.resetForExecutionForRetry();
-                            }
+            mappingUpdater.updateMappings(result.getRequiredMappingUpdate(), primary.shardId(), new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void v) {
+                    context.markAsRequiringMappingUpdate();
+                    waitForMappingUpdate.accept(ActionListener.runAfter(new ActionListener<Void>() {
+                        @Override
+                        public void onResponse(Void v) {
+                            assert context.requiresWaitingForMappingUpdate();
+                            context.resetForExecutionForRetry();
+                        }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                context.failOnMappingUpdate(e);
-                            }
-                        }, () -> itemDoneListener.onResponse(null)));
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        onComplete(exceptionToResult(e, primary, isDelete, version), context, updateResult);
-                        // Requesting mapping update failed, so we don't have to wait for a cluster state update
-                        assert context.isInitial();
-                        itemDoneListener.onResponse(null);
-                    }
+                        @Override
+                        public void onFailure(Exception e) {
+                            context.failOnMappingUpdate(e);
+                        }
+                    }, () -> itemDoneListener.onResponse(null)));
                 }
-            );
+
+                @Override
+                public void onFailure(Exception e) {
+                    onComplete(exceptionToResult(e, primary, isDelete, version), context, updateResult);
+                    // Requesting mapping update failed, so we don't have to wait for a cluster state update
+                    assert context.isInitial();
+                    itemDoneListener.onResponse(null);
+                }
+            });
             return false;
         } else {
             onComplete(result, context, updateResult);
@@ -485,7 +480,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 updateResponse = new UpdateResponse(
                     indexResponse.getShardInfo(),
                     indexResponse.getShardId(),
-                    indexResponse.getType(),
                     indexResponse.getId(),
                     indexResponse.getSeqNo(),
                     indexResponse.getPrimaryTerm(),
@@ -518,7 +512,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 updateResponse = new UpdateResponse(
                     deleteResponse.getShardInfo(),
                     deleteResponse.getShardId(),
-                    deleteResponse.getType(),
                     deleteResponse.getId(),
                     deleteResponse.getSeqNo(),
                     deleteResponse.getPrimaryTerm(),
@@ -608,7 +601,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 final ShardId shardId = replica.shardId();
                 final SourceToParse sourceToParse = new SourceToParse(
                     shardId.getIndexName(),
-                    indexRequest.type(),
+                    MapperService.SINGLE_MAPPING_NAME,
                     indexRequest.id(),
                     indexRequest.source(),
                     indexRequest.getContentType(),
@@ -629,7 +622,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     primaryResponse.getSeqNo(),
                     primaryResponse.getPrimaryTerm(),
                     primaryResponse.getVersion(),
-                    deleteRequest.type(),
+                    MapperService.SINGLE_MAPPING_NAME,
                     deleteRequest.id()
                 );
                 break;

@@ -501,13 +501,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                 return rewritten;
             }
         }
-        GetRequest getRequest;
-        if (indexedDocumentType != null) {
-            deprecationLogger.deprecate("percolate_with_type", TYPE_DEPRECATION_MESSAGE);
-            getRequest = new GetRequest(indexedDocumentIndex, indexedDocumentType, indexedDocumentId);
-        } else {
-            getRequest = new GetRequest(indexedDocumentIndex, indexedDocumentId);
-        }
+        GetRequest getRequest = new GetRequest(indexedDocumentIndex, indexedDocumentId);
         getRequest.preference("_local");
         getRequest.routing(indexedDocumentRouting);
         getRequest.preference(indexedDocumentPreference);

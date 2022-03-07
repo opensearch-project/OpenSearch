@@ -35,6 +35,7 @@ package org.opensearch.common.lucene.search.function;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.opensearch.OpenSearchException;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -55,6 +56,8 @@ public class FieldValueFactorFunction extends ScoreFunction {
     private final String field;
     private final float boostFactor;
     private final Modifier modifier;
+    private final String functionName;
+
     /**
      * Value used if the document is missing the field.
      */
@@ -68,12 +71,24 @@ public class FieldValueFactorFunction extends ScoreFunction {
         Double missing,
         IndexNumericFieldData indexFieldData
     ) {
+        this(field, boostFactor, modifierType, missing, indexFieldData, null);
+    }
+
+    public FieldValueFactorFunction(
+        String field,
+        float boostFactor,
+        Modifier modifierType,
+        Double missing,
+        IndexNumericFieldData indexFieldData,
+        @Nullable String functionName
+    ) {
         super(CombineFunction.MULTIPLY);
         this.field = field;
         this.boostFactor = boostFactor;
         this.modifier = modifierType;
         this.indexFieldData = indexFieldData;
         this.missing = missing;
+        this.functionName = functionName;
     }
 
     @Override
@@ -127,7 +142,7 @@ public class FieldValueFactorFunction extends ScoreFunction {
                     (float) score,
                     String.format(
                         Locale.ROOT,
-                        "field value function: %s(doc['%s'].value%s * factor=%s)",
+                        "field value function" + Functions.nameOrEmptyFunc(functionName) + ": %s(doc['%s'].value%s * factor=%s)",
                         modifierStr,
                         field,
                         defaultStr,

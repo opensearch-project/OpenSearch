@@ -40,16 +40,12 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 
 public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder> {
-
-    private Set<String> assertedWarnings = new HashSet<>();
 
     @Override
     protected IdsQueryBuilder doCreateTestQueryBuilder() {
@@ -104,7 +100,6 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
 
     @Override
     public void testMustRewrite() throws IOException {
-        super.testMustRewrite();
         QueryShardContext context = createShardContextWithNoType();
         context.setAllowUnmappedFields(true);
         IdsQueryBuilder queryBuilder = createTestQueryBuilder();

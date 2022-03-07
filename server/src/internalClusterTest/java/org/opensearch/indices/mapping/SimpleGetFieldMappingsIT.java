@@ -159,8 +159,8 @@ public class SimpleGetFieldMappingsIT extends OpenSearchIntegTestCase {
     @SuppressWarnings("unchecked")
     public void testSimpleGetFieldMappingsWithDefaults() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type", getMappingForType("type")));
-        client().admin().indices().preparePutMapping("test").setType("type").setSource("num", "type=long").get();
-        client().admin().indices().preparePutMapping("test").setType("type").setSource("field2", "type=text,index=false").get();
+        client().admin().indices().preparePutMapping("test").setSource("num", "type=long").get();
+        client().admin().indices().preparePutMapping("test").setSource("field2", "type=text,index=false").get();
 
         GetFieldMappingsResponse response = client().admin()
             .indices()

@@ -120,7 +120,7 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
 
         for (int i = 0; i < 5; i++) {
             builders.add(
-                client().prepareIndex("idx", "type")
+                client().prepareIndex("idx")
                     .setSource(
                         jsonBuilder().startObject()
                             .field(STRING_FIELD, randomFrom(randomStrings))

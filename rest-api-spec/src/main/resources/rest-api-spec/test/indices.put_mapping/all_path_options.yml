@@ -1,7 +1,4 @@
 setup:
-  - skip:
-      version: " - 6.99.99"
-      reason: include_type_name defaults to true before 7.0
   - do:
       indices.create:
         index: test_index1
@@ -162,4 +159,4 @@ setup:
       indices.get_mapping: {}
 
   - match: {test_index1.mappings.properties.text.type:     text}
- 
+

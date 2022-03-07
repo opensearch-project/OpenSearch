@@ -154,7 +154,7 @@ public class CircuitBreakerServiceIT extends OpenSearchIntegTestCase {
         int docCount = scaledRandomIntBetween(300, 1000);
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (long id = 0; id < docCount; id++) {
-            reqs.add(client.prepareIndex("cb-test", "type", Long.toString(id)).setSource("test", "value" + id));
+            reqs.add(client.prepareIndex("cb-test").setId(Long.toString(id)).setSource("test", "value" + id));
         }
         indexRandom(true, false, true, reqs);
 
@@ -208,7 +208,7 @@ public class CircuitBreakerServiceIT extends OpenSearchIntegTestCase {
         int docCount = scaledRandomIntBetween(300, 1000);
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (long id = 0; id < docCount; id++) {
-            reqs.add(client.prepareIndex("ramtest", "type", Long.toString(id)).setSource("test", "value" + id));
+            reqs.add(client.prepareIndex("ramtest").setId(Long.toString(id)).setSource("test", "value" + id));
         }
         indexRandom(true, false, true, reqs);
 
@@ -261,7 +261,7 @@ public class CircuitBreakerServiceIT extends OpenSearchIntegTestCase {
         int docCount = scaledRandomIntBetween(300, 1000);
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (long id = 0; id < docCount; id++) {
-            reqs.add(client.prepareIndex("cb-test", "type", Long.toString(id)).setSource("test", id));
+            reqs.add(client.prepareIndex("cb-test").setId(Long.toString(id)).setSource("test", id));
         }
         indexRandom(true, reqs);
 
@@ -295,7 +295,7 @@ public class CircuitBreakerServiceIT extends OpenSearchIntegTestCase {
         int docCount = scaledRandomIntBetween(100, 1000);
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (long id = 0; id < docCount; id++) {
-            reqs.add(client.prepareIndex("cb-test", "type", Long.toString(id)).setSource("test", id));
+            reqs.add(client.prepareIndex("cb-test").setId(Long.toString(id)).setSource("test", id));
         }
         indexRandom(true, reqs);
 
@@ -403,7 +403,7 @@ public class CircuitBreakerServiceIT extends OpenSearchIntegTestCase {
         int numRequests = inFlightRequestsLimit.bytesAsInt();
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < numRequests; i++) {
-            IndexRequest indexRequest = new IndexRequest("index", "type", Integer.toString(i));
+            IndexRequest indexRequest = new IndexRequest("index").id(Integer.toString(i));
             indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field", "value", "num", i);
             bulkRequest.add(indexRequest);
         }

@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.Version;
 import org.opensearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.opensearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.opensearch.action.admin.indices.rollover.MaxSizeCondition;
@@ -52,7 +51,6 @@ import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.test.OpenSearchTestCase;
@@ -361,32 +359,6 @@ public class IndexMetadataTests extends OpenSearchTestCase {
             () -> IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(notAFactorySettings)
         );
         assertEquals("the number of source shards [2] must be a factor of [3]", iae.getMessage());
-    }
-
-    public void testMappingOrDefault() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
-        IndexMetadata meta = IndexMetadata.builder("index").settings(settings).build();
-        assertNull(meta.mappingOrDefault());
-
-        meta = IndexMetadata.builder("index").settings(settings).putMapping("type", "{}").build();
-        assertNotNull(meta.mappingOrDefault());
-        assertEquals("type", meta.mappingOrDefault().type());
-
-        meta = IndexMetadata.builder("index").settings(settings).putMapping(MapperService.DEFAULT_MAPPING, "{}").build();
-        assertNotNull(meta.mappingOrDefault());
-        assertEquals(MapperService.DEFAULT_MAPPING, meta.mappingOrDefault().type());
-
-        meta = IndexMetadata.builder("index")
-            .settings(settings)
-            .putMapping("type", "{}")
-            .putMapping(MapperService.DEFAULT_MAPPING, "{}")
-            .build();
-        assertNotNull(meta.mappingOrDefault());
-        assertEquals("type", meta.mappingOrDefault().type());
     }
 
     public void testMissingNumberOfShards() {

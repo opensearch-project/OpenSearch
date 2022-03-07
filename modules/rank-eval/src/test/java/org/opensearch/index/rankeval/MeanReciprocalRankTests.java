@@ -35,7 +35,6 @@ package org.opensearch.index.rankeval;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.text.Text;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -216,7 +215,7 @@ public class MeanReciprocalRankTests extends OpenSearchTestCase {
     private static SearchHit[] createSearchHits(int from, int to, String index) {
         SearchHit[] hits = new SearchHit[to + 1 - from];
         for (int i = from; i <= to; i++) {
-            hits[i] = new SearchHit(i, i + "", new Text(""), Collections.emptyMap(), Collections.emptyMap());
+            hits[i] = new SearchHit(i, i + "", Collections.emptyMap(), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null, OriginalIndices.NONE));
         }
         return hits;

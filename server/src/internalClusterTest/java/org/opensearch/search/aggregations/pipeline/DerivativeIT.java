@@ -132,7 +132,7 @@ public class DerivativeIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < numValueBuckets; i++) {
             for (int docs = 0; docs < valueCounts[i]; docs++) {
-                builders.add(client().prepareIndex("idx", "type").setSource(newDocBuilder(i * interval)));
+                builders.add(client().prepareIndex("idx").setSource(newDocBuilder(i * interval)));
             }
         }
 
@@ -143,7 +143,7 @@ public class DerivativeIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer"));
         for (int i = 0; i < valueCounts_empty.length; i++) {
             for (int docs = 0; docs < valueCounts_empty[i]; docs++) {
-                builders.add(client().prepareIndex("empty_bucket_idx", "type").setSource(newDocBuilder(i)));
+                builders.add(client().prepareIndex("empty_bucket_idx").setSource(newDocBuilder(i)));
                 numDocsEmptyIdx++;
             }
         }
@@ -160,7 +160,7 @@ public class DerivativeIT extends OpenSearchIntegTestCase {
             // make approximately half of the buckets empty
             if (randomBoolean()) valueCounts_empty_rnd[i] = 0L;
             for (int docs = 0; docs < valueCounts_empty_rnd[i]; docs++) {
-                builders.add(client().prepareIndex("empty_bucket_idx_rnd", "type").setSource(newDocBuilder(i)));
+                builders.add(client().prepareIndex("empty_bucket_idx_rnd").setSource(newDocBuilder(i)));
                 numDocsEmptyIdx_rnd++;
             }
             if (i > 0) {
@@ -664,7 +664,7 @@ public class DerivativeIT extends OpenSearchIntegTestCase {
             }
 
             XContentBuilder doc = jsonBuilder().startObject().field("tick", i).field("value", value).endObject();
-            client().prepareIndex("movavg_npe", "type").setSource(doc).get();
+            client().prepareIndex("movavg_npe").setSource(doc).get();
         }
 
         refresh();

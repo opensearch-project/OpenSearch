@@ -72,7 +72,7 @@ public class FilteringAllocationIT extends OpenSearchIntegTestCase {
         ensureGreen("test");
         logger.info("--> index some data");
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
         client().admin().indices().prepareRefresh().execute().actionGet();
         assertThat(
@@ -187,7 +187,7 @@ public class FilteringAllocationIT extends OpenSearchIntegTestCase {
 
         logger.info("--> index some data");
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
         client().admin().indices().prepareRefresh().execute().actionGet();
         assertThat(

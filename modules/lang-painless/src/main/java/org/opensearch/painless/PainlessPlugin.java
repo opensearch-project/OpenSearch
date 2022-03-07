@@ -83,11 +83,11 @@ import java.util.function.Supplier;
  */
 public final class PainlessPlugin extends Plugin implements ScriptPlugin, ExtensiblePlugin, ActionPlugin {
 
-    private static final Map<ScriptContext<?>, List<Whitelist>> whitelists;
+    private static final Map<ScriptContext<?>, List<Whitelist>> allowlists;
 
     /*
-     * Contexts from Core that need custom whitelists can add them to the map below.
-     * Whitelist resources should be added as appropriately named, separate files
+     * Contexts from Core that need custom allowlists can add them to the map below.
+     * Allowlist resources should be added as appropriately named, separate files
      * under Painless' resources
      */
     static {
@@ -108,23 +108,23 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         ingest.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.opensearch.ingest.txt"));
         map.put(IngestScript.CONTEXT, ingest);
 
-        whitelists = map;
+        allowlists = map;
     }
 
     private final SetOnce<PainlessScriptEngine> painlessScriptEngine = new SetOnce<>();
 
     @Override
     public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
-        Map<ScriptContext<?>, List<Whitelist>> contextsWithWhitelists = new HashMap<>();
+        Map<ScriptContext<?>, List<Whitelist>> contextsWithAllowlists = new HashMap<>();
         for (ScriptContext<?> context : contexts) {
-            // we might have a context that only uses the base whitelists, so would not have been filled in by reloadSPI
-            List<Whitelist> contextWhitelists = whitelists.get(context);
-            if (contextWhitelists == null) {
-                contextWhitelists = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+            // we might have a context that only uses the base allowlists, so would not have been filled in by reloadSPI
+            List<Whitelist> contextAllowlists = allowlists.get(context);
+            if (contextAllowlists == null) {
+                contextAllowlists = new ArrayList<>(Whitelist.BASE_WHITELISTS);
             }
-            contextsWithWhitelists.put(context, contextWhitelists);
+            contextsWithAllowlists.put(context, contextAllowlists);
         }
-        painlessScriptEngine.set(new PainlessScriptEngine(settings, contextsWithWhitelists));
+        painlessScriptEngine.set(new PainlessScriptEngine(settings, contextsWithAllowlists));
         return painlessScriptEngine.get();
     }
 
@@ -158,7 +158,7 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
             .stream()
             .flatMap(extension -> extension.getContextWhitelists().entrySet().stream())
             .forEach(entry -> {
-                List<Whitelist> existing = whitelists.computeIfAbsent(entry.getKey(), c -> new ArrayList<>(Whitelist.BASE_WHITELISTS));
+                List<Whitelist> existing = allowlists.computeIfAbsent(entry.getKey(), c -> new ArrayList<>(Whitelist.BASE_WHITELISTS));
                 existing.addAll(entry.getValue());
             });
     }

@@ -474,7 +474,7 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
                     .endObject()
             );
             docMapper = indexService.mapperService()
-                .merge("_doc", new CompressedXContent(updateMapping), MapperService.MergeReason.MAPPING_UPDATE);
+                .merge("type", new CompressedXContent(updateMapping), MapperService.MergeReason.MAPPING_UPDATE);
             ParentJoinFieldMapper mapper = ParentJoinFieldMapper.getMapper(indexService.mapperService());
             assertNotNull(mapper);
             assertEquals("join_field", mapper.name());
@@ -501,7 +501,7 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
                     .endObject()
             );
             docMapper = indexService.mapperService()
-                .merge("_doc", new CompressedXContent(updateMapping), MapperService.MergeReason.MAPPING_UPDATE);
+                .merge("type", new CompressedXContent(updateMapping), MapperService.MergeReason.MAPPING_UPDATE);
             ParentJoinFieldMapper mapper = ParentJoinFieldMapper.getMapper(indexService.mapperService());
             assertNotNull(mapper);
             assertEquals("join_field", mapper.name());

@@ -73,6 +73,7 @@ import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineTestCase;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
@@ -200,13 +201,13 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> delete some data");
         for (int i = 0; i < 50; i++) {
-            client().prepareDelete("test-idx-1", "_doc", Integer.toString(i)).get();
+            client().prepareDelete("test-idx-1", Integer.toString(i)).get();
         }
         for (int i = 50; i < 100; i++) {
-            client().prepareDelete("test-idx-2", "_doc", Integer.toString(i)).get();
+            client().prepareDelete("test-idx-2", Integer.toString(i)).get();
         }
         for (int i = 0; i < 100; i += 2) {
-            client().prepareDelete("test-idx-3", "_doc", Integer.toString(i)).get();
+            client().prepareDelete("test-idx-3", Integer.toString(i)).get();
         }
         assertAllSuccessful(refresh());
         assertDocCount("test-idx-1", 50L);
@@ -288,12 +289,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         Path absolutePath = randomRepoPath().toAbsolutePath();
         logger.info("Path [{}]", absolutePath);
         String restoredIndexName = indexName + "-restored";
-        String typeName = "actions";
         String expectedValue = "expected";
 
         // Write a document
         String docId = Integer.toString(randomInt());
-        index(indexName, typeName, docId, "value", expectedValue);
+        index(indexName, MapperService.SINGLE_MAPPING_NAME, docId, "value", expectedValue);
 
         createRepository(repoName, "fs", absolutePath);
         createSnapshot(repoName, snapshotName, Collections.singletonList(indexName));
@@ -305,7 +305,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
-        assertThat(client().prepareGet(restoredIndexName, typeName, docId).get().isExists(), equalTo(true));
+        assertThat(client().prepareGet(restoredIndexName, docId).get().isExists(), equalTo(true));
     }
 
     public void testFreshIndexUUID() {
@@ -1400,7 +1400,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             }
         }
 
-        client().prepareDelete("test", "_doc", "1").get();
+        client().prepareDelete("test", "1").get();
         createSnapshot("test-repo", "test-2", Collections.singletonList("test"));
         assertThat(getSnapshot("test-repo", "test-2").state(), equalTo(SnapshotState.SUCCESS));
         {
@@ -1643,9 +1643,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> indexing some data");
         indexRandom(
             true,
-            client().prepareIndex("test-idx-1", "_doc").setSource("foo", "bar"),
-            client().prepareIndex("test-idx-2", "_doc").setSource("foo", "bar"),
-            client().prepareIndex("test-idx-3", "_doc").setSource("foo", "bar")
+            client().prepareIndex("test-idx-1").setSource("foo", "bar"),
+            client().prepareIndex("test-idx-2").setSource("foo", "bar"),
+            client().prepareIndex("test-idx-3").setSource("foo", "bar")
         );
 
         logger.info("--> creating 2 snapshots");
@@ -1708,9 +1708,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         createIndex("test-idx-1", "test-idx-2");
         indexRandom(
             true,
-            client().prepareIndex("test-idx-1", "_doc").setSource("foo", "bar"),
-            client().prepareIndex("test-idx-2", "_doc").setSource("foo", "bar"),
-            client().prepareIndex("test-idx-2", "_doc").setSource("foo", "bar")
+            client().prepareIndex("test-idx-1").setSource("foo", "bar"),
+            client().prepareIndex("test-idx-2").setSource("foo", "bar"),
+            client().prepareIndex("test-idx-2").setSource("foo", "bar")
         );
         flushAndRefresh("test-idx-1", "test-idx-2");
 
@@ -1771,7 +1771,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
             IndexRequestBuilder[] documents = new IndexRequestBuilder[nbDocs];
             for (int j = 0; j < nbDocs; j++) {
-                documents[j] = client.prepareIndex(indexName, "_doc").setSource("foo", "bar");
+                documents[j] = client.prepareIndex(indexName).setSource("foo", "bar");
             }
             indexRandom(true, documents);
         }

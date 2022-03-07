@@ -123,14 +123,15 @@ public class NestedIT extends OpenSearchIntegTestCase {
                 source = source.startObject().field("value", i + 1 + j).endObject();
             }
             source = source.endArray().endObject();
-            builders.add(client().prepareIndex("idx", "type", "" + i + 1).setSource(source));
+            builders.add(client().prepareIndex("idx").setId("" + i + 1).setSource(source));
         }
 
         prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer", "nested", "type=nested").get();
         ensureGreen("empty_bucket_idx");
         for (int i = 0; i < 2; i++) {
             builders.add(
-                client().prepareIndex("empty_bucket_idx", "type", "" + i)
+                client().prepareIndex("empty_bucket_idx")
+                    .setId("" + i)
                     .setSource(
                         jsonBuilder().startObject()
                             .field("value", i * 2)
@@ -178,7 +179,8 @@ public class NestedIT extends OpenSearchIntegTestCase {
         ensureGreen("idx_nested_nested_aggs");
 
         builders.add(
-            client().prepareIndex("idx_nested_nested_aggs", "type", "1")
+            client().prepareIndex("idx_nested_nested_aggs")
+                .setId("1")
                 .setSource(
                     jsonBuilder().startObject()
                         .startArray("nested1")
@@ -458,7 +460,8 @@ public class NestedIT extends OpenSearchIntegTestCase {
 
         List<IndexRequestBuilder> indexRequests = new ArrayList<>(2);
         indexRequests.add(
-            client().prepareIndex("idx2", "provider", "1")
+            client().prepareIndex("idx2")
+                .setId("1")
                 .setSource(
                     "{\"dates\": {\"month\": {\"label\": \"2014-11\", \"end\": \"2014-11-30\", \"start\": \"2014-11-01\"}, "
                         + "\"day\": \"2014-11-30\"}, \"comments\": [{\"cid\": 3,\"identifier\": \"29111\"}, {\"cid\": 4,\"tags\": ["
@@ -467,7 +470,8 @@ public class NestedIT extends OpenSearchIntegTestCase {
                 )
         );
         indexRequests.add(
-            client().prepareIndex("idx2", "provider", "2")
+            client().prepareIndex("idx2")
+                .setId("2")
                 .setSource(
                     "{\"dates\": {\"month\": {\"label\": \"2014-12\", \"end\": \"2014-12-31\", \"start\": \"2014-12-01\"}, "
                         + "\"day\": \"2014-12-03\"}, \"comments\": [{\"cid\": 1, \"identifier\": \"29111\"}, {\"cid\": 2,\"tags\": ["
@@ -544,7 +548,8 @@ public class NestedIT extends OpenSearchIntegTestCase {
         );
         ensureGreen("idx4");
 
-        client().prepareIndex("idx4", "product", "1")
+        client().prepareIndex("idx4")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("name", "product1")
@@ -563,7 +568,8 @@ public class NestedIT extends OpenSearchIntegTestCase {
                     .endObject()
             )
             .get();
-        client().prepareIndex("idx4", "product", "2")
+        client().prepareIndex("idx4")
+            .setId("2")
             .setSource(
                 jsonBuilder().startObject()
                     .field("name", "product2")
@@ -679,7 +685,8 @@ public class NestedIT extends OpenSearchIntegTestCase {
             )
         );
 
-        client().prepareIndex("classes", "class", "1")
+        client().prepareIndex("classes")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("name", "QueryBuilder")
@@ -718,7 +725,8 @@ public class NestedIT extends OpenSearchIntegTestCase {
                     .endObject()
             )
             .get();
-        client().prepareIndex("classes", "class", "2")
+        client().prepareIndex("classes")
+            .setId("2")
             .setSource(
                 jsonBuilder().startObject()
                     .field("name", "Document")
