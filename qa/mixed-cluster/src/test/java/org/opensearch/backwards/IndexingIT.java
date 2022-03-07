@@ -46,8 +46,6 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.rest.action.document.RestGetAction;
-import org.opensearch.rest.action.document.RestIndexAction;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.opensearch.test.rest.yaml.ObjectPath;
 
@@ -365,7 +363,6 @@ public class IndexingIT extends OpenSearchRestTestCase {
     private void assertVersion(final String index, final int docId, final String preference, final int expectedVersion) throws IOException {
         Request request = new Request("GET", index + "/_doc/" + docId);
         request.addParameter("preference", preference);
-        request.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
 
         final Response response = client().performRequest(request);
         assertOK(response);

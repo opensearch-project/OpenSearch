@@ -257,7 +257,6 @@ public class UpdateMappingTests extends OpenSearchSingleNodeTestCase {
             final long previousVersion = clusterService.state().metadata().index("test").getMappingVersion();
             final PutMappingRequest request = new PutMappingRequest();
             request.indices("test");
-            request.type("type");
             request.source("field", "type=text");
             client().admin().indices().putMapping(request).actionGet();
             assertThat(clusterService.state().metadata().index("test").getMappingVersion(), Matchers.equalTo(1 + previousVersion));
@@ -267,7 +266,6 @@ public class UpdateMappingTests extends OpenSearchSingleNodeTestCase {
             final long previousVersion = clusterService.state().metadata().index("test").getMappingVersion();
             final PutMappingRequest request = new PutMappingRequest();
             request.indices("test");
-            request.type("type");
             request.source("field", "type=text");
             client().admin().indices().putMapping(request).actionGet();
             // the version should be unchanged after putting the same mapping again

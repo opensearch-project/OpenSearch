@@ -32,6 +32,7 @@
 
 package org.opensearch.action.support.master.info;
 
+import org.opensearch.Version;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.MasterNodeReadRequest;
@@ -46,7 +47,6 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
         IndicesRequest.Replaceable {
 
     private String[] indices = Strings.EMPTY_ARRAY;
-    private String[] types = Strings.EMPTY_ARRAY;
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
@@ -55,7 +55,9 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
     public ClusterInfoRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
-        types = in.readStringArray();
+        if (in.getVersion().before(Version.V_2_0_0)) {
+            in.readStringArray();
+        }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
@@ -63,7 +65,9 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(indices);
-        out.writeStringArray(types);
+        if (out.getVersion().before(Version.V_2_0_0)) {
+            out.writeStringArray(Strings.EMPTY_ARRAY);
+        }
         indicesOptions.writeIndicesOptions(out);
     }
 
@@ -71,12 +75,6 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
     @SuppressWarnings("unchecked")
     public Request indices(String... indices) {
         this.indices = indices;
-        return (Request) this;
-    }
-
-    @SuppressWarnings("unchecked")
-    public Request types(String... types) {
-        this.types = types;
         return (Request) this;
     }
 
@@ -89,10 +87,6 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
     @Override
     public String[] indices() {
         return indices;
-    }
-
-    public String[] types() {
-        return types;
     }
 
     @Override

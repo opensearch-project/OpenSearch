@@ -90,25 +90,25 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         );
         ensureGreen();
 
-        GetResponse response = client().prepareGet(indexOrAlias(), "type1", "1").get();
+        GetResponse response = client().prepareGet(indexOrAlias(), "1").get();
         assertThat(response.isExists(), equalTo(false));
 
         logger.info("--> index doc 1");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2").get();
 
         logger.info("--> non realtime get 1");
-        response = client().prepareGet(indexOrAlias(), "type1", "1").setRealtime(false).get();
+        response = client().prepareGet(indexOrAlias(), "1").setRealtime(false).get();
         assertThat(response.isExists(), equalTo(false));
 
         logger.info("--> realtime get 1");
-        response = client().prepareGet(indexOrAlias(), "type1", "1").get();
+        response = client().prepareGet(indexOrAlias(), "1").get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getSourceAsMap().get("field1").toString(), equalTo("value1"));
         assertThat(response.getSourceAsMap().get("field2").toString(), equalTo("value2"));
 
         logger.info("--> realtime get 1 (no source, implicit)");
-        response = client().prepareGet(indexOrAlias(), "type1", "1").setStoredFields(Strings.EMPTY_ARRAY).get();
+        response = client().prepareGet(indexOrAlias(), "1").setStoredFields(Strings.EMPTY_ARRAY).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getIndex(), equalTo("test"));
         Set<String> fields = new HashSet<>(response.getFields().keySet());
@@ -116,7 +116,7 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         assertThat(response.getSourceAsBytes(), nullValue());
 
         logger.info("--> realtime get 1 (no source, explicit)");
-        response = client().prepareGet(indexOrAlias(), "type1", "1").setFetchSource(false).get();
+        response = client().prepareGet(indexOrAlias(), "1").setFetchSource(false).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getIndex(), equalTo("test"));
         fields = new HashSet<>(response.getFields().keySet());
@@ -124,14 +124,14 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         assertThat(response.getSourceAsBytes(), nullValue());
 
         logger.info("--> realtime get 1 (no type)");
-        response = client().prepareGet(indexOrAlias(), null, "1").get();
+        response = client().prepareGet(indexOrAlias(), "1").get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getSourceAsMap().get("field1").toString(), equalTo("value1"));
         assertThat(response.getSourceAsMap().get("field2").toString(), equalTo("value2"));
 
         logger.info("--> realtime fetch of field");
-        response = client().prepareGet(indexOrAlias(), "type1", "1").setStoredFields("field1").get();
+        response = client().prepareGet(indexOrAlias(), "1").setStoredFields("field1").get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getSourceAsBytes(), nullValue());
@@ -139,7 +139,7 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         assertThat(response.getField("field2"), nullValue());
 
         logger.info("--> realtime fetch of field & source");
-        response = client().prepareGet(indexOrAlias(), "type1", "1").setStoredFields("field1").setFetchSource("field1", null).get();
+        response = client().prepareGet(indexOrAlias(), "1").setStoredFields("field1").setFetchSource("field1", null).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getSourceAsMap(), hasKey("field1"));
@@ -148,7 +148,7 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         assertThat(response.getField("field2"), nullValue());
 
         logger.info("--> realtime get 1");
-        response = client().prepareGet(indexOrAlias(), "type1", "1").get();
+        response = client().prepareGet(indexOrAlias(), "1").get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getSourceAsMap().get("field1").toString(), equalTo("value1"));
@@ -158,14 +158,14 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         refresh();
 
         logger.info("--> non realtime get 1 (loaded from index)");
-        response = client().prepareGet(indexOrAlias(), "type1", "1").setRealtime(false).get();
+        response = client().prepareGet(indexOrAlias(), "1").setRealtime(false).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getSourceAsMap().get("field1").toString(), equalTo("value1"));
         assertThat(response.getSourceAsMap().get("field2").toString(), equalTo("value2"));
 
         logger.info("--> realtime fetch of field (loaded from index)");
-        response = client().prepareGet(indexOrAlias(), "type1", "1").setStoredFields("field1").get();
+        response = client().prepareGet(indexOrAlias(), "1").setStoredFields("field1").get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getSourceAsBytes(), nullValue());
@@ -173,7 +173,7 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         assertThat(response.getField("field2"), nullValue());
 
         logger.info("--> realtime fetch of field & source (loaded from index)");
-        response = client().prepareGet(indexOrAlias(), "type1", "1").setStoredFields("field1").setFetchSource(true).get();
+        response = client().prepareGet(indexOrAlias(), "1").setStoredFields("field1").setFetchSource(true).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getSourceAsBytes(), not(nullValue()));
@@ -181,28 +181,28 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         assertThat(response.getField("field2"), nullValue());
 
         logger.info("--> update doc 1");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1_1", "field2", "value2_1").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1_1", "field2", "value2_1").get();
 
         logger.info("--> realtime get 1");
-        response = client().prepareGet(indexOrAlias(), "type1", "1").get();
+        response = client().prepareGet(indexOrAlias(), "1").get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getSourceAsMap().get("field1").toString(), equalTo("value1_1"));
         assertThat(response.getSourceAsMap().get("field2").toString(), equalTo("value2_1"));
 
         logger.info("--> update doc 1 again");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1_2", "field2", "value2_2").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1_2", "field2", "value2_2").get();
 
-        response = client().prepareGet(indexOrAlias(), "type1", "1").get();
+        response = client().prepareGet(indexOrAlias(), "1").get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getSourceAsMap().get("field1").toString(), equalTo("value1_2"));
         assertThat(response.getSourceAsMap().get("field2").toString(), equalTo("value2_2"));
 
-        DeleteResponse deleteResponse = client().prepareDelete("test", "type1", "1").get();
+        DeleteResponse deleteResponse = client().prepareDelete("test", "1").get();
         assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
 
-        response = client().prepareGet(indexOrAlias(), "type1", "1").get();
+        response = client().prepareGet(indexOrAlias(), "1").get();
         assertThat(response.isExists(), equalTo(false));
     }
 
@@ -217,12 +217,12 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         } else {
             client().admin().indices().prepareCreate("index3").addAlias(new Alias("alias1").indexRouting("1").writeIndex(true)).get();
         }
-        IndexResponse indexResponse = client().prepareIndex("index1", "type", "id").setSource(Collections.singletonMap("foo", "bar")).get();
+        IndexResponse indexResponse = client().prepareIndex("index1").setId("id").setSource(Collections.singletonMap("foo", "bar")).get();
         assertThat(indexResponse.status().getStatus(), equalTo(RestStatus.CREATED.getStatus()));
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareGet("alias1", "type", "_alias_id").get()
+            () -> client().prepareGet("alias1", "_alias_id").get()
         );
         assertThat(exception.getMessage(), endsWith("can't execute a single index op"));
     }
@@ -239,20 +239,20 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         );
         ensureGreen();
 
-        MultiGetResponse response = client().prepareMultiGet().add(indexOrAlias(), "type1", "1").get();
+        MultiGetResponse response = client().prepareMultiGet().add(indexOrAlias(), "1").get();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(false));
 
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value" + i).get();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
 
         response = client().prepareMultiGet()
-            .add(indexOrAlias(), "type1", "1")
-            .add(indexOrAlias(), "type1", "15")
-            .add(indexOrAlias(), "type1", "3")
-            .add(indexOrAlias(), "type1", "9")
-            .add(indexOrAlias(), "type1", "11")
+            .add(indexOrAlias(), "1")
+            .add(indexOrAlias(), "15")
+            .add(indexOrAlias(), "3")
+            .add(indexOrAlias(), "9")
+            .add(indexOrAlias(), "11")
             .get();
         assertThat(response.getResponses().length, equalTo(5));
         assertThat(response.getResponses()[0].getId(), equalTo("1"));
@@ -278,8 +278,8 @@ public class GetActionIT extends OpenSearchIntegTestCase {
 
         // multi get with specific field
         response = client().prepareMultiGet()
-            .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "1").storedFields("field"))
-            .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "3").storedFields("field"))
+            .add(new MultiGetRequest.Item(indexOrAlias(), "1").storedFields("field"))
+            .add(new MultiGetRequest.Item(indexOrAlias(), "3").storedFields("field"))
             .get();
 
         assertThat(response.getResponses().length, equalTo(2));
@@ -304,16 +304,15 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type1", mapping1, XContentType.JSON));
         ensureGreen();
 
-        GetResponse response = client().prepareGet("test", "type1", "1").get();
+        GetResponse response = client().prepareGet("test", "1").get();
         assertThat(response.isExists(), equalTo(false));
         assertThat(response.isExists(), equalTo(false));
 
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().array("field", "1", "2").endObject()).get();
+        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().array("field", "1", "2").endObject()).get();
 
-        response = client().prepareGet("test", "type1", "1").setStoredFields("field").get();
+        response = client().prepareGet("test", "1").setStoredFields("field").get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
-        assertThat(response.getType(), equalTo("type1"));
         Set<String> fields = new HashSet<>(response.getFields().keySet());
         assertThat(fields, equalTo(singleton("field")));
         assertThat(response.getFields().get("field").getValues().size(), equalTo(2));
@@ -322,7 +321,7 @@ public class GetActionIT extends OpenSearchIntegTestCase {
 
         // Now test values being fetched from stored fields.
         refresh();
-        response = client().prepareGet("test", "type1", "1").setStoredFields("field").get();
+        response = client().prepareGet("test", "1").setStoredFields("field").get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         fields = new HashSet<>(response.getFields().keySet());
@@ -336,26 +335,26 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen();
 
-        GetResponse response = client().prepareGet("test", "type1", "1").get();
+        GetResponse response = client().prepareGet("test", "1").get();
         assertThat(response.isExists(), equalTo(false));
 
         logger.info("--> index doc 1");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2").get();
 
         // From translog:
 
-        response = client().prepareGet(indexOrAlias(), "type1", "1").setVersion(Versions.MATCH_ANY).get();
+        response = client().prepareGet(indexOrAlias(), "1").setVersion(Versions.MATCH_ANY).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getVersion(), equalTo(1L));
 
-        response = client().prepareGet(indexOrAlias(), "type1", "1").setVersion(1).get();
+        response = client().prepareGet(indexOrAlias(), "1").setVersion(1).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getVersion(), equalTo(1L));
 
         try {
-            client().prepareGet(indexOrAlias(), "type1", "1").setVersion(2).get();
+            client().prepareGet(indexOrAlias(), "1").setVersion(2).get();
             fail();
         } catch (VersionConflictEngineException e) {
             // all good
@@ -364,44 +363,44 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         // From Lucene index:
         refresh();
 
-        response = client().prepareGet(indexOrAlias(), "type1", "1").setVersion(Versions.MATCH_ANY).setRealtime(false).get();
+        response = client().prepareGet(indexOrAlias(), "1").setVersion(Versions.MATCH_ANY).setRealtime(false).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getVersion(), equalTo(1L));
 
-        response = client().prepareGet(indexOrAlias(), "type1", "1").setVersion(1).setRealtime(false).get();
+        response = client().prepareGet(indexOrAlias(), "1").setVersion(1).setRealtime(false).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getVersion(), equalTo(1L));
 
         try {
-            client().prepareGet(indexOrAlias(), "type1", "1").setVersion(2).setRealtime(false).get();
+            client().prepareGet(indexOrAlias(), "1").setVersion(2).setRealtime(false).get();
             fail();
         } catch (VersionConflictEngineException e) {
             // all good
         }
 
         logger.info("--> index doc 1 again, so increasing the version");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2").get();
 
         // From translog:
 
-        response = client().prepareGet(indexOrAlias(), "type1", "1").setVersion(Versions.MATCH_ANY).get();
+        response = client().prepareGet(indexOrAlias(), "1").setVersion(Versions.MATCH_ANY).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getVersion(), equalTo(2L));
 
         try {
-            client().prepareGet(indexOrAlias(), "type1", "1").setVersion(1).get();
+            client().prepareGet(indexOrAlias(), "1").setVersion(1).get();
             fail();
         } catch (VersionConflictEngineException e) {
             // all good
         }
 
-        response = client().prepareGet(indexOrAlias(), "type1", "1").setVersion(2).get();
+        response = client().prepareGet(indexOrAlias(), "1").setVersion(2).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
@@ -410,20 +409,20 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         // From Lucene index:
         refresh();
 
-        response = client().prepareGet(indexOrAlias(), "type1", "1").setVersion(Versions.MATCH_ANY).setRealtime(false).get();
+        response = client().prepareGet(indexOrAlias(), "1").setVersion(Versions.MATCH_ANY).setRealtime(false).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getVersion(), equalTo(2L));
 
         try {
-            client().prepareGet(indexOrAlias(), "type1", "1").setVersion(1).setRealtime(false).get();
+            client().prepareGet(indexOrAlias(), "1").setVersion(1).setRealtime(false).get();
             fail();
         } catch (VersionConflictEngineException e) {
             // all good
         }
 
-        response = client().prepareGet(indexOrAlias(), "type1", "1").setVersion(2).setRealtime(false).get();
+        response = client().prepareGet(indexOrAlias(), "1").setVersion(2).setRealtime(false).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
@@ -434,19 +433,19 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen();
 
-        MultiGetResponse response = client().prepareMultiGet().add(indexOrAlias(), "type1", "1").get();
+        MultiGetResponse response = client().prepareMultiGet().add(indexOrAlias(), "1").get();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(false));
 
         for (int i = 0; i < 3; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value" + i).get();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
 
         // Version from translog
         response = client().prepareMultiGet()
-            .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "1").version(Versions.MATCH_ANY))
-            .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "1").version(1))
-            .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "1").version(2))
+            .add(new MultiGetRequest.Item(indexOrAlias(), "1").version(Versions.MATCH_ANY))
+            .add(new MultiGetRequest.Item(indexOrAlias(), "1").version(1))
+            .add(new MultiGetRequest.Item(indexOrAlias(), "1").version(2))
             .get();
         assertThat(response.getResponses().length, equalTo(3));
         // [0] version doesn't matter, which is the default
@@ -468,9 +467,9 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         // Version from Lucene index
         refresh();
         response = client().prepareMultiGet()
-            .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "1").version(Versions.MATCH_ANY))
-            .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "1").version(1))
-            .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "1").version(2))
+            .add(new MultiGetRequest.Item(indexOrAlias(), "1").version(Versions.MATCH_ANY))
+            .add(new MultiGetRequest.Item(indexOrAlias(), "1").version(1))
+            .add(new MultiGetRequest.Item(indexOrAlias(), "1").version(2))
             .setRealtime(false)
             .get();
         assertThat(response.getResponses().length, equalTo(3));
@@ -489,14 +488,14 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         assertThat(response.getResponses()[2].getFailure().getFailure(), instanceOf(VersionConflictEngineException.class));
 
         for (int i = 0; i < 3; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value" + i).get();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
 
         // Version from translog
         response = client().prepareMultiGet()
-            .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "2").version(Versions.MATCH_ANY))
-            .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "2").version(1))
-            .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "2").version(2))
+            .add(new MultiGetRequest.Item(indexOrAlias(), "2").version(Versions.MATCH_ANY))
+            .add(new MultiGetRequest.Item(indexOrAlias(), "2").version(1))
+            .add(new MultiGetRequest.Item(indexOrAlias(), "2").version(2))
             .get();
         assertThat(response.getResponses().length, equalTo(3));
         // [0] version doesn't matter, which is the default
@@ -518,9 +517,9 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         // Version from Lucene index
         refresh();
         response = client().prepareMultiGet()
-            .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "2").version(Versions.MATCH_ANY))
-            .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "2").version(1))
-            .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "2").version(2))
+            .add(new MultiGetRequest.Item(indexOrAlias(), "2").version(Versions.MATCH_ANY))
+            .add(new MultiGetRequest.Item(indexOrAlias(), "2").version(1))
+            .add(new MultiGetRequest.Item(indexOrAlias(), "2").version(2))
             .setRealtime(false)
             .get();
         assertThat(response.getResponses().length, equalTo(3));
@@ -563,22 +562,20 @@ public class GetActionIT extends OpenSearchIntegTestCase {
                 .setSettings(Settings.builder().put("index.refresh_interval", -1))
         );
 
-        client().prepareIndex("test", "my-type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(jsonBuilder().startObject().startObject("field1").field("field2", "value1").endObject().endObject())
             .get();
 
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareGet(indexOrAlias(), "my-type1", "1").setStoredFields("field1").get()
+            () -> client().prepareGet(indexOrAlias(), "1").setStoredFields("field1").get()
         );
         assertThat(exc.getMessage(), equalTo("field [field1] isn't a leaf field"));
 
         flush();
 
-        exc = expectThrows(
-            IllegalArgumentException.class,
-            () -> client().prepareGet(indexOrAlias(), "my-type1", "1").setStoredFields("field1").get()
-        );
+        exc = expectThrows(IllegalArgumentException.class, () -> client().prepareGet(indexOrAlias(), "1").setStoredFields("field1").get());
         assertThat(exc.getMessage(), equalTo("field [field1] isn't a leaf field"));
     }
 
@@ -644,18 +641,18 @@ public class GetActionIT extends OpenSearchIntegTestCase {
 
         logger.info("indexing documents");
 
-        client().prepareIndex("my-index", "my-type", "1").setSource(source, XContentType.JSON).get();
+        client().prepareIndex("my-index").setId("1").setSource(source, XContentType.JSON).get();
 
         logger.info("checking real time retrieval");
 
         String field = "field1.field2.field3.field4";
-        GetResponse getResponse = client().prepareGet("my-index", "my-type", "1").setStoredFields(field).get();
+        GetResponse getResponse = client().prepareGet("my-index", "1").setStoredFields(field).get();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getField(field).getValues().size(), equalTo(2));
         assertThat(getResponse.getField(field).getValues().get(0).toString(), equalTo("value1"));
         assertThat(getResponse.getField(field).getValues().get(1).toString(), equalTo("value2"));
 
-        getResponse = client().prepareGet("my-index", "my-type", "1").setStoredFields(field).get();
+        getResponse = client().prepareGet("my-index", "1").setStoredFields(field).get();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getField(field).getValues().size(), equalTo(2));
         assertThat(getResponse.getField(field).getValues().get(0).toString(), equalTo("value1"));
@@ -680,7 +677,7 @@ public class GetActionIT extends OpenSearchIntegTestCase {
 
         logger.info("checking post-flush retrieval");
 
-        getResponse = client().prepareGet("my-index", "my-type", "1").setStoredFields(field).get();
+        getResponse = client().prepareGet("my-index", "1").setStoredFields(field).get();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getField(field).getValues().size(), equalTo(2));
         assertThat(getResponse.getField(field).getValues().get(0).toString(), equalTo("value1"));
@@ -736,7 +733,7 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
         ensureGreen();
 
-        client().prepareIndex("test", "_doc", "1").setRouting("routingValue").setId("1").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("1").setRouting("routingValue").setId("1").setSource("{}", XContentType.JSON).get();
 
         String[] fieldsList = { "_routing" };
         // before refresh - document is only in translog
@@ -760,7 +757,7 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
         ensureGreen();
         String doc = "{\n" + "  \"text\": \"some text.\"\n" + "}\n";
-        client().prepareIndex("test", "_doc").setId("1").setSource(doc, XContentType.JSON).setRouting("1").get();
+        client().prepareIndex("test").setId("1").setSource(doc, XContentType.JSON).setRouting("1").get();
         String[] fieldsList = { "_routing" };
         // before refresh - document is only in translog
         assertGetFieldsAlwaysWorks(indexOrAlias(), "_doc", "1", fieldsList, "1");
@@ -891,7 +888,7 @@ public class GetActionIT extends OpenSearchIntegTestCase {
     }
 
     private GetResponse multiGetDocument(String index, String type, String docId, String field, @Nullable String routing) {
-        MultiGetRequest.Item getItem = new MultiGetRequest.Item(index, type, docId).storedFields(field);
+        MultiGetRequest.Item getItem = new MultiGetRequest.Item(index, docId).storedFields(field);
         if (routing != null) {
             getItem.routing(routing);
         }
@@ -902,7 +899,7 @@ public class GetActionIT extends OpenSearchIntegTestCase {
     }
 
     private GetResponse getDocument(String index, String type, String docId, String field, @Nullable String routing) {
-        GetRequestBuilder getRequestBuilder = client().prepareGet().setIndex(index).setType(type).setId(docId).setStoredFields(field);
+        GetRequestBuilder getRequestBuilder = client().prepareGet().setIndex(index).setId(docId).setStoredFields(field);
         if (routing != null) {
             getRequestBuilder.setRouting(routing);
         }

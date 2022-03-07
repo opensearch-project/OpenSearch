@@ -91,9 +91,9 @@ public class SumIT extends AbstractNumericTestCase {
         prepareCreate("new_index").addMapping("_doc", "transit_mode", "type=keyword", "route_length_miles", "type=double").get();
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex("old_index", "_doc").setSource("transit_mode", "train", "distance", 42.0));
-        builders.add(client().prepareIndex("old_index", "_doc").setSource("transit_mode", "bus", "distance", 50.5));
-        builders.add(client().prepareIndex("new_index", "_doc").setSource("transit_mode", "train", "route_length_miles", 100.2));
+        builders.add(client().prepareIndex("old_index").setSource("transit_mode", "train", "distance", 42.0));
+        builders.add(client().prepareIndex("old_index").setSource("transit_mode", "bus", "distance", 50.5));
+        builders.add(client().prepareIndex("new_index").setSource("transit_mode", "train", "route_length_miles", 100.2));
 
         indexRandom(true, builders);
         ensureSearchable();
@@ -242,8 +242,8 @@ public class SumIT extends AbstractNumericTestCase {
         );
         indexRandom(
             true,
-            client().prepareIndex("cache_test_idx", "type", "1").setSource("s", 1),
-            client().prepareIndex("cache_test_idx", "type", "2").setSource("s", 2)
+            client().prepareIndex("cache_test_idx").setId("1").setSource("s", 1),
+            client().prepareIndex("cache_test_idx").setId("2").setSource("s", 2)
         );
 
         // Make sure we are starting with a clear cache

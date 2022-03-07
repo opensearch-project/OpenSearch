@@ -114,7 +114,8 @@ public class MultiMatchQueryIT extends OpenSearchIntegTestCase {
         int numDocs = scaledRandomIntBetween(50, 100);
         List<IndexRequestBuilder> builders = new ArrayList<>();
         builders.add(
-            client().prepareIndex("test", "test", "theone")
+            client().prepareIndex("test")
+                .setId("theone")
                 .setSource(
                     "id",
                     "theone",
@@ -133,7 +134,8 @@ public class MultiMatchQueryIT extends OpenSearchIntegTestCase {
                 )
         );
         builders.add(
-            client().prepareIndex("test", "test", "theother")
+            client().prepareIndex("test")
+                .setId("theother")
                 .setSource(
                     "id",
                     "theother",
@@ -151,7 +153,8 @@ public class MultiMatchQueryIT extends OpenSearchIntegTestCase {
         );
 
         builders.add(
-            client().prepareIndex("test", "test", "ultimate1")
+            client().prepareIndex("test")
+                .setId("ultimate1")
                 .setSource(
                     "id",
                     "ultimate1",
@@ -168,7 +171,8 @@ public class MultiMatchQueryIT extends OpenSearchIntegTestCase {
                 )
         );
         builders.add(
-            client().prepareIndex("test", "test", "ultimate2")
+            client().prepareIndex("test")
+                .setId("ultimate2")
                 .setSource(
                     "full_name",
                     "Man the Ultimate Ninja",
@@ -184,7 +188,8 @@ public class MultiMatchQueryIT extends OpenSearchIntegTestCase {
         );
 
         builders.add(
-            client().prepareIndex("test", "test", "anotherhero")
+            client().prepareIndex("test")
+                .setId("anotherhero")
                 .setSource(
                     "id",
                     "anotherhero",
@@ -202,7 +207,8 @@ public class MultiMatchQueryIT extends OpenSearchIntegTestCase {
         );
 
         builders.add(
-            client().prepareIndex("test", "test", "nowHero")
+            client().prepareIndex("test")
+                .setId("nowHero")
                 .setSource(
                     "id",
                     "nowHero",
@@ -229,7 +235,8 @@ public class MultiMatchQueryIT extends OpenSearchIntegTestCase {
             String first = RandomPicks.randomFrom(random(), firstNames);
             String last = randomPickExcept(lastNames, first);
             builders.add(
-                client().prepareIndex("test", "test", "" + i)
+                client().prepareIndex("test")
+                    .setId("" + i)
                     .setSource(
                         "id",
                         i,
@@ -1013,8 +1020,8 @@ public class MultiMatchQueryIT extends OpenSearchIntegTestCase {
         assertAcked(builder.addMapping("type", "title", "type=text", "body", "type=text"));
         ensureGreen();
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex(idx, "type", "1").setSource("title", "foo", "body", "bar"));
-        builders.add(client().prepareIndex(idx, "type", "2").setSource("title", "bar", "body", "foo"));
+        builders.add(client().prepareIndex(idx).setId("1").setSource("title", "foo", "body", "bar"));
+        builders.add(client().prepareIndex(idx).setId("2").setSource("title", "bar", "body", "foo"));
         indexRandom(true, false, builders);
 
         SearchResponse searchResponse = client().prepareSearch(idx)

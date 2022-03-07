@@ -327,7 +327,7 @@ public class UpdateNoopIT extends OpenSearchIntegTestCase {
     }
 
     private UpdateResponse update(Boolean detectNoop, long expectedSeqNo, long expectedVersion, XContentBuilder xContentBuilder) {
-        UpdateRequestBuilder updateRequest = client().prepareUpdate("test", "type1", "1")
+        UpdateRequestBuilder updateRequest = client().prepareUpdate("test", "1")
             .setDoc(xContentBuilder)
             .setDocAsUpsert(true)
             .setFetchSource(true);

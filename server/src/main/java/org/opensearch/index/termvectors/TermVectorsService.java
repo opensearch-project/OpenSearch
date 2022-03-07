@@ -106,9 +106,8 @@ public class TermVectorsService {
 
         try (
             Engine.GetResult get = indexShard.get(
-                new Engine.Get(request.realtime(), false, MapperService.SINGLE_MAPPING_NAME, request.id(), uidTerm).version(
-                    request.version()
-                ).versionType(request.versionType())
+                new Engine.Get(request.realtime(), false, request.id(), uidTerm).version(request.version())
+                    .versionType(request.versionType())
             );
             Engine.Searcher searcher = indexShard.acquireSearcher("term_vector")
         ) {
@@ -235,7 +234,7 @@ public class TermVectorsService {
         /* generate term vectors from fetched document fields */
         String[] getFields = validFields.toArray(new String[validFields.size() + 1]);
         getFields[getFields.length - 1] = SourceFieldMapper.NAME;
-        GetResult getResult = indexShard.getService().get(get, request.id(), MapperService.SINGLE_MAPPING_NAME, getFields, null);
+        GetResult getResult = indexShard.getService().get(get, request.id(), getFields, null);
         Fields generatedTermVectors = generateTermVectors(
             indexShard,
             getResult.sourceAsMap(),

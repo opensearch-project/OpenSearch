@@ -48,7 +48,7 @@ plugins {
   id 'lifecycle-base'
   id 'opensearch.docker-support'
   id 'opensearch.global-build-info'
-  id "com.diffplug.spotless" version "6.2.0" apply false
+  id "com.diffplug.spotless" version "6.3.0" apply false
 }
 
 apply from: 'gradle/build-complete.gradle'

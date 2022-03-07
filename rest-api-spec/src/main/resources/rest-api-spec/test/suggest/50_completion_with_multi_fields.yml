@@ -1,11 +1,6 @@
 
 ---
 "Search by suggestion and by keyword sub-field should work":
-
-  - skip:
-      version: " - 6.99.99"
-      reason:  "Search by suggestion with multi-fields was introduced 7.0.0"
-
   - do:
       indices.create:
         index: completion_with_sub_keyword
@@ -63,11 +58,6 @@
 
 ---
 "Search by suggestion on sub field should work":
-
-  - skip:
-      version: " - 6.99.99"
-      reason:  "Search by suggestion with multi-fields was introduced 7.0.0"
-
   - do:
       indices.create:
         index: completion_with_sub_completion
@@ -113,11 +103,6 @@
 
 ---
 "Search by suggestion on sub field with context should work":
-
-  - skip:
-      version: " - 6.99.99"
-      reason:  "Search by suggestion with multi-fields was introduced 7.0.0"
-
   - do:
       indices.create:
         index: completion_with_context
@@ -182,11 +167,6 @@
 
 ---
 "Search by suggestion on sub field with weight should work":
-
-  - skip:
-      version: " - 6.99.99"
-      reason:  "Search by suggestion with multi-fields was introduced 7.0.0"
-
   - do:
       indices.create:
         index: completion_with_weight
@@ -238,11 +218,6 @@
 
 ---
 "Search by suggestion on geofield-hash on sub field should work":
-
-  - skip:
-      version: " - 6.99.99"
-      reason:  "Search by suggestion with multi-fields was introduced 7.0.0"
-
   - do:
       indices.create:
         index: geofield_with_completion

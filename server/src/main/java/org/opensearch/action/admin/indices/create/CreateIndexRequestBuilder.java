@@ -115,6 +115,7 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<
      * @param source The mapping source
      * @param xContentType The content type of the source
      */
+    @Deprecated
     public CreateIndexRequestBuilder addMapping(String type, String source, XContentType xContentType) {
         request.mapping(type, source, xContentType);
         return this;
@@ -133,7 +134,9 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<
      *
      * @param type   The mapping type
      * @param source The mapping source
+     * @deprecated types are being removed
      */
+    @Deprecated
     public CreateIndexRequestBuilder addMapping(String type, XContentBuilder source) {
         request.mapping(type, source);
         return this;
@@ -144,7 +147,9 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<
      *
      * @param type   The mapping type
      * @param source The mapping source
+     * @deprecated types are being removed
      */
+    @Deprecated
     public CreateIndexRequestBuilder addMapping(String type, Map<String, Object> source) {
         request.mapping(type, source);
         return this;
@@ -153,7 +158,9 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<
     /**
      * A specialized simplified mapping source method, takes the form of simple properties definition:
      * ("field1", "type=string,store=true").
+     * @deprecated types are being removed
      */
+    @Deprecated
     public CreateIndexRequestBuilder addMapping(String type, Object... source) {
         request.mapping(type, source);
         return this;

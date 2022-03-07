@@ -134,7 +134,8 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
     }
 
     public void testDistanceScript() throws Exception {
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("name", "TestPosition")
@@ -202,7 +203,8 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
     }
 
     public void testGeoDistanceAggregation() throws IOException {
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("name", "TestPosition")

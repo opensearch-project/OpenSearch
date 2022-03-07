@@ -107,7 +107,7 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
 
         final IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> client().prepareIndex("index", "_doc").setId("1").setSource(Collections.singletonMap("field", "value")).get()
+            () -> client().prepareIndex("index").setId("1").setSource(Collections.singletonMap("field", "value")).get()
         );
         assertThat(e, hasToString(containsString("final pipeline [final_pipeline] can't change the target index")));
     }
@@ -128,7 +128,7 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
         BytesReference finalPipelineBody = new BytesArray("{\"processors\": [{\"final\": {\"exists\":\"no_such_field\"}}]}");
         client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
 
-        IndexResponse indexResponse = client().prepareIndex("index", "_doc")
+        IndexResponse indexResponse = client().prepareIndex("index")
             .setId("1")
             .setSource(Collections.singletonMap("field", "value"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -155,7 +155,7 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
         BytesReference finalPipelineBody = new BytesArray("{\"processors\": [{\"final\": {}}]}");
         client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
 
-        IndexResponse indexResponse = client().prepareIndex("index", "_doc")
+        IndexResponse indexResponse = client().prepareIndex("index")
             .setId("1")
             .setSource(Collections.singletonMap("field", "value"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -185,7 +185,7 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
             .putPipeline(new PutPipelineRequest("target_default_pipeline", targetPipeline, XContentType.JSON))
             .actionGet();
 
-        IndexResponse indexResponse = client().prepareIndex("index", "_doc")
+        IndexResponse indexResponse = client().prepareIndex("index")
             .setId("1")
             .setSource(Collections.singletonMap("field", "value"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -203,7 +203,7 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
         // this asserts that the final_pipeline was used, without us having to actually create the pipeline etc.
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareIndex("index", "_doc", "1").setSource(Collections.singletonMap("field", "value")).get()
+            () -> client().prepareIndex("index").setId("1").setSource(Collections.singletonMap("field", "value")).get()
         );
         assertThat(e, hasToString(containsString("pipeline with id [final_pipeline] does not exist")));
     }
@@ -218,13 +218,13 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
         client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
         final Settings settings = Settings.builder().put(IndexSettings.FINAL_PIPELINE.getKey(), "final_pipeline").build();
         createIndex("index", settings);
-        final IndexRequestBuilder index = client().prepareIndex("index", "_doc", "1");
+        final IndexRequestBuilder index = client().prepareIndex("index").setId("1");
         index.setSource(Collections.singletonMap("field", "value"));
         index.setPipeline("request_pipeline");
         index.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         final IndexResponse response = index.get();
         assertThat(response.status(), equalTo(RestStatus.CREATED));
-        final GetRequestBuilder get = client().prepareGet("index", "_doc", "1");
+        final GetRequestBuilder get = client().prepareGet("index", "1");
         final GetResponse getResponse = get.get();
         assertTrue(getResponse.isExists());
         final Map<String, Object> source = getResponse.getSourceAsMap();
@@ -247,12 +247,12 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
             .put(IndexSettings.FINAL_PIPELINE.getKey(), "final_pipeline")
             .build();
         createIndex("index", settings);
-        final IndexRequestBuilder index = client().prepareIndex("index", "_doc", "1");
+        final IndexRequestBuilder index = client().prepareIndex("index").setId("1");
         index.setSource(Collections.singletonMap("field", "value"));
         index.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         final IndexResponse response = index.get();
         assertThat(response.status(), equalTo(RestStatus.CREATED));
-        final GetRequestBuilder get = client().prepareGet("index", "_doc", "1");
+        final GetRequestBuilder get = client().prepareGet("index", "1");
         final GetResponse getResponse = get.get();
         assertTrue(getResponse.isExists());
         final Map<String, Object> source = getResponse.getSourceAsMap();
@@ -297,12 +297,12 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
             .setOrder(finalPipelineOrder)
             .setSettings(finalPipelineSettings)
             .get();
-        final IndexRequestBuilder index = client().prepareIndex("index", "_doc", "1");
+        final IndexRequestBuilder index = client().prepareIndex("index").setId("1");
         index.setSource(Collections.singletonMap("field", "value"));
         index.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         final IndexResponse response = index.get();
         assertThat(response.status(), equalTo(RestStatus.CREATED));
-        final GetRequestBuilder get = client().prepareGet("index", "_doc", "1");
+        final GetRequestBuilder get = client().prepareGet("index", "1");
         final GetResponse getResponse = get.get();
         assertTrue(getResponse.isExists());
         final Map<String, Object> source = getResponse.getSourceAsMap();
@@ -337,7 +337,7 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
         // this asserts that the high_order_final_pipeline was selected, without us having to actually create the pipeline etc.
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareIndex("index", "_doc", "1").setSource(Collections.singletonMap("field", "value")).get()
+            () -> client().prepareIndex("index").setId("1").setSource(Collections.singletonMap("field", "value")).get()
         );
         assertThat(e, hasToString(containsString("pipeline with id [high_order_final_pipeline] does not exist")));
     }

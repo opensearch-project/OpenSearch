@@ -32,6 +32,7 @@
 
 package org.opensearch.index.query.functionscore;
 
+import org.opensearch.Version;
 import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -47,6 +48,7 @@ import java.util.Objects;
 public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> implements ToXContentFragment, NamedWriteable {
 
     private Float weight;
+    private String functionName;
 
     /**
      * Standard empty constructor.
@@ -58,11 +60,17 @@ public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> 
      */
     public ScoreFunctionBuilder(StreamInput in) throws IOException {
         weight = checkWeight(in.readOptionalFloat());
+        if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
+            functionName = in.readOptionalString();
+        }
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalFloat(weight);
+        if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
+            out.writeOptionalString(functionName);
+        }
         doWriteTo(out);
     }
 
@@ -99,11 +107,30 @@ public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> 
         return weight;
     }
 
+    /**
+     * The name of this function
+     */
+    public String getFunctionName() {
+        return functionName;
+    }
+
+    /**
+     * Set the name of this function
+     */
+    public void setFunctionName(String functionName) {
+        this.functionName = functionName;
+    }
+
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (weight != null) {
             builder.field(FunctionScoreQueryBuilder.WEIGHT_FIELD.getPreferredName(), weight);
         }
+
+        if (functionName != null) {
+            builder.field(FunctionScoreQueryBuilder.NAME_FIELD.getPreferredName(), functionName);
+        }
+
         doXContent(builder, params);
         return builder;
     }
@@ -128,7 +155,7 @@ public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> 
         }
         @SuppressWarnings("unchecked")
         FB other = (FB) obj;
-        return Objects.equals(weight, other.getWeight()) && doEquals(other);
+        return Objects.equals(weight, other.getWeight()) && Objects.equals(functionName, other.getFunctionName()) && doEquals(other);
     }
 
     /**
@@ -139,7 +166,7 @@ public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> 
 
     @Override
     public final int hashCode() {
-        return Objects.hash(getClass(), weight, doHashCode());
+        return Objects.hash(getClass(), weight, functionName, doHashCode());
     }
 
     /**
@@ -156,7 +183,7 @@ public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> 
         if (weight == null) {
             return scoreFunction;
         }
-        return new WeightFactorFunction(weight, scoreFunction);
+        return new WeightFactorFunction(weight, scoreFunction, getFunctionName());
     }
 
     /**

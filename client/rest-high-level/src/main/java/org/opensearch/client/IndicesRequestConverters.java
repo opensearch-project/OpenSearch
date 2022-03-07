@@ -202,31 +202,6 @@ final class IndicesRequestConverters {
         return request;
     }
 
-    /**
-     * converter for the legacy server-side {@link org.opensearch.action.admin.indices.mapping.put.PutMappingRequest} that still supports
-     * types
-     */
-    @Deprecated
-    static Request putMapping(org.opensearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest) throws IOException {
-        // The concreteIndex is an internal concept, not applicable to requests made over the REST API.
-        if (putMappingRequest.getConcreteIndex() != null) {
-            throw new IllegalArgumentException("concreteIndex cannot be set on PutMapping requests made over the REST API");
-        }
-
-        Request request = new Request(
-            HttpPut.METHOD_NAME,
-            RequestConverters.endpoint(putMappingRequest.indices(), "_mapping", putMappingRequest.type())
-        );
-
-        RequestConverters.Params parameters = new RequestConverters.Params();
-        parameters.withTimeout(putMappingRequest.timeout());
-        parameters.withClusterManagerTimeout(putMappingRequest.masterNodeTimeout());
-        parameters.putParam(INCLUDE_TYPE_NAME_PARAMETER, "true");
-        request.addParameters(parameters.asMap());
-        request.setEntity(RequestConverters.createEntity(putMappingRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
     static Request getMappings(GetMappingsRequest getMappingsRequest) {
         String[] indices = getMappingsRequest.indices() == null ? Strings.EMPTY_ARRAY : getMappingsRequest.indices();
 
@@ -236,22 +211,6 @@ final class IndicesRequestConverters {
         parameters.withClusterManagerTimeout(getMappingsRequest.masterNodeTimeout());
         parameters.withIndicesOptions(getMappingsRequest.indicesOptions());
         parameters.withLocal(getMappingsRequest.local());
-        request.addParameters(parameters.asMap());
-        return request;
-    }
-
-    @Deprecated
-    static Request getMappings(org.opensearch.action.admin.indices.mapping.get.GetMappingsRequest getMappingsRequest) {
-        String[] indices = getMappingsRequest.indices() == null ? Strings.EMPTY_ARRAY : getMappingsRequest.indices();
-        String[] types = getMappingsRequest.types() == null ? Strings.EMPTY_ARRAY : getMappingsRequest.types();
-
-        Request request = new Request(HttpGet.METHOD_NAME, RequestConverters.endpoint(indices, "_mapping", types));
-
-        RequestConverters.Params parameters = new RequestConverters.Params();
-        parameters.withClusterManagerTimeout(getMappingsRequest.masterNodeTimeout());
-        parameters.withIndicesOptions(getMappingsRequest.indicesOptions());
-        parameters.withLocal(getMappingsRequest.local());
-        parameters.putParam(INCLUDE_TYPE_NAME_PARAMETER, "true");
         request.addParameters(parameters.asMap());
         return request;
     }
@@ -669,8 +628,7 @@ final class IndicesRequestConverters {
 
     static Request validateQuery(ValidateQueryRequest validateQueryRequest) throws IOException {
         String[] indices = validateQueryRequest.indices() == null ? Strings.EMPTY_ARRAY : validateQueryRequest.indices();
-        String[] types = validateQueryRequest.types() == null || indices.length <= 0 ? Strings.EMPTY_ARRAY : validateQueryRequest.types();
-        String endpoint = RequestConverters.endpoint(indices, types, "_validate/query");
+        String endpoint = RequestConverters.endpoint(indices, "_validate/query");
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params();
         params.withIndicesOptions(validateQueryRequest.indicesOptions());

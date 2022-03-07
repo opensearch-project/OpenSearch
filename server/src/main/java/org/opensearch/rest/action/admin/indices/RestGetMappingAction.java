@@ -32,7 +32,6 @@
 
 package org.opensearch.rest.action.admin.indices;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchTimeoutException;
@@ -41,15 +40,10 @@ import org.opensearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.common.Strings;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.indices.TypeMissingException;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
@@ -60,19 +54,11 @@ import org.opensearch.rest.action.RestBuilderListener;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
-import java.util.Set;
-import java.util.SortedSet;
-import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
-import static org.opensearch.rest.RestRequest.Method.HEAD;
 
 public class RestGetMappingAction extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestGetMappingAction.class);
@@ -92,13 +78,8 @@ public class RestGetMappingAction extends BaseRestHandler {
             asList(
                 new Route(GET, "/_mapping"),
                 new Route(GET, "/_mappings"),
-                new Route(GET, "/{index}/{type}/_mapping"),
                 new Route(GET, "/{index}/_mapping"),
-                new Route(GET, "/{index}/_mappings"),
-                new Route(GET, "/{index}/_mappings/{type}"),
-                new Route(GET, "/{index}/_mapping/{type}"),
-                new Route(HEAD, "/{index}/_mapping/{type}"),
-                new Route(GET, "/_mapping/{type}")
+                new Route(GET, "/{index}/_mappings")
             )
         );
     }
@@ -111,22 +92,9 @@ public class RestGetMappingAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
-        boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
-
-        if (request.method().equals(HEAD)) {
-            deprecationLogger.deprecate("get_mapping_types_removal", "Type exists requests are deprecated, as types have been deprecated.");
-        } else if (includeTypeName == false && types.length > 0) {
-            throw new IllegalArgumentException(
-                "Types cannot be provided in get mapping requests, unless" + " include_type_name is set to true."
-            );
-        }
-        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
-            deprecationLogger.deprecate("get_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
-        }
 
         final GetMappingsRequest getMappingsRequest = new GetMappingsRequest();
-        getMappingsRequest.indices(indices).types(types);
+        getMappingsRequest.indices(indices);
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
         final TimeValue timeout = request.paramAsTime("master_timeout", getMappingsRequest.masterNodeTimeout());
         getMappingsRequest.masterNodeTimeout(timeout);
@@ -146,59 +114,10 @@ public class RestGetMappingAction extends BaseRestHandler {
                             if (threadPool.relativeTimeInMillis() - startTimeMs > timeout.millis()) {
                                 throw new OpenSearchTimeoutException("Timed out getting mappings");
                             }
-                            final ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappingsByIndex = response
-                                .getMappings();
-                            if (mappingsByIndex.isEmpty() && types.length != 0) {
-                                builder.close();
-                                return new BytesRestResponse(channel, new TypeMissingException("_all", String.join(",", types)));
-                            }
-
-                            final Set<String> typeNames = new HashSet<>();
-                            for (final ObjectCursor<ImmutableOpenMap<String, MappingMetadata>> cursor : mappingsByIndex.values()) {
-                                for (final ObjectCursor<String> inner : cursor.value.keys()) {
-                                    typeNames.add(inner.value);
-                                }
-                            }
-
-                            final SortedSet<String> difference = Sets.sortedDifference(
-                                Arrays.stream(types).collect(Collectors.toSet()),
-                                typeNames
-                            );
-
-                            // now remove requested aliases that contain wildcards that are simple matches
-                            final List<String> matches = new ArrayList<>();
-                            outer: for (final String pattern : difference) {
-                                if (pattern.contains("*")) {
-                                    for (final String typeName : typeNames) {
-                                        if (Regex.simpleMatch(pattern, typeName)) {
-                                            matches.add(pattern);
-                                            continue outer;
-                                        }
-                                    }
-                                }
-                            }
-                            difference.removeAll(matches);
-
-                            final RestStatus status;
                             builder.startObject();
-                            {
-                                if (difference.isEmpty()) {
-                                    status = RestStatus.OK;
-                                } else {
-                                    status = RestStatus.NOT_FOUND;
-                                    final String message = String.format(
-                                        Locale.ROOT,
-                                        "type" + (difference.size() == 1 ? "" : "s") + " [%s] missing",
-                                        Strings.collectionToCommaDelimitedString(difference)
-                                    );
-                                    builder.field("error", message);
-                                    builder.field("status", status.getStatus());
-                                }
-                                response.toXContent(builder, request);
-                            }
+                            response.toXContent(builder, request);
                             builder.endObject();
-
-                            return new BytesRestResponse(status, builder);
+                            return new BytesRestResponse(RestStatus.OK, builder);
                         }
                     }.onResponse(getMappingsResponse)));
             }

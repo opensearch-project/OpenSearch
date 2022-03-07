@@ -51,7 +51,6 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -432,11 +431,9 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
                 if (includeTypeName == false) {
                     Map<String, Object> documentMapping = null;
                     for (ObjectObjectCursor<String, CompressedXContent> cursor : indexTemplateMetadata.mappings()) {
-                        if (!cursor.key.equals(MapperService.DEFAULT_MAPPING)) {
-                            assert documentMapping == null;
-                            Map<String, Object> mapping = XContentHelper.convertToMap(cursor.value.uncompressed(), true).v2();
-                            documentMapping = reduceMapping(cursor.key, mapping);
-                        }
+                        assert documentMapping == null;
+                        Map<String, Object> mapping = XContentHelper.convertToMap(cursor.value.uncompressed(), true).v2();
+                        documentMapping = reduceMapping(cursor.key, mapping);
                     }
 
                     if (documentMapping != null) {

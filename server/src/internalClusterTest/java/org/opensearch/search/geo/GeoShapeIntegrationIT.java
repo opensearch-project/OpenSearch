@@ -185,7 +185,7 @@ public class GeoShapeIntegrationIT extends OpenSearchIntegTestCase {
                 .endObject()
         );
 
-        indexRandom(true, client().prepareIndex("test", "geometry", "0").setSource("shape", polygonGeoJson));
+        indexRandom(true, client().prepareIndex("test").setId("0").setSource("shape", polygonGeoJson));
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
     }
@@ -206,7 +206,7 @@ public class GeoShapeIntegrationIT extends OpenSearchIntegTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin().indices().preparePutMapping("test").setType("geometry").setSource(update, XContentType.JSON).get()
+            () -> client().admin().indices().preparePutMapping("test").setSource(update, XContentType.JSON).get()
         );
         assertThat(e.getMessage(), containsString("using [BKD] strategy cannot be merged with"));
     }
@@ -237,10 +237,10 @@ public class GeoShapeIntegrationIT extends OpenSearchIntegTestCase {
             + "    }\n"
             + "}";
 
-        indexRandom(true, client().prepareIndex("test", "doc", "0").setSource(source, XContentType.JSON).setRouting("ABC"));
+        indexRandom(true, client().prepareIndex("test").setId("0").setSource(source, XContentType.JSON).setRouting("ABC"));
 
         SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(geoShapeQuery("shape", "0", "doc").indexedShapeIndex("test").indexedShapeRouting("ABC"))
+            .setQuery(geoShapeQuery("shape", "0").indexedShapeIndex("test").indexedShapeRouting("ABC"))
             .get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
@@ -273,8 +273,8 @@ public class GeoShapeIntegrationIT extends OpenSearchIntegTestCase {
 
         String source = "{\n" + "    \"shape\" : \"POLYGON((179 0, -179 0, -179 2, 179 2, 179 0))\"" + "}";
 
-        indexRandom(true, client().prepareIndex("quad", "doc", "0").setSource(source, XContentType.JSON));
-        indexRandom(true, client().prepareIndex("vector", "doc", "0").setSource(source, XContentType.JSON));
+        indexRandom(true, client().prepareIndex("quad").setId("0").setSource(source, XContentType.JSON));
+        indexRandom(true, client().prepareIndex("vector").setId("0").setSource(source, XContentType.JSON));
 
         try {
             ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();

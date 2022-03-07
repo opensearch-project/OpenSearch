@@ -65,13 +65,15 @@ public class GlobalIT extends OpenSearchIntegTestCase {
         numDocs = randomIntBetween(3, 20);
         for (int i = 0; i < numDocs / 2; i++) {
             builders.add(
-                client().prepareIndex("idx", "type", "" + i + 1)
+                client().prepareIndex("idx")
+                    .setId("" + i + 1)
                     .setSource(jsonBuilder().startObject().field("value", i + 1).field("tag", "tag1").endObject())
             );
         }
         for (int i = numDocs / 2; i < numDocs; i++) {
             builders.add(
-                client().prepareIndex("idx", "type", "" + i + 1)
+                client().prepareIndex("idx")
+                    .setId("" + i + 1)
                     .setSource(
                         jsonBuilder().startObject().field("value", i + 1).field("tag", "tag2").field("name", "name" + i + 1).endObject()
                     )

@@ -167,7 +167,7 @@ public class UpdateIT extends OpenSearchIntegTestCase {
         ensureGreen();
         Script fieldIncScript = new Script(ScriptType.INLINE, UPDATE_SCRIPTS, FIELD_INC_SCRIPT, Collections.singletonMap("field", "field"));
 
-        UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
+        UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "1")
             .setUpsert(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
             .setScript(fieldIncScript)
             .execute()
@@ -176,11 +176,11 @@ public class UpdateIT extends OpenSearchIntegTestCase {
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("1"));
         }
 
-        updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
+        updateResponse = client().prepareUpdate(indexOrAlias(), "1")
             .setUpsert(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
             .setScript(fieldIncScript)
             .execute()
@@ -189,7 +189,7 @@ public class UpdateIT extends OpenSearchIntegTestCase {
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("2"));
         }
     }
@@ -209,7 +209,7 @@ public class UpdateIT extends OpenSearchIntegTestCase {
 
         // Pay money from what will be a new account and opening balance comes from upsert doc
         // provided by client
-        UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
+        UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "1")
             .setUpsert(XContentFactory.jsonBuilder().startObject().field("balance", openingBalance).endObject())
             .setScriptedUpsert(true)
             .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, UPSERT_SCRIPT, params))
@@ -219,12 +219,12 @@ public class UpdateIT extends OpenSearchIntegTestCase {
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("balance").toString(), equalTo("9"));
         }
 
         // Now pay money for an existing account where balance is stored in es
-        updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
+        updateResponse = client().prepareUpdate(indexOrAlias(), "1")
             .setUpsert(XContentFactory.jsonBuilder().startObject().field("balance", openingBalance).endObject())
             .setScriptedUpsert(true)
             .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, UPSERT_SCRIPT, params))
@@ -234,7 +234,7 @@ public class UpdateIT extends OpenSearchIntegTestCase {
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("balance").toString(), equalTo("7"));
         }
     }
@@ -243,7 +243,7 @@ public class UpdateIT extends OpenSearchIntegTestCase {
         createTestIndex();
         ensureGreen();
 
-        UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
+        UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "1")
             .setDoc(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
             .setDocAsUpsert(true)
             .setFetchSource(true)
@@ -261,7 +261,7 @@ public class UpdateIT extends OpenSearchIntegTestCase {
         ensureGreen();
 
         assertFutureThrows(
-            client().prepareUpdate(indexOrAlias(), "type1", "1")
+            client().prepareUpdate(indexOrAlias(), "1")
                 .setDoc(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
                 .setDocAsUpsert(false)
                 .setFetchSource(true)
@@ -274,7 +274,7 @@ public class UpdateIT extends OpenSearchIntegTestCase {
         createTestIndex();
         ensureGreen();
 
-        UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
+        UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "1")
             .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
             .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, PUT_VALUES_SCRIPT, Collections.singletonMap("extra", "foo")))
             .setFetchSource(true)
@@ -287,7 +287,7 @@ public class UpdateIT extends OpenSearchIntegTestCase {
         assertThat(updateResponse.getGetResult().sourceAsMap().get("bar").toString(), equalTo("baz"));
         assertThat(updateResponse.getGetResult().sourceAsMap().get("extra"), nullValue());
 
-        updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
+        updateResponse = client().prepareUpdate(indexOrAlias(), "1")
             .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
             .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, PUT_VALUES_SCRIPT, Collections.singletonMap("extra", "foo")))
             .setFetchSource(true)
@@ -302,7 +302,7 @@ public class UpdateIT extends OpenSearchIntegTestCase {
     }
 
     public void testIndexAutoCreation() throws Exception {
-        UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1")
+        UpdateResponse updateResponse = client().prepareUpdate("test", "1")
             .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
             .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, PUT_VALUES_SCRIPT, Collections.singletonMap("extra", "foo")))
             .setFetchSource(true)
@@ -324,29 +324,26 @@ public class UpdateIT extends OpenSearchIntegTestCase {
         Script fieldIncScript = new Script(ScriptType.INLINE, UPDATE_SCRIPTS, FIELD_INC_SCRIPT, Collections.singletonMap("field", "field"));
         DocumentMissingException ex = expectThrows(
             DocumentMissingException.class,
-            () -> client().prepareUpdate(indexOrAlias(), "type1", "1").setScript(fieldIncScript).execute().actionGet()
+            () -> client().prepareUpdate(indexOrAlias(), "1").setScript(fieldIncScript).execute().actionGet()
         );
-        assertEquals("[type1][1]: document missing", ex.getMessage());
+        assertEquals("[1]: document missing", ex.getMessage());
 
-        client().prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
+        client().prepareIndex("test").setId("1").setSource("field", 1).execute().actionGet();
 
-        UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
-            .setScript(fieldIncScript)
-            .execute()
-            .actionGet();
+        UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "1").setScript(fieldIncScript).execute().actionGet();
         assertThat(updateResponse.getVersion(), equalTo(2L));
         assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("2"));
         }
 
         Map<String, Object> params = new HashMap<>();
         params.put("inc", 3);
         params.put("field", "field");
-        updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
+        updateResponse = client().prepareUpdate(indexOrAlias(), "1")
             .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, FIELD_INC_SCRIPT, params))
             .execute()
             .actionGet();
@@ -355,12 +352,12 @@ public class UpdateIT extends OpenSearchIntegTestCase {
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("5"));
         }
 
         // check noop
-        updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
+        updateResponse = client().prepareUpdate(indexOrAlias(), "1")
             .setScript(
                 new Script(
                     ScriptType.INLINE,
@@ -376,12 +373,12 @@ public class UpdateIT extends OpenSearchIntegTestCase {
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("5"));
         }
 
         // check delete
-        updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
+        updateResponse = client().prepareUpdate(indexOrAlias(), "1")
             .setScript(
                 new Script(
                     ScriptType.INLINE,
@@ -397,13 +394,13 @@ public class UpdateIT extends OpenSearchIntegTestCase {
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "1").execute().actionGet();
             assertThat(getResponse.isExists(), equalTo(false));
         }
 
         // check _source parameter
-        client().prepareIndex("test", "type1", "1").setSource("field1", 1, "field2", 2).execute().actionGet();
-        updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
+        client().prepareIndex("test").setId("1").setSource("field1", 1, "field2", 2).execute().actionGet();
+        updateResponse = client().prepareUpdate(indexOrAlias(), "1")
             .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, FIELD_INC_SCRIPT, Collections.singletonMap("field", "field1")))
             .setFetchSource("field1", "field2")
             .get();
@@ -417,24 +414,24 @@ public class UpdateIT extends OpenSearchIntegTestCase {
 
         // check updates without script
         // add new field
-        client().prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
-        client().prepareUpdate(indexOrAlias(), "type1", "1")
+        client().prepareIndex("test").setId("1").setSource("field", 1).execute().actionGet();
+        client().prepareUpdate(indexOrAlias(), "1")
             .setDoc(XContentFactory.jsonBuilder().startObject().field("field2", 2).endObject())
             .execute()
             .actionGet();
         for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("1"));
             assertThat(getResponse.getSourceAsMap().get("field2").toString(), equalTo("2"));
         }
 
         // change existing field
-        client().prepareUpdate(indexOrAlias(), "type1", "1")
+        client().prepareUpdate(indexOrAlias(), "1")
             .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 3).endObject())
             .execute()
             .actionGet();
         for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("3"));
             assertThat(getResponse.getSourceAsMap().get("field2").toString(), equalTo("2"));
         }
@@ -449,13 +446,13 @@ public class UpdateIT extends OpenSearchIntegTestCase {
         testMap.put("commonkey", testMap2);
         testMap.put("map1", 8);
 
-        client().prepareIndex("test", "type1", "1").setSource("map", testMap).execute().actionGet();
-        client().prepareUpdate(indexOrAlias(), "type1", "1")
+        client().prepareIndex("test").setId("1").setSource("map", testMap).execute().actionGet();
+        client().prepareUpdate(indexOrAlias(), "1")
             .setDoc(XContentFactory.jsonBuilder().startObject().field("map", testMap3).endObject())
             .execute()
             .actionGet();
         for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "1").execute().actionGet();
             Map map1 = (Map) getResponse.getSourceAsMap().get("map");
             assertThat(map1.size(), equalTo(3));
             assertThat(map1.containsKey("map1"), equalTo(true));
@@ -473,10 +470,10 @@ public class UpdateIT extends OpenSearchIntegTestCase {
         createTestIndex();
         ensureGreen();
 
-        IndexResponse result = client().prepareIndex("test", "type1", "1").setSource("field", 1).get();
+        IndexResponse result = client().prepareIndex("test").setId("1").setSource("field", 1).get();
         expectThrows(
             VersionConflictEngineException.class,
-            () -> client().prepareUpdate(indexOrAlias(), "type1", "1")
+            () -> client().prepareUpdate(indexOrAlias(), "1")
                 .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 2).endObject())
                 .setIfSeqNo(result.getSeqNo() + 1)
                 .setIfPrimaryTerm(result.getPrimaryTerm())
@@ -485,7 +482,7 @@ public class UpdateIT extends OpenSearchIntegTestCase {
 
         expectThrows(
             VersionConflictEngineException.class,
-            () -> client().prepareUpdate(indexOrAlias(), "type1", "1")
+            () -> client().prepareUpdate(indexOrAlias(), "1")
                 .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 2).endObject())
                 .setIfSeqNo(result.getSeqNo())
                 .setIfPrimaryTerm(result.getPrimaryTerm() + 1)
@@ -494,14 +491,14 @@ public class UpdateIT extends OpenSearchIntegTestCase {
 
         expectThrows(
             VersionConflictEngineException.class,
-            () -> client().prepareUpdate(indexOrAlias(), "type1", "1")
+            () -> client().prepareUpdate(indexOrAlias(), "1")
                 .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 2).endObject())
                 .setIfSeqNo(result.getSeqNo() + 1)
                 .setIfPrimaryTerm(result.getPrimaryTerm() + 1)
                 .get()
         );
 
-        UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
+        UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "1")
             .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 2).endObject())
             .setIfSeqNo(result.getSeqNo())
             .setIfPrimaryTerm(result.getPrimaryTerm())
@@ -517,7 +514,7 @@ public class UpdateIT extends OpenSearchIntegTestCase {
 
         Script fieldIncScript = new Script(ScriptType.INLINE, UPDATE_SCRIPTS, FIELD_INC_SCRIPT, Collections.singletonMap("field", "field"));
         try {
-            client().prepareUpdate(indexOrAlias(), "type1", "1")
+            client().prepareUpdate(indexOrAlias(), "1")
                 .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
                 .setScript(fieldIncScript)
                 .execute()
@@ -535,7 +532,7 @@ public class UpdateIT extends OpenSearchIntegTestCase {
         ensureGreen();
         Script fieldIncScript = new Script(ScriptType.INLINE, UPDATE_SCRIPTS, FIELD_INC_SCRIPT, Collections.singletonMap("field", "field"));
         try {
-            client().prepareUpdate(indexOrAlias(), "type1", "1").setScript(fieldIncScript).setDocAsUpsert(true).execute().actionGet();
+            client().prepareUpdate(indexOrAlias(), "1").setScript(fieldIncScript).setDocAsUpsert(true).execute().actionGet();
             fail("Should have thrown ActionRequestValidationException");
         } catch (ActionRequestValidationException e) {
             assertThat(e.validationErrors().size(), equalTo(1));
@@ -551,23 +548,16 @@ public class UpdateIT extends OpenSearchIntegTestCase {
         // Index some documents
         client().prepareIndex()
             .setIndex("test")
-            .setType("type1")
             .setId("id1")
             .setRouting("routing1")
             .setSource("field1", 1, "content", "foo")
             .execute()
             .actionGet();
 
-        client().prepareIndex()
-            .setIndex("test")
-            .setType("type1")
-            .setId("id2")
-            .setSource("field1", 0, "content", "bar")
-            .execute()
-            .actionGet();
+        client().prepareIndex().setIndex("test").setId("id2").setSource("field1", 0, "content", "bar").execute().actionGet();
 
         // Update the first object and note context variables values
-        UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "id1")
+        UpdateResponse updateResponse = client().prepareUpdate("test", "id1")
             .setRouting("routing1")
             .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, EXTRACT_CTX_SCRIPT, Collections.emptyMap()))
             .execute()
@@ -575,26 +565,24 @@ public class UpdateIT extends OpenSearchIntegTestCase {
 
         assertEquals(2, updateResponse.getVersion());
 
-        GetResponse getResponse = client().prepareGet("test", "type1", "id1").setRouting("routing1").execute().actionGet();
+        GetResponse getResponse = client().prepareGet("test", "id1").setRouting("routing1").execute().actionGet();
         Map<String, Object> updateContext = (Map<String, Object>) getResponse.getSourceAsMap().get("update_context");
         assertEquals("test", updateContext.get("_index"));
-        assertEquals("type1", updateContext.get("_type"));
         assertEquals("id1", updateContext.get("_id"));
         assertEquals(1, updateContext.get("_version"));
         assertEquals("routing1", updateContext.get("_routing"));
 
         // Idem with the second object
-        updateResponse = client().prepareUpdate("test", "type1", "id2")
+        updateResponse = client().prepareUpdate("test", "id2")
             .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, EXTRACT_CTX_SCRIPT, Collections.emptyMap()))
             .execute()
             .actionGet();
 
         assertEquals(2, updateResponse.getVersion());
 
-        getResponse = client().prepareGet("test", "type1", "id2").execute().actionGet();
+        getResponse = client().prepareGet("test", "id2").execute().actionGet();
         updateContext = (Map<String, Object>) getResponse.getSourceAsMap().get("update_context");
         assertEquals("test", updateContext.get("_index"));
-        assertEquals("type1", updateContext.get("_type"));
         assertEquals("id2", updateContext.get("_id"));
         assertEquals(1, updateContext.get("_version"));
         assertNull(updateContext.get("_routing"));
@@ -629,17 +617,13 @@ public class UpdateIT extends OpenSearchIntegTestCase {
                                 );
                             }
                             if (useBulkApi) {
-                                UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate(
-                                    indexOrAlias(),
-                                    "type1",
-                                    Integer.toString(i)
-                                )
+                                UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate(indexOrAlias(), Integer.toString(i))
                                     .setScript(fieldIncScript)
                                     .setRetryOnConflict(Integer.MAX_VALUE)
                                     .setUpsert(jsonBuilder().startObject().field("field", 1).endObject());
                                 client().prepareBulk().add(updateRequestBuilder).execute().actionGet();
                             } else {
-                                client().prepareUpdate(indexOrAlias(), "type1", Integer.toString(i))
+                                client().prepareUpdate(indexOrAlias(), Integer.toString(i))
                                     .setScript(fieldIncScript)
                                     .setRetryOnConflict(Integer.MAX_VALUE)
                                     .setUpsert(jsonBuilder().startObject().field("field", 1).endObject())
@@ -675,7 +659,7 @@ public class UpdateIT extends OpenSearchIntegTestCase {
         }
         assertThat(failures.size(), equalTo(0));
         for (int i = 0; i < numberOfUpdatesPerThread; i++) {
-            GetResponse response = client().prepareGet("test", "type1", Integer.toString(i)).execute().actionGet();
+            GetResponse response = client().prepareGet("test", Integer.toString(i)).execute().actionGet();
             assertThat(response.getId(), equalTo(Integer.toString(i)));
             assertThat(response.isExists(), equalTo(true));
             assertThat(response.getVersion(), equalTo((long) numberOfThreads));
@@ -761,7 +745,7 @@ public class UpdateIT extends OpenSearchIntegTestCase {
                         for (int k = 0; k < numberOfUpdatesPerId; ++k) {
                             updateRequestsOutstanding.acquire();
                             try {
-                                UpdateRequest ur = client().prepareUpdate("test", "type1", Integer.toString(j))
+                                UpdateRequest ur = client().prepareUpdate("test", Integer.toString(j))
                                     .setScript(fieldIncScript)
                                     .setRetryOnConflict(retryOnConflict)
                                     .setUpsert(jsonBuilder().startObject().field("field", 1).endObject())
@@ -793,7 +777,7 @@ public class UpdateIT extends OpenSearchIntegTestCase {
 
                             try {
                                 deleteRequestsOutstanding.acquire();
-                                DeleteRequest dr = client().prepareDelete("test", "type1", Integer.toString(j)).request();
+                                DeleteRequest dr = client().prepareDelete("test", Integer.toString(j)).request();
                                 client().delete(dr, new DeleteListener(j));
                             } catch (NoNodeAvailableException nne) {
                                 deleteRequestsOutstanding.release();
@@ -880,7 +864,7 @@ public class UpdateIT extends OpenSearchIntegTestCase {
         // This means that we add 1 to the expected versions and attempts
         // All the previous operations should be complete or failed at this point
         for (int i = 0; i < numberOfIdsPerThread; ++i) {
-            client().prepareUpdate("test", "type1", Integer.toString(i))
+            client().prepareUpdate("test", Integer.toString(i))
                 .setScript(fieldIncScript)
                 .setRetryOnConflict(Integer.MAX_VALUE)
                 .setUpsert(jsonBuilder().startObject().field("field", 1).endObject())
@@ -892,7 +876,7 @@ public class UpdateIT extends OpenSearchIntegTestCase {
 
         for (int i = 0; i < numberOfIdsPerThread; ++i) {
             int totalFailures = 0;
-            GetResponse response = client().prepareGet("test", "type1", Integer.toString(i)).execute().actionGet();
+            GetResponse response = client().prepareGet("test", Integer.toString(i)).execute().actionGet();
             if (response.isExists()) {
                 assertThat(response.getId(), equalTo(Integer.toString(i)));
                 int expectedVersion = (numberOfThreads * numberOfUpdatesPerId * 2) + 1;

@@ -52,7 +52,7 @@ public class RoutingMissingException extends OpenSearchException {
     }
 
     public RoutingMissingException(String index, String type, String id) {
-        super("routing is required for [" + index + "]/[" + type + "]/[" + id + "]");
+        super("routing is required for [" + index + "]/[" + id + "]");
         Objects.requireNonNull(index, "index must not be null");
         Objects.requireNonNull(type, "type must not be null");
         Objects.requireNonNull(id, "id must not be null");

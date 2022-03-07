@@ -87,7 +87,7 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
         }
         source.endArray();
         source = source.endObject();
-        return client().prepareIndex(idx, "type").setSource(source);
+        return client().prepareIndex(idx).setSource(source);
     }
 
     @Override
@@ -142,7 +142,8 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             builders.add(
-                client().prepareIndex("empty_bucket_idx", "type", "" + i)
+                client().prepareIndex("empty_bucket_idx")
+                    .setId("" + i)
                     .setSource(jsonBuilder().startObject().field("value", i * 2).field("location", "52.0945, 5.116").endObject())
             );
         }

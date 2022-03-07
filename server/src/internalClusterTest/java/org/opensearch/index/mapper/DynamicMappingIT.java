@@ -38,7 +38,6 @@ import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.metadata.MappingMetadata;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -68,9 +67,9 @@ public class DynamicMappingIT extends OpenSearchIntegTestCase {
     public void testConflictingDynamicMappings() {
         // we don't use indexRandom because the order of requests is important here
         createIndex("index");
-        client().prepareIndex("index", "type", "1").setSource("foo", 3).get();
+        client().prepareIndex("index").setId("1").setSource("foo", 3).get();
         try {
-            client().prepareIndex("index", "type", "2").setSource("foo", "bar").get();
+            client().prepareIndex("index").setId("2").setSource("foo", "bar").get();
             fail("Indexing request should have failed!");
         } catch (MapperParsingException e) {
             // general case, the parsing code complains that it can't parse "bar" as a "long"
@@ -86,19 +85,17 @@ public class DynamicMappingIT extends OpenSearchIntegTestCase {
     public void testConflictingDynamicMappingsBulk() {
         // we don't use indexRandom because the order of requests is important here
         createIndex("index");
-        client().prepareIndex("index", "type", "1").setSource("foo", 3).get();
-        BulkResponse bulkResponse = client().prepareBulk().add(client().prepareIndex("index", "type", "1").setSource("foo", 3)).get();
+        client().prepareIndex("index").setId("1").setSource("foo", 3).get();
+        BulkResponse bulkResponse = client().prepareBulk().add(client().prepareIndex("index").setId("1").setSource("foo", 3)).get();
         assertFalse(bulkResponse.hasFailures());
-        bulkResponse = client().prepareBulk().add(client().prepareIndex("index", "type", "2").setSource("foo", "bar")).get();
+        bulkResponse = client().prepareBulk().add(client().prepareIndex("index").setId("2").setSource("foo", "bar")).get();
         assertTrue(bulkResponse.hasFailures());
     }
 
-    private static void assertMappingsHaveField(GetMappingsResponse mappings, String index, String type, String field) throws IOException {
-        ImmutableOpenMap<String, MappingMetadata> indexMappings = mappings.getMappings().get("index");
+    private static void assertMappingsHaveField(GetMappingsResponse mappings, String index, String field) throws IOException {
+        MappingMetadata indexMappings = mappings.getMappings().get("index");
         assertNotNull(indexMappings);
-        MappingMetadata typeMappings = indexMappings.get(type);
-        assertNotNull(typeMappings);
-        Map<String, Object> typeMappingsMap = typeMappings.getSourceAsMap();
+        Map<String, Object> typeMappingsMap = indexMappings.getSourceAsMap();
         Map<String, Object> properties = (Map<String, Object>) typeMappingsMap.get("properties");
         assertTrue("Could not find [" + field + "] in " + typeMappingsMap.toString(), properties.containsKey(field));
     }
@@ -117,7 +114,7 @@ public class DynamicMappingIT extends OpenSearchIntegTestCase {
                         startLatch.await();
                         assertEquals(
                             DocWriteResponse.Result.CREATED,
-                            client().prepareIndex("index", "type", id).setSource("field" + id, "bar").get().getResult()
+                            client().prepareIndex("index").setId(id).setSource("field" + id, "bar").get().getResult()
                         );
                     } catch (Exception e) {
                         error.compareAndSet(null, e);
@@ -134,19 +131,19 @@ public class DynamicMappingIT extends OpenSearchIntegTestCase {
             throw error.get();
         }
         Thread.sleep(2000);
-        GetMappingsResponse mappings = client().admin().indices().prepareGetMappings("index").setTypes("type").get();
+        GetMappingsResponse mappings = client().admin().indices().prepareGetMappings("index").get();
         for (int i = 0; i < indexThreads.length; ++i) {
-            assertMappingsHaveField(mappings, "index", "type", "field" + i);
+            assertMappingsHaveField(mappings, "index", "field" + i);
         }
         for (int i = 0; i < indexThreads.length; ++i) {
-            assertTrue(client().prepareGet("index", "type", Integer.toString(i)).get().isExists());
+            assertTrue(client().prepareGet("index", Integer.toString(i)).get().isExists());
         }
     }
 
     public void testPreflightCheckAvoidsMaster() throws InterruptedException {
         createIndex("index", Settings.builder().put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 2).build());
         ensureGreen("index");
-        client().prepareIndex("index", MapperService.SINGLE_MAPPING_NAME).setId("1").setSource("field1", "value1").get();
+        client().prepareIndex("index").setId("1").setSource("field1", "value1").get();
 
         final CountDownLatch masterBlockedLatch = new CountDownLatch(1);
         final CountDownLatch indexingCompletedLatch = new CountDownLatch(1);
@@ -167,9 +164,7 @@ public class DynamicMappingIT extends OpenSearchIntegTestCase {
             });
 
         masterBlockedLatch.await();
-        final IndexRequestBuilder indexRequestBuilder = client().prepareIndex("index", MapperService.SINGLE_MAPPING_NAME)
-            .setId("2")
-            .setSource("field2", "value2");
+        final IndexRequestBuilder indexRequestBuilder = client().prepareIndex("index").setId("2").setSource("field2", "value2");
         try {
             assertThat(
                 expectThrows(IllegalArgumentException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10))).getMessage(),
@@ -184,7 +179,7 @@ public class DynamicMappingIT extends OpenSearchIntegTestCase {
         createIndex("test");
         final ClusterService clusterService = internalCluster().clusterService();
         final long previousVersion = clusterService.state().metadata().index("test").getMappingVersion();
-        client().prepareIndex("test", "_doc").setId("1").setSource("field", "text").get();
+        client().prepareIndex("test").setId("1").setSource("field", "text").get();
         assertBusy(() -> assertThat(clusterService.state().metadata().index("test").getMappingVersion(), equalTo(1 + previousVersion)));
     }
 }

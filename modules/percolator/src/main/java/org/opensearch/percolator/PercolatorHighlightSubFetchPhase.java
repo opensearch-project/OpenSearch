@@ -38,7 +38,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.document.DocumentField;
-import org.opensearch.common.text.Text;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.fetch.FetchContext;
 import org.opensearch.search.fetch.FetchSubPhase;
@@ -108,13 +107,7 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                             int slot = (int) matchedSlot;
                             BytesReference document = percolateQuery.getDocuments().get(slot);
                             HitContext subContext = new HitContext(
-                                new SearchHit(
-                                    slot,
-                                    "unknown",
-                                    new Text(hit.hit().getType()),
-                                    Collections.emptyMap(),
-                                    Collections.emptyMap()
-                                ),
+                                new SearchHit(slot, "unknown", Collections.emptyMap(), Collections.emptyMap()),
                                 percolatorLeafReaderContext,
                                 slot,
                                 new SourceLookup()

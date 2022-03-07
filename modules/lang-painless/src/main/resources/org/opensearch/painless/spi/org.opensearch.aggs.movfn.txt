@@ -17,7 +17,7 @@
 # under the License.
 #
 
-# This file contains a whitelist for the Moving Function pipeline aggregator in core
+# This file contains an allowlist for the Moving Function pipeline aggregator in core
 
 class org.opensearch.search.aggregations.pipeline.MovingFunctions {
   double max(double[])

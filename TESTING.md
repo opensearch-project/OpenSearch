@@ -245,7 +245,7 @@ The YAML REST tests support all the options provided by the randomized runner, p
 
 -   `tests.rest.suite`: comma separated paths of the test suites to be run (by default loaded from /rest-api-spec/test). It is possible to run only a subset of the tests providing a sub-folder or even a single yaml file (the default /rest-api-spec/test prefix is optional when files are loaded from classpath) e.g. `-Dtests.rest.suite=index,get,create/10_with_id`
 
--   `tests.rest.blacklist`: comma separated globs that identify tests that are blacklisted and need to be skipped e.g. `-Dtests.rest.blacklist=index/**/Index document,get/10_basic/**`
+-   `tests.rest.blacklist`: comma separated globs that identify tests that are denylisted and need to be skipped e.g. `-Dtests.rest.blacklist=index/**/Index document,get/10_basic/**`
 
 Java REST tests can be run with the "javaRestTest" task.
 

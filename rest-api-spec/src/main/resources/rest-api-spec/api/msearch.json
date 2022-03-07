@@ -15,34 +15,16 @@
           ]
         },
         {
-          "path":"/{index}/_msearch",
-          "methods":[
+          "path": "/{index}/_msearch",
+          "methods": [
             "GET",
             "POST"
           ],
-          "parts":{
-            "index":{
-              "type":"list",
-              "description":"A comma-separated list of index names to use as default"
-            }
-          }
-        },
-        {
-          "path" : "/{index}/{type}/_msearch",
-          "methods": ["GET", "POST"],
           "parts": {
             "index": {
-              "type" : "list",
-              "description" : "A comma-separated list of index names to use as default"
-            },
-            "type": {
-              "type" : "list",
-              "description" : "A comma-separated list of document types to use as default"
+              "type": "list",
+              "description": "A comma-separated list of index names to use as default"
             }
-          },
-          "deprecated": {
-            "version" : "7.0.0",
-            "description" : "Specifying types in urls has been deprecated"
           }
         }
       ]

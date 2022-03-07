@@ -35,7 +35,6 @@ package org.opensearch.index.rankeval;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.text.Text;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -43,7 +42,6 @@ import org.opensearch.common.xcontent.XContentParseException;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchShardTarget;
@@ -127,7 +125,7 @@ public class PrecisionAtKTests extends OpenSearchTestCase {
         rated.add(createRatedDoc("test", "1", RELEVANT_RATING));
         // add an unlabeled search hit
         SearchHit[] searchHits = Arrays.copyOf(toSearchHits(rated, "test"), 3);
-        searchHits[2] = new SearchHit(2, "2", new Text(MapperService.SINGLE_MAPPING_NAME), Collections.emptyMap(), Collections.emptyMap());
+        searchHits[2] = new SearchHit(2, "2", Collections.emptyMap(), Collections.emptyMap());
         searchHits[2].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
 
         EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", searchHits, rated);
@@ -146,7 +144,7 @@ public class PrecisionAtKTests extends OpenSearchTestCase {
     public void testNoRatedDocs() throws Exception {
         SearchHit[] hits = new SearchHit[5];
         for (int i = 0; i < 5; i++) {
-            hits[i] = new SearchHit(i, i + "", new Text(MapperService.SINGLE_MAPPING_NAME), Collections.emptyMap(), Collections.emptyMap());
+            hits[i] = new SearchHit(i, i + "", Collections.emptyMap(), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
         }
         EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", hits, Collections.emptyList());
@@ -283,7 +281,7 @@ public class PrecisionAtKTests extends OpenSearchTestCase {
     private static SearchHit[] toSearchHits(List<RatedDocument> rated, String index) {
         SearchHit[] hits = new SearchHit[rated.size()];
         for (int i = 0; i < rated.size(); i++) {
-            hits[i] = new SearchHit(i, i + "", new Text(""), Collections.emptyMap(), Collections.emptyMap());
+            hits[i] = new SearchHit(i, i + "", Collections.emptyMap(), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null, OriginalIndices.NONE));
         }
         return hits;

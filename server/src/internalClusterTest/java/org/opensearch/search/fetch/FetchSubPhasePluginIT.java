@@ -94,9 +94,8 @@ public class FetchSubPhasePluginIT extends OpenSearchIntegTestCase {
             )
             .get();
 
-        client().index(
-            indexRequest("test").type("type1").id("1").source(jsonBuilder().startObject().field("test", "I am sam i am").endObject())
-        ).actionGet();
+        client().index(indexRequest("test").id("1").source(jsonBuilder().startObject().field("test", "I am sam i am").endObject()))
+            .actionGet();
 
         client().admin().indices().prepareRefresh().get();
 

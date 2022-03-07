@@ -137,7 +137,7 @@ public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
                         .putList("analysis.analyzer.search_autocomplete.filter", "lowercase", "wordDelimiter")
                 )
         );
-        client().prepareIndex("test", "test", "1").setSource("name", "ARCOTEL Hotels Deutschland").get();
+        client().prepareIndex("test").setId("1").setSource("name", "ARCOTEL Hotels Deutschland").get();
         refresh();
         SearchResponse search = client().prepareSearch("test")
             .setQuery(matchQuery("name.autocomplete", "deut tel").operator(Operator.OR))
@@ -173,7 +173,8 @@ public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
         );
 
         ensureGreen();
-        client().prepareIndex("test", "test", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 "body",
                 "Test: http://www.facebook.com http://elasticsearch.org "
@@ -235,7 +236,7 @@ public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
         );
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "0").setSource("field1", "The quick brown fox jumps over the lazy dog").get();
+        client().prepareIndex("test").setId("0").setSource("field1", "The quick brown fox jumps over the lazy dog").get();
         refresh();
         for (String highlighterType : new String[] { "plain", "fvh", "unified" }) {
             logger.info("--> highlighting (type=" + highlighterType + ") and searching on field1");
@@ -263,10 +264,12 @@ public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
 
         ensureGreen();
 
-        client().prepareIndex("first_test_index", "type1", "0")
+        client().prepareIndex("first_test_index")
+            .setId("0")
             .setSource("field0", "The quick brown fox jumps over the lazy dog", "field1", "The quick brown fox jumps over the lazy dog")
             .get();
-        client().prepareIndex("first_test_index", "type1", "1")
+        client().prepareIndex("first_test_index")
+            .setId("1")
             .setSource("field1", "The quick browse button is a fancy thing, right bro?")
             .get();
         refresh();
@@ -344,7 +347,8 @@ public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
                 )
         );
         // with synonyms
-        client().prepareIndex("second_test_index", "doc", "0")
+        client().prepareIndex("second_test_index")
+            .setId("0")
             .setSource(
                 "type",
                 "type2",
@@ -354,10 +358,11 @@ public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
                 "The quick brown fox jumps over the lazy dog"
             )
             .get();
-        client().prepareIndex("second_test_index", "doc", "1")
+        client().prepareIndex("second_test_index")
+            .setId("1")
             .setSource("type", "type2", "field4", "The quick browse button is a fancy thing, right bro?")
             .get();
-        client().prepareIndex("second_test_index", "doc", "2").setSource("type", "type2", "field4", "a quick fast blue car").get();
+        client().prepareIndex("second_test_index").setId("2").setSource("type", "type2", "field4", "a quick fast blue car").get();
         refresh();
 
         source = searchSource().postFilter(termQuery("type", "type2"))

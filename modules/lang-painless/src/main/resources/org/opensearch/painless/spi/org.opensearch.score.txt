@@ -17,7 +17,7 @@
 # under the License.
 #
 
-# This file contains a whitelist for functions to be used in Score context
+# This file contains an allowlist for functions to be used in Score context
 
 class org.opensearch.script.ScoreScript @no_import {
 }
