@@ -40,14 +40,14 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * Constructor represents the equivalent of a Java constructor available as a whitelisted class
+ * Constructor represents the equivalent of a Java constructor available as a allowlisted class
  * constructor within Painless. Constructors for Painless classes may be accessed exactly as
  * constructors for Java classes are using the 'new' keyword. Painless classes may have multiple
  * constructors as long as they comply with arity overloading described for {@link WhitelistClass}.
  */
 public final class WhitelistConstructor {
 
-    /** Information about where this constructor was whitelisted from. */
+    /** Information about where this constructor was allowlisted from. */
     public final String origin;
 
     /**

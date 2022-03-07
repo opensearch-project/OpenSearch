@@ -98,7 +98,7 @@ public class ReindexFromRemoteWithAuthTests extends OpenSearchSingleNodeTestCase
     @Override
     protected Settings nodeSettings() {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings());
-        // Whitelist reindexing from the http host we're going to use
+        // Allowlist reindexing from the http host we're going to use
         settings.put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "127.0.0.1:*");
         settings.put(NetworkModule.HTTP_TYPE_KEY, Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME);
         return settings.build();

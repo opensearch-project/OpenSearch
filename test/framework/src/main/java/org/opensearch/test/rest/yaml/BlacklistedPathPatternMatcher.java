@@ -34,7 +34,7 @@ package org.opensearch.test.rest.yaml;
 import java.util.regex.Pattern;
 
 /**
- * Matches blacklist patterns.
+ * Matches denylist patterns.
  *
  * Currently the following syntax is supported:
  *
@@ -45,20 +45,20 @@ import java.util.regex.Pattern;
  *  <code>indices.get/10_basic/advanced/allow_no_indices</code> (contains an additional segment)</li>
  * </ul>
  *
- * Each blacklist pattern is a suffix match on the path. Empty patterns are not allowed.
+ * Each denylist pattern is a suffix match on the path. Empty patterns are not allowed.
  */
 final class BlacklistedPathPatternMatcher {
     private final Pattern pattern;
 
     /**
-     * Constructs a new <code>BlacklistedPathPatternMatcher</code> instance from the provided suffix pattern.
+     * Constructs a new <code>DenylistedPathPatternMatcher</code> instance from the provided suffix pattern.
      *
      * @param p The suffix pattern. Must be a non-empty string.
      */
     BlacklistedPathPatternMatcher(String p) {
         // guard against accidentally matching everything as an empty string lead to the pattern ".*" which matches everything
         if (p == null || p.trim().isEmpty()) {
-            throw new IllegalArgumentException("Empty blacklist patterns are not supported");
+            throw new IllegalArgumentException("Empty denylist patterns are not supported");
         }
         // very simple transformation from wildcard to a proper regex
         String finalPattern = p.replaceAll("\\*", "[^/]*") // support wildcard matches (within a single path segment)
