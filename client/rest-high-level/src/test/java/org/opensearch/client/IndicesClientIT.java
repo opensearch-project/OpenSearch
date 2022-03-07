@@ -122,14 +122,9 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.rest.action.admin.indices.RestCreateIndexAction;
-import org.opensearch.rest.action.admin.indices.RestGetIndexTemplateAction;
-import org.opensearch.rest.action.admin.indices.RestPutIndexTemplateAction;
-import org.opensearch.rest.action.admin.indices.RestRolloverIndexAction;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -197,18 +192,6 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         }
     }
 
-    public void testIndicesExistsWithTypes() throws IOException {
-        // Index present
-        String indexName = "test_index_exists_index_present";
-        createIndex(indexName, Settings.EMPTY);
-
-        org.opensearch.action.admin.indices.get.GetIndexRequest request = new org.opensearch.action.admin.indices.get.GetIndexRequest();
-        request.indices(indexName);
-
-        boolean response = execute(request, highLevelClient().indices()::exists, highLevelClient().indices()::existsAsync);
-        assertTrue(response);
-    }
-
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testCreateIndex() throws IOException {
         {
@@ -253,74 +236,6 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
                 createIndexRequest,
                 highLevelClient().indices()::create,
                 highLevelClient().indices()::createAsync
-            );
-            assertTrue(createIndexResponse.isAcknowledged());
-
-            Map<String, Object> getIndexResponse = getAsMap(indexName);
-            assertEquals("2", XContentMapValues.extractValue(indexName + ".settings.index.number_of_replicas", getIndexResponse));
-
-            Map<String, Object> aliasData = (Map<String, Object>) XContentMapValues.extractValue(
-                indexName + ".aliases.alias_name",
-                getIndexResponse
-            );
-            assertNotNull(aliasData);
-            assertEquals("1", aliasData.get("index_routing"));
-            Map<String, Object> filter = (Map) aliasData.get("filter");
-            Map<String, Object> term = (Map) filter.get("term");
-            assertEquals(2016, term.get("year"));
-
-            assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings.properties.field.type", getIndexResponse));
-        }
-    }
-
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    public void testCreateIndexWithTypes() throws IOException {
-        {
-            // Create index
-            String indexName = "plain_index";
-            assertFalse(indexExists(indexName));
-
-            org.opensearch.action.admin.indices.create.CreateIndexRequest createIndexRequest =
-                new org.opensearch.action.admin.indices.create.CreateIndexRequest(indexName);
-
-            org.opensearch.action.admin.indices.create.CreateIndexResponse createIndexResponse = execute(
-                createIndexRequest,
-                highLevelClient().indices()::create,
-                highLevelClient().indices()::createAsync,
-                expectWarningsOnce(RestCreateIndexAction.TYPES_DEPRECATION_MESSAGE)
-            );
-            assertTrue(createIndexResponse.isAcknowledged());
-
-            assertTrue(indexExists(indexName));
-        }
-        {
-            // Create index with mappings, aliases and settings
-            String indexName = "rich_index";
-            assertFalse(indexExists(indexName));
-
-            org.opensearch.action.admin.indices.create.CreateIndexRequest createIndexRequest =
-                new org.opensearch.action.admin.indices.create.CreateIndexRequest(indexName);
-
-            Alias alias = new Alias("alias_name");
-            alias.filter("{\"term\":{\"year\":2016}}");
-            alias.routing("1");
-            createIndexRequest.alias(alias);
-
-            Settings.Builder settings = Settings.builder();
-            settings.put(SETTING_NUMBER_OF_REPLICAS, 2);
-            createIndexRequest.settings(settings);
-
-            XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
-            mappingBuilder.startObject().startObject("properties").startObject("field");
-            mappingBuilder.field("type", "text");
-            mappingBuilder.endObject().endObject().endObject();
-            createIndexRequest.mapping(MapperService.SINGLE_MAPPING_NAME, mappingBuilder);
-
-            org.opensearch.action.admin.indices.create.CreateIndexResponse createIndexResponse = execute(
-                createIndexRequest,
-                highLevelClient().indices()::create,
-                highLevelClient().indices()::createAsync,
-                expectWarningsOnce(RestCreateIndexAction.TYPES_DEPRECATION_MESSAGE)
             );
             assertTrue(createIndexResponse.isAcknowledged());
 
@@ -1179,33 +1094,6 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         }
     }
 
-    public void testRolloverWithTypes() throws IOException {
-        highLevelClient().indices().create(new CreateIndexRequest("test").alias(new Alias("alias")), RequestOptions.DEFAULT);
-        highLevelClient().index(new IndexRequest("test").id("1").source("field", "value"), RequestOptions.DEFAULT);
-        highLevelClient().index(
-            new IndexRequest("test").id("2").source("field", "value").setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL),
-            RequestOptions.DEFAULT
-        );
-
-        org.opensearch.action.admin.indices.rollover.RolloverRequest rolloverRequest =
-            new org.opensearch.action.admin.indices.rollover.RolloverRequest("alias", "test_new");
-        rolloverRequest.addMaxIndexDocsCondition(1);
-        rolloverRequest.getCreateIndexRequest().mapping("_doc", "field2", "type=keyword");
-
-        org.opensearch.action.admin.indices.rollover.RolloverResponse rolloverResponse = execute(
-            rolloverRequest,
-            highLevelClient().indices()::rollover,
-            highLevelClient().indices()::rolloverAsync,
-            expectWarningsOnce(RestRolloverIndexAction.TYPES_DEPRECATION_MESSAGE)
-        );
-        assertTrue(rolloverResponse.isRolledOver());
-        assertFalse(rolloverResponse.isDryRun());
-        Map<String, Boolean> conditionStatus = rolloverResponse.getConditionStatus();
-        assertTrue(conditionStatus.get("[max_docs: 1]"));
-        assertEquals("test", rolloverResponse.getOldIndex());
-        assertEquals("test_new", rolloverResponse.getNewIndex());
-    }
-
     public void testGetAlias() throws IOException {
         {
             createIndex("index1", Settings.EMPTY);
@@ -1686,48 +1574,6 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         );
     }
 
-    @SuppressWarnings("unchecked")
-    public void testPutTemplateWithNoTypesUsingTypedApi() throws Exception {
-        org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest putTemplateRequest =
-            new org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest().name("my-template")
-                .patterns(Arrays.asList("pattern-1", "name-*"))
-                .order(10)
-                .create(randomBoolean())
-                .settings(Settings.builder().put("number_of_shards", "3").put("number_of_replicas", "0"))
-                .mapping(
-                    "my_doc_type",
-                    // Note that the declared type is missing from the mapping
-                    "{ "
-                        + "\"properties\":{"
-                        + "\"host_name\": {\"type\":\"keyword\"},"
-                        + "\"description\": {\"type\":\"text\"}"
-                        + "}"
-                        + "}",
-                    XContentType.JSON
-                )
-                .alias(new Alias("alias-1").indexRouting("abc"))
-                .alias(new Alias("{index}-write").searchRouting("xyz"));
-
-        AcknowledgedResponse putTemplateResponse = execute(
-            putTemplateRequest,
-            highLevelClient().indices()::putTemplate,
-            highLevelClient().indices()::putTemplateAsync,
-            expectWarningsOnce(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
-        );
-        assertThat(putTemplateResponse.isAcknowledged(), equalTo(true));
-
-        Map<String, Object> templates = getAsMap("/_template/my-template");
-        assertThat(templates.keySet(), hasSize(1));
-        assertThat(extractValue("my-template.order", templates), equalTo(10));
-        assertThat(extractRawValues("my-template.index_patterns", templates), contains("pattern-1", "name-*"));
-        assertThat(extractValue("my-template.settings.index.number_of_shards", templates), equalTo("3"));
-        assertThat(extractValue("my-template.settings.index.number_of_replicas", templates), equalTo("0"));
-        assertThat(extractValue("my-template.mappings.properties.host_name.type", templates), equalTo("keyword"));
-        assertThat(extractValue("my-template.mappings.properties.description.type", templates), equalTo("text"));
-        assertThat((Map<String, String>) extractValue("my-template.aliases.alias-1", templates), hasEntry("index_routing", "abc"));
-        assertThat((Map<String, String>) extractValue("my-template.aliases.{index}-write", templates), hasEntry("search_routing", "xyz"));
-    }
-
     public void testPutTemplateBadRequests() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -1807,157 +1653,6 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
             highLevelClient().indices()::validateQueryAsync
         );
         assertFalse(response.isValid());
-    }
-
-    // Tests the deprecated form of the API that returns templates with doc types (using the server-side's GetIndexTemplateResponse)
-    public void testCRUDIndexTemplateWithTypes() throws Exception {
-        RestHighLevelClient client = highLevelClient();
-
-        org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest putTemplate1 =
-            new org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest().name("template-1")
-                .patterns(Arrays.asList("pattern-1", "name-1"))
-                .alias(new Alias("alias-1"));
-        assertThat(
-            execute(
-                putTemplate1,
-                client.indices()::putTemplate,
-                client.indices()::putTemplateAsync,
-                expectWarningsOnce(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
-            ).isAcknowledged(),
-            equalTo(true)
-        );
-        org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest putTemplate2 =
-            new org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest().name("template-2")
-                .patterns(Arrays.asList("pattern-2", "name-2"))
-                .mapping("custom_doc_type", "name", "type=text")
-                .settings(Settings.builder().put("number_of_shards", "2").put("number_of_replicas", "0"));
-        assertThat(
-            execute(
-                putTemplate2,
-                client.indices()::putTemplate,
-                client.indices()::putTemplateAsync,
-                expectWarningsOnce(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
-            ).isAcknowledged(),
-            equalTo(true)
-        );
-
-        org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse getTemplate1 = execute(
-            new GetIndexTemplatesRequest("template-1"),
-            client.indices()::getTemplate,
-            client.indices()::getTemplateAsync,
-            expectWarningsOnce(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
-        );
-        assertThat(getTemplate1.getIndexTemplates(), hasSize(1));
-        org.opensearch.cluster.metadata.IndexTemplateMetadata template1 = getTemplate1.getIndexTemplates().get(0);
-        assertThat(template1.name(), equalTo("template-1"));
-        assertThat(template1.patterns(), contains("pattern-1", "name-1"));
-        assertTrue(template1.aliases().containsKey("alias-1"));
-
-        // Check the typed version of the call
-        org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse getTemplate2 = execute(
-            new GetIndexTemplatesRequest("template-2"),
-            client.indices()::getTemplate,
-            client.indices()::getTemplateAsync,
-            expectWarningsOnce(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
-        );
-        assertThat(getTemplate2.getIndexTemplates(), hasSize(1));
-        org.opensearch.cluster.metadata.IndexTemplateMetadata template2 = getTemplate2.getIndexTemplates().get(0);
-        assertThat(template2.name(), equalTo("template-2"));
-        assertThat(template2.patterns(), contains("pattern-2", "name-2"));
-        assertTrue(template2.aliases().isEmpty());
-        assertThat(template2.settings().get("index.number_of_shards"), equalTo("2"));
-        assertThat(template2.settings().get("index.number_of_replicas"), equalTo("0"));
-        // Ugly deprecated form of API requires use of doc type to get at mapping object which is CompressedXContent
-        assertTrue(template2.mappings().containsKey("custom_doc_type"));
-
-        List<String> names = randomBoolean() ? Arrays.asList("*plate-1", "template-2") : Arrays.asList("template-*");
-        GetIndexTemplatesRequest getBothRequest = new GetIndexTemplatesRequest(names);
-        org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse getBoth = execute(
-            getBothRequest,
-            client.indices()::getTemplate,
-            client.indices()::getTemplateAsync,
-            expectWarningsOnce(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
-        );
-        assertThat(getBoth.getIndexTemplates(), hasSize(2));
-        assertThat(
-            getBoth.getIndexTemplates().stream().map(org.opensearch.cluster.metadata.IndexTemplateMetadata::getName).toArray(),
-            arrayContainingInAnyOrder("template-1", "template-2")
-        );
-
-        GetIndexTemplatesRequest getAllRequest = new GetIndexTemplatesRequest();
-        org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse getAll = execute(
-            getAllRequest,
-            client.indices()::getTemplate,
-            client.indices()::getTemplateAsync,
-            expectWarningsOnce(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
-        );
-        assertThat(getAll.getIndexTemplates().size(), greaterThanOrEqualTo(2));
-        assertThat(
-            getAll.getIndexTemplates()
-                .stream()
-                .map(org.opensearch.cluster.metadata.IndexTemplateMetadata::getName)
-                .collect(Collectors.toList()),
-            hasItems("template-1", "template-2")
-        );
-
-        assertTrue(
-            execute(new DeleteIndexTemplateRequest("template-1"), client.indices()::deleteTemplate, client.indices()::deleteTemplateAsync)
-                .isAcknowledged()
-        );
-        assertThat(
-            expectThrows(
-                OpenSearchException.class,
-                () -> execute(new GetIndexTemplatesRequest("template-1"), client.indices()::getTemplate, client.indices()::getTemplateAsync)
-            ).status(),
-            equalTo(RestStatus.NOT_FOUND)
-        );
-        assertThat(
-            expectThrows(
-                OpenSearchException.class,
-                () -> execute(
-                    new DeleteIndexTemplateRequest("template-1"),
-                    client.indices()::deleteTemplate,
-                    client.indices()::deleteTemplateAsync
-                )
-            ).status(),
-            equalTo(RestStatus.NOT_FOUND)
-        );
-
-        assertThat(
-            execute(
-                new GetIndexTemplatesRequest("template-*"),
-                client.indices()::getTemplate,
-                client.indices()::getTemplateAsync,
-                expectWarningsOnce(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
-            ).getIndexTemplates(),
-            hasSize(1)
-        );
-        assertThat(
-            execute(
-                new GetIndexTemplatesRequest("template-*"),
-                client.indices()::getTemplate,
-                client.indices()::getTemplateAsync,
-                expectWarningsOnce(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
-            ).getIndexTemplates().get(0).name(),
-            equalTo("template-2")
-        );
-
-        assertTrue(
-            execute(new DeleteIndexTemplateRequest("template-*"), client.indices()::deleteTemplate, client.indices()::deleteTemplateAsync)
-                .isAcknowledged()
-        );
-        assertThat(
-            expectThrows(
-                OpenSearchException.class,
-                () -> execute(
-                    new GetIndexTemplatesRequest("template-*"),
-                    client.indices()::getTemplate,
-                    client.indices()::getTemplateAsync,
-                    expectWarningsOnce(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
-                )
-            ).status(),
-            equalTo(RestStatus.NOT_FOUND)
-        );
     }
 
     public void testCRUDIndexTemplate() throws Exception {

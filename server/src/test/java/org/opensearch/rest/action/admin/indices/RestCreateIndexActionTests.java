@@ -32,48 +32,16 @@
 
 package org.opensearch.rest.action.admin.indices;
 
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.rest.RestRequest;
-import org.opensearch.test.rest.FakeRestRequest;
-import org.opensearch.test.rest.RestActionTestCase;
-import org.junit.Before;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
-import static org.opensearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
-import static org.mockito.Mockito.mock;
-
-public class RestCreateIndexActionTests extends RestActionTestCase {
-    private RestCreateIndexAction action;
-
-    @Before
-    public void setupAction() {
-        action = new RestCreateIndexAction();
-        controller().registerHandler(action);
-    }
-
-    public void testIncludeTypeName() throws IOException {
-        Map<String, String> params = new HashMap<>();
-        params.put(INCLUDE_TYPE_NAME_PARAMETER, randomFrom("true", "false"));
-        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
-            .withPath("/some_index")
-            .withParams(params)
-            .build();
-
-        action.prepareRequest(deprecatedRequest, mock(NodeClient.class));
-        assertWarnings(RestCreateIndexAction.TYPES_DEPRECATION_MESSAGE);
-
-        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
-            .withPath("/some_index")
-            .build();
-        action.prepareRequest(validRequest, mock(NodeClient.class));
-    }
+public class RestCreateIndexActionTests extends OpenSearchTestCase {
 
     public void testPrepareTypelessRequest() throws IOException {
         XContentBuilder content = XContentFactory.jsonBuilder()
@@ -95,8 +63,7 @@ public class RestCreateIndexActionTests extends RestActionTestCase {
             .endObject();
 
         Map<String, Object> contentAsMap = XContentHelper.convertToMap(BytesReference.bytes(content), true, content.contentType()).v2();
-        boolean includeTypeName = false;
-        Map<String, Object> source = RestCreateIndexAction.prepareMappings(contentAsMap, includeTypeName);
+        Map<String, Object> source = RestCreateIndexAction.prepareMappings(contentAsMap);
 
         XContentBuilder expectedContent = XContentFactory.jsonBuilder()
             .startObject()
@@ -126,34 +93,6 @@ public class RestCreateIndexActionTests extends RestActionTestCase {
         assertEquals(expectedContentAsMap, source);
     }
 
-    public void testPrepareTypedRequest() throws IOException {
-        XContentBuilder content = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("mappings")
-            .startObject("type")
-            .startObject("properties")
-            .startObject("field1")
-            .field("type", "keyword")
-            .endObject()
-            .startObject("field2")
-            .field("type", "text")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .startObject("aliases")
-            .startObject("read_alias")
-            .endObject()
-            .endObject()
-            .endObject();
-
-        Map<String, Object> contentAsMap = XContentHelper.convertToMap(BytesReference.bytes(content), true, content.contentType()).v2();
-        boolean includeTypeName = true;
-        Map<String, Object> source = RestCreateIndexAction.prepareMappings(contentAsMap, includeTypeName);
-
-        assertEquals(contentAsMap, source);
-    }
-
     public void testMalformedMappings() throws IOException {
         XContentBuilder content = XContentFactory.jsonBuilder()
             .startObject()
@@ -166,8 +105,7 @@ public class RestCreateIndexActionTests extends RestActionTestCase {
 
         Map<String, Object> contentAsMap = XContentHelper.convertToMap(BytesReference.bytes(content), true, content.contentType()).v2();
 
-        boolean includeTypeName = false;
-        Map<String, Object> source = RestCreateIndexAction.prepareMappings(contentAsMap, includeTypeName);
+        Map<String, Object> source = RestCreateIndexAction.prepareMappings(contentAsMap);
         assertEquals(contentAsMap, source);
     }
 }
