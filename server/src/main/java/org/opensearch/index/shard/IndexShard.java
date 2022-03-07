@@ -1277,7 +1277,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public long getWritingBytes() {
         // TODO: Segrep: hack - if not the primary our IW is null and this blows up.
-        if (shardRouting.primary() == false) {
+        if (indexSettings.isSegrepEnabled() && (shardRouting.primary() == false)) {
             return 0L;
         }
         Engine engine = getEngineOrNull();
@@ -2029,7 +2029,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void openEngineAndSkipTranslogRecovery() throws IOException {
         assert routingEntry().recoverySource().getType() == RecoverySource.Type.PEER : "not a peer recovery [" + routingEntry() + "]";
         // TODO: Segrep - fix initial recovery stages from ReplicationTarget.
-        // recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
+        if (indexSettings.isSegrepEnabled() == false) {
+            recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
+        }
         loadGlobalCheckpointToReplicationTracker();
         innerOpenEngineAndTranslog(replicationTracker);
         getEngine().skipTranslogRecovery();
@@ -2066,7 +2068,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // which settings changes could possibly have happened, so here we forcefully push any config changes to the new engine.
         onSettingsChanged();
         // TODO: Segrep - Fix
-        // assert assertSequenceNumbersInCommit();
+        if (indexSettings.isSegrepEnabled() == false) {
+            assert assertSequenceNumbersInCommit();
+        }
         recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
     }
 
@@ -2238,7 +2242,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Returns number of heap bytes used by the indexing buffer for this shard, or 0 if the shard is closed
      */
     public long getIndexBufferRAMBytesUsed() {
-        if (shardRouting.primary() == false) {
+        if (indexSettings.isSegrepEnabled() && (shardRouting.primary() == false)) {
             return 0;
         }
         Engine engine = getEngineOrNull();
@@ -2714,7 +2718,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert assertPrimaryMode();
         verifyNotClosed();
         // TODO: Segrep - Fix retention leases
-        // replicationTracker.renewPeerRecoveryRetentionLeases();
+        if (indexSettings.isSegrepEnabled() == false) {
+            replicationTracker.renewPeerRecoveryRetentionLeases();
+        }
         final Tuple<Boolean, RetentionLeases> retentionLeases = getRetentionLeases(true);
         if (retentionLeases.v1()) {
             logger.trace("syncing retention leases [{}] after expiration check", retentionLeases.v2());
@@ -3303,31 +3309,31 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             internalRefreshListener = Collections.singletonList(new RefreshMetricUpdater(refreshMetric));
         }
-            return this.engineConfigFactory.newEngineConfig(
-                shardId,
-                threadPool,
-                indexSettings,
-                warmer,
-                store,
-                indexSettings.getMergePolicy(),
-                mapperService != null ? mapperService.indexAnalyzer() : null,
-                similarityService.similarity(mapperService),
-                codecService,
-                shardEventListener,
-                indexCache != null ? indexCache.query() : null,
-                cachingPolicy,
-                translogConfig,
-                IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
-                Arrays.asList(refreshListeners, refreshPendingLocationListener),
-                internalRefreshListener,
-                indexSort,
-                circuitBreakerService,
-                globalCheckpointSupplier,
-                replicationTracker::getRetentionLeases,
-                () -> getOperationPrimaryTerm(),
-                tombstoneDocSupplier(),
-                shardRouting.primary()
-            );
+        return this.engineConfigFactory.newEngineConfig(
+            shardId,
+            threadPool,
+            indexSettings,
+            warmer,
+            store,
+            indexSettings.getMergePolicy(),
+            mapperService != null ? mapperService.indexAnalyzer() : null,
+            similarityService.similarity(mapperService),
+            codecService,
+            shardEventListener,
+            indexCache != null ? indexCache.query() : null,
+            cachingPolicy,
+            translogConfig,
+            IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
+            Arrays.asList(refreshListeners, refreshPendingLocationListener),
+            internalRefreshListener,
+            indexSort,
+            circuitBreakerService,
+            globalCheckpointSupplier,
+            replicationTracker::getRetentionLeases,
+            () -> getOperationPrimaryTerm(),
+            tombstoneDocSupplier(),
+            shardRouting.primary()
+        );
     }
 
     /**
@@ -3918,8 +3924,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public boolean scheduledRefresh() {
         // skip if not primary shard.
         // TODO: Segrep - should split into primary/replica classes.
-        if ((indexSettings.isSegrepEnabled()) &&(shardRouting.primary() == false) ) {
-                return false;
+        if ((indexSettings.isSegrepEnabled()) && (shardRouting.primary() == false)) {
+            return false;
         }
         verifyNotClosed();
         boolean listenerNeedsRefresh = refreshListeners.refreshNeeded();

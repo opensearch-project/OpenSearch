@@ -283,11 +283,11 @@ public class InternalEngine extends Engine {
                     historyUUID = null;
                     forceMergeUUID = null;
                 } else {
-                        writer = createWriter();
-                        bootstrapAppendOnlyInfoFromWriter(writer);
-                        final Map<String, String> commitData = commitDataAsMap(writer);
-                        historyUUID = loadHistoryUUID(commitData);
-                        forceMergeUUID = commitData.get(FORCE_MERGE_UUID_KEY);
+                    writer = createWriter();
+                    bootstrapAppendOnlyInfoFromWriter(writer);
+                    final Map<String, String> commitData = commitDataAsMap(writer);
+                    historyUUID = loadHistoryUUID(commitData);
+                    forceMergeUUID = commitData.get(FORCE_MERGE_UUID_KEY);
                 }
                 indexWriter = writer;
             } catch (IOException | TranslogCorruptedException e) {
