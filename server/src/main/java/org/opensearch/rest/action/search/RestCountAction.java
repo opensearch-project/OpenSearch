@@ -66,10 +66,7 @@ public class RestCountAction extends BaseRestHandler {
                 new Route(GET, "/_count"),
                 new Route(POST, "/_count"),
                 new Route(GET, "/{index}/_count"),
-                new Route(POST, "/{index}/_count"),
-                // Deprecated typed endpoints.
-                new Route(GET, "/{index}/{type}/_count"),
-                new Route(POST, "/{index}/{type}/_count")
+                new Route(POST, "/{index}/_count")
             )
         );
     }
