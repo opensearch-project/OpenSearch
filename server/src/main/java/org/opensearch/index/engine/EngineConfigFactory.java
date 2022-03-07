@@ -8,6 +8,7 @@
 
 package org.opensearch.index.engine;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.search.QueryCache;
@@ -169,7 +170,8 @@ public class EngineConfigFactory {
             retentionLeasesSupplier,
             primaryTermSupplier,
             tombstoneDocSupplier,
-            null
+            null, /* mapperService */
+            null /* logger */
         );
     }
 
@@ -197,7 +199,8 @@ public class EngineConfigFactory {
         Supplier<RetentionLeases> retentionLeasesSupplier,
         LongSupplier primaryTermSupplier,
         EngineConfig.TombstoneDocSupplier tombstoneDocSupplier,
-        MapperService mapperService
+        MapperService mapperService,
+        Logger logger
     ) {
 
         return new EngineConfig(
@@ -210,7 +213,7 @@ public class EngineConfigFactory {
             analyzer,
             similarity,
             this.codecServiceFactory != null
-                ? this.codecServiceFactory.createCodecService(new CodecServiceConfig(indexSettings, mapperService))
+                ? this.codecServiceFactory.createCodecService(new CodecServiceConfig(indexSettings, mapperService, logger))
                 : codecService,
             eventListener,
             queryCache,

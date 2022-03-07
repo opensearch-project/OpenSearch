@@ -8,6 +8,7 @@
 
 package org.opensearch.index.codec;
 
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.Nullable;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
@@ -20,10 +21,12 @@ import java.util.Objects;
 public final class CodecServiceConfig {
     private final IndexSettings indexSettings;
     private final MapperService mapperService;
+    private final Logger logger;
 
-    public CodecServiceConfig(IndexSettings indexSettings, @Nullable MapperService mapperService) {
+    public CodecServiceConfig(IndexSettings indexSettings, @Nullable MapperService mapperService, Logger logger) {
         this.indexSettings = Objects.requireNonNull(indexSettings);
         this.mapperService = mapperService;
+        this.logger = logger;
     }
 
     public IndexSettings getIndexSettings() {
@@ -33,5 +36,9 @@ public final class CodecServiceConfig {
     @Nullable
     public MapperService getMapperService() {
         return mapperService;
+    }
+
+    public Logger getLogger() {
+        return logger;
     }
 }

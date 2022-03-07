@@ -3178,7 +3178,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             replicationTracker::getRetentionLeases,
             () -> getOperationPrimaryTerm(),
             tombstoneDocSupplier(),
-            mapperService
+            mapperService,
+            logger
         );
     }
 
