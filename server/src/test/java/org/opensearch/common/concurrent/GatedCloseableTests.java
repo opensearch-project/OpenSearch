@@ -35,31 +35,45 @@ package org.opensearch.common.concurrent;
 import org.junit.Before;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.concurrent.atomic.AtomicInteger;
+import java.io.IOException;
+import java.nio.file.FileSystem;
 
-public class GatedAutoCloseableTests extends OpenSearchTestCase {
+import static org.mockito.Mockito.atMostOnce;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
-    private AtomicInteger testRef;
-    private GatedAutoCloseable<AtomicInteger> testObject;
+public class GatedCloseableTests extends OpenSearchTestCase {
+
+    private FileSystem testRef;
+    GatedCloseable<FileSystem> testObject;
 
     @Before
     public void setup() {
-        testRef = new AtomicInteger(0);
-        testObject = new GatedAutoCloseable<>(testRef, testRef::incrementAndGet);
+        testRef = mock(FileSystem.class);
+        testObject = new GatedCloseable<>(testRef, testRef::close);
     }
 
-    public void testGet() {
-        assertEquals(0, testObject.get().get());
+    public void testGet() throws Exception {
+        assertNotNull(testObject.get());
+        assertEquals(testRef, testObject.get());
+        verify(testRef, never()).close();
     }
 
-    public void testClose() {
+    public void testClose() throws IOException {
         testObject.close();
-        assertEquals(1, testObject.get().get());
+        verify(testRef, atMostOnce()).close();
     }
 
-    public void testIdempotent() {
+    public void testIdempotent() throws IOException {
         testObject.close();
         testObject.close();
-        assertEquals(1, testObject.get().get());
+        verify(testRef, atMostOnce()).close();
+    }
+
+    public void testException() throws IOException {
+        doThrow(new IOException()).when(testRef).close();
+        assertThrows(IOException.class, () -> testObject.close());
     }
 }
