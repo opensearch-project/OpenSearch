@@ -84,11 +84,7 @@ public abstract class SymbolicLinkPreservingUntarTransform implements UnpackTran
                     // copy the file from the archive using a small buffer to avoid heaping
                     Files.createFile(destination);
                     try (FileOutputStream fos = new FileOutputStream(destination.toFile())) {
-                        byte[] buffer = new byte[4096];
-                        int len;
-                        while ((len = tar.read(buffer)) > 0) {
-                            fos.write(buffer, 0, len);
-                        }
+                        tar.transferTo(fos);
                     }
                 }
                 if (entry.isSymbolicLink() == false) {
