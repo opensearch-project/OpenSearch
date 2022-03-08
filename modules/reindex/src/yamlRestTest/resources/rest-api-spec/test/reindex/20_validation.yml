@@ -306,9 +306,9 @@
             index: dest
 
 ---
-"unwhitelisted remote host fails":
+"unallowlisted remote host fails":
   - do:
-      catch: /\[badremote:9200\] not allowlisted in reindex.remote.whitelist/
+      catch: /\[badremote:9200\] not allowlisted in reindex.remote.allowlist/
       reindex:
         body:
           source:

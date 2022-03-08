@@ -37,22 +37,14 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.test.AbstractSerializingTestCase;
+import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Predicate;
 
-import static org.opensearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
-import static org.hamcrest.CoreMatchers.equalTo;
-
-public class GetFieldMappingsResponseTests extends AbstractSerializingTestCase<GetFieldMappingsResponse> {
+public class GetFieldMappingsResponseTests extends AbstractWireSerializingTestCase<GetFieldMappingsResponse> {
 
     public void testManualSerialization() throws IOException {
         Map<String, Map<String, Map<String, FieldMappingMetadata>>> mappings = new HashMap<>();
@@ -71,51 +63,6 @@ public class GetFieldMappingsResponseTests extends AbstractSerializingTestCase<G
         }
     }
 
-    public void testManualJunkedJson() throws Exception {
-        // in fact random fields could be evaluated as proper mapping, while proper junk in this case is arrays and values
-        final String json = "{\"index1\":{\"mappings\":"
-            + "{\"doctype0\":{\"field1\":{\"full_name\":\"my field\",\"mapping\":{\"type\":\"keyword\"}},"
-            + "\"field0\":{\"full_name\":\"my field\",\"mapping\":{\"type\":\"keyword\"}}},"
-            // junk here
-            + "\"junk1\": [\"field1\", {\"field2\":{}}],"
-            + "\"junk2\": [{\"field3\":{}}],"
-            + "\"junk3\": 42,"
-            + "\"junk4\": \"Q\","
-            + "\"doctype1\":{\"field1\":{\"full_name\":\"my field\",\"mapping\":{\"type\":\"keyword\"}},"
-            + "\"field0\":{\"full_name\":\"my field\",\"mapping\":{\"type\":\"keyword\"}}}}},"
-            + "\"index0\":{\"mappings\":"
-            + "{\"doctype0\":{\"field1\":{\"full_name\":\"my field\",\"mapping\":{\"type\":\"keyword\"}},"
-            + "\"field0\":{\"full_name\":\"my field\",\"mapping\":{\"type\":\"keyword\"}}},"
-            + "\"doctype1\":{\"field1\":{\"full_name\":\"my field\",\"mapping\":{\"type\":\"keyword\"}},"
-            + "\"field0\":{\"full_name\":\"my field\",\"mapping\":{\"type\":\"keyword\"}}}}}}";
-
-        final XContentParser parser = XContentType.JSON.xContent()
-            .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, json.getBytes("UTF-8"));
-
-        final GetFieldMappingsResponse response = GetFieldMappingsResponse.fromXContent(parser);
-
-        FieldMappingMetadata fieldMappingMetadata = new FieldMappingMetadata("my field", new BytesArray("{\"type\":\"keyword\"}"));
-        Map<String, FieldMappingMetadata> fieldMapping = new HashMap<>();
-        fieldMapping.put("field0", fieldMappingMetadata);
-        fieldMapping.put("field1", fieldMappingMetadata);
-
-        Map<String, Map<String, FieldMappingMetadata>> typeMapping = new HashMap<>();
-        typeMapping.put("doctype0", fieldMapping);
-        typeMapping.put("doctype1", fieldMapping);
-
-        Map<String, Map<String, Map<String, FieldMappingMetadata>>> mappings = new HashMap<>();
-        mappings.put("index0", typeMapping);
-        mappings.put("index1", typeMapping);
-
-        final Map<String, Map<String, Map<String, FieldMappingMetadata>>> responseMappings = response.mappings();
-        assertThat(responseMappings, equalTo(mappings));
-    }
-
-    @Override
-    protected GetFieldMappingsResponse doParseInstance(XContentParser parser) throws IOException {
-        return GetFieldMappingsResponse.fromXContent(parser);
-    }
-
     @Override
     protected GetFieldMappingsResponse createTestInstance() {
         return new GetFieldMappingsResponse(randomMapping());
@@ -124,23 +71,6 @@ public class GetFieldMappingsResponseTests extends AbstractSerializingTestCase<G
     @Override
     protected Writeable.Reader<GetFieldMappingsResponse> instanceReader() {
         return GetFieldMappingsResponse::new;
-    }
-
-    @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
-        // allow random fields at the level of `index` and `index.mappings.doctype.field`
-        // otherwise random field could be evaluated as index name or type name
-        return s -> false == (s.matches("(?<index>[^.]+)")
-            || s.matches("(?<index>[^.]+)\\.mappings\\.(?<doctype>[^.]+)\\.(?<field>[^.]+)"));
-    }
-
-    /**
-     * For xContent roundtrip testing we force the xContent output to still contain types because the parser
-     * still expects them. The new typeless parsing is implemented in the client side GetFieldMappingsResponse.
-     */
-    @Override
-    protected ToXContent.Params getToXContentParams() {
-        return new ToXContent.MapParams(Collections.singletonMap(INCLUDE_TYPE_NAME_PARAMETER, "true"));
     }
 
     private Map<String, Map<String, Map<String, FieldMappingMetadata>>> randomMapping() {

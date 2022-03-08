@@ -32,8 +32,6 @@
 
 package org.opensearch.rest.action.admin.indices;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.admin.indices.mapping.get.GetMappingsRequest;
@@ -41,7 +39,6 @@ import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.rest.BaseRestHandler;
@@ -61,10 +58,6 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
 public class RestGetMappingAction extends BaseRestHandler {
-    private static final Logger logger = LogManager.getLogger(RestGetMappingAction.class);
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get"
-        + " mapping requests is deprecated. The parameter will be removed in the next major version.";
 
     private final ThreadPool threadPool;
 

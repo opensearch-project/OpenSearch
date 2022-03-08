@@ -103,7 +103,7 @@ public class RetryTests extends OpenSearchIntegTestCase {
     final Settings nodeSettings() {
         return Settings.builder()
             // allowlist reindexing from the HTTP host we're going to use
-            .put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "127.0.0.1:*")
+            .put(TransportReindexAction.REMOTE_CLUSTER_ALLOWLIST.getKey(), "127.0.0.1:*")
             .build();
     }
 
