@@ -16,6 +16,7 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.similarities.Similarity;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
@@ -120,9 +121,7 @@ public class EngineConfigFactory {
 
     /**
      * Instantiates a new EngineConfig from the provided custom overrides
-     * @deprecated please use overloaded {@code newEngineConfig} with {@link MapperService}
      */
-    @Deprecated
     public EngineConfig newEngineConfig(
         ShardId shardId,
         ThreadPool threadPool,
@@ -147,61 +146,10 @@ public class EngineConfigFactory {
         LongSupplier primaryTermSupplier,
         EngineConfig.TombstoneDocSupplier tombstoneDocSupplier
     ) {
-        return newEngineConfig(
-            shardId,
-            threadPool,
-            indexSettings,
-            warmer,
-            store,
-            mergePolicy,
-            analyzer,
-            similarity,
-            codecService,
-            eventListener,
-            queryCache,
-            queryCachingPolicy,
-            translogConfig,
-            flushMergesAfter,
-            externalRefreshListener,
-            internalRefreshListener,
-            indexSort,
-            circuitBreakerService,
-            globalCheckpointSupplier,
-            retentionLeasesSupplier,
-            primaryTermSupplier,
-            tombstoneDocSupplier,
-            null, /* mapperService */
-            null /* logger */
-        );
-    }
-
-    /** Instantiates a new EngineConfig from the provided custom overrides */
-    public EngineConfig newEngineConfig(
-        ShardId shardId,
-        ThreadPool threadPool,
-        IndexSettings indexSettings,
-        Engine.Warmer warmer,
-        Store store,
-        MergePolicy mergePolicy,
-        Analyzer analyzer,
-        Similarity similarity,
-        CodecService codecService,
-        Engine.EventListener eventListener,
-        QueryCache queryCache,
-        QueryCachingPolicy queryCachingPolicy,
-        TranslogConfig translogConfig,
-        TimeValue flushMergesAfter,
-        List<ReferenceManager.RefreshListener> externalRefreshListener,
-        List<ReferenceManager.RefreshListener> internalRefreshListener,
-        Sort indexSort,
-        CircuitBreakerService circuitBreakerService,
-        LongSupplier globalCheckpointSupplier,
-        Supplier<RetentionLeases> retentionLeasesSupplier,
-        LongSupplier primaryTermSupplier,
-        EngineConfig.TombstoneDocSupplier tombstoneDocSupplier,
-        MapperService mapperService,
-        Logger logger
-    ) {
+        CodecService codecServiceToUse = codecService;
+        if (codecService == null && this.codecServiceFactory != null) {
+            codecServiceToUse = newCodecServiceOrDefault(indexSettings, null, null, null);
+        }
 
         return new EngineConfig(
             shardId,
@@ -212,9 +160,7 @@ public class EngineConfigFactory {
             mergePolicy,
             analyzer,
             similarity,
-            this.codecServiceFactory != null
-                ? this.codecServiceFactory.createCodecService(new CodecServiceConfig(indexSettings, mapperService, logger))
-                : codecService,
+            codecServiceToUse,
             eventListener,
             queryCache,
             queryCachingPolicy,
@@ -230,5 +176,16 @@ public class EngineConfigFactory {
             primaryTermSupplier,
             tombstoneDocSupplier
         );
+    }
+
+    public CodecService newCodecServiceOrDefault(
+        IndexSettings indexSettings,
+        @Nullable MapperService mapperService,
+        Logger logger,
+        CodecService defaultCodecService
+    ) {
+        return this.codecServiceFactory != null
+            ? this.codecServiceFactory.createCodecService(new CodecServiceConfig(indexSettings, mapperService, logger))
+            : defaultCodecService;
     }
 }

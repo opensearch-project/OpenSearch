@@ -23,7 +23,7 @@ public final class CodecServiceConfig {
     private final MapperService mapperService;
     private final Logger logger;
 
-    public CodecServiceConfig(IndexSettings indexSettings, @Nullable MapperService mapperService, Logger logger) {
+    public CodecServiceConfig(IndexSettings indexSettings, @Nullable MapperService mapperService, @Nullable Logger logger) {
         this.indexSettings = Objects.requireNonNull(indexSettings);
         this.mapperService = mapperService;
         this.logger = logger;
@@ -38,6 +38,7 @@ public final class CodecServiceConfig {
         return mapperService;
     }
 
+    @Nullable
     public Logger getLogger() {
         return logger;
     }
