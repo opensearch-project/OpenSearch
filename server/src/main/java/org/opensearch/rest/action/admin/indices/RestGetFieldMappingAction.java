@@ -60,7 +60,6 @@ import static org.opensearch.rest.RestStatus.NOT_FOUND;
 import static org.opensearch.rest.RestStatus.OK;
 
 public class RestGetFieldMappingAction extends BaseRestHandler {
-
     private static final Logger logger = LogManager.getLogger(RestGetFieldMappingAction.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
@@ -107,7 +106,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
                         status = NOT_FOUND;
                     }
                     response.toXContent(builder, request);
-                    return new BytesRestResponse(RestStatus.OK, builder);
+                    return new BytesRestResponse(status, builder);
                 }
             });
     }
