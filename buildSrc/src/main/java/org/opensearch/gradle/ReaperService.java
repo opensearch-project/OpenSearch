@@ -179,11 +179,7 @@ public class ReaperService {
                 InputStream jarInput = this.getClass().getResourceAsStream("/META-INF/reaper.jar");
             ) {
                 logger.info("Copying reaper.jar...");
-                byte[] buffer = new byte[4096];
-                int len;
-                while ((len = jarInput.read(buffer)) > 0) {
-                    out.write(buffer, 0, len);
-                }
+                jarInput.transferTo(out);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

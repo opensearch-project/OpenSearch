@@ -42,6 +42,7 @@ import org.gradle.api.execution.TaskExecutionListener;
 import org.gradle.api.tasks.TaskState;
 
 import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
@@ -101,7 +102,7 @@ public class VagrantBasePlugin implements Plugin<Project> {
                 spec.setCommandLine(tool, "--version");
                 spec.setStandardOutput(pipe);
             });
-            String output = pipe.toString().trim();
+            String output = pipe.toString(StandardCharsets.UTF_8).trim();
             Matcher matcher = versionRegex.matcher(output);
             if (matcher.find() == false) {
                 throw new IllegalStateException(
