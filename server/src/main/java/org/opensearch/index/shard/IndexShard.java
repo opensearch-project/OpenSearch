@@ -3155,6 +3155,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 this.warmer.warm(reader);
             }
         };
+
         return this.engineConfigFactory.newEngineConfig(
             shardId,
             threadPool,
@@ -3164,7 +3165,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexSettings.getMergePolicy(),
             mapperService != null ? mapperService.indexAnalyzer() : null,
             similarityService.similarity(mapperService),
-            codecService,
+            engineConfigFactory.newCodecServiceOrDefault(indexSettings, mapperService, logger, codecService),
             shardEventListener,
             indexCache != null ? indexCache.query() : null,
             cachingPolicy,
