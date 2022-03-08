@@ -882,7 +882,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 );
             }
             operation = prepareIndex(
-                docMapper(resolvedType),
+                docMapper(),
                 sourceWithResolvedType,
                 seqNo,
                 opPrimaryTerm,
@@ -1102,7 +1102,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // fail if index and delete operations do not use the same type.
         // TODO: clean this up when types are gone
         try {
-            Mapping update = docMapper(type).getMapping();
+            Mapping update = docMapper().getMapping();
             if (update != null) {
                 return new Engine.DeleteResult(update);
             }
@@ -1249,7 +1249,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return getEngine().getSeqNoStats(replicationTracker.getGlobalCheckpoint());
     }
 
-    public IndexingStats indexingStats(String... types) {
+    public IndexingStats indexingStats() {
         Engine engine = getEngineOrNull();
         final boolean throttled;
         final long throttleTimeInMillis;
@@ -3143,8 +3143,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    private DocumentMapperForType docMapper(String type) {
-        return mapperService.documentMapperWithAutoCreate(mapperService.resolveDocumentType(type));
+    private DocumentMapperForType docMapper() {
+        return mapperService.documentMapperWithAutoCreate();
     }
 
     private EngineConfig newEngineConfig(LongSupplier globalCheckpointSupplier) {
@@ -3874,7 +3874,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return new EngineConfig.TombstoneDocSupplier() {
             @Override
             public ParsedDocument newDeleteTombstoneDoc(String type, String id) {
-                return docMapper(type).getDocumentMapper().createDeleteTombstoneDoc(shardId.getIndexName(), type, id);
+                return docMapper().getDocumentMapper().createDeleteTombstoneDoc(shardId.getIndexName(), type, id);
             }
 
             @Override

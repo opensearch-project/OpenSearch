@@ -306,13 +306,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             // refresh mapping can happen when the parsing/merging of the mapping from the metadata doesn't result in the same
             // mapping, in this case, we send to the master to refresh its own version of the mappings (to conform with the
             // merge version of it, which it does when refreshing the mappings), and warn log it.
-            if (documentMapper(mappingType).mappingSource().equals(incomingMappingSource) == false) {
+            if (documentMapper().mappingSource().equals(incomingMappingSource) == false) {
                 logger.debug(
                     "[{}] parsed mapping [{}], and got different sources\noriginal:\n{}\nparsed:\n{}",
                     index(),
                     mappingType,
                     incomingMappingSource,
-                    documentMapper(mappingType).mappingSource()
+                    documentMapper().mappingSource()
                 );
 
                 requireRefresh = true;
@@ -531,16 +531,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Return the {@link DocumentMapper} for the given type.
-     */
-    public DocumentMapper documentMapper(String type) {
-        if (mapper != null && type.equals(mapper.type())) {
-            return mapper;
-        }
-        return null;
-    }
-
-    /**
      * Returns {@code true} if the given {@code mappingSource} includes a type
      * as a top-level object.
      */
@@ -574,12 +564,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Returns the document mapper created, including a mapping update if the
      * type has been dynamically created.
      */
-    public DocumentMapperForType documentMapperWithAutoCreate(String type) {
-        DocumentMapper mapper = documentMapper(type);
+    public DocumentMapperForType documentMapperWithAutoCreate() {
+        DocumentMapper mapper = documentMapper();
         if (mapper != null) {
             return new DocumentMapperForType(mapper, null);
         }
-        mapper = parse(type, null);
+        mapper = parse(SINGLE_MAPPING_NAME, null);
         return new DocumentMapperForType(mapper, mapper.mapping());
     }
 
