@@ -11,10 +11,10 @@
 
   - match:
       $body: |
-               /^  id         .+ \n
+               /^  id       .+ \n
                    host     .+ \n
                    ip       .+ \n
-                   node        .+ \n
+                   node     .+ \n
 
                $/
 
