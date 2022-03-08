@@ -57,12 +57,12 @@ public class RestMasterAction extends AbstractCatAction {
 
     @Override
     public String getName() {
-        return "cat_master_action";
+        return "cat_cluster_manager_action";
     }
 
     @Override
     protected void documentation(StringBuilder sb) {
-        sb.append("/_cat/master\n");
+        sb.append("/_cat/cluster_manager\n");
     }
 
     @Override
