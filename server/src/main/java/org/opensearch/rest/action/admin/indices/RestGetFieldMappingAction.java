@@ -63,8 +63,6 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
 
     private static final Logger logger = LogManager.getLogger(RestGetFieldMappingAction.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get "
-        + "field mapping requests is deprecated. The parameter will be removed in the next major version.";
 
     @Override
     public List<Route> routes() {
@@ -84,14 +82,6 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
         GetFieldMappingsRequest getMappingsRequest = new GetFieldMappingsRequest();
         getMappingsRequest.indices(indices).fields(fields).includeDefaults(request.paramAsBoolean("include_defaults", false));
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
-
-        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
-            boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
-            if (includeTypeName) {
-                throw new IllegalArgumentException(INCLUDE_TYPE_NAME_PARAMETER + " no longer supports the value [true].");
-            }
-            deprecationLogger.deprecate("get_field_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
-        }
 
         if (request.hasParam("local")) {
             deprecationLogger.deprecate(

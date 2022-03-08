@@ -362,60 +362,6 @@ public final class IndicesClient {
     }
 
     /**
-     * Creates an index using the Create Index API.
-     *
-     * @param createIndexRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
-     *
-     * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The
-     * method {@link #create(CreateIndexRequest, RequestOptions)} should be used instead, which accepts a new
-     * request object.
-     */
-    @Deprecated
-    public org.opensearch.action.admin.indices.create.CreateIndexResponse create(
-        org.opensearch.action.admin.indices.create.CreateIndexRequest createIndexRequest,
-        RequestOptions options
-    ) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(
-            createIndexRequest,
-            IndicesRequestConverters::createIndex,
-            options,
-            org.opensearch.action.admin.indices.create.CreateIndexResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Asynchronously creates an index using the Create Index API.
-     *
-     * @param createIndexRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     *
-     * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The
-     * method {@link #createAsync(CreateIndexRequest, RequestOptions, ActionListener)} should be used instead,
-     * which accepts a new request object.
-     * @return cancellable that may be used to cancel the request
-     */
-    @Deprecated
-    public Cancellable createAsync(
-        org.opensearch.action.admin.indices.create.CreateIndexRequest createIndexRequest,
-        RequestOptions options,
-        ActionListener<org.opensearch.action.admin.indices.create.CreateIndexResponse> listener
-    ) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(
-            createIndexRequest,
-            IndicesRequestConverters::createIndex,
-            options,
-            org.opensearch.action.admin.indices.create.CreateIndexResponse::fromXContent,
-            listener,
-            emptySet()
-        );
-    }
-
-    /**
      * Updates the mappings on an index using the Put Mapping API.
      *
      * @param putMappingRequest the request
@@ -492,60 +438,6 @@ public final class IndicesClient {
             IndicesRequestConverters::getMappings,
             options,
             GetMappingsResponse::fromXContent,
-            listener,
-            emptySet()
-        );
-    }
-
-    /**
-     * Retrieves the field mappings on an index or indices using the Get Field Mapping API.
-     *
-     * @param getFieldMappingsRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
-     *
-     * @deprecated This method uses old request and response objects which still refer to types, a deprecated feature.
-     * The method {@link #getFieldMapping(GetFieldMappingsRequest, RequestOptions)} should be used instead, which
-     * accepts a new request object.
-     */
-    @Deprecated
-    public org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsResponse getFieldMapping(
-        org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsRequest getFieldMappingsRequest,
-        RequestOptions options
-    ) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(
-            getFieldMappingsRequest,
-            IndicesRequestConverters::getFieldMapping,
-            options,
-            org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Asynchronously retrieves the field mappings on an index on indices using the Get Field Mapping API.
-     *
-     * @param getFieldMappingsRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     *
-     * @deprecated This method uses old request and response objects which still refer to types, a deprecated feature.
-     * The method {@link #getFieldMappingAsync(GetFieldMappingsRequest, RequestOptions, ActionListener)} should be
-     * used instead, which accepts a new request object.
-     * @return cancellable that may be used to cancel the request
-     */
-    @Deprecated
-    public Cancellable getFieldMappingAsync(
-        org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsRequest getFieldMappingsRequest,
-        RequestOptions options,
-        ActionListener<org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsResponse> listener
-    ) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(
-            getFieldMappingsRequest,
-            IndicesRequestConverters::getFieldMapping,
-            options,
-            org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsResponse::fromXContent,
             listener,
             emptySet()
         );
@@ -1054,53 +946,6 @@ public final class IndicesClient {
     }
 
     /**
-     * Checks if the index (indices) exists or not.
-     *
-     * @param request the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     * @throws IOException in case there is a problem sending the request
-     * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The method
-     * {@link #exists(GetIndexRequest, RequestOptions)} should be used instead, which accepts a new request object.
-     */
-    @Deprecated
-    public boolean exists(org.opensearch.action.admin.indices.get.GetIndexRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequest(
-            request,
-            IndicesRequestConverters::indicesExist,
-            options,
-            RestHighLevelClient::convertExistsResponse,
-            Collections.emptySet()
-        );
-    }
-
-    /**
-     * Asynchronously checks if the index (indices) exists or not.
-     *
-     * @param request the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The method
-     * {@link #existsAsync(GetIndexRequest, RequestOptions, ActionListener)} should be used instead, which accepts a new request object.
-     * @return cancellable that may be used to cancel the request
-     */
-    @Deprecated
-    public Cancellable existsAsync(
-        org.opensearch.action.admin.indices.get.GetIndexRequest request,
-        RequestOptions options,
-        ActionListener<Boolean> listener
-    ) {
-        return restHighLevelClient.performRequestAsync(
-            request,
-            IndicesRequestConverters::indicesExist,
-            options,
-            RestHighLevelClient::convertExistsResponse,
-            listener,
-            Collections.emptySet()
-        );
-    }
-
-    /**
      * Shrinks an index using the Shrink Index API.
      *
      * @param resizeRequest the request
@@ -1393,59 +1238,6 @@ public final class IndicesClient {
     }
 
     /**
-     * Rolls over an index using the Rollover Index API.
-     *
-     * @param rolloverRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
-     *
-     * @deprecated This method uses deprecated request and response objects.
-     * The method {@link #rollover(RolloverRequest, RequestOptions)} should be used instead, which accepts a new request object.
-     */
-    @Deprecated
-    public org.opensearch.action.admin.indices.rollover.RolloverResponse rollover(
-        org.opensearch.action.admin.indices.rollover.RolloverRequest rolloverRequest,
-        RequestOptions options
-    ) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(
-            rolloverRequest,
-            IndicesRequestConverters::rollover,
-            options,
-            org.opensearch.action.admin.indices.rollover.RolloverResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Asynchronously rolls over an index using the Rollover Index API.
-     *
-     * @param rolloverRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     *
-     * @deprecated This method uses deprecated request and response objects.
-     * The method {@link #rolloverAsync(RolloverRequest, RequestOptions, ActionListener)} should be used instead, which
-     * accepts a new request object.
-     * @return cancellable that may be used to cancel the request
-     */
-    @Deprecated
-    public Cancellable rolloverAsync(
-        org.opensearch.action.admin.indices.rollover.RolloverRequest rolloverRequest,
-        RequestOptions options,
-        ActionListener<org.opensearch.action.admin.indices.rollover.RolloverResponse> listener
-    ) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(
-            rolloverRequest,
-            IndicesRequestConverters::rollover,
-            options,
-            org.opensearch.action.admin.indices.rollover.RolloverResponse::fromXContent,
-            listener,
-            emptySet()
-        );
-    }
-
-    /**
      * Gets one or more aliases using the Get Index Aliases API.
      *
      * @param getAliasesRequest the request
@@ -1520,57 +1312,6 @@ public final class IndicesClient {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             updateSettingsRequest,
             IndicesRequestConverters::indexPutSettings,
-            options,
-            AcknowledgedResponse::fromXContent,
-            listener,
-            emptySet()
-        );
-    }
-
-    /**
-     * Puts an index template using the Index Templates API.
-     *
-     * @param putIndexTemplateRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
-     * @deprecated This old form of request allows types in mappings. Use {@link #putTemplate(PutIndexTemplateRequest, RequestOptions)}
-     * instead which introduces a new request object without types.
-     */
-    @Deprecated
-    public AcknowledgedResponse putTemplate(
-        org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest putIndexTemplateRequest,
-        RequestOptions options
-    ) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(
-            putIndexTemplateRequest,
-            IndicesRequestConverters::putTemplate,
-            options,
-            AcknowledgedResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Asynchronously puts an index template using the Index Templates API.
-     *
-     * @param putIndexTemplateRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @deprecated This old form of request allows types in mappings.
-     * Use {@link #putTemplateAsync(PutIndexTemplateRequest, RequestOptions, ActionListener)}
-     * instead which introduces a new request object without types.
-     * @return cancellable that may be used to cancel the request
-     */
-    @Deprecated
-    public Cancellable putTemplateAsync(
-        org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest putIndexTemplateRequest,
-        RequestOptions options,
-        ActionListener<AcknowledgedResponse> listener
-    ) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(
-            putIndexTemplateRequest,
-            IndicesRequestConverters::putTemplate,
             options,
             AcknowledgedResponse::fromXContent,
             listener,
@@ -1750,31 +1491,6 @@ public final class IndicesClient {
     }
 
     /**
-     * Gets index templates using the Index Templates API. The mappings will be returned in a legacy deprecated format, where the
-     * mapping definition is nested under the type name.
-     *
-     * @param getIndexTemplatesRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
-     * @deprecated This method uses an old response object which still refers to types, a deprecated feature. Use
-     * {@link #getIndexTemplate(GetIndexTemplatesRequest, RequestOptions)} instead which returns a new response object
-     */
-    @Deprecated
-    public org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse getTemplate(
-        GetIndexTemplatesRequest getIndexTemplatesRequest,
-        RequestOptions options
-    ) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(
-            getIndexTemplatesRequest,
-            IndicesRequestConverters::getTemplatesWithDocumentTypes,
-            options,
-            org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
      * Gets index templates using the Index Templates API
      *
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -1833,33 +1549,6 @@ public final class IndicesClient {
             IndicesRequestConverters::getTemplates,
             options,
             GetIndexTemplatesResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Asynchronously gets index templates using the Index Templates API. The mappings will be returned in a legacy deprecated format,
-     * where the mapping definition is nested under the type name.
-     *
-     * @param getIndexTemplatesRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @deprecated This method uses an old response object which still refers to types, a deprecated feature. Use
-     * {@link #getIndexTemplateAsync(GetIndexTemplatesRequest, RequestOptions, ActionListener)} instead which returns a new response object
-     * @return cancellable that may be used to cancel the request
-     */
-    @Deprecated
-    public Cancellable getTemplateAsync(
-        GetIndexTemplatesRequest getIndexTemplatesRequest,
-        RequestOptions options,
-        ActionListener<org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse> listener
-    ) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(
-            getIndexTemplatesRequest,
-            IndicesRequestConverters::getTemplatesWithDocumentTypes,
-            options,
-            org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse::fromXContent,
-            listener,
             emptySet()
         );
     }
