@@ -35,6 +35,7 @@ package org.opensearch.action.admin.indices.create;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.admin.indices.alias.Alias;
@@ -46,7 +47,6 @@ import org.opensearch.common.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
@@ -58,9 +58,10 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
@@ -92,7 +93,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     private Settings settings = EMPTY_SETTINGS;
 
-    private final Map<String, String> mappings = new HashMap<>();
+    private String mappings = "{}";
 
     private final Set<Alias> aliases = new HashSet<>();
 
@@ -103,11 +104,21 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         cause = in.readString();
         index = in.readString();
         settings = readSettingsFromStream(in);
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            final String type = in.readString();
-            String source = in.readString();
-            mappings.put(type, source);
+        if (in.getVersion().before(Version.V_2_0_0)) {
+            int size = in.readVInt();
+            if (size == 1) {
+                String type = in.readString();
+                if (MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
+                    throw new IllegalArgumentException(
+                        "Expected to receive mapping type of [" + MapperService.SINGLE_MAPPING_NAME + "] but got [" + type + "]"
+                    );
+                }
+                mappings = in.readString();
+            } else if (size != 0) {
+                throw new IllegalStateException("Expected to read 0 or 1 mappings, but received " + size);
+            }
+        } else {
+            mappings = in.readString();
         }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
@@ -222,6 +233,19 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     }
 
     /**
+     * Set the mapping for this index
+     *
+     * The mapping should be in the form of a JSON string, with an outer _doc key
+     * <pre>
+     *     .mapping("{\"_doc\":{\"properties\": ... }}")
+     * </pre>
+     */
+    public CreateIndexRequest mapping(String mapping) {
+        this.mappings = mapping;
+        return this;
+    }
+
+    /**
      * Adds mapping that will be added when the index gets created.
      *
      * @param type   The mapping type
@@ -250,14 +274,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     }
 
     /**
-     * The cause for this index creation.
-     */
-    public CreateIndexRequest cause(String cause) {
-        this.cause = cause;
-        return this;
-    }
-
-    /**
      * Adds mapping that will be added when the index gets created.
      *
      * @param type   The mapping type
@@ -278,18 +294,17 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      */
     @Deprecated
     public CreateIndexRequest mapping(String type, Map<String, ?> source) {
-        if (mappings.containsKey(type)) {
-            throw new IllegalStateException("mappings for type \"" + type + "\" were already defined");
-        }
         // wrap it in a type map if its not
         if (source.size() != 1 || !source.containsKey(type)) {
-            source = MapBuilder.<String, Object>newMapBuilder().put(type, source).map();
+            source = Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, source);
+        } else if (MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
+            // if it has a different type name, then unwrap and rewrap with _doc
+            source = Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, source.get(type));
         }
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.map(source);
-            mappings.put(type, Strings.toString(builder));
-            return this;
+            return mapping(Strings.toString(builder));
         } catch (IOException e) {
             throw new OpenSearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -303,6 +318,14 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     @Deprecated
     public CreateIndexRequest mapping(String type, Object... source) {
         mapping(type, PutMappingRequest.buildFromSimplifiedDef(source));
+        return this;
+    }
+
+    /**
+     * The cause for this index creation.
+     */
+    public CreateIndexRequest cause(String cause) {
+        this.cause = cause;
         return this;
     }
 
@@ -421,7 +444,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return this;
     }
 
-    public Map<String, String> mappings() {
+    public String mappings() {
         return this.mappings;
     }
 
@@ -467,10 +490,16 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         out.writeString(cause);
         out.writeString(index);
         writeSettingsToStream(settings, out);
-        out.writeVInt(mappings.size());
-        for (Map.Entry<String, String> entry : mappings.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeString(entry.getValue());
+        if (out.getVersion().before(Version.V_2_0_0)) {
+            if ("{}".equals(mappings)) {
+                out.writeVInt(0);
+            } else {
+                out.writeVInt(1);
+                out.writeString(MapperService.SINGLE_MAPPING_NAME);
+                out.writeString(mappings);
+            }
+        } else {
+            out.writeString(mappings);
         }
         out.writeVInt(aliases.size());
         for (Alias alias : aliases) {

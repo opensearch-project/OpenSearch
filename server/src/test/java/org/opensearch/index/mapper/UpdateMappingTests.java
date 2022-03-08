@@ -106,11 +106,9 @@ public class UpdateMappingTests extends OpenSearchSingleNodeTestCase {
     public void testConflictSameType() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type")
             .startObject("properties")
             .startObject("foo")
             .field("type", "long")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();
@@ -118,11 +116,9 @@ public class UpdateMappingTests extends OpenSearchSingleNodeTestCase {
 
         XContentBuilder update = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type")
             .startObject("properties")
             .startObject("foo")
             .field("type", "double")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();
@@ -140,7 +136,8 @@ public class UpdateMappingTests extends OpenSearchSingleNodeTestCase {
         assertThat(e.getMessage(), containsString("mapper [foo] cannot be changed from type [long] to [double]"));
 
         assertThat(
-            ((FieldMapper) mapperService.documentMapper("type").mapping().root().getMapper("foo")).fieldType().typeName(),
+            ((FieldMapper) mapperService.documentMapper(MapperService.SINGLE_MAPPING_NAME).mapping().root().getMapper("foo")).fieldType()
+                .typeName(),
             equalTo("long")
         );
     }
@@ -148,23 +145,20 @@ public class UpdateMappingTests extends OpenSearchSingleNodeTestCase {
     public void testConflictNewType() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type")
             .startObject("properties")
             .startObject("foo")
             .field("type", "long")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        MapperService mapperService = createIndex("test", Settings.builder().build(), "type", mapping).mapperService();
+        MapperService mapperService = createIndex("test", Settings.builder().build(), MapperService.SINGLE_MAPPING_NAME, mapping)
+            .mapperService();
 
         XContentBuilder update = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type")
             .startObject("properties")
             .startObject("foo")
             .field("type", "double")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();
@@ -176,7 +170,8 @@ public class UpdateMappingTests extends OpenSearchSingleNodeTestCase {
         assertThat(e.getMessage(), containsString("mapper [foo] cannot be changed from type [long] to [double]"));
 
         assertThat(
-            ((FieldMapper) mapperService.documentMapper("type").mapping().root().getMapper("foo")).fieldType().typeName(),
+            ((FieldMapper) mapperService.documentMapper(MapperService.SINGLE_MAPPING_NAME).mapping().root().getMapper("foo")).fieldType()
+                .typeName(),
             equalTo("long")
         );
     }
