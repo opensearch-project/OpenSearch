@@ -53,7 +53,6 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.discovery.Discovery;
@@ -177,14 +176,16 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
         internalCluster().startMasterOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
-        prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)).addMapping("type").get();
+        prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+            .addMapping(MapperService.SINGLE_MAPPING_NAME)
+            .get();
         ensureGreen("test");
 
         // block none master node.
         BlockClusterStateProcessing disruption = new BlockClusterStateProcessing(dataNode, random());
         internalCluster().setDisruptionScheme(disruption);
         logger.info("--> indexing a doc");
-        index("test", "type", "1");
+        index("test", MapperService.SINGLE_MAPPING_NAME, "1");
         refresh();
         disruption.startDisrupting();
         logger.info("--> delete index and recreate it");
@@ -264,19 +265,12 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
 
         // Add a new mapping...
         ActionFuture<AcknowledgedResponse> putMappingResponse = executeAndCancelCommittedPublication(
-            client().admin().indices().preparePutMapping("index").setType("type").setSource("field", "type=long")
+            client().admin().indices().preparePutMapping("index").setSource("field", "type=long")
         );
 
         // ...and wait for mappings to be available on master
         assertBusy(() -> {
-            ImmutableOpenMap<String, MappingMetadata> indexMappings = client().admin()
-                .indices()
-                .prepareGetMappings("index")
-                .get()
-                .getMappings()
-                .get("index");
-            assertNotNull(indexMappings);
-            MappingMetadata typeMappings = indexMappings.get("type");
+            MappingMetadata typeMappings = client().admin().indices().prepareGetMappings("index").get().getMappings().get("index");
             assertNotNull(typeMappings);
             Object properties;
             try {
@@ -291,7 +285,7 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
 
         // this request does not change the cluster state, because mapping is already created,
         // we don't await and cancel committed publication
-        ActionFuture<IndexResponse> docIndexResponse = client().prepareIndex("index", "type", "1").setSource("field", 42).execute();
+        ActionFuture<IndexResponse> docIndexResponse = client().prepareIndex("index").setId("1").setSource("field", 42).execute();
 
         // Wait a bit to make sure that the reason why we did not get a response
         // is that cluster state processing is blocked and not just that it takes
@@ -361,7 +355,7 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
         internalCluster().setDisruptionScheme(disruption);
         disruption.startDisrupting();
         final ActionFuture<AcknowledgedResponse> putMappingResponse = executeAndCancelCommittedPublication(
-            client().admin().indices().preparePutMapping("index").setType("type").setSource("field", "type=long")
+            client().admin().indices().preparePutMapping("index").setSource("field", "type=long")
         );
 
         final Index index = resolveIndex("index");
@@ -371,12 +365,12 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
             final IndexService indexService = indicesService.indexServiceSafe(index);
             assertNotNull(indexService);
             final MapperService mapperService = indexService.mapperService();
-            DocumentMapper mapper = mapperService.documentMapper("type");
+            DocumentMapper mapper = mapperService.documentMapper(MapperService.SINGLE_MAPPING_NAME);
             assertNotNull(mapper);
             assertNotNull(mapper.mappers().getMapper("field"));
         });
 
-        final ActionFuture<IndexResponse> docIndexResponse = client().prepareIndex("index", "type", "1").setSource("field", 42).execute();
+        final ActionFuture<IndexResponse> docIndexResponse = client().prepareIndex("index").setId("1").setSource("field", 42).execute();
 
         assertBusy(() -> assertTrue(client().prepareGet("index", "1").get().isExists()));
 
@@ -386,7 +380,7 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
         // this request does not change the cluster state, because the mapping is dynamic,
         // we need to await and cancel committed publication
         ActionFuture<IndexResponse> dynamicMappingsFut = executeAndCancelCommittedPublication(
-            client().prepareIndex("index", "type", "2").setSource("field2", 42)
+            client().prepareIndex("index").setId("2").setSource("field2", 42)
         );
 
         // ...and wait for second mapping to be available on master
@@ -395,7 +389,7 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
             final IndexService indexService = indicesService.indexServiceSafe(index);
             assertNotNull(indexService);
             final MapperService mapperService = indexService.mapperService();
-            DocumentMapper mapper = mapperService.documentMapper("type");
+            DocumentMapper mapper = mapperService.documentMapper(MapperService.SINGLE_MAPPING_NAME);
             assertNotNull(mapper);
             assertNotNull(mapper.mappers().getMapper("field2"));
         });

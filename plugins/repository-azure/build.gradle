@@ -45,7 +45,7 @@ opensearchplugin {
 
 dependencies {
   api 'com.azure:azure-core:1.22.0'
-  api 'com.azure:azure-storage-common:12.14.0'
+  api 'com.azure:azure-storage-common:12.14.3'
   api 'com.azure:azure-core-http-netty:1.11.7'
   api "io.netty:netty-codec-dns:${versions.netty}"
   api "io.netty:netty-codec-socks:${versions.netty}"
@@ -68,7 +68,7 @@ dependencies {
   api "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.jackson}"
   api 'org.codehaus.woodstox:stax2-api:4.2.1'
   implementation 'com.fasterxml.woodstox:woodstox-core:6.1.1'
-  runtimeOnly 'com.google.guava:guava:30.1.1-jre'
+  runtimeOnly 'com.google.guava:guava:31.1-jre'
   api 'org.apache.commons:commons-lang3:3.4'
   testImplementation project(':test:fixtures:azure-fixture')
 }

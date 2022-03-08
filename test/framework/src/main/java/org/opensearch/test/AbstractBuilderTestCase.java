@@ -439,7 +439,6 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
                     new CompressedXContent(
                         Strings.toString(
                             PutMappingRequest.buildFromSimplifiedDef(
-                                "_doc",
                                 TEXT_FIELD_NAME,
                                 "type=text",
                                 KEYWORD_FIELD_NAME,

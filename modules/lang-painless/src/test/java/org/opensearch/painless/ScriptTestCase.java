@@ -62,9 +62,9 @@ public abstract class ScriptTestCase extends OpenSearchTestCase {
     /** Creates a new contexts map with PainlessTextScript = org.opensearch.painless.test */
     protected static Map<ScriptContext<?>, List<Whitelist>> newDefaultContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
-        List<Whitelist> whitelists = new ArrayList<>(Whitelist.BASE_WHITELISTS);
-        whitelists.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.opensearch.painless.test"));
-        contexts.put(PainlessTestScript.CONTEXT, whitelists);
+        List<Whitelist> allowlists = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+        allowlists.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.opensearch.painless.test"));
+        contexts.put(PainlessTestScript.CONTEXT, allowlists);
         return contexts;
     }
 

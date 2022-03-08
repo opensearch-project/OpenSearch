@@ -128,8 +128,8 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
         ensureGreen();
 
         BulkResponse bulkResponse = client().prepareBulk()
-            .add(client().prepareIndex().setIndex("test").setType("_doc").setId("1").setSource("field1", "value1"))
-            .add(client().prepareUpdate().setIndex("test").setType("_doc").setId("1").setDoc("field2", "value2"))
+            .add(client().prepareIndex().setIndex("test").setId("1").setSource("field1", "value1"))
+            .add(client().prepareUpdate().setIndex("test").setId("1").setDoc("field2", "value2"))
             .execute()
             .actionGet();
 
@@ -150,7 +150,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
 
     // returns data paths settings of in-sync shard copy
     private Settings createStaleReplicaScenario(String master) throws Exception {
-        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
+        client().prepareIndex("test").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
         refresh();
         ClusterState state = client().admin().cluster().prepareState().all().get().getState();
         List<ShardRouting> shards = state.routingTable().allShards("test");
@@ -177,7 +177,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
         ensureStableCluster(2, master);
 
         logger.info("--> index a document into previous replica shard (that is now primary)");
-        client(replicaNode).prepareIndex("test", "type1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
+        client(replicaNode).prepareIndex("test").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
 
         logger.info("--> shut down node that has new acknowledged document");
         final Settings inSyncDataPathSettings = internalCluster().dataPathSettings(replicaNode);
@@ -558,7 +558,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
         ensureYellow("test");
         assertEquals(2, client().admin().cluster().prepareState().get().getState().metadata().index("test").inSyncAllocationIds(0).size());
         logger.info("--> indexing...");
-        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
+        client().prepareIndex("test").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
         assertEquals(1, client().admin().cluster().prepareState().get().getState().metadata().index("test").inSyncAllocationIds(0).size());
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
             @Override
@@ -595,7 +595,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
                 .get()
         );
         ensureGreen("test");
-        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
+        client().prepareIndex("test").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
         logger.info("--> removing 2 nodes from cluster");
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(1), nodes.get(2)));
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(1), nodes.get(2)));

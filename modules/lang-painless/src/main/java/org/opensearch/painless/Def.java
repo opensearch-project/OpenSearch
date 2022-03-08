@@ -237,10 +237,10 @@ public final class Def {
      * </p>
      * <p>
      * This method traverses {@code recieverClass}'s class hierarchy (including interfaces)
-     * until it finds a matching whitelisted method. If one is not found, it throws an exception.
+     * until it finds a matching allowlisted method. If one is not found, it throws an exception.
      * Otherwise it returns a handle to the matching method.
      * </p>
-     * @param painlessLookup the whitelist
+     * @param painlessLookup the allowlist
      * @param functions user defined functions and lambdas
      * @param constants available constants to be used if the method has the {@code InjectConstantAnnotation}
      * @param methodHandlesLookup caller's lookup
@@ -249,7 +249,7 @@ public final class Def {
      * @param name Name of the method.
      * @param args bootstrap args passed to callsite
      * @return pointer to matching method to invoke. never returns null.
-     * @throws IllegalArgumentException if no matching whitelisted method was found.
+     * @throws IllegalArgumentException if no matching allowlisted method was found.
      * @throws Throwable if a method reference cannot be converted to an functional interface
      */
     static MethodHandle lookupMethod(
@@ -473,26 +473,26 @@ public final class Def {
      * <p>
      * The following field loads are allowed:
      * <ul>
-     *   <li>Whitelisted {@code field} from receiver's class or any superclasses.
-     *   <li>Whitelisted method named {@code getField()} from receiver's class/superclasses/interfaces.
-     *   <li>Whitelisted method named {@code isField()} from receiver's class/superclasses/interfaces.
+     *   <li>Allowlisted {@code field} from receiver's class or any superclasses.
+     *   <li>Allowlisted method named {@code getField()} from receiver's class/superclasses/interfaces.
+     *   <li>Allowlisted method named {@code isField()} from receiver's class/superclasses/interfaces.
      *   <li>The {@code length} field of an array.
      *   <li>The value corresponding to a map key named {@code field} when the receiver is a Map.
      *   <li>The value in a list at element {@code field} (integer) when the receiver is a List.
      * </ul>
      * <p>
      * This method traverses {@code recieverClass}'s class hierarchy (including interfaces)
-     * until it finds a matching whitelisted getter. If one is not found, it throws an exception.
+     * until it finds a matching allowlisted getter. If one is not found, it throws an exception.
      * Otherwise it returns a handle to the matching getter.
      * </p>
-     * @param painlessLookup the whitelist
+     * @param painlessLookup the allowlist
      * @param receiverClass Class of the object to retrieve the field from.
      * @param name Name of the field.
      * @return pointer to matching field. never returns null.
-     * @throws IllegalArgumentException if no matching whitelisted field was found.
+     * @throws IllegalArgumentException if no matching allowlisted field was found.
      */
     static MethodHandle lookupGetter(PainlessLookup painlessLookup, Class<?> receiverClass, String name) {
-        // first try whitelist
+        // first try allowlist
         MethodHandle getter = painlessLookup.lookupRuntimeGetterMethodHandle(receiverClass, name);
 
         if (getter != null) {
@@ -530,24 +530,24 @@ public final class Def {
      * <p>
      * The following field stores are allowed:
      * <ul>
-     *   <li>Whitelisted {@code field} from receiver's class or any superclasses.
-     *   <li>Whitelisted method named {@code setField()} from receiver's class/superclasses/interfaces.
+     *   <li>Allowlisted {@code field} from receiver's class or any superclasses.
+     *   <li>Allowlisted method named {@code setField()} from receiver's class/superclasses/interfaces.
      *   <li>The value corresponding to a map key named {@code field} when the receiver is a Map.
      *   <li>The value in a list at element {@code field} (integer) when the receiver is a List.
      * </ul>
      * <p>
      * This method traverses {@code recieverClass}'s class hierarchy (including interfaces)
-     * until it finds a matching whitelisted setter. If one is not found, it throws an exception.
+     * until it finds a matching allowlisted setter. If one is not found, it throws an exception.
      * Otherwise it returns a handle to the matching setter.
      * </p>
-     * @param painlessLookup the whitelist
+     * @param painlessLookup the allowlist
      * @param receiverClass Class of the object to retrieve the field from.
      * @param name Name of the field.
      * @return pointer to matching field. never returns null.
-     * @throws IllegalArgumentException if no matching whitelisted field was found.
+     * @throws IllegalArgumentException if no matching allowlisted field was found.
      */
     static MethodHandle lookupSetter(PainlessLookup painlessLookup, Class<?> receiverClass, String name) {
-        // first try whitelist
+        // first try allowlist
         MethodHandle setter = painlessLookup.lookupRuntimeSetterMethodHandle(receiverClass, name);
 
         if (setter != null) {

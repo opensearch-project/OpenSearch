@@ -85,7 +85,8 @@ public class DateHistogramOffsetIT extends OpenSearchIntegTestCase {
 
         IndexRequestBuilder[] reqs = new IndexRequestBuilder[numHours];
         for (int i = idxIdStart; i < idxIdStart + reqs.length; i++) {
-            reqs[i - idxIdStart] = client().prepareIndex("idx2", "type", "" + i)
+            reqs[i - idxIdStart] = client().prepareIndex("idx2")
+                .setId("" + i)
                 .setSource(jsonBuilder().startObject().timeField("date", date).endObject());
             date = date.plusHours(stepSizeHours);
         }

@@ -53,11 +53,7 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
 public class RestPutIndexTemplateAction extends BaseRestHandler {
-
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestPutIndexTemplateAction.class);
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]"
-        + " Specifying include_type_name in put index template requests is deprecated."
-        + " The parameter will be removed in the next major version.";
 
     @Override
     public List<Route> routes() {
@@ -71,12 +67,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
-
         PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest(request.param("name"));
-        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
-            deprecationLogger.deprecate("put_index_template_with_types", TYPES_DEPRECATION_MESSAGE);
-        }
         if (request.hasParam("template")) {
             deprecationLogger.deprecate(
                 "put_index_template_deprecated_parameter",
@@ -92,7 +83,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
         putRequest.cause(request.param("cause", ""));
 
         Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false, request.getXContentType()).v2();
-        sourceAsMap = RestCreateIndexAction.prepareMappings(sourceAsMap, includeTypeName);
+        sourceAsMap = RestCreateIndexAction.prepareMappings(sourceAsMap);
         putRequest.source(sourceAsMap);
 
         return channel -> client.admin().indices().putTemplate(putRequest, new RestToXContentListener<>(channel));

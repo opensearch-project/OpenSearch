@@ -47,7 +47,6 @@ import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.Mapper;
-import org.opensearch.rest.BaseRestHandler;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -58,8 +57,6 @@ import java.util.Objects;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.opensearch.rest.BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
 
 /**
  * Response object for {@link GetFieldMappingsRequest} API
@@ -100,6 +97,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
         }, MAPPINGS, ObjectParser.ValueType.OBJECT);
     }
 
+    // todo remove middle `type` level
     private final Map<String, Map<String, Map<String, FieldMappingMetadata>>> mappings;
 
     GetFieldMappingsResponse(Map<String, Map<String, Map<String, FieldMappingMetadata>>> mappings) {
@@ -154,28 +152,18 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        boolean includeTypeName = params.paramAsBoolean(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
-
         builder.startObject();
         for (Map.Entry<String, Map<String, Map<String, FieldMappingMetadata>>> indexEntry : mappings.entrySet()) {
             builder.startObject(indexEntry.getKey());
             builder.startObject(MAPPINGS.getPreferredName());
 
-            if (includeTypeName == false) {
-                Map<String, FieldMappingMetadata> mappings = null;
-                for (Map.Entry<String, Map<String, FieldMappingMetadata>> typeEntry : indexEntry.getValue().entrySet()) {
-                    assert mappings == null;
-                    mappings = typeEntry.getValue();
-                }
-                if (mappings != null) {
-                    addFieldMappingsToBuilder(builder, params, mappings);
-                }
-            } else {
-                for (Map.Entry<String, Map<String, FieldMappingMetadata>> typeEntry : indexEntry.getValue().entrySet()) {
-                    builder.startObject(typeEntry.getKey());
-                    addFieldMappingsToBuilder(builder, params, typeEntry.getValue());
-                    builder.endObject();
-                }
+            Map<String, FieldMappingMetadata> mappings = null;
+            for (Map.Entry<String, Map<String, FieldMappingMetadata>> typeEntry : indexEntry.getValue().entrySet()) {
+                assert mappings == null;
+                mappings = typeEntry.getValue();
+            }
+            if (mappings != null) {
+                addFieldMappingsToBuilder(builder, params, mappings);
             }
 
             builder.endObject();
@@ -192,24 +180,6 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
             fieldEntry.getValue().toXContent(builder, params);
             builder.endObject();
         }
-    }
-
-    public static GetFieldMappingsResponse fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-
-        final Map<String, Map<String, Map<String, FieldMappingMetadata>>> mappings = new HashMap<>();
-        if (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
-            while (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
-                final String index = parser.currentName();
-
-                final Map<String, Map<String, FieldMappingMetadata>> typeMappings = PARSER.parse(parser, index);
-                mappings.put(index, typeMappings);
-
-                parser.nextToken();
-            }
-        }
-
-        return new GetFieldMappingsResponse(mappings);
     }
 
     public static class FieldMappingMetadata implements ToXContentFragment {

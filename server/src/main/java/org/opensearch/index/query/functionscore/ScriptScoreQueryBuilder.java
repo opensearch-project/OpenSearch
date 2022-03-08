@@ -195,9 +195,11 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
         }
         ScoreScript.Factory factory = context.compile(script, ScoreScript.CONTEXT);
         ScoreScript.LeafFactory scoreScriptFactory = factory.newFactory(script.getParams(), context.lookup());
-        Query query = this.query.toQuery(context);
+        final QueryBuilder queryBuilder = this.query;
+        Query query = queryBuilder.toQuery(context);
         return new ScriptScoreQuery(
             query,
+            queryBuilder.queryName(),
             script,
             scoreScriptFactory,
             minScore,

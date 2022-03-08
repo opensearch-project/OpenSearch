@@ -81,7 +81,8 @@ public class SimilarityIT extends OpenSearchIntegTestCase {
             .execute()
             .actionGet();
 
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource("field1", "the quick brown fox jumped over the lazy dog", "field2", "the quick brown fox jumped over the lazy dog")
             .setRefreshPolicy(IMMEDIATE)
             .execute()

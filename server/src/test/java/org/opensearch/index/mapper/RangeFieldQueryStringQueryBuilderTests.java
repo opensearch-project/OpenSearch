@@ -74,7 +74,6 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
             new CompressedXContent(
                 Strings.toString(
                     PutMappingRequest.buildFromSimplifiedDef(
-                        "_doc",
                         INTEGER_RANGE_FIELD_NAME,
                         "type=integer_range",
                         LONG_RANGE_FIELD_NAME,

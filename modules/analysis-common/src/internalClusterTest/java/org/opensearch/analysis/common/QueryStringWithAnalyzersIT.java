@@ -76,7 +76,7 @@ public class QueryStringWithAnalyzersIT extends OpenSearchIntegTestCase {
                 .addMapping("type1", "field1", "type=text,analyzer=my_analyzer", "field2", "type=text,analyzer=my_analyzer")
         );
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "foo bar baz", "field2", "not needed").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "foo bar baz", "field2", "not needed").get();
         refresh();
 
         SearchResponse response = client().prepareSearch("test")

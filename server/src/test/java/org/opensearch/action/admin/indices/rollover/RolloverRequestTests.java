@@ -34,7 +34,6 @@ package org.opensearch.action.admin.indices.rollover;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
-import org.opensearch.action.admin.indices.create.CreateIndexRequestTests;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -54,7 +53,6 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.XContentTestUtils;
-import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.io.IOException;
 import org.junit.Before;
@@ -64,7 +62,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
-import static org.opensearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RolloverRequestTests extends OpenSearchTestCase {
@@ -87,7 +84,7 @@ public class RolloverRequestTests extends OpenSearchTestCase {
             .field("max_size", "45gb")
             .endObject()
             .endObject();
-        request.fromXContent(false, createParser(builder));
+        request.fromXContent(createParser(builder));
         Map<String, Condition<?>> conditions = request.getConditions();
         assertThat(conditions.size(), equalTo(3));
         MaxAgeCondition maxAgeCondition = (MaxAgeCondition) conditions.get(MaxAgeCondition.NAME);
@@ -107,12 +104,10 @@ public class RolloverRequestTests extends OpenSearchTestCase {
             .field("max_docs", 100)
             .endObject()
             .startObject("mappings")
-            .startObject("type1")
             .startObject("properties")
             .startObject("field1")
             .field("type", "string")
             .field("index", "not_analyzed")
-            .endObject()
             .endObject()
             .endObject()
             .endObject()
@@ -124,7 +119,7 @@ public class RolloverRequestTests extends OpenSearchTestCase {
             .endObject()
             .endObject()
             .endObject();
-        request.fromXContent(true, createParser(builder));
+        request.fromXContent(createParser(builder));
         Map<String, Condition<?>> conditions = request.getConditions();
         assertThat(conditions.size(), equalTo(2));
         assertThat(request.getCreateIndexRequest().mappings().size(), equalTo(1));
@@ -145,8 +140,7 @@ public class RolloverRequestTests extends OpenSearchTestCase {
             .endObject()
             .endObject();
 
-        boolean includeTypeName = false;
-        request.fromXContent(includeTypeName, createParser(builder));
+        request.fromXContent(createParser(builder));
 
         CreateIndexRequest createIndexRequest = request.getCreateIndexRequest();
         String mapping = createIndexRequest.mappings().get(MapperService.SINGLE_MAPPING_NAME);
@@ -182,27 +176,6 @@ public class RolloverRequestTests extends OpenSearchTestCase {
         }
     }
 
-    public void testToAndFromXContent() throws IOException {
-        RolloverRequest rolloverRequest = createTestItem();
-
-        final XContentType xContentType = randomFrom(XContentType.values());
-        boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toShuffledXContent(rolloverRequest, xContentType, EMPTY_PARAMS, humanReadable);
-
-        RolloverRequest parsedRolloverRequest = new RolloverRequest();
-        parsedRolloverRequest.fromXContent(true, createParser(xContentType.xContent(), originalBytes));
-
-        CreateIndexRequest createIndexRequest = rolloverRequest.getCreateIndexRequest();
-        CreateIndexRequest parsedCreateIndexRequest = parsedRolloverRequest.getCreateIndexRequest();
-        CreateIndexRequestTests.assertMappingsEqual(createIndexRequest.mappings(), parsedCreateIndexRequest.mappings());
-        CreateIndexRequestTests.assertAliasesEqual(createIndexRequest.aliases(), parsedCreateIndexRequest.aliases());
-        assertEquals(createIndexRequest.settings(), parsedCreateIndexRequest.settings());
-        assertEquals(rolloverRequest.getConditions(), parsedRolloverRequest.getConditions());
-
-        BytesReference finalBytes = toShuffledXContent(parsedRolloverRequest, xContentType, EMPTY_PARAMS, humanReadable);
-        OpenSearchAssertions.assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
-    }
-
     public void testUnknownFields() throws IOException {
         final RolloverRequest request = new RolloverRequest();
         XContentType xContentType = randomFrom(XContentType.values());
@@ -215,7 +188,7 @@ public class RolloverRequestTests extends OpenSearchTestCase {
         }
         builder.endObject();
         BytesReference mutated = XContentTestUtils.insertRandomFields(xContentType, BytesReference.bytes(builder), null, random());
-        expectThrows(XContentParseException.class, () -> request.fromXContent(false, createParser(xContentType.xContent(), mutated)));
+        expectThrows(XContentParseException.class, () -> request.fromXContent(createParser(xContentType.xContent(), mutated)));
     }
 
     public void testSameConditionCanOnlyBeAddedOnce() {
@@ -244,8 +217,8 @@ public class RolloverRequestTests extends OpenSearchTestCase {
     private static RolloverRequest createTestItem() throws IOException {
         RolloverRequest rolloverRequest = new RolloverRequest();
         if (randomBoolean()) {
-            String type = randomAlphaOfLengthBetween(3, 10);
-            rolloverRequest.getCreateIndexRequest().mapping(type, RandomCreateIndexGenerator.randomMapping(type));
+            rolloverRequest.getCreateIndexRequest()
+                .mapping(MapperService.SINGLE_MAPPING_NAME, RandomCreateIndexGenerator.randomMapping(MapperService.SINGLE_MAPPING_NAME));
         }
         if (randomBoolean()) {
             RandomCreateIndexGenerator.randomAliases(rolloverRequest.getCreateIndexRequest());

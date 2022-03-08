@@ -49,7 +49,7 @@ public class ValuesSourceConfigTests extends OpenSearchSingleNodeTestCase {
 
     public void testKeyword() throws Exception {
         IndexService indexService = createIndex("index", Settings.EMPTY, "type", "bytes", "type=keyword");
-        client().prepareIndex("index", "type", "1").setSource("bytes", "abc").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        client().prepareIndex("index").setId("1").setSource("bytes", "abc").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
             QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);
@@ -75,7 +75,7 @@ public class ValuesSourceConfigTests extends OpenSearchSingleNodeTestCase {
 
     public void testEmptyKeyword() throws Exception {
         IndexService indexService = createIndex("index", Settings.EMPTY, "type", "bytes", "type=keyword");
-        client().prepareIndex("index", "type", "1").setSource().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        client().prepareIndex("index").setId("1").setSource().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
             QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);
@@ -106,7 +106,7 @@ public class ValuesSourceConfigTests extends OpenSearchSingleNodeTestCase {
 
     public void testUnmappedKeyword() throws Exception {
         IndexService indexService = createIndex("index", Settings.EMPTY, "type");
-        client().prepareIndex("index", "type", "1").setSource().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        client().prepareIndex("index").setId("1").setSource().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
             QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);
@@ -136,7 +136,7 @@ public class ValuesSourceConfigTests extends OpenSearchSingleNodeTestCase {
 
     public void testLong() throws Exception {
         IndexService indexService = createIndex("index", Settings.EMPTY, "type", "long", "type=long");
-        client().prepareIndex("index", "type", "1").setSource("long", 42).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        client().prepareIndex("index").setId("1").setSource("long", 42).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
             QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);
@@ -162,7 +162,7 @@ public class ValuesSourceConfigTests extends OpenSearchSingleNodeTestCase {
 
     public void testEmptyLong() throws Exception {
         IndexService indexService = createIndex("index", Settings.EMPTY, "type", "long", "type=long");
-        client().prepareIndex("index", "type", "1").setSource().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        client().prepareIndex("index").setId("1").setSource().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
             QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);
@@ -193,7 +193,7 @@ public class ValuesSourceConfigTests extends OpenSearchSingleNodeTestCase {
 
     public void testUnmappedLong() throws Exception {
         IndexService indexService = createIndex("index", Settings.EMPTY, "type");
-        client().prepareIndex("index", "type", "1").setSource().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        client().prepareIndex("index").setId("1").setSource().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
             QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);
@@ -224,7 +224,7 @@ public class ValuesSourceConfigTests extends OpenSearchSingleNodeTestCase {
 
     public void testBoolean() throws Exception {
         IndexService indexService = createIndex("index", Settings.EMPTY, "type", "bool", "type=boolean");
-        client().prepareIndex("index", "type", "1").setSource("bool", true).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        client().prepareIndex("index").setId("1").setSource("bool", true).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
             QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);
@@ -250,7 +250,7 @@ public class ValuesSourceConfigTests extends OpenSearchSingleNodeTestCase {
 
     public void testEmptyBoolean() throws Exception {
         IndexService indexService = createIndex("index", Settings.EMPTY, "type", "bool", "type=boolean");
-        client().prepareIndex("index", "type", "1").setSource().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        client().prepareIndex("index").setId("1").setSource().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
             QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);
@@ -281,7 +281,7 @@ public class ValuesSourceConfigTests extends OpenSearchSingleNodeTestCase {
 
     public void testUnmappedBoolean() throws Exception {
         IndexService indexService = createIndex("index", Settings.EMPTY, "type");
-        client().prepareIndex("index", "type", "1").setSource().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        client().prepareIndex("index").setId("1").setSource().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
             QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);
@@ -331,10 +331,7 @@ public class ValuesSourceConfigTests extends OpenSearchSingleNodeTestCase {
 
     public void testFieldAlias() throws Exception {
         IndexService indexService = createIndex("index", Settings.EMPTY, "type", "field", "type=keyword", "alias", "type=alias,path=field");
-        client().prepareIndex("index", "type", "1")
-            .setSource("field", "value")
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
             QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);

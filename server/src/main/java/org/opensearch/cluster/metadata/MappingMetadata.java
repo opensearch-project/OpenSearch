@@ -36,15 +36,19 @@ import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.DocumentMapper;
+import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Collections;
 import java.util.Map;
 
 import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
@@ -53,6 +57,7 @@ import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBoole
  * Mapping configuration for a type.
  */
 public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
+    public static final MappingMetadata EMPTY_MAPPINGS = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, Collections.emptyMap());
 
     public static class Routing {
 
@@ -88,7 +93,7 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
 
     private final CompressedXContent source;
 
-    private Routing routing;
+    private final Routing routing;
 
     public MappingMetadata(DocumentMapper docMapper) {
         this.type = docMapper.type();
@@ -96,6 +101,7 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         this.routing = new Routing(docMapper.routingFieldMapper().required());
     }
 
+    @SuppressWarnings("unchecked")
     public MappingMetadata(CompressedXContent mapping) {
         this.source = mapping;
         Map<String, Object> mappingMap = XContentHelper.convertToMap(mapping.compressedReference(), true).v2();
@@ -103,20 +109,27 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
             throw new IllegalStateException("Can't derive type from mapping, no root type: " + mapping.string());
         }
         this.type = mappingMap.keySet().iterator().next();
-        initMappers((Map<String, Object>) mappingMap.get(this.type));
+        this.routing = initRouting((Map<String, Object>) mappingMap.get(this.type));
     }
 
-    public MappingMetadata(String type, Map<String, Object> mapping) throws IOException {
+    @SuppressWarnings("unchecked")
+    public MappingMetadata(String type, Map<String, Object> mapping) {
         this.type = type;
-        this.source = new CompressedXContent((builder, params) -> builder.mapContents(mapping), XContentType.JSON, ToXContent.EMPTY_PARAMS);
+        try {
+            XContentBuilder mappingBuilder = XContentFactory.jsonBuilder().map(mapping);
+            this.source = new CompressedXContent(BytesReference.bytes(mappingBuilder));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);  // XContent exception, should never happen
+        }
         Map<String, Object> withoutType = mapping;
         if (mapping.size() == 1 && mapping.containsKey(type)) {
             withoutType = (Map<String, Object>) mapping.get(type);
         }
-        initMappers(withoutType);
+        this.routing = initRouting(withoutType);
     }
 
-    private void initMappers(Map<String, Object> withoutType) {
+    @SuppressWarnings("unchecked")
+    private Routing initRouting(Map<String, Object> withoutType) {
         if (withoutType.containsKey("_routing")) {
             boolean required = false;
             Map<String, Object> routingNode = (Map<String, Object>) withoutType.get("_routing");
@@ -134,9 +147,9 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
                     }
                 }
             }
-            this.routing = new Routing(required);
+            return new Routing(required);
         } else {
-            this.routing = Routing.EMPTY;
+            return Routing.EMPTY;
         }
     }
 

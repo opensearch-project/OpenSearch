@@ -53,7 +53,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.DeprecationHandler;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -61,7 +60,6 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -82,7 +80,7 @@ import static org.opensearch.common.settings.Settings.writeSettingsToStream;
  * @see org.opensearch.client.Requests#createIndexRequest(String)
  * @see CreateIndexResponse
  */
-public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> implements IndicesRequest, ToXContentObject {
+public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> implements IndicesRequest {
 
     public static final ParseField MAPPINGS = new ParseField("mappings");
     public static final ParseField SETTINGS = new ParseField("settings");
@@ -229,7 +227,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * @param type   The mapping type
      * @param source The mapping source
      * @param xContentType The content type of the source
+     * @deprecated types are being removed
      */
+    @Deprecated
     public CreateIndexRequest mapping(String type, String source, XContentType xContentType) {
         return mapping(type, new BytesArray(source), xContentType);
     }
@@ -240,7 +240,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * @param type   The mapping type
      * @param source The mapping source
      * @param xContentType the content type of the mapping source
+     * @deprecated types are being removed
      */
+    @Deprecated
     private CreateIndexRequest mapping(String type, BytesReference source, XContentType xContentType) {
         Objects.requireNonNull(xContentType);
         Map<String, Object> mappingAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
@@ -260,7 +262,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      *
      * @param type   The mapping type
      * @param source The mapping source
+     * @deprecated types are being removed
      */
+    @Deprecated
     public CreateIndexRequest mapping(String type, XContentBuilder source) {
         return mapping(type, BytesReference.bytes(source), source.contentType());
     }
@@ -270,7 +274,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      *
      * @param type   The mapping type
      * @param source The mapping source
+     * @deprecated types are being removed
      */
+    @Deprecated
     public CreateIndexRequest mapping(String type, Map<String, ?> source) {
         if (mappings.containsKey(type)) {
             throw new IllegalStateException("mappings for type \"" + type + "\" were already defined");
@@ -292,9 +298,11 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     /**
      * A specialized simplified mapping source method, takes the form of simple properties definition:
      * ("field1", "type=string,store=true").
+     * @deprecated types are being removed
      */
+    @Deprecated
     public CreateIndexRequest mapping(String type, Object... source) {
-        mapping(type, PutMappingRequest.buildFromSimplifiedDef(type, source));
+        mapping(type, PutMappingRequest.buildFromSimplifiedDef(source));
         return this;
     }
 
@@ -472,34 +480,5 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             out.writeBoolean(true); // updateAllTypes
         }
         waitForActiveShards.writeTo(out);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        innerToXContent(builder, params);
-        builder.endObject();
-        return builder;
-    }
-
-    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(SETTINGS.getPreferredName());
-        settings.toXContent(builder, params);
-        builder.endObject();
-
-        builder.startObject(MAPPINGS.getPreferredName());
-        for (Map.Entry<String, String> entry : mappings.entrySet()) {
-            try (InputStream stream = new BytesArray(entry.getValue()).streamInput()) {
-                builder.rawField(entry.getKey(), stream, XContentType.JSON);
-            }
-        }
-        builder.endObject();
-
-        builder.startObject(ALIASES.getPreferredName());
-        for (Alias alias : aliases) {
-            alias.toXContent(builder, params);
-        }
-        builder.endObject();
-        return builder;
     }
 }

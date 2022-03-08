@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.indices.mapping.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.opensearch.Version;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.common.ParseField;
@@ -42,119 +43,82 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.rest.BaseRestHandler;
+import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
-import java.util.Map;
-
-import static org.opensearch.rest.BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
 
 public class GetMappingsResponse extends ActionResponse implements ToXContentFragment {
 
     private static final ParseField MAPPINGS = new ParseField("mappings");
 
-    private ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = ImmutableOpenMap.of();
+    private final ImmutableOpenMap<String, MappingMetadata> mappings;
 
-    public GetMappingsResponse(ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings) {
+    public GetMappingsResponse(ImmutableOpenMap<String, MappingMetadata> mappings) {
         this.mappings = mappings;
     }
 
     GetMappingsResponse(StreamInput in) throws IOException {
         super(in);
         int size = in.readVInt();
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetadata>> indexMapBuilder = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, MappingMetadata> indexMapBuilder = ImmutableOpenMap.builder();
         for (int i = 0; i < size; i++) {
-            String key = in.readString();
-            int valueSize = in.readVInt();
-            ImmutableOpenMap.Builder<String, MappingMetadata> typeMapBuilder = ImmutableOpenMap.builder();
-            for (int j = 0; j < valueSize; j++) {
-                typeMapBuilder.put(in.readString(), new MappingMetadata(in));
+            String index = in.readString();
+            if (in.getVersion().before(Version.V_2_0_0)) {
+                int mappingCount = in.readVInt();
+                if (mappingCount == 0) {
+                    indexMapBuilder.put(index, MappingMetadata.EMPTY_MAPPINGS);
+                } else if (mappingCount == 1) {
+                    String type = in.readString();
+                    if (MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
+                        throw new IllegalStateException("Expected " + MapperService.SINGLE_MAPPING_NAME + " but got [" + type + "]");
+                    }
+                    indexMapBuilder.put(index, new MappingMetadata(in));
+                } else {
+                    throw new IllegalStateException("Expected 0 or 1 mappings but got: " + mappingCount);
+                }
+            } else {
+                boolean hasMapping = in.readBoolean();
+                indexMapBuilder.put(index, hasMapping ? new MappingMetadata(in) : MappingMetadata.EMPTY_MAPPINGS);
             }
-            indexMapBuilder.put(key, typeMapBuilder.build());
         }
         mappings = indexMapBuilder.build();
     }
 
-    public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings() {
+    public ImmutableOpenMap<String, MappingMetadata> mappings() {
         return mappings;
     }
 
-    public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> getMappings() {
+    public ImmutableOpenMap<String, MappingMetadata> getMappings() {
         return mappings();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(mappings.size());
-        for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetadata>> indexEntry : mappings) {
+        for (ObjectObjectCursor<String, MappingMetadata> indexEntry : mappings) {
             out.writeString(indexEntry.key);
-            out.writeVInt(indexEntry.value.size());
-            for (ObjectObjectCursor<String, MappingMetadata> typeEntry : indexEntry.value) {
-                out.writeString(typeEntry.key);
-                typeEntry.value.writeTo(out);
+            if (out.getVersion().before(Version.V_2_0_0)) {
+                out.writeVInt(indexEntry.value == MappingMetadata.EMPTY_MAPPINGS ? 0 : 1);
+                if (indexEntry.value != MappingMetadata.EMPTY_MAPPINGS) {
+                    out.writeString(MapperService.SINGLE_MAPPING_NAME);
+                    indexEntry.value.writeTo(out);
+                }
+            } else {
+                out.writeOptionalWriteable(indexEntry.value);
             }
         }
-    }
-
-    public static GetMappingsResponse fromXContent(XContentParser parser) throws IOException {
-        if (parser.currentToken() == null) {
-            parser.nextToken();
-        }
-        assert parser.currentToken() == XContentParser.Token.START_OBJECT;
-        Map<String, Object> parts = parser.map();
-
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetadata>> builder = new ImmutableOpenMap.Builder<>();
-        for (Map.Entry<String, Object> entry : parts.entrySet()) {
-            final String indexName = entry.getKey();
-            assert entry.getValue() instanceof Map : "expected a map as type mapping, but got: " + entry.getValue().getClass();
-            final Map<String, Object> mapping = (Map<String, Object>) ((Map) entry.getValue()).get(MAPPINGS.getPreferredName());
-
-            ImmutableOpenMap.Builder<String, MappingMetadata> typeBuilder = new ImmutableOpenMap.Builder<>();
-            for (Map.Entry<String, Object> typeEntry : mapping.entrySet()) {
-                final String typeName = typeEntry.getKey();
-                assert typeEntry.getValue() instanceof Map : "expected a map as inner type mapping, but got: "
-                    + typeEntry.getValue().getClass();
-                final Map<String, Object> fieldMappings = (Map<String, Object>) typeEntry.getValue();
-                MappingMetadata mmd = new MappingMetadata(typeName, fieldMappings);
-                typeBuilder.put(typeName, mmd);
-            }
-            builder.put(indexName, typeBuilder.build());
-        }
-
-        return new GetMappingsResponse(builder.build());
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        boolean includeTypeName = params.paramAsBoolean(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
-
-        for (final ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetadata>> indexEntry : getMappings()) {
-            builder.startObject(indexEntry.key);
-            {
-                if (includeTypeName == false) {
-                    MappingMetadata mappings = null;
-                    for (final ObjectObjectCursor<String, MappingMetadata> typeEntry : indexEntry.value) {
-                        assert mappings == null;
-                        mappings = typeEntry.value;
-                    }
-                    if (mappings == null) {
-                        // no mappings yet
-                        builder.startObject(MAPPINGS.getPreferredName()).endObject();
-                    } else {
-                        builder.field(MAPPINGS.getPreferredName(), mappings.sourceAsMap());
-                    }
-                } else {
-                    builder.startObject(MAPPINGS.getPreferredName());
-                    {
-                        for (final ObjectObjectCursor<String, MappingMetadata> typeEntry : indexEntry.value) {
-                            builder.field(typeEntry.key, typeEntry.value.sourceAsMap());
-                        }
-                    }
-                    builder.endObject();
-                }
+        for (final ObjectObjectCursor<String, MappingMetadata> indexEntry : getMappings()) {
+            if (indexEntry.value != null) {
+                builder.startObject(indexEntry.key);
+                builder.field(MAPPINGS.getPreferredName(), indexEntry.value.sourceAsMap());
+                builder.endObject();
+            } else {
+                builder.startObject(MAPPINGS.getPreferredName()).endObject();
             }
-            builder.endObject();
         }
         return builder;
     }

@@ -907,7 +907,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
         final PlainActionFuture<Releasable> permitAcquiredFuture = new PlainActionFuture<>();
         primary.acquirePrimaryOperationPermit(permitAcquiredFuture, ThreadPool.Names.SAME, request);
         try (Releasable ignored = permitAcquiredFuture.actionGet()) {
-            MappingUpdatePerformer noopMappingUpdater = (update, shardId, type, listener1) -> {};
+            MappingUpdatePerformer noopMappingUpdater = (update, shardId, listener1) -> {};
             TransportShardBulkAction.performOnPrimary(
                 request,
                 primary,

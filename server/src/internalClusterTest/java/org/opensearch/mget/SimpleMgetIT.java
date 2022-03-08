@@ -62,7 +62,8 @@ public class SimpleMgetIT extends OpenSearchIntegTestCase {
     public void testThatMgetShouldWorkWithOneIndexMissing() throws IOException {
         createIndex("test");
 
-        client().prepareIndex("test", "test", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
@@ -99,7 +100,8 @@ public class SimpleMgetIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("multiIndexAlias")));
         assertAcked(prepareCreate("test2").addAlias(new Alias("multiIndexAlias")));
 
-        client().prepareIndex("test", "test", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
@@ -139,7 +141,8 @@ public class SimpleMgetIT extends OpenSearchIntegTestCase {
                 )
         );
 
-        client().prepareIndex("alias1", "test", "1")
+        client().prepareIndex("alias1")
+            .setId("1")
             .setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
@@ -165,7 +168,7 @@ public class SimpleMgetIT extends OpenSearchIntegTestCase {
                 .endObject()
         );
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test", "type", Integer.toString(i)).setSource(sourceBytesRef, XContentType.JSON).get();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource(sourceBytesRef, XContentType.JSON).get();
         }
 
         MultiGetRequestBuilder request = client().prepareMultiGet();
@@ -212,7 +215,8 @@ public class SimpleMgetIT extends OpenSearchIntegTestCase {
         final String id = routingKeyForShard("test", 0);
         final String routingOtherShard = routingKeyForShard("test", 1);
 
-        client().prepareIndex("test", "test", id)
+        client().prepareIndex("test")
+            .setId(id)
             .setRefreshPolicy(IMMEDIATE)
             .setRouting(routingOtherShard)
             .setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
