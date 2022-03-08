@@ -79,7 +79,6 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
-import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -92,12 +91,10 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.VersionType;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.Engine;
-import org.opensearch.index.engine.Engine.DeleteResult;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineTestCase;
@@ -3358,11 +3355,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
             // Do some updates and deletes, then recheck the correlation again.
             for (int i = 0; i < numDoc / 2; i++) {
-                if (randomBoolean()) {
-                    deleteDoc(indexShard, "doc", Integer.toString(i));
-                } else {
-                    indexDoc(indexShard, "_doc", Integer.toString(i), "{\"foo\": \"bar\"}");
-                }
+                indexDoc(indexShard, "_doc", Integer.toString(i), "{\"foo\": \"bar\"}");
             }
             if (randomBoolean()) {
                 indexShard.flush(new FlushRequest());
@@ -3939,7 +3932,10 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testSupplyTombstoneDoc() throws Exception {
         IndexShard shard = newStartedShard();
         String id = randomRealisticUnicodeOfLengthBetween(1, 10);
-        ParsedDocument deleteTombstone = shard.getEngine().config().getTombstoneDocSupplier().newDeleteTombstoneDoc("doc", id);
+        ParsedDocument deleteTombstone = shard.getEngine()
+            .config()
+            .getTombstoneDocSupplier()
+            .newDeleteTombstoneDoc(MapperService.SINGLE_MAPPING_NAME, id);
         assertThat(deleteTombstone.docs(), hasSize(1));
         ParseContext.Document deleteDoc = deleteTombstone.docs().get(0);
         assertThat(
@@ -4292,38 +4288,6 @@ public class IndexShardTests extends IndexShardTestCase {
     @Override
     public Settings threadPoolSettings() {
         return Settings.builder().put(super.threadPoolSettings()).put("thread_pool.estimated_time_interval", "5ms").build();
-    }
-
-    public void testTypelessDelete() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
-        IndexMetadata metadata = IndexMetadata.builder("index")
-            .putMapping("some_type", "{ \"properties\": {}}")
-            .settings(settings)
-            .primaryTerm(0, 1)
-            .build();
-        IndexShard shard = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
-        recoverShardFromStore(shard);
-        Engine.IndexResult indexResult = indexDoc(shard, "some_type", "id", "{}");
-        assertTrue(indexResult.isCreated());
-
-        DeleteResult deleteResult = shard.applyDeleteOperationOnPrimary(
-            Versions.MATCH_ANY,
-            "some_other_type",
-            "id",
-            VersionType.INTERNAL,
-            UNASSIGNED_SEQ_NO,
-            1
-        );
-        assertFalse(deleteResult.isFound());
-
-        deleteResult = shard.applyDeleteOperationOnPrimary(Versions.MATCH_ANY, "_doc", "id", VersionType.INTERNAL, UNASSIGNED_SEQ_NO, 1);
-        assertTrue(deleteResult.isFound());
-
-        closeShards(shard);
     }
 
     public void testTypelessGet() throws IOException {
