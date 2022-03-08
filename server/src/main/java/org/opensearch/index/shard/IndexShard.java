@@ -845,8 +845,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         boolean isRetry,
         SourceToParse sourceToParse
     ) throws IOException {
-        Boolean isSegRepEnabled = indexSettings.isSegrepEnabled();
-        if (isSegRepEnabled != null && isSegRepEnabled) {
+        if (indexSettings.isSegrepEnabled()) {
             Engine.Index index;
             try {
                 index = parseSourceAndPrepareIndex(
@@ -1278,7 +1277,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public long getWritingBytes() {
         // TODO: Segrep: hack - if not the primary our IW is null and this blows up.
-        if (shardRouting.primary() == false) {
+        if (indexSettings.isSegrepEnabled() && (shardRouting.primary() == false)) {
             return 0L;
         }
         Engine engine = getEngineOrNull();
@@ -2030,7 +2029,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void openEngineAndSkipTranslogRecovery() throws IOException {
         assert routingEntry().recoverySource().getType() == RecoverySource.Type.PEER : "not a peer recovery [" + routingEntry() + "]";
         // TODO: Segrep - fix initial recovery stages from ReplicationTarget.
-        // recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
+        if (indexSettings.isSegrepEnabled() == false) {
+            recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
+        }
         loadGlobalCheckpointToReplicationTracker();
         innerOpenEngineAndTranslog(replicationTracker);
         getEngine().skipTranslogRecovery();
@@ -2067,7 +2068,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // which settings changes could possibly have happened, so here we forcefully push any config changes to the new engine.
         onSettingsChanged();
         // TODO: Segrep - Fix
-        // assert assertSequenceNumbersInCommit();
+        assert assertSequenceNumbersInCommit();
         recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
     }
 
@@ -2239,7 +2240,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Returns number of heap bytes used by the indexing buffer for this shard, or 0 if the shard is closed
      */
     public long getIndexBufferRAMBytesUsed() {
-        if (shardRouting.primary() == false) {
+        if (indexSettings.isSegrepEnabled() && (shardRouting.primary() == false)) {
             return 0;
         }
         Engine engine = getEngineOrNull();
@@ -2715,7 +2716,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert assertPrimaryMode();
         verifyNotClosed();
         // TODO: Segrep - Fix retention leases
-        // replicationTracker.renewPeerRecoveryRetentionLeases();
+        replicationTracker.renewPeerRecoveryRetentionLeases();
         final Tuple<Boolean, RetentionLeases> retentionLeases = getRetentionLeases(true);
         if (retentionLeases.v1()) {
             logger.trace("syncing retention leases [{}] after expiration check", retentionLeases.v2());
@@ -3073,32 +3074,35 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             case PEER:
                 try {
                     markAsRecovering("from " + recoveryState.getSourceNode(), recoveryState);
-                    IndexShard indexShard = this;
-                    segmentReplicationReplicaService.prepareForReplication(
-                        this,
-                        recoveryState.getTargetNode(),
-                        recoveryState.getSourceNode(),
-                        new ActionListener<TrackShardResponse>() {
-                            @Override
-                            public void onResponse(TrackShardResponse unused) {
-                                replicationListener.onReplicationDone(replicationState);
-                                recoveryState.getIndex().setFileDetailsComplete();
-                                finalizeRecovery();
-                                postRecovery("Shard setup complete.");
-                            }
+                    if (indexSettings.isSegrepEnabled()) {
+                        IndexShard indexShard = this;
+                        segmentReplicationReplicaService.prepareForReplication(
+                            this,
+                            recoveryState.getTargetNode(),
+                            recoveryState.getSourceNode(),
+                            new ActionListener<TrackShardResponse>() {
+                                @Override
+                                public void onResponse(TrackShardResponse unused) {
+                                    replicationListener.onReplicationDone(replicationState);
+                                    recoveryState.getIndex().setFileDetailsComplete();
+                                    finalizeRecovery();
+                                    postRecovery("Shard setup complete.");
+                                }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                replicationListener.onReplicationFailure(
-                                    replicationState,
-                                    new ReplicationFailedException(indexShard, e),
-                                    true
-                                );
+                                @Override
+                                public void onFailure(Exception e) {
+                                    replicationListener.onReplicationFailure(
+                                        replicationState,
+                                        new ReplicationFailedException(indexShard, e),
+                                        true
+                                    );
+                                }
                             }
-                        }
-                    );
+                        );
+                    } else {
+                        peerRecoveryTargetService.startRecovery(this, recoveryState.getSourceNode(), recoveryListener);
+                    }
                 } catch (Exception e) {
-                    logger.error("Error preparing the shard for Segment replication", e);
                     failShard("corrupted preexisting index", e);
                     recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true);
                 }
@@ -3295,6 +3299,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 this.warmer.warm(reader);
             }
         };
+        final List<ReferenceManager.RefreshListener> internalRefreshListener;
+        if (indexSettings.isSegrepEnabled()) {
+            internalRefreshListener = Arrays.asList(new RefreshMetricUpdater(refreshMetric), checkpointRefreshListener);
+        } else {
+            internalRefreshListener = Collections.singletonList(new RefreshMetricUpdater(refreshMetric));
+        }
         return this.engineConfigFactory.newEngineConfig(
             shardId,
             threadPool,
@@ -3311,7 +3321,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             translogConfig,
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
             Arrays.asList(refreshListeners, refreshPendingLocationListener),
-            Arrays.asList(new RefreshMetricUpdater(refreshMetric), checkpointRefreshListener),
+            internalRefreshListener,
             indexSort,
             circuitBreakerService,
             globalCheckpointSupplier,
@@ -3910,7 +3920,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public boolean scheduledRefresh() {
         // skip if not primary shard.
         // TODO: Segrep - should split into primary/replica classes.
-        if (shardRouting.primary() == false) {
+        if ((indexSettings.isSegrepEnabled()) && (shardRouting.primary() == false)) {
             return false;
         }
         verifyNotClosed();

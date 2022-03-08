@@ -422,7 +422,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
             config.retentionLeasesSupplier(),
             config.getPrimaryTermSupplier(),
             config.getTombstoneDocSupplier(),
-            config.isPrimary()
+            config.isReadOnly()
         );
     }
 

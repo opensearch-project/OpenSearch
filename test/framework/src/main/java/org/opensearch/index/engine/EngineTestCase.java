@@ -268,7 +268,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             config.retentionLeasesSupplier(),
             config.getPrimaryTermSupplier(),
             tombstoneDocSupplier(),
-            config.isPrimary()
+            config.isReadOnly()
         );
     }
 
@@ -296,7 +296,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             config.retentionLeasesSupplier(),
             config.getPrimaryTermSupplier(),
             config.getTombstoneDocSupplier(),
-            config.isPrimary()
+            config.isReadOnly()
         );
     }
 
@@ -324,7 +324,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             config.retentionLeasesSupplier(),
             config.getPrimaryTermSupplier(),
             config.getTombstoneDocSupplier(),
-            config.isPrimary()
+            config.isReadOnly()
         );
     }
 
@@ -940,7 +940,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             config.retentionLeasesSupplier(),
             config.getPrimaryTermSupplier(),
             tombstoneDocSupplier,
-            config.isPrimary()
+            config.isReadOnly()
         );
     }
 

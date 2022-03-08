@@ -4457,7 +4457,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 config.retentionLeasesSupplier(),
                 config.getPrimaryTermSupplier(),
                 config.getTombstoneDocSupplier(),
-                config.isPrimary()
+                config.isReadOnly()
             );
             return new InternalEngine(configWithWarmer);
         });

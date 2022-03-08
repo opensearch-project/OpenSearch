@@ -883,7 +883,7 @@ public final class IndexSettings {
     }
 
     public boolean isSegrepEnabled() {
-        return isSegrepEnabled;
+        return Boolean.TRUE.equals(isSegrepEnabled);
     }
 
     /**
