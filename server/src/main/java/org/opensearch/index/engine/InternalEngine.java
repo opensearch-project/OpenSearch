@@ -350,7 +350,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public void updateCurrentInfos(byte[] infosBytes, long gen, long seqNo) throws IOException {
-        assert engineConfig.isReadOnly() == true : "Only replicas should update Infos";
+        assert engineConfig.isReadOnly() == true : "Only read-only replicas should update Infos";
         SegmentInfos infos = SegmentInfos.readCommit(this.store.directory(), toIndexInput(infosBytes), gen);
         assert gen == infos.getGeneration();
         externalReaderManager.internalReaderManager.updateSegments(infos);
