@@ -180,3 +180,16 @@ setup:
 
   - match: { cluster_uuid: $cluster_uuid }
   - is_true: routing_table
+
+---
+"Filter the cluster state by cluster_manager_node only should work":
+  - skip:
+      version: " - 1.4.99"
+      reason: "The metric cluster_manager_node is added to cluster state in version 2.0.0"
+
+  - do:
+      cluster.state:
+        metric: [ cluster_manager_node ]
+
+  - is_true: cluster_manager_node
+  - is_false: master_node

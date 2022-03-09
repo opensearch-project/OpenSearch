@@ -112,7 +112,11 @@ public class RestClusterStateAction extends BaseRestHandler {
         if (request.hasParam("metric")) {
             EnumSet<ClusterState.Metric> metrics = ClusterState.Metric.parseString(request.param("metric"), true);
             // do not ask for what we do not need.
-            clusterStateRequest.nodes(metrics.contains(ClusterState.Metric.NODES) || metrics.contains(ClusterState.Metric.MASTER_NODE));
+            clusterStateRequest.nodes(
+                metrics.contains(ClusterState.Metric.NODES)
+                    || metrics.contains(ClusterState.Metric.MASTER_NODE)
+                    || metrics.contains(ClusterState.Metric.CLUSTER_MANAGER_NODE)
+            );
             /*
              * there is no distinction in Java api between routing_table and routing_nodes, it's the same info set over the wire, one single
              * flag to ask for it
