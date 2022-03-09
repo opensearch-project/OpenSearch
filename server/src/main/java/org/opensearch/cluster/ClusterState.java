@@ -402,6 +402,11 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
     public enum Metric {
         VERSION("version"),
+
+        /**
+         * @deprecated Use CLUSTER_MANAGER_NODE instead, for promoting inclusive language.
+         */
+        @Deprecated
         MASTER_NODE("master_node"),
         CLUSTER_MANAGER_NODE("cluster_manager_node"),
         BLOCKS("blocks"),
