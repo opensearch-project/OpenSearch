@@ -451,6 +451,11 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                 return MappedFieldType.Relation.INTERSECTS;
             }
 
+            // For validation, always assume that there is an intersection
+            if (shardContext.validate()) {
+                return MappedFieldType.Relation.INTERSECTS;
+            }
+
             DateMathParser dateMathParser = getForceDateParser();
             return fieldType.isFieldWithinQuery(
                 shardContext.getIndexReader(),
