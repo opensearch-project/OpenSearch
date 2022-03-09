@@ -193,13 +193,28 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
 
     /**
      * Represents the role for a master-eligible node.
+     * @deprecated As of 2.0, because promoting inclusive language, replaced by {@link #CLUSTER_MANAGER_ROLE}
      */
+    @Deprecated
     public static final DiscoveryNodeRole MASTER_ROLE = new DiscoveryNodeRole("master", "m") {
 
         @Override
         public Setting<Boolean> legacySetting() {
             // copy the setting here so we can mark it private in org.opensearch.node.Node
-            return Setting.boolSetting("node.master", true, Property.Deprecated, Property.NodeScope);
+            return Setting.boolSetting("node.cluster_manager", true, Property.Deprecated, Property.NodeScope);
+        }
+
+    };
+
+    /**
+     * Represents the role for a cluster_manager-eligible node.
+     */
+    public static final DiscoveryNodeRole CLUSTER_MANAGER_ROLE = new DiscoveryNodeRole("cluster_manager", "m") {
+
+        @Override
+        public Setting<Boolean> legacySetting() {
+            // copy the setting here so we can mark it private in org.opensearch.node.Node
+            return Setting.boolSetting("node.cluster_manager", true, Property.Deprecated, Property.NodeScope);
         }
 
     };
@@ -223,7 +238,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
      * The built-in node roles.
      */
     public static SortedSet<DiscoveryNodeRole> BUILT_IN_ROLES = Collections.unmodifiableSortedSet(
-        new TreeSet<>(Arrays.asList(DATA_ROLE, INGEST_ROLE, MASTER_ROLE, REMOTE_CLUSTER_CLIENT_ROLE))
+        new TreeSet<>(Arrays.asList(DATA_ROLE, INGEST_ROLE, MASTER_ROLE, CLUSTER_MANAGER_ROLE, REMOTE_CLUSTER_CLIENT_ROLE))
     );
 
     /**

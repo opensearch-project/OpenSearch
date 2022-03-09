@@ -343,7 +343,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
                 final LegacyRole legacyRole = in.readEnum(LegacyRole.class);
                 switch (legacyRole) {
                     case MASTER:
-                        roles.add(DiscoveryNodeRole.MASTER_ROLE);
+                        roles.add(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
                         break;
                     case DATA:
                         roles.add(DiscoveryNodeRole.DATA_ROLE);
@@ -599,7 +599,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Enum that holds all the possible roles that that a node can fulfill in a cluster.
+     * Enum that holds all the possible roles that a node can fulfill in a cluster.
      * Each role has its name and a corresponding abbreviation used by cat apis.
      */
     private enum LegacyRole {
