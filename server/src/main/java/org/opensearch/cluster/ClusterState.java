@@ -404,7 +404,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         VERSION("version"),
 
         /**
-         * @deprecated Use CLUSTER_MANAGER_NODE instead, for promoting inclusive language.
+         * @deprecated As of 2.0, because promoting inclusive language, replaced by {@link CLUSTER_MANAGER_NODE}
          */
         @Deprecated
         MASTER_NODE("master_node"),
