@@ -59,6 +59,7 @@ import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.logging.Loggers;
@@ -1828,25 +1829,9 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public static class IndexCommitRef implements Closeable {
-        private final AtomicBoolean closed = new AtomicBoolean();
-        private final CheckedRunnable<IOException> onClose;
-        private final IndexCommit indexCommit;
-
+    public static class IndexCommitRef extends GatedCloseable<IndexCommit> {
         public IndexCommitRef(IndexCommit indexCommit, CheckedRunnable<IOException> onClose) {
-            this.indexCommit = indexCommit;
-            this.onClose = onClose;
-        }
-
-        @Override
-        public void close() throws IOException {
-            if (closed.compareAndSet(false, true)) {
-                onClose.run();
-            }
-        }
-
-        public IndexCommit getIndexCommit() {
-            return indexCommit;
+            super(indexCommit, onClose);
         }
     }
 

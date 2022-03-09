@@ -1036,7 +1036,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 shard.mapperService(),
                 snapshot.getSnapshotId(),
                 indexId,
-                indexCommitRef.getIndexCommit(),
+                indexCommitRef.get(),
                 null,
                 snapshotStatus,
                 Version.CURRENT,

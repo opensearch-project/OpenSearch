@@ -88,7 +88,7 @@ final class LocalShardSnapshot implements Closeable {
         return new FilterDirectory(store.directory()) {
             @Override
             public String[] listAll() throws IOException {
-                Collection<String> fileNames = indexCommit.getIndexCommit().getFileNames();
+                Collection<String> fileNames = indexCommit.get().getFileNames();
                 final String[] fileNameArray = fileNames.toArray(new String[fileNames.size()]);
                 return fileNameArray;
             }

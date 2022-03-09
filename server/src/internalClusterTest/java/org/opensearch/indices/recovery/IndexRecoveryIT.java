@@ -1601,7 +1601,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         final long localCheckpointOfSafeCommit;
         try (Engine.IndexCommitRef safeCommitRef = shard.acquireSafeIndexCommit()) {
             localCheckpointOfSafeCommit = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
-                safeCommitRef.getIndexCommit().getUserData().entrySet()
+                safeCommitRef.get().getUserData().entrySet()
             ).localCheckpoint;
         }
         final long maxSeqNo = shard.seqNoStats().getMaxSeqNo();

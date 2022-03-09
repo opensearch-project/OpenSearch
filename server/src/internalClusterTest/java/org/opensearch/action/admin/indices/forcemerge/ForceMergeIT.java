@@ -100,7 +100,7 @@ public class ForceMergeIT extends OpenSearchIntegTestCase {
 
     private static String getForceMergeUUID(IndexShard indexShard) throws IOException {
         try (Engine.IndexCommitRef indexCommitRef = indexShard.acquireLastIndexCommit(true)) {
-            return indexCommitRef.getIndexCommit().getUserData().get(Engine.FORCE_MERGE_UUID_KEY);
+            return indexCommitRef.get().getUserData().get(Engine.FORCE_MERGE_UUID_KEY);
         }
     }
 }

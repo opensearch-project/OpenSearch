@@ -1389,7 +1389,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         final long seqNoForRecovery;
         if (engine.config().getIndexSettings().isSoftDeleteEnabled()) {
             try (Engine.IndexCommitRef safeCommit = engine.acquireSafeIndexCommit()) {
-                seqNoForRecovery = Long.parseLong(safeCommit.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1;
+                seqNoForRecovery = Long.parseLong(safeCommit.get().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1;
             }
         } else {
             seqNoForRecovery = engine.getMinRetainedSeqNo();

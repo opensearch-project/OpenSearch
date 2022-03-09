@@ -1462,7 +1462,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     return store.getMetadata(null, true);
                 }
             }
-            return store.getMetadata(indexCommit.getIndexCommit());
+            return store.getMetadata(indexCommit.get());
         } finally {
             store.decRef();
             IOUtils.close(indexCommit);

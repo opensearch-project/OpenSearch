@@ -115,7 +115,7 @@ public class NoOpEngineTests extends EngineTestCase {
         assertThat(noOpEngine.getPersistedLocalCheckpoint(), equalTo(localCheckpoint));
         assertThat(noOpEngine.getSeqNoStats(100L).getMaxSeqNo(), equalTo(maxSeqNo));
         try (Engine.IndexCommitRef ref = noOpEngine.acquireLastIndexCommit(false)) {
-            try (IndexReader reader = DirectoryReader.open(ref.getIndexCommit())) {
+            try (IndexReader reader = DirectoryReader.open(ref.get())) {
                 assertThat(reader.numDocs(), equalTo(docs));
             }
         }
