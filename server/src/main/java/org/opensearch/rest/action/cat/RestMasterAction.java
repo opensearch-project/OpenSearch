@@ -51,6 +51,7 @@ public class RestMasterAction extends AbstractCatAction {
 
     @Override
     public List<ReplacedRoute> replacedRoutes() {
+        // The deprecated path will be removed in a future major version.
         return singletonList(new ReplacedRoute(GET, "/_cat/cluster_manager", "/_cat/master"));
     }
 
