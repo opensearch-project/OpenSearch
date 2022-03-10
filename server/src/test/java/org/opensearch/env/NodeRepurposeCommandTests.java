@@ -119,8 +119,6 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
     }
 
     public void testNothingToCleanup() throws Exception {
-        logger.info("### noDataNoMasterSettings: " + noDataNoMasterSettings.get("node.roles"));
-        System.out.println("### noDataNoMasterSettings: " + noDataNoMasterSettings.get("node.roles"));
         verifyNoQuestions(noDataNoMasterSettings, containsString(NO_DATA_TO_CLEAN_UP_FOUND));
         verifyNoQuestions(noDataMasterSettings, containsString(NO_SHARD_DATA_TO_CLEAN_UP_FOUND));
 
