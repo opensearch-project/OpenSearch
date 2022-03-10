@@ -577,12 +577,12 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     public static void setAdditionalRoles(final Set<DiscoveryNodeRole> additionalRoles) {
         assert additionalRoles.stream().allMatch(r -> r.legacySetting() == null || r.legacySetting().isDeprecated()) : additionalRoles;
-        // TODO: Remove 'new HashMap<>()' and only keep 'rolesToMap(...)' after removing the MASTER_ROLE.
+        // TODO: Remove 'new HashMap<>()' and only keep 'rolesToMap(...)' after removing DiscoveryNodeRole.MASTER_ROLE
         // It's used to allow CLUSTER_MANAGER_ROLE that introduced in 2.0, having the same abbreviation name with MASTER_ROLE.
         final Map<String, DiscoveryNodeRole> roleNameToPossibleRoles = new HashMap<>(
             rolesToMap(Stream.concat(DiscoveryNodeRole.BUILT_IN_ROLES.stream(), additionalRoles.stream()))
         );
-        // TODO: Remove this line after removing the MASTER_ROLE.
+        // TODO: Remove this line after removing DiscoveryNodeRole.MASTER_ROLE
         roleNameToPossibleRoles.remove(DiscoveryNodeRole.MASTER_ROLE.roleName());
         // collect the abbreviation names into a map to ensure that there are not any duplicate abbreviations
         final Map<String, DiscoveryNodeRole> roleNameAbbreviationToPossibleRoles = Collections.unmodifiableMap(
@@ -595,9 +595,9 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             + "], roles by name abbreviation ["
             + roleNameAbbreviationToPossibleRoles
             + "]";
-        // TODO: Remove this line after removing the MASTER_ROLE.
+        // TODO: Remove this line after removing DiscoveryNodeRole.MASTER_ROLE
         roleNameToPossibleRoles.put(DiscoveryNodeRole.MASTER_ROLE.roleName(), DiscoveryNodeRole.MASTER_ROLE);
-        // TODO: Remove 'Collections.unmodifiableMap()', and only keep 'roleNameToPossibleRoles', after removing the MASTER_ROLE,
+        // TODO: Remove 'Collections.unmodifiableMap()', and only keep 'roleNameToPossibleRoles', after removing DiscoveryNodeRole.MASTER_ROLE
         // because the map roleNameToPossibleRoles is supposed to be immutable.
         roleMap = Collections.unmodifiableMap(roleNameToPossibleRoles);
     }

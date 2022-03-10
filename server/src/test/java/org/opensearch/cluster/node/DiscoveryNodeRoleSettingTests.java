@@ -85,7 +85,7 @@ public class DiscoveryNodeRoleSettingTests extends OpenSearchTestCase {
         assertTrue(predicate.test(onlyRole(role)));
         assertNoDeprecationWarnings();
 
-        // TODO: Remove the statement in 'if' after removing the MASTER_ROLE.
+        // TODO: Remove the statement in 'if' after removing DiscoveryNodeRole.MASTER_ROLE
         if (role == DiscoveryNodeRole.MASTER_ROLE || role == DiscoveryNodeRole.CLUSTER_MANAGER_ROLE) {
             assertFalse(
                 predicate.test(
