@@ -624,4 +624,5 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         }
 
     }
+
 }

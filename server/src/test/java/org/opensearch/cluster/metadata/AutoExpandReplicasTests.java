@@ -270,11 +270,7 @@ public class AutoExpandReplicasTests extends OpenSearchTestCase {
                 LegacyESVersion.V_7_6_0,
                 DiscoveryNodeRole.CLUSTER_MANAGER_ROLE,
                 DiscoveryNodeRole.DATA_ROLE
-            ); // local
-               // node
-               // is
-               // the
-               // master
+            ); // local node is the cluster_manager
 
             state = cluster.addNodes(state, Collections.singletonList(newNode));
 
