@@ -35,7 +35,7 @@ package org.opensearch.indices.replication.copy;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchTimeoutException;
-import org.opensearch.common.concurrent.GatedAutoCloseable;
+import org.opensearch.common.concurrent.AutoCloseableRefCounted;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
@@ -125,7 +125,8 @@ public class ReplicationCollection {
         if (replicationRef == null) {
             throw new IndexShardClosedException(shardId);
         }
-        assert replicationRef.get().getIndexShard().shardId().equals(shardId);
+        ReplicationTarget replicationTarget = replicationRef.get(ReplicationTarget.class);
+        assert replicationTarget.getIndexShard().shardId().equals(shardId);
         return replicationRef;
     }
 
@@ -221,14 +222,14 @@ public class ReplicationCollection {
      * causes {@link ReplicationTarget#decRef()} to be called. This makes sure that the underlying resources
      * will not be freed until {@link ReplicationRef#close()} is called.
      */
-    public static class ReplicationRef extends GatedAutoCloseable<ReplicationTarget> {
+    public static class ReplicationRef extends AutoCloseableRefCounted {
 
         /**
          * Important: {@link ReplicationTarget#tryIncRef()} should
-         * be *successfully* called on status before
+         * be *successfully* called on target before
          */
         public ReplicationRef(ReplicationTarget target) {
-            super(target, target::decRef);
+            super(target);
             target.setLastAccessTime();
         }
     }

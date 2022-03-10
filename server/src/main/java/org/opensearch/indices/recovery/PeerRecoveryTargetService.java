@@ -222,7 +222,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 logger.trace("not running recovery with id [{}] - can not find it (probably finished)", recoveryId);
                 return;
             }
-            final RecoveryTarget recoveryTarget = recoveryRef.get();
+            final RecoveryTarget recoveryTarget = recoveryRef.get(RecoveryTarget.class);
             timer = recoveryTarget.state().getTimer();
             cancellableThreads = recoveryTarget.cancellableThreads();
             if (preExistingRequest == null) {
@@ -362,8 +362,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 if (listener == null) {
                     return;
                 }
-
-                recoveryRef.get().prepareForTranslogOperations(request.totalTranslogOps(), listener);
+                recoveryRef.get(RecoveryTarget.class).prepareForTranslogOperations(request.totalTranslogOps(), listener);
             }
         }
     }
@@ -377,8 +376,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 if (listener == null) {
                     return;
                 }
-
-                recoveryRef.get().finalizeRecovery(request.globalCheckpoint(), request.trimAboveSeqNo(), listener);
+                recoveryRef.get(RecoveryTarget.class).finalizeRecovery(request.globalCheckpoint(), request.trimAboveSeqNo(), listener);
             }
         }
     }
@@ -389,7 +387,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         public void messageReceived(final RecoveryHandoffPrimaryContextRequest request, final TransportChannel channel, Task task)
             throws Exception {
             try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
-                recoveryRef.get().handoffPrimaryContext(request.primaryContext());
+                recoveryRef.get(RecoveryTarget.class).handoffPrimaryContext(request.primaryContext());
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
@@ -402,7 +400,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         public void messageReceived(final RecoveryTranslogOperationsRequest request, final TransportChannel channel, Task task)
             throws IOException {
             try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
-                final RecoveryTarget recoveryTarget = recoveryRef.get();
+                final RecoveryTarget recoveryTarget = recoveryRef.get(RecoveryTarget.class);
                 final ActionListener<Void> listener = createOrFinishListener(
                     recoveryRef,
                     channel,
@@ -423,7 +421,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             final ActionListener<Void> listener,
             final RecoveryRef recoveryRef
         ) {
-            final RecoveryTarget recoveryTarget = recoveryRef.get();
+            final RecoveryTarget recoveryTarget = recoveryRef.get(RecoveryTarget.class);
 
             final ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
             final Consumer<Exception> retryOnMappingException = exception -> {
@@ -488,7 +486,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     return;
                 }
 
-                recoveryRef.get()
+                recoveryRef.get(RecoveryTarget.class)
                     .receiveFileInfo(
                         request.phase1FileNames,
                         request.phase1FileSizes,
@@ -511,7 +509,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     return;
                 }
 
-                recoveryRef.get()
+                recoveryRef.get(RecoveryTarget.class)
                     .cleanFiles(request.totalTranslogOps(), request.getGlobalCheckpoint(), request.sourceMetaSnapshot(), listener);
             }
         }
@@ -525,7 +523,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         @Override
         public void messageReceived(final RecoveryFileChunkRequest request, TransportChannel channel, Task task) throws Exception {
             try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
-                final RecoveryTarget recoveryTarget = recoveryRef.get();
+                final RecoveryTarget recoveryTarget = recoveryRef.get(RecoveryTarget.class);
                 final ActionListener<Void> listener = createOrFinishListener(recoveryRef, channel, Actions.FILE_CHUNK, request);
                 if (listener == null) {
                     return;
@@ -575,7 +573,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         final RecoveryTransportRequest request,
         final CheckedFunction<Void, TransportResponse, Exception> responseFn
     ) {
-        final RecoveryTarget recoveryTarget = recoveryRef.get();
+        final RecoveryTarget recoveryTarget = recoveryRef.get(RecoveryTarget.class);
         final ActionListener<TransportResponse> channelListener = new ChannelActionListener<>(channel, action, request);
         final ActionListener<Void> voidListener = ActionListener.map(channelListener, responseFn);
 
@@ -609,9 +607,10 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             try (RecoveryRef recoveryRef = onGoingRecoveries.getRecovery(recoveryId)) {
                 if (recoveryRef != null) {
                     logger.error(() -> new ParameterizedMessage("unexpected error during recovery [{}], failing shard", recoveryId), e);
+                    RecoveryTarget recoveryTarget = recoveryRef.get(RecoveryTarget.class);
                     onGoingRecoveries.failRecovery(
                         recoveryId,
-                        new RecoveryFailedException(recoveryRef.get().state(), "unexpected error", e),
+                        new RecoveryFailedException(recoveryTarget.state(), "unexpected error", e),
                         true // be safe
                     );
                 } else {

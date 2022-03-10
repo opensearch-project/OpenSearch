@@ -178,7 +178,7 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
                 logger.trace("not running replication with id [{}] - can not find it (probably finished)", replicationId);
                 return;
             }
-            final ReplicationTarget replicationTarget = replicationRef.get();
+            final ReplicationTarget replicationTarget = replicationRef.get(ReplicationTarget.class);
             timer = replicationTarget.state().getTimer();
             final IndexShard indexShard = replicationTarget.getIndexShard();
 
@@ -215,9 +215,10 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
                         () -> new ParameterizedMessage("unexpected error during replication [{}], failing shard", replicationId),
                         e
                     );
+                    ReplicationTarget replicationTarget = replicationRef.get(ReplicationTarget.class);
                     onGoingReplications.failReplication(
                         replicationId,
-                        new ReplicationFailedException(replicationRef.get().getIndexShard(), "unexpected error", e),
+                        new ReplicationFailedException(replicationTarget.getIndexShard(), "unexpected error", e),
                         true // be safe
                     );
                 } else {
