@@ -249,7 +249,7 @@ public class UpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
             .prepareCreate("test")
             .setSettings(Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0))
             .addMapping(
-                "type",
+                MapperService.SINGLE_MAPPING_NAME,
                 "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}",
                 XContentType.JSON
             )
@@ -260,7 +260,7 @@ public class UpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
         AcknowledgedResponse putMappingResponse = client().admin()
             .indices()
             .preparePutMapping("test")
-            .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}", XContentType.JSON)
+            .setSource("{\"properties\":{\"body\":{\"type\":\"text\"}}}", XContentType.JSON)
             .execute()
             .actionGet();
 

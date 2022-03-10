@@ -52,6 +52,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.MapperParsingException;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -144,11 +145,16 @@ public class CreateIndexIT extends OpenSearchIntegTestCase {
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
             () -> prepareCreate("test").addMapping(
-                "type1",
+                MapperService.SINGLE_MAPPING_NAME,
                 XContentFactory.jsonBuilder().startObject().startObject("type2").endObject().endObject()
             ).get()
         );
-        assertThat(e.getMessage(), startsWith("Failed to parse mapping [type1]: Root mapping definition has unsupported parameters"));
+        assertThat(
+            e.getMessage(),
+            startsWith(
+                "Failed to parse mapping [" + MapperService.SINGLE_MAPPING_NAME + "]: Root mapping definition has unsupported parameters"
+            )
+        );
     }
 
     public void testEmptyMappings() throws Exception {
