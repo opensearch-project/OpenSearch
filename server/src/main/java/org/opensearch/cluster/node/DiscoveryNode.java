@@ -582,8 +582,6 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         final Map<String, DiscoveryNodeRole> roleNameToPossibleRoles = new HashMap<>(
             rolesToMap(Stream.concat(DiscoveryNodeRole.BUILT_IN_ROLES.stream(), additionalRoles.stream()))
         );
-        // TODO: Remove this line after removing DiscoveryNodeRole.MASTER_ROLE
-        roleNameToPossibleRoles.remove(DiscoveryNodeRole.MASTER_ROLE.roleName());
         // collect the abbreviation names into a map to ensure that there are not any duplicate abbreviations
         final Map<String, DiscoveryNodeRole> roleNameAbbreviationToPossibleRoles = Collections.unmodifiableMap(
             roleNameToPossibleRoles.values()
@@ -597,8 +595,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             + "]";
         // TODO: Remove this line after removing DiscoveryNodeRole.MASTER_ROLE
         roleNameToPossibleRoles.put(DiscoveryNodeRole.MASTER_ROLE.roleName(), DiscoveryNodeRole.MASTER_ROLE);
-        // TODO: Remove 'Collections.unmodifiableMap()', and only keep 'roleNameToPossibleRoles', after removing
-        // DiscoveryNodeRole.MASTER_ROLE
+        // TODO: Remove 'Collections.unmodifiableMap()', and only keep 'roleNameToPossibleRoles', after removing MASTER_ROLE
         // because the map roleNameToPossibleRoles is supposed to be immutable.
         roleMap = Collections.unmodifiableMap(roleNameToPossibleRoles);
     }
