@@ -231,7 +231,7 @@ public class PrimaryShardReplicationSource {
                 ReplicationCollection.ReplicationRef replicationRef = segmentReplicationReplicaService.getOnGoingReplications()
                     .getReplicationSafe(request.getReplicationId(), request.shardId())
             ) {
-                final ReplicationTarget replicationTarget = replicationRef.target();
+                final ReplicationTarget replicationTarget = replicationRef.get();
                 final ActionListener<Void> listener = createOrFinishListener(replicationRef, channel, Actions.FILE_CHUNK, request);
                 if (listener == null) {
                     return;
@@ -274,7 +274,7 @@ public class PrimaryShardReplicationSource {
         final ReplicationFileChunkRequest request,
         final CheckedFunction<Void, TransportResponse, Exception> responseFn
     ) {
-        final ReplicationTarget replicationTarget = replicationRef.target();
+        final ReplicationTarget replicationTarget = replicationRef.get();
         final ActionListener<TransportResponse> channelListener = new ChannelActionListener<>(channel, action, request);
         final ActionListener<Void> voidListener = ActionListener.map(channelListener, responseFn);
 

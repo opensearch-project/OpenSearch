@@ -1498,10 +1498,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Fetch a ref to the latest SegmentInfos held by the engine.  This ensures the files will not be deleted until
      * the ref is closed.
-     * @return {@link Engine.SegmentInfosRef}
+     * @return a {@link GatedCloseable} wrapper around a {@link SegmentInfos} instance
      * @throws EngineException - When infos cannot be retrieved from the Engine.
      */
-    public Engine.SegmentInfosRef getLatestSegmentInfosSafe() throws EngineException {
+    public GatedCloseable<SegmentInfos> getLatestSegmentInfosSafe() throws EngineException {
         return getEngine().getLatestSegmentInfosSafe();
     }
 
