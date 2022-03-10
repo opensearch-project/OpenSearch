@@ -79,7 +79,7 @@ public final class BootstrapInfo {
 
     // create a view of sysprops map that does not allow modifications
     // this must be done this way (e.g. versus an actual typed map), because
-    // some test methods still change properties, so whitelisted changes must
+    // some test methods still change properties, so allowlisted changes must
     // be reflected in this view.
     private static final Dictionary<Object, Object> SYSTEM_PROPERTIES;
     static {

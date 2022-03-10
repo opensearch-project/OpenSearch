@@ -137,7 +137,7 @@ public abstract class AbstractGeoTestCase extends OpenSearchIntegTestCase {
             multiVal[0] = multiValues[i % numUniqueGeoPoints];
             multiVal[1] = multiValues[(i + 1) % numUniqueGeoPoints];
             builders.add(
-                client().prepareIndex(IDX_NAME, "type")
+                client().prepareIndex(IDX_NAME)
                     .setSource(
                         jsonBuilder().startObject()
                             .array(SINGLE_VALUED_FIELD_NAME, singleVal.lon(), singleVal.lat())
@@ -193,7 +193,7 @@ public abstract class AbstractGeoTestCase extends OpenSearchIntegTestCase {
 
         for (int i = 0; i < 5; i++) {
             builders.add(
-                client().prepareIndex(DATELINE_IDX_NAME, "type")
+                client().prepareIndex(DATELINE_IDX_NAME)
                     .setSource(
                         jsonBuilder().startObject()
                             .array(SINGLE_VALUED_FIELD_NAME, geoValues[i].lon(), geoValues[i].lat())
@@ -221,7 +221,7 @@ public abstract class AbstractGeoTestCase extends OpenSearchIntegTestCase {
         for (int i = 0; i < 2000; i++) {
             singleVal = singleValues[i % numUniqueGeoPoints];
             builders.add(
-                client().prepareIndex(HIGH_CARD_IDX_NAME, "type")
+                client().prepareIndex(HIGH_CARD_IDX_NAME)
                     .setSource(
                         jsonBuilder().startObject()
                             .array(SINGLE_VALUED_FIELD_NAME, singleVal.lon(), singleVal.lat())
@@ -244,7 +244,7 @@ public abstract class AbstractGeoTestCase extends OpenSearchIntegTestCase {
         }
 
         builders.add(
-            client().prepareIndex(IDX_ZERO_NAME, "type")
+            client().prepareIndex(IDX_ZERO_NAME)
                 .setSource(jsonBuilder().startObject().array(SINGLE_VALUED_FIELD_NAME, 0.0, 1.0).endObject())
         );
         assertAcked(prepareCreate(IDX_ZERO_NAME).addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=geo_point"));

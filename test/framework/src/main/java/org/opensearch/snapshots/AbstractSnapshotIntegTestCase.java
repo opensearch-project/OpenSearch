@@ -444,7 +444,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         logger.info("--> indexing [{}] documents into [{}]", numdocs, index);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(index, "_doc").setId(Integer.toString(i)).setSource("field1", "bar " + i);
+            builders[i] = client().prepareIndex(index).setId(Integer.toString(i)).setSource("field1", "bar " + i);
         }
         indexRandom(true, builders);
         flushAndRefresh(index);

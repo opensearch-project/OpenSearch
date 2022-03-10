@@ -34,6 +34,7 @@ package org.opensearch.index.shard;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
@@ -44,6 +45,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
+import org.junit.Assert;
 import org.opensearch.Assertions;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
@@ -72,6 +74,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.lease.Releasable;
@@ -108,6 +111,7 @@ import org.opensearch.index.fielddata.IndexFieldDataService;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperParsingException;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
@@ -141,7 +145,6 @@ import org.opensearch.test.FieldMaskingReader;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.test.store.MockFSDirectoryFactory;
 import org.opensearch.threadpool.ThreadPool;
-import org.junit.Assert;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -168,7 +171,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongFunction;
@@ -179,12 +181,6 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
-import static org.opensearch.common.lucene.Lucene.cleanLuceneIndex;
-import static org.opensearch.common.xcontent.ToXContent.EMPTY_PARAMS;
-import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.opensearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -204,6 +200,12 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.opensearch.common.lucene.Lucene.cleanLuceneIndex;
+import static org.opensearch.common.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.opensearch.test.hamcrest.RegexMatcher.matches;
 
 /**
  * Simple unit-test IndexShard related operations.
@@ -3129,8 +3131,8 @@ public class IndexShardTests extends IndexShardTestCase {
             targetShard = newShard(targetRouting);
             targetShard.markAsRecovering("store", new RecoveryState(targetShard.routingEntry(), localNode, null));
 
-            BiConsumer<String, MappingMetadata> mappingConsumer = (type, mapping) -> {
-                assertNull(requestedMappingUpdates.put(type, mapping));
+            Consumer<MappingMetadata> mappingConsumer = mapping -> {
+                assertNull(requestedMappingUpdates.put(MapperService.SINGLE_MAPPING_NAME, mapping));
             };
 
             final IndexShard differentIndex = newShard(new ShardId("index_2", "index_2", 0), true);
@@ -4126,11 +4128,11 @@ public class IndexShardTests extends IndexShardTestCase {
             try {
                 readyToSnapshotLatch.await();
                 shard.snapshotStoreMetadata();
-                try (Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(randomBoolean())) {
-                    shard.store().getMetadata(indexCommitRef.getIndexCommit());
+                try (GatedCloseable<IndexCommit> wrappedIndexCommit = shard.acquireLastIndexCommit(randomBoolean())) {
+                    shard.store().getMetadata(wrappedIndexCommit.get());
                 }
-                try (Engine.IndexCommitRef indexCommitRef = shard.acquireSafeIndexCommit()) {
-                    shard.store().getMetadata(indexCommitRef.getIndexCommit());
+                try (GatedCloseable<IndexCommit> wrappedSafeCommit = shard.acquireSafeIndexCommit()) {
+                    shard.store().getMetadata(wrappedSafeCommit.get());
                 }
             } catch (InterruptedException | IOException e) {
                 throw new AssertionError(e);

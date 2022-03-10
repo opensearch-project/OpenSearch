@@ -17,7 +17,7 @@
 # under the License.
 #
 
-# This file contains a whitelist of static processor methods that can be accessed from painless
+# This file contains a allowlist of static processor methods that can be accessed from painless
 
 class org.opensearch.ingest.common.Processors {
   long bytes(String)

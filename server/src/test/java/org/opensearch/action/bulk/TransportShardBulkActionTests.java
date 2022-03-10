@@ -286,19 +286,12 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         // Pretend the mappings haven't made it to the node yet
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         AtomicInteger updateCalled = new AtomicInteger();
-        TransportShardBulkAction.executeBulkItemRequest(
-            context,
-            null,
-            threadPool::absoluteTimeInMillis,
-            (update, shardId, type, listener) -> {
-                // There should indeed be a mapping update
-                assertNotNull(update);
-                updateCalled.incrementAndGet();
-                listener.onResponse(null);
-            },
-            listener -> listener.onResponse(null),
-            ASSERTING_DONE_LISTENER
-        );
+        TransportShardBulkAction.executeBulkItemRequest(context, null, threadPool::absoluteTimeInMillis, (update, shardId, listener) -> {
+            // There should indeed be a mapping update
+            assertNotNull(update);
+            updateCalled.incrementAndGet();
+            listener.onResponse(null);
+        }, listener -> listener.onResponse(null), ASSERTING_DONE_LISTENER);
         assertTrue(context.isInitial());
         assertTrue(context.hasMoreOperationsToExecute());
 
@@ -315,7 +308,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             context,
             null,
             threadPool::absoluteTimeInMillis,
-            (update, shardId, type, listener) -> fail("should not have had to update the mappings"),
+            (update, shardId, listener) -> fail("should not have had to update the mappings"),
             listener -> {},
             ASSERTING_DONE_LISTENER
         );
@@ -989,7 +982,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 shard,
                 null,
                 rejectingThreadPool::absoluteTimeInMillis,
-                (update, shardId, type, listener) -> {
+                (update, shardId, listener) -> {
                     // There should indeed be a mapping update
                     assertNotNull(update);
                     updateCalled.incrementAndGet();
@@ -1090,7 +1083,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     /** Doesn't perform any mapping updates */
     public static class NoopMappingUpdatePerformer implements MappingUpdatePerformer {
         @Override
-        public void updateMappings(Mapping update, ShardId shardId, String type, ActionListener<Void> listener) {
+        public void updateMappings(Mapping update, ShardId shardId, ActionListener<Void> listener) {
             listener.onResponse(null);
         }
     }
@@ -1104,7 +1097,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         }
 
         @Override
-        public void updateMappings(Mapping update, ShardId shardId, String type, ActionListener<Void> listener) {
+        public void updateMappings(Mapping update, ShardId shardId, ActionListener<Void> listener) {
             listener.onFailure(e);
         }
     }

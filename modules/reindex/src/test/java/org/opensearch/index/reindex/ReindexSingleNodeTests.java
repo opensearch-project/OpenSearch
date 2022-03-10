@@ -52,7 +52,7 @@ public class ReindexSingleNodeTests extends OpenSearchSingleNodeTestCase {
     public void testDeprecatedSort() {
         int max = between(2, 20);
         for (int i = 0; i < max; i++) {
-            client().prepareIndex("source", "_doc").setId(Integer.toString(i)).setSource("foo", i).get();
+            client().prepareIndex("source").setId(Integer.toString(i)).setSource("foo", i).get();
         }
 
         client().admin().indices().prepareRefresh("source").get();

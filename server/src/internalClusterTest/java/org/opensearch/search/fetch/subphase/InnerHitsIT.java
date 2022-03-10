@@ -125,7 +125,8 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(
-            client().prepareIndex("articles", "article", "1")
+            client().prepareIndex("articles")
+                .setId("1")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("title", "quick brown fox")
@@ -144,7 +145,8 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
                 )
         );
         requests.add(
-            client().prepareIndex("articles", "article", "2")
+            client().prepareIndex("articles")
+                .setId("2")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("title", "big gray elephant")
@@ -261,7 +263,7 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
                 source.startObject().field("x", "y").endObject();
             }
             source.endArray().endObject();
-            requestBuilders.add(client().prepareIndex("idx", "type", Integer.toString(i)).setSource(source));
+            requestBuilders.add(client().prepareIndex("idx").setId(Integer.toString(i)).setSource(source));
         }
         indexRandom(true, requestBuilders);
 
@@ -343,7 +345,8 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(
-            client().prepareIndex("articles", "article", "1")
+            client().prepareIndex("articles")
+                .setId("1")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("title", "quick brown fox")
@@ -369,7 +372,8 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
                 )
         );
         requests.add(
-            client().prepareIndex("articles", "article", "2")
+            client().prepareIndex("articles")
+                .setId("2")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("title", "big gray elephant")
@@ -544,7 +548,8 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(
-            client().prepareIndex("articles", "article", "1")
+            client().prepareIndex("articles")
+                .setId("1")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("title", "quick brown fox")
@@ -597,7 +602,8 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(
-            client().prepareIndex("articles", "article", "1")
+            client().prepareIndex("articles")
+                .setId("1")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("title", "quick brown fox")
@@ -700,7 +706,8 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
         // index the message in an object form instead of an array
         requests = new ArrayList<>();
         requests.add(
-            client().prepareIndex("articles", "article", "1")
+            client().prepareIndex("articles")
+                .setId("1")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("title", "quick brown fox")
@@ -756,7 +763,8 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> requests = new ArrayList<>();
         int numDocs = randomIntBetween(2, 35);
         requests.add(
-            client().prepareIndex("test", "type1", "0")
+            client().prepareIndex("test")
+                .setId("0")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("field1", 0)
@@ -774,7 +782,8 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
                 )
         );
         requests.add(
-            client().prepareIndex("test", "type1", "1")
+            client().prepareIndex("test")
+                .setId("1")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("field1", 1)
@@ -794,7 +803,8 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
 
         for (int i = 2; i < numDocs; i++) {
             requests.add(
-                client().prepareIndex("test", "type1", String.valueOf(i))
+                client().prepareIndex("test")
+                    .setId(String.valueOf(i))
                     .setSource(
                         jsonBuilder().startObject()
                             .field("field1", i)
@@ -852,7 +862,8 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
 
     public void testNestedSource() throws Exception {
         assertAcked(prepareCreate("index1").addMapping("message", "comments", "type=nested"));
-        client().prepareIndex("index1", "message", "1")
+        client().prepareIndex("index1")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("message", "quick brown fox")
@@ -947,8 +958,8 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
     public void testInnerHitsWithIgnoreUnmapped() throws Exception {
         assertAcked(prepareCreate("index1").addMapping("_doc", "nested_type", "type=nested"));
         createIndex("index2");
-        client().prepareIndex("index1", "_doc", "1").setSource("nested_type", Collections.singletonMap("key", "value")).get();
-        client().prepareIndex("index2", "type", "3").setSource("key", "value").get();
+        client().prepareIndex("index1").setId("1").setSource("nested_type", Collections.singletonMap("key", "value")).get();
+        client().prepareIndex("index2").setId("3").setSource("key", "value").get();
         refresh();
 
         SearchResponse response = client().prepareSearch("index1", "index2")
@@ -971,7 +982,8 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
             .prepareUpdateSettings("index2")
             .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), ArrayUtil.MAX_ARRAY_LENGTH))
             .get();
-        client().prepareIndex("index2", "type", "1")
+        client().prepareIndex("index2")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject().startArray("nested").startObject().field("field", "value1").endObject().endArray().endObject()
             )
@@ -988,7 +1000,8 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
 
     public void testTooHighResultWindow() throws Exception {
         assertAcked(prepareCreate("index2").addMapping("type", "nested", "type=nested"));
-        client().prepareIndex("index2", "type", "1")
+        client().prepareIndex("index2")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject().startArray("nested").startObject().field("field", "value1").endObject().endArray().endObject()
             )

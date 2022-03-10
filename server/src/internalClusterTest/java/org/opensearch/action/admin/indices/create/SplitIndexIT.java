@@ -65,6 +65,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.SegmentsStats;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.shard.IndexShard;
@@ -135,12 +136,12 @@ public class SplitIndexIT extends OpenSearchIntegTestCase {
             int numRoutingShards = MetadataCreateIndexService.calculateNumRoutingShards(secondSplitShards, Version.CURRENT) - 1;
             settings.put("index.routing_partition_size", randomIntBetween(1, numRoutingShards));
             if (useNested) {
-                createInitialIndex.addMapping("t1", "_routing", "required=true", "nested1", "type=nested");
+                createInitialIndex.addMapping(MapperService.SINGLE_MAPPING_NAME, "_routing", "required=true", "nested1", "type=nested");
             } else {
-                createInitialIndex.addMapping("t1", "_routing", "required=true");
+                createInitialIndex.addMapping(MapperService.SINGLE_MAPPING_NAME, "_routing", "required=true");
             }
         } else if (useNested) {
-            createInitialIndex.addMapping("t1", "nested1", "type=nested");
+            createInitialIndex.addMapping(MapperService.SINGLE_MAPPING_NAME, "nested1", "type=nested");
         }
         logger.info("use routing {} use mixed routing {} use nested {}", useRouting, useMixedRouting, useNested);
         createInitialIndex.setSettings(settings).get();
@@ -150,7 +151,8 @@ public class SplitIndexIT extends OpenSearchIntegTestCase {
 
         BiFunction<String, Integer, IndexRequestBuilder> indexFunc = (index, id) -> {
             try {
-                return client().prepareIndex(index, "t1", Integer.toString(id))
+                return client().prepareIndex(index)
+                    .setId(Integer.toString(id))
                     .setSource(
                         jsonBuilder().startObject()
                             .field("foo", "bar")
@@ -402,7 +404,7 @@ public class SplitIndexIT extends OpenSearchIntegTestCase {
         ).get();
         final int docs = randomIntBetween(0, 128);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex("source", "type").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+            client().prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
         // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
         // if we change the setting too quickly we will end up with one replica unassigned which can't be assigned anymore due
@@ -486,7 +488,7 @@ public class SplitIndexIT extends OpenSearchIntegTestCase {
             }
 
             for (int i = docs; i < 2 * docs; i++) {
-                client().prepareIndex("target", "type").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+                client().prepareIndex("target").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
             }
             flushAndRefresh();
             assertHitCount(
@@ -521,9 +523,10 @@ public class SplitIndexIT extends OpenSearchIntegTestCase {
                 .put("sort.order", "desc")
                 .put("number_of_shards", 2)
                 .put("number_of_replicas", 0)
-        ).addMapping("type", "id", "type=keyword,doc_values=true").get();
+        ).addMapping(MapperService.SINGLE_MAPPING_NAME, "id", "type=keyword,doc_values=true").get();
         for (int i = 0; i < 20; i++) {
-            client().prepareIndex("source", "type", Integer.toString(i))
+            client().prepareIndex("source")
+                .setId(Integer.toString(i))
                 .setSource("{\"foo\" : \"bar\", \"id\" : " + i + "}", XContentType.JSON)
                 .get();
         }
@@ -580,7 +583,7 @@ public class SplitIndexIT extends OpenSearchIntegTestCase {
 
         // ... and that the index sort is also applied to updates
         for (int i = 20; i < 40; i++) {
-            client().prepareIndex("target", "type").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+            client().prepareIndex("target").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
         flushAndRefresh();
         assertSortedSegments("target", expectedIndexSort);

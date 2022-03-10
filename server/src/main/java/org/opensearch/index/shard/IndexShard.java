@@ -51,9 +51,9 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.opensearch.Assertions;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
-import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
@@ -73,6 +73,7 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
@@ -1484,7 +1485,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @param flushFirst <code>true</code> if the index should first be flushed to disk / a low level lucene commit should be executed
      */
-    public Engine.IndexCommitRef acquireLastIndexCommit(boolean flushFirst) throws EngineException {
+    public GatedCloseable<IndexCommit> acquireLastIndexCommit(boolean flushFirst) throws EngineException {
         final IndexShardState state = this.state; // one time volatile read
         // we allow snapshot on closed index shard, since we want to do one after we close the shard and before we close the engine
         if (state == IndexShardState.STARTED || state == IndexShardState.CLOSED) {
@@ -1529,7 +1530,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Snapshots the most recent safe index commit from the currently running engine.
      * All index files referenced by this index commit won't be freed until the commit/snapshot is closed.
      */
-    public Engine.IndexCommitRef acquireSafeIndexCommit() throws EngineException {
+    public GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException {
         final IndexShardState state = this.state; // one time volatile read
         // we allow snapshot on closed index shard, since we want to do one after we close the shard and before we close the engine
         if (state == IndexShardState.STARTED || state == IndexShardState.CLOSED) {
@@ -1554,7 +1555,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public Store.MetadataSnapshot snapshotStoreMetadata() throws IOException {
         assert Thread.holdsLock(mutex) == false : "snapshotting store metadata under mutex";
-        Engine.IndexCommitRef indexCommit = null;
+        GatedCloseable<IndexCommit> wrappedIndexCommit = null;
         store.incRef();
         try {
             synchronized (engineMutex) {
@@ -1562,16 +1563,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // the engine on us. If the engine is running, we can get a snapshot via the deletion policy of the engine.
                 final Engine engine = getEngineOrNull();
                 if (engine != null) {
-                    indexCommit = engine.acquireLastIndexCommit(false);
+                    wrappedIndexCommit = engine.acquireLastIndexCommit(false);
                 }
-                if (indexCommit == null) {
+                if (wrappedIndexCommit == null) {
                     return store.getMetadata(null, true);
                 }
             }
-            return store.getMetadata(indexCommit.getIndexCommit());
+            return store.getMetadata(wrappedIndexCommit.get());
         } finally {
             store.decRef();
-            IOUtils.close(indexCommit);
+            IOUtils.close(wrappedIndexCommit);
         }
     }
 
@@ -2294,7 +2295,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void recoverFromLocalShards(
-        BiConsumer<String, MappingMetadata> mappingUpdateConsumer,
+        Consumer<MappingMetadata> mappingUpdateConsumer,
         List<IndexShard> localShards,
         ActionListener<Boolean> listener
     ) throws IOException {
@@ -3044,7 +3045,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         PeerRecoveryTargetService peerRecoveryTargetService,
         PeerRecoveryTargetService.RecoveryListener recoveryListener,
         RepositoriesService repositoriesService,
-        BiConsumer<String, MappingMetadata> mappingUpdateConsumer,
+        Consumer<MappingMetadata> mappingUpdateConsumer,
         IndicesService indicesService
     ) {
         // TODO: Create a proper object to encapsulate the recovery context
@@ -3312,7 +3313,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexSettings.getMergePolicy(),
             mapperService != null ? mapperService.indexAnalyzer() : null,
             similarityService.similarity(mapperService),
-            codecService,
+            engineConfigFactory.newCodecServiceOrDefault(indexSettings, mapperService, logger, codecService),
             shardEventListener,
             indexCache != null ? indexCache.query() : null,
             cachingPolicy,
@@ -4137,7 +4138,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 true
             ) {
                 @Override
-                public IndexCommitRef acquireLastIndexCommit(boolean flushFirst) {
+                public GatedCloseable<IndexCommit> acquireLastIndexCommit(boolean flushFirst) {
                     synchronized (engineMutex) {
                         if (newEngineReference.get() == null) {
                             throw new AlreadyClosedException("engine was closed");
@@ -4148,7 +4149,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
 
                 @Override
-                public IndexCommitRef acquireSafeIndexCommit() {
+                public GatedCloseable<IndexCommit> acquireSafeIndexCommit() {
                     synchronized (engineMutex) {
                         if (newEngineReference.get() == null) {
                             throw new AlreadyClosedException("engine was closed");

@@ -72,7 +72,8 @@ public class SearchWhileRelocatingIT extends OpenSearchIntegTestCase {
         final int numDocs = between(10, 20);
         for (int i = 0; i < numDocs; i++) {
             indexBuilders.add(
-                client().prepareIndex("test", "type", Integer.toString(i))
+                client().prepareIndex("test")
+                    .setId(Integer.toString(i))
                     .setSource(
                         jsonBuilder().startObject()
                             .field("test", "value")

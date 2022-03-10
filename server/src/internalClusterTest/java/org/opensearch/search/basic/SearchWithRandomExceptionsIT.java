@@ -128,7 +128,8 @@ public class SearchWithRandomExceptionsIT extends OpenSearchIntegTestCase {
         boolean[] added = new boolean[numDocs];
         for (int i = 0; i < numDocs; i++) {
             try {
-                IndexResponse indexResponse = client().prepareIndex("test", "type", "" + i)
+                IndexResponse indexResponse = client().prepareIndex("test")
+                    .setId("" + i)
                     .setTimeout(TimeValue.timeValueSeconds(1))
                     .setSource("test", English.intToEnglish(i))
                     .get();

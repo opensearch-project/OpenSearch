@@ -171,7 +171,8 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                                 id = Integer.toString(idGenerator.incrementAndGet());
                                 int shard = Math.floorMod(Murmur3HashFunction.hash(id), numPrimaries);
                                 logger.trace("[{}] indexing id [{}] through node [{}] targeting shard [{}]", name, id, node, shard);
-                                IndexRequestBuilder indexRequestBuilder = client.prepareIndex("test", "type", id)
+                                IndexRequestBuilder indexRequestBuilder = client.prepareIndex("test")
+                                    .setId(id)
                                     .setSource(Collections.singletonMap(randomFrom(fieldNames), randomNonNegativeLong()), XContentType.JSON)
                                     .setTimeout(timeout);
 
@@ -308,10 +309,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         ensureStableCluster(2, notIsolatedNode);
         assertFalse(client(notIsolatedNode).admin().cluster().prepareHealth("test").setWaitForYellowStatus().get().isTimedOut());
 
-        IndexResponse indexResponse = internalCluster().client(notIsolatedNode)
-            .prepareIndex("test", "type")
-            .setSource("field", "value")
-            .get();
+        IndexResponse indexResponse = internalCluster().client(notIsolatedNode).prepareIndex("test").setSource("field", "value").get();
         assertThat(indexResponse.getVersion(), equalTo(1L));
 
         logger.info("Verifying if document exists via node[{}]", notIsolatedNode);
@@ -514,7 +512,8 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                 while (stopped.get() == false && docID.get() < 5000) {
                     String id = Integer.toString(docID.incrementAndGet());
                     try {
-                        IndexResponse response = client().prepareIndex(index, "_doc", id)
+                        IndexResponse response = client().prepareIndex(index)
+                            .setId(id)
                             .setSource(Collections.singletonMap("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON)
                             .get();
                         assertThat(response.getResult(), is(oneOf(CREATED, UPDATED)));

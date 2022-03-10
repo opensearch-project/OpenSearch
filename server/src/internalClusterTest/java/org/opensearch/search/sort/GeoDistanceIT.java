@@ -80,7 +80,8 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("names", "New York")
@@ -92,7 +93,8 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
             )
             .get();
 
-        client().prepareIndex("test", "type1", "2")
+        client().prepareIndex("test")
+            .setId("2")
             .setSource(
                 jsonBuilder().startObject()
                     .field("names", "New York 2")
@@ -104,7 +106,8 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
             )
             .get();
 
-        client().prepareIndex("test", "type1", "3")
+        client().prepareIndex("test")
+            .setId("3")
             .setSource(
                 jsonBuilder().startObject()
                     .array("names", "Times Square", "Tribeca")
@@ -124,7 +127,8 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
             )
             .get();
 
-        client().prepareIndex("test", "type1", "4")
+        client().prepareIndex("test")
+            .setId("4")
             .setSource(
                 jsonBuilder().startObject()
                     .array("names", "Wall Street", "Soho")
@@ -144,7 +148,8 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
             )
             .get();
 
-        client().prepareIndex("test", "type1", "5")
+        client().prepareIndex("test")
+            .setId("5")
             .setSource(
                 jsonBuilder().startObject()
                     .array("names", "Greenwich Village", "Brooklyn")
@@ -271,7 +276,8 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .array("names", "Times Square", "Tribeca")
@@ -291,7 +297,8 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
             )
             .get();
 
-        client().prepareIndex("test", "type1", "2")
+        client().prepareIndex("test")
+            .setId("2")
             .setSource(jsonBuilder().startObject().array("names", "Wall Street", "Soho").endObject())
             .get();
 
@@ -346,7 +353,8 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex("companies", "company", "1")
+            client().prepareIndex("companies")
+                .setId("1")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("name", "company 1")
@@ -361,7 +369,8 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
                         .endArray()
                         .endObject()
                 ),
-            client().prepareIndex("companies", "company", "2")
+            client().prepareIndex("companies")
+                .setId("2")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("name", "company 2")
@@ -385,7 +394,8 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
                         .endArray()
                         .endObject()
                 ),
-            client().prepareIndex("companies", "company", "3")
+            client().prepareIndex("companies")
+                .setId("3")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("name", "company 3")
@@ -408,7 +418,8 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
                         .endArray()
                         .endObject()
                 ),
-            client().prepareIndex("companies", "company", "4")
+            client().prepareIndex("companies")
+                .setId("4")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("name", "company 4")
@@ -588,7 +599,7 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
         XContentBuilder source = JsonXContent.contentBuilder().startObject().field("pin", Geohash.stringEncode(lon, lat)).endObject();
 
         assertAcked(prepareCreate("locations").setSettings(settings).addMapping("location", mapping));
-        client().prepareIndex("locations", "location", "1").setCreate(true).setSource(source).get();
+        client().prepareIndex("locations").setId("1").setCreate(true).setSource(source).get();
         refresh();
         client().prepareGet("locations", "1").get();
 
@@ -612,7 +623,8 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test2"));
         ensureGreen();
 
-        client().prepareIndex("test1", "type1", "1")
+        client().prepareIndex("test1")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .array("names", "Times Square", "Tribeca")
@@ -632,7 +644,8 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
             )
             .get();
 
-        client().prepareIndex("test2", "type1", "2")
+        client().prepareIndex("test2")
+            .setId("2")
             .setSource(jsonBuilder().startObject().array("names", "Wall Street", "Soho").endObject())
             .get();
 

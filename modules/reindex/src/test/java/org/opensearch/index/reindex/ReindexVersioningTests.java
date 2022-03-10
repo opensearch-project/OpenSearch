@@ -127,7 +127,7 @@ public class ReindexVersioningTests extends ReindexTestCase {
     private void setupSourceAbsent() throws Exception {
         indexRandom(
             true,
-            client().prepareIndex("source", "_doc", "test").setVersionType(EXTERNAL).setVersion(SOURCE_VERSION).setSource("foo", "source")
+            client().prepareIndex("source").setId("test").setVersionType(EXTERNAL).setVersion(SOURCE_VERSION).setSource("foo", "source")
         );
 
         assertEquals(SOURCE_VERSION, client().prepareGet("source", "test").get().getVersion());
@@ -137,7 +137,7 @@ public class ReindexVersioningTests extends ReindexTestCase {
         setupSourceAbsent();
         indexRandom(
             true,
-            client().prepareIndex("dest", "_doc", "test").setVersionType(EXTERNAL).setVersion(version).setSource("foo", "dest")
+            client().prepareIndex("dest").setId("test").setVersionType(EXTERNAL).setVersion(version).setSource("foo", "dest")
         );
 
         assertEquals(version, client().prepareGet("dest", "test").get().getVersion());

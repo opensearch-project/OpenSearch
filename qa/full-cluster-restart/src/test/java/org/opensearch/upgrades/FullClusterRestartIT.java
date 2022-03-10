@@ -1335,45 +1335,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
-    public void testRecoveryWithTranslogRetentionDisabled() throws Exception {
-        if (isRunningAgainstOldCluster()) {
-            final Settings.Builder settings = Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
-            if (minimumNodeVersion().before(Version.V_2_0_0)) {
-                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
-            }
-            if (randomBoolean()) {
-                settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1");
-            }
-            if (randomBoolean()) {
-                settings.put(IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING.getKey(), "1kb");
-            }
-            createIndex(index, settings.build());
-            ensureGreen(index);
-            int numDocs = randomIntBetween(0, 100);
-            for (int i = 0; i < numDocs; i++) {
-                indexDocument(Integer.toString(i));
-                if (rarely()) {
-                    flush(index, randomBoolean());
-                }
-            }
-            client().performRequest(new Request("POST", "/" + index + "/_refresh"));
-            if (randomBoolean()) {
-                ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
-            }
-            if (randomBoolean()) {
-                flush(index, randomBoolean());
-            } else if (randomBoolean()) {
-                syncedFlush(index, randomBoolean());
-            }
-            saveInfoDocument("doc_count", Integer.toString(numDocs));
-        }
-        ensureGreen(index);
-        final int numDocs = Integer.parseInt(loadInfoDocument("doc_count"));
-        assertTotalHits(numDocs, entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
-    }
-
     public void testResize() throws Exception {
         int numDocs;
         if (isRunningAgainstOldCluster()) {

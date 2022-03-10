@@ -47,17 +47,16 @@ public class GenericStoreDynamicTemplateTests extends OpenSearchSingleNodeTestCa
     public void testSimple() throws Exception {
         String mapping = copyToStringFromClasspath("/org/opensearch/index/mapper/dynamictemplate/genericstore/test-mapping.json");
         IndexService index = createIndex("test");
-        client().admin().indices().preparePutMapping("test").setType("person").setSource(mapping, XContentType.JSON).get();
+        client().admin().indices().preparePutMapping("test").setSource(mapping, XContentType.JSON).get();
 
         MapperService mapperService = index.mapperService();
 
         byte[] json = copyToBytesFromClasspath("/org/opensearch/index/mapper/dynamictemplate/genericstore/test-data.json");
         ParsedDocument parsedDoc = mapperService.documentMapper()
-            .parse(new SourceToParse("test", "person", "1", new BytesArray(json), XContentType.JSON));
+            .parse(new SourceToParse("test", MapperService.SINGLE_MAPPING_NAME, "1", new BytesArray(json), XContentType.JSON));
         client().admin()
             .indices()
             .preparePutMapping("test")
-            .setType("person")
             .setSource(parsedDoc.dynamicMappingsUpdate().toString(), XContentType.JSON)
             .get();
         Document doc = parsedDoc.rootDoc();

@@ -1096,7 +1096,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             // remove local node reference
             masterClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null, namedWriteableRegistry);
             Map<String, Object> masterStateMap = convertToMap(masterClusterState);
-            int masterClusterStateSize = ClusterState.Builder.toBytes(masterClusterState).length;
+            int masterClusterStateSize = masterClusterState.toString().length();
             String masterId = masterClusterState.nodes().getMasterNodeId();
             for (Client client : cluster().getClients()) {
                 ClusterState localClusterState = client.admin().cluster().prepareState().all().setLocal(true).get().getState();
@@ -1104,7 +1104,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 // remove local node reference
                 localClusterState = ClusterState.Builder.fromBytes(localClusterStateBytes, null, namedWriteableRegistry);
                 final Map<String, Object> localStateMap = convertToMap(localClusterState);
-                final int localClusterStateSize = ClusterState.Builder.toBytes(localClusterState).length;
+                final int localClusterStateSize = localClusterState.toString().length();
                 // Check that the non-master node has the same version of the cluster state as the master and
                 // that the master node matches the master (otherwise there is no requirement for the cluster state to match)
                 if (masterClusterState.version() == localClusterState.version()
@@ -1112,7 +1112,10 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                     try {
                         assertEquals("cluster state UUID does not match", masterClusterState.stateUUID(), localClusterState.stateUUID());
                         // We cannot compare serialization bytes since serialization order of maps is not guaranteed
-                        // but we can compare serialization sizes - they should be the same
+                        // We also cannot compare byte array size because CompressedXContent's DeflateCompressor uses
+                        // a synced flush that can affect the size of the compressed byte array
+                        // (see: DeflateCompressedXContentTests#testDifferentCompressedRepresentation for an example)
+                        // instead we compare the string length of cluster state - they should be the same
                         assertEquals("cluster state size does not match", masterClusterStateSize, localClusterStateSize);
                         // Compare JSON serialization
                         assertNull(
@@ -1331,8 +1334,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      *   client().prepareIndex(index, type).setSource(source).execute().actionGet();
      * </pre>
      */
+    @Deprecated
     protected final IndexResponse index(String index, String type, XContentBuilder source) {
-        return client().prepareIndex(index, type).setSource(source).execute().actionGet();
+        return client().prepareIndex(index).setSource(source).execute().actionGet();
     }
 
     /**
@@ -1342,7 +1346,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * </pre>
      */
     protected final IndexResponse index(String index, String type, String id, Map<String, Object> source) {
-        return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+        return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
     /**
@@ -1351,8 +1355,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      *   return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
      * </pre>
      */
+    @Deprecated
     protected final IndexResponse index(String index, String type, String id, XContentBuilder source) {
-        return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+        return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
     /**
@@ -1361,8 +1366,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      *   return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
      * </pre>
      */
+    @Deprecated
     protected final IndexResponse index(String index, String type, String id, Object... source) {
-        return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+        return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
     /**
@@ -1373,8 +1379,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * <p>
      * where source is a JSON String.
      */
+    @Deprecated
     protected final IndexResponse index(String index, String type, String id, String source) {
-        return client().prepareIndex(index, type, id).setSource(source, XContentType.JSON).execute().actionGet();
+        return client().prepareIndex(index).setId(id).setSource(source, XContentType.JSON).execute().actionGet();
     }
 
     /**
@@ -1605,7 +1612,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 assertEquals(
                     "failed to delete a dummy doc [" + doc.get(0) + "][" + doc.get(1) + "]",
                     DocWriteResponse.Result.DELETED,
-                    client().prepareDelete(doc.get(0), null, doc.get(1)).setRouting(doc.get(1)).get().getResult()
+                    client().prepareDelete(doc.get(0), doc.get(1)).setRouting(doc.get(1)).get().getResult()
                 );
             }
         }

@@ -152,11 +152,11 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
             .endObject();
         mappings.endObject();
         assertAcked(prepareCreate("test").addMapping("type", mappings));
-        client().prepareIndex("test", "_doc")
+        client().prepareIndex("test")
             .setId("1")
             .setSource(jsonBuilder().startObject().array("tags", "foo bar", "foo bar", "foo bar", "foo baz").field("sort", 1).endObject())
             .get();
-        client().prepareIndex("test", "_doc")
+        client().prepareIndex("test")
             .setId("2")
             .setSource(jsonBuilder().startObject().array("tags", "foo baz", "foo baz", "foo baz", "foo bar").field("sort", 2).endObject())
             .get();
@@ -187,7 +187,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
             .endObject();
         mappings.endObject();
         assertAcked(prepareCreate("test").addMapping("type", mappings));
-        client().prepareIndex("test", "type", "1").setSource(jsonBuilder().startObject().field("text", "foo").endObject()).get();
+        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("text", "foo").endObject()).get();
         refresh();
         SearchResponse search = client().prepareSearch()
             .setQuery(matchQuery("text", "foo"))
@@ -212,7 +212,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
             .endObject();
         mappings.endObject();
         assertAcked(prepareCreate("test").addMapping("type", mappings));
-        client().prepareIndex("test", "type", "1").setSource(jsonBuilder().startObject().field("text", "text").endObject()).get();
+        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("text", "text").endObject()).get();
         refresh();
         for (String type : ALL_TYPES) {
             SearchResponse search = client().prepareSearch()
@@ -241,7 +241,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
             .endObject();
         assertAcked(prepareCreate("test").addMapping("type", mappings));
 
-        client().prepareIndex("test", "type", "1").setSource("text", "foo").get();
+        client().prepareIndex("test").setId("1").setSource("text", "foo").get();
         refresh();
 
         for (String type : ALL_TYPES) {
@@ -271,7 +271,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
             .endObject();
         assertAcked(prepareCreate("test").addMapping("type", mappings));
 
-        client().prepareIndex("test", "type", "1").setSource("text", "foo bar").get();
+        client().prepareIndex("test").setId("1").setSource("text", "foo bar").get();
         refresh();
 
         for (String type : ALL_TYPES) {
@@ -298,7 +298,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
             .endObject();
         assertAcked(prepareCreate("test").addMapping("type", mappings));
 
-        client().prepareIndex("test", "type", "1").setSource("keyword", "foo").get();
+        client().prepareIndex("test").setId("1").setSource("keyword", "foo").get();
         refresh();
 
         HighlightBuilder builder = new HighlightBuilder().field(new Field("al*")).requireFieldMatch(false);
@@ -330,7 +330,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
             .endObject();
         mappings.endObject();
         assertAcked(prepareCreate("test").addMapping("type", mappings));
-        client().prepareIndex("test", "type", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(jsonBuilder().startObject().field("unstored_text", "text").field("text", "text").endObject())
             .get();
         refresh();
@@ -358,7 +359,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < 6000; i++) {
             builder.append("abc").append(" ");
         }
-        client().prepareIndex("test", "test", "1").setSource("name", builder.toString()).get();
+        client().prepareIndex("test").setId("1").setSource("name", builder.toString()).get();
         refresh();
         SearchResponse search = client().prepareSearch()
             .setQuery(constantScoreQuery(matchQuery("name", "abc")))
@@ -378,7 +379,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
             )
         );
 
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 "no_long_term",
                 "This is a test where foo is highlighed and should be highlighted",
@@ -437,7 +439,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < indexRequestBuilders.length; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
+            indexRequestBuilders[i] = client().prepareIndex("test")
+                .setId(Integer.toString(i))
                 .setSource(
                     XContentFactory.jsonBuilder()
                         .startObject()
@@ -506,7 +509,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < indexRequestBuilders.length; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
+            indexRequestBuilders[i] = client().prepareIndex("test")
+                .setId(Integer.toString(i))
                 .setSource(
                     XContentFactory.jsonBuilder()
                         .startObject()
@@ -575,7 +579,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < indexRequestBuilders.length; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
+            indexRequestBuilders[i] = client().prepareIndex("test")
+                .setId(Integer.toString(i))
                 .setSource(
                     XContentFactory.jsonBuilder()
                         .startObject()
@@ -654,12 +659,11 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         );
 
         String[] titles = new String[] { "This is a test on the highlighting bug present in opensearch", "The bug is bugging us" };
-        indexRandom(false, client().prepareIndex("test", "type1", "1").setSource("title", titles, "titleTV", titles));
+        indexRandom(false, client().prepareIndex("test").setId("1").setSource("title", titles, "titleTV", titles));
 
         indexRandom(
             true,
-            client().prepareIndex("test", "type1", "2")
-                .setSource("titleTV", new String[] { "some text to highlight", "highlight other text" })
+            client().prepareIndex("test").setId("2").setSource("titleTV", new String[] { "some text to highlight", "highlight other text" })
         );
 
         SearchResponse search = client().prepareSearch()
@@ -685,7 +689,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        client().prepareIndex("test", "type1")
+        client().prepareIndex("test")
             .setSource(
                 "field1",
                 new String[] { "this is a test", "this is the second test" },
@@ -734,7 +738,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         );
         ensureGreen();
 
-        client().prepareIndex("test", "type1")
+        client().prepareIndex("test")
             .setSource(
                 "field-postings",
                 "This is the first test sentence. Here is the second one.",
@@ -793,7 +797,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
         ensureGreen();
 
-        client().prepareIndex("test", "type1")
+        client().prepareIndex("test")
             .setSource("field1", "The quick brown fox jumps over the lazy dog", "field2", "second field content")
             .get();
         refresh();
@@ -835,9 +839,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     public void testPlainHighlighter() throws Exception {
         ensureGreen();
 
-        client().prepareIndex("test", "type1")
-            .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog")
-            .get();
+        client().prepareIndex("test").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog").get();
         refresh();
 
         logger.info("--> highlighting and searching on field1");
@@ -856,8 +858,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex("test", "type1")
-                .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog")
+            client().prepareIndex("test").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog")
         );
 
         logger.info("--> highlighting and searching on field1");
@@ -891,7 +892,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex("test", "type1").setSource("field1", "A sentence with few words. Another sentence with even more words.")
+            client().prepareIndex("test").setSource("field1", "A sentence with few words. Another sentence with even more words.")
         );
 
         for (String type : new String[] { "unified", "fvh" }) {
@@ -932,7 +933,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex("test", "type1").setSource("field1", "A sentence with few words. Another sentence with even more words.")
+            client().prepareIndex("test").setSource("field1", "A sentence with few words. Another sentence with even more words.")
         );
 
         for (String type : new String[] { "fvh", "unified" }) {
@@ -973,10 +974,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
         ensureGreen();
 
-        indexRandom(
-            true,
-            client().prepareIndex("test", "type1").setSource("field1", "some quick and hairy brown:fox jumped over the lazy dog")
-        );
+        indexRandom(true, client().prepareIndex("test").setSource("field1", "some quick and hairy brown:fox jumped over the lazy dog"));
 
         logger.info("--> highlighting and searching on 'field' with word boundary_scanner");
         for (String type : new String[] { "unified", "fvh" }) {
@@ -1006,10 +1004,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
         ensureGreen();
 
-        indexRandom(
-            true,
-            client().prepareIndex("test", "type1").setSource("field1", "some quick and hairy brown:fox jumped over the lazy dog")
-        );
+        indexRandom(true, client().prepareIndex("test").setSource("field1", "some quick and hairy brown:fox jumped over the lazy dog"));
 
         for (String type : new String[] { "unified", "fvh" }) {
             SearchSourceBuilder source = searchSource().query(termQuery("field1", "some"))
@@ -1046,7 +1041,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         // Index one megabyte of "t " over and over and over again
         String pattern = "t   ";
         String value = new String(new char[1024 * 256 / pattern.length()]).replace("\0", pattern);
-        client().prepareIndex("test", "type1").setSource("field1", value).get();
+        client().prepareIndex("test").setSource("field1", value).get();
         refresh();
 
         logger.info("--> highlighting and searching on field1 with default phrase limit");
@@ -1282,7 +1277,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         int COUNT = between(20, 100);
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[COUNT];
         for (int i = 0; i < COUNT; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field1", "test " + i);
+            indexRequestBuilders[i] = client().prepareIndex("test").setId(Integer.toString(i)).setSource("field1", "test " + i);
         }
         logger.info("--> indexing docs");
         indexRandom(true, indexRequestBuilders);
@@ -1323,7 +1318,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < 5; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
+            indexRequestBuilders[i] = client().prepareIndex("test")
+                .setId(Integer.toString(i))
                 .setSource("title", "This is a test on the highlighting bug present in opensearch");
         }
         indexRandom(true, indexRequestBuilders);
@@ -1350,7 +1346,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < 5; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
+            indexRequestBuilders[i] = client().prepareIndex("test")
+                .setId(Integer.toString(i))
                 .setSource("title", "This is a test on the highlighting bug present in opensearch");
         }
         indexRandom(true, indexRequestBuilders);
@@ -1371,7 +1368,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < indexRequestBuilders.length; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
+            indexRequestBuilders[i] = client().prepareIndex("test")
+                .setId(Integer.toString(i))
                 .setSource("title", "This is a html escaping highlighting test for *&? opensearch");
         }
         indexRandom(true, indexRequestBuilders);
@@ -1391,7 +1389,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < 5; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
+            indexRequestBuilders[i] = client().prepareIndex("test")
+                .setId(Integer.toString(i))
                 .setSource("title", "This is a html escaping highlighting test for *&? opensearch");
         }
         indexRandom(true, indexRequestBuilders);
@@ -1433,7 +1432,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
             )
         );
         ensureGreen();
-        client().prepareIndex("test", "type1", "1").setSource("title", "this is a test").get();
+        client().prepareIndex("test").setId("1").setSource("title", "this is a test").get();
         refresh();
 
         // simple search on body with standard analyzer with a simple field query
@@ -1481,7 +1480,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         );
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource("title", "this is a test").get();
+        client().prepareIndex("test").setId("1").setSource("title", "this is a test").get();
         refresh();
 
         // simple search on body with standard analyzer with a simple field query
@@ -1529,7 +1528,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         );
 
         ensureGreen();
-        client().prepareIndex("test", "type1", "1").setSource("title", "this is a test").get();
+        client().prepareIndex("test").setId("1").setSource("title", "this is a test").get();
         refresh();
 
         // simple search on body with standard analyzer with a simple field query
@@ -1576,7 +1575,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
             )
         );
         ensureGreen();
-        client().prepareIndex("test", "type1", "1").setSource("title", "this is a test").get();
+        client().prepareIndex("test").setId("1").setSource("title", "this is a test").get();
         refresh();
 
         // simple search on body with standard analyzer with a simple field query
@@ -1602,7 +1601,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < 5; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
+            indexRequestBuilders[i] = client().prepareIndex("test")
+                .setId(Integer.toString(i))
                 .setSource("title", "This is a test for the enabling fast vector highlighter");
         }
         indexRandom(true, indexRequestBuilders);
@@ -1640,7 +1640,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < indexRequestBuilders.length; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
+            indexRequestBuilders[i] = client().prepareIndex("test")
+                .setId(Integer.toString(i))
                 .setSource("title", "This is a test for the workaround for the fast vector highlighting SOLR-3724");
         }
         indexRandom(true, indexRequestBuilders);
@@ -1695,7 +1696,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     public void testFSHHighlightAllMvFragments() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type1", "tags", "type=text,term_vector=with_positions_offsets"));
         ensureGreen();
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 "tags",
                 new String[] {
@@ -1724,9 +1726,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     public void testBoostingQuery() {
         createIndex("test");
         ensureGreen();
-        client().prepareIndex("test", "type1")
-            .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog")
-            .get();
+        client().prepareIndex("test").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog").get();
         refresh();
 
         logger.info("--> highlighting and searching on field1");
@@ -1742,9 +1742,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     public void testBoostingQueryTermVector() throws IOException {
         assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
         ensureGreen();
-        client().prepareIndex("test", "type1")
-            .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog")
-            .get();
+        client().prepareIndex("test").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog").get();
         refresh();
 
         logger.info("--> highlighting and searching on field1");
@@ -1761,9 +1759,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        client().prepareIndex("test", "type1")
-            .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog")
-            .get();
+        client().prepareIndex("test").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog").get();
         refresh();
 
         logger.info("--> highlighting and searching on field1");
@@ -1778,9 +1774,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
         ensureGreen();
 
-        client().prepareIndex("test", "type1")
-            .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog")
-            .get();
+        client().prepareIndex("test").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog").get();
         refresh();
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource().query(commonTermsQuery("field2", "quick brown").cutoffFrequency(100))
@@ -1794,7 +1788,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     public void testPlainHighlightDifferentFragmenter() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type1", "tags", "type=text"));
         ensureGreen();
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .array(
@@ -1905,7 +1900,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     public void testMissingStoredField() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type1", "highlight_field", "type=text,store=true"));
         ensureGreen();
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "highlight").endObject()).get();
+        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("field", "highlight").endObject()).get();
         refresh();
 
         // This query used to fail when the field to highlight was absent
@@ -1943,7 +1938,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         );
         ensureGreen();
 
-        client().prepareIndex("test", "test", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource("text", "opensearch test", "byte", 25, "short", 42, "int", 100, "long", -1, "float", 3.2f, "double", 42.42)
             .get();
         refresh();
@@ -1967,7 +1963,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
             ).addMapping("type", "text", "type=text,analyzer=my_analyzer")
         );
         ensureGreen();
-        client().prepareIndex("test", "type", "1").setSource("text", "opensearch test").get();
+        client().prepareIndex("test").setId("1").setSource("text", "opensearch test").get();
         refresh();
 
         SearchResponse response = client().prepareSearch("test")
@@ -2286,7 +2282,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
         ensureGreen();
 
-        client().prepareIndex("test", "type1")
+        client().prepareIndex("test")
             .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy quick dog")
             .get();
         refresh();
@@ -2379,7 +2375,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 "field1",
                 "The quick brown fox jumps over the lazy dog. The lazy red fox jumps over the quick dog. "
@@ -2411,7 +2408,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         );
         assertHighlight(searchResponse, 0, "field1", 1, 2, equalTo("The quick brown dog jumps over the lazy <field1>fox</field1>."));
 
-        client().prepareIndex("test", "type1", "2")
+        client().prepareIndex("test")
+            .setId("2")
             .setSource(
                 "field1",
                 new String[] {
@@ -2477,7 +2475,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
             .endObject();
         assertAcked(prepareCreate("test").addMapping("type1", mapping));
         ensureGreen();
-        client().prepareIndex("test", "type1")
+        client().prepareIndex("test")
             .setSource("field1", "The quick brown fox jumps over", "field2", "The quick brown fox jumps over")
             .get();
         refresh();
@@ -2513,7 +2511,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
         ensureGreen();
 
-        client().prepareIndex("test", "type1")
+        client().prepareIndex("test")
             .setSource(
                 "field1",
                 new String[] {
@@ -2563,7 +2561,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < 5; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
+            indexRequestBuilders[i] = client().prepareIndex("test")
+                .setId(Integer.toString(i))
                 .setSource("title", "This is a html escaping highlighting test for *&? opensearch");
         }
         indexRandom(true, indexRequestBuilders);
@@ -2612,7 +2611,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
             )
         );
         ensureGreen();
-        client().prepareIndex("test", "type1", "1").setSource("title", "this is a test . Second sentence.").get();
+        client().prepareIndex("test").setId("1").setSource("title", "this is a test . Second sentence.").get();
         refresh();
 
         // simple search on body with standard analyzer with a simple field query
@@ -2673,7 +2672,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         );
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource("title", "this is a test").get();
+        client().prepareIndex("test").setId("1").setSource("title", "this is a test").get();
         refresh();
 
         // simple search on body with standard analyzer with a simple field query
@@ -2714,7 +2713,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < indexRequestBuilders.length; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
+            indexRequestBuilders[i] = client().prepareIndex("test")
+                .setId(Integer.toString(i))
                 .setSource("title", "This is a test for the postings highlighter");
         }
         indexRandom(true, indexRequestBuilders);
@@ -2729,7 +2729,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     public void testPostingsHighlighterBoostingQuery() throws IOException {
         assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
         ensureGreen();
-        client().prepareIndex("test", "type1")
+        client().prepareIndex("test")
             .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog! Second sentence.")
             .get();
         refresh();
@@ -2747,7 +2747,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
         ensureGreen();
 
-        client().prepareIndex("test", "type1")
+        client().prepareIndex("test")
             .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog! Second sentence.")
             .get();
         refresh();
@@ -2790,7 +2790,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
         ensureGreen();
 
-        client().prepareIndex("test", "type1")
+        client().prepareIndex("test")
             .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog! Second sentence.")
             .get();
         refresh();
@@ -2812,7 +2812,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
         ensureGreen();
 
-        client().prepareIndex("test", "type1")
+        client().prepareIndex("test")
             .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog! Second sentence.")
             .get();
         refresh();
@@ -2835,7 +2835,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
         ensureGreen();
 
-        client().prepareIndex("test", "type1")
+        client().prepareIndex("test")
             .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog! Second sentence.")
             .get();
         refresh();
@@ -2858,7 +2858,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
         ensureGreen();
 
-        client().prepareIndex("test", "type1")
+        client().prepareIndex("test")
             .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog! Second sentence.")
             .get();
         refresh();
@@ -2894,7 +2894,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
         ensureGreen();
 
-        client().prepareIndex("test", "type1").setSource("field1", "this is a test", "field2", "aaab").get();
+        client().prepareIndex("test").setSource("field1", "this is a test", "field2", "aaab").get();
         refresh();
 
         logger.info("--> highlighting and searching on field2");
@@ -2909,7 +2909,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
         ensureGreen();
 
-        client().prepareIndex("test", "type1")
+        client().prepareIndex("test")
             .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog! Second sentence.")
             .get();
         refresh();
@@ -2932,7 +2932,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
         ensureGreen();
 
-        client().prepareIndex("test", "type1").setSource("field1", "The photography word will get highlighted").get();
+        client().prepareIndex("test").setSource("field1", "The photography word will get highlighted").get();
         refresh();
 
         logger.info("--> highlighting and searching on field1");
@@ -2946,7 +2946,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
         ensureGreen();
 
-        client().prepareIndex("test", "type1").setSource("field1", "The photography word will get highlighted").get();
+        client().prepareIndex("test").setSource("field1", "The photography word will get highlighted").get();
         refresh();
 
         logger.info("--> highlighting and searching on field1");
@@ -2963,7 +2963,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
         ensureGreen();
 
-        client().prepareIndex("test", "type1").setSource("field1", "The photography word will get highlighted").get();
+        client().prepareIndex("test").setSource("field1", "The photography word will get highlighted").get();
         refresh();
 
         logger.info("--> highlighting and searching on field1");
@@ -2978,7 +2978,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
         ensureGreen();
 
-        client().prepareIndex("test", "type1").setSource("field1", "The photography word will get highlighted").get();
+        client().prepareIndex("test").setSource("field1", "The photography word will get highlighted").get();
         refresh();
 
         logger.info("--> highlighting and searching on field1");
@@ -3002,7 +3002,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
             // (https://github.com/elastic/elasticsearch/issues/4103)
             String prefix = randomAlphaOfLengthBetween(5, 30);
             prefixes.put(String.valueOf(i), prefix);
-            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
+            indexRequestBuilders[i] = client().prepareIndex("test")
+                .setId(Integer.toString(i))
                 .setSource("field1", "Sentence " + prefix + " test. Sentence two.");
         }
         logger.info("--> indexing docs");
@@ -3038,7 +3039,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("typename", mapping));
         ensureGreen();
 
-        indexRandom(true, client().prepareIndex("test", "typename").setSource("foo", "test typename"));
+        indexRandom(true, client().prepareIndex("test").setSource("foo", "test typename"));
 
         for (String highlighter : ALL_TYPES) {
             SearchResponse response = client().prepareSearch("test")
@@ -3066,7 +3067,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         assertAcked(client().admin().indices().prepareAliases().addAlias("test", "filtered_alias", matchQuery("foo", "japanese")));
         ensureGreen();
 
-        indexRandom(true, client().prepareIndex("test", "typename").setSource("foo", "test japanese"));
+        indexRandom(true, client().prepareIndex("test").setSource("foo", "test japanese"));
 
         for (String highlighter : ALL_TYPES) {
             SearchResponse response = client().prepareSearch("filtered_alias")
@@ -3189,7 +3190,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         mappings.endObject();
         assertAcked(prepareCreate("test").addMapping("type", mappings));
 
-        client().prepareIndex("test", "type", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(jsonBuilder().startObject().field("text", "Arbitrary text field which will should not cause a failure").endObject())
             .get();
         refresh();
@@ -3229,7 +3231,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("jobs", mappings));
         ensureYellow();
 
-        client().prepareIndex("test", "jobs", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("jd", "some आवश्यकता है- आर्य समाज अनाथालय, 68 सिविल लाइन्स, बरेली को एक पुरूष" + " रस text")
@@ -3267,7 +3270,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         mappings.endObject();
         assertAcked(prepareCreate("test").addMapping("type", mappings));
 
-        client().prepareIndex("test", "type", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(jsonBuilder().startObject().field("keyword_field", "some text").endObject())
             .get();
         refresh();
@@ -3310,7 +3314,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         );
         prepareCreate("test").addMapping("type", mapping, XContentType.JSON).get();
 
-        client().prepareIndex("test", "type", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .startArray("foo")
@@ -3338,7 +3343,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testFunctionScoreQueryHighlight() throws Exception {
-        client().prepareIndex("test", "type", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(jsonBuilder().startObject().field("text", "brown").endObject())
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
@@ -3354,7 +3360,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testFiltersFunctionScoreQueryHighlight() throws Exception {
-        client().prepareIndex("test", "type", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(jsonBuilder().startObject().field("text", "brown").field("enable", "yes").endObject())
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
@@ -3391,9 +3398,9 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         DateFormatter formatter = DateFormatter.forPattern("strict_date_optional_time");
         indexRandom(
             true,
-            client().prepareIndex("index-1", "type", "1").setSource("d", formatter.format(now), "field", "hello world"),
-            client().prepareIndex("index-1", "type", "2").setSource("d", formatter.format(now.minusDays(1)), "field", "hello"),
-            client().prepareIndex("index-1", "type", "3").setSource("d", formatter.format(now.minusDays(2)), "field", "world")
+            client().prepareIndex("index-1").setId("1").setSource("d", formatter.format(now), "field", "hello world"),
+            client().prepareIndex("index-1").setId("2").setSource("d", formatter.format(now.minusDays(1)), "field", "hello"),
+            client().prepareIndex("index-1").setId("3").setSource("d", formatter.format(now.minusDays(2)), "field", "world")
         );
         ensureSearchable("index-1");
         for (int i = 0; i < 5; i++) {
@@ -3438,7 +3445,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         );
         prepareCreate("test").addMapping("type", mapping, XContentType.JSON).get();
 
-        client().prepareIndex("test", "type", "1")
+        client().prepareIndex("test")
+            .setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .startArray("foo")
@@ -3508,7 +3516,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         );
         ensureGreen();
 
-        client().prepareIndex("test", "doc", "0")
+        client().prepareIndex("test")
+            .setId("0")
             .setSource("keyword", "Hello World")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
@@ -3529,7 +3538,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("doc", "keyword", "type=keyword"));
         ensureGreen();
 
-        client().prepareIndex("test", "doc", "d33f85bf1e51e84d9ab38948db9f3a068e1fe5294f1d8603914ac8c7bcc39ca1")
+        client().prepareIndex("test")
+            .setId("d33f85bf1e51e84d9ab38948db9f3a068e1fe5294f1d8603914ac8c7bcc39ca1")
             .setSource("keyword", "Hello World")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();

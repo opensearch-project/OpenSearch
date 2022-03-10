@@ -42,7 +42,6 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.rest.BaseRestHandler;
@@ -89,9 +88,6 @@ public class RestSearchAction extends BaseRestHandler {
         RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }
 
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchAction.class);
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" + " Specifying types in search requests is deprecated.";
-
     @Override
     public String getName() {
         return "search_action";
@@ -104,10 +100,7 @@ public class RestSearchAction extends BaseRestHandler {
                 new Route(GET, "/_search"),
                 new Route(POST, "/_search"),
                 new Route(GET, "/{index}/_search"),
-                new Route(POST, "/{index}/_search"),
-                // Deprecated typed endpoints.
-                new Route(GET, "/{index}/{type}/_search"),
-                new Route(POST, "/{index}/{type}/_search")
+                new Route(POST, "/{index}/_search")
             )
         );
     }

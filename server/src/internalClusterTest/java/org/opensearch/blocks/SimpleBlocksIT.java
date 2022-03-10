@@ -162,7 +162,7 @@ public class SimpleBlocksIT extends OpenSearchIntegTestCase {
 
     private void canIndexDocument(String index) {
         try {
-            IndexRequestBuilder builder = client().prepareIndex(index, "zzz");
+            IndexRequestBuilder builder = client().prepareIndex(index);
             builder.setSource("foo", "bar");
             IndexResponse r = builder.execute().actionGet();
             assertThat(r, notNullValue());
@@ -173,7 +173,7 @@ public class SimpleBlocksIT extends OpenSearchIntegTestCase {
 
     private void canNotIndexDocument(String index) {
         try {
-            IndexRequestBuilder builder = client().prepareIndex(index, "zzz");
+            IndexRequestBuilder builder = client().prepareIndex(index);
             builder.setSource("foo", "bar");
             builder.execute().actionGet();
             fail();
@@ -306,7 +306,7 @@ public class SimpleBlocksIT extends OpenSearchIntegTestCase {
             false,
             randomBoolean(),
             IntStream.range(0, nbDocs)
-                .mapToObj(i -> client().prepareIndex(indexName, "zzz").setId(String.valueOf(i)).setSource("num", i))
+                .mapToObj(i -> client().prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i))
                 .collect(toList())
         );
 
@@ -332,7 +332,7 @@ public class SimpleBlocksIT extends OpenSearchIntegTestCase {
                 false,
                 randomBoolean(),
                 IntStream.range(0, randomIntBetween(1, 10))
-                    .mapToObj(i -> client().prepareIndex(indexName, "zzz").setId(String.valueOf(i)).setSource("num", i))
+                    .mapToObj(i -> client().prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i))
                     .collect(toList())
             );
         }
@@ -378,7 +378,7 @@ public class SimpleBlocksIT extends OpenSearchIntegTestCase {
             false,
             randomBoolean(),
             IntStream.range(0, nbDocs)
-                .mapToObj(i -> client().prepareIndex(indexName, "zzz").setId(String.valueOf(i)).setSource("num", i))
+                .mapToObj(i -> client().prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i))
                 .collect(toList())
         );
         ensureYellowAndNoInitializingShards(indexName);
@@ -460,7 +460,7 @@ public class SimpleBlocksIT extends OpenSearchIntegTestCase {
                     false,
                     randomBoolean(),
                     IntStream.range(0, 10)
-                        .mapToObj(n -> client().prepareIndex(indexName, "zzz").setId(String.valueOf(n)).setSource("num", n))
+                        .mapToObj(n -> client().prepareIndex(indexName).setId(String.valueOf(n)).setSource("num", n))
                         .collect(toList())
                 );
             }

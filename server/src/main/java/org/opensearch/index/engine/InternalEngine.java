@@ -77,6 +77,7 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.LoggerInfoStream;
 import org.opensearch.common.lucene.Lucene;
@@ -108,11 +109,10 @@ import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.OpenSearchMergePolicy;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.index.store.Store;
+import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogCorruptedException;
-import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.search.suggest.completion.CompletionStats;
@@ -121,7 +121,6 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -258,7 +257,7 @@ public class InternalEngine extends Engine {
             mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
             throttle = new IndexThrottle();
             try {
-                trimUnsafeCommits(engineConfig);
+                store.trimUnsafeCommits(engineConfig.getTranslogConfig().getTranslogPath());
                 translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier(), seqNo -> {
                     final LocalCheckpointTracker tracker = getLocalCheckpointTracker();
                     assert tracker != null || getTranslog().isOpen() == false;
@@ -2257,7 +2256,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public IndexCommitRef acquireLastIndexCommit(final boolean flushFirst) throws EngineException {
+    public GatedCloseable<IndexCommit> acquireLastIndexCommit(final boolean flushFirst) throws EngineException {
         // we have to flush outside of the readlock otherwise we might have a problem upgrading
         // the to a write lock when we fail the engine in this operation
         if (flushFirst) {
@@ -2266,7 +2265,7 @@ public class InternalEngine extends Engine {
             logger.trace("finish flush for snapshot");
         }
         final IndexCommit lastCommit = combinedDeletionPolicy.acquireIndexCommit(false);
-        return new Engine.IndexCommitRef(lastCommit, () -> releaseIndexCommit(lastCommit));
+        return new GatedCloseable<>(lastCommit, () -> releaseIndexCommit(lastCommit));
     }
 
     @Override
@@ -2299,9 +2298,9 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public IndexCommitRef acquireSafeIndexCommit() throws EngineException {
+    public GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException {
         final IndexCommit safeCommit = combinedDeletionPolicy.acquireIndexCommit(true);
-        return new Engine.IndexCommitRef(safeCommit, () -> releaseIndexCommit(safeCommit));
+        return new GatedCloseable<>(safeCommit, () -> releaseIndexCommit(safeCommit));
     }
 
     private void releaseIndexCommit(IndexCommit snapshot) throws IOException {
@@ -3050,15 +3049,6 @@ public class InternalEngine extends Engine {
         }
         assert seqNo <= maxSeqNoOfUpdates : "id=" + id + " seq_no=" + seqNo + " msu=" + maxSeqNoOfUpdates;
         return true;
-    }
-
-    private static void trimUnsafeCommits(EngineConfig engineConfig) throws IOException {
-        final Store store = engineConfig.getStore();
-        final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
-        final Path translogPath = engineConfig.getTranslogConfig().getTranslogPath();
-        final long globalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
-        final long minRetainedTranslogGen = Translog.readMinTranslogGeneration(translogPath, translogUUID);
-        store.trimUnsafeCommits(globalCheckpoint, minRetainedTranslogGen, engineConfig.getIndexSettings().getIndexVersionCreated());
     }
 
     /**
