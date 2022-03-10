@@ -419,7 +419,13 @@ public class RestNodesAction extends AbstractCatAction {
             if (node.getRoles().isEmpty()) {
                 roles = "-";
             } else {
-                roles = node.getRoles().stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().collect(Collectors.joining());
+                // TODO: Remove '.distinct()' after removing DiscoveryNodeRole.MASTER_ROLE, because the role abbr name should be unique.
+                roles = node.getRoles()
+                    .stream()
+                    .map(DiscoveryNodeRole::roleNameAbbreviation)
+                    .sorted()
+                    .distinct()
+                    .collect(Collectors.joining());
             }
             table.addCell(roles);
             table.addCell(masterId == null ? "x" : masterId.equals(node.getId()) ? "*" : "-");
