@@ -370,7 +370,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
      * Works by tracking the current set of nodes and applying each node specification in sequence. The set starts out empty and each node
      * specification may either add or remove nodes. For instance:
      *
-     * - _local, _master and _all respectively add to the subset the local node, the currently-elected master, and all the nodes
+     * - _local, _cluster_manager (_master) and _all respectively add to the subset the local node, the currently-elected cluster_manager, and all the nodes
      * - node IDs, names, hostnames and IP addresses all add to the subset any nodes which match
      * - a wildcard-based pattern of the form "attr*:value*" adds to the subset all nodes with a matching attribute with a matching value
      * - role:true adds to the subset all nodes with a matching role
@@ -393,7 +393,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                     if (localNodeId != null) {
                         resolvedNodesIds.add(localNodeId);
                     }
-                } else if (nodeId.equals("_master")) {
+                } else if (nodeId.equals("_master") || nodeId.equals("_cluster_manager")) {
                     String masterNodeId = getMasterNodeId();
                     if (masterNodeId != null) {
                         resolvedNodesIds.add(masterNodeId);
