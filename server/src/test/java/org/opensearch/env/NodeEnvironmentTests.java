@@ -530,9 +530,7 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
             .put(
                 NodeRoles.removeRoles(
                     settings,
-                    Collections.unmodifiableSet(
-                        new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE))
-                    )
+                    Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)))
                 )
             )
             .build();
@@ -604,7 +602,7 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
         );
 
         assertThat(ex.getMessage(), containsString(indexPath.resolve(MetadataStateFormat.STATE_DIR_NAME).toAbsolutePath().toString()));
-        assertThat(ex.getMessage(), startsWith("node does not have the data and master roles but has index metadata"));
+        assertThat(ex.getMessage(), startsWith("node does not have the data and cluster_manager roles but has index metadata"));
     }
 
     /** Converts an array of Strings to an array of Paths, adding an additional child if specified */

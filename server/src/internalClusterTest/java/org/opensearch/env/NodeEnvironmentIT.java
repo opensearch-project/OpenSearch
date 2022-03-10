@@ -88,14 +88,14 @@ public class NodeEnvironmentIT extends OpenSearchIntegTestCase {
                 public Settings onNodeStopped(String nodeName) {
                     return NodeRoles.removeRoles(
                         Collections.unmodifiableSet(
-                            new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE))
+                            new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE))
                         )
                     );
                 }
             })
         );
         if (writeDanglingIndices) {
-            assertThat(ex.getMessage(), startsWith("node does not have the data and master roles but has index metadata"));
+            assertThat(ex.getMessage(), startsWith("node does not have the data and cluster_manager roles but has index metadata"));
         } else {
             assertThat(ex.getMessage(), startsWith("node does not have the data role but has shard data"));
         }
