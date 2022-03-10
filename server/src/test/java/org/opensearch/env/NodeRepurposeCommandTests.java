@@ -105,10 +105,9 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
         dataNoMasterSettings = nonMasterNode(dataMasterSettings);
         noDataNoMasterSettings = removeRoles(
             dataMasterSettings,
-            //Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)))
             Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)))
         );
-        logger.info("### noDataNoMasterSettings: "+ noDataNoMasterSettings.get("node.roles"));
+        logger.info("### noDataNoMasterSettings: " + noDataNoMasterSettings.get("node.roles"));
         noDataMasterSettings = masterNode(nonDataNode(dataMasterSettings));
     }
 
@@ -120,8 +119,8 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
     }
 
     public void testNothingToCleanup() throws Exception {
-        logger.info("### noDataNoMasterSettings: "+ noDataNoMasterSettings.get("node.roles"));
-        System.out.println("### noDataNoMasterSettings: "+ noDataNoMasterSettings.get("node.roles"));
+        logger.info("### noDataNoMasterSettings: " + noDataNoMasterSettings.get("node.roles"));
+        System.out.println("### noDataNoMasterSettings: " + noDataNoMasterSettings.get("node.roles"));
         verifyNoQuestions(noDataNoMasterSettings, containsString(NO_DATA_TO_CLEAN_UP_FOUND));
         verifyNoQuestions(noDataMasterSettings, containsString(NO_SHARD_DATA_TO_CLEAN_UP_FOUND));
 

@@ -88,7 +88,7 @@ public class NodeEnvironmentIT extends OpenSearchIntegTestCase {
                 public Settings onNodeStopped(String nodeName) {
                     return NodeRoles.removeRoles(
                         Collections.unmodifiableSet(
-                            new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE))
+                            new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE))
                         )
                     );
                 }

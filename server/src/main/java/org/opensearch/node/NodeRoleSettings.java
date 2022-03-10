@@ -49,6 +49,8 @@ public class NodeRoleSettings {
         settings -> DiscoveryNode.getPossibleRoles()
             .stream()
             .filter(role -> role.isEnabledByDefault(settings))
+            // TODO: Remove this line after removing DiscoveryNodeRole.MASTER_ROLE. As of 2.0, MASTER_ROLE isn't needed to be assigned.
+            .filter(role -> !role.equals(DiscoveryNodeRole.MASTER_ROLE))
             .map(DiscoveryNodeRole::roleName)
             .collect(Collectors.toList()),
         roles -> {},

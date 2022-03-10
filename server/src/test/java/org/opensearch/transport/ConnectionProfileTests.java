@@ -258,7 +258,9 @@ public class ConnectionProfileTests extends OpenSearchTestCase {
 
         profile = ConnectionProfile.buildDefaultConnectionProfile(
             removeRoles(
-                Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)))
+                Collections.unmodifiableSet(
+                    new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE))
+                )
             )
         );
         assertEquals(10, profile.getNumConnections());
