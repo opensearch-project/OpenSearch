@@ -32,11 +32,13 @@
 
 package org.opensearch.action.admin.indices.forcemerge;
 
+import org.apache.lucene.index.IndexCommit;
 import org.opensearch.action.admin.indices.flush.FlushResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.Index;
 import org.opensearch.index.engine.Engine;
@@ -99,8 +101,8 @@ public class ForceMergeIT extends OpenSearchIntegTestCase {
     }
 
     private static String getForceMergeUUID(IndexShard indexShard) throws IOException {
-        try (Engine.IndexCommitRef indexCommitRef = indexShard.acquireLastIndexCommit(true)) {
-            return indexCommitRef.get().getUserData().get(Engine.FORCE_MERGE_UUID_KEY);
+        try (GatedCloseable<IndexCommit> wrappedIndexCommit = indexShard.acquireLastIndexCommit(true)) {
+            return wrappedIndexCommit.get().getUserData().get(Engine.FORCE_MERGE_UUID_KEY);
         }
     }
 }

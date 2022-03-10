@@ -33,6 +33,7 @@
 package org.opensearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.LockObtainFailedException;
@@ -41,6 +42,7 @@ import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
@@ -114,8 +116,8 @@ public class NoOpEngineTests extends EngineTestCase {
         final NoOpEngine noOpEngine = new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir, tracker));
         assertThat(noOpEngine.getPersistedLocalCheckpoint(), equalTo(localCheckpoint));
         assertThat(noOpEngine.getSeqNoStats(100L).getMaxSeqNo(), equalTo(maxSeqNo));
-        try (Engine.IndexCommitRef ref = noOpEngine.acquireLastIndexCommit(false)) {
-            try (IndexReader reader = DirectoryReader.open(ref.get())) {
+        try (GatedCloseable<IndexCommit> wrappedCommit = noOpEngine.acquireLastIndexCommit(false)) {
+            try (IndexReader reader = DirectoryReader.open(wrappedCommit.get())) {
                 assertThat(reader.numDocs(), equalTo(docs));
             }
         }

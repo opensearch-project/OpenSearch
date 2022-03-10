@@ -61,6 +61,8 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.junit.After;
+import org.junit.Before;
 import org.opensearch.Version;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.replication.ReplicationResponse;
@@ -74,6 +76,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.Settings;
@@ -113,12 +116,10 @@ import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.test.DummyShardLock;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -143,14 +144,14 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.shuffle;
-import static org.opensearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
-import static org.opensearch.index.engine.Engine.Operation.Origin.PRIMARY;
-import static org.opensearch.index.engine.Engine.Operation.Origin.REPLICA;
-import static org.opensearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.opensearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
+import static org.opensearch.index.engine.Engine.Operation.Origin.PRIMARY;
+import static org.opensearch.index.engine.Engine.Operation.Origin.REPLICA;
+import static org.opensearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 
 public abstract class EngineTestCase extends OpenSearchTestCase {
 
@@ -1388,8 +1389,8 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         final long retainedOps = engine.config().getIndexSettings().getSoftDeleteRetentionOperations();
         final long seqNoForRecovery;
         if (engine.config().getIndexSettings().isSoftDeleteEnabled()) {
-            try (Engine.IndexCommitRef safeCommit = engine.acquireSafeIndexCommit()) {
-                seqNoForRecovery = Long.parseLong(safeCommit.get().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1;
+            try (GatedCloseable<IndexCommit> wrappedSafeCommit = engine.acquireSafeIndexCommit()) {
+                seqNoForRecovery = Long.parseLong(wrappedSafeCommit.get().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1;
             }
         } else {
             seqNoForRecovery = engine.getMinRetainedSeqNo();

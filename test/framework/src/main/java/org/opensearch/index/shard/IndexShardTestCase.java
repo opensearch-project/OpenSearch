@@ -32,6 +32,7 @@
 package org.opensearch.index.shard;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.Directory;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
@@ -52,6 +53,7 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -113,10 +115,10 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
 
 /**
  * A base class for unit tests that need to create and shutdown {@link IndexShard} instances easily,
@@ -1030,13 +1032,13 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         );
         final PlainActionFuture<String> future = PlainActionFuture.newFuture();
         final String shardGen;
-        try (Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(true)) {
+        try (GatedCloseable<IndexCommit> wrappedIndexCommit = shard.acquireLastIndexCommit(true)) {
             repository.snapshotShard(
                 shard.store(),
                 shard.mapperService(),
                 snapshot.getSnapshotId(),
                 indexId,
-                indexCommitRef.get(),
+                wrappedIndexCommit.get(),
                 null,
                 snapshotStatus,
                 Version.CURRENT,

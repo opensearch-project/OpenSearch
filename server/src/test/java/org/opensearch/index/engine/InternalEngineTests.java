@@ -82,6 +82,8 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SetOnce;
+import org.hamcrest.MatcherAssert;
+import org.hamcrest.Matchers;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
@@ -101,6 +103,7 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
@@ -154,8 +157,6 @@ import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPool;
-import org.hamcrest.MatcherAssert;
-import org.hamcrest.Matchers;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -196,15 +197,6 @@ import java.util.stream.LongStream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.shuffle;
-import static org.opensearch.index.engine.Engine.Operation.Origin.LOCAL_RESET;
-import static org.opensearch.index.engine.Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY;
-import static org.opensearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
-import static org.opensearch.index.engine.Engine.Operation.Origin.PRIMARY;
-import static org.opensearch.index.engine.Engine.Operation.Origin.REPLICA;
-import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
-import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
-import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.opensearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.contains;
@@ -230,6 +222,15 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.opensearch.index.engine.Engine.Operation.Origin.LOCAL_RESET;
+import static org.opensearch.index.engine.Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY;
+import static org.opensearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
+import static org.opensearch.index.engine.Engine.Operation.Origin.PRIMARY;
+import static org.opensearch.index.engine.Engine.Operation.Origin.REPLICA;
+import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.opensearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 
 public class InternalEngineTests extends EngineTestCase {
 
@@ -1086,9 +1087,9 @@ public class InternalEngineTests extends EngineTestCase {
         final CheckedRunnable<IOException> checker = () -> {
             assertThat(engine.getTranslogStats().getUncommittedOperations(), equalTo(0));
             assertThat(engine.getLastSyncedGlobalCheckpoint(), equalTo(globalCheckpoint.get()));
-            try (Engine.IndexCommitRef safeCommit = engine.acquireSafeIndexCommit()) {
+            try (GatedCloseable<IndexCommit> wrappedSafeCommit = engine.acquireSafeIndexCommit()) {
                 SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
-                    safeCommit.get().getUserData().entrySet()
+                    wrappedSafeCommit.get().getUserData().entrySet()
                 );
                 assertThat(commitInfo.localCheckpoint, equalTo(engine.getProcessedLocalCheckpoint()));
             }
@@ -1504,8 +1505,8 @@ public class InternalEngineTests extends EngineTestCase {
             globalCheckpoint.set(randomLongBetween(0, localCheckpoint));
             engine.syncTranslog();
             final long safeCommitCheckpoint;
-            try (Engine.IndexCommitRef safeCommit = engine.acquireSafeIndexCommit()) {
-                safeCommitCheckpoint = Long.parseLong(safeCommit.get().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+            try (GatedCloseable<IndexCommit> wrappedSafeCommit = engine.acquireSafeIndexCommit()) {
+                safeCommitCheckpoint = Long.parseLong(wrappedSafeCommit.get().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
             }
             engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
@@ -1594,8 +1595,10 @@ public class InternalEngineTests extends EngineTestCase {
             globalCheckpoint.set(randomLongBetween(0, engine.getPersistedLocalCheckpoint()));
             engine.syncTranslog();
             final long minSeqNoToRetain;
-            try (Engine.IndexCommitRef safeCommit = engine.acquireSafeIndexCommit()) {
-                long safeCommitLocalCheckpoint = Long.parseLong(safeCommit.get().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+            try (GatedCloseable<IndexCommit> wrappedSafeCommit = engine.acquireSafeIndexCommit()) {
+                long safeCommitLocalCheckpoint = Long.parseLong(
+                    wrappedSafeCommit.get().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
+                );
                 minSeqNoToRetain = Math.min(globalCheckpoint.get() + 1 - retainedExtraOps, safeCommitLocalCheckpoint + 1);
             }
             engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID());
@@ -2613,7 +2616,7 @@ public class InternalEngineTests extends EngineTestCase {
     // this test writes documents to the engine while concurrently flushing/commit
     // and ensuring that the commit points contain the correct sequence number data
     public void testConcurrentWritesAndCommits() throws Exception {
-        List<Engine.IndexCommitRef> commits = new ArrayList<>();
+        List<GatedCloseable<IndexCommit>> commits = new ArrayList<>();
         try (
             Store store = createStore();
             InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(), null))
@@ -2668,8 +2671,8 @@ public class InternalEngineTests extends EngineTestCase {
             // now, verify all the commits have the correct docs according to the user commit data
             long prevLocalCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
             long prevMaxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
-            for (Engine.IndexCommitRef commitRef : commits) {
-                final IndexCommit commit = commitRef.get();
+            for (GatedCloseable<IndexCommit> wrappedCommit : commits) {
+                final IndexCommit commit = wrappedCommit.get();
                 Map<String, String> userData = commit.getUserData();
                 long localCheckpoint = userData.containsKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
                     ? Long.parseLong(userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY))
@@ -5617,7 +5620,7 @@ public class InternalEngineTests extends EngineTestCase {
         IOUtils.close(engine, store);
         store = createStore();
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-        final Engine.IndexCommitRef snapshot;
+        final GatedCloseable<IndexCommit> wrappedSnapshot;
         final boolean closeSnapshotBeforeEngine = randomBoolean();
         try (InternalEngine engine = createEngine(store, createTempDir(), globalCheckpoint::get)) {
             int numDocs = between(1, 20);
@@ -5630,9 +5633,9 @@ public class InternalEngineTests extends EngineTestCase {
             final boolean flushFirst = randomBoolean();
             final boolean safeCommit = randomBoolean();
             if (safeCommit) {
-                snapshot = engine.acquireSafeIndexCommit();
+                wrappedSnapshot = engine.acquireSafeIndexCommit();
             } else {
-                snapshot = engine.acquireLastIndexCommit(flushFirst);
+                wrappedSnapshot = engine.acquireLastIndexCommit(flushFirst);
             }
             int moreDocs = between(1, 20);
             for (int i = 0; i < moreDocs; i++) {
@@ -5641,13 +5644,13 @@ public class InternalEngineTests extends EngineTestCase {
             globalCheckpoint.set(numDocs + moreDocs - 1);
             engine.flush();
             // check that we can still read the commit that we captured
-            try (IndexReader reader = DirectoryReader.open(snapshot.get())) {
+            try (IndexReader reader = DirectoryReader.open(wrappedSnapshot.get())) {
                 assertThat(reader.numDocs(), equalTo(flushFirst && safeCommit == false ? numDocs : 0));
             }
             assertThat(DirectoryReader.listCommits(engine.store.directory()), hasSize(2));
 
             if (closeSnapshotBeforeEngine) {
-                snapshot.close();
+                wrappedSnapshot.close();
                 // check it's clean up
                 engine.flush(true, true);
                 assertThat(DirectoryReader.listCommits(engine.store.directory()), hasSize(1));
@@ -5655,7 +5658,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
 
         if (closeSnapshotBeforeEngine == false) {
-            snapshot.close(); // shouldn't throw AlreadyClosedException
+            wrappedSnapshot.close(); // shouldn't throw AlreadyClosedException
         }
     }
 
@@ -5719,7 +5722,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
             engine.flush(false, randomBoolean());
             int numSnapshots = between(1, 10);
-            final List<Engine.IndexCommitRef> snapshots = new ArrayList<>();
+            final List<GatedCloseable<IndexCommit>> snapshots = new ArrayList<>();
             for (int i = 0; i < numSnapshots; i++) {
                 snapshots.add(engine.acquireSafeIndexCommit()); // taking snapshots from the safe commit.
             }
@@ -6322,8 +6325,8 @@ public class InternalEngineTests extends EngineTestCase {
                     .collect(Collectors.toSet());
                 assertThat(actualOps, containsInAnyOrder(expectedOps));
             }
-            try (Engine.IndexCommitRef commitRef = engine.acquireSafeIndexCommit()) {
-                IndexCommit safeCommit = commitRef.get();
+            try (GatedCloseable<IndexCommit> wrappedSafeCommit = engine.acquireSafeIndexCommit()) {
+                IndexCommit safeCommit = wrappedSafeCommit.get();
                 if (safeCommit.getUserData().containsKey(Engine.MIN_RETAINED_SEQNO)) {
                     lastMinRetainedSeqNo = Long.parseLong(safeCommit.getUserData().get(Engine.MIN_RETAINED_SEQNO));
                 }
