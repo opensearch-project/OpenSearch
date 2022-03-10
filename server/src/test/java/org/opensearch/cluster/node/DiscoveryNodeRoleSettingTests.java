@@ -36,7 +36,9 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.function.Predicate;
 
 import static org.opensearch.test.NodeRoles.onlyRole;
@@ -83,7 +85,20 @@ public class DiscoveryNodeRoleSettingTests extends OpenSearchTestCase {
         assertTrue(predicate.test(onlyRole(role)));
         assertNoDeprecationWarnings();
 
-        assertFalse(predicate.test(removeRoles(Collections.singleton(role))));
+        // TODO: Remove the statement in 'if' after removing the MASTER_ROLE.
+        if (role == DiscoveryNodeRole.MASTER_ROLE || role == DiscoveryNodeRole.CLUSTER_MANAGER_ROLE) {
+            assertFalse(
+                predicate.test(
+                    removeRoles(
+                        Collections.unmodifiableSet(
+                            new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.MASTER_ROLE))
+                        )
+                    )
+                )
+            );
+        } else {
+            assertFalse(predicate.test(removeRoles(Collections.singleton(role))));
+        }
         assertNoDeprecationWarnings();
 
         final Settings settings = Settings.builder().put(onlyRole(role)).put(role.legacySetting().getKey(), randomBoolean()).build();
