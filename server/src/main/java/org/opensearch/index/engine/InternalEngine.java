@@ -221,10 +221,6 @@ public class InternalEngine extends Engine {
     @Nullable
     private volatile String forceMergeUUID;
 
-    private boolean isReadOnlyReplica() {
-        return engineConfig.getIndexSettings().isSegrepEnabled() && engineConfig.isReadOnly();
-    }
-
     public InternalEngine(EngineConfig engineConfig) {
         this(engineConfig, IndexWriter.MAX_DOCS, LocalCheckpointTracker::new);
     }
@@ -281,18 +277,16 @@ public class InternalEngine extends Engine {
                 );
                 this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
                 // TODO: Segrep - should have a separate read only engine rather than all this conditional logic.
-                if (isReadOnlyReplica()) {
+                if (engineConfig.isReadOnly()) {
                     // Segrep - hack to make this engine read only and not use
                     writer = null;
-                    historyUUID = null;
-                    forceMergeUUID = null;
                 } else {
                     writer = createWriter();
                     bootstrapAppendOnlyInfoFromWriter(writer);
-                    final Map<String, String> commitData = commitDataAsMap(writer);
-                    historyUUID = loadHistoryUUID(commitData);
-                    forceMergeUUID = commitData.get(FORCE_MERGE_UUID_KEY);
                 }
+                final Map<String, String> commitData = commitDataAsMap(writer);
+                historyUUID = loadHistoryUUID(commitData);
+                forceMergeUUID = commitData.get(FORCE_MERGE_UUID_KEY);
                 indexWriter = writer;
             } catch (IOException | TranslogCorruptedException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
@@ -586,7 +580,7 @@ public class InternalEngine extends Engine {
                 translog.currentFileGeneration()
             )
         );
-        if (isReadOnlyReplica() == false) {
+        if (engineConfig.isReadOnly() == false) {
             flush(false, true);
         }
         translog.trimUnreferencedReaders();
@@ -656,7 +650,7 @@ public class InternalEngine extends Engine {
 
     private void revisitIndexDeletionPolicyOnTranslogSynced() throws IOException {
         if (combinedDeletionPolicy.hasUnreferencedCommits()) {
-            if (isReadOnlyReplica() == false) {
+            if (engineConfig.isReadOnly() == false) {
                 indexWriter.deleteUnusedFiles();
             }
         }
@@ -720,7 +714,7 @@ public class InternalEngine extends Engine {
 
     private DirectoryReader getDirectoryReader() throws IOException {
         // for segment replication: replicas should create the reader from store, we don't want an open IW on replicas.
-        if (isReadOnlyReplica()) {
+        if (engineConfig.isReadOnly()) {
             return DirectoryReader.open(store.directory());
         }
         return DirectoryReader.open(indexWriter);
@@ -1984,7 +1978,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
-        if (isReadOnlyReplica()) {
+        if (engineConfig.isReadOnly()) {
             return;
         }
         ensureOpen();
@@ -2444,7 +2438,7 @@ public class InternalEngine extends Engine {
                 // no need to commit in this case!, we snapshot before we close the shard, so translog and all sync'ed
                 logger.trace("rollback indexWriter");
                 try {
-                    if (isReadOnlyReplica() == false) {
+                    if (engineConfig.isReadOnly() == false) {
                         indexWriter.rollback();
                     }
                 } catch (AlreadyClosedException ex) {
@@ -2929,7 +2923,10 @@ public class InternalEngine extends Engine {
     /**
      * Gets the commit data from {@link IndexWriter} as a map.
      */
-    private static Map<String, String> commitDataAsMap(final IndexWriter indexWriter) {
+    private Map<String, String> commitDataAsMap(final IndexWriter indexWriter) throws IOException {
+        if (engineConfig.isReadOnly()) {
+            return SegmentInfos.readLatestCommit(store.directory()).getUserData();
+        }
         final Map<String, String> commitData = new HashMap<>(8);
         for (Map.Entry<String, String> entry : indexWriter.getLiveCommitData()) {
             commitData.put(entry.getKey(), entry.getValue());
