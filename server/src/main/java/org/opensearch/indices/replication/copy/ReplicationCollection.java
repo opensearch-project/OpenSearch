@@ -35,6 +35,7 @@ package org.opensearch.indices.replication.copy;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchTimeoutException;
+import org.opensearch.common.concurrent.GatedAutoCloseable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
@@ -48,7 +49,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * This class holds a collection of all on going recoveries on the current node (i.e., the node is the target node
@@ -125,7 +125,7 @@ public class ReplicationCollection {
         if (replicationRef == null) {
             throw new IndexShardClosedException(shardId);
         }
-        assert replicationRef.target().getIndexShard().shardId().equals(shardId);
+        assert replicationRef.get().getIndexShard().shardId().equals(shardId);
         return replicationRef;
     }
 
@@ -221,29 +221,15 @@ public class ReplicationCollection {
      * causes {@link ReplicationTarget#decRef()} to be called. This makes sure that the underlying resources
      * will not be freed until {@link ReplicationRef#close()} is called.
      */
-    public static class ReplicationRef implements AutoCloseable {
-
-        private final ReplicationTarget target;
-        private final AtomicBoolean closed = new AtomicBoolean(false);
+    public static class ReplicationRef extends GatedAutoCloseable<ReplicationTarget> {
 
         /**
          * Important: {@link ReplicationTarget#tryIncRef()} should
          * be *successfully* called on status before
          */
         public ReplicationRef(ReplicationTarget target) {
-            this.target = target;
-            this.target.setLastAccessTime();
-        }
-
-        @Override
-        public void close() {
-            if (closed.compareAndSet(false, true)) {
-                target.decRef();
-            }
-        }
-
-        public ReplicationTarget target() {
-            return target;
+            super(target, target::decRef);
+            target.setLastAccessTime();
         }
     }
 
