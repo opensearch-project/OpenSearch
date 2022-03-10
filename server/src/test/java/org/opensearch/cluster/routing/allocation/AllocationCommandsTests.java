@@ -748,7 +748,9 @@ public class AllocationCommandsTests extends OpenSearchAllocationTestCase {
             "test2",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            new HashSet<>(randomSubsetOf(new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.INGEST_ROLE)))),
+            new HashSet<>(
+                randomSubsetOf(new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.INGEST_ROLE)))
+            ),
             Version.CURRENT
         );
 
@@ -817,7 +819,9 @@ public class AllocationCommandsTests extends OpenSearchAllocationTestCase {
             "test2",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            new HashSet<>(randomSubsetOf(new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.INGEST_ROLE)))),
+            new HashSet<>(
+                randomSubsetOf(new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.INGEST_ROLE)))
+            ),
             Version.CURRENT
         );
 

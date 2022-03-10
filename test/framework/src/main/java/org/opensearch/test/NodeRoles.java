@@ -184,7 +184,10 @@ public class NodeRoles {
     }
 
     public static Settings nonMasterNode(final Settings settings) {
-        return removeRoles(settings, Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.MASTER_ROLE))));
+        return removeRoles(
+            settings,
+            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.MASTER_ROLE)))
+        );
     }
 
     public static Settings remoteClusterClientNode() {

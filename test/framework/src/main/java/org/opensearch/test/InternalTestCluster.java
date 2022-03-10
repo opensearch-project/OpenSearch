@@ -787,13 +787,16 @@ public final class InternalTestCluster extends TestCluster {
         String suffix = "";
         // only add the suffixes if roles are explicitly defined
         if (settings.hasValue("nodes.roles")) {
-            if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.MASTER_ROLE) || DiscoveryNode.hasRole(settings, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)) {
+            if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.MASTER_ROLE)
+                || DiscoveryNode.hasRole(settings, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)) {
                 suffix = suffix + DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleNameAbbreviation();
             }
             if (DiscoveryNode.isDataNode(settings)) {
                 suffix = suffix + DiscoveryNodeRole.DATA_ROLE.roleNameAbbreviation();
             }
-            if ((DiscoveryNode.hasRole(settings, DiscoveryNodeRole.MASTER_ROLE) == false && DiscoveryNode.hasRole(settings, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE) == false) && DiscoveryNode.isDataNode(settings) == false) {
+            if ((DiscoveryNode.hasRole(settings, DiscoveryNodeRole.MASTER_ROLE) == false
+                && DiscoveryNode.hasRole(settings, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE) == false)
+                && DiscoveryNode.isDataNode(settings) == false) {
                 suffix = suffix + "c";
             }
         }
@@ -1143,7 +1146,14 @@ public final class InternalTestCluster extends TestCluster {
         for (int i = numSharedDedicatedMasterNodes; i < numSharedDedicatedMasterNodes + numSharedDataNodes; i++) {
             final Settings nodeSettings = getNodeSettings(i, sharedNodesSeeds[i], Settings.EMPTY, defaultMinMasterNodes);
             if (numSharedDedicatedMasterNodes > 0) {
-                settings.add(removeRoles(nodeSettings, Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.MASTER_ROLE)))));
+                settings.add(
+                    removeRoles(
+                        nodeSettings,
+                        Collections.unmodifiableSet(
+                            new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.MASTER_ROLE))
+                        )
+                    )
+                );
             } else {
                 // if we don't have dedicated master nodes, keep things default
                 settings.add(nodeSettings);

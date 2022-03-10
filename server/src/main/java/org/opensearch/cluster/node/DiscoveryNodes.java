@@ -419,46 +419,47 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                             } else {
                                 resolvedNodesIds.removeAll(dataNodes.keys());
                             }
-                        } else if (DiscoveryNodeRole.MASTER_ROLE.roleName().equals(matchAttrName) || DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName().equals(matchAttrName)) {
-                            if (Booleans.parseBoolean(matchAttrValue, true)) {
-                                resolvedNodesIds.addAll(masterNodes.keys());
+                        } else if (DiscoveryNodeRole.MASTER_ROLE.roleName().equals(matchAttrName)
+                            || DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName().equals(matchAttrName)) {
+                                if (Booleans.parseBoolean(matchAttrValue, true)) {
+                                    resolvedNodesIds.addAll(masterNodes.keys());
+                                } else {
+                                    resolvedNodesIds.removeAll(masterNodes.keys());
+                                }
+                            } else if (DiscoveryNodeRole.INGEST_ROLE.roleName().equals(matchAttrName)) {
+                                if (Booleans.parseBoolean(matchAttrValue, true)) {
+                                    resolvedNodesIds.addAll(ingestNodes.keys());
+                                } else {
+                                    resolvedNodesIds.removeAll(ingestNodes.keys());
+                                }
+                            } else if (DiscoveryNode.COORDINATING_ONLY.equals(matchAttrName)) {
+                                if (Booleans.parseBoolean(matchAttrValue, true)) {
+                                    resolvedNodesIds.addAll(getCoordinatingOnlyNodes().keys());
+                                } else {
+                                    resolvedNodesIds.removeAll(getCoordinatingOnlyNodes().keys());
+                                }
                             } else {
-                                resolvedNodesIds.removeAll(masterNodes.keys());
-                            }
-                        } else if (DiscoveryNodeRole.INGEST_ROLE.roleName().equals(matchAttrName)) {
-                            if (Booleans.parseBoolean(matchAttrValue, true)) {
-                                resolvedNodesIds.addAll(ingestNodes.keys());
-                            } else {
-                                resolvedNodesIds.removeAll(ingestNodes.keys());
-                            }
-                        } else if (DiscoveryNode.COORDINATING_ONLY.equals(matchAttrName)) {
-                            if (Booleans.parseBoolean(matchAttrValue, true)) {
-                                resolvedNodesIds.addAll(getCoordinatingOnlyNodes().keys());
-                            } else {
-                                resolvedNodesIds.removeAll(getCoordinatingOnlyNodes().keys());
-                            }
-                        } else {
-                            for (DiscoveryNode node : this) {
-                                for (DiscoveryNodeRole role : Sets.difference(node.getRoles(), DiscoveryNodeRole.BUILT_IN_ROLES)) {
-                                    if (role.roleName().equals(matchAttrName)) {
-                                        if (Booleans.parseBoolean(matchAttrValue, true)) {
+                                for (DiscoveryNode node : this) {
+                                    for (DiscoveryNodeRole role : Sets.difference(node.getRoles(), DiscoveryNodeRole.BUILT_IN_ROLES)) {
+                                        if (role.roleName().equals(matchAttrName)) {
+                                            if (Booleans.parseBoolean(matchAttrValue, true)) {
+                                                resolvedNodesIds.add(node.getId());
+                                            } else {
+                                                resolvedNodesIds.remove(node.getId());
+                                            }
+                                        }
+                                    }
+                                }
+                                for (DiscoveryNode node : this) {
+                                    for (Map.Entry<String, String> entry : node.getAttributes().entrySet()) {
+                                        String attrName = entry.getKey();
+                                        String attrValue = entry.getValue();
+                                        if (Regex.simpleMatch(matchAttrName, attrName) && Regex.simpleMatch(matchAttrValue, attrValue)) {
                                             resolvedNodesIds.add(node.getId());
-                                        } else {
-                                            resolvedNodesIds.remove(node.getId());
                                         }
                                     }
                                 }
                             }
-                            for (DiscoveryNode node : this) {
-                                for (Map.Entry<String, String> entry : node.getAttributes().entrySet()) {
-                                    String attrName = entry.getKey();
-                                    String attrValue = entry.getValue();
-                                    if (Regex.simpleMatch(matchAttrName, attrName) && Regex.simpleMatch(matchAttrValue, attrValue)) {
-                                        resolvedNodesIds.add(node.getId());
-                                    }
-                                }
-                            }
-                        }
                     }
                 }
             }

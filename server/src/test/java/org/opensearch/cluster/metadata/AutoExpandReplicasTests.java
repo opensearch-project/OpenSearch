@@ -266,11 +266,15 @@ public class AutoExpandReplicasTests extends OpenSearchTestCase {
                 state = cluster.reroute(state, new ClusterRerouteRequest());
             }
 
-            DiscoveryNode newNode = createNode(LegacyESVersion.V_7_6_0, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE); // local
-                                                                                                                                     // node
-                                                                                                                                     // is
-                                                                                                                                     // the
-                                                                                                                                     // master
+            DiscoveryNode newNode = createNode(
+                LegacyESVersion.V_7_6_0,
+                DiscoveryNodeRole.CLUSTER_MANAGER_ROLE,
+                DiscoveryNodeRole.DATA_ROLE
+            ); // local
+               // node
+               // is
+               // the
+               // master
 
             state = cluster.addNodes(state, Collections.singletonList(newNode));
 
