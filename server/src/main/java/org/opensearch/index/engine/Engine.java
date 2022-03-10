@@ -1122,9 +1122,10 @@ public abstract class Engine implements Closeable {
     /**
      * Fetch a snapshot of the latest SegmentInfos from the engine and ensure that segment files are retained in the directory
      * until closed.
-     * @return {@link SegmentInfosRef} - A ref to segmentInfos that must be closed for segment files to be deleted.
+     * @return {@link GatedCloseable} - A wrapper around a {@link SegmentInfos} instance that must be closed for segment files
+     * to be deleted.
      */
-    public SegmentInfosRef getLatestSegmentInfosSafe() {
+    public GatedCloseable<SegmentInfos> getLatestSegmentInfosSafe() {
         return null;
     };
 

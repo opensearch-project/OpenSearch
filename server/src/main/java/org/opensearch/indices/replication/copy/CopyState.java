@@ -11,8 +11,8 @@ package org.opensearch.indices.replication.copy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
-import org.opensearch.index.engine.Engine;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 
@@ -21,7 +21,7 @@ import java.io.UncheckedIOException;
 
 public class CopyState extends AbstractRefCounted {
 
-    private final Engine.SegmentInfosRef segmentInfosRef;
+    private final GatedCloseable<SegmentInfos> segmentInfosRef;
     private final ReplicationCheckpoint checkpoint;
     private final Store.MetadataSnapshot metadataSnapshot;
     private final byte[] infosBytes;
@@ -29,7 +29,7 @@ public class CopyState extends AbstractRefCounted {
     CopyState(IndexShard shard) throws IOException {
         super("replication-nrt-state");
         this.segmentInfosRef = shard.getLatestSegmentInfosSafe();
-        final SegmentInfos segmentInfos = segmentInfosRef.getSegmentInfos();
+        final SegmentInfos segmentInfos = segmentInfosRef.get();
         this.checkpoint = new ReplicationCheckpoint(
             shard.shardId(),
             shard.getOperationPrimaryTerm(),

@@ -2269,7 +2269,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public SegmentInfosRef getLatestSegmentInfosSafe() {
+    public GatedCloseable<SegmentInfos> getLatestSegmentInfosSafe() {
         assert (engineConfig.isReadOnly() == false);
         final SegmentInfos segmentInfos = getLatestSegmentInfos();
         try {
@@ -2277,7 +2277,7 @@ public class InternalEngine extends Engine {
         } catch (IOException e) {
             throw new EngineException(shardId, e.getMessage(), e);
         }
-        return new Engine.SegmentInfosRef(segmentInfos, () -> indexWriter.decRefDeleter(segmentInfos));
+        return new GatedCloseable<>(segmentInfos, () -> indexWriter.decRefDeleter(segmentInfos));
     }
 
     @Override
