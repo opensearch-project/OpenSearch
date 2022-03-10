@@ -2067,7 +2067,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // time elapses after the engine is created above (pulling the config settings) until we set the engine reference, during
         // which settings changes could possibly have happened, so here we forcefully push any config changes to the new engine.
         onSettingsChanged();
-        // TODO: Segrep - Fix
         assert assertSequenceNumbersInCommit();
         recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
     }
@@ -2715,7 +2714,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void syncRetentionLeases() {
         assert assertPrimaryMode();
         verifyNotClosed();
-        // TODO: Segrep - Fix retention leases
         replicationTracker.renewPeerRecoveryRetentionLeases();
         final Tuple<Boolean, RetentionLeases> retentionLeases = getRetentionLeases(true);
         if (retentionLeases.v1()) {
@@ -3328,7 +3326,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             replicationTracker::getRetentionLeases,
             () -> getOperationPrimaryTerm(),
             tombstoneDocSupplier(),
-            shardRouting.primary()
+            indexSettings.isSegrepEnabled() && shardRouting.primary() == false
         );
     }
 
