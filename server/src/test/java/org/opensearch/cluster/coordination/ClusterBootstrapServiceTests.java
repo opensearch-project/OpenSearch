@@ -111,7 +111,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
             randomAlphaOfLength(10),
             buildNewFakeTransportAddress(),
             emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
     }
@@ -521,7 +521,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
                     randomAlphaOfLength(10),
                     buildNewFakeTransportAddress(),
                     emptyMap(),
-                    Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
+                    Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
                     Version.CURRENT
                 ),
                 new DiscoveryNode(
@@ -529,7 +529,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
                     randomAlphaOfLength(10),
                     otherNode1.getAddress(),
                     emptyMap(),
-                    Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
+                    Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
                     Version.CURRENT
                 )
             ).collect(Collectors.toList())

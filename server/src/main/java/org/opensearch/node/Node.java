@@ -231,19 +231,8 @@ public class Node implements Closeable {
         Property.Deprecated,
         Property.NodeScope
     );
-
-    /**
-     * @deprecated As of 2.0, because promoting inclusive language, replaced by {@link #NODE_CLUSTER_MANAGER_SETTING}
-     */
-    @Deprecated
     private static final Setting<Boolean> NODE_MASTER_SETTING = Setting.boolSetting(
         "node.master",
-        true,
-        Property.Deprecated,
-        Property.NodeScope
-    );
-    private static final Setting<Boolean> NODE_CLUSTER_MANAGER_SETTING = Setting.boolSetting(
-        "node.cluster_manager",
         true,
         Property.Deprecated,
         Property.NodeScope
@@ -455,11 +444,10 @@ public class Node implements Closeable {
             resourcesToClose.add(() -> HeaderWarning.removeThreadContext(threadPool.getThreadContext()));
 
             final List<Setting<?>> additionalSettings = new ArrayList<>();
-            // register the node.data, node.ingest, node.cluster_manager, node.remote_cluster_client settings here so we can mark them private
+            // register the node.data, node.ingest, node.master, node.remote_cluster_client settings here so we can mark them private
             additionalSettings.add(NODE_DATA_SETTING);
             additionalSettings.add(NODE_INGEST_SETTING);
             additionalSettings.add(NODE_MASTER_SETTING);
-            additionalSettings.add(NODE_CLUSTER_MANAGER_SETTING);
             additionalSettings.add(NODE_REMOTE_CLUSTER_CLIENT);
             additionalSettings.addAll(pluginsService.getPluginSettings());
             final List<String> additionalSettingsFilter = new ArrayList<>(pluginsService.getPluginSettingsFilter());

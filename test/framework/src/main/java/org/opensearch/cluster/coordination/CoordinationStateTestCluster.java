@@ -164,10 +164,10 @@ public class CoordinationStateTestCluster {
 
             final Set<DiscoveryNodeRole> roles = new HashSet<>(localNode.getRoles());
             if (randomBoolean()) {
-                if (roles.contains(DiscoveryNodeRole.MASTER_ROLE)) {
-                    roles.remove(DiscoveryNodeRole.MASTER_ROLE);
+                if (roles.contains(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)) {
+                    roles.remove(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
                 } else {
-                    roles.add(DiscoveryNodeRole.MASTER_ROLE);
+                    roles.add(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
                 }
             }
 

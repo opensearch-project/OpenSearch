@@ -56,7 +56,7 @@ public class DiscoveryNodeRoleSettingTests extends OpenSearchTestCase {
     }
 
     public void testIsMasterNode() {
-        runRoleTest(DiscoveryNode::isMasterNode, DiscoveryNodeRole.MASTER_ROLE);
+        runRoleTest(DiscoveryNode::isMasterNode, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
     }
 
     public void testIsRemoteClusterClient() {

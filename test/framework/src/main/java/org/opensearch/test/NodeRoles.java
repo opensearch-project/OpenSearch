@@ -36,7 +36,9 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.node.NodeRoleSettings;
 
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -166,7 +168,7 @@ public class NodeRoles {
     }
 
     public static Settings masterNode(final Settings settings) {
-        return addRoles(settings, Collections.singleton(DiscoveryNodeRole.MASTER_ROLE));
+        return addRoles(settings, Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE));
     }
 
     public static Settings masterOnlyNode() {
@@ -174,7 +176,7 @@ public class NodeRoles {
     }
 
     public static Settings masterOnlyNode(final Settings settings) {
-        return onlyRole(settings, DiscoveryNodeRole.MASTER_ROLE);
+        return onlyRole(settings, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
     }
 
     public static Settings nonMasterNode() {
@@ -182,7 +184,7 @@ public class NodeRoles {
     }
 
     public static Settings nonMasterNode(final Settings settings) {
-        return removeRoles(settings, Collections.singleton(DiscoveryNodeRole.MASTER_ROLE));
+        return removeRoles(settings, Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.MASTER_ROLE))));
     }
 
     public static Settings remoteClusterClientNode() {

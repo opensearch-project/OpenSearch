@@ -86,7 +86,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         internalCluster().startNode();
         Map<String, Integer> expectedCounts = new HashMap<>();
         expectedCounts.put(DiscoveryNodeRole.DATA_ROLE.roleName(), 1);
-        expectedCounts.put(DiscoveryNodeRole.MASTER_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.INGEST_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), 1);
         expectedCounts.put(ClusterStatsNodes.Counts.COORDINATING_ONLY, 0);
@@ -108,7 +108,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
                 roles.add(DiscoveryNodeRole.INGEST_ROLE);
             }
             if (isMasterNode) {
-                roles.add(DiscoveryNodeRole.MASTER_ROLE);
+                roles.add(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
             }
             if (isRemoteClusterClientNode) {
                 roles.add(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
@@ -130,7 +130,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
                 incrementCountForRole(DiscoveryNodeRole.INGEST_ROLE.roleName(), expectedCounts);
             }
             if (isMasterNode) {
-                incrementCountForRole(DiscoveryNodeRole.MASTER_ROLE.roleName(), expectedCounts);
+                incrementCountForRole(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(), expectedCounts);
             }
             if (isRemoteClusterClientNode) {
                 incrementCountForRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), expectedCounts);

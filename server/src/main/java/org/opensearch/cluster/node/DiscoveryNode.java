@@ -94,7 +94,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     public static boolean isMasterNode(Settings settings) {
-        return hasRole(settings, DiscoveryNodeRole.MASTER_ROLE);
+        return hasRole(settings, DiscoveryNodeRole.MASTER_ROLE) || hasRole(settings, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
     }
 
     /**
@@ -390,7 +390,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
                 .collect(Collectors.toList());
             out.writeVInt(rolesToWrite.size());
             for (final DiscoveryNodeRole role : rolesToWrite) {
-                if (role == DiscoveryNodeRole.MASTER_ROLE) {
+                if (role == DiscoveryNodeRole.MASTER_ROLE || role == DiscoveryNodeRole.CLUSTER_MANAGER_ROLE) {
                     out.writeEnum(LegacyRole.MASTER);
                 } else if (role == DiscoveryNodeRole.DATA_ROLE) {
                     out.writeEnum(LegacyRole.DATA);
@@ -456,7 +456,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * Can this node become master or not.
      */
     public boolean isMasterNode() {
-        return roles.contains(DiscoveryNodeRole.MASTER_ROLE);
+        return roles.contains(DiscoveryNodeRole.MASTER_ROLE) || roles.contains(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
     }
 
     /**

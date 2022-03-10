@@ -263,7 +263,7 @@ public class TransportMultiSearchActionTests extends OpenSearchTestCase {
                 "master",
                 buildNewFakeTransportAddress(),
                 Collections.emptyMap(),
-                Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
+                Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
                 Version.CURRENT
             )
         );

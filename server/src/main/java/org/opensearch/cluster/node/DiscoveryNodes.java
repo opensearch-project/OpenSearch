@@ -419,7 +419,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                             } else {
                                 resolvedNodesIds.removeAll(dataNodes.keys());
                             }
-                        } else if (DiscoveryNodeRole.MASTER_ROLE.roleName().equals(matchAttrName)) {
+                        } else if (DiscoveryNodeRole.MASTER_ROLE.roleName().equals(matchAttrName) || DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName().equals(matchAttrName)) {
                             if (Booleans.parseBoolean(matchAttrValue, true)) {
                                 resolvedNodesIds.addAll(masterNodes.keys());
                             } else {

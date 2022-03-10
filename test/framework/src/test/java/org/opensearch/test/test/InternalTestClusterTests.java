@@ -400,15 +400,15 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
         cluster.beforeTest(random());
         List<DiscoveryNodeRole> roles = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
-            final DiscoveryNodeRole role = i == numNodes - 1 && roles.contains(DiscoveryNodeRole.MASTER_ROLE) == false
-                ? DiscoveryNodeRole.MASTER_ROLE
+            final DiscoveryNodeRole role = i == numNodes - 1 && roles.contains(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE) == false
+                ? DiscoveryNodeRole.CLUSTER_MANAGER_ROLE
                 : // last node and still no master
-                randomFrom(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE);
+                randomFrom(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE);
             roles.add(role);
         }
 
         cluster.setBootstrapMasterNodeIndex(
-            randomIntBetween(0, (int) roles.stream().filter(role -> role.equals(DiscoveryNodeRole.MASTER_ROLE)).count() - 1)
+            randomIntBetween(0, (int) roles.stream().filter(role -> role.equals(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)).count() - 1)
         );
 
         try {
@@ -416,7 +416,7 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
             for (int i = 0; i < numNodes; i++) {
                 final DiscoveryNodeRole role = roles.get(i);
                 final String node;
-                if (role == DiscoveryNodeRole.MASTER_ROLE) {
+                if (role == DiscoveryNodeRole.CLUSTER_MANAGER_ROLE) {
                     node = cluster.startMasterOnlyNode();
                 } else if (role == DiscoveryNodeRole.DATA_ROLE) {
                     node = cluster.startDataOnlyNode();
@@ -438,7 +438,7 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
                 DiscoveryNode node = cluster.getInstance(ClusterService.class, name).localNode();
                 List<String> paths = Arrays.stream(getNodePaths(cluster, name)).map(Path::toString).collect(Collectors.toList());
                 if (node.isMasterNode()) {
-                    result.computeIfAbsent(DiscoveryNodeRole.MASTER_ROLE, k -> new HashSet<>()).addAll(paths);
+                    result.computeIfAbsent(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, k -> new HashSet<>()).addAll(paths);
                 } else if (node.isDataNode()) {
                     result.computeIfAbsent(DiscoveryNodeRole.DATA_ROLE, k -> new HashSet<>()).addAll(paths);
                 } else {

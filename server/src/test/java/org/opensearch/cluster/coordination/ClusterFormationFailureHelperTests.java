@@ -287,7 +287,7 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             "local",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            org.opensearch.common.collect.Set.of(DiscoveryNodeRole.MASTER_ROLE),
+            org.opensearch.common.collect.Set.of(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -825,7 +825,7 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             emptyMap(),
             new HashSet<>(
                 randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES).stream()
-                    .filter(r -> r != DiscoveryNodeRole.MASTER_ROLE)
+                    .filter(r -> r != DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)
                     .collect(Collectors.toList())
             ),
             Version.CURRENT
