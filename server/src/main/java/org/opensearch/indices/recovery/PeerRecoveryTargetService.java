@@ -70,6 +70,8 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogCorruptedException;
 import org.opensearch.indices.recovery.RecoveriesCollection.RecoveryRef;
+import org.opensearch.indices.replication.common.RListener;
+import org.opensearch.indices.replication.common.RState;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectTransportException;
@@ -347,7 +349,18 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         return request;
     }
 
-    public interface RecoveryListener {
+    public interface RecoveryListener extends RListener {
+
+        @Override
+        default void onDone(RState state) {
+            onRecoveryDone((RecoveryState) state);
+        }
+
+        @Override
+        default void onFailure(RState state, OpenSearchException e, boolean sendShardFailure) {
+            onRecoveryFailure((RecoveryState) state, (RecoveryFailedException) e, sendShardFailure);
+        }
+
         void onRecoveryDone(RecoveryState state);
 
         void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure);

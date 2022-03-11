@@ -10,8 +10,9 @@ package org.opensearch.indices.replication.copy;
 
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.Timer;
+import org.opensearch.indices.replication.common.RState;
 
-public class ReplicationState {
+public class ReplicationState implements RState {
 
     private Timer timer;
     private RecoveryState.Index index;

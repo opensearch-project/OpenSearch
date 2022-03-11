@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.support.RetryableAction;
@@ -35,6 +36,8 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.recovery.DelayRecoveryException;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.Timer;
+import org.opensearch.indices.replication.common.RListener;
+import org.opensearch.indices.replication.common.RState;
 import org.opensearch.indices.replication.copy.PrimaryShardReplicationSource;
 import org.opensearch.indices.replication.copy.ReplicationCheckpoint;
 import org.opensearch.indices.replication.copy.ReplicationCollection;
@@ -180,7 +183,7 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
             }
             final ReplicationTarget replicationTarget = replicationRef.get(ReplicationTarget.class);
             timer = replicationTarget.state().getTimer();
-            final IndexShard indexShard = replicationTarget.getIndexShard();
+            final IndexShard indexShard = replicationTarget.indexShard();
 
             try {
                 logger.trace("{} preparing shard for replication", indexShard.shardId());
@@ -218,7 +221,7 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
                     ReplicationTarget replicationTarget = replicationRef.get(ReplicationTarget.class);
                     onGoingReplications.failReplication(
                         replicationId,
-                        new ReplicationFailedException(replicationTarget.getIndexShard(), "unexpected error", e),
+                        new ReplicationFailedException(replicationTarget.indexShard(), "unexpected error", e),
                         true // be safe
                     );
                 } else {
@@ -285,7 +288,18 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
         }
     }
 
-    public interface ReplicationListener {
+    public interface ReplicationListener extends RListener {
+
+        @Override
+        default void onDone(RState state) {
+            onReplicationDone((ReplicationState) state);
+        }
+
+        @Override
+        default void onFailure(RState state, OpenSearchException e, boolean sendShardFailure) {
+            onReplicationFailure((ReplicationState) state, (ReplicationFailedException) e, sendShardFailure);
+        }
+
         void onReplicationDone(ReplicationState state);
 
         void onReplicationFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure);

@@ -50,6 +50,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.StoreStats;
+import org.opensearch.indices.replication.common.RState;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -63,7 +64,7 @@ import java.util.Map;
 /**
  * Keeps track of state related to shard recovery.
  */
-public class RecoveryState implements ToXContentFragment, Writeable {
+public class RecoveryState implements ToXContentFragment, Writeable, RState {
 
     public enum Stage {
         INIT((byte) 0),

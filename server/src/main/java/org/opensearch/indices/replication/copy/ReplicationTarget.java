@@ -32,7 +32,6 @@
 
 package org.opensearch.indices.replication.copy;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -41,52 +40,31 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.support.replication.ReplicationResponse;
-import org.opensearch.common.UUIDs;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
-import org.opensearch.indices.recovery.MultiFileWriter;
-import org.opensearch.indices.recovery.RecoveryRequestTracker;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.SegmentReplicationReplicaService;
 import org.opensearch.indices.replication.checkpoint.TransportCheckpointInfoResponse;
+import org.opensearch.indices.replication.common.RTarget;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
  * Orchestrates a replication event for a replica shard.
  */
-public class ReplicationTarget extends AbstractRefCounted {
-
-    public ReplicationCheckpoint getCheckpoint() {
-        return checkpoint;
-    }
-
-    private final ReplicationCheckpoint checkpoint;
-    private static final AtomicLong idGenerator = new AtomicLong();
-    private final AtomicBoolean finished = new AtomicBoolean();
-    private final long replicationId;
-    private final IndexShard indexShard;
-    private final Logger logger;
-    private final PrimaryShardReplicationSource source;
-    private final SegmentReplicationReplicaService.ReplicationListener listener;
-    private final Store store;
-    private final MultiFileWriter multiFileWriter;
-    private final RecoveryRequestTracker requestTracker = new RecoveryRequestTracker();
-    private final ReplicationState state;
-    private volatile long lastAccessTime = System.nanoTime();
+public class ReplicationTarget extends RTarget {
 
     private static final String REPLICATION_PREFIX = "replication.";
+
+    private final ReplicationCheckpoint checkpoint;
+    private final PrimaryShardReplicationSource source;
+    private final ReplicationState state;
 
     /**
      * Creates a new replication target object that represents a replication to the provided source.
@@ -101,20 +79,47 @@ public class ReplicationTarget extends AbstractRefCounted {
         PrimaryShardReplicationSource source,
         SegmentReplicationReplicaService.ReplicationListener listener
     ) {
-        super("replication_status");
+        super("replication_status", indexShard, new RecoveryState.Index(), listener);
         this.checkpoint = checkpoint;
-        this.indexShard = indexShard;
-        this.logger = Loggers.getLogger(getClass(), indexShard.shardId());
-        this.replicationId = idGenerator.incrementAndGet();
         this.source = source;
-        this.listener = listener;
-        this.store = indexShard.store();
-        final String tempFilePrefix = REPLICATION_PREFIX + UUIDs.randomBase64UUID() + ".";
         state = new ReplicationState(new RecoveryState.Index());
-        this.multiFileWriter = new MultiFileWriter(indexShard.store(), state.getIndex(), tempFilePrefix, logger, this::ensureRefCount);
-        ;
-        // make sure the store is not released until we are done.
-        store.incRef();
+    }
+
+    @Override
+    protected String getPrefix() {
+        return REPLICATION_PREFIX;
+    }
+
+    @Override
+    protected void onDone() {
+        // might need to do something on index shard here.
+    }
+
+    @Override
+    protected void onCancel(String reason) {
+        // TBD
+    }
+
+    @Override
+    protected void onFail(OpenSearchException e, boolean sendShardFailure) {
+        // TBD
+    }
+
+    /**
+     * Wrapper method around {@link #fail(OpenSearchException, boolean)}
+     * to enforce stronger typing of the input exception instance.
+     */
+    public void fail(ReplicationFailedException e, boolean sendShardFailure) {
+        super.fail(e, sendShardFailure);
+    }
+
+    @Override
+    public ReplicationState state() {
+        return state;
+    }
+
+    public long getReplicationId() {
+        return getId();
     }
 
     public void startReplication(ActionListener<ReplicationResponse> listener) {
@@ -123,7 +128,7 @@ public class ReplicationTarget extends AbstractRefCounted {
         final StepListener<Void> finalizeListener = new StepListener<>();
 
         // Get list of files to copy from this checkpoint.
-        source.getCheckpointInfo(replicationId, checkpoint, checkpointInfoListener);
+        source.getCheckpointInfo(getId(), checkpoint, checkpointInfoListener);
 
         checkpointInfoListener.whenComplete(checkpointInfo -> getFiles(checkpointInfo, getFilesListener), listener::onFailure);
         getFilesListener.whenComplete(
@@ -131,11 +136,6 @@ public class ReplicationTarget extends AbstractRefCounted {
             listener::onFailure
         );
         finalizeListener.whenComplete(r -> listener.onResponse(new ReplicationResponse()), listener::onFailure);
-    }
-
-    public Store store() {
-        ensureRefCount();
-        return store;
     }
 
     public void finalizeReplication(TransportCheckpointInfoResponse checkpointInfo, ActionListener<Void> listener) {
@@ -192,23 +192,6 @@ public class ReplicationTarget extends AbstractRefCounted {
         });
     }
 
-    public long getReplicationId() {
-        return replicationId;
-    }
-
-    public IndexShard getIndexShard() {
-        return indexShard;
-    }
-
-    @Override
-    protected void closeInternal() {
-        store.decRef();
-    }
-
-    public ReplicationState state() {
-        return state;
-    }
-
     private void getFiles(TransportCheckpointInfoResponse checkpointInfo, StepListener<GetFilesResponse> getFilesListener)
         throws IOException {
         final Store.MetadataSnapshot snapshot = checkpointInfo.getSnapshot();
@@ -223,7 +206,7 @@ public class ReplicationTarget extends AbstractRefCounted {
         if (filesToFetch.isEmpty()) {
             getFilesListener.onResponse(new GetFilesResponse());
         }
-        source.getFiles(replicationId, checkpointInfo.getCheckpoint(), filesToFetch, getFilesListener);
+        source.getFiles(getId(), checkpointInfo.getCheckpoint(), filesToFetch, getFilesListener);
     }
 
     private Store.MetadataSnapshot getMetadataSnapshot() throws IOException {
@@ -231,99 +214,5 @@ public class ReplicationTarget extends AbstractRefCounted {
             return Store.MetadataSnapshot.EMPTY;
         }
         return store.getMetadata(indexShard.getLatestSegmentInfos());
-    }
-
-    public ActionListener<Void> markRequestReceivedAndCreateListener(long requestSeqNo, ActionListener<Void> listener) {
-        return requestTracker.markReceivedAndCreateListener(requestSeqNo, listener);
-    }
-
-    public void writeFileChunk(
-        StoreFileMetadata fileMetadata,
-        long position,
-        BytesReference content,
-        boolean lastChunk,
-        ActionListener<Void> listener
-    ) {
-        try {
-            multiFileWriter.writeFileChunk(fileMetadata, position, content, lastChunk);
-            listener.onResponse(null);
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
-    }
-
-    /**
-     * return the last time this RecoveryStatus was used (based on System.nanoTime()
-     */
-    public long lastAccessTime() {
-        return lastAccessTime;
-    }
-
-    /**
-     * sets the lasAccessTime flag to now
-     */
-    public void setLastAccessTime() {
-        lastAccessTime = System.nanoTime();
-    }
-
-    private void ensureRefCount() {
-        if (refCount() <= 0) {
-            throw new OpenSearchException(
-                "RecoveryStatus is used but it's refcount is 0. Probably a mismatch between incRef/decRef " + "calls"
-            );
-        }
-    }
-
-    /**
-     * mark the current recovery as done
-     */
-    public void markAsDone() {
-        if (finished.compareAndSet(false, true)) {
-            try {
-                // might need to do something on index shard here.
-            } finally {
-                // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
-                decRef();
-            }
-            listener.onReplicationDone(state());
-        }
-    }
-
-    /**
-     * fail the recovery and call listener
-     *
-     * @param e                exception that encapsulating the failure
-     * @param sendShardFailure indicates whether to notify the master of the shard failure
-     */
-    public void fail(ReplicationFailedException e, boolean sendShardFailure) {
-        if (finished.compareAndSet(false, true)) {
-            try {
-                listener.onReplicationFailure(state(), e, sendShardFailure);
-            } finally {
-                try {
-                    // cancellableThreads.cancel("failed recovery [" + ExceptionsHelper.stackTrace(e) + "]");
-                } finally {
-                    // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
-                    decRef();
-                }
-            }
-        }
-    }
-
-    /**
-     * cancel the recovery. calling this method will clean temporary files and release the store
-     * unless this object is in use (in which case it will be cleaned once all ongoing users call
-     * {@link #decRef()}
-     */
-    public void cancel(String reason) {
-        if (finished.compareAndSet(false, true)) {
-            try {
-                logger.debug("recovery canceled (reason: [{}])", reason);
-                // cancellableThreads.cancel(reason);
-            } finally {
-                // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
-                decRef();
-            }
-        }
     }
 }

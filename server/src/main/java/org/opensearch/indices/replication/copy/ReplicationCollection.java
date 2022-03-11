@@ -88,7 +88,7 @@ public class ReplicationCollection {
         assert existingTarget == null : "found two ReplicationStatus instances with the same id";
         logger.trace(
             "{} started segment replication id [{}]",
-            replicationTarget.getIndexShard().shardId(),
+            replicationTarget.indexShard().shardId(),
             replicationTarget.getReplicationId()
         );
         threadPool.schedule(
@@ -126,7 +126,7 @@ public class ReplicationCollection {
             throw new IndexShardClosedException(shardId);
         }
         ReplicationTarget replicationTarget = replicationRef.get(ReplicationTarget.class);
-        assert replicationTarget.getIndexShard().shardId().equals(shardId);
+        assert replicationTarget.indexShard().shardId().equals(shardId);
         return replicationRef;
     }
 
@@ -137,7 +137,7 @@ public class ReplicationCollection {
         if (removed != null) {
             logger.trace(
                 "{} canceled replication, id [{}] (reason [{}])",
-                removed.getIndexShard().shardId(),
+                removed.indexShard().shardId(),
                 removed.getReplicationId(),
                 reason
             );
@@ -159,7 +159,7 @@ public class ReplicationCollection {
         if (removed != null) {
             logger.trace(
                 "{} failing segment replication  id [{}]. Send shard failure: [{}]",
-                removed.getIndexShard().shardId(),
+                removed.indexShard().shardId(),
                 removed.getReplicationId(),
                 sendShardFailure
             );
@@ -173,7 +173,7 @@ public class ReplicationCollection {
     public void markReplicationAsDone(long id) {
         ReplicationTarget removed = onGoingReplications.remove(id);
         if (removed != null) {
-            logger.trace("{} marking replication as done, id [{}]", removed.getIndexShard().shardId(), removed.getReplicationId());
+            logger.trace("{} marking replication as done, id [{}]", removed.indexShard().shardId(), removed.getReplicationId());
             removed.markAsDone();
         }
     }
@@ -198,7 +198,7 @@ public class ReplicationCollection {
         synchronized (onGoingReplications) {
             for (Iterator<ReplicationTarget> it = onGoingReplications.values().iterator(); it.hasNext();) {
                 ReplicationTarget status = it.next();
-                if (status.getIndexShard().shardId().equals(shardId)) {
+                if (status.indexShard().shardId().equals(shardId)) {
                     matchedRecoveries.add(status);
                     it.remove();
                 }
@@ -207,7 +207,7 @@ public class ReplicationCollection {
         for (ReplicationTarget removed : matchedRecoveries) {
             logger.trace(
                 "{} canceled segment replication id [{}] (reason [{}])",
-                removed.getIndexShard().shardId(),
+                removed.indexShard().shardId(),
                 removed.getReplicationId(),
                 reason
             );
@@ -263,7 +263,7 @@ public class ReplicationCollection {
                 String message = "no activity after [" + checkInterval + "]";
                 failReplication(
                     replicationId,
-                    new ReplicationFailedException(replicationTarget.getIndexShard(), message, new OpenSearchTimeoutException(message)),
+                    new ReplicationFailedException(replicationTarget.indexShard(), message, new OpenSearchTimeoutException(message)),
                     true // to be safe, we don't know what go stuck
                 );
                 return;

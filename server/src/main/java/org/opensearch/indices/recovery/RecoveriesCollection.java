@@ -120,7 +120,12 @@ public class RecoveriesCollection {
                     return null;
                 }
 
-                newRecoveryTarget = oldRecoveryTarget.retryCopy();
+                // Copy the RecoveryTarget to retry recovery from the same source node onto the same shard and using the same listener.
+                newRecoveryTarget = new RecoveryTarget(
+                    oldRecoveryTarget.indexShard(),
+                    oldRecoveryTarget.sourceNode(),
+                    oldRecoveryTarget.getListener()
+                );
                 startRecoveryInternal(newRecoveryTarget, activityTimeout);
             }
 
