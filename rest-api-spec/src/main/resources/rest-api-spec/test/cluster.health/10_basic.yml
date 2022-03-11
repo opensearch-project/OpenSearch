@@ -275,3 +275,16 @@
       cluster.health:
         index: index-2
   - match:     { status:     yellow }
+
+---
+"Get cluster health has same value for discovered_master and discovered_cluster_manager":
+  - skip:
+      version: " - 1.4.99"
+      reason: "discovered_cluster_manager is added in 2.0.0"
+  - do:
+      cluster.health: {}
+  - set:
+      discovered_master: discovered_or_not
+
+  - match:     { discovered_master:          $discovered_or_not }
+  - match:     { discovered_cluster_manager: $discovered_or_not }
