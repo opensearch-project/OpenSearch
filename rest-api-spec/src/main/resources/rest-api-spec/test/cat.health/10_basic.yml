@@ -1,89 +1,148 @@
 ---
 "Help":
   - skip:
-        version: " - 7.10.99"
-        reason: "discovered_master added in OpenSearch 1.0.0"
+      version: " - 7.10.99 , 2.0.0 - "
+      reason: "discovered_master added in OpenSearch 1.0.0"
   - do:
       cat.health:
         help: true
 
   - match:
       $body: |
-               /^  epoch         .+ \n
-                   timestamp     .+ \n
-                   cluster       .+ \n
-                   status        .+ \n
-                   node.total    .+ \n
-                   node.data     .+ \n
-                   discovered_master .+ \n
-                   shards        .+ \n
-                   pri           .+ \n
-                   relo          .+ \n
-                   init          .+ \n
-                   unassign      .+ \n
-                   pending_tasks .+ \n
-                   max_task_wait_time .+ \n
-                   active_shards_percent .+ \n
-
-               $/
+        /^  epoch         .+ \n
+            timestamp     .+ \n
+            cluster       .+ \n
+            status        .+ \n
+            node.total    .+ \n
+            node.data     .+ \n
+            discovered_master .+ \n
+            shards        .+ \n
+            pri           .+ \n
+            relo          .+ \n
+            init          .+ \n
+            unassign      .+ \n
+            pending_tasks .+ \n
+            max_task_wait_time .+ \n
+            active_shards_percent .+ \n
+        
+        $/
 
 
 ---
 "Empty cluster":
   - skip:
-      version: " - 7.10.99"
+      version: " - 7.10.99 , 2.0.0 - "
       reason: "discovered_master added in OpenSearch 1.0.0"
   - do:
       cat.health: {}
 
   - match:
       $body: |
-            /^
-              ( \d+            \s+ # epoch
-                \d\d:\d\d:\d\d \s+ # timestamp
-                \S+            \s+ # cluster
-                \w+            \s+ # status
-                \d+            \s+ # node.total
-                \d+            \s+ # node.data
-                \w+            \s+ # discovered_master
-                \d+            \s+ # shards
-                \d+            \s+ # pri
-                \d+            \s+ # relo
-                \d+            \s+ # init
-                \d+            \s+ # unassign
-                \d+            \s+ # pending_tasks
-                (-|\d+(?:[.]\d+)?m?s) \s+ # max task waiting time
-                \d+\.\d+%             # active shards percent
-                \n
-              )+
-            $/
+        /^
+          ( \d+            \s+ # epoch
+            \d\d:\d\d:\d\d \s+ # timestamp
+            \S+            \s+ # cluster
+            \w+            \s+ # status
+            \d+            \s+ # node.total
+            \d+            \s+ # node.data
+            \w+            \s+ # discovered_master
+            \d+            \s+ # shards
+            \d+            \s+ # pri
+            \d+            \s+ # relo
+            \d+            \s+ # init
+            \d+            \s+ # unassign
+            \d+            \s+ # pending_tasks
+            (-|\d+(?:[.]\d+)?m?s) \s+ # max task waiting time
+            \d+\.\d+%             # active shards percent
+            \n
+          )+
+        $/
+
+---
+"Help - after 2.0.0":
+  - skip:
+      version: " - 1.4.99"
+      reason: "discovered_cluster_manager replaced the old terminology in 2.0.0"
+  - do:
+      cat.health:
+        help: true
+
+  - match:
+      $body: |
+        /^  epoch         .+ \n
+            timestamp     .+ \n
+            cluster       .+ \n
+            status        .+ \n
+            node.total    .+ \n
+            node.data     .+ \n
+            discovered_cluster_manager .+ \n
+            shards        .+ \n
+            pri           .+ \n
+            relo          .+ \n
+            init          .+ \n
+            unassign      .+ \n
+            pending_tasks .+ \n
+            max_task_wait_time .+ \n
+            active_shards_percent .+ \n
+        
+        $/
+
+---
+"Empty cluster - after 2.0.0":
+  - skip:
+      version: " - 1.4.99"
+      reason: "discovered_cluster_manager replaced the old terminology in 2.0.0"
+  - do:
+      cat.health: {}
+
+  - match:
+      $body: |
+        /^
+          ( \d+            \s+ # epoch
+            \d\d:\d\d:\d\d \s+ # timestamp
+            \S+            \s+ # cluster
+            \w+            \s+ # status
+            \d+            \s+ # node.total
+            \d+            \s+ # node.data
+            \w+            \s+ # discovered_cluster_manager
+            \d+            \s+ # shards
+            \d+            \s+ # pri
+            \d+            \s+ # relo
+            \d+            \s+ # init
+            \d+            \s+ # unassign
+            \d+            \s+ # pending_tasks
+            (-|\d+(?:[.]\d+)?m?s) \s+ # max task waiting time
+            \d+\.\d+%             # active shards percent
+            \n
+          )+
+        $/
 
 
 ---
 "With ts parameter":
   - skip:
-      version: " - 7.10.99"
-      reason: "discovered_master added in OpenSearch 1.0.0"
+      version: " - 1.4.99"
+      reason: "discovered_cluster_manager replaced the old terminology in 2.0.0"
   - do:
       cat.health:
         ts: false
 
   - match:
       $body: |
-            /^
-              ( \S+            \s+ # cluster
-                \w+            \s+ # status
-                \d+            \s+ # node.total
-                \d+            \s+ # node.data
-                \w+            \s+ # discovered_master
-                \d+            \s+ # shards
-                \d+            \s+ # pri
-                \d+            \s+ # relo
-                \d+            \s+ # init
-                \d+            \s+ # unassign
-                \d+            \s+ # pending_tasks
-                (-|\d+(?:[.]\d+)?m?s) \s+ # max task waiting time
-                \d+\.\d+%             # active shards percent
-                \n
-              )+
-            $/
+        /^
+          ( \S+            \s+ # cluster
+            \w+            \s+ # status
+            \d+            \s+ # node.total
+            \d+            \s+ # node.data
+            \w+            \s+ # discovered_cluster_manager
+            \d+            \s+ # shards
+            \d+            \s+ # pri
+            \d+            \s+ # relo
+            \d+            \s+ # init
+            \d+            \s+ # unassign
+            \d+            \s+ # pending_tasks
+            (-|\d+(?:[.]\d+)?m?s) \s+ # max task waiting time
+            \d+\.\d+%             # active shards percent
+            \n
+          )+
+        $/
