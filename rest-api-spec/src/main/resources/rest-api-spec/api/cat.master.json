@@ -11,7 +11,11 @@
           "path":"/_cat/master",
           "methods":[
             "GET"
-          ]
+          ],
+          "deprecated":{
+            "version":"2.0.0",
+            "description":"To promote inclusive language, please use '/_cat/cluster_manager' instead."
+          }
         }
       ]
     },
