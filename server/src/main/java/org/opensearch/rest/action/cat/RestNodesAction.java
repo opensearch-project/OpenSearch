@@ -193,7 +193,7 @@ public class RestNodesAction extends AbstractCatAction {
             "node.role",
             "alias:r,role,nodeRole;desc:m:master eligible node, d:data node, i:ingest node, -:coordinating node only"
         );
-        table.addCell("master", "alias:m;desc:*:current master");
+        table.addCell("cluster_manager", "alias:m;desc:*:current cluster manager");
         table.addCell("name", "alias:n;desc:node name");
 
         table.addCell("completion.size", "alias:cs,completionSize;default:false;text-align:right;desc:size of completion");
