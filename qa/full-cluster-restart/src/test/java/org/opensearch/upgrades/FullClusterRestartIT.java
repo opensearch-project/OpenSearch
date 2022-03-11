@@ -664,9 +664,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 // before timing out
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
                 .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
-            if (randomBoolean()) {
-                settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1");
-            }
             createIndex(index, settings.build());
         }
         ensureGreen(index);
