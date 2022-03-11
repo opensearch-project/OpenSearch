@@ -60,6 +60,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.mapper.MapperParsingException;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.IndexClosedException;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -108,14 +109,7 @@ public class GatewayIndexStateIT extends OpenSearchIntegTestCase {
             .prepareCreate("test")
             .addMapping(
                 "type1",
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .startObject("type1")
-                    .startObject("_routing")
-                    .field("required", true)
-                    .endObject()
-                    .endObject()
-                    .endObject()
+                XContentFactory.jsonBuilder().startObject().startObject("_routing").field("required", true).endObject().endObject()
             )
             .execute()
             .actionGet();
@@ -130,7 +124,7 @@ public class GatewayIndexStateIT extends OpenSearchIntegTestCase {
             .metadata()
             .index("test")
             .getMappings()
-            .get("type1");
+            .get(MapperService.SINGLE_MAPPING_NAME);
         assertThat(mappingMd.routing().required(), equalTo(true));
 
         logger.info("--> restarting nodes...");
@@ -149,7 +143,7 @@ public class GatewayIndexStateIT extends OpenSearchIntegTestCase {
             .metadata()
             .index("test")
             .getMappings()
-            .get("type1");
+            .get(MapperService.SINGLE_MAPPING_NAME);
         assertThat(mappingMd.routing().required(), equalTo(true));
     }
 

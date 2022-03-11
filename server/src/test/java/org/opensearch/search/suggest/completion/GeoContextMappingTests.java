@@ -64,7 +64,6 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
 
     public void testIndexingWithNoContexts() throws Exception {
         XContentBuilder mapping = jsonBuilder().startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("completion")
             .field("type", "completion")
@@ -76,16 +75,15 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
             .endArray()
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
 
-        MapperService mapperService = createIndex("test", Settings.EMPTY, "type1", mapping).mapperService();
+        MapperService mapperService = createIndex("test", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME, mapping).mapperService();
         MappedFieldType completionFieldType = mapperService.fieldType("completion");
         ParsedDocument parsedDocument = mapperService.documentMapper()
             .parse(
                 new SourceToParse(
                     "test",
-                    "type1",
+                    MapperService.SINGLE_MAPPING_NAME,
                     "1",
                     BytesReference.bytes(
                         jsonBuilder().startObject()
@@ -114,7 +112,6 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
 
     public void testIndexingWithSimpleContexts() throws Exception {
         XContentBuilder mapping = jsonBuilder().startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("completion")
             .field("type", "completion")
@@ -126,16 +123,15 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
             .endArray()
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
 
-        MapperService mapperService = createIndex("test", Settings.EMPTY, "type1", mapping).mapperService();
+        MapperService mapperService = createIndex("test", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME, mapping).mapperService();
         MappedFieldType completionFieldType = mapperService.fieldType("completion");
         ParsedDocument parsedDocument = mapperService.documentMapper()
             .parse(
                 new SourceToParse(
                     "test",
-                    "type1",
+                    MapperService.SINGLE_MAPPING_NAME,
                     "1",
                     BytesReference.bytes(
                         jsonBuilder().startObject()
@@ -162,7 +158,6 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
 
     public void testIndexingWithContextList() throws Exception {
         XContentBuilder mapping = jsonBuilder().startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("completion")
             .field("type", "completion")
@@ -174,16 +169,15 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
             .endArray()
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
 
-        MapperService mapperService = createIndex("test", Settings.EMPTY, "type1", mapping).mapperService();
+        MapperService mapperService = createIndex("test", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME, mapping).mapperService();
         MappedFieldType completionFieldType = mapperService.fieldType("completion");
         ParsedDocument parsedDocument = mapperService.documentMapper()
             .parse(
                 new SourceToParse(
                     "test",
-                    "type1",
+                    MapperService.SINGLE_MAPPING_NAME,
                     "1",
                     BytesReference.bytes(
                         jsonBuilder().startObject()
@@ -214,7 +208,6 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
 
     public void testIndexingWithMultipleContexts() throws Exception {
         XContentBuilder mapping = jsonBuilder().startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("completion")
             .field("type", "completion")
@@ -230,10 +223,9 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
             .endArray()
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
 
-        MapperService mapperService = createIndex("test", Settings.EMPTY, "type1", mapping).mapperService();
+        MapperService mapperService = createIndex("test", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME, mapping).mapperService();
         MappedFieldType completionFieldType = mapperService.fieldType("completion");
         XContentBuilder builder = jsonBuilder().startObject()
             .startArray("completion")
@@ -248,7 +240,7 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
             .endArray()
             .endObject();
         ParsedDocument parsedDocument = mapperService.documentMapper()
-            .parse(new SourceToParse("test", "type1", "1", BytesReference.bytes(builder), XContentType.JSON));
+            .parse(new SourceToParse("test", MapperService.SINGLE_MAPPING_NAME, "1", BytesReference.bytes(builder), XContentType.JSON));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 3);
     }

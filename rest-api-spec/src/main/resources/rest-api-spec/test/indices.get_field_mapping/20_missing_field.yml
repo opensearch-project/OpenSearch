@@ -1,5 +1,5 @@
 ---
-"Return empty object if field doesn't exist, but type and index do":
+"Return empty object if field doesn't exist, but index does":
   - do:
         indices.create:
           index: test_index

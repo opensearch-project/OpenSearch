@@ -94,12 +94,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
             .getFieldMappings(getMappingsRequest, new RestBuilderListener<GetFieldMappingsResponse>(channel) {
                 @Override
                 public RestResponse buildResponse(GetFieldMappingsResponse response, XContentBuilder builder) throws Exception {
-                    Map<String, Map<String, Map<String, FieldMappingMetadata>>> mappingsByIndex = response.mappings();
-
-                    boolean isPossibleSingleFieldRequest = indices.length == 1 && fields.length == 1;
-                    if (isPossibleSingleFieldRequest && isFieldMappingMissingField(mappingsByIndex)) {
-                        return new BytesRestResponse(OK, builder.startObject().endObject());
-                    }
+                    Map<String, Map<String, FieldMappingMetadata>> mappingsByIndex = response.mappings();
 
                     RestStatus status = OK;
                     if (mappingsByIndex.isEmpty() && fields.length > 0) {
@@ -111,24 +106,4 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
             });
     }
 
-    /**
-     * Helper method to find out if the only included fieldmapping metadata is typed NULL, which means
-     * that type and index exist, but the field did not
-     */
-    private boolean isFieldMappingMissingField(Map<String, Map<String, Map<String, FieldMappingMetadata>>> mappingsByIndex) {
-        if (mappingsByIndex.size() != 1) {
-            return false;
-        }
-
-        for (Map<String, Map<String, FieldMappingMetadata>> value : mappingsByIndex.values()) {
-            for (Map<String, FieldMappingMetadata> fieldValue : value.values()) {
-                for (Map.Entry<String, FieldMappingMetadata> fieldMappingMetadataEntry : fieldValue.entrySet()) {
-                    if (fieldMappingMetadataEntry.getValue().isNull()) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
-    }
 }

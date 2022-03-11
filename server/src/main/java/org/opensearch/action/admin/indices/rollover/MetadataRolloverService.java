@@ -390,7 +390,9 @@ public class MetadataRolloverService {
             if (Strings.isNullOrEmpty(newIndexName) == false) {
                 throw new IllegalArgumentException("new index name may not be specified when rolling over a data stream");
             }
-            if ((request.settings().equals(Settings.EMPTY) == false) || (request.aliases().size() > 0) || (request.mappings().size() > 0)) {
+            if ((request.settings().equals(Settings.EMPTY) == false)
+                || (request.aliases().size() > 0)
+                || (request.mappings().equals("{}") == false)) {
                 throw new IllegalArgumentException(
                     "aliases, mappings, and index settings may not be specified when rolling over a data stream"
                 );

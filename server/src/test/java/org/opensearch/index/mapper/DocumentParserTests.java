@@ -363,7 +363,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         ParseContext context = new ParseContext.InternalParseContext(
             settings,
             mapperService.documentMapperParser(),
-            mapperService.documentMapper("type"),
+            mapperService.documentMapper(),
             null,
             null
         );

@@ -50,7 +50,7 @@ public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilde
 
     @Override
     protected void doAssertLuceneQuery(TypeQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        if (createShardContext().getMapperService().documentMapper(queryBuilder.type()) == null) {
+        if (createShardContext().getMapperService().documentMapper() == null) {
             assertEquals(new MatchNoDocsQuery(), query);
         } else {
             assertThat(query, equalTo(Queries.newNonNestedFilter(context.indexVersionCreated())));

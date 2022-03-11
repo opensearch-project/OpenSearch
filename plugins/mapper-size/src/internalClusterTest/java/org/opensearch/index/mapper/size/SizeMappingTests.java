@@ -63,10 +63,10 @@ public class SizeMappingTests extends OpenSearchSingleNodeTestCase {
 
     public void testSizeEnabled() throws Exception {
         IndexService service = createIndex("test", Settings.EMPTY, "type", "_size", "enabled=true");
-        DocumentMapper docMapper = service.mapperService().documentMapper("type");
+        DocumentMapper docMapper = service.mapperService().documentMapper();
 
         BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject());
-        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "type", "1", source, XContentType.JSON));
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", MapperService.SINGLE_MAPPING_NAME, "1", source, XContentType.JSON));
 
         boolean stored = false;
         boolean points = false;
@@ -80,27 +80,27 @@ public class SizeMappingTests extends OpenSearchSingleNodeTestCase {
 
     public void testSizeDisabled() throws Exception {
         IndexService service = createIndex("test", Settings.EMPTY, "type", "_size", "enabled=false");
-        DocumentMapper docMapper = service.mapperService().documentMapper("type");
+        DocumentMapper docMapper = service.mapperService().documentMapper();
 
         BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject());
-        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "type", "1", source, XContentType.JSON));
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", MapperService.SINGLE_MAPPING_NAME, "1", source, XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("_size"), nullValue());
     }
 
     public void testSizeNotSet() throws Exception {
-        IndexService service = createIndex("test", Settings.EMPTY, "type");
-        DocumentMapper docMapper = service.mapperService().documentMapper("type");
+        IndexService service = createIndex("test", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME);
+        DocumentMapper docMapper = service.mapperService().documentMapper();
 
         BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject());
-        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "type", "1", source, XContentType.JSON));
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", MapperService.SINGLE_MAPPING_NAME, "1", source, XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("_size"), nullValue());
     }
 
     public void testThatDisablingWorksWhenMerging() throws Exception {
         IndexService service = createIndex("test", Settings.EMPTY, "type", "_size", "enabled=true");
-        DocumentMapper docMapper = service.mapperService().documentMapper("type");
+        DocumentMapper docMapper = service.mapperService().documentMapper();
         assertThat(docMapper.metadataMapper(SizeFieldMapper.class).enabled(), is(true));
 
         String disabledMapping = Strings.toString(
