@@ -112,7 +112,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
             .field("term_vector", "with_positions_offsets_payloads")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("type1", mapping));
 
