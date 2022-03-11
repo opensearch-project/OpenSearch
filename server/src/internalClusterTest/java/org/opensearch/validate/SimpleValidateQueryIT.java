@@ -584,5 +584,17 @@ public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
 
         assertNoFailures(response);
         assertThat(response.isValid(), is(true));
+
+        // Use invalid date range
+        response = client().admin()
+            .indices()
+            .prepareValidateQuery()
+            .setQuery(QueryBuilders.boolQuery().must(rangeQuery("timestamp").gte("aaa").lte(100)))
+            .setRewrite(true)
+            .get();
+
+        assertNoFailures(response);
+        assertThat(response.isValid(), is(false));
+
     }
 }

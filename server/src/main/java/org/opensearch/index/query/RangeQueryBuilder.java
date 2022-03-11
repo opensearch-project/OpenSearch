@@ -451,13 +451,8 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                 return MappedFieldType.Relation.INTERSECTS;
             }
 
-            // For validation, always assume that there is an intersection
-            if (shardContext.validate()) {
-                return MappedFieldType.Relation.INTERSECTS;
-            }
-
             DateMathParser dateMathParser = getForceDateParser();
-            return fieldType.isFieldWithinQuery(
+            final MappedFieldType.Relation relation = fieldType.isFieldWithinQuery(
                 shardContext.getIndexReader(),
                 from,
                 to,
@@ -467,6 +462,13 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                 dateMathParser,
                 queryRewriteContext
             );
+
+            // For validation, always assume that there is an intersection
+            if (relation == MappedFieldType.Relation.DISJOINT && shardContext.validate()) {
+                return MappedFieldType.Relation.INTERSECTS;
+            }
+
+            return relation;
         }
 
         // Not on the shard, we have no way to know what the relation is.
