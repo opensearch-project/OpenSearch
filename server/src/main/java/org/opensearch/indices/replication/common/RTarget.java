@@ -41,6 +41,7 @@ public abstract class RTarget extends AbstractRefCounted {
     protected final RListener listener;
     protected final MultiFileWriter multiFileWriter;
     protected final Logger logger;
+    protected final RecoveryState.Index recoveryStateIndex;
 
     protected abstract String getPrefix();
 
@@ -52,15 +53,16 @@ public abstract class RTarget extends AbstractRefCounted {
 
     public abstract RState state();
 
-    public RTarget(String name, IndexShard indexShard, RecoveryState.Index recoveryIndex, RListener listener) {
+    public RTarget(String name, IndexShard indexShard, RecoveryState.Index recoveryStateIndex, RListener listener) {
         super(name);
         this.logger = Loggers.getLogger(getClass(), indexShard.shardId());
         this.listener = listener;
         this.id = ID_GENERATOR.incrementAndGet();
+        this.recoveryStateIndex = recoveryStateIndex;
         this.indexShard = indexShard;
         this.store = indexShard.store();
         final String tempFilePrefix = getPrefix() + UUIDs.randomBase64UUID() + ".";
-        this.multiFileWriter = new MultiFileWriter(indexShard.store(), recoveryIndex, tempFilePrefix, logger, this::ensureRefCount);
+        this.multiFileWriter = new MultiFileWriter(indexShard.store(), recoveryStateIndex, tempFilePrefix, logger, this::ensureRefCount);
         // make sure the store is not released until we are done.
         store.incRef();
     }

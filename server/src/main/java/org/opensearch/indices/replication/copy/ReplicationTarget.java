@@ -82,7 +82,7 @@ public class ReplicationTarget extends RTarget {
         super("replication_status", indexShard, new RecoveryState.Index(), listener);
         this.checkpoint = checkpoint;
         this.source = source;
-        state = new ReplicationState(new RecoveryState.Index());
+        state = new ReplicationState(recoveryStateIndex);
     }
 
     @Override
