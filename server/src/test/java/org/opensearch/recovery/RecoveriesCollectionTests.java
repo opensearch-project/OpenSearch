@@ -124,7 +124,7 @@ public class RecoveriesCollectionTests extends OpenSearchIndexLevelReplicationTe
             final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica());
             final long recoveryId2 = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica());
             try (RecoveriesCollection.RecoveryRef recoveryRef = collection.getRecovery(recoveryId)) {
-                ShardId shardId = recoveryRef.get(RecoveryTarget.class).shardId();
+                ShardId shardId = recoveryRef.get(RecoveryTarget.class).indexShard().shardId();
                 assertTrue("failed to cancel recoveries", collection.cancelRecoveriesForShard(shardId, "test"));
                 assertThat("all recoveries should be cancelled", collection.size(), equalTo(0));
             } finally {
@@ -149,7 +149,7 @@ public class RecoveriesCollectionTests extends OpenSearchIndexLevelReplicationTe
             Store store = recoveryTarget.store();
             String tempFileName = recoveryTarget.getTempNameForFile("foobar");
             RecoveryTarget resetRecovery = collection.resetRecovery(recoveryId, TimeValue.timeValueMinutes(60));
-            final long resetRecoveryId = resetRecovery.recoveryId();
+            final long resetRecoveryId = resetRecovery.getId();
             assertNotSame(recoveryTarget, resetRecovery);
             assertNotSame(recoveryTarget.cancellableThreads(), resetRecovery.cancellableThreads());
             assertSame(indexShard, resetRecovery.indexShard());

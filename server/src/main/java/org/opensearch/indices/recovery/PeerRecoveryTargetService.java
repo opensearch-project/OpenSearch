@@ -84,6 +84,7 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -203,7 +204,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     private void retryRecovery(final long recoveryId, final TimeValue retryAfter, final TimeValue activityTimeout) {
         RecoveryTarget newTarget = onGoingRecoveries.resetRecovery(recoveryId, activityTimeout);
         if (newTarget != null) {
-            threadPool.scheduleUnlessShuttingDown(retryAfter, ThreadPool.Names.GENERIC, new RecoveryRunner(newTarget.recoveryId()));
+            threadPool.scheduleUnlessShuttingDown(retryAfter, ThreadPool.Names.GENERIC, new RecoveryRunner(newTarget.getId()));
         }
     }
 
@@ -232,7 +233,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     final IndexShard indexShard = recoveryTarget.indexShard();
                     indexShard.preRecovery();
                     assert recoveryTarget.sourceNode() != null : "can not do a recovery without a source node";
-                    logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
+                    logger.trace("{} preparing shard for peer recovery", recoveryTarget.indexShard().shardId());
                     indexShard.prepareForIndexRecovery();
                     final long startingSeqNo = indexShard.recoverLocallyUpToGlobalCheckpoint();
                     assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG
@@ -292,7 +293,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         long startingSeqNo
     ) {
         final StartRecoveryRequest request;
-        logger.trace("{} collecting local files for [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
+        logger.trace("{} collecting local files for [{}]", recoveryTarget.indexShard().shardId(), recoveryTarget.sourceNode());
 
         Store.MetadataSnapshot metadataSnapshot;
         try {
@@ -300,7 +301,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             // Make sure that the current translog is consistent with the Lucene index; otherwise, we have to throw away the Lucene index.
             try {
                 final String expectedTranslogUUID = metadataSnapshot.getCommitUserData().get(Translog.TRANSLOG_UUID_KEY);
-                final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.translogLocation(), expectedTranslogUUID);
+                Path translogPath = recoveryTarget.indexShard().shardPath().resolveTranslog();
+                final long globalCheckpoint = Translog.readGlobalCheckpoint(translogPath, expectedTranslogUUID);
                 assert globalCheckpoint + 1 >= startingSeqNo : "invalid startingSeqNo " + startingSeqNo + " >= " + globalCheckpoint;
             } catch (IOException | TranslogCorruptedException e) {
                 logger.warn(
@@ -335,15 +337,15 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             }
             metadataSnapshot = Store.MetadataSnapshot.EMPTY;
         }
-        logger.trace("{} local file count [{}]", recoveryTarget.shardId(), metadataSnapshot.size());
+        logger.trace("{} local file count [{}]", recoveryTarget.indexShard().shardId(), metadataSnapshot.size());
         request = new StartRecoveryRequest(
-            recoveryTarget.shardId(),
+            recoveryTarget.indexShard().shardId(),
             recoveryTarget.indexShard().routingEntry().allocationId().getId(),
             recoveryTarget.sourceNode(),
             localNode,
             metadataSnapshot,
             recoveryTarget.state().getPrimary(),
-            recoveryTarget.recoveryId(),
+            recoveryTarget.getId(),
             startingSeqNo
         );
         return request;

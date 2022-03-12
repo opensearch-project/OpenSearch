@@ -43,7 +43,7 @@ import org.opensearch.indices.replication.copy.ReplicationCheckpoint;
 import org.opensearch.indices.replication.copy.ReplicationCollection;
 import org.opensearch.indices.replication.copy.ReplicationFailedException;
 import org.opensearch.indices.replication.copy.ReplicationState;
-import org.opensearch.indices.replication.copy.ReplicationTarget;
+import org.opensearch.indices.replication.copy.SegmentReplicationTarget;
 import org.opensearch.indices.replication.copy.SegmentReplicationPrimaryService;
 import org.opensearch.indices.replication.copy.TrackShardRequest;
 import org.opensearch.indices.replication.copy.TrackShardResponse;
@@ -181,7 +181,7 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
                 logger.trace("not running replication with id [{}] - can not find it (probably finished)", replicationId);
                 return;
             }
-            final ReplicationTarget replicationTarget = replicationRef.get(ReplicationTarget.class);
+            final SegmentReplicationTarget replicationTarget = replicationRef.get(SegmentReplicationTarget.class);
             timer = replicationTarget.state().getTimer();
             final IndexShard indexShard = replicationTarget.indexShard();
 
@@ -218,7 +218,7 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
                         () -> new ParameterizedMessage("unexpected error during replication [{}], failing shard", replicationId),
                         e
                     );
-                    ReplicationTarget replicationTarget = replicationRef.get(ReplicationTarget.class);
+                    SegmentReplicationTarget replicationTarget = replicationRef.get(SegmentReplicationTarget.class);
                     onGoingReplications.failReplication(
                         replicationId,
                         new ReplicationFailedException(replicationTarget.indexShard(), "unexpected error", e),

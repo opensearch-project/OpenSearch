@@ -47,7 +47,7 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.SegmentReplicationReplicaService;
 import org.opensearch.indices.replication.checkpoint.TransportCheckpointInfoResponse;
-import org.opensearch.indices.replication.common.RTarget;
+import org.opensearch.indices.replication.common.ReplicationTarget;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -58,7 +58,7 @@ import java.util.stream.Stream;
 /**
  * Orchestrates a replication event for a replica shard.
  */
-public class ReplicationTarget extends RTarget {
+public class SegmentReplicationTarget extends ReplicationTarget {
 
     private static final String REPLICATION_PREFIX = "replication.";
 
@@ -73,7 +73,7 @@ public class ReplicationTarget extends RTarget {
      * @param source     source of the recovery where we recover from
      * @param listener   called when recovery is completed/failed
      */
-    public ReplicationTarget(
+    public SegmentReplicationTarget(
         ReplicationCheckpoint checkpoint,
         IndexShard indexShard,
         PrimaryShardReplicationSource source,
@@ -116,10 +116,6 @@ public class ReplicationTarget extends RTarget {
     @Override
     public ReplicationState state() {
         return state;
-    }
-
-    public long getReplicationId() {
-        return getId();
     }
 
     public void startReplication(ActionListener<ReplicationResponse> listener) {

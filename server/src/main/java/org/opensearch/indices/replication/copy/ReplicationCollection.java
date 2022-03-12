@@ -61,7 +61,7 @@ public class ReplicationCollection {
     /**
      * This is the single source of truth for ongoing recoveries. If it's not here, it was canceled or done
      */
-    private final ConcurrentMap<Long, ReplicationTarget> onGoingReplications = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<Long, SegmentReplicationTarget> onGoingReplications = ConcurrentCollections.newConcurrentMap();
 
     private final Logger logger;
     private final ThreadPool threadPool;
@@ -78,39 +78,35 @@ public class ReplicationCollection {
         SegmentReplicationReplicaService.ReplicationListener listener,
         TimeValue activityTimeout
     ) {
-        ReplicationTarget replicationTarget = new ReplicationTarget(checkpoint, indexShard, source, listener);
+        SegmentReplicationTarget replicationTarget = new SegmentReplicationTarget(checkpoint, indexShard, source, listener);
         startReplicationInternal(replicationTarget, activityTimeout);
-        return replicationTarget.getReplicationId();
+        return replicationTarget.getId();
     }
 
-    private void startReplicationInternal(ReplicationTarget replicationTarget, TimeValue activityTimeout) {
-        ReplicationTarget existingTarget = onGoingReplications.putIfAbsent(replicationTarget.getReplicationId(), replicationTarget);
+    private void startReplicationInternal(SegmentReplicationTarget replicationTarget, TimeValue activityTimeout) {
+        SegmentReplicationTarget existingTarget = onGoingReplications.putIfAbsent(replicationTarget.getId(), replicationTarget);
         assert existingTarget == null : "found two ReplicationStatus instances with the same id";
-        logger.trace(
-            "{} started segment replication id [{}]",
-            replicationTarget.indexShard().shardId(),
-            replicationTarget.getReplicationId()
-        );
+        logger.trace("{} started segment replication id [{}]", replicationTarget.indexShard().shardId(), replicationTarget.getId());
         threadPool.schedule(
-            new ReplicationMonitor(replicationTarget.getReplicationId(), replicationTarget.lastAccessTime(), activityTimeout),
+            new ReplicationMonitor(replicationTarget.getId(), replicationTarget.lastAccessTime(), activityTimeout),
             activityTimeout,
             ThreadPool.Names.GENERIC
         );
     }
 
-    public ReplicationTarget getReplicationTarget(long id) {
+    public SegmentReplicationTarget getReplicationTarget(long id) {
         return onGoingReplications.get(id);
     }
 
     /**
-     * gets the {@link ReplicationTarget } for a given id. The ReplicationStatus returned has it's ref count already incremented
-     * to make sure it's safe to use. However, you must call {@link ReplicationTarget#decRef()} when you are done with it, typically
+     * gets the {@link SegmentReplicationTarget } for a given id. The ReplicationStatus returned has it's ref count already incremented
+     * to make sure it's safe to use. However, you must call {@link SegmentReplicationTarget#decRef()} when you are done with it, typically
      * by using this method in a try-with-resources clause.
      * <p>
      * Returns null if replication is not found
      */
     public ReplicationRef getReplication(long id) {
-        ReplicationTarget status = onGoingReplications.get(id);
+        SegmentReplicationTarget status = onGoingReplications.get(id);
         if (status != null && status.tryIncRef()) {
             return new ReplicationRef(status);
         }
@@ -125,22 +121,17 @@ public class ReplicationCollection {
         if (replicationRef == null) {
             throw new IndexShardClosedException(shardId);
         }
-        ReplicationTarget replicationTarget = replicationRef.get(ReplicationTarget.class);
+        SegmentReplicationTarget replicationTarget = replicationRef.get(SegmentReplicationTarget.class);
         assert replicationTarget.indexShard().shardId().equals(shardId);
         return replicationRef;
     }
 
     /** cancel the replication with the given id (if found) and remove it from the replication collection */
     public boolean cancelReplication(long id, String reason) {
-        ReplicationTarget removed = onGoingReplications.remove(id);
+        SegmentReplicationTarget removed = onGoingReplications.remove(id);
         boolean cancelled = false;
         if (removed != null) {
-            logger.trace(
-                "{} canceled replication, id [{}] (reason [{}])",
-                removed.indexShard().shardId(),
-                removed.getReplicationId(),
-                reason
-            );
+            logger.trace("{} canceled replication, id [{}] (reason [{}])", removed.indexShard().shardId(), removed.getId(), reason);
             removed.cancel(reason);
             cancelled = true;
         }
@@ -155,12 +146,12 @@ public class ReplicationCollection {
      * @param sendShardFailure true a shard failed message should be sent to the master
      */
     public void failReplication(long id, ReplicationFailedException e, boolean sendShardFailure) {
-        ReplicationTarget removed = onGoingReplications.remove(id);
+        SegmentReplicationTarget removed = onGoingReplications.remove(id);
         if (removed != null) {
             logger.trace(
                 "{} failing segment replication  id [{}]. Send shard failure: [{}]",
                 removed.indexShard().shardId(),
-                removed.getReplicationId(),
+                removed.getId(),
                 sendShardFailure
             );
             removed.fail(e, sendShardFailure);
@@ -171,9 +162,9 @@ public class ReplicationCollection {
      * mark the replication with the given id as done (if found)
      */
     public void markReplicationAsDone(long id) {
-        ReplicationTarget removed = onGoingReplications.remove(id);
+        SegmentReplicationTarget removed = onGoingReplications.remove(id);
         if (removed != null) {
-            logger.trace("{} marking replication as done, id [{}]", removed.indexShard().shardId(), removed.getReplicationId());
+            logger.trace("{} marking replication as done, id [{}]", removed.indexShard().shardId(), removed.getId());
             removed.markAsDone();
         }
     }
@@ -194,23 +185,18 @@ public class ReplicationCollection {
      */
     public boolean cancelRecoveriesForShard(ShardId shardId, String reason) {
         boolean cancelled = false;
-        List<ReplicationTarget> matchedRecoveries = new ArrayList<>();
+        List<SegmentReplicationTarget> matchedRecoveries = new ArrayList<>();
         synchronized (onGoingReplications) {
-            for (Iterator<ReplicationTarget> it = onGoingReplications.values().iterator(); it.hasNext();) {
-                ReplicationTarget status = it.next();
+            for (Iterator<SegmentReplicationTarget> it = onGoingReplications.values().iterator(); it.hasNext();) {
+                SegmentReplicationTarget status = it.next();
                 if (status.indexShard().shardId().equals(shardId)) {
                     matchedRecoveries.add(status);
                     it.remove();
                 }
             }
         }
-        for (ReplicationTarget removed : matchedRecoveries) {
-            logger.trace(
-                "{} canceled segment replication id [{}] (reason [{}])",
-                removed.indexShard().shardId(),
-                removed.getReplicationId(),
-                reason
-            );
+        for (SegmentReplicationTarget removed : matchedRecoveries) {
+            logger.trace("{} canceled segment replication id [{}] (reason [{}])", removed.indexShard().shardId(), removed.getId(), reason);
             removed.cancel(reason);
             cancelled = true;
         }
@@ -218,17 +204,17 @@ public class ReplicationCollection {
     }
 
     /**
-     * a reference to {@link ReplicationTarget}, which implements {@link AutoCloseable}. closing the reference
-     * causes {@link ReplicationTarget#decRef()} to be called. This makes sure that the underlying resources
+     * a reference to {@link SegmentReplicationTarget}, which implements {@link AutoCloseable}. closing the reference
+     * causes {@link SegmentReplicationTarget#decRef()} to be called. This makes sure that the underlying resources
      * will not be freed until {@link ReplicationRef#close()} is called.
      */
     public static class ReplicationRef extends AutoCloseableRefCounted {
 
         /**
-         * Important: {@link ReplicationTarget#tryIncRef()} should
+         * Important: {@link SegmentReplicationTarget#tryIncRef()} should
          * be *successfully* called on target before
          */
-        public ReplicationRef(ReplicationTarget target) {
+        public ReplicationRef(SegmentReplicationTarget target) {
             super(target);
             target.setLastAccessTime();
         }
@@ -253,7 +239,7 @@ public class ReplicationCollection {
 
         @Override
         protected void doRun() throws Exception {
-            ReplicationTarget replicationTarget = onGoingReplications.get(replicationId);
+            SegmentReplicationTarget replicationTarget = onGoingReplications.get(replicationId);
             if (replicationTarget == null) {
                 logger.trace("[monitor] no replicationTarget found for [{}], shutting down", replicationId);
                 return;

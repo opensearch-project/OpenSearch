@@ -25,7 +25,7 @@ import org.opensearch.indices.recovery.RecoveryState;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-public abstract class RTarget extends AbstractRefCounted {
+public abstract class ReplicationTarget extends AbstractRefCounted {
 
     // TODO will this cause issues because its shared between subclasses?
     private static final AtomicLong ID_GENERATOR = new AtomicLong();
@@ -53,7 +53,7 @@ public abstract class RTarget extends AbstractRefCounted {
 
     public abstract RState state();
 
-    public RTarget(String name, IndexShard indexShard, RecoveryState.Index recoveryStateIndex, RListener listener) {
+    public ReplicationTarget(String name, IndexShard indexShard, RecoveryState.Index recoveryStateIndex, RListener listener) {
         super(name);
         this.logger = Loggers.getLogger(getClass(), indexShard.shardId());
         this.listener = listener;

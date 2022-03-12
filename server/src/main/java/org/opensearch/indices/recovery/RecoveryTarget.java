@@ -52,14 +52,12 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardNotRecoveringException;
 import org.opensearch.index.shard.IndexShardState;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
-import org.opensearch.indices.replication.common.RTarget;
+import org.opensearch.indices.replication.common.ReplicationTarget;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
@@ -67,7 +65,7 @@ import java.util.concurrent.CountDownLatch;
  * Represents a recovery where the current node is the target node of the recovery. To track recoveries in a central place, instances of
  * this class are created through {@link RecoveriesCollection}.
  */
-public class RecoveryTarget extends RTarget implements RecoveryTargetHandler {
+public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetHandler {
 
     private static final String RECOVERY_PREFIX = "recovery.";
 
@@ -88,6 +86,11 @@ public class RecoveryTarget extends RTarget implements RecoveryTargetHandler {
         this.cancellableThreads = new CancellableThreads();
         this.sourceNode = sourceNode;
         indexShard.recoveryStats().incCurrentAsTarget();
+    }
+
+    @Override
+    public String toString() {
+        return indexShard.shardId() + " [" + getId() + "]";
     }
 
     @Override
@@ -132,16 +135,12 @@ public class RecoveryTarget extends RTarget implements RecoveryTargetHandler {
         }
     }
 
+    /**
+     * Wrapper method around the internal {@link #listener} object
+     * to enforce stronger typing on the return type.
+     */
     public PeerRecoveryTargetService.RecoveryListener getListener() {
         return (PeerRecoveryTargetService.RecoveryListener) listener;
-    }
-
-    public long recoveryId() {
-        return getId();
-    }
-
-    public ShardId shardId() {
-        return indexShard.shardId();
     }
 
     public DiscoveryNode sourceNode() {
@@ -160,7 +159,7 @@ public class RecoveryTarget extends RTarget implements RecoveryTargetHandler {
         final long recoveryId = getId();
         if (finished.compareAndSet(false, true)) {
             try {
-                logger.debug("reset of recovery with shard {} and id [{}]", shardId(), recoveryId);
+                logger.debug("reset of recovery with shard {} and id [{}]", indexShard.shardId(), recoveryId);
             } finally {
                 // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now.
                 decRef();
@@ -170,7 +169,7 @@ public class RecoveryTarget extends RTarget implements RecoveryTargetHandler {
             } catch (CancellableThreads.ExecutionCancelledException e) {
                 logger.trace(
                     "new recovery target cancelled for shard {} while waiting on old recovery target with id [{}] to close",
-                    shardId(),
+                    indexShard.shardId(),
                     recoveryId
                 );
                 return false;
@@ -192,11 +191,6 @@ public class RecoveryTarget extends RTarget implements RecoveryTargetHandler {
 
     public void notifyListener(RecoveryFailedException e, boolean sendShardFailure) {
         listener.onFailure(state(), e, sendShardFailure);
-    }
-
-    @Override
-    public String toString() {
-        return shardId() + " [" + getId() + "]";
     }
 
     /*** Implementation of {@link RecoveryTargetHandler } */
@@ -266,7 +260,7 @@ public class RecoveryTarget extends RTarget implements RecoveryTargetHandler {
             translog.totalOperations(totalTranslogOps);
             assert indexShard().recoveryState() == state();
             if (indexShard().state() != IndexShardState.RECOVERING) {
-                throw new IndexShardNotRecoveringException(shardId(), indexShard().state());
+                throw new IndexShardNotRecoveringException(indexShard.shardId(), indexShard().state());
             }
             /*
              * The maxSeenAutoIdTimestampOnPrimary received from the primary is at least the highest auto_id_timestamp from any operation
@@ -352,7 +346,7 @@ public class RecoveryTarget extends RTarget implements RecoveryTargetHandler {
                 final String translogUUID = Translog.createEmptyTranslog(
                     indexShard.shardPath().resolveTranslog(),
                     globalCheckpoint,
-                    shardId(),
+                    indexShard.shardId(),
                     indexShard.getPendingPrimaryTerm()
                 );
                 store.associateIndexWithNewTranslog(translogUUID);
@@ -407,21 +401,13 @@ public class RecoveryTarget extends RTarget implements RecoveryTargetHandler {
     ) {
         state().getTranslog().totalOperations(totalTranslogOps);
         this.writeFileChunk(fileMetadata, position, content, lastChunk, listener);
-        try {
-            state().getTranslog().totalOperations(totalTranslogOps);
-            multiFileWriter.writeFileChunk(fileMetadata, position, content, lastChunk);
-            listener.onResponse(null);
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
     }
 
-    /** Get a temporary name for the provided file name. */
+    /**
+     * Get a temporary name for the provided file name.
+     * This is only used in tests.
+     */
     public String getTempNameForFile(String origFile) {
         return multiFileWriter.getTempNameForFile(origFile);
-    }
-
-    Path translogLocation() {
-        return indexShard().shardPath().resolveTranslog();
     }
 }
