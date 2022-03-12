@@ -34,9 +34,13 @@ setup:
   - skip:
       version: " - 1.4.99"
       reason: "node role cluster_manager is added in 2.0.0"
+      features: node_selector
 
   - do:
       nodes.info: {}
+      node_selector:
+        version: "2.0.0 - " # It's used to skip this test when a node got upgraded from a lower version during mixedClusterTest.
+
   - set:
       nodes._arbitrary_key_: node_id
 
