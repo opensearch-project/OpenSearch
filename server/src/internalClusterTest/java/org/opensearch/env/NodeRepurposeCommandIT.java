@@ -75,7 +75,7 @@ public class NodeRepurposeCommandIT extends OpenSearchIntegTestCase {
         final Settings dataNodeDataPathSettings = internalCluster().dataPathSettings(dataNode);
 
         final Settings noMasterNoDataSettings = NodeRoles.removeRoles(
-            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)))
+            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)))
         );
 
         final Settings noMasterNoDataSettingsForMasterNode = Settings.builder()
