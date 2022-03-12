@@ -209,19 +209,7 @@ public class Node {
             this.roles = new TreeSet<>(roles);
         }
 
-        /**
-         * Returns whether or not the node <strong>could</strong> be elected master.
-         * @deprecated As of 2.0, because promoting inclusive language, replaced by {@link #isClusterManagerEligible()}
-         */
-        @Deprecated
         public boolean isMasterEligible() {
-            return roles.contains("master") || roles.contains("cluster_manager");
-        }
-
-        /**
-         * Returns whether or not the node <strong>could</strong> be elected cluster manager.
-         */
-        public boolean isClusterManagerEligible() {
             return roles.contains("master") || roles.contains("cluster_manager");
         }
 
