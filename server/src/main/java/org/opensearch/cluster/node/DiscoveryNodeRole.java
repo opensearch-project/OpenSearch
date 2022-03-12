@@ -207,7 +207,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
     };
 
     /**
-     * Represents the role for a cluster_manager-eligible node.
+     * Represents the role for a cluster-manager-eligible node.
      */
     public static final DiscoveryNodeRole CLUSTER_MANAGER_ROLE = new DiscoveryNodeRole("cluster_manager", "m") {
 
@@ -215,6 +215,15 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         public Setting<Boolean> legacySetting() {
             // copy the setting here so we can mark it private in org.opensearch.node.Node
             return Setting.boolSetting("node.master", true, Property.Deprecated, Property.NodeScope);
+        }
+
+        @Override
+        public DiscoveryNodeRole getCompatibilityRole(Version nodeVersion) {
+            if (nodeVersion.onOrAfter(Version.V_2_0_0)) {
+                return this;
+            } else {
+                return DiscoveryNodeRole.MASTER_ROLE;
+            }
         }
 
     };
