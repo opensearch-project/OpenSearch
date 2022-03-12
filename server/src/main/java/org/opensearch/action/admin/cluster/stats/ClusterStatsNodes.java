@@ -223,7 +223,14 @@ public class ClusterStatsNodes implements ToXContentFragment {
                     roles.merge(COORDINATING_ONLY, 1, Integer::sum);
                 } else {
                     for (DiscoveryNodeRole role : nodeInfo.getNode().getRoles()) {
-                        roles.merge(role.roleName(), 1, Integer::sum);
+                        // TODO: Remove the 'if' condition and only keep the statement in 'else' after removing MASTER_ROLE.
+                        // As of 2.0, CLUSTER_MANAGER_ROLE is added, and it should be taken as MASTER_ROLE
+                        if (role.equals(DiscoveryNodeRole.MASTER_ROLE) || role.equals(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)) {
+                            roles.merge(DiscoveryNodeRole.MASTER_ROLE.roleName(), 1, Integer::sum);
+                            roles.merge(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(), 1, Integer::sum);
+                        } else {
+                            roles.merge(role.roleName(), 1, Integer::sum);
+                        }
                     }
                 }
             }

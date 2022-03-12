@@ -55,7 +55,15 @@ public class DiscoveryNodeRoleSettingTests extends OpenSearchTestCase {
         runRoleTest(DiscoveryNode::isIngestNode, DiscoveryNodeRole.INGEST_ROLE);
     }
 
+    /**
+     * @deprecated As of 2.0, because promoting inclusive language, replaced by {@link #testIsClusterManagerNode()}.
+     */
+    @Deprecated
     public void testIsMasterNode() {
+        runRoleTest(DiscoveryNode::isMasterNode, DiscoveryNodeRole.MASTER_ROLE);
+    }
+
+    public void testIsClusterManagerNode() {
         runRoleTest(DiscoveryNode::isMasterNode, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
     }
 

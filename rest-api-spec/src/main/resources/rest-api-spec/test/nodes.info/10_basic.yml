@@ -30,7 +30,7 @@ setup:
   - match: { nodes.$node_id.roles.3: "remote_cluster_client" }
     
 ---
-"node_info role test with both master and cluster_manager":
+"node_info role test with cluster_manager":
   - skip:
       version: " - 1.4.99"
       reason: "node role cluster_manager is added in 2.0.0"
@@ -45,6 +45,5 @@ setup:
   - match: { nodes.$node_id.roles.0: "cluster_manager" }
   - match: { nodes.$node_id.roles.1: "data" }
   - match: { nodes.$node_id.roles.2: "ingest" }
-  - match: { nodes.$node_id.roles.3: "master" }
-  - match: { nodes.$node_id.roles.4: "remote_cluster_client" }
+  - match: { nodes.$node_id.roles.3: "remote_cluster_client" }
 
