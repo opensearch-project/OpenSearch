@@ -1146,14 +1146,7 @@ public final class InternalTestCluster extends TestCluster {
         for (int i = numSharedDedicatedMasterNodes; i < numSharedDedicatedMasterNodes + numSharedDataNodes; i++) {
             final Settings nodeSettings = getNodeSettings(i, sharedNodesSeeds[i], Settings.EMPTY, defaultMinMasterNodes);
             if (numSharedDedicatedMasterNodes > 0) {
-                settings.add(
-                    removeRoles(
-                        nodeSettings,
-                        Collections.unmodifiableSet(
-                            new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.MASTER_ROLE))
-                        )
-                    )
-                );
+                settings.add(removeRoles(nodeSettings, Collections.singleton(DiscoveryNodeRole.MASTER_ROLE)));
             } else {
                 // if we don't have dedicated master nodes, keep things default
                 settings.add(nodeSettings);

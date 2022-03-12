@@ -107,6 +107,7 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
             dataMasterSettings,
             Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)))
         );
+
         noDataMasterSettings = masterNode(nonDataNode(dataMasterSettings));
     }
 

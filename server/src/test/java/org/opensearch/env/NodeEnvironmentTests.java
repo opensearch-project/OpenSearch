@@ -530,9 +530,7 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
             .put(
                 NodeRoles.removeRoles(
                     settings,
-                    Collections.unmodifiableSet(
-                        new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE))
-                    )
+                    Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)))
                 )
             )
             .build();
