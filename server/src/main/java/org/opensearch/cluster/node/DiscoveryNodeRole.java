@@ -201,7 +201,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         @Override
         public Setting<Boolean> legacySetting() {
             // copy the setting here so we can mark it private in org.opensearch.node.Node
-            return Setting.boolSetting("node.master", true, Property.Deprecated, Property.NodeScope);
+            return Setting.boolSetting("node.master", false, Property.Deprecated, Property.NodeScope);
         }
 
     };
