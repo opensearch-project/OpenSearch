@@ -201,6 +201,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         @Override
         public Setting<Boolean> legacySetting() {
             // copy the setting here so we can mark it private in org.opensearch.node.Node
+            // As of 2.0, set the default value to 'false', so that MASTER_ROLE isn't added as a default value of NODE_ROLES_SETTING
             return Setting.boolSetting("node.master", false, Property.Deprecated, Property.NodeScope);
         }
 
