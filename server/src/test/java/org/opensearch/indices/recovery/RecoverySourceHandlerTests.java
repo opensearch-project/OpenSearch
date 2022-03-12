@@ -462,7 +462,6 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
     }
 
     private Engine.Index getIndex(final String id) {
-        final String type = "test";
         final ParseContext.Document document = new ParseContext.Document();
         document.add(new TextField("test", "test", Field.Store.YES));
         final Field idField = new Field("_id", Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE);
@@ -478,7 +477,6 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
             versionField,
             seqID,
             id,
-            type,
             null,
             Arrays.asList(document),
             source,
@@ -1188,10 +1186,9 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
             final long seqNo = randomValueOtherThanMany(n -> seqNos.add(n) == false, OpenSearchTestCase::randomNonNegativeLong);
             final Translog.Operation op;
             if (randomBoolean()) {
-                op = new Translog.Index("_doc", "id", seqNo, randomNonNegativeLong(), randomNonNegativeLong(), source, null, -1);
+                op = new Translog.Index("id", seqNo, randomNonNegativeLong(), randomNonNegativeLong(), source, null, -1);
             } else if (randomBoolean()) {
                 op = new Translog.Delete(
-                    "_doc",
                     "id",
                     new Term("_id", Uid.encodeId("id")),
                     seqNo,

@@ -161,7 +161,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
 
             // delete #1
             orgReplica.advanceMaxSeqNoOfUpdatesOrDeletes(1); // manually advance msu for this delete
-            orgReplica.applyDeleteOperationOnReplica(1, primaryTerm, 2, "type", "id");
+            orgReplica.applyDeleteOperationOnReplica(1, primaryTerm, 2, "id");
             orgReplica.flush(new FlushRequest().force(true)); // isolate delete#1 in its own translog generation and lucene segment
             // index #0
             orgReplica.applyIndexOperationOnReplica(
@@ -170,7 +170,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
                 1,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
                 false,
-                new SourceToParse(indexName, "type", "id", new BytesArray("{}"), XContentType.JSON)
+                new SourceToParse(indexName, "id", new BytesArray("{}"), XContentType.JSON)
             );
             // index #3
             orgReplica.applyIndexOperationOnReplica(
@@ -179,7 +179,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
                 1,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
                 false,
-                new SourceToParse(indexName, "type", "id-3", new BytesArray("{}"), XContentType.JSON)
+                new SourceToParse(indexName, "id-3", new BytesArray("{}"), XContentType.JSON)
             );
             // Flushing a new commit with local checkpoint=1 allows to delete the translog gen #1.
             orgReplica.flush(new FlushRequest().force(true).waitIfOngoing(true));
@@ -190,7 +190,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
                 1,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
                 false,
-                new SourceToParse(indexName, "type", "id-2", new BytesArray("{}"), XContentType.JSON)
+                new SourceToParse(indexName, "id-2", new BytesArray("{}"), XContentType.JSON)
             );
             orgReplica.sync(); // advance local checkpoint
             orgReplica.updateGlobalCheckpointOnReplica(3L, "test");
@@ -201,7 +201,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
                 1,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
                 false,
-                new SourceToParse(indexName, "type", "id-5", new BytesArray("{}"), XContentType.JSON)
+                new SourceToParse(indexName, "id-5", new BytesArray("{}"), XContentType.JSON)
             );
 
             if (randomBoolean()) {
@@ -310,13 +310,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             Engine.IndexResult result = primaryShard.applyIndexOperationOnPrimary(
                 Versions.MATCH_ANY,
                 VersionType.INTERNAL,
-                new SourceToParse(
-                    primaryShard.shardId().getIndexName(),
-                    "_doc",
-                    Integer.toString(i),
-                    new BytesArray("{}"),
-                    XContentType.JSON
-                ),
+                new SourceToParse(primaryShard.shardId().getIndexName(), Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
                 0,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,

@@ -223,7 +223,6 @@ public class IndexingSlowLogTests extends OpenSearchTestCase {
             new NumericDocValuesField("version", 1),
             SeqNoFieldMapper.SequenceIDFields.emptySeqID(),
             "id",
-            "test",
             "routingValue",
             null,
             source,
@@ -237,7 +236,6 @@ public class IndexingSlowLogTests extends OpenSearchTestCase {
         assertThat(p.getValueFor("message"), equalTo("[foo/123]"));
         assertThat(p.getValueFor("took"), equalTo("10nanos"));
         assertThat(p.getValueFor("took_millis"), equalTo("0"));
-        assertThat(p.getValueFor("doc_type"), equalTo("test"));
         assertThat(p.getValueFor("id"), equalTo("id"));
         assertThat(p.getValueFor("routing"), equalTo("routingValue"));
         assertThat(p.getValueFor("source"), is(emptyOrNullString()));
@@ -253,7 +251,6 @@ public class IndexingSlowLogTests extends OpenSearchTestCase {
             new NumericDocValuesField("version", 1),
             SeqNoFieldMapper.SequenceIDFields.emptySeqID(),
             "id",
-            "test",
             null,
             null,
             source,
@@ -284,7 +281,6 @@ public class IndexingSlowLogTests extends OpenSearchTestCase {
             new NumericDocValuesField("version", 1),
             SeqNoFieldMapper.SequenceIDFields.emptySeqID(),
             "id",
-            "test",
             null,
             null,
             source,

@@ -358,13 +358,13 @@ public class TranslogTests extends OpenSearchTestCase {
             assertThat(snapshot, SnapshotMatchers.size(0));
         }
 
-        addToTranslogAndList(translog, ops, new Translog.Index("test", "1", 0, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndList(translog, ops, new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
         try (Translog.Snapshot snapshot = translog.newSnapshot()) {
             assertThat(snapshot, SnapshotMatchers.equalsTo(ops));
             assertThat(snapshot.totalOperations(), equalTo(ops.size()));
         }
 
-        addToTranslogAndList(translog, ops, new Translog.Delete("test", "2", 1, primaryTerm.get(), newUid("2")));
+        addToTranslogAndList(translog, ops, new Translog.Delete("2", 1, primaryTerm.get(), newUid("2")));
         try (Translog.Snapshot snapshot = translog.newSnapshot()) {
             assertThat(snapshot, SnapshotMatchers.equalsTo(ops));
             assertThat(snapshot.totalOperations(), equalTo(ops.size()));
@@ -454,34 +454,34 @@ public class TranslogTests extends OpenSearchTestCase {
             assertThat(stats.estimatedNumberOfOperations(), equalTo(0));
         }
         assertThat((int) firstOperationPosition, greaterThan(CodecUtil.headerLength(TranslogHeader.TRANSLOG_CODEC)));
-        translog.add(new Translog.Index("test", "1", 0, primaryTerm.get(), new byte[] { 1 }));
+        translog.add(new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
 
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(1));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(162L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(157L));
             assertThat(stats.getUncommittedOperations(), equalTo(1));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(107L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(102L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
-        translog.add(new Translog.Delete("test", "2", 1, primaryTerm.get(), newUid("2")));
+        translog.add(new Translog.Delete("2", 1, primaryTerm.get(), newUid("2")));
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(2));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(210L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(200L));
             assertThat(stats.getUncommittedOperations(), equalTo(2));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(155L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(145L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
-        translog.add(new Translog.Delete("test", "3", 2, primaryTerm.get(), newUid("3")));
+        translog.add(new Translog.Delete("3", 2, primaryTerm.get(), newUid("3")));
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(3));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(258L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(243L));
             assertThat(stats.getUncommittedOperations(), equalTo(3));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(203L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(188L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -489,9 +489,9 @@ public class TranslogTests extends OpenSearchTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(300L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(285L));
             assertThat(stats.getUncommittedOperations(), equalTo(4));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(245L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(230L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -499,9 +499,9 @@ public class TranslogTests extends OpenSearchTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(355L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(340L));
             assertThat(stats.getUncommittedOperations(), equalTo(4));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(300L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(285L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -511,7 +511,7 @@ public class TranslogTests extends OpenSearchTestCase {
             stats.writeTo(out);
             final TranslogStats copy = new TranslogStats(out.bytes().streamInput());
             assertThat(copy.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(copy.getTranslogSizeInBytes(), equalTo(355L));
+            assertThat(copy.getTranslogSizeInBytes(), equalTo(340L));
 
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 builder.startObject();
@@ -521,9 +521,9 @@ public class TranslogTests extends OpenSearchTestCase {
                     Strings.toString(builder),
                     equalTo(
                         "{\"translog\":{\"operations\":4,\"size_in_bytes\":"
-                            + 355
+                            + 340
                             + ",\"uncommitted_operations\":4,\"uncommitted_size_in_bytes\":"
-                            + 300
+                            + 285
                             + ",\"earliest_last_modified_age\":"
                             + stats.getEarliestLastModifiedAge()
                             + "}}"
@@ -537,7 +537,7 @@ public class TranslogTests extends OpenSearchTestCase {
             long lastModifiedAge = System.currentTimeMillis() - translog.getCurrent().getLastModifiedTime();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(355L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(340L));
             assertThat(stats.getUncommittedOperations(), equalTo(0));
             assertThat(stats.getUncommittedSizeInBytes(), equalTo(firstOperationPosition));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThanOrEqualTo(lastModifiedAge));
@@ -553,7 +553,7 @@ public class TranslogTests extends OpenSearchTestCase {
         int uncommittedOps = 0;
         int operationsInLastGen = 0;
         for (int i = 0; i < operations; i++) {
-            translog.add(new Translog.Index("test", Integer.toString(i), i, primaryTerm.get(), new byte[] { 1 }));
+            translog.add(new Translog.Index(Integer.toString(i), i, primaryTerm.get(), new byte[] { 1 }));
             uncommittedOps++;
             operationsInLastGen++;
             if (rarely()) {
@@ -634,7 +634,7 @@ public class TranslogTests extends OpenSearchTestCase {
             assertThat(snapshot, SnapshotMatchers.size(0));
         }
 
-        addToTranslogAndList(translog, ops, new Translog.Index("test", "1", 0, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndList(translog, ops, new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
 
         try (Translog.Snapshot snapshot = translog.newSnapshot(0, Long.MAX_VALUE)) {
             assertThat(snapshot, SnapshotMatchers.equalsTo(ops));
@@ -656,9 +656,9 @@ public class TranslogTests extends OpenSearchTestCase {
     public void testReadLocation() throws IOException {
         ArrayList<Translog.Operation> ops = new ArrayList<>();
         ArrayList<Translog.Location> locs = new ArrayList<>();
-        locs.add(addToTranslogAndList(translog, ops, new Translog.Index("test", "1", 0, primaryTerm.get(), new byte[] { 1 })));
-        locs.add(addToTranslogAndList(translog, ops, new Translog.Index("test", "2", 1, primaryTerm.get(), new byte[] { 1 })));
-        locs.add(addToTranslogAndList(translog, ops, new Translog.Index("test", "3", 2, primaryTerm.get(), new byte[] { 1 })));
+        locs.add(addToTranslogAndList(translog, ops, new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 })));
+        locs.add(addToTranslogAndList(translog, ops, new Translog.Index("2", 1, primaryTerm.get(), new byte[] { 1 })));
+        locs.add(addToTranslogAndList(translog, ops, new Translog.Index("3", 2, primaryTerm.get(), new byte[] { 1 })));
         int i = 0;
         for (Translog.Operation op : ops) {
             assertEquals(op, translog.readOperation(locs.get(i++)));
@@ -674,16 +674,16 @@ public class TranslogTests extends OpenSearchTestCase {
             toClose.add(snapshot);
             assertThat(snapshot, SnapshotMatchers.size(0));
 
-            addToTranslogAndList(translog, ops, new Translog.Index("test", "1", 0, primaryTerm.get(), new byte[] { 1 }));
+            addToTranslogAndList(translog, ops, new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
             Translog.Snapshot snapshot1 = translog.newSnapshot();
             toClose.add(snapshot1);
 
-            addToTranslogAndList(translog, ops, new Translog.Index("test", "2", 1, primaryTerm.get(), new byte[] { 2 }));
+            addToTranslogAndList(translog, ops, new Translog.Index("2", 1, primaryTerm.get(), new byte[] { 2 }));
 
             assertThat(snapshot1, SnapshotMatchers.equalsTo(ops.get(0)));
 
             translog.rollGeneration();
-            addToTranslogAndList(translog, ops, new Translog.Index("test", "3", 2, primaryTerm.get(), new byte[] { 3 }));
+            addToTranslogAndList(translog, ops, new Translog.Index("3", 2, primaryTerm.get(), new byte[] { 3 }));
 
             Translog.Snapshot snapshot2 = translog.newSnapshot();
             toClose.add(snapshot2);
@@ -697,7 +697,7 @@ public class TranslogTests extends OpenSearchTestCase {
 
     public void testSnapshotOnClosedTranslog() throws IOException {
         assertTrue(Files.exists(translogDir.resolve(Translog.getFilename(1))));
-        translog.add(new Translog.Index("test", "1", 0, primaryTerm.get(), new byte[] { 1 }));
+        translog.add(new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
         translog.close();
         AlreadyClosedException ex = expectThrows(AlreadyClosedException.class, () -> translog.newSnapshot());
         assertEquals(ex.getMessage(), "translog is already closed");
@@ -719,13 +719,7 @@ public class TranslogTests extends OpenSearchTestCase {
             }
             List<Translog.Operation> ops = new ArrayList<>(seqNos.size());
             for (long seqNo : seqNos) {
-                Translog.Index op = new Translog.Index(
-                    "_doc",
-                    randomAlphaOfLength(10),
-                    seqNo,
-                    primaryTerm.get(),
-                    new byte[] { randomByte() }
-                );
+                Translog.Index op = new Translog.Index(randomAlphaOfLength(10), seqNo, primaryTerm.get(), new byte[] { randomByte() });
                 translog.add(op);
                 ops.add(op);
             }
@@ -786,13 +780,7 @@ public class TranslogTests extends OpenSearchTestCase {
             Collections.shuffle(seqNos, new Random(100));
             List<Translog.Operation> ops = new ArrayList<>(seqNos.size());
             for (long seqNo : seqNos) {
-                Translog.Index op = new Translog.Index(
-                    "_doc",
-                    randomAlphaOfLength(10),
-                    seqNo,
-                    primaryTerm.get(),
-                    new byte[] { randomByte() }
-                );
+                Translog.Index op = new Translog.Index(randomAlphaOfLength(10), seqNo, primaryTerm.get(), new byte[] { randomByte() });
                 boolean shouldAdd = !withMissingOps || seqNo % 4 != 0;
                 if (shouldAdd) {
                     translog.add(op);
@@ -928,7 +916,6 @@ public class TranslogTests extends OpenSearchTestCase {
                         Translog.Index expIndexOp = (Translog.Index) expectedOp;
                         assertEquals(expIndexOp.id(), indexOp.id());
                         assertEquals(expIndexOp.routing(), indexOp.routing());
-                        assertEquals(expIndexOp.type(), indexOp.type());
                         assertEquals(expIndexOp.source(), indexOp.source());
                         assertEquals(expIndexOp.version(), indexOp.version());
                         break;
@@ -962,7 +949,7 @@ public class TranslogTests extends OpenSearchTestCase {
         int translogOperations = randomIntBetween(10, 1000);
         for (int op = 0; op < translogOperations; op++) {
             String ascii = randomAlphaOfLengthBetween(1, 50);
-            locations.add(translog.add(new Translog.Index("test", "" + op, op, primaryTerm.get(), ascii.getBytes("UTF-8"))));
+            locations.add(translog.add(new Translog.Index("" + op, op, primaryTerm.get(), ascii.getBytes("UTF-8"))));
 
             if (rarely()) {
                 translog.rollGeneration();
@@ -989,7 +976,7 @@ public class TranslogTests extends OpenSearchTestCase {
         int translogOperations = randomIntBetween(10, 100);
         for (int op = 0; op < translogOperations; op++) {
             String ascii = randomAlphaOfLengthBetween(1, 50);
-            locations.add(translog.add(new Translog.Index("test", "" + op, op, primaryTerm.get(), ascii.getBytes("UTF-8"))));
+            locations.add(translog.add(new Translog.Index("" + op, op, primaryTerm.get(), ascii.getBytes("UTF-8"))));
         }
         translog.sync();
 
@@ -1034,7 +1021,7 @@ public class TranslogTests extends OpenSearchTestCase {
 
     public void testVerifyTranslogIsNotDeleted() throws IOException {
         assertFileIsPresent(translog, 1);
-        translog.add(new Translog.Index("test", "1", 0, primaryTerm.get(), new byte[] { 1 }));
+        translog.add(new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
         try (Translog.Snapshot snapshot = translog.newSnapshot()) {
             assertThat(snapshot, SnapshotMatchers.size(1));
             assertFileIsPresent(translog, 1);
@@ -1086,10 +1073,10 @@ public class TranslogTests extends OpenSearchTestCase {
                         switch (type) {
                             case CREATE:
                             case INDEX:
-                                op = new Translog.Index("type", "" + id, id, primaryTerm.get(), new byte[] { (byte) id });
+                                op = new Translog.Index("" + id, id, primaryTerm.get(), new byte[] { (byte) id });
                                 break;
                             case DELETE:
-                                op = new Translog.Delete("test", Long.toString(id), id, primaryTerm.get(), newUid(Long.toString(id)));
+                                op = new Translog.Delete(Long.toString(id), id, primaryTerm.get(), newUid(Long.toString(id)));
                                 break;
                             case NO_OP:
                                 op = new Translog.NoOp(id, 1, Long.toString(id));
@@ -1248,7 +1235,7 @@ public class TranslogTests extends OpenSearchTestCase {
         for (int op = 0; op < translogOperations; op++) {
             int seqNo = ++count;
             final Translog.Location location = translog.add(
-                new Translog.Index("test", "" + op, seqNo, primaryTerm.get(), Integer.toString(seqNo).getBytes(Charset.forName("UTF-8")))
+                new Translog.Index("" + op, seqNo, primaryTerm.get(), Integer.toString(seqNo).getBytes(Charset.forName("UTF-8")))
             );
             if (randomBoolean()) {
                 assertTrue("at least one operation pending", translog.syncNeeded());
@@ -1257,13 +1244,7 @@ public class TranslogTests extends OpenSearchTestCase {
                 assertFalse("the last call to ensureSycned synced all previous ops", translog.syncNeeded());
                 seqNo = ++count;
                 translog.add(
-                    new Translog.Index(
-                        "test",
-                        "" + op,
-                        seqNo,
-                        primaryTerm.get(),
-                        Integer.toString(seqNo).getBytes(Charset.forName("UTF-8"))
-                    )
+                    new Translog.Index("" + op, seqNo, primaryTerm.get(), Integer.toString(seqNo).getBytes(Charset.forName("UTF-8")))
                 );
                 assertTrue("one pending operation", translog.syncNeeded());
                 assertFalse("this op has been synced before", translog.ensureSynced(location)); // not syncing now
@@ -1293,7 +1274,7 @@ public class TranslogTests extends OpenSearchTestCase {
                     translog.rollGeneration();
                 }
                 final Translog.Location location = translog.add(
-                    new Translog.Index("test", "" + op, op, primaryTerm.get(), Integer.toString(++count).getBytes(Charset.forName("UTF-8")))
+                    new Translog.Index("" + op, op, primaryTerm.get(), Integer.toString(++count).getBytes(Charset.forName("UTF-8")))
                 );
                 locations.add(location);
             }
@@ -1325,7 +1306,7 @@ public class TranslogTests extends OpenSearchTestCase {
         for (int op = 0; op < translogOperations; op++) {
             locations.add(
                 translog.add(
-                    new Translog.Index("test", "" + op, op, primaryTerm.get(), Integer.toString(++count).getBytes(Charset.forName("UTF-8")))
+                    new Translog.Index("" + op, op, primaryTerm.get(), Integer.toString(++count).getBytes(Charset.forName("UTF-8")))
                 )
             );
             if (rarely() && translogOperations > op + 1) {
@@ -1364,9 +1345,7 @@ public class TranslogTests extends OpenSearchTestCase {
         long lastSyncedGlobalCheckpoint = globalCheckpoint.get();
         for (int op = 0; op < translogOperations; op++) {
             locations.add(
-                translog.add(
-                    new Translog.Index("test", "" + op, op, primaryTerm.get(), Integer.toString(op).getBytes(Charset.forName("UTF-8")))
-                )
+                translog.add(new Translog.Index("" + op, op, primaryTerm.get(), Integer.toString(op).getBytes(Charset.forName("UTF-8"))))
             );
             if (randomBoolean()) {
                 globalCheckpoint.set(globalCheckpoint.get() + randomIntBetween(1, 16));
@@ -1380,7 +1359,6 @@ public class TranslogTests extends OpenSearchTestCase {
         assertEquals(translogOperations, translog.totalOperations());
         translog.add(
             new Translog.Index(
-                "test",
                 "" + translogOperations,
                 translogOperations,
                 primaryTerm.get(),
@@ -1730,9 +1708,7 @@ public class TranslogTests extends OpenSearchTestCase {
         final boolean commitOften = randomBoolean();
         for (int op = 0; op < translogOperations; op++) {
             locations.add(
-                translog.add(
-                    new Translog.Index("test", "" + op, op, primaryTerm.get(), Integer.toString(op).getBytes(Charset.forName("UTF-8")))
-                )
+                translog.add(new Translog.Index("" + op, op, primaryTerm.get(), Integer.toString(op).getBytes(Charset.forName("UTF-8"))))
             );
             final boolean commit = commitOften ? frequently() : rarely();
             if (commit && op < translogOperations - 1) {
@@ -1791,9 +1767,7 @@ public class TranslogTests extends OpenSearchTestCase {
         final boolean sync = randomBoolean();
         for (int op = 0; op < translogOperations; op++) {
             locations.add(
-                translog.add(
-                    new Translog.Index("test", "" + op, op, primaryTerm.get(), Integer.toString(op).getBytes(Charset.forName("UTF-8")))
-                )
+                translog.add(new Translog.Index("" + op, op, primaryTerm.get(), Integer.toString(op).getBytes(Charset.forName("UTF-8"))))
             );
             if (op == prepareOp) {
                 translogGeneration = translog.getGeneration();
@@ -1878,9 +1852,7 @@ public class TranslogTests extends OpenSearchTestCase {
         final boolean sync = randomBoolean();
         for (int op = 0; op < translogOperations; op++) {
             locations.add(
-                translog.add(
-                    new Translog.Index("test", "" + op, op, primaryTerm.get(), Integer.toString(op).getBytes(Charset.forName("UTF-8")))
-                )
+                translog.add(new Translog.Index("" + op, op, primaryTerm.get(), Integer.toString(op).getBytes(Charset.forName("UTF-8"))))
             );
             if (op == prepareOp) {
                 translogGeneration = translog.getGeneration();
@@ -1968,7 +1940,7 @@ public class TranslogTests extends OpenSearchTestCase {
         Translog.TranslogGeneration translogGeneration = null;
         final boolean sync = randomBoolean();
         for (int op = 0; op < translogOperations; op++) {
-            translog.add(new Translog.Index("test", "" + op, op, primaryTerm.get(), Integer.toString(op).getBytes(StandardCharsets.UTF_8)));
+            translog.add(new Translog.Index("" + op, op, primaryTerm.get(), Integer.toString(op).getBytes(StandardCharsets.UTF_8)));
             if (op == prepareOp) {
                 translogGeneration = translog.getGeneration();
                 translog.rollGeneration();
@@ -2003,7 +1975,7 @@ public class TranslogTests extends OpenSearchTestCase {
         assertThat(
             translogCorruptedException.getMessage(),
             endsWith(
-                "] is corrupted, checkpoint file translog-3.ckp already exists but has corrupted content: expected Checkpoint{offset=3025, "
+                "] is corrupted, checkpoint file translog-3.ckp already exists but has corrupted content: expected Checkpoint{offset=2750, "
                     + "numOps=55, generation=3, minSeqNo=45, maxSeqNo=99, globalCheckpoint=-1, minTranslogGeneration=1, trimmedAboveSeqNo=-2} "
                     + "but got Checkpoint{offset=0, numOps=0, generation=0, minSeqNo=-1, maxSeqNo=-1, globalCheckpoint=-1, "
                     + "minTranslogGeneration=0, trimmedAboveSeqNo=-2}"
@@ -2050,7 +2022,6 @@ public class TranslogTests extends OpenSearchTestCase {
         int translogOperations = randomIntBetween(10, 100);
         for (int op = 0; op < translogOperations; op++) {
             Translog.Index test = new Translog.Index(
-                "test",
                 "" + op,
                 op,
                 primaryTerm.get(),
@@ -2073,7 +2044,7 @@ public class TranslogTests extends OpenSearchTestCase {
 
         for (int op = 0; op < extraDocs; op++) {
             String ascii = randomAlphaOfLengthBetween(1, 50);
-            Translog.Index operation = new Translog.Index("test", "" + op, op, primaryTerm.get() - op, ascii.getBytes("UTF-8"));
+            Translog.Index operation = new Translog.Index("" + op, op, primaryTerm.get() - op, ascii.getBytes("UTF-8"));
             translog.add(operation);
         }
 
@@ -2093,13 +2064,7 @@ public class TranslogTests extends OpenSearchTestCase {
         translog.rollGeneration();
 
         // add a single operation to current with seq# > trimmed seq# but higher primary term
-        Translog.Index operation = new Translog.Index(
-            "test",
-            "" + 1,
-            1L,
-            primaryTerm.get(),
-            randomAlphaOfLengthBetween(1, 50).getBytes("UTF-8")
-        );
+        Translog.Index operation = new Translog.Index("" + 1, 1L, primaryTerm.get(), randomAlphaOfLengthBetween(1, 50).getBytes("UTF-8"));
         translog.add(operation);
 
         // it is possible to trim after generation rollover
@@ -2129,7 +2094,7 @@ public class TranslogTests extends OpenSearchTestCase {
                 }
 
                 // use ongoing primaryTerms - or the same as it was
-                Translog.Index operation = new Translog.Index("test", "" + op, op, primaryTerm.get(), source.get().getBytes("UTF-8"));
+                Translog.Index operation = new Translog.Index("" + op, op, primaryTerm.get(), source.get().getBytes("UTF-8"));
                 translog.add(operation);
                 inMemoryTranslog.add(operation);
                 allOperations.add(operation);
@@ -2213,7 +2178,7 @@ public class TranslogTests extends OpenSearchTestCase {
             Randomness.shuffle(ops);
             for (int op : ops) {
                 String ascii = randomAlphaOfLengthBetween(1, 50);
-                Translog.Index operation = new Translog.Index("test", "" + op, op, primaryTerm.get(), ascii.getBytes("UTF-8"));
+                Translog.Index operation = new Translog.Index("" + op, op, primaryTerm.get(), ascii.getBytes("UTF-8"));
 
                 failableTLog.add(operation);
             }
@@ -2271,12 +2236,12 @@ public class TranslogTests extends OpenSearchTestCase {
             for (int op = 0; op < translogOperations; op++) {
                 locations.add(
                     translog.add(
-                        new Translog.Index("test", "" + op, op, primaryTerm.get(), Integer.toString(op).getBytes(Charset.forName("UTF-8")))
+                        new Translog.Index("" + op, op, primaryTerm.get(), Integer.toString(op).getBytes(Charset.forName("UTF-8")))
                     )
                 );
                 locations2.add(
                     translog2.add(
-                        new Translog.Index("test", "" + op, op, primaryTerm.get(), Integer.toString(op).getBytes(Charset.forName("UTF-8")))
+                        new Translog.Index("" + op, op, primaryTerm.get(), Integer.toString(op).getBytes(Charset.forName("UTF-8")))
                     )
                 );
             }
@@ -2305,9 +2270,7 @@ public class TranslogTests extends OpenSearchTestCase {
         int firstUncommitted = 0;
         for (int op = 0; op < translogOperations; op++) {
             locations.add(
-                translog.add(
-                    new Translog.Index("test", "" + op, op, primaryTerm.get(), Integer.toString(op).getBytes(Charset.forName("UTF-8")))
-                )
+                translog.add(new Translog.Index("" + op, op, primaryTerm.get(), Integer.toString(op).getBytes(Charset.forName("UTF-8"))))
             );
             if (randomBoolean()) {
                 translog.rollGeneration();
@@ -2355,10 +2318,10 @@ public class TranslogTests extends OpenSearchTestCase {
     }
 
     public void testFailOnClosedWrite() throws IOException {
-        translog.add(new Translog.Index("test", "1", 0, primaryTerm.get(), Integer.toString(1).getBytes(Charset.forName("UTF-8"))));
+        translog.add(new Translog.Index("1", 0, primaryTerm.get(), Integer.toString(1).getBytes(Charset.forName("UTF-8"))));
         translog.close();
         try {
-            translog.add(new Translog.Index("test", "1", 0, primaryTerm.get(), Integer.toString(1).getBytes(Charset.forName("UTF-8"))));
+            translog.add(new Translog.Index("1", 0, primaryTerm.get(), Integer.toString(1).getBytes(Charset.forName("UTF-8"))));
             fail("closed");
         } catch (AlreadyClosedException ex) {
             // all is well
@@ -2442,7 +2405,6 @@ public class TranslogTests extends OpenSearchTestCase {
                         case CREATE:
                         case INDEX:
                             op = new Translog.Index(
-                                "test",
                                 threadId + "_" + opCount,
                                 seqNoGenerator.getAndIncrement(),
                                 primaryTerm.get(),
@@ -2451,7 +2413,6 @@ public class TranslogTests extends OpenSearchTestCase {
                             break;
                         case DELETE:
                             op = new Translog.Delete(
-                                "test",
                                 threadId + "_" + opCount,
                                 new Term("_uid", threadId + "_" + opCount),
                                 seqNoGenerator.getAndIncrement(),
@@ -2499,7 +2460,6 @@ public class TranslogTests extends OpenSearchTestCase {
                 locations.add(
                     translog.add(
                         new Translog.Index(
-                            "test",
                             "" + opsSynced,
                             opsSynced,
                             primaryTerm.get(),
@@ -2529,7 +2489,6 @@ public class TranslogTests extends OpenSearchTestCase {
                 locations.add(
                     translog.add(
                         new Translog.Index(
-                            "test",
                             "" + opsSynced,
                             opsSynced,
                             primaryTerm.get(),
@@ -2611,7 +2570,6 @@ public class TranslogTests extends OpenSearchTestCase {
             locations.add(
                 translog.add(
                     new Translog.Index(
-                        "test",
                         "" + opsAdded,
                         opsAdded,
                         primaryTerm.get(),
@@ -2640,13 +2598,11 @@ public class TranslogTests extends OpenSearchTestCase {
         TranslogConfig config = getTranslogConfig(tempDir);
         Translog translog = getFailableTranslog(fail, config, false, true, null, createTranslogDeletionPolicy());
         LineFileDocs lineFileDocs = new LineFileDocs(random()); // writes pretty big docs so we cross buffer boarders regularly
-        translog.add(
-            new Translog.Index("test", "1", 0, primaryTerm.get(), lineFileDocs.nextDoc().toString().getBytes(Charset.forName("UTF-8")))
-        );
+        translog.add(new Translog.Index("1", 0, primaryTerm.get(), lineFileDocs.nextDoc().toString().getBytes(Charset.forName("UTF-8"))));
         fail.failAlways();
         try {
             Translog.Location location = translog.add(
-                new Translog.Index("test", "2", 1, primaryTerm.get(), lineFileDocs.nextDoc().toString().getBytes(Charset.forName("UTF-8")))
+                new Translog.Index("2", 1, primaryTerm.get(), lineFileDocs.nextDoc().toString().getBytes(Charset.forName("UTF-8")))
             );
             if (randomBoolean()) {
                 translog.ensureSynced(location);
@@ -2772,13 +2728,7 @@ public class TranslogTests extends OpenSearchTestCase {
         int op = 0;
         for (; op < translogOperations / 2; op++) {
             translog.add(
-                new Translog.Index(
-                    "_doc",
-                    Integer.toString(op),
-                    op,
-                    primaryTerm.get(),
-                    Integer.toString(op).getBytes(Charset.forName("UTF-8"))
-                )
+                new Translog.Index(Integer.toString(op), op, primaryTerm.get(), Integer.toString(op).getBytes(Charset.forName("UTF-8")))
             );
             if (rarely()) {
                 translog.rollGeneration();
@@ -2788,13 +2738,7 @@ public class TranslogTests extends OpenSearchTestCase {
         long localCheckpoint = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, op);
         for (op = translogOperations / 2; op < translogOperations; op++) {
             translog.add(
-                new Translog.Index(
-                    "test",
-                    Integer.toString(op),
-                    op,
-                    primaryTerm.get(),
-                    Integer.toString(op).getBytes(Charset.forName("UTF-8"))
-                )
+                new Translog.Index(Integer.toString(op), op, primaryTerm.get(), Integer.toString(op).getBytes(Charset.forName("UTF-8")))
             );
             if (rarely()) {
                 translog.rollGeneration();
@@ -2847,13 +2791,7 @@ public class TranslogTests extends OpenSearchTestCase {
             int op = 0;
             for (; op < translogOperations / 2; op++) {
                 translog.add(
-                    new Translog.Index(
-                        "test",
-                        Integer.toString(op),
-                        op,
-                        primaryTerm.get(),
-                        Integer.toString(op).getBytes(Charset.forName("UTF-8"))
-                    )
+                    new Translog.Index(Integer.toString(op), op, primaryTerm.get(), Integer.toString(op).getBytes(Charset.forName("UTF-8")))
                 );
                 if (rarely()) {
                     translog.rollGeneration();
@@ -2863,13 +2801,7 @@ public class TranslogTests extends OpenSearchTestCase {
             localCheckpoint = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, op);
             for (op = translogOperations / 2; op < translogOperations; op++) {
                 translog.add(
-                    new Translog.Index(
-                        "test",
-                        Integer.toString(op),
-                        op,
-                        primaryTerm.get(),
-                        Integer.toString(op).getBytes(Charset.forName("UTF-8"))
-                    )
+                    new Translog.Index(Integer.toString(op), op, primaryTerm.get(), Integer.toString(op).getBytes(Charset.forName("UTF-8")))
                 );
                 if (rarely()) {
                     translog.rollGeneration();
@@ -3132,7 +3064,7 @@ public class TranslogTests extends OpenSearchTestCase {
         Path tempDir = createTempDir();
         TranslogConfig config = getTranslogConfig(tempDir);
         Translog translog = createTranslog(config);
-        translog.add(new Translog.Index("test", "boom", 0, primaryTerm.get(), "boom".getBytes(Charset.forName("UTF-8"))));
+        translog.add(new Translog.Index("boom", 0, primaryTerm.get(), "boom".getBytes(Charset.forName("UTF-8"))));
         translog.close();
         try {
             new Translog(
@@ -3161,7 +3093,7 @@ public class TranslogTests extends OpenSearchTestCase {
     }
 
     public void testRecoverWithUnbackedNextGen() throws IOException {
-        translog.add(new Translog.Index("test", "" + 0, 0, primaryTerm.get(), Integer.toString(1).getBytes(Charset.forName("UTF-8"))));
+        translog.add(new Translog.Index("" + 0, 0, primaryTerm.get(), Integer.toString(1).getBytes(Charset.forName("UTF-8"))));
         translog.close();
         TranslogConfig config = translog.getConfig();
 
@@ -3176,7 +3108,7 @@ public class TranslogTests extends OpenSearchTestCase {
             assertNotNull("operation 1 must be non-null", op);
             assertEquals("payload mismatch for operation 1", 1, Integer.parseInt(op.getSource().source.utf8ToString()));
 
-            tlog.add(new Translog.Index("test", "" + 1, 1, primaryTerm.get(), Integer.toString(2).getBytes(Charset.forName("UTF-8"))));
+            tlog.add(new Translog.Index("" + 1, 1, primaryTerm.get(), Integer.toString(2).getBytes(Charset.forName("UTF-8"))));
         }
 
         try (Translog tlog = openTranslog(config, translog.getTranslogUUID()); Translog.Snapshot snapshot = tlog.newSnapshot()) {
@@ -3193,7 +3125,7 @@ public class TranslogTests extends OpenSearchTestCase {
     }
 
     public void testRecoverWithUnbackedNextGenInIllegalState() throws IOException {
-        translog.add(new Translog.Index("test", "" + 0, 0, primaryTerm.get(), Integer.toString(0).getBytes(Charset.forName("UTF-8"))));
+        translog.add(new Translog.Index("" + 0, 0, primaryTerm.get(), Integer.toString(0).getBytes(Charset.forName("UTF-8"))));
         translog.close();
         TranslogConfig config = translog.getConfig();
         Path ckp = config.getTranslogPath().resolve(Translog.CHECKPOINT_FILE_NAME);
@@ -3217,7 +3149,7 @@ public class TranslogTests extends OpenSearchTestCase {
     }
 
     public void testRecoverWithUnbackedNextGenAndFutureFile() throws IOException {
-        translog.add(new Translog.Index("test", "" + 0, 0, primaryTerm.get(), Integer.toString(0).getBytes(Charset.forName("UTF-8"))));
+        translog.add(new Translog.Index("" + 0, 0, primaryTerm.get(), Integer.toString(0).getBytes(Charset.forName("UTF-8"))));
         translog.close();
         TranslogConfig config = translog.getConfig();
         final String translogUUID = translog.getTranslogUUID();
@@ -3247,7 +3179,7 @@ public class TranslogTests extends OpenSearchTestCase {
                     assertEquals("payload missmatch", i, Integer.parseInt(next.getSource().source.utf8ToString()));
                 }
             }
-            tlog.add(new Translog.Index("test", "" + 1, 1, primaryTerm.get(), Integer.toString(1).getBytes(Charset.forName("UTF-8"))));
+            tlog.add(new Translog.Index("" + 1, 1, primaryTerm.get(), Integer.toString(1).getBytes(Charset.forName("UTF-8"))));
         }
 
         TranslogException ex = expectThrows(
@@ -3293,7 +3225,7 @@ public class TranslogTests extends OpenSearchTestCase {
                     for (int opsAdded = 0; opsAdded < numOps; opsAdded++) {
                         String doc = lineFileDocs.nextDoc().toString();
                         failableTLog.add(
-                            new Translog.Index("test", "" + opsAdded, opsAdded, primaryTerm.get(), doc.getBytes(Charset.forName("UTF-8")))
+                            new Translog.Index("" + opsAdded, opsAdded, primaryTerm.get(), doc.getBytes(Charset.forName("UTF-8")))
                         );
                         unsynced.add(doc);
                         if (randomBoolean()) {
@@ -3464,7 +3396,7 @@ public class TranslogTests extends OpenSearchTestCase {
      * Tests that closing views after the translog is fine and we can reopen the translog
      */
     public void testPendingDelete() throws IOException {
-        translog.add(new Translog.Index("test", "1", 0, primaryTerm.get(), new byte[] { 1 }));
+        translog.add(new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
         translog.rollGeneration();
         TranslogConfig config = translog.getConfig();
         final String translogUUID = translog.getTranslogUUID();
@@ -3478,10 +3410,10 @@ public class TranslogTests extends OpenSearchTestCase {
             primaryTerm::get,
             seqNo -> {}
         );
-        translog.add(new Translog.Index("test", "2", 1, primaryTerm.get(), new byte[] { 2 }));
+        translog.add(new Translog.Index("2", 1, primaryTerm.get(), new byte[] { 2 }));
         translog.rollGeneration();
         Closeable lock = translog.acquireRetentionLock();
-        translog.add(new Translog.Index("test", "3", 2, primaryTerm.get(), new byte[] { 3 }));
+        translog.add(new Translog.Index("3", 2, primaryTerm.get(), new byte[] { 3 }));
         translog.close();
         IOUtils.close(lock);
         translog = new Translog(
@@ -3515,17 +3447,7 @@ public class TranslogTests extends OpenSearchTestCase {
         document.add(seqID.seqNo);
         document.add(seqID.seqNoDocValue);
         document.add(seqID.primaryTerm);
-        ParsedDocument doc = new ParsedDocument(
-            versionField,
-            seqID,
-            "1",
-            "type",
-            null,
-            Arrays.asList(document),
-            B_1,
-            XContentType.JSON,
-            null
-        );
+        ParsedDocument doc = new ParsedDocument(versionField, seqID, "1", null, Arrays.asList(document), B_1, XContentType.JSON, null);
 
         Engine.Index eIndex = new Engine.Index(
             newUid(doc),
@@ -3554,7 +3476,6 @@ public class TranslogTests extends OpenSearchTestCase {
         assertEquals(index, serializedIndex);
 
         Engine.Delete eDelete = new Engine.Delete(
-            doc.type(),
             doc.id(),
             newUid(doc),
             randomSeqNum,
@@ -3793,7 +3714,6 @@ public class TranslogTests extends OpenSearchTestCase {
             final int operations = randomIntBetween(1, 100);
             for (int i = 0; i < operations; i++) {
                 Translog.Index op = new Translog.Index(
-                    "doc",
                     randomAlphaOfLength(10),
                     seqNo.getAndIncrement(),
                     primaryTerm.get(),
@@ -3823,7 +3743,7 @@ public class TranslogTests extends OpenSearchTestCase {
             List<Long> batch = LongStream.rangeClosed(0, between(0, 500)).boxed().collect(Collectors.toList());
             Randomness.shuffle(batch);
             for (Long seqNo : batch) {
-                Translog.Index op = new Translog.Index("doc", randomAlphaOfLength(10), seqNo, primaryTerm.get(), new byte[] { 1 });
+                Translog.Index op = new Translog.Index(randomAlphaOfLength(10), seqNo, primaryTerm.get(), new byte[] { 1 });
                 translog.add(op);
                 latestOperations.put(op.seqNo(), op);
             }
@@ -3838,7 +3758,7 @@ public class TranslogTests extends OpenSearchTestCase {
     public void testCloseSnapshotTwice() throws Exception {
         int numOps = between(0, 10);
         for (int i = 0; i < numOps; i++) {
-            Translog.Index op = new Translog.Index("doc", randomAlphaOfLength(10), i, primaryTerm.get(), new byte[] { 1 });
+            Translog.Index op = new Translog.Index(randomAlphaOfLength(10), i, primaryTerm.get(), new byte[] { 1 });
             translog.add(op);
             if (randomBoolean()) {
                 translog.rollGeneration();
@@ -3912,7 +3832,7 @@ public class TranslogTests extends OpenSearchTestCase {
             Randomness.shuffle(seqNos);
             for (long seqNo : seqNos) {
                 if (frequently()) {
-                    translog.add(new Translog.Index("test", "id", seqNo, primaryTerm.get(), new byte[] { 1 }));
+                    translog.add(new Translog.Index("id", seqNo, primaryTerm.get(), new byte[] { 1 }));
                     maxSeqNoPerGeneration.compute(
                         translog.currentFileGeneration(),
                         (key, existing) -> existing == null ? seqNo : Math.max(existing, seqNo)
@@ -4050,9 +3970,7 @@ public class TranslogTests extends OpenSearchTestCase {
                     int iterations = randomIntBetween(10, 100);
                     for (int i = 0; i < iterations; i++) {
                         List<Translog.Operation> ops = IntStream.range(0, between(1, 10))
-                            .mapToObj(
-                                n -> new Translog.Index("test", "1", nextSeqNo.incrementAndGet(), primaryTerm.get(), new byte[] { 1 })
-                            )
+                            .mapToObj(n -> new Translog.Index("1", nextSeqNo.incrementAndGet(), primaryTerm.get(), new byte[] { 1 }))
                             .collect(Collectors.toList());
                         try {
                             Translog.Location location = null;
@@ -4134,7 +4052,7 @@ public class TranslogTests extends OpenSearchTestCase {
             }
         };
         try {
-            translog.add(new Translog.Index("1", "_doc", 1, primaryTerm.get(), new byte[] { 1 }));
+            translog.add(new Translog.Index("1", 1, primaryTerm.get(), new byte[] { 1 }));
             failedToSyncCheckpoint.set(true);
             expectThrows(IOException.class, translog::rollGeneration);
             final AlreadyClosedException alreadyClosedException = expectThrows(AlreadyClosedException.class, translog::rollGeneration);

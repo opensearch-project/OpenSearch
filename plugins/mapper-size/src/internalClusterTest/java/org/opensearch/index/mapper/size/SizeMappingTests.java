@@ -66,7 +66,7 @@ public class SizeMappingTests extends OpenSearchSingleNodeTestCase {
         DocumentMapper docMapper = service.mapperService().documentMapper();
 
         BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject());
-        ParsedDocument doc = docMapper.parse(new SourceToParse("test", MapperService.SINGLE_MAPPING_NAME, "1", source, XContentType.JSON));
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", source, XContentType.JSON));
 
         boolean stored = false;
         boolean points = false;
@@ -83,7 +83,7 @@ public class SizeMappingTests extends OpenSearchSingleNodeTestCase {
         DocumentMapper docMapper = service.mapperService().documentMapper();
 
         BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject());
-        ParsedDocument doc = docMapper.parse(new SourceToParse("test", MapperService.SINGLE_MAPPING_NAME, "1", source, XContentType.JSON));
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", source, XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("_size"), nullValue());
     }
@@ -93,7 +93,7 @@ public class SizeMappingTests extends OpenSearchSingleNodeTestCase {
         DocumentMapper docMapper = service.mapperService().documentMapper();
 
         BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject());
-        ParsedDocument doc = docMapper.parse(new SourceToParse("test", MapperService.SINGLE_MAPPING_NAME, "1", source, XContentType.JSON));
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", source, XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("_size"), nullValue());
     }
