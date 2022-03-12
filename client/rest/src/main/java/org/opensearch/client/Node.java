@@ -209,6 +209,9 @@ public class Node {
             this.roles = new TreeSet<>(roles);
         }
 
+        /**
+         * Returns whether or not the node <strong>could</strong> be elected master.
+         */
         public boolean isMasterEligible() {
             return roles.contains("master") || roles.contains("cluster_manager");
         }
