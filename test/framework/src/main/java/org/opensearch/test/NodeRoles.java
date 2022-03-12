@@ -82,6 +82,13 @@ public class NodeRoles {
                 NodeRoleSettings.NODE_ROLES_SETTING.get(settings)
                     .stream()
                     .filter(r -> roles.contains(r) == false)
+                    // TODO: Remove the below filter after removing MASTER_ROLE.
+                    // It's used to remove both CLUSTER_MANAGER_ROLE and MASTER_ROLE, when requested to remove either.
+                    .filter(
+                        roles.contains(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE) || roles.contains(DiscoveryNodeRole.MASTER_ROLE)
+                            ? r -> (!r.equals(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE) && !r.equals(DiscoveryNodeRole.MASTER_ROLE))
+                            : r -> true
+                    )
                     .map(DiscoveryNodeRole::roleName)
                     .collect(Collectors.toList())
             )
@@ -184,10 +191,7 @@ public class NodeRoles {
     }
 
     public static Settings nonMasterNode(final Settings settings) {
-        return removeRoles(
-            settings,
-            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.MASTER_ROLE)))
-        );
+        return removeRoles(settings, Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE));
     }
 
     public static Settings remoteClusterClientNode() {

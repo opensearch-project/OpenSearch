@@ -86,6 +86,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         internalCluster().startNode();
         Map<String, Integer> expectedCounts = new HashMap<>();
         expectedCounts.put(DiscoveryNodeRole.DATA_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.MASTER_ROLE.roleName(), 1); // TODO: Remove along with MASTER_ROLE
         expectedCounts.put(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.INGEST_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), 1);
@@ -131,6 +132,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
             }
             if (isMasterNode) {
                 incrementCountForRole(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(), expectedCounts);
+                incrementCountForRole(DiscoveryNodeRole.MASTER_ROLE.roleName(), expectedCounts); // TODO: Remove along with MASTER_ROLE
             }
             if (isRemoteClusterClientNode) {
                 incrementCountForRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), expectedCounts);
