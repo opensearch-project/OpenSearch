@@ -39,7 +39,6 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.IgnoredFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.mapper.Uid;
@@ -50,6 +49,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableSet;
@@ -95,9 +95,9 @@ public class FieldsVisitor extends StoredFieldVisitor {
         return requiredFields.isEmpty() ? Status.STOP : Status.NO;
     }
 
-    public void postProcess(MapperService mapperService) {
+    public final void postProcess(Function<String, MappedFieldType> fieldTypeLookup) {
         for (Map.Entry<String, List<Object>> entry : fields().entrySet()) {
-            MappedFieldType fieldType = mapperService.fieldType(entry.getKey());
+            MappedFieldType fieldType = fieldTypeLookup.apply(entry.getKey());
             if (fieldType == null) {
                 throw new IllegalStateException("Field [" + entry.getKey() + "] exists in the index but not in mappings");
             }
