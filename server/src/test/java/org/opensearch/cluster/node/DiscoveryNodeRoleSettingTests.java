@@ -56,10 +56,7 @@ public class DiscoveryNodeRoleSettingTests extends OpenSearchTestCase {
         runRoleTest(DiscoveryNode::isIngestNode, DiscoveryNodeRole.INGEST_ROLE);
     }
 
-    /**
-     * @deprecated As of 2.0, because promoting inclusive language, replaced by {@link #testIsClusterManagerNode()}.
-     */
-    @Deprecated
+    // TODO: Remove the test along with MASTER_ROLE. It is added in 2.0, along with the introduction of CLUSTER_MANAGER_ROLE.
     public void testIsMasterNode() {
         // It's used to add MASTER_ROLE into 'roleMap', because MASTER_ROLE is removed from DiscoveryNodeRole.BUILT_IN_ROLES.
         DiscoveryNode.setAdditionalRoles(new HashSet<>());

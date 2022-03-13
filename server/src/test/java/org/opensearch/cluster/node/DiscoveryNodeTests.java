@@ -173,19 +173,13 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
         runTestDiscoveryNodeIsRemoteClusterClient(nonRemoteClusterClientNode(), false);
     }
 
-    /*
-     * @deprecated The test is added in 2.0, along with CLUSTER_MANAGER_ROLE, and it will be removed along with MASTER_ROLE.
-     */
-    @Deprecated
+    // TODO: Remove the test along with MASTER_ROLE. It is added in 2.0, along with the introduction of CLUSTER_MANAGER_ROLE.
     public void testSetAdditionalRolesCanAddDeprecatedMasterRole() {
         DiscoveryNode.setAdditionalRoles(new HashSet<>());
         assertTrue(DiscoveryNode.getPossibleRoleNames().contains(DiscoveryNodeRole.MASTER_ROLE.roleName()));
     }
 
-    /*
-     * @deprecated The test is added in 2.0, along with CLUSTER_MANAGER_ROLE, and it will be removed along with MASTER_ROLE.
-     */
-    @Deprecated
+    // TODO: Remove the test along with MASTER_ROLE. It is added in 2.0, along with the introduction of CLUSTER_MANAGER_ROLE.
     public void testClusterManagerNodeAndMasterNodeCanBeIdentified() {
         Set<DiscoveryNodeRole> setWithClusterManagerRole = new HashSet<>(Collections.singletonList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE));
         Set<DiscoveryNodeRole> setWithMasterRole = new HashSet<>(Collections.singletonList(DiscoveryNodeRole.MASTER_ROLE));
