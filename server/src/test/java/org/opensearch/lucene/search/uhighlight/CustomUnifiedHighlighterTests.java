@@ -168,7 +168,6 @@ public class CustomUnifiedHighlighterTests extends OpenSearchTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/2063")
     public void testMultiPhrasePrefixQuerySingleTerm() throws Exception {
         final String[] inputs = { "The quick brown fox." };
         final String[] outputs = { "The quick <b>brown</b> fox." };
@@ -186,7 +185,6 @@ public class CustomUnifiedHighlighterTests extends OpenSearchTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/2063")
     public void testMultiPhrasePrefixQuery() throws Exception {
         final String[] inputs = { "The quick brown fox." };
         final String[] outputs = { "The <b>quick</b> <b>brown</b> <b>fox</b>." };
@@ -267,7 +265,6 @@ public class CustomUnifiedHighlighterTests extends OpenSearchTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/2063")
     public void testRepeat() throws Exception {
         final String[] inputs = { "Fun  fun fun  fun  fun  fun  fun  fun  fun  fun" };
         final String[] outputs = {
