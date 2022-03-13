@@ -122,7 +122,6 @@ import org.opensearch.index.get.ShardGetService;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
-import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.Mapping;
 import org.opensearch.index.mapper.ParsedDocument;
@@ -154,7 +153,6 @@ import org.opensearch.index.warmer.ShardIndexWarmerService;
 import org.opensearch.index.warmer.WarmerStats;
 import org.opensearch.indices.IndexingMemoryController;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.indices.TypeMissingException;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
@@ -867,23 +865,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         ensureWriteAllowed(origin);
         Engine.Index operation;
         try {
-            final String resolvedType = mapperService.resolveDocumentType(sourceToParse.type());
-            final SourceToParse sourceWithResolvedType;
-            if (resolvedType.equals(sourceToParse.type())) {
-                sourceWithResolvedType = sourceToParse;
-            } else {
-                sourceWithResolvedType = new SourceToParse(
-                    sourceToParse.index(),
-                    resolvedType,
-                    sourceToParse.id(),
-                    sourceToParse.source(),
-                    sourceToParse.getXContentType(),
-                    sourceToParse.routing()
-                );
-            }
             operation = prepareIndex(
                 docMapper(),
-                sourceWithResolvedType,
+                sourceToParse,
                 seqNo,
                 opPrimaryTerm,
                 version,
@@ -953,8 +937,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (logger.isTraceEnabled()) {
                 // don't use index.source().utf8ToString() here source might not be valid UTF-8
                 logger.trace(
-                    "index [{}][{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}]",
-                    index.type(),
+                    "index [{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}]",
                     index.id(),
                     index.seqNo(),
                     routingEntry().allocationId(),
@@ -966,9 +949,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             result = engine.index(index);
             if (logger.isTraceEnabled()) {
                 logger.trace(
-                    "index-done [{}][{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}] "
+                    "index-done [{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}] "
                         + "result-seq# [{}] result-term [{}] failure [{}]",
-                    index.type(),
                     index.id(),
                     index.seqNo(),
                     routingEntry().allocationId(),
@@ -984,8 +966,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (logger.isTraceEnabled()) {
                 logger.trace(
                     new ParameterizedMessage(
-                        "index-fail [{}][{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}]",
-                        index.type(),
+                        "index-fail [{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}]",
                         index.id(),
                         index.seqNo(),
                         routingEntry().allocationId(),
@@ -1038,7 +1019,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public Engine.DeleteResult applyDeleteOperationOnPrimary(
         long version,
-        String type,
         String id,
         VersionType versionType,
         long ifSeqNo,
@@ -1050,7 +1030,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             UNASSIGNED_SEQ_NO,
             getOperationPrimaryTerm(),
             version,
-            type,
             id,
             versionType,
             ifSeqNo,
@@ -1059,14 +1038,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         );
     }
 
-    public Engine.DeleteResult applyDeleteOperationOnReplica(long seqNo, long opPrimaryTerm, long version, String type, String id)
-        throws IOException {
+    public Engine.DeleteResult applyDeleteOperationOnReplica(long seqNo, long opPrimaryTerm, long version, String id) throws IOException {
         return applyDeleteOperation(
             getEngine(),
             seqNo,
             opPrimaryTerm,
             version,
-            type,
             id,
             null,
             UNASSIGNED_SEQ_NO,
@@ -1080,7 +1057,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long seqNo,
         long opPrimaryTerm,
         long version,
-        String type,
         String id,
         @Nullable VersionType versionType,
         long ifSeqNo,
@@ -1093,52 +1069,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             + getOperationPrimaryTerm()
             + "]";
         ensureWriteAllowed(origin);
-        // When there is a single type, the unique identifier is only composed of the _id,
-        // so there is no way to differentiate foo#1 from bar#1. This is especially an issue
-        // if a user first deletes foo#1 and then indexes bar#1: since we do not encode the
-        // _type in the uid it might look like we are reindexing the same document, which
-        // would fail if bar#1 is indexed with a lower version than foo#1 was deleted with.
-        // In order to work around this issue, we make deletions create types. This way, we
-        // fail if index and delete operations do not use the same type.
-        // TODO: clean this up when types are gone
-        try {
-            Mapping update = docMapper().getMapping();
-            if (update != null) {
-                return new Engine.DeleteResult(update);
-            }
-        } catch (MapperParsingException | IllegalArgumentException | TypeMissingException e) {
-            return new Engine.DeleteResult(e, version, getOperationPrimaryTerm(), seqNo, false);
-        }
-        if (mapperService.resolveDocumentType(type).equals(mapperService.documentMapper().type()) == false) {
-            // We should never get there due to the fact that we generate mapping updates on deletes,
-            // but we still prefer to have a hard exception here as we would otherwise delete a
-            // document in the wrong type.
-            throw new IllegalStateException(
-                "Deleting document from type ["
-                    + mapperService.resolveDocumentType(type)
-                    + "] while current type is ["
-                    + mapperService.documentMapper().type()
-                    + "]"
-            );
-        }
         final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
-        final Engine.Delete delete = prepareDelete(
-            type,
-            id,
-            uid,
-            seqNo,
-            opPrimaryTerm,
-            version,
-            versionType,
-            origin,
-            ifSeqNo,
-            ifPrimaryTerm
-        );
+        final Engine.Delete delete = prepareDelete(id, uid, seqNo, opPrimaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm);
         return delete(engine, delete);
     }
 
     private Engine.Delete prepareDelete(
-        String type,
         String id,
         Term uid,
         long seqNo,
@@ -1150,19 +1086,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long ifPrimaryTerm
     ) {
         long startTime = System.nanoTime();
-        return new Engine.Delete(
-            mapperService.resolveDocumentType(type),
-            id,
-            uid,
-            seqNo,
-            primaryTerm,
-            version,
-            versionType,
-            origin,
-            startTime,
-            ifSeqNo,
-            ifPrimaryTerm
-        );
+        return new Engine.Delete(id, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm);
     }
 
     private Engine.DeleteResult delete(Engine engine, Engine.Delete delete) throws IOException {
@@ -1813,7 +1737,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     origin,
                     new SourceToParse(
                         shardId.getIndexName(),
-                        index.type(),
                         index.id(),
                         index.source(),
                         XContentHelper.xContentType(index.source()),
@@ -1828,7 +1751,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     delete.seqNo(),
                     delete.primaryTerm(),
                     delete.version(),
-                    delete.type(),
                     delete.id(),
                     versionType,
                     UNASSIGNED_SEQ_NO,
@@ -3873,8 +3795,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             : null;
         return new EngineConfig.TombstoneDocSupplier() {
             @Override
-            public ParsedDocument newDeleteTombstoneDoc(String type, String id) {
-                return docMapper().getDocumentMapper().createDeleteTombstoneDoc(shardId.getIndexName(), type, id);
+            public ParsedDocument newDeleteTombstoneDoc(String id) {
+                return docMapper().getDocumentMapper().createDeleteTombstoneDoc(shardId.getIndexName(), id);
             }
 
             @Override

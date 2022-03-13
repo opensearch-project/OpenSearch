@@ -53,7 +53,6 @@ public class RoutingFieldMapperTests extends OpenSearchSingleNodeTestCase {
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
                 "test",
-                "type",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject()),
                 XContentType.JSON,
@@ -75,7 +74,6 @@ public class RoutingFieldMapperTests extends OpenSearchSingleNodeTestCase {
             docMapper.parse(
                 new SourceToParse(
                     "test",
-                    "type",
                     "1",
                     BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("_routing", "foo").endObject()),
                     XContentType.JSON

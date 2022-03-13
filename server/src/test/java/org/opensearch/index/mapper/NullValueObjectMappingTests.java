@@ -65,7 +65,6 @@ public class NullValueObjectMappingTests extends OpenSearchSingleNodeTestCase {
         ParsedDocument doc = defaultMapper.parse(
             new SourceToParse(
                 "test",
-                "type",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder().startObject().startObject("obj1").endObject().field("value1", "test1").endObject()
@@ -79,7 +78,6 @@ public class NullValueObjectMappingTests extends OpenSearchSingleNodeTestCase {
         doc = defaultMapper.parse(
             new SourceToParse(
                 "test",
-                "type",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().nullField("obj1").field("value1", "test1").endObject()),
                 XContentType.JSON
@@ -91,7 +89,6 @@ public class NullValueObjectMappingTests extends OpenSearchSingleNodeTestCase {
         doc = defaultMapper.parse(
             new SourceToParse(
                 "test",
-                "type",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()

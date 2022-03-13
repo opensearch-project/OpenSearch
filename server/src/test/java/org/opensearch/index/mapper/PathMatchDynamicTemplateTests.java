@@ -53,7 +53,7 @@ public class PathMatchDynamicTemplateTests extends OpenSearchSingleNodeTestCase 
 
         byte[] json = copyToBytesFromClasspath("/org/opensearch/index/mapper/dynamictemplate/pathmatch/test-data.json");
         ParsedDocument parsedDoc = mapperService.documentMapper()
-            .parse(new SourceToParse("test", MapperService.SINGLE_MAPPING_NAME, "1", new BytesArray(json), XContentType.JSON));
+            .parse(new SourceToParse("test", "1", new BytesArray(json), XContentType.JSON));
         client().admin()
             .indices()
             .preparePutMapping("test")

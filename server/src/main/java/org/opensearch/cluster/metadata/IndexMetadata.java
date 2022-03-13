@@ -67,6 +67,7 @@ import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.gateway.MetadataStateFormat;
 import org.opensearch.index.Index;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
@@ -1159,12 +1160,17 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return this;
         }
 
-        public MappingMetadata mapping(String type) {
-            return mappings.get(type);
+        public MappingMetadata mapping() {
+            return mappings.get(MapperService.SINGLE_MAPPING_NAME);
         }
 
-        public Builder putMapping(String type, String source) throws IOException {
-            putMapping(new MappingMetadata(type, XContentHelper.convertToMap(XContentFactory.xContent(source), source, true)));
+        public Builder putMapping(String source) throws IOException {
+            putMapping(
+                new MappingMetadata(
+                    MapperService.SINGLE_MAPPING_NAME,
+                    XContentHelper.convertToMap(XContentFactory.xContent(source), source, true)
+                )
+            );
             return this;
         }
 
