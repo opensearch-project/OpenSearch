@@ -183,16 +183,31 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
     public void testClusterManagerNodeAndMasterNodeCanBeIdentified() {
         Set<DiscoveryNodeRole> setWithClusterManagerRole = new HashSet<>(Collections.singletonList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE));
         Set<DiscoveryNodeRole> setWithMasterRole = new HashSet<>(Collections.singletonList(DiscoveryNodeRole.MASTER_ROLE));
-        Set<DiscoveryNodeRole> setWithClusterManagerAndMasterRole = new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.MASTER_ROLE));
-        List<Set<DiscoveryNodeRole>> possibleClusterManagerRoleSetList = new ArrayList<>(Arrays.asList(setWithMasterRole, setWithClusterManagerRole, setWithClusterManagerAndMasterRole));
+        Set<DiscoveryNodeRole> setWithClusterManagerAndMasterRole = new HashSet<>(
+            Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.MASTER_ROLE)
+        );
+        List<Set<DiscoveryNodeRole>> possibleClusterManagerRoleSetList = new ArrayList<>(
+            Arrays.asList(setWithMasterRole, setWithClusterManagerRole, setWithClusterManagerAndMasterRole)
+        );
 
         // Test method isMasterNode()
-        DiscoveryNode clusterManagerNode = new DiscoveryNode("name", "id", buildNewFakeTransportAddress(), emptyMap(), randomFrom(possibleClusterManagerRoleSetList), Version.CURRENT);
+        DiscoveryNode clusterManagerNode = new DiscoveryNode(
+            "name",
+            "id",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            randomFrom(possibleClusterManagerRoleSetList),
+            Version.CURRENT
+        );
         assertTrue(clusterManagerNode.isMasterNode());
 
         // Test method isMasterNode(Settings)
-        List<String> clusterManagerRoleNameList = randomFrom(possibleClusterManagerRoleSetList).stream().map(DiscoveryNodeRole::roleName).collect(Collectors.toList());
-        Settings settingWithMasterRole = Settings.builder().putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), clusterManagerRoleNameList).build();
+        List<String> clusterManagerRoleNameList = randomFrom(possibleClusterManagerRoleSetList).stream()
+            .map(DiscoveryNodeRole::roleName)
+            .collect(Collectors.toList());
+        Settings settingWithMasterRole = Settings.builder()
+            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), clusterManagerRoleNameList)
+            .build();
         assertTrue(DiscoveryNode.isMasterNode(settingWithMasterRole));
     }
 
