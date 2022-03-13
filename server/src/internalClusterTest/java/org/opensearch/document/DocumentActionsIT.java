@@ -47,6 +47,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
@@ -182,7 +183,7 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
             // test successful
             SearchResponse countResponse = client().prepareSearch("test")
                 .setSize(0)
-                .setQuery(termQuery("_type", "type1"))
+                .setQuery(termQuery("_type", MapperService.SINGLE_MAPPING_NAME))
                 .execute()
                 .actionGet();
             assertNoFailures(countResponse);

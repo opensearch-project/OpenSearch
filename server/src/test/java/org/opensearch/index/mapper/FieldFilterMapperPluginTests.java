@@ -93,7 +93,7 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
 
     public void testGetFieldMappings() {
         GetFieldMappingsResponse getFieldMappingsResponse = client().admin().indices().prepareGetFieldMappings().setFields("*").get();
-        Map<String, Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>>> mappings = getFieldMappingsResponse.mappings();
+        Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mappings = getFieldMappingsResponse.mappings();
         assertEquals(2, mappings.size());
         assertFieldMappings(mappings.get("index1"), ALL_FLAT_FIELDS);
         assertFieldMappings(mappings.get("filtered"), FILTERED_FLAT_FIELDS);
@@ -105,6 +105,14 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
         GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings("test").setFields("*").get();
         assertEquals(1, response.mappings().size());
         assertFieldMappings(response.mappings().get("test"), FILTERED_FLAT_FIELDS);
+    }
+
+    public void testGetNonExistentFieldMapping() {
+        GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings("index1").setFields("non-existent").get();
+        Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mappings = response.mappings();
+        assertEquals(1, mappings.size());
+        Map<String, GetFieldMappingsResponse.FieldMappingMetadata> fieldmapping = mappings.get("index1");
+        assertEquals(0, fieldmapping.size());
     }
 
     public void testFieldCapabilities() {
@@ -142,11 +150,10 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
     }
 
     private static void assertFieldMappings(
-        Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mappings,
+        Map<String, GetFieldMappingsResponse.FieldMappingMetadata> actual,
         Collection<String> expectedFields
     ) {
-        assertEquals(1, mappings.size());
-        Map<String, GetFieldMappingsResponse.FieldMappingMetadata> fields = new HashMap<>(mappings.get("_doc"));
+        Map<String, GetFieldMappingsResponse.FieldMappingMetadata> fields = new HashMap<>(actual);
         Set<String> builtInMetadataFields = IndicesModule.getBuiltInMetadataFields();
         for (String field : builtInMetadataFields) {
             GetFieldMappingsResponse.FieldMappingMetadata fieldMappingMetadata = fields.remove(field);

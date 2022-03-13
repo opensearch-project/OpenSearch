@@ -57,6 +57,7 @@ import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.StopWatch;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.logging.Loggers;
@@ -64,11 +65,10 @@ import org.opensearch.common.lucene.store.InputStreamIndexInput;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CancellableThreads;
-import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.common.util.concurrent.ListenableFuture;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.internal.io.IOUtils;
-import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.RecoveryEngineException;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLease;
@@ -250,10 +250,10 @@ public class RecoverySourceHandler {
                     sendFileStep.onResponse(SendFileResult.EMPTY);
                 }
             } else {
-                final Engine.IndexCommitRef safeCommitRef;
+                final GatedCloseable<IndexCommit> wrappedSafeCommit;
                 try {
-                    safeCommitRef = acquireSafeCommit(shard);
-                    resources.add(safeCommitRef);
+                    wrappedSafeCommit = acquireSafeCommit(shard);
+                    resources.add(wrappedSafeCommit);
                 } catch (final Exception e) {
                     throw new RecoveryEngineException(shard.shardId(), 1, "snapshot failed", e);
                 }
@@ -268,16 +268,16 @@ public class RecoverySourceHandler {
                 // advances and not when creating a new safe commit. In any case this is a best-effort thing since future recoveries can
                 // always fall back to file-based ones, and only really presents a problem if this primary fails before things have settled
                 // down.
-                startingSeqNo = Long.parseLong(safeCommitRef.get().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1L;
+                startingSeqNo = Long.parseLong(wrappedSafeCommit.get().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1L;
                 logger.trace("performing file-based recovery followed by history replay starting at [{}]", startingSeqNo);
 
                 try {
                     final int estimateNumOps = estimateNumberOfHistoryOperations(startingSeqNo);
                     final Releasable releaseStore = acquireStore(shard.store());
                     resources.add(releaseStore);
-                    sendFileStep.whenComplete(r -> IOUtils.close(safeCommitRef, releaseStore), e -> {
+                    sendFileStep.whenComplete(r -> IOUtils.close(wrappedSafeCommit, releaseStore), e -> {
                         try {
-                            IOUtils.close(safeCommitRef, releaseStore);
+                            IOUtils.close(wrappedSafeCommit, releaseStore);
                         } catch (final IOException ex) {
                             logger.warn("releasing snapshot caused exception", ex);
                         }
@@ -307,7 +307,7 @@ public class RecoverySourceHandler {
 
                     deleteRetentionLeaseStep.whenComplete(ignored -> {
                         assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[phase1]");
-                        phase1(safeCommitRef.get(), startingSeqNo, () -> estimateNumOps, sendFileStep);
+                        phase1(wrappedSafeCommit.get(), startingSeqNo, () -> estimateNumOps, sendFileStep);
                     }, onFailure);
 
                 } catch (final Exception e) {
@@ -467,12 +467,12 @@ public class RecoverySourceHandler {
      * with the file systems due to interrupt (see {@link org.apache.lucene.store.NIOFSDirectory} javadocs for more detail).
      * This method acquires a safe commit and wraps it to make sure that it will be released using the generic thread pool.
      */
-    private Engine.IndexCommitRef acquireSafeCommit(IndexShard shard) {
-        final Engine.IndexCommitRef commitRef = shard.acquireSafeIndexCommit();
+    private GatedCloseable<IndexCommit> acquireSafeCommit(IndexShard shard) {
+        final GatedCloseable<IndexCommit> wrappedSafeCommit = shard.acquireSafeIndexCommit();
         final AtomicBoolean closed = new AtomicBoolean(false);
-        return new Engine.IndexCommitRef(commitRef.get(), () -> {
+        return new GatedCloseable<>(wrappedSafeCommit.get(), () -> {
             if (closed.compareAndSet(false, true)) {
-                runWithGenericThreadPool(commitRef::close);
+                runWithGenericThreadPool(wrappedSafeCommit::close);
             }
         });
     }

@@ -66,7 +66,7 @@ public class CreateIndexRequestTests extends OpenSearchTestCase {
             try (StreamInput in = output.bytes().streamInput()) {
                 CreateIndexRequest serialized = new CreateIndexRequest(in);
                 assertEquals(request.index(), serialized.index());
-                assertEquals(mapping, serialized.mappings().get("my_type"));
+                assertEquals("{\"_doc\":{}}", serialized.mappings());
             }
         }
     }

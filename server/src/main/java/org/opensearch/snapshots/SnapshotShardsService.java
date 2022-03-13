@@ -50,6 +50,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.component.AbstractLifecycleComponent;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.internal.io.IOUtils;
@@ -368,25 +369,25 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             }
 
             final Repository repository = repositoriesService.repository(snapshot.getRepository());
-            Engine.IndexCommitRef snapshotRef = null;
+            GatedCloseable<IndexCommit> wrappedSnapshot = null;
             try {
                 // we flush first to make sure we get the latest writes snapshotted
-                snapshotRef = indexShard.acquireLastIndexCommit(true);
-                final IndexCommit snapshotIndexCommit = snapshotRef.get();
+                wrappedSnapshot = indexShard.acquireLastIndexCommit(true);
+                final IndexCommit snapshotIndexCommit = wrappedSnapshot.get();
                 repository.snapshotShard(
                     indexShard.store(),
                     indexShard.mapperService(),
                     snapshot.getSnapshotId(),
                     indexId,
-                    snapshotRef.get(),
+                    wrappedSnapshot.get(),
                     getShardStateId(indexShard, snapshotIndexCommit),
                     snapshotStatus,
                     version,
                     userMetadata,
-                    ActionListener.runBefore(listener, snapshotRef::close)
+                    ActionListener.runBefore(listener, wrappedSnapshot::close)
                 );
             } catch (Exception e) {
-                IOUtils.close(snapshotRef);
+                IOUtils.close(wrappedSnapshot);
                 throw e;
             }
         } catch (Exception e) {

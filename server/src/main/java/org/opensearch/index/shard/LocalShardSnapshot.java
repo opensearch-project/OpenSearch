@@ -32,6 +32,7 @@
 
 package org.opensearch.index.shard;
 
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -39,6 +40,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NoLockFactory;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.index.Index;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.store.Store;
@@ -52,7 +54,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 final class LocalShardSnapshot implements Closeable {
     private final IndexShard shard;
     private final Store store;
-    private final Engine.IndexCommitRef indexCommit;
+    private final GatedCloseable<IndexCommit> wrappedIndexCommit;
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     LocalShardSnapshot(IndexShard shard) {
@@ -61,7 +63,7 @@ final class LocalShardSnapshot implements Closeable {
         store.incRef();
         boolean success = false;
         try {
-            indexCommit = shard.acquireLastIndexCommit(true);
+            wrappedIndexCommit = shard.acquireLastIndexCommit(true);
             success = true;
         } finally {
             if (success == false) {
@@ -88,7 +90,7 @@ final class LocalShardSnapshot implements Closeable {
         return new FilterDirectory(store.directory()) {
             @Override
             public String[] listAll() throws IOException {
-                Collection<String> fileNames = indexCommit.get().getFileNames();
+                Collection<String> fileNames = wrappedIndexCommit.get().getFileNames();
                 final String[] fileNameArray = fileNames.toArray(new String[fileNames.size()]);
                 return fileNameArray;
             }
@@ -143,7 +145,7 @@ final class LocalShardSnapshot implements Closeable {
     public void close() throws IOException {
         if (closed.compareAndSet(false, true)) {
             try {
-                indexCommit.close();
+                wrappedIndexCommit.close();
             } finally {
                 store.decRef();
             }
@@ -156,6 +158,6 @@ final class LocalShardSnapshot implements Closeable {
 
     @Override
     public String toString() {
-        return "local_shard_snapshot:[" + shard.shardId() + " indexCommit: " + indexCommit + "]";
+        return "local_shard_snapshot:[" + shard.shardId() + " indexCommit: " + wrappedIndexCommit + "]";
     }
 }

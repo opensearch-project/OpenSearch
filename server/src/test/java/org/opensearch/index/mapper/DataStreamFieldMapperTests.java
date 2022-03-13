@@ -76,7 +76,6 @@ public class DataStreamFieldMapperTests extends OpenSearchSingleNodeTestCase {
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
                 "test",
-                "_doc",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -97,7 +96,6 @@ public class DataStreamFieldMapperTests extends OpenSearchSingleNodeTestCase {
             mapper.parse(
                 new SourceToParse(
                     "test",
-                    "_doc",
                     "3",
                     BytesReference.bytes(
                         XContentFactory.jsonBuilder()
@@ -127,7 +125,6 @@ public class DataStreamFieldMapperTests extends OpenSearchSingleNodeTestCase {
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
                 "test",
-                "_doc",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder().startObject().field(timestampFieldName, "2020-12-06T11:04:05.000Z").endObject()
@@ -146,7 +143,6 @@ public class DataStreamFieldMapperTests extends OpenSearchSingleNodeTestCase {
             mapper.parse(
                 new SourceToParse(
                     "test",
-                    "_doc",
                     "2",
                     BytesReference.bytes(
                         XContentFactory.jsonBuilder().startObject().field("invalid-field-name", "2020-12-06T11:04:05.000Z").endObject()
@@ -165,7 +161,6 @@ public class DataStreamFieldMapperTests extends OpenSearchSingleNodeTestCase {
             mapper.parse(
                 new SourceToParse(
                     "test",
-                    "_doc",
                     "3",
                     BytesReference.bytes(
                         XContentFactory.jsonBuilder()

@@ -44,7 +44,6 @@ import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.mapper.Mapping;
 import org.opensearch.index.mapper.RootObjectMapper;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -65,8 +64,6 @@ import static java.util.Collections.emptyMap;
 public class TranslogHandler implements Engine.TranslogRecoveryRunner {
 
     private final MapperService mapperService;
-    public Mapping mappingUpdate = null;
-    private final Map<String, Mapping> recoveredTypes = new HashMap<>();
 
     private final AtomicLong appliedOperations = new AtomicLong();
 
@@ -95,21 +92,13 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
     private DocumentMapperForType docMapper(String type) {
         RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder(type);
         DocumentMapper.Builder b = new DocumentMapper.Builder(rootBuilder, mapperService);
-        return new DocumentMapperForType(b.build(mapperService), mappingUpdate);
+        return new DocumentMapperForType(b.build(mapperService), null);
     }
 
     private void applyOperation(Engine engine, Engine.Operation operation) throws IOException {
         switch (operation.operationType()) {
             case INDEX:
-                Engine.Index engineIndex = (Engine.Index) operation;
-                Mapping update = engineIndex.parsedDoc().dynamicMappingsUpdate();
-                if (engineIndex.parsedDoc().dynamicMappingsUpdate() != null) {
-                    recoveredTypes.compute(
-                        engineIndex.type(),
-                        (k, mapping) -> mapping == null ? update : mapping.merge(update, MapperService.MergeReason.MAPPING_RECOVERY)
-                    );
-                }
-                engine.index(engineIndex);
+                engine.index((Engine.Index) operation);
                 break;
             case DELETE:
                 engine.delete((Engine.Delete) operation);
@@ -120,13 +109,6 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
             default:
                 throw new IllegalStateException("No operation defined for [" + operation + "]");
         }
-    }
-
-    /**
-     * Returns the recovered types modifying the mapping during the recovery
-     */
-    public Map<String, Mapping> getRecoveredTypes() {
-        return recoveredTypes;
     }
 
     @Override
@@ -150,15 +132,8 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
                 final Translog.Index index = (Translog.Index) operation;
                 final String indexName = mapperService.index().getName();
                 final Engine.Index engineIndex = IndexShard.prepareIndex(
-                    docMapper(index.type()),
-                    new SourceToParse(
-                        indexName,
-                        index.type(),
-                        index.id(),
-                        index.source(),
-                        XContentHelper.xContentType(index.source()),
-                        index.routing()
-                    ),
+                    docMapper(MapperService.SINGLE_MAPPING_NAME),
+                    new SourceToParse(indexName, index.id(), index.source(), XContentHelper.xContentType(index.source()), index.routing()),
                     index.seqNo(),
                     index.primaryTerm(),
                     index.version(),
@@ -173,7 +148,6 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
             case DELETE:
                 final Translog.Delete delete = (Translog.Delete) operation;
                 final Engine.Delete engineDelete = new Engine.Delete(
-                    delete.type(),
                     delete.id(),
                     delete.uid(),
                     delete.seqNo(),

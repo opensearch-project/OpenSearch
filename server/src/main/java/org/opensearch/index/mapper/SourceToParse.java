@@ -45,17 +45,14 @@ public class SourceToParse {
 
     private final String index;
 
-    private final String type;
-
     private final String id;
 
     private final @Nullable String routing;
 
     private final XContentType xContentType;
 
-    public SourceToParse(String index, String type, String id, BytesReference source, XContentType xContentType, @Nullable String routing) {
+    public SourceToParse(String index, String id, BytesReference source, XContentType xContentType, @Nullable String routing) {
         this.index = Objects.requireNonNull(index);
-        this.type = Objects.requireNonNull(type);
         this.id = Objects.requireNonNull(id);
         // we always convert back to byte array, since we store it and Field only supports bytes..
         // so, we might as well do it here, and improve the performance of working with direct byte arrays
@@ -64,8 +61,8 @@ public class SourceToParse {
         this.routing = routing;
     }
 
-    public SourceToParse(String index, String type, String id, BytesReference source, XContentType xContentType) {
-        this(index, type, id, source, xContentType, null);
+    public SourceToParse(String index, String id, BytesReference source, XContentType xContentType) {
+        this(index, id, source, xContentType, null);
     }
 
     public BytesReference source() {
@@ -74,10 +71,6 @@ public class SourceToParse {
 
     public String index() {
         return this.index;
-    }
-
-    public String type() {
-        return this.type;
     }
 
     public String id() {

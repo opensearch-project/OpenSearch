@@ -644,7 +644,7 @@ public class MetadataTests extends OpenSearchTestCase {
                             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     )
-                    .putMapping("_doc", FIND_MAPPINGS_TEST_ITEM)
+                    .putMapping(FIND_MAPPINGS_TEST_ITEM)
             )
             .put(
                 IndexMetadata.builder("index2")
@@ -654,7 +654,7 @@ public class MetadataTests extends OpenSearchTestCase {
                             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     )
-                    .putMapping("_doc", FIND_MAPPINGS_TEST_ITEM)
+                    .putMapping(FIND_MAPPINGS_TEST_ITEM)
             )
             .build();
 
@@ -739,7 +739,7 @@ public class MetadataTests extends OpenSearchTestCase {
                             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     )
-                    .putMapping("_doc", mapping)
+                    .putMapping(mapping)
             )
             .put(
                 IndexMetadata.builder("index2")
@@ -749,7 +749,7 @@ public class MetadataTests extends OpenSearchTestCase {
                             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     )
-                    .putMapping("_doc", mapping)
+                    .putMapping(mapping)
             )
             .put(
                 IndexMetadata.builder("index3")
@@ -759,7 +759,7 @@ public class MetadataTests extends OpenSearchTestCase {
                             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     )
-                    .putMapping("_doc", mapping)
+                    .putMapping(mapping)
             )
             .build();
 
