@@ -324,7 +324,7 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
     private Tuple<Version, Version> readVersionsFromCatNodes(RestClient restClient) throws IOException {
         // we simply go to the _cat/nodes API and parse all versions in the cluster
         final Request request = new Request("GET", "/_cat/nodes");
-        request.addParameter("h", "version,cluster_manager");
+        request.addParameter("h", "version,master");
         request.setOptions(getCatNodesVersionMasterRequestOptions());
         Response response = restClient.performRequest(request);
         ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
