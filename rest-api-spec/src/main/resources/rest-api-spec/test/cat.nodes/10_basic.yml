@@ -18,9 +18,12 @@
   - skip:
       version: " - 1.4.99"
       reason: "cluster_manager is introduced in 2.0.0"
+      features: node_selector
 
   - do:
       cat.nodes: {}
+      node_selector:
+        version: "2.0.0 - " # Only send request to nodes in 2.x versions, especially during mixedClusterTest.
 
   - match:
       $body: |
