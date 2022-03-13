@@ -57,6 +57,7 @@ import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.InternalEngineTests;
 import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.engine.VersionConflictEngineException;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -75,7 +76,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -315,10 +315,7 @@ public class IndexLevelReplicationTests extends OpenSearchIndexLevelReplicationT
     }
 
     public void testConflictingOpsOnReplica() throws Exception {
-        Map<String, String> mappings = Collections.singletonMap(
-            "type",
-            "{ \"type\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}"
-        );
+        String mappings = "{ \"" + MapperService.SINGLE_MAPPING_NAME + "\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}";
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetadata(2, mappings))) {
             shards.startAll();
             List<IndexShard> replicas = shards.getReplicas();
@@ -345,10 +342,7 @@ public class IndexLevelReplicationTests extends OpenSearchIndexLevelReplicationT
     }
 
     public void testReplicaTermIncrementWithConcurrentPrimaryPromotion() throws Exception {
-        Map<String, String> mappings = Collections.singletonMap(
-            "type",
-            "{ \"type\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}"
-        );
+        String mappings = "{ \"" + MapperService.SINGLE_MAPPING_NAME + "\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}";
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetadata(2, mappings))) {
             shards.startAll();
             long primaryPrimaryTerm = shards.getPrimary().getPendingPrimaryTerm();
@@ -398,10 +392,7 @@ public class IndexLevelReplicationTests extends OpenSearchIndexLevelReplicationT
     }
 
     public void testReplicaOperationWithConcurrentPrimaryPromotion() throws Exception {
-        Map<String, String> mappings = Collections.singletonMap(
-            "type",
-            "{ \"type\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}"
-        );
+        String mappings = "{ \"" + MapperService.SINGLE_MAPPING_NAME + "\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}";
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetadata(1, mappings))) {
             shards.startAll();
             long primaryPrimaryTerm = shards.getPrimary().getPendingPrimaryTerm();

@@ -295,7 +295,6 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                     assert source != null : "original source in translog must exist";
                     SourceToParse sourceToParse = new SourceToParse(
                         shardId.getIndexName(),
-                        MapperService.SINGLE_MAPPING_NAME,
                         id,
                         source,
                         XContentHelper.xContentType(source),

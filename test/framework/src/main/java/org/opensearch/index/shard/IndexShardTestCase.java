@@ -279,7 +279,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         IndexMetadata.Builder metadata = IndexMetadata.builder(shardRouting.getIndexName())
             .settings(indexSettings)
             .primaryTerm(0, primaryTerm)
-            .putMapping("_doc", "{ \"properties\": {} }");
+            .putMapping("{ \"properties\": {} }");
         return newShard(shardRouting, metadata.build(), null, engineFactory, () -> {}, RetentionLeaseSyncer.EMPTY, listeners);
     }
 
@@ -877,25 +877,12 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     }
 
     protected Engine.IndexResult indexDoc(IndexShard shard, String type, String id, String source) throws IOException {
-        return indexDoc(shard, type, id, source, XContentType.JSON, null);
+        return indexDoc(shard, id, source, XContentType.JSON, null);
     }
 
-    protected Engine.IndexResult indexDoc(
-        IndexShard shard,
-        String type,
-        String id,
-        String source,
-        XContentType xContentType,
-        String routing
-    ) throws IOException {
-        SourceToParse sourceToParse = new SourceToParse(
-            shard.shardId().getIndexName(),
-            type,
-            id,
-            new BytesArray(source),
-            xContentType,
-            routing
-        );
+    protected Engine.IndexResult indexDoc(IndexShard shard, String id, String source, XContentType xContentType, String routing)
+        throws IOException {
+        SourceToParse sourceToParse = new SourceToParse(shard.shardId().getIndexName(), id, new BytesArray(source), xContentType, routing);
         Engine.IndexResult result;
         if (shard.routingEntry().primary()) {
             result = shard.applyIndexOperationOnPrimary(
@@ -911,7 +898,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 updateMappings(
                     shard,
                     IndexMetadata.builder(shard.indexSettings().getIndexMetadata())
-                        .putMapping(type, result.getRequiredMappingUpdate().toString())
+                        .putMapping(result.getRequiredMappingUpdate().toString())
                         .build()
                 );
                 result = shard.applyIndexOperationOnPrimary(
@@ -956,12 +943,11 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             );
     }
 
-    protected Engine.DeleteResult deleteDoc(IndexShard shard, String type, String id) throws IOException {
+    protected Engine.DeleteResult deleteDoc(IndexShard shard, String id) throws IOException {
         final Engine.DeleteResult result;
         if (shard.routingEntry().primary()) {
             result = shard.applyDeleteOperationOnPrimary(
                 Versions.MATCH_ANY,
-                type,
                 id,
                 VersionType.INTERNAL,
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
@@ -972,7 +958,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         } else {
             final long seqNo = shard.seqNoStats().getMaxSeqNo() + 1;
             shard.advanceMaxSeqNoOfUpdatesOrDeletes(seqNo); // manually replicate max_seq_no_of_updates
-            result = shard.applyDeleteOperationOnReplica(seqNo, shard.getOperationPrimaryTerm(), 0L, type, id);
+            result = shard.applyDeleteOperationOnReplica(seqNo, shard.getOperationPrimaryTerm(), 0L, id);
             shard.sync(); // advance local checkpoint
         }
         return result;
