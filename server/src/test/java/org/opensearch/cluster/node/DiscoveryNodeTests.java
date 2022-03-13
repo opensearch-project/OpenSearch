@@ -39,12 +39,11 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.node.NodeRoleSettings;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.net.InetAddress;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -172,6 +171,35 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
 
     public void testDiscoveryNodeIsRemoteClusterClientUnset() {
         runTestDiscoveryNodeIsRemoteClusterClient(nonRemoteClusterClientNode(), false);
+    }
+
+    /*
+     * @deprecated The test is added in 2.0, along with CLUSTER_MANAGER_ROLE, and it will be removed along with MASTER_ROLE.
+     */
+    @Deprecated
+    public void testSetAdditionalRolesCanAddDeprecatedMasterRole() {
+        DiscoveryNode.setAdditionalRoles(new HashSet<>());
+        assertTrue(DiscoveryNode.getPossibleRoleNames().contains(DiscoveryNodeRole.MASTER_ROLE.roleName()));
+    }
+
+    /*
+     * @deprecated The test is added in 2.0, along with CLUSTER_MANAGER_ROLE, and it will be removed along with MASTER_ROLE.
+     */
+    @Deprecated
+    public void testClusterManagerNodeAndMasterNodeCanBeIdentified() {
+        Set<DiscoveryNodeRole> setWithClusterManagerRole = new HashSet<>(Collections.singletonList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE));
+        Set<DiscoveryNodeRole> setWithMasterRole = new HashSet<>(Collections.singletonList(DiscoveryNodeRole.MASTER_ROLE));
+        Set<DiscoveryNodeRole> setWithClusterManagerAndMasterRole = new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.MASTER_ROLE));
+        List<Set<DiscoveryNodeRole>> possibleClusterManagerRoleSetList = new ArrayList<>(Arrays.asList(setWithMasterRole, setWithClusterManagerRole, setWithClusterManagerAndMasterRole));
+
+        // Test method isMasterNode()
+        DiscoveryNode clusterManagerNode = new DiscoveryNode("name", "id", buildNewFakeTransportAddress(), emptyMap(), randomFrom(possibleClusterManagerRoleSetList), Version.CURRENT);
+        assertTrue(clusterManagerNode.isMasterNode());
+
+        // Test method isMasterNode(Settings)
+        List<String> clusterManagerRoleNameList = randomFrom(possibleClusterManagerRoleSetList).stream().map(DiscoveryNodeRole::roleName).collect(Collectors.toList());
+        Settings settingWithMasterRole = Settings.builder().putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), clusterManagerRoleNameList).build();
+        assertTrue(DiscoveryNode.isMasterNode(settingWithMasterRole));
     }
 
     private void runTestDiscoveryNodeIsRemoteClusterClient(final Settings settings, final boolean expected) {
