@@ -40,6 +40,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.Strings;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.xcontent.ToXContent;
@@ -70,6 +71,12 @@ public class RestClusterStateAction extends BaseRestHandler {
     public RestClusterStateAction(SettingsFilter settingsFilter) {
         this.settingsFilter = settingsFilter;
     }
+
+    // TODO: Remove the DeprecationLogger after removing MASTER_ROLE.
+    //  It's used to log deprecation when request parameter 'metric' contains 'master_node'.
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestClusterStateAction.class);
+    private static final String DEPRECATED_MESSAGE_MASTER_NODE =
+            "Deprecated value [master_node] used for parameter [metric]. To promote inclusive language, please use [cluster_manager_node] instead. It will be unsupported in a future major version.";
 
     @Override
     public String getName() {
@@ -117,6 +124,10 @@ public class RestClusterStateAction extends BaseRestHandler {
                     || metrics.contains(ClusterState.Metric.MASTER_NODE)
                     || metrics.contains(ClusterState.Metric.CLUSTER_MANAGER_NODE)
             );
+            // TODO: Remove the DeprecationLogger after removing MASTER_ROLE.
+            if (metrics.contains(ClusterState.Metric.MASTER_NODE)) {
+                deprecationLogger.deprecate("cluster_state_metric_parameter_master_node_value", DEPRECATED_MESSAGE_MASTER_NODE);
+            }
             /*
              * there is no distinction in Java api between routing_table and routing_nodes, it's the same info set over the wire, one single
              * flag to ask for it
