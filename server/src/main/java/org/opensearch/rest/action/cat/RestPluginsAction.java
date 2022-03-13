@@ -77,9 +77,9 @@ public class RestPluginsAction extends AbstractCatAction {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
+        // TODO: Remove below lines about 'master_timeout', after removing MASTER_ROLE.
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         // Add "cluster_manager_timeout" as the alternative to "master_timeout", for promoting inclusive language.
-        // TODO: 
         if (request.hasParam("master_timeout")) {
             deprecationLogger.deprecate("cat_nodes_master_timeout_parameter", DEPRECATED_MESSAGE_MASTER_TIMEOUT);
         }

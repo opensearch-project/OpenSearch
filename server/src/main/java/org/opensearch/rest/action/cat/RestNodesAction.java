@@ -110,6 +110,7 @@ public class RestNodesAction extends AbstractCatAction {
             deprecationLogger.deprecate("cat_nodes_local_parameter", LOCAL_DEPRECATED_MESSAGE);
         }
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
+        // TODO: Remove below lines about 'master_timeout', after removing MASTER_ROLE.
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         // Add "cluster_manager_timeout" as the alternative to "master_timeout", for promoting inclusive language.
         if (request.hasParam("master_timeout")) {
