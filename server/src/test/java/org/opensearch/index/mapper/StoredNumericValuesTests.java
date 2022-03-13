@@ -111,7 +111,6 @@ public class StoredNumericValuesTests extends OpenSearchSingleNodeTestCase {
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
                 "test",
-                "type",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
