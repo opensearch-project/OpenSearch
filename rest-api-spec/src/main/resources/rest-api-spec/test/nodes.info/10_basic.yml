@@ -14,7 +14,7 @@ setup:
 ---
 "node_info role test":
   - skip:
-      version: " - 7.7.99 , 2.0.0 - "
+      version: " - 7.7.99 , 2.0.0 -"
       reason: "node roles were not sorted before 7.8.0"
 
   - do:
@@ -32,14 +32,13 @@ setup:
 ---
 "node_info role test with cluster_manager":
   - skip:
-      version: " - 1.4.99"
       reason: "node role cluster_manager is added in 2.0.0"
       features: node_selector
 
   - do:
       nodes.info: {}
       node_selector:
-        version: "2.0.0 - " # It's used to skip this test when a node got upgraded from a lower version during mixedClusterTest.
+        version: "2.0.0 - " # Run the test when a node got upgraded from <2.0 to 2.x version during mixedClusterTest.
 
   - set:
       nodes._arbitrary_key_: node_id
