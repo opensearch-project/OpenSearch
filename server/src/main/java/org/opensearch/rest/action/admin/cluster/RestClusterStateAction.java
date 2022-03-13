@@ -73,10 +73,10 @@ public class RestClusterStateAction extends BaseRestHandler {
     }
 
     // TODO: Remove the DeprecationLogger after removing MASTER_ROLE.
-    //  It's used to log deprecation when request parameter 'metric' contains 'master_node'.
+    // It's used to log deprecation when request parameter 'metric' contains 'master_node'.
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestClusterStateAction.class);
     private static final String DEPRECATED_MESSAGE_MASTER_NODE =
-            "Deprecated value [master_node] used for parameter [metric]. To promote inclusive language, please use [cluster_manager_node] instead. It will be unsupported in a future major version.";
+        "Deprecated value [master_node] used for parameter [metric]. To promote inclusive language, please use [cluster_manager_node] instead. It will be unsupported in a future major version.";
 
     @Override
     public String getName() {
