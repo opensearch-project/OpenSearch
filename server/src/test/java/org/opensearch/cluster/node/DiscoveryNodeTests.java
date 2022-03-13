@@ -43,7 +43,9 @@ import org.opensearch.node.NodeRoleSettings;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.net.InetAddress;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
