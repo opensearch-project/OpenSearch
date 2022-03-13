@@ -63,9 +63,13 @@
   - skip:
       version: " - 1.4.99"
       reason: "discovered_cluster_manager replaced the old terminology in 2.0.0"
+      features: node_selector
+
   - do:
       cat.health:
         help: true
+      node_selector:
+        version: "2.0.0 - " # Only send request to nodes in 2.x versions, especially during mixedClusterTest.
 
   - match:
       $body: |
@@ -92,8 +96,12 @@
   - skip:
       version: " - 1.4.99"
       reason: "discovered_cluster_manager replaced the old terminology in 2.0.0"
+      features: node_selector
+
   - do:
       cat.health: {}
+      node_selector:
+        version: "2.0.0 - " # Only send request to nodes in 2.x versions, especially during mixedClusterTest.
 
   - match:
       $body: |
@@ -123,9 +131,13 @@
   - skip:
       version: " - 1.4.99"
       reason: "discovered_cluster_manager replaced the old terminology in 2.0.0"
+      features: node_selector
+
   - do:
       cat.health:
         ts: false
+      node_selector:
+        version: "2.0.0 - " # Only send request to nodes in 2.x versions, especially during mixedClusterTest.
 
   - match:
       $body: |
