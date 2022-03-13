@@ -55,10 +55,10 @@ import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.index.IndexRequest;
-import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.logging.Loggers;
@@ -1108,12 +1108,12 @@ public abstract class Engine implements Closeable {
      *
      * @param flushFirst indicates whether the engine should flush before returning the snapshot
      */
-    public abstract IndexCommitRef acquireLastIndexCommit(boolean flushFirst) throws EngineException;
+    public abstract GatedCloseable<IndexCommit> acquireLastIndexCommit(boolean flushFirst) throws EngineException;
 
     /**
      * Snapshots the most recent safe index commit from the engine.
      */
-    public abstract IndexCommitRef acquireSafeIndexCommit() throws EngineException;
+    public abstract GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException;
 
     /**
      * @return a summary of the contents of the current safe commit
@@ -1389,8 +1389,6 @@ public abstract class Engine implements Closeable {
             return this.startTime;
         }
 
-        public abstract String type();
-
         abstract String id();
 
         public abstract TYPE operationType();
@@ -1457,11 +1455,6 @@ public abstract class Engine implements Closeable {
         }
 
         @Override
-        public String type() {
-            return this.doc.type();
-        }
-
-        @Override
         public String id() {
             return this.doc.id();
         }
@@ -1485,7 +1478,7 @@ public abstract class Engine implements Closeable {
 
         @Override
         public int estimatedSizeInBytes() {
-            return (id().length() + type().length()) * 2 + source().length() + 12;
+            return id().length() * 2 + source().length() + 12;
         }
 
         /**
@@ -1516,13 +1509,11 @@ public abstract class Engine implements Closeable {
 
     public static class Delete extends Operation {
 
-        private final String type;
         private final String id;
         private final long ifSeqNo;
         private final long ifPrimaryTerm;
 
         public Delete(
-            String type,
             String id,
             Term uid,
             long seqNo,
@@ -1540,15 +1531,13 @@ public abstract class Engine implements Closeable {
             assert ifSeqNo == UNASSIGNED_SEQ_NO || ifSeqNo >= 0 : "ifSeqNo [" + ifSeqNo + "] must be non negative or unset";
             assert (origin == Origin.PRIMARY) || (ifSeqNo == UNASSIGNED_SEQ_NO && ifPrimaryTerm == UNASSIGNED_PRIMARY_TERM)
                 : "cas operations are only allowed if origin is primary. get [" + origin + "]";
-            this.type = Objects.requireNonNull(type);
             this.id = Objects.requireNonNull(id);
             this.ifSeqNo = ifSeqNo;
             this.ifPrimaryTerm = ifPrimaryTerm;
         }
 
-        public Delete(String type, String id, Term uid, long primaryTerm) {
+        public Delete(String id, Term uid, long primaryTerm) {
             this(
-                type,
                 id,
                 uid,
                 UNASSIGNED_SEQ_NO,
@@ -1564,7 +1553,6 @@ public abstract class Engine implements Closeable {
 
         public Delete(Delete template, VersionType versionType) {
             this(
-                template.type(),
                 template.id(),
                 template.uid(),
                 template.seqNo(),
@@ -1576,11 +1564,6 @@ public abstract class Engine implements Closeable {
                 UNASSIGNED_SEQ_NO,
                 0
             );
-        }
-
-        @Override
-        public String type() {
-            return this.type;
         }
 
         @Override
@@ -1622,11 +1605,6 @@ public abstract class Engine implements Closeable {
 
         @Override
         public Term uid() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public String type() {
             throw new UnsupportedOperationException();
         }
 
@@ -1825,28 +1803,6 @@ public abstract class Engine implements Closeable {
             closedLatch.await();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-        }
-    }
-
-    public static class IndexCommitRef implements Closeable {
-        private final AtomicBoolean closed = new AtomicBoolean();
-        private final CheckedRunnable<IOException> onClose;
-        private final IndexCommit indexCommit;
-
-        public IndexCommitRef(IndexCommit indexCommit, CheckedRunnable<IOException> onClose) {
-            this.indexCommit = indexCommit;
-            this.onClose = onClose;
-        }
-
-        @Override
-        public void close() throws IOException {
-            if (closed.compareAndSet(false, true)) {
-                onClose.run();
-            }
-        }
-
-        public IndexCommit getIndexCommit() {
-            return indexCommit;
         }
     }
 

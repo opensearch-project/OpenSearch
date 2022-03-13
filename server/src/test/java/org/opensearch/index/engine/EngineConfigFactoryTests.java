@@ -14,6 +14,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
+import org.opensearch.index.codec.CodecServiceFactory;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
@@ -84,6 +85,18 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
         expectThrows(IllegalStateException.class, () -> new EngineConfigFactory(plugins, indexSettings));
     }
 
+    public void testCreateEngineConfigFromFactoryMultipleCodecServiceAndFactoryIllegalStateException() {
+        IndexMetadata meta = IndexMetadata.builder("test")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        List<EnginePlugin> plugins = Arrays.asList(new FooEnginePlugin(), new BakEnginePlugin());
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", meta.getSettings());
+
+        expectThrows(IllegalStateException.class, () -> new EngineConfigFactory(plugins, indexSettings));
+    }
+
     public void testCreateEngineConfigFromFactoryMultipleCustomTranslogDeletionPolicyFactoryIllegalStateException() {
         IndexMetadata meta = IndexMetadata.builder("test")
             .settings(settings(Version.CURRENT))
@@ -94,6 +107,43 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", meta.getSettings());
 
         expectThrows(IllegalStateException.class, () -> new EngineConfigFactory(plugins, indexSettings));
+    }
+
+    public void testCreateCodecServiceFromFactory() {
+        IndexMetadata meta = IndexMetadata.builder("test")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        List<EnginePlugin> plugins = Arrays.asList(new BakEnginePlugin());
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", meta.getSettings());
+
+        EngineConfigFactory factory = new EngineConfigFactory(plugins, indexSettings);
+        EngineConfig config = factory.newEngineConfig(
+            null,
+            null,
+            indexSettings,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            TimeValue.timeValueMinutes(5),
+            null,
+            null,
+            null,
+            null,
+            null,
+            () -> new RetentionLeases(0, 0, Collections.emptyList()),
+            null,
+            null
+        );
+        assertNotNull(config.getCodec());
     }
 
     private static class FooEnginePlugin extends Plugin implements EnginePlugin {
@@ -122,6 +172,18 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
         @Override
         public Optional<CodecService> getCustomCodecService(IndexSettings indexSettings) {
             return Optional.of(new CodecService(null, LogManager.getLogger(getClass())));
+        }
+    }
+
+    private static class BakEnginePlugin extends Plugin implements EnginePlugin {
+        @Override
+        public Optional<EngineFactory> getEngineFactory(final IndexSettings indexSettings) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<CodecServiceFactory> getCustomCodecServiceFactory(IndexSettings indexSettings) {
+            return Optional.of(config -> new CodecService(config.getMapperService(), LogManager.getLogger(getClass())));
         }
     }
 

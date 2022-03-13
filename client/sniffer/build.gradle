@@ -30,8 +30,8 @@
 apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.publish'
 
-targetCompatibility = JavaVersion.VERSION_1_8
-sourceCompatibility = JavaVersion.VERSION_1_8
+targetCompatibility = JavaVersion.VERSION_11
+sourceCompatibility = JavaVersion.VERSION_11
 
 group = 'org.opensearch.client'
 archivesBaseName = 'opensearch-rest-client-sniffer'

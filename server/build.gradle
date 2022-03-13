@@ -64,14 +64,14 @@ if (!isEclipse) {
   }
 
   compileJava11Java {
-    sourceCompatibility = 11
-    targetCompatibility = 11
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
   }
 
   tasks.named('forbiddenApisJava11').configure {
     doFirst {
       if (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_11) {
-        targetCompatibility = JavaVersion.VERSION_11.getMajorVersion()
+        targetCompatibility = JavaVersion.VERSION_11
       }
     }
   }

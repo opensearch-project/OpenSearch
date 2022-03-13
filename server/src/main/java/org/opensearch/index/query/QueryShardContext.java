@@ -312,11 +312,11 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     /**
-     * Returns s {@link DocumentMapper} instance for the given type.
-     * Delegates to {@link MapperService#documentMapper(String)}
+     * Returns s {@link DocumentMapper} instance.
+     * Delegates to {@link MapperService#documentMapper()}
      */
     public DocumentMapper documentMapper(String type) {
-        return mapperService.documentMapper(type);
+        return mapperService.documentMapper();
     }
 
     /**

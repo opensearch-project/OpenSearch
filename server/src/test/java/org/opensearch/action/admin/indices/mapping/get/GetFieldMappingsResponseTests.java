@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.indices.mapping.get;
 
 import org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
+import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
@@ -47,20 +48,27 @@ import java.util.Map;
 public class GetFieldMappingsResponseTests extends AbstractWireSerializingTestCase<GetFieldMappingsResponse> {
 
     public void testManualSerialization() throws IOException {
-        Map<String, Map<String, Map<String, FieldMappingMetadata>>> mappings = new HashMap<>();
+        Map<String, Map<String, FieldMappingMetadata>> mappings = new HashMap<>();
         FieldMappingMetadata fieldMappingMetadata = new FieldMappingMetadata("my field", new BytesArray("{}"));
-        mappings.put("index", Collections.singletonMap("type", Collections.singletonMap("field", fieldMappingMetadata)));
+        mappings.put("index", Collections.singletonMap("field", fieldMappingMetadata));
         GetFieldMappingsResponse response = new GetFieldMappingsResponse(mappings);
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             response.writeTo(out);
             try (StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes)) {
                 GetFieldMappingsResponse serialized = new GetFieldMappingsResponse(in);
-                FieldMappingMetadata metadata = serialized.fieldMappings("index", "type", "field");
+                FieldMappingMetadata metadata = serialized.fieldMappings("index", "field");
                 assertNotNull(metadata);
                 assertEquals(new BytesArray("{}"), metadata.getSource());
             }
         }
+    }
+
+    public void testNullFieldMappingToXContent() {
+        Map<String, Map<String, FieldMappingMetadata>> mappings = new HashMap<>();
+        mappings.put("index", Collections.emptyMap());
+        GetFieldMappingsResponse response = new GetFieldMappingsResponse(mappings);
+        assertEquals("{\"index\":{\"mappings\":{}}}", Strings.toString(response));
     }
 
     @Override
@@ -73,24 +81,18 @@ public class GetFieldMappingsResponseTests extends AbstractWireSerializingTestCa
         return GetFieldMappingsResponse::new;
     }
 
-    private Map<String, Map<String, Map<String, FieldMappingMetadata>>> randomMapping() {
-        Map<String, Map<String, Map<String, FieldMappingMetadata>>> mappings = new HashMap<>();
+    private Map<String, Map<String, FieldMappingMetadata>> randomMapping() {
+        Map<String, Map<String, FieldMappingMetadata>> mappings = new HashMap<>();
 
         int indices = randomInt(10);
         for (int i = 0; i < indices; i++) {
-            final Map<String, Map<String, FieldMappingMetadata>> doctypesMappings = new HashMap<>();
-            int doctypes = randomInt(10);
-            for (int j = 0; j < doctypes; j++) {
-                Map<String, FieldMappingMetadata> fieldMappings = new HashMap<>();
-                int fields = randomInt(10);
-                for (int k = 0; k < fields; k++) {
-                    final String mapping = randomBoolean() ? "{\"type\":\"string\"}" : "{\"type\":\"keyword\"}";
-                    FieldMappingMetadata metadata = new FieldMappingMetadata("my field", new BytesArray(mapping));
-                    fieldMappings.put("field" + k, metadata);
-                }
-                doctypesMappings.put("doctype" + j, fieldMappings);
+            Map<String, FieldMappingMetadata> fieldMappings = new HashMap<>();
+            int fields = randomInt(10);
+            for (int k = 0; k < fields; k++) {
+                final String mapping = randomBoolean() ? "{\"type\":\"string\"}" : "{\"type\":\"keyword\"}";
+                FieldMappingMetadata metaData = new FieldMappingMetadata("my field", new BytesArray(mapping));
+                fieldMappings.put("field" + k, metaData);
             }
-            mappings.put("index" + i, doctypesMappings);
         }
         return mappings;
     }

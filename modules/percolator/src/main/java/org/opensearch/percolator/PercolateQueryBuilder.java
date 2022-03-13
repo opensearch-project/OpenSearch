@@ -584,9 +584,9 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                 );
             }
         }
-        docMapper = mapperService.documentMapper(type);
+        docMapper = mapperService.documentMapper();
         for (BytesReference document : documents) {
-            docs.add(docMapper.parse(new SourceToParse(context.index().getName(), type, "_temp_id", document, documentXContentType)));
+            docs.add(docMapper.parse(new SourceToParse(context.index().getName(), "_temp_id", document, documentXContentType)));
         }
 
         FieldNameAnalyzer fieldNameAnalyzer = (FieldNameAnalyzer) docMapper.mappers().indexAnalyzer();

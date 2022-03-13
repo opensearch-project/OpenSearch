@@ -36,6 +36,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.concurrent.GatedAutoCloseable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
@@ -48,7 +49,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * This class holds a collection of all on going recoveries on the current node (i.e., the node is the target node
@@ -178,7 +178,7 @@ public class RecoveriesCollection {
         if (recoveryRef == null) {
             throw new IndexShardClosedException(shardId);
         }
-        assert recoveryRef.target().shardId().equals(shardId);
+        assert recoveryRef.get().shardId().equals(shardId);
         return recoveryRef;
     }
 
@@ -273,29 +273,15 @@ public class RecoveriesCollection {
      * causes {@link RecoveryTarget#decRef()} to be called. This makes sure that the underlying resources
      * will not be freed until {@link RecoveryRef#close()} is called.
      */
-    public static class RecoveryRef implements AutoCloseable {
-
-        private final RecoveryTarget status;
-        private final AtomicBoolean closed = new AtomicBoolean(false);
+    public static class RecoveryRef extends GatedAutoCloseable<RecoveryTarget> {
 
         /**
          * Important: {@link RecoveryTarget#tryIncRef()} should
          * be *successfully* called on status before
          */
         public RecoveryRef(RecoveryTarget status) {
-            this.status = status;
-            this.status.setLastAccessTime();
-        }
-
-        @Override
-        public void close() {
-            if (closed.compareAndSet(false, true)) {
-                status.decRef();
-            }
-        }
-
-        public RecoveryTarget target() {
-            return status;
+            super(status, status::decRef);
+            status.setLastAccessTime();
         }
     }
 
