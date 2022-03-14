@@ -45,7 +45,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
-import org.opensearch.index.mapper.Uid;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.SubSearchContext;
@@ -98,8 +97,7 @@ public final class InnerHitsContext {
         private InnerHitsContext childInnerHits;
         private Weight innerHitQueryWeight;
 
-        // TODO: when types are complete removed just use String instead for the id:
-        private Uid rootId;
+        private String id;
         private SourceLookup rootLookup;
 
         protected InnerHitSubContext(String name, SearchContext context) {
@@ -141,12 +139,12 @@ public final class InnerHitsContext {
          *
          * Since this ID is available on the context, inner hits can avoid re-loading the root _id.
          */
-        public Uid getRootId() {
-            return rootId;
+        public String getId() {
+            return id;
         }
 
-        public void setRootId(Uid rootId) {
-            this.rootId = rootId;
+        public void setId(String id) {
+            this.id = id;
         }
 
         /**

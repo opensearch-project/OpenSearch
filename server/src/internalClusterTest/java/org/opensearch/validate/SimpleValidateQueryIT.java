@@ -62,6 +62,7 @@ import java.util.List;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
+import static org.opensearch.index.query.QueryBuilders.rangeQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.allOf;
@@ -499,5 +500,101 @@ public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
             .execute()
             .actionGet();
         assertThat(response.isValid(), is(true));
+    }
+
+    // Issue: https://github.com/opensearch-project/OpenSearch/issues/2036
+    public void testValidateDateRangeInQueryString() throws IOException {
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1)));
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .preparePutMapping("test")
+                .setSource(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject(MapperService.SINGLE_MAPPING_NAME)
+                        .startObject("properties")
+                        .startObject("name")
+                        .field("type", "keyword")
+                        .endObject()
+                        .startObject("timestamp")
+                        .field("type", "date")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+        );
+
+        client().prepareIndex("test").setId("1").setSource("name", "username", "timestamp", 200).get();
+        refresh();
+
+        ValidateQueryResponse response = client().admin()
+            .indices()
+            .prepareValidateQuery()
+            .setQuery(
+                QueryBuilders.boolQuery()
+                    .must(rangeQuery("timestamp").gte(0).lte(100))
+                    .must(queryStringQuery("username").allowLeadingWildcard(false))
+            )
+            .setRewrite(true)
+            .get();
+
+        assertNoFailures(response);
+        assertThat(response.isValid(), is(true));
+
+        // Use wildcard and date outside the range
+        response = client().admin()
+            .indices()
+            .prepareValidateQuery()
+            .setQuery(
+                QueryBuilders.boolQuery()
+                    .must(rangeQuery("timestamp").gte(0).lte(100))
+                    .must(queryStringQuery("*erna*").allowLeadingWildcard(false))
+            )
+            .setRewrite(true)
+            .get();
+
+        assertNoFailures(response);
+        assertThat(response.isValid(), is(false));
+
+        // Use wildcard and date inside the range
+        response = client().admin()
+            .indices()
+            .prepareValidateQuery()
+            .setQuery(
+                QueryBuilders.boolQuery()
+                    .must(rangeQuery("timestamp").gte(0).lte(1000))
+                    .must(queryStringQuery("*erna*").allowLeadingWildcard(false))
+            )
+            .setRewrite(true)
+            .get();
+
+        assertNoFailures(response);
+        assertThat(response.isValid(), is(false));
+
+        // Use wildcard and date inside the range (allow leading wildcard)
+        response = client().admin()
+            .indices()
+            .prepareValidateQuery()
+            .setQuery(QueryBuilders.boolQuery().must(rangeQuery("timestamp").gte(0).lte(1000)).must(queryStringQuery("*erna*")))
+            .setRewrite(true)
+            .get();
+
+        assertNoFailures(response);
+        assertThat(response.isValid(), is(true));
+
+        // Use invalid date range
+        response = client().admin()
+            .indices()
+            .prepareValidateQuery()
+            .setQuery(QueryBuilders.boolQuery().must(rangeQuery("timestamp").gte("aaa").lte(100)))
+            .setRewrite(true)
+            .get();
+
+        assertNoFailures(response);
+        assertThat(response.isValid(), is(false));
+
     }
 }

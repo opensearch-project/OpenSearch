@@ -36,7 +36,6 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.IgnoredFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -67,7 +66,7 @@ public class FieldsVisitor extends StoredFieldVisitor {
     private final String sourceFieldName;
     private final Set<String> requiredFields;
     protected BytesReference source;
-    protected String type, id;
+    protected String id;
     protected Map<String, List<Object>> fieldsValues;
 
     public FieldsVisitor(boolean loadSource) {
@@ -98,10 +97,6 @@ public class FieldsVisitor extends StoredFieldVisitor {
     }
 
     public void postProcess(MapperService mapperService) {
-        final DocumentMapper mapper = mapperService.documentMapper();
-        if (mapper != null) {
-            type = mapper.type();
-        }
         for (Map.Entry<String, List<Object>> entry : fields().entrySet()) {
             MappedFieldType fieldType = mapperService.fieldType(entry.getKey());
             if (fieldType == null) {
@@ -167,13 +162,8 @@ public class FieldsVisitor extends StoredFieldVisitor {
         return source;
     }
 
-    public Uid uid() {
-        if (id == null) {
-            return null;
-        } else if (type == null) {
-            throw new IllegalStateException("Call postProcess before getting the uid");
-        }
-        return new Uid(type, id);
+    public String id() {
+        return id;
     }
 
     public String routing() {
@@ -195,7 +185,6 @@ public class FieldsVisitor extends StoredFieldVisitor {
     public void reset() {
         if (fieldsValues != null) fieldsValues.clear();
         source = null;
-        type = null;
         id = null;
 
         requiredFields.addAll(BASE_REQUIRED_FIELDS);
