@@ -114,7 +114,9 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         } else {
             // TODO: Remove the statements in 'else' after removing MASTER_ROLE.
             EnumSet<ClusterState.Metric> metrics = ClusterState.Metric.parseString(request.param("metric"), true);
-            if (metrics.contains(ClusterState.Metric.MASTER_NODE)) {
+            // Because "_all" value will add all Metric into metrics set, for prevent deprecation message shown in that case,
+            // add the check of validating metrics set doesn't contain all enum elements.
+            if (!metrics.equals(EnumSet.allOf(ClusterState.Metric.class)) && metrics.contains(ClusterState.Metric.MASTER_NODE)) {
                 deprecationLogger.deprecate("cluster_reroute_metric_parameter_master_node_value", DEPRECATED_MESSAGE_MASTER_NODE);
             }
         }
