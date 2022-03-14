@@ -1089,8 +1089,8 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     : Settings.builder()
                         .put(nodeSettings)
                         .putList(
-                            ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(),
-                            ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY)
+                            ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(),
+                            ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING.get(Settings.EMPTY)
                         )
                         .build(); // suppress auto-bootstrap
                 transportService = mockTransport.createTransportService(

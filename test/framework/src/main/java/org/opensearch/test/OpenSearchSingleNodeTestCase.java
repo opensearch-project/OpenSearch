@@ -78,7 +78,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
-import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
+import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING;
 import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.opensearch.test.NodeRoles.dataNode;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -241,7 +241,7 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
             // turn it off for these tests.
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
-            .putList(INITIAL_MASTER_NODES_SETTING.getKey(), nodeName)
+            .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), nodeName)
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .build();
 

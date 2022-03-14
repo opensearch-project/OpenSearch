@@ -539,7 +539,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING,
                 Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION,
                 TransportAddVotingConfigExclusionsAction.MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING,
-                ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING,
+                ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING,  // deprecated
+                ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING,
                 ClusterBootstrapService.UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING,
                 LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING,
                 HandshakingTransportAddressConnector.PROBE_CONNECT_TIMEOUT_SETTING,
