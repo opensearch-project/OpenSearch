@@ -93,21 +93,6 @@ public class TermsLookupTests extends OpenSearchTestCase {
         }
     }
 
-    public void testXContentParsingWithType() throws IOException {
-        XContentParser parser = createParser(
-            JsonXContent.jsonXContent,
-            "{ \"index\" : \"index\", \"id\" : \"id\", \"path\" : \"path\", \"routing\" : \"routing\" }"
-        );
-
-        TermsLookup tl = TermsLookup.parseTermsLookup(parser);
-        assertEquals("index", tl.index());
-        assertEquals("id", tl.id());
-        assertEquals("path", tl.path());
-        assertEquals("routing", tl.routing());
-
-        assertWarnings("Deprecated field [type] used, this field is unused and will be removed entirely");
-    }
-
     public void testXContentParsing() throws IOException {
         XContentParser parser = createParser(
             JsonXContent.jsonXContent,
