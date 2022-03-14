@@ -72,7 +72,6 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.index.VersionType;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.Mapping;
 import org.opensearch.index.mapper.ParseContext.Document;
 import org.opensearch.index.mapper.ParsedDocument;
@@ -736,13 +735,8 @@ public abstract class Engine implements Closeable {
      * Creates a new history snapshot from Lucene for reading operations whose seqno in the requesting seqno range (both inclusive).
      * This feature requires soft-deletes enabled. If soft-deletes are disabled, this method will throw an {@link IllegalStateException}.
      */
-    public abstract Translog.Snapshot newChangesSnapshot(
-        String source,
-        MapperService mapperService,
-        long fromSeqNo,
-        long toSeqNo,
-        boolean requiredFullRange
-    ) throws IOException;
+    public abstract Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo, long toSeqNo, boolean requiredFullRange)
+        throws IOException;
 
     public abstract boolean hasCompleteOperationHistory(String reason, long startingSeqNo);
 

@@ -60,7 +60,6 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
-import org.opensearch.index.mapper.Uid;
 import org.opensearch.search.SearchContextSourcePrinter;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
@@ -335,14 +334,14 @@ public class FetchPhase {
         } else {
             SearchHit hit;
             loadStoredFields(context.mapperService(), fieldReader, fieldsVisitor, subDocId);
-            Uid uid = fieldsVisitor.uid();
+            String id = fieldsVisitor.id();
             if (fieldsVisitor.fields().isEmpty() == false) {
                 Map<String, DocumentField> docFields = new HashMap<>();
                 Map<String, DocumentField> metaFields = new HashMap<>();
                 fillDocAndMetaFields(context, fieldsVisitor, storedToRequestedFields, docFields, metaFields);
-                hit = new SearchHit(docId, uid.id(), docFields, metaFields);
+                hit = new SearchHit(docId, id, docFields, metaFields);
             } else {
-                hit = new SearchHit(docId, uid.id(), emptyMap(), emptyMap());
+                hit = new SearchHit(docId, id, emptyMap(), emptyMap());
             }
 
             HitContext hitContext = new HitContext(hit, subReaderContext, subDocId, lookup.source());
@@ -375,7 +374,7 @@ public class FetchPhase {
         // because the entire _source is only stored with the root document.
         boolean needSource = sourceRequired(context) || context.highlight() != null;
 
-        Uid rootId;
+        String rootId;
         Map<String, Object> rootSourceAsMap = null;
         XContentType rootSourceContentType = null;
 
@@ -383,7 +382,7 @@ public class FetchPhase {
 
         if (context instanceof InnerHitsContext.InnerHitSubContext) {
             InnerHitsContext.InnerHitSubContext innerHitsContext = (InnerHitsContext.InnerHitSubContext) context;
-            rootId = innerHitsContext.getRootId();
+            rootId = innerHitsContext.getId();
 
             if (needSource) {
                 SourceLookup rootLookup = innerHitsContext.getRootLookup();
@@ -394,7 +393,7 @@ public class FetchPhase {
             FieldsVisitor rootFieldsVisitor = new FieldsVisitor(needSource);
             loadStoredFields(context.mapperService(), storedFieldReader, rootFieldsVisitor, rootDocId);
             rootFieldsVisitor.postProcess(context.mapperService());
-            rootId = rootFieldsVisitor.uid();
+            rootId = rootFieldsVisitor.id();
 
             if (needSource) {
                 if (rootFieldsVisitor.source() != null) {
@@ -431,7 +430,7 @@ public class FetchPhase {
             nestedObjectMapper
         );
 
-        SearchHit hit = new SearchHit(nestedTopDocId, rootId.id(), nestedIdentity, docFields, metaFields);
+        SearchHit hit = new SearchHit(nestedTopDocId, rootId, nestedIdentity, docFields, metaFields);
         HitContext hitContext = new HitContext(hit, subReaderContext, nestedDocId, new SourceLookup());  // Use a clean, fresh SourceLookup
                                                                                                          // for the nested context
 

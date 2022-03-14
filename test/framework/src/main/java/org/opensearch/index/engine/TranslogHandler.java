@@ -147,19 +147,16 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
                 return engineIndex;
             case DELETE:
                 final Translog.Delete delete = (Translog.Delete) operation;
-                final Engine.Delete engineDelete = new Engine.Delete(
+                return IndexShard.prepareDelete(
                     delete.id(),
-                    delete.uid(),
                     delete.seqNo(),
                     delete.primaryTerm(),
                     delete.version(),
                     versionType,
                     origin,
-                    System.nanoTime(),
                     SequenceNumbers.UNASSIGNED_SEQ_NO,
                     SequenceNumbers.UNASSIGNED_PRIMARY_TERM
                 );
-                return engineDelete;
             case NO_OP:
                 final Translog.NoOp noOp = (Translog.NoOp) operation;
                 final Engine.NoOp engineNoOp = new Engine.NoOp(noOp.seqNo(), noOp.primaryTerm(), origin, System.nanoTime(), noOp.reason());

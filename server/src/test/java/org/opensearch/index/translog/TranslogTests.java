@@ -364,7 +364,7 @@ public class TranslogTests extends OpenSearchTestCase {
             assertThat(snapshot.totalOperations(), equalTo(ops.size()));
         }
 
-        addToTranslogAndList(translog, ops, new Translog.Delete("2", 1, primaryTerm.get(), newUid("2")));
+        addToTranslogAndList(translog, ops, new Translog.Delete("2", 1, primaryTerm.get()));
         try (Translog.Snapshot snapshot = translog.newSnapshot()) {
             assertThat(snapshot, SnapshotMatchers.equalsTo(ops));
             assertThat(snapshot.totalOperations(), equalTo(ops.size()));
@@ -383,7 +383,7 @@ public class TranslogTests extends OpenSearchTestCase {
 
             Translog.Delete delete = (Translog.Delete) snapshot.next();
             assertNotNull(delete);
-            assertThat(delete.uid(), equalTo(newUid("2")));
+            assertThat(delete.id(), equalTo("2"));
 
             Translog.NoOp noOp = (Translog.NoOp) snapshot.next();
             assertNotNull(noOp);
@@ -465,23 +465,23 @@ public class TranslogTests extends OpenSearchTestCase {
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
-        translog.add(new Translog.Delete("2", 1, primaryTerm.get(), newUid("2")));
+        translog.add(new Translog.Delete("2", 1, primaryTerm.get()));
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(2));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(200L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(193L));
             assertThat(stats.getUncommittedOperations(), equalTo(2));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(145L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(138L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
-        translog.add(new Translog.Delete("3", 2, primaryTerm.get(), newUid("3")));
+        translog.add(new Translog.Delete("3", 2, primaryTerm.get()));
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(3));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(243L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(229L));
             assertThat(stats.getUncommittedOperations(), equalTo(3));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(188L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(174L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -489,9 +489,9 @@ public class TranslogTests extends OpenSearchTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(285L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(271L));
             assertThat(stats.getUncommittedOperations(), equalTo(4));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(230L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(216L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -499,9 +499,9 @@ public class TranslogTests extends OpenSearchTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(340L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(326L));
             assertThat(stats.getUncommittedOperations(), equalTo(4));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(285L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(271L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -511,7 +511,7 @@ public class TranslogTests extends OpenSearchTestCase {
             stats.writeTo(out);
             final TranslogStats copy = new TranslogStats(out.bytes().streamInput());
             assertThat(copy.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(copy.getTranslogSizeInBytes(), equalTo(340L));
+            assertThat(copy.getTranslogSizeInBytes(), equalTo(326L));
 
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 builder.startObject();
@@ -521,9 +521,9 @@ public class TranslogTests extends OpenSearchTestCase {
                     Strings.toString(builder),
                     equalTo(
                         "{\"translog\":{\"operations\":4,\"size_in_bytes\":"
-                            + 340
+                            + 326
                             + ",\"uncommitted_operations\":4,\"uncommitted_size_in_bytes\":"
-                            + 285
+                            + 271
                             + ",\"earliest_last_modified_age\":"
                             + stats.getEarliestLastModifiedAge()
                             + "}}"
@@ -537,7 +537,7 @@ public class TranslogTests extends OpenSearchTestCase {
             long lastModifiedAge = System.currentTimeMillis() - translog.getCurrent().getLastModifiedTime();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(340L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(326L));
             assertThat(stats.getUncommittedOperations(), equalTo(0));
             assertThat(stats.getUncommittedSizeInBytes(), equalTo(firstOperationPosition));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThanOrEqualTo(lastModifiedAge));
@@ -922,7 +922,7 @@ public class TranslogTests extends OpenSearchTestCase {
                     case DELETE:
                         Translog.Delete delOp = (Translog.Delete) op;
                         Translog.Delete expDelOp = (Translog.Delete) expectedOp;
-                        assertEquals(expDelOp.uid(), delOp.uid());
+                        assertEquals(expDelOp.id(), delOp.id());
                         assertEquals(expDelOp.version(), delOp.version());
                         break;
                     case NO_OP:
@@ -1076,7 +1076,7 @@ public class TranslogTests extends OpenSearchTestCase {
                                 op = new Translog.Index("" + id, id, primaryTerm.get(), new byte[] { (byte) id });
                                 break;
                             case DELETE:
-                                op = new Translog.Delete(Long.toString(id), id, primaryTerm.get(), newUid(Long.toString(id)));
+                                op = new Translog.Delete(Long.toString(id), id, primaryTerm.get());
                                 break;
                             case NO_OP:
                                 op = new Translog.NoOp(id, 1, Long.toString(id));
@@ -2414,7 +2414,6 @@ public class TranslogTests extends OpenSearchTestCase {
                         case DELETE:
                             op = new Translog.Delete(
                                 threadId + "_" + opCount,
-                                new Term("_uid", threadId + "_" + opCount),
                                 seqNoGenerator.getAndIncrement(),
                                 primaryTerm.get(),
                                 1 + randomInt(100000)
