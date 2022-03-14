@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.replication.copy;
 
+import org.opensearch.indices.recovery.RecoveryIndex;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.Timer;
 import org.opensearch.indices.replication.common.RState;
@@ -15,10 +16,10 @@ import org.opensearch.indices.replication.common.RState;
 public class ReplicationState implements RState {
 
     private Timer timer;
-    private RecoveryState.Index index;
+    private RecoveryIndex index;
     private Stage stage;
 
-    public ReplicationState(RecoveryState.Index index) {
+    public ReplicationState(RecoveryIndex index) {
         this.index = index;
         this.timer = new Timer();
         stage = Stage.INACTIVE;
@@ -33,40 +34,28 @@ public class ReplicationState implements RState {
         return timer;
     }
 
-    public RecoveryState.Index getIndex() {
+    public RecoveryIndex getIndex() {
         return index;
     }
 
+    /**
+     * THis class duplicates the purpose/functionality of {@link RecoveryState.Stage}
+     * so this temporary implementation simply aliases the enums from the other class.
+     */
     public enum Stage {
         // TODO: Add more steps here.
-        INACTIVE((byte) 0),
+        INACTIVE(RecoveryState.Stage.INIT),
 
-        ACTIVE((byte) 1);
-
-        private static final ReplicationState.Stage[] STAGES = new ReplicationState.Stage[ReplicationState.Stage.values().length];
-
-        static {
-            for (ReplicationState.Stage stage : ReplicationState.Stage.values()) {
-                assert stage.id() < STAGES.length && stage.id() >= 0;
-                STAGES[stage.id] = stage;
-            }
-        }
+        ACTIVE(RecoveryState.Stage.INDEX);
 
         private final byte id;
 
-        Stage(byte id) {
-            this.id = id;
+        Stage(RecoveryState.Stage recoveryStage) {
+            this.id = recoveryStage.id();
         }
 
         public byte id() {
             return id;
-        }
-
-        public static ReplicationState.Stage fromId(byte id) {
-            if (id < 0 || id >= STAGES.length) {
-                throw new IllegalArgumentException("No mapping for id [" + id + "]");
-            }
-            return STAGES[id];
         }
     }
 

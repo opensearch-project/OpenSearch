@@ -44,6 +44,7 @@ import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.indices.recovery.RecoveryIndex;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.SegmentReplicationReplicaService;
 import org.opensearch.indices.replication.checkpoint.TransportCheckpointInfoResponse;
@@ -79,7 +80,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         PrimaryShardReplicationSource source,
         SegmentReplicationReplicaService.SegmentReplicationListener listener
     ) {
-        super("replication_status", indexShard, new RecoveryState.Index(), listener);
+        super("replication_status", indexShard, new RecoveryIndex(), listener);
         this.checkpoint = checkpoint;
         this.source = source;
         state = new ReplicationState(recoveryStateIndex);

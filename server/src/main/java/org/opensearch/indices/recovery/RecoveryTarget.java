@@ -312,7 +312,7 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
         ActionListener.completeWith(listener, () -> {
             indexShard.resetRecoveryStage();
             indexShard.prepareForIndexRecovery();
-            final RecoveryState.Index index = state().getIndex();
+            final RecoveryIndex index = state().getIndex();
             for (int i = 0; i < phase1ExistingFileNames.size(); i++) {
                 index.addFileDetail(phase1ExistingFileNames.get(i), phase1ExistingFileSizes.get(i), true);
             }

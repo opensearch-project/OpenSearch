@@ -41,8 +41,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.indices.recovery.RecoveryState.FileDetail;
-import org.opensearch.indices.recovery.RecoveryState.Index;
+import org.opensearch.indices.recovery.RecoveryIndex.FileDetail;
 import org.opensearch.indices.recovery.RecoveryState.Stage;
 import org.opensearch.indices.recovery.RecoveryState.Translog;
 import org.opensearch.indices.recovery.RecoveryState.VerifyIndex;
@@ -136,11 +135,11 @@ public class RecoveryTargetTests extends OpenSearchTestCase {
                 }
             };
         } else if (randomBoolean()) {
-            timer = new Index();
+            timer = new RecoveryIndex();
             streamer = new Streamer<Timer>(stop, timer) {
                 @Override
                 Timer createObj(StreamInput in) throws IOException {
-                    return new Index(in);
+                    return new RecoveryIndex(in);
                 }
             };
         } else if (randomBoolean()) {
@@ -211,7 +210,7 @@ public class RecoveryTargetTests extends OpenSearchTestCase {
         }
 
         Collections.shuffle(Arrays.asList(files), random());
-        final RecoveryState.Index index = new RecoveryState.Index();
+        final RecoveryIndex index = new RecoveryIndex();
         assertThat(index.bytesStillToRecover(), equalTo(-1L));
 
         if (randomBoolean()) {
@@ -238,8 +237,8 @@ public class RecoveryTargetTests extends OpenSearchTestCase {
         // before we start we must report 0
         assertThat(index.recoveredFilesPercent(), equalTo((float) 0.0));
         assertThat(index.recoveredBytesPercent(), equalTo((float) 0.0));
-        assertThat(index.sourceThrottling().nanos(), equalTo(Index.UNKNOWN));
-        assertThat(index.targetThrottling().nanos(), equalTo(Index.UNKNOWN));
+        assertThat(index.sourceThrottling().nanos(), equalTo(RecoveryIndex.UNKNOWN));
+        assertThat(index.targetThrottling().nanos(), equalTo(RecoveryIndex.UNKNOWN));
 
         index.start();
         for (FileDetail file : files) {
@@ -270,24 +269,24 @@ public class RecoveryTargetTests extends OpenSearchTestCase {
         }
         AtomicBoolean streamShouldStop = new AtomicBoolean();
 
-        Streamer<Index> backgroundReader = new Streamer<RecoveryState.Index>(streamShouldStop, index) {
+        Streamer<RecoveryIndex> backgroundReader = new Streamer<RecoveryIndex>(streamShouldStop, index) {
             @Override
-            Index createObj(StreamInput in) throws IOException {
-                return new Index(in);
+            RecoveryIndex createObj(StreamInput in) throws IOException {
+                return new RecoveryIndex(in);
             }
         };
 
         backgroundReader.start();
 
         long recoveredBytes = 0;
-        long sourceThrottling = Index.UNKNOWN;
-        long targetThrottling = Index.UNKNOWN;
+        long sourceThrottling = RecoveryIndex.UNKNOWN;
+        long targetThrottling = RecoveryIndex.UNKNOWN;
         while (bytesToRecover > 0) {
             FileDetail file = randomFrom(filesToRecover);
             final long toRecover = Math.min(bytesToRecover, randomIntBetween(1, (int) (file.length() - file.recovered())));
             final long throttledOnSource = rarely() ? randomIntBetween(10, 200) : 0;
             index.addSourceThrottling(throttledOnSource);
-            if (sourceThrottling == Index.UNKNOWN) {
+            if (sourceThrottling == RecoveryIndex.UNKNOWN) {
                 sourceThrottling = throttledOnSource;
             } else {
                 sourceThrottling += throttledOnSource;
@@ -295,7 +294,7 @@ public class RecoveryTargetTests extends OpenSearchTestCase {
             index.addRecoveredBytesToFile(file.name(), toRecover);
             file.addRecoveredBytes(toRecover);
             final long throttledOnTarget = rarely() ? randomIntBetween(10, 200) : 0;
-            if (targetThrottling == Index.UNKNOWN) {
+            if (targetThrottling == RecoveryIndex.UNKNOWN) {
                 targetThrottling = throttledOnTarget;
             } else {
                 targetThrottling += throttledOnTarget;
@@ -317,7 +316,7 @@ public class RecoveryTargetTests extends OpenSearchTestCase {
         logger.info("testing serialized information");
         streamShouldStop.set(true);
         backgroundReader.join();
-        final Index lastRead = backgroundReader.lastRead();
+        final RecoveryIndex lastRead = backgroundReader.lastRead();
         assertThat(lastRead.fileDetails().toArray(), arrayContainingInAnyOrder(index.fileDetails().toArray()));
         assertThat(lastRead.startTime(), equalTo(index.startTime()));
         if (completeRecovery) {
@@ -535,12 +534,12 @@ public class RecoveryTargetTests extends OpenSearchTestCase {
     }
 
     public void testConcurrentModificationIndexFileDetailsMap() throws InterruptedException {
-        final Index index = new Index();
+        final RecoveryIndex index = new RecoveryIndex();
         final AtomicBoolean stop = new AtomicBoolean(false);
-        Streamer<Index> readWriteIndex = new Streamer<Index>(stop, index) {
+        Streamer<RecoveryIndex> readWriteIndex = new Streamer<RecoveryIndex>(stop, index) {
             @Override
-            Index createObj(StreamInput in) throws IOException {
-                return new Index(in);
+            RecoveryIndex createObj(StreamInput in) throws IOException {
+                return new RecoveryIndex(in);
             }
         };
         Thread modifyThread = new Thread() {

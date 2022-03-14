@@ -19,8 +19,8 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.MultiFileWriter;
+import org.opensearch.indices.recovery.RecoveryIndex;
 import org.opensearch.indices.recovery.RecoveryRequestTracker;
-import org.opensearch.indices.recovery.RecoveryState;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -41,7 +41,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
     protected final ReplicationListener listener;
     protected final MultiFileWriter multiFileWriter;
     protected final Logger logger;
-    protected final RecoveryState.Index recoveryStateIndex;
+    protected final RecoveryIndex recoveryStateIndex;
 
     protected abstract String getPrefix();
 
@@ -53,7 +53,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
 
     public abstract RState state();
 
-    public ReplicationTarget(String name, IndexShard indexShard, RecoveryState.Index recoveryStateIndex, ReplicationListener listener) {
+    public ReplicationTarget(String name, IndexShard indexShard, RecoveryIndex recoveryStateIndex, ReplicationListener listener) {
         super(name);
         this.logger = Loggers.getLogger(getClass(), indexShard.shardId());
         this.listener = listener;

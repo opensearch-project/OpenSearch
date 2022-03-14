@@ -544,8 +544,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     return;
                 }
 
-                final RecoveryState.Index indexState = recoveryTarget.state().getIndex();
-                if (request.sourceThrottleTimeInNanos() != RecoveryState.Index.UNKNOWN) {
+                final RecoveryIndex indexState = recoveryTarget.state().getIndex();
+                if (request.sourceThrottleTimeInNanos() != RecoveryIndex.UNKNOWN) {
                     indexState.addSourceThrottling(request.sourceThrottleTimeInNanos());
                 }
 
