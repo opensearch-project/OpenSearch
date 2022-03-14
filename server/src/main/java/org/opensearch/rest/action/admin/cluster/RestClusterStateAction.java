@@ -125,7 +125,9 @@ public class RestClusterStateAction extends BaseRestHandler {
                     || metrics.contains(ClusterState.Metric.CLUSTER_MANAGER_NODE)
             );
             // TODO: Remove the DeprecationLogger after removing MASTER_ROLE.
-            if (metrics.contains(ClusterState.Metric.MASTER_NODE)) {
+            // Because "_all" value will add all Metric into metrics set, for prevent deprecation message shown in that case,
+            // add the check of validating Metric.CLUSTER_MANAGER_NODE is not in the metrics set.
+            if (metrics.contains(ClusterState.Metric.MASTER_NODE) && !metrics.contains(ClusterState.Metric.CLUSTER_MANAGER_NODE)) {
                 deprecationLogger.deprecate("cluster_state_metric_parameter_master_node_value", DEPRECATED_MESSAGE_MASTER_NODE);
             }
             /*
