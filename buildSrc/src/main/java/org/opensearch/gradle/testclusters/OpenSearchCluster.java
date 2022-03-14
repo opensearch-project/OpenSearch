@@ -361,7 +361,7 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
                 .collect(Collectors.toList())
                 .forEach(node.defaultConfig::remove);
             if (nodeNames != null && node.settings.getOrDefault("discovery.type", "anything").equals("single-node") == false) {
-                node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
+                node.defaultConfig.put("cluster.initial_cluster_manager_nodes", "[" + nodeNames + "]");
             }
             node.defaultConfig.put("discovery.seed_providers", "file");
             node.defaultConfig.put("discovery.seed_hosts", "[]");

@@ -153,7 +153,7 @@ class ClusterFormationTasks {
                     }
                     boolean supportsInitialMasterNodes = hasBwcNodes == false || config.bwcVersion.onOrAfter("7.0.0")
                     if (esConfig['discovery.type'] == null && config.getAutoSetInitialMasterNodes() && supportsInitialMasterNodes) {
-                        esConfig['cluster.initial_master_nodes'] = nodes.stream().map({ n ->
+                        esConfig['cluster.initial_cluster_manager_nodes'] = nodes.stream().map({ n ->
                             if (n.config.settings['node.name'] == null) {
                                 return "node-" + n.nodeNum
                             } else {
