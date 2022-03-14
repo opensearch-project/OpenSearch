@@ -344,11 +344,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     private boolean hasUncommittedOperations() throws IOException {
         long localCheckpointOfCommit = Long.parseLong(indexShard.commitStats().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-        try (
-            Translog.Snapshot snapshot = indexShard.newChangesSnapshot("peer-recovery", localCheckpointOfCommit + 1, Long.MAX_VALUE, false)
-        ) {
-            return snapshot.totalOperations() > 0;
-        }
+        return indexShard.countNumberOfHistoryOperations(
+            RecoverySourceHandler.PEER_RECOVERY_NAME,
+            localCheckpointOfCommit + 1,
+            Long.MAX_VALUE
+        ) > 0;
     }
 
     @Override
