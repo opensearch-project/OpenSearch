@@ -65,7 +65,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
 
     private final ReplicationCheckpoint checkpoint;
     private final PrimaryShardReplicationSource source;
-    private final ReplicationState state;
+    private final SegmentReplicationState state;
 
     /**
      * Creates a new replication target object that represents a replication to the provided source.
@@ -83,7 +83,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         super("replication_status", indexShard, new RecoveryIndex(), listener);
         this.checkpoint = checkpoint;
         this.source = source;
-        state = new ReplicationState(recoveryStateIndex);
+        state = new SegmentReplicationState(recoveryStateIndex);
     }
 
     @Override
@@ -115,7 +115,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     }
 
     @Override
-    public ReplicationState state() {
+    public SegmentReplicationState state() {
         return state;
     }
 

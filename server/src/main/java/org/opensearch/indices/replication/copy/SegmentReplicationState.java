@@ -10,37 +10,34 @@ package org.opensearch.indices.replication.copy;
 
 import org.opensearch.indices.recovery.RecoveryIndex;
 import org.opensearch.indices.recovery.RecoveryState;
-import org.opensearch.indices.recovery.Timer;
-import org.opensearch.indices.replication.common.RState;
+import org.opensearch.indices.replication.common.ReplicationState;
 
-public class ReplicationState implements RState {
+public class SegmentReplicationState extends ReplicationState {
 
-    private Timer timer;
-    private RecoveryIndex index;
     private Stage stage;
 
-    public ReplicationState(RecoveryIndex index) {
-        this.index = index;
-        this.timer = new Timer();
-        stage = Stage.INACTIVE;
-        timer.start();
-    }
-
-    public ReplicationState() {
+    public SegmentReplicationState(RecoveryIndex index) {
+        super(index);
         stage = Stage.INACTIVE;
     }
 
-    public Timer getTimer() {
-        return timer;
+    public SegmentReplicationState() {
+        stage = Stage.INACTIVE;
     }
 
-    public RecoveryIndex getIndex() {
-        return index;
+    public synchronized Stage getStage() {
+        return this.stage;
+    }
+
+    // synchronized is strictly speaking not needed (this is called by a single thread), but just to be safe
+    public synchronized void setStage(Stage stage) {
+        this.stage = stage;
     }
 
     /**
      * THis class duplicates the purpose/functionality of {@link RecoveryState.Stage}
      * so this temporary implementation simply aliases the enums from the other class.
+     * TODO Merge this class with the above Stage class once segrep lifecycle is finalized
      */
     public enum Stage {
         // TODO: Add more steps here.
@@ -57,14 +54,5 @@ public class ReplicationState implements RState {
         public byte id() {
             return id;
         }
-    }
-
-    public synchronized Stage getStage() {
-        return this.stage;
-    }
-
-    // synchronized is strictly speaking not needed (this is called by a single thread), but just to be safe
-    public synchronized void setStage(Stage stage) {
-        this.stage = stage;
     }
 }

@@ -37,12 +37,12 @@ import org.opensearch.indices.recovery.DelayRecoveryException;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.Timer;
 import org.opensearch.indices.replication.common.ReplicationListener;
-import org.opensearch.indices.replication.common.RState;
+import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.indices.replication.copy.PrimaryShardReplicationSource;
 import org.opensearch.indices.replication.copy.ReplicationCheckpoint;
 import org.opensearch.indices.replication.copy.ReplicationCollection;
 import org.opensearch.indices.replication.copy.ReplicationFailedException;
-import org.opensearch.indices.replication.copy.ReplicationState;
+import org.opensearch.indices.replication.copy.SegmentReplicationState;
 import org.opensearch.indices.replication.copy.SegmentReplicationTarget;
 import org.opensearch.indices.replication.copy.SegmentReplicationPrimaryService;
 import org.opensearch.indices.replication.copy.TrackShardRequest;
@@ -291,17 +291,17 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
     public interface SegmentReplicationListener extends ReplicationListener {
 
         @Override
-        default void onDone(RState state) {
-            onReplicationDone((ReplicationState) state);
+        default void onDone(ReplicationState state) {
+            onReplicationDone((SegmentReplicationState) state);
         }
 
         @Override
-        default void onFailure(RState state, OpenSearchException e, boolean sendShardFailure) {
-            onReplicationFailure((ReplicationState) state, (ReplicationFailedException) e, sendShardFailure);
+        default void onFailure(ReplicationState state, OpenSearchException e, boolean sendShardFailure) {
+            onReplicationFailure((SegmentReplicationState) state, (ReplicationFailedException) e, sendShardFailure);
         }
 
-        void onReplicationDone(ReplicationState state);
+        void onReplicationDone(SegmentReplicationState state);
 
-        void onReplicationFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure);
+        void onReplicationFailure(SegmentReplicationState state, ReplicationFailedException e, boolean sendShardFailure);
     }
 }

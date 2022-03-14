@@ -51,7 +51,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
 
     protected abstract void onFail(OpenSearchException e, boolean sendShardFailure);
 
-    public abstract RState state();
+    public abstract ReplicationState state();
 
     public ReplicationTarget(String name, IndexShard indexShard, RecoveryIndex recoveryStateIndex, ReplicationListener listener) {
         super(name);

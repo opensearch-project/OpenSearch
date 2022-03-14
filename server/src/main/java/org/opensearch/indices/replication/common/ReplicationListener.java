@@ -12,7 +12,7 @@ import org.opensearch.OpenSearchException;
 
 public interface ReplicationListener {
 
-    void onDone(RState state);
+    void onDone(ReplicationState state);
 
-    void onFailure(RState state, OpenSearchException e, boolean sendShardFailure);
+    void onFailure(ReplicationState state, OpenSearchException e, boolean sendShardFailure);
 }

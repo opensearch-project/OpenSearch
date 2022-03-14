@@ -83,7 +83,7 @@ import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.SegmentReplicationReplicaService;
 import org.opensearch.indices.replication.copy.PrimaryShardReplicationSource;
 import org.opensearch.indices.replication.copy.ReplicationFailedException;
-import org.opensearch.indices.replication.copy.ReplicationState;
+import org.opensearch.indices.replication.copy.SegmentReplicationState;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.search.SearchService;
 import org.opensearch.snapshots.SnapshotShardsService;
@@ -766,13 +766,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
 
         @Override
-        public void onReplicationDone(final ReplicationState state) {
+        public void onReplicationDone(final SegmentReplicationState state) {
             logger.info("Shard setup complete, ready for segment copy.");
             shardStateAction.shardStarted(shardRouting, primaryTerm, "after replication", SHARD_STATE_ACTION_LISTENER);
         }
 
         @Override
-        public void onReplicationFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
+        public void onReplicationFailure(SegmentReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
             handleRecoveryFailure(shardRouting, sendShardFailure, e);
             logger.error("Shard setup failed", e);
         }

@@ -45,7 +45,7 @@ import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.indices.replication.common.RState;
+import org.opensearch.indices.replication.common.ReplicationState;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -53,7 +53,7 @@ import java.util.Locale;
 /**
  * Keeps track of state related to shard recovery.
  */
-public class RecoveryState implements ToXContentFragment, Writeable, RState {
+public class RecoveryState extends ReplicationState implements ToXContentFragment, Writeable {
 
     public enum Stage {
         INIT((byte) 0),
@@ -108,12 +108,8 @@ public class RecoveryState implements ToXContentFragment, Writeable, RState {
     }
 
     private Stage stage;
-
-    private final RecoveryIndex index;
     private final Translog translog;
     private final VerifyIndex verifyIndex;
-    private final Timer timer;
-
     private RecoverySource recoverySource;
     private ShardId shardId;
     @Nullable
@@ -126,6 +122,7 @@ public class RecoveryState implements ToXContentFragment, Writeable, RState {
     }
 
     public RecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode, RecoveryIndex index) {
+        super(index);
         assert shardRouting.initializing() : "only allow initializing shard routing to be recovered: " + shardRouting;
         RecoverySource recoverySource = shardRouting.recoverySource();
         assert (recoverySource.getType() == RecoverySource.Type.PEER) == (sourceNode != null)
@@ -136,11 +133,8 @@ public class RecoveryState implements ToXContentFragment, Writeable, RState {
         this.sourceNode = sourceNode;
         this.targetNode = targetNode;
         stage = Stage.INIT;
-        this.index = index;
         translog = new Translog();
         verifyIndex = new VerifyIndex();
-        timer = new Timer();
-        timer.start();
     }
 
     public RecoveryState(StreamInput in) throws IOException {
