@@ -36,7 +36,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.recovery.DelayRecoveryException;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.Timer;
-import org.opensearch.indices.replication.common.RListener;
+import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.RState;
 import org.opensearch.indices.replication.copy.PrimaryShardReplicationSource;
 import org.opensearch.indices.replication.copy.ReplicationCheckpoint;
@@ -161,7 +161,7 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
         final ReplicationCheckpoint checkpoint,
         final IndexShard indexShard,
         PrimaryShardReplicationSource source,
-        final ReplicationListener listener
+        final SegmentReplicationListener listener
     ) {
         final long replicationId = onGoingReplications.startReplication(
             checkpoint,
@@ -288,7 +288,7 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
         }
     }
 
-    public interface ReplicationListener extends RListener {
+    public interface SegmentReplicationListener extends ReplicationListener {
 
         @Override
         default void onDone(RState state) {

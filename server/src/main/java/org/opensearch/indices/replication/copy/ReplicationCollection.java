@@ -75,7 +75,7 @@ public class ReplicationCollection {
         ReplicationCheckpoint checkpoint,
         IndexShard indexShard,
         PrimaryShardReplicationSource source,
-        SegmentReplicationReplicaService.ReplicationListener listener,
+        SegmentReplicationReplicaService.SegmentReplicationListener listener,
         TimeValue activityTimeout
     ) {
         SegmentReplicationTarget replicationTarget = new SegmentReplicationTarget(checkpoint, indexShard, source, listener);

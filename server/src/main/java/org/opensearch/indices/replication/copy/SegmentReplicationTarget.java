@@ -77,7 +77,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         ReplicationCheckpoint checkpoint,
         IndexShard indexShard,
         PrimaryShardReplicationSource source,
-        SegmentReplicationReplicaService.ReplicationListener listener
+        SegmentReplicationReplicaService.SegmentReplicationListener listener
     ) {
         super("replication_status", indexShard, new RecoveryState.Index(), listener);
         this.checkpoint = checkpoint;

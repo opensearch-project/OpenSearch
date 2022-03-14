@@ -255,7 +255,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends OpenSea
         public MockIndexShard createShard(
             final ShardRouting shardRouting,
             final SegmentReplicationReplicaService replicaService,
-            final SegmentReplicationReplicaService.ReplicationListener replicationListener,
+            final SegmentReplicationReplicaService.SegmentReplicationListener segRepListener,
             final PrimaryShardReplicationSource replicationSource,
             final PeerRecoveryTargetService recoveryTargetService,
             final PeerRecoveryTargetService.RecoveryListener recoveryListener,

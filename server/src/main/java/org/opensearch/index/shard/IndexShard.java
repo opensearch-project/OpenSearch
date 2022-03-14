@@ -3040,7 +3040,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void startRecovery(
         RecoveryState recoveryState,
         SegmentReplicationReplicaService segmentReplicationReplicaService,
-        SegmentReplicationReplicaService.ReplicationListener replicationListener,
+        SegmentReplicationReplicaService.SegmentReplicationListener segRepListener,
         PrimaryShardReplicationSource replicationSource,
         PeerRecoveryTargetService peerRecoveryTargetService,
         PeerRecoveryTargetService.RecoveryListener recoveryListener,
@@ -3082,7 +3082,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             new ActionListener<TrackShardResponse>() {
                                 @Override
                                 public void onResponse(TrackShardResponse unused) {
-                                    replicationListener.onReplicationDone(replicationState);
+                                    segRepListener.onReplicationDone(replicationState);
                                     recoveryState.getIndex().setFileDetailsComplete();
                                     finalizeRecovery();
                                     postRecovery("Shard setup complete.");
@@ -3090,7 +3090,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                                 @Override
                                 public void onFailure(Exception e) {
-                                    replicationListener.onReplicationFailure(
+                                    segRepListener.onReplicationFailure(
                                         replicationState,
                                         new ReplicationFailedException(indexShard, e),
                                         true
@@ -3748,7 +3748,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 checkpoint,
                 this,
                 source,
-                new SegmentReplicationReplicaService.ReplicationListener() {
+                new SegmentReplicationReplicaService.SegmentReplicationListener() {
                     @Override
                     public void onReplicationDone(ReplicationState state) {
                         markReplicationComplete();

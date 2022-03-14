@@ -38,7 +38,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
     protected final AtomicBoolean finished = new AtomicBoolean();
     protected final IndexShard indexShard;
     protected final Store store;
-    protected final RListener listener;
+    protected final ReplicationListener listener;
     protected final MultiFileWriter multiFileWriter;
     protected final Logger logger;
     protected final RecoveryState.Index recoveryStateIndex;
@@ -53,7 +53,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
 
     public abstract RState state();
 
-    public ReplicationTarget(String name, IndexShard indexShard, RecoveryState.Index recoveryStateIndex, RListener listener) {
+    public ReplicationTarget(String name, IndexShard indexShard, RecoveryState.Index recoveryStateIndex, ReplicationListener listener) {
         super(name);
         this.logger = Loggers.getLogger(getClass(), indexShard.shardId());
         this.listener = listener;

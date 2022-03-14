@@ -630,10 +630,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             indicesService.createShard(
                 shardRouting,
                 segmentReplicationReplicaService,
-                new ReplicationListener(shardRouting, primaryTerm),
+                new ShardRoutingReplicationListener(shardRouting, primaryTerm),
                 replicationSource,
                 recoveryTargetService,
-                new RecoveryListener(shardRouting, primaryTerm),
+                new ShardRoutingRecoveryListener(shardRouting, primaryTerm),
                 repositoriesService,
                 failedShardHandler,
                 globalCheckpointSyncer,
@@ -748,7 +748,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         return sourceNode;
     }
 
-    private class ReplicationListener implements SegmentReplicationReplicaService.ReplicationListener {
+    private class ShardRoutingReplicationListener implements SegmentReplicationReplicaService.SegmentReplicationListener {
 
         /**
          * ShardRouting with which the shard was created
@@ -760,7 +760,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          */
         private final long primaryTerm;
 
-        private ReplicationListener(final ShardRouting shardRouting, final long primaryTerm) {
+        private ShardRoutingReplicationListener(final ShardRouting shardRouting, final long primaryTerm) {
             this.shardRouting = shardRouting;
             this.primaryTerm = primaryTerm;
         }
@@ -778,7 +778,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
     }
 
-    private class RecoveryListener implements PeerRecoveryTargetService.RecoveryListener {
+    private class ShardRoutingRecoveryListener implements PeerRecoveryTargetService.RecoveryListener {
 
         /**
          * ShardRouting with which the shard was created
@@ -790,7 +790,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          */
         private final long primaryTerm;
 
-        private RecoveryListener(final ShardRouting shardRouting, final long primaryTerm) {
+        private ShardRoutingRecoveryListener(final ShardRouting shardRouting, final long primaryTerm) {
             this.shardRouting = shardRouting;
             this.primaryTerm = primaryTerm;
         }
@@ -1028,7 +1028,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         T createShard(
             ShardRouting shardRouting,
             SegmentReplicationReplicaService replicaService,
-            SegmentReplicationReplicaService.ReplicationListener replicationListener,
+            SegmentReplicationReplicaService.SegmentReplicationListener segRepListener,
             PrimaryShardReplicationSource replicationSource,
             PeerRecoveryTargetService recoveryTargetService,
             PeerRecoveryTargetService.RecoveryListener recoveryListener,

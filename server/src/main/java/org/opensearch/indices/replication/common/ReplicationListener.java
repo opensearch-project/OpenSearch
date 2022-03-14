@@ -10,7 +10,7 @@ package org.opensearch.indices.replication.common;
 
 import org.opensearch.OpenSearchException;
 
-public interface RListener {
+public interface ReplicationListener {
 
     void onDone(RState state);
 
