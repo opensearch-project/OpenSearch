@@ -52,7 +52,7 @@
                    status        .+ \n
                    node.total    .+ \n
                    node.data     .+ \n
-                   discovered_master .+ \n
+                   discovered_cluster_manager .+ \n
                    shards        .+ \n
                    pri           .+ \n
                    relo          .+ \n
