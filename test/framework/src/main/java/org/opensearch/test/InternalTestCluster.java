@@ -435,7 +435,7 @@ public final class InternalTestCluster extends TestCluster {
         );
         // TODO: currently we only randomize "cluster.no_master_block" between "write" and "metadata_write", as "all" is fragile
         // and fails shards when a master abdicates, which breaks many tests.
-        builder.put(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), randomFrom(random, "write", "metadata_write"));
+        builder.put(NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), randomFrom(random, "write", "metadata_write"));
         defaultSettings = builder.build();
         executor = OpenSearchExecutors.newScaling(
             "internal_test_cluster_executor",
