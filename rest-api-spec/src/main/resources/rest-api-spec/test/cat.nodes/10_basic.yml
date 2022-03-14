@@ -1,12 +1,20 @@
 ---
 "Test cat nodes output - before 2.0.0":
   - skip:
-      version: " 2.0.0 - "
+      version: "2.0.0 - "
       reason: "master is replaced by cluster_manager in 2.0.0"
+      features: node_selector
 
   - do:
       cat.nodes:
         v: true
+      node_selector:
+        # Only send request to nodes in <2.0 versions, especially during ':qa:mixed-cluster:v1.x.x#mixedClusterTest'.
+        # Because YAML REST test takes the minimum OpenSearch version in the cluster to apply the filter in 'skip' section, 
+        # see OpenSearchClientYamlSuiteTestCase#initAndResetContext() for detail.
+        # During 'mixedClusterTest', the cluster can be mixed with nodes in 1.x and 2.x versions, 
+        # so node_selector is required, and only filtering version in 'skip' is not enough.
+        version: "1.0.0 - 1.4.99"
 
   - match:
       $body: |
@@ -18,12 +26,9 @@
   - skip:
       version: " - 1.4.99"
       reason: "cluster_manager is introduced in 2.0.0"
-      features: node_selector
 
   - do:
       cat.nodes: {}
-      node_selector:
-        version: "2.0.0 - " # Only send request to nodes in 2.x versions, especially during mixedClusterTest.
 
   - match:
       $body: |
