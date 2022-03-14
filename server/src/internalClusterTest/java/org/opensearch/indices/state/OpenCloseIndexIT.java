@@ -47,7 +47,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.rest.RestStatus;
@@ -305,17 +304,15 @@ public class OpenCloseIndexIT extends OpenSearchIntegTestCase {
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type")
                 .startObject("properties")
                 .startObject("test")
                 .field("type", "keyword")
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         );
 
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type", mapping, XContentType.JSON));
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(mapping));
         ensureGreen();
         int docs = between(10, 100);
         IndexRequestBuilder[] builder = new IndexRequestBuilder[docs];

@@ -51,7 +51,6 @@ import org.opensearch.common.settings.Settings.Builder;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.analysis.AbstractIndexAnalyzerProvider;
 import org.opensearch.index.analysis.AnalyzerProvider;
 import org.opensearch.index.analysis.PreConfiguredTokenFilter;
@@ -3292,7 +3291,6 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     public void testACopyFieldWithNestedQuery() throws Exception {
         String mapping = Strings.toString(
             jsonBuilder().startObject()
-                .startObject("type")
                 .startObject("properties")
                 .startObject("foo")
                 .field("type", "nested")
@@ -3310,9 +3308,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         );
-        prepareCreate("test").addMapping("type", mapping, XContentType.JSON).get();
+        prepareCreate("test").setMapping(mapping).get();
 
         client().prepareIndex("test")
             .setId("1")
@@ -3424,7 +3421,6 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     public void testWithNestedQuery() throws Exception {
         String mapping = Strings.toString(
             jsonBuilder().startObject()
-                .startObject("type")
                 .startObject("properties")
                 .startObject("text")
                 .field("type", "text")
@@ -3441,9 +3437,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         );
-        prepareCreate("test").addMapping("type", mapping, XContentType.JSON).get();
+        prepareCreate("test").setMapping(mapping).get();
 
         client().prepareIndex("test")
             .setId("1")

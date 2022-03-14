@@ -145,7 +145,7 @@ public class UpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
             .indices()
             .prepareCreate("test")
             .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
-            .addMapping("_doc", "{\"_doc\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}", XContentType.JSON)
+            .setMapping("{\"properties\":{\"body\":{\"type\":\"text\"}}}")
             .execute()
             .actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -196,7 +196,7 @@ public class UpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
             .indices()
             .prepareCreate("test")
             .setSettings(Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0))
-            .addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}", XContentType.JSON)
+            .setMapping("{\"properties\":{\"body\":{\"type\":\"text\"}}}")
             .execute()
             .actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -221,7 +221,7 @@ public class UpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate("test")
-            .addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": false }}}}", XContentType.JSON)
+            .setMapping("{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": false }}}")
             .execute()
             .actionGet();
         try {
@@ -248,11 +248,7 @@ public class UpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
             .indices()
             .prepareCreate("test")
             .setSettings(Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0))
-            .addMapping(
-                MapperService.SINGLE_MAPPING_NAME,
-                "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}",
-                XContentType.JSON
-            )
+            .setMapping("{\"properties\":{\"body\":{\"type\":\"text\"}}}")
             .execute()
             .actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
