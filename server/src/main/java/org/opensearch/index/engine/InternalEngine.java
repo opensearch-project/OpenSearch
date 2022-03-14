@@ -91,7 +91,6 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.fieldvisitor.IdOnlyFieldVisitor;
 import org.opensearch.index.mapper.IdFieldMapper;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
@@ -2773,20 +2772,13 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public Translog.Snapshot newChangesSnapshot(
-        String source,
-        MapperService mapperService,
-        long fromSeqNo,
-        long toSeqNo,
-        boolean requiredFullRange
-    ) throws IOException {
+    public Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
         try {
             LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(
                 searcher,
-                mapperService,
                 LuceneChangesSnapshot.DEFAULT_BATCH_SIZE,
                 fromSeqNo,
                 toSeqNo,

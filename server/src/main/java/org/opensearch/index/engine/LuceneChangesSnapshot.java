@@ -36,7 +36,6 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -51,11 +50,8 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.fieldvisitor.FieldsVisitor;
-import org.opensearch.index.mapper.IdFieldMapper;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
-import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.translog.Translog;
 
 import java.io.Closeable;
@@ -77,7 +73,6 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     private final boolean requiredFullRange;
 
     private final IndexSearcher indexSearcher;
-    private final MapperService mapperService;
     private int docIndex = 0;
     private final int totalHits;
     private ScoreDoc[] scoreDocs;
@@ -88,20 +83,13 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
      * Creates a new "translog" snapshot from Lucene for reading operations whose seq# in the specified range.
      *
      * @param engineSearcher    the internal engine searcher which will be taken over if the snapshot is opened successfully
-     * @param mapperService     the mapper service which will be mainly used to resolve the document's type and uid
      * @param searchBatchSize   the number of documents should be returned by each search
      * @param fromSeqNo         the min requesting seq# - inclusive
      * @param toSeqNo           the maximum requesting seq# - inclusive
      * @param requiredFullRange if true, the snapshot will strictly check for the existence of operations between fromSeqNo and toSeqNo
      */
-    LuceneChangesSnapshot(
-        Engine.Searcher engineSearcher,
-        MapperService mapperService,
-        int searchBatchSize,
-        long fromSeqNo,
-        long toSeqNo,
-        boolean requiredFullRange
-    ) throws IOException {
+    LuceneChangesSnapshot(Engine.Searcher engineSearcher, int searchBatchSize, long fromSeqNo, long toSeqNo, boolean requiredFullRange)
+        throws IOException {
         if (fromSeqNo < 0 || toSeqNo < 0 || fromSeqNo > toSeqNo) {
             throw new IllegalArgumentException("Invalid range; from_seqno [" + fromSeqNo + "], to_seqno [" + toSeqNo + "]");
         }
@@ -114,7 +102,6 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
                 IOUtils.close(engineSearcher);
             }
         };
-        this.mapperService = mapperService;
         final long requestingSize = (toSeqNo - fromSeqNo) == Long.MAX_VALUE ? Long.MAX_VALUE : (toSeqNo - fromSeqNo + 1L);
         this.searchBatchSize = requestingSize < searchBatchSize ? Math.toIntExact(requestingSize) : searchBatchSize;
         this.fromSeqNo = fromSeqNo;
@@ -278,19 +265,17 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             : SourceFieldMapper.NAME;
         final FieldsVisitor fields = new FieldsVisitor(true, sourceField);
         leaf.reader().document(segmentDocID, fields);
-        fields.postProcess(mapperService);
 
         final Translog.Operation op;
         final boolean isTombstone = parallelArray.isTombStone[docIndex];
-        if (isTombstone && fields.uid() == null) {
+        if (isTombstone && fields.id() == null) {
             op = new Translog.NoOp(seqNo, primaryTerm, fields.source().utf8ToString());
             assert version == 1L : "Noop tombstone should have version 1L; actual version [" + version + "]";
             assert assertDocSoftDeleted(leaf.reader(), segmentDocID) : "Noop but soft_deletes field is not set [" + op + "]";
         } else {
-            final String id = fields.uid().id();
-            final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
+            final String id = fields.id();
             if (isTombstone) {
-                op = new Translog.Delete(id, uid, seqNo, primaryTerm, version);
+                op = new Translog.Delete(id, seqNo, primaryTerm, version);
                 assert assertDocSoftDeleted(leaf.reader(), segmentDocID) : "Delete op but soft_deletes field is not set [" + op + "]";
             } else {
                 final BytesReference source = fields.source();

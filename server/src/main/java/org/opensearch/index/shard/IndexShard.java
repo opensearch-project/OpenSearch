@@ -1069,14 +1069,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             + getOperationPrimaryTerm()
             + "]";
         ensureWriteAllowed(origin);
-        final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
-        final Engine.Delete delete = prepareDelete(id, uid, seqNo, opPrimaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm);
+        final Engine.Delete delete = prepareDelete(id, seqNo, opPrimaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm);
         return delete(engine, delete);
     }
 
-    private Engine.Delete prepareDelete(
+    public static Engine.Delete prepareDelete(
         String id,
-        Term uid,
         long seqNo,
         long primaryTerm,
         long version,
@@ -1086,6 +1084,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long ifPrimaryTerm
     ) {
         long startTime = System.nanoTime();
+        final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
         return new Engine.Delete(id, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm);
     }
 
@@ -2238,7 +2237,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * The returned snapshot can be retrieved from either Lucene index or translog files.
      */
     public Translog.Snapshot getHistoryOperations(String reason, long startingSeqNo, long endSeqNo) throws IOException {
-        return getEngine().newChangesSnapshot(reason, mapperService, startingSeqNo, endSeqNo, true);
+        return getEngine().newChangesSnapshot(reason, startingSeqNo, endSeqNo, true);
     }
 
     /**
@@ -2270,7 +2269,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *                          This parameter should be only enabled when the entire requesting range is below the global checkpoint.
      */
     public Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
-        return getEngine().newChangesSnapshot(source, mapperService, fromSeqNo, toSeqNo, requiredFullRange);
+        return getEngine().newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange);
     }
 
     public List<Segment> segments(boolean verbose) {
