@@ -17,7 +17,7 @@ import java.util.Arrays;
 import java.util.Set;
 
 /**
- * A unit test to validate the former name of the setting 'cluster.service.slow_cluster_manager_task_logging_threshold' still take effect,
+ * A unit test to validate the former name of the setting 'cluster.no_cluster_manager_block' still take effect,
  * after it is deprecated, so that the backwards compatibility is maintained.
  * The test can be removed along with removing support of the deprecated setting.
  */
