@@ -846,7 +846,6 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
                 .prepareCreate("test3")
                 .setMapping(
                     jsonBuilder().startObject()
-                        .startObject("type")
                         .startObject("properties")
                         .startObject("field")
                         .field("type", "keyword")
@@ -856,7 +855,6 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
                         .startObject("properties")
                         .startObject(queryFieldName)
                         .field("type", "percolator")
-                        .endObject()
                         .endObject()
                         .endObject()
                         .endObject()
@@ -877,7 +875,6 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
                 .prepareCreate("test2")
                 .setMapping(
                     jsonBuilder().startObject()
-                        .startObject("type")
                         .startObject("properties")
                         .startObject("field")
                         .field("type", "keyword")
@@ -887,7 +884,6 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
                         .startObject("properties")
                         .startObject(queryFieldName)
                         .field("type", "percolator")
-                        .endObject()
                         .endObject()
                         .endObject()
                         .endObject()

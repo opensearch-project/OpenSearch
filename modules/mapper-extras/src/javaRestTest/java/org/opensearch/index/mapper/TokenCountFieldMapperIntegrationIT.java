@@ -130,7 +130,6 @@ public class TokenCountFieldMapperIntegrationIT extends OpenSearchIntegTestCase 
         prepareCreate("test").setSettings(settings)
             .setMapping(
                 jsonBuilder().startObject()
-                    .startObject("test")
                     .startObject("properties")
                     .startObject("foo")
                     .field("type", "text")
@@ -156,7 +155,6 @@ public class TokenCountFieldMapperIntegrationIT extends OpenSearchIntegTestCase 
                     .field("analyzer", "mock_english")
                     .field("enable_position_increments", false)
                     .field("store", true)
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
