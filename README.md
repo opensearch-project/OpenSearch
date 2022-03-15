@@ -6,6 +6,7 @@
 - [Security](#security)
 - [License](#license)
 - [Copyright](#copyright)
+- [Trademark](#trademark)
 
 ## Welcome!
 
