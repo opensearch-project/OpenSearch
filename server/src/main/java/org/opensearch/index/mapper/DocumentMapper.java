@@ -208,14 +208,6 @@ public class DocumentMapper implements ToXContentFragment {
         return mapping.metadataMapper(type);
     }
 
-    public IndexFieldMapper indexMapper() {
-        return metadataMapper(IndexFieldMapper.class);
-    }
-
-    public TypeFieldMapper typeMapper() {
-        return metadataMapper(TypeFieldMapper.class);
-    }
-
     public SourceFieldMapper sourceMapper() {
         return metadataMapper(SourceFieldMapper.class);
     }
