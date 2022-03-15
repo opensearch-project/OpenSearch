@@ -91,8 +91,7 @@ final class AzureStorageSettings {
         AZURE_CLIENT_PREFIX_KEY,
         "endpoint_suffix",
         key -> Setting.simpleString(key, Property.NodeScope),
-        () -> ACCOUNT_SETTING,
-        () -> KEY_SETTING
+        () -> ACCOUNT_SETTING
     );
 
     // The overall operation timeout
