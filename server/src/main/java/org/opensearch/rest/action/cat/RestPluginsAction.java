@@ -42,7 +42,6 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Table;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
@@ -55,7 +54,6 @@ import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
 public class RestPluginsAction extends AbstractCatAction {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestPluginsAction.class);
 
     @Override
     public List<Route> routes() {
@@ -77,14 +75,7 @@ public class RestPluginsAction extends AbstractCatAction {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        // TODO: Remove below lines about 'master_timeout', after removing MASTER_ROLE.
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
-        // Add "cluster_manager_timeout" as the alternative to "master_timeout", for promoting inclusive language.
-        if (request.hasParam("master_timeout")) {
-            deprecationLogger.deprecate("cat_nodes_master_timeout_parameter", DEPRECATED_MESSAGE_MASTER_TIMEOUT);
-        }
-        request.validateParamValuesAreEqual("master_timeout", "cluster_manager_timeout");
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", clusterStateRequest.masterNodeTimeout()));
 
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override

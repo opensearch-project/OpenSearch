@@ -58,10 +58,6 @@ public abstract class AbstractCatAction extends BaseRestHandler {
 
     protected abstract Table getTableWithHeader(RestRequest request);
 
-    // TODO: Remove this line after removing MASTER_ROLE. It's used for the REST CAT actions that accepts parameter 'master_timeout'
-    protected static final String DEPRECATED_MESSAGE_MASTER_TIMEOUT =
-        "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
-
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         boolean helpWanted = request.paramAsBoolean("help", false);
