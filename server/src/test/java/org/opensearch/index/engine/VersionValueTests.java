@@ -44,12 +44,12 @@ public class VersionValueTests extends OpenSearchTestCase {
             translogLoc = new Translog.Location(randomNonNegativeLong(), randomNonNegativeLong(), randomInt());
         }
         IndexVersionValue versionValue = new IndexVersionValue(translogLoc, randomLong(), randomLong(), randomLong());
-        assertEquals(RamUsageTester.sizeOf(versionValue), versionValue.ramBytesUsed());
+        assertEquals(RamUsageTester.ramUsed(versionValue), versionValue.ramBytesUsed());
     }
 
     public void testDeleteRamBytesUsed() {
         DeleteVersionValue versionValue = new DeleteVersionValue(randomLong(), randomLong(), randomLong(), randomLong());
-        assertEquals(RamUsageTester.sizeOf(versionValue), versionValue.ramBytesUsed());
+        assertEquals(RamUsageTester.ramUsed(versionValue), versionValue.ramBytesUsed());
     }
 
 }

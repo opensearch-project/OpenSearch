@@ -1004,11 +1004,9 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
 
     public void testCompletionFieldsParam() throws Exception {
         assertAcked(
-            prepareCreate("test1").addMapping(
-                "_doc",
+            prepareCreate("test1").setMapping(
                 "{ \"properties\": { \"bar\": { \"type\": \"text\", \"fields\": { \"completion\": { \"type\": \"completion\" }}}"
-                    + ",\"baz\": { \"type\": \"text\", \"fields\": { \"completion\": { \"type\": \"completion\" }}}}}",
-                XContentType.JSON
+                    + ",\"baz\": { \"type\": \"text\", \"fields\": { \"completion\": { \"type\": \"completion\" }}}}}"
             )
         );
         ensureGreen();

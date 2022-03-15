@@ -42,7 +42,6 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.MoreLikeThisQueryBuilder;
 import org.opensearch.index.query.MoreLikeThisQueryBuilder.Item;
@@ -283,12 +282,9 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
     public void testMoreLikeThisWithAliasesInLikeDocuments() throws Exception {
         String indexName = "foo";
         String aliasName = "foo_name";
-        String typeName = "bar";
 
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder().startObject().startObject("bar").startObject("properties").endObject().endObject().endObject()
-        );
-        client().admin().indices().prepareCreate(indexName).addMapping(typeName, mapping, XContentType.JSON).get();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("properties").endObject().endObject());
+        client().admin().indices().prepareCreate(indexName).setMapping(mapping).get();
         client().admin().indices().prepareAliases().addAlias(indexName, aliasName).get();
 
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
@@ -309,10 +305,8 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
     }
 
     public void testMoreLikeThisIssue2197() throws Exception {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder().startObject().startObject("bar").startObject("properties").endObject().endObject().endObject()
-        );
-        client().admin().indices().prepareCreate("foo").addMapping("bar", mapping, XContentType.JSON).get();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("properties").endObject().endObject());
+        client().admin().indices().prepareCreate("foo").setMapping(mapping).get();
         client().prepareIndex("foo")
             .setId("1")
             .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject().endObject())
@@ -332,10 +326,8 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
 
     // Issue #2489
     public void testMoreLikeWithCustomRouting() throws Exception {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder().startObject().startObject("bar").startObject("properties").endObject().endObject().endObject()
-        );
-        client().admin().indices().prepareCreate("foo").addMapping("bar", mapping, XContentType.JSON).get();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("properties").endObject().endObject());
+        client().admin().indices().prepareCreate("foo").setMapping(mapping).get();
         ensureGreen();
 
         client().prepareIndex("foo")
@@ -354,14 +346,10 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
 
     // Issue #3039
     public void testMoreLikeThisIssueRoutingNotSerialized() throws Exception {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder().startObject().startObject("bar").startObject("properties").endObject().endObject().endObject()
-        );
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("properties").endObject().endObject());
         assertAcked(
-            prepareCreate("foo", 2, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put(SETTING_NUMBER_OF_REPLICAS, 0)).addMapping(
-                "bar",
-                mapping,
-                XContentType.JSON
+            prepareCreate("foo", 2, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put(SETTING_NUMBER_OF_REPLICAS, 0)).setMapping(
+                mapping
             )
         );
         ensureGreen();

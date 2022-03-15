@@ -79,7 +79,6 @@ public class IpRangeFieldMapperTests extends OpenSearchSingleNodeTestCase {
             ParsedDocument doc = mapper.parse(
                 new SourceToParse(
                     "test",
-                    "type",
                     "1",
                     BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", entry.getKey()).endObject()),
                     XContentType.JSON

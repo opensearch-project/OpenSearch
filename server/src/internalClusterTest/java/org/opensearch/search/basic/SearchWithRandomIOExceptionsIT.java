@@ -46,7 +46,6 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.sort.SortOrder;
@@ -73,11 +72,9 @@ public class SearchWithRandomIOExceptionsIT extends OpenSearchIntegTestCase {
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type")
                 .startObject("properties")
                 .startObject("test")
                 .field("type", "keyword")
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -108,7 +105,7 @@ public class SearchWithRandomIOExceptionsIT extends OpenSearchIntegTestCase {
         if (createIndexWithoutErrors) {
             Settings.Builder settings = Settings.builder().put("index.number_of_replicas", numberOfReplicas());
             logger.info("creating index: [test] using settings: [{}]", settings.build());
-            client().admin().indices().prepareCreate("test").setSettings(settings).addMapping("type", mapping, XContentType.JSON).get();
+            client().admin().indices().prepareCreate("test").setSettings(settings).setMapping(mapping).get();
             numInitialDocs = between(10, 100);
             ensureGreen();
             for (int i = 0; i < numInitialDocs; i++) {
@@ -134,7 +131,7 @@ public class SearchWithRandomIOExceptionsIT extends OpenSearchIntegTestCase {
                 // we cannot expect that the index will be valid
                 .put(MockFSDirectoryFactory.RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING.getKey(), exceptionOnOpenRate);
             logger.info("creating index: [test] using settings: [{}]", settings.build());
-            client().admin().indices().prepareCreate("test").setSettings(settings).addMapping("type", mapping, XContentType.JSON).get();
+            client().admin().indices().prepareCreate("test").setSettings(settings).setMapping(mapping).get();
         }
         ClusterHealthResponse clusterHealthResponse = client().admin()
             .cluster()

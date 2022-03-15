@@ -75,10 +75,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
                 new Route(GET, "/_msearch/template"),
                 new Route(POST, "/_msearch/template"),
                 new Route(GET, "/{index}/_msearch/template"),
-                new Route(POST, "/{index}/_msearch/template"),
-                // Deprecated typed endpoints.
-                new Route(GET, "/{index}/{type}/_msearch/template"),
-                new Route(POST, "/{index}/{type}/_msearch/template")
+                new Route(POST, "/{index}/_msearch/template")
             )
         );
     }

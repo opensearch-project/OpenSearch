@@ -35,7 +35,6 @@ package org.opensearch.common.bytes;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.BytesRefIterator;
-import org.apache.lucene.util.FutureObjects;
 import org.apache.lucene.util.RamUsageEstimator;
 
 import java.io.IOException;
@@ -100,7 +99,7 @@ public final class CompositeBytesReference extends AbstractBytesReference {
     @Override
     public int indexOf(byte marker, int from) {
         final int remainingBytes = Math.max(length - from, 0);
-        FutureObjects.checkFromIndexSize(from, remainingBytes, length);
+        Objects.checkFromIndexSize(from, remainingBytes, length);
 
         int result = -1;
         if (length == 0) {
@@ -132,7 +131,7 @@ public final class CompositeBytesReference extends AbstractBytesReference {
 
     @Override
     public BytesReference slice(int from, int length) {
-        FutureObjects.checkFromIndexSize(from, length, this.length);
+        Objects.checkFromIndexSize(from, length, this.length);
 
         if (length == 0) {
             return BytesArray.EMPTY;
