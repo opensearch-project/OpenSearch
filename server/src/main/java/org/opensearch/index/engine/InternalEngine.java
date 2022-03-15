@@ -2810,7 +2810,7 @@ public class InternalEngine extends Engine {
         refreshIfNeeded(source, toSeqNo);
         try (Searcher s = acquireSearcher(source, SearcherScope.INTERNAL)) {
             return LuceneChangesSnapshot.countNumberOfHistoryOperations(s, fromSeqNo, toSeqNo);
-        } catch (Exception e) {
+        } catch (IOException e) {
             try {
                 maybeFailEngine(source, e);
             } catch (Exception innerException) {
