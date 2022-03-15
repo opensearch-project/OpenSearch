@@ -147,13 +147,56 @@ public class QueryShardContext extends QueryRewriteContext {
             client,
             searcher,
             nowInMillis,
+            clusterAlias,
+            indexNameMatcher,
+            allowExpensiveQueries,
+            valuesSourceRegistry,
+            false
+        );
+    }
+
+    public QueryShardContext(
+        int shardId,
+        IndexSettings indexSettings,
+        BigArrays bigArrays,
+        BitsetFilterCache bitsetFilterCache,
+        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
+        MapperService mapperService,
+        SimilarityService similarityService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Client client,
+        IndexSearcher searcher,
+        LongSupplier nowInMillis,
+        String clusterAlias,
+        Predicate<String> indexNameMatcher,
+        BooleanSupplier allowExpensiveQueries,
+        ValuesSourceRegistry valuesSourceRegistry,
+        boolean validate
+    ) {
+        this(
+            shardId,
+            indexSettings,
+            bigArrays,
+            bitsetFilterCache,
+            indexFieldDataLookup,
+            mapperService,
+            similarityService,
+            scriptService,
+            xContentRegistry,
+            namedWriteableRegistry,
+            client,
+            searcher,
+            nowInMillis,
             indexNameMatcher,
             new Index(
                 RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
                 indexSettings.getIndex().getUUID()
             ),
             allowExpensiveQueries,
-            valuesSourceRegistry
+            valuesSourceRegistry,
+            validate
         );
     }
 
@@ -175,7 +218,8 @@ public class QueryShardContext extends QueryRewriteContext {
             source.indexNameMatcher,
             source.fullyQualifiedIndex,
             source.allowExpensiveQueries,
-            source.valuesSourceRegistry
+            source.valuesSourceRegistry,
+            source.validate()
         );
     }
 
@@ -196,9 +240,10 @@ public class QueryShardContext extends QueryRewriteContext {
         Predicate<String> indexNameMatcher,
         Index fullyQualifiedIndex,
         BooleanSupplier allowExpensiveQueries,
-        ValuesSourceRegistry valuesSourceRegistry
+        ValuesSourceRegistry valuesSourceRegistry,
+        boolean validate
     ) {
-        super(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
+        super(xContentRegistry, namedWriteableRegistry, client, nowInMillis, validate);
         this.shardId = shardId;
         this.similarityService = similarityService;
         this.mapperService = mapperService;

@@ -32,7 +32,6 @@
 
 package org.opensearch.index.shard;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -132,8 +131,8 @@ final class StoreRecovery {
                 throw new IllegalArgumentException("can't add shards from more than one index");
             }
             IndexMetadata sourceMetadata = shards.get(0).getIndexMetadata();
-            for (ObjectObjectCursor<String, MappingMetadata> mapping : sourceMetadata.getMappings()) {
-                mappingUpdateConsumer.accept(mapping.value);
+            if (sourceMetadata.mapping() != null) {
+                mappingUpdateConsumer.accept(sourceMetadata.mapping());
             }
             indexShard.mapperService().merge(sourceMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
             // now that the mapping is merged we can validate the index sort configuration.

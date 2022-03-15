@@ -176,7 +176,8 @@ final class DefaultSearchContext extends SearchContext {
         TimeValue timeout,
         FetchPhase fetchPhase,
         boolean lowLevelCancellation,
-        Version minNodeVersion
+        Version minNodeVersion,
+        boolean validate
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
@@ -206,7 +207,8 @@ final class DefaultSearchContext extends SearchContext {
             request.shardId().id(),
             this.searcher,
             request::nowInMillis,
-            shardTarget.getClusterAlias()
+            shardTarget.getClusterAlias(),
+            validate
         );
         queryBoost = request.indexBoost();
         this.lowLevelCancellation = lowLevelCancellation;

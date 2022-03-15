@@ -459,7 +459,6 @@ public class SearchModuleTests extends OpenSearchTestCase {
         "term",
         "terms",
         "terms_set",
-        "type",
         "wildcard",
         "wrapper",
         "distance_feature" };
