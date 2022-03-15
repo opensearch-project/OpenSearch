@@ -295,6 +295,13 @@ public class RestRequestTests extends OpenSearchTestCase {
         request.params().put("key2", valueForKey2);
         try {
             request.validateParamValuesAreEqual("key1", "key2");
+            assertTrue(
+                "Values of the 2 keys should be equal, or having a least 1 null value or empty String. Value of key1: "
+                    + valueForKey1
+                    + ". Value of key2: "
+                    + valueForKey2,
+                Strings.isNullOrEmpty(valueForKey1) || Strings.isNullOrEmpty(valueForKey2) || valueForKey1.equals(valueForKey2)
+            );
         } catch (OpenSearchParseException e) {
             assertEquals(
                 "The values of the request parameters: [key1, key2] are required to be equal, otherwise please only assign value to one of the request parameters.",
@@ -304,10 +311,6 @@ public class RestRequestTests extends OpenSearchTestCase {
             assertFalse(Strings.isNullOrEmpty(valueForKey1));
             assertFalse(Strings.isNullOrEmpty(valueForKey2));
         }
-        assertTrue(
-            "Values of the 2 keys should be equal, or having a least 1 null value or empty String.",
-            Strings.isNullOrEmpty(valueForKey1) || Strings.isNullOrEmpty(valueForKey2) || valueForKey1.equals(valueForKey2)
-        );
     }
 
     private static RestRequest contentRestRequest(String content, Map<String, String> params) {
