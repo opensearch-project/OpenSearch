@@ -36,7 +36,6 @@ import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.bucket.terms.Terms.Bucket;
@@ -110,13 +109,7 @@ public class TermsDocCountErrorIT extends OpenSearchIntegTestCase {
             );
         }
         numRoutingValues = between(1, 40);
-        assertAcked(
-            prepareCreate("idx_with_routing").addMapping(
-                "type",
-                "{ \"type\" : { \"_routing\" : { \"required\" : true } } }",
-                XContentType.JSON
-            )
-        );
+        assertAcked(prepareCreate("idx_with_routing").setMapping("{ \"_routing\" : { \"required\" : true } }"));
         for (int i = 0; i < numDocs; i++) {
             builders.add(
                 client().prepareIndex("idx_single_shard")

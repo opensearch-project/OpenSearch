@@ -291,7 +291,6 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         String mapping1 = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("field")
                 .field("type", "text")
@@ -299,9 +298,8 @@ public class GetActionIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         );
-        assertAcked(prepareCreate("test").addMapping("type1", mapping1, XContentType.JSON));
+        assertAcked(prepareCreate("test").setMapping(mapping1));
         ensureGreen();
 
         GetResponse response = client().prepareGet("test", "1").get();

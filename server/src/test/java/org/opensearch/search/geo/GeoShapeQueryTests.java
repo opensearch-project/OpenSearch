@@ -432,16 +432,14 @@ public class GeoShapeQueryTests extends GeoQueryTests {
     public void testEdgeCases() throws Exception {
         XContentBuilder xcb = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("geo")
             .field("type", "geo_shape")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
         String mapping = Strings.toString(xcb);
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).get();
+        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();
 
         client().prepareIndex("test")
@@ -629,7 +627,6 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("location")
                 .field("type", "geo_shape")
@@ -640,10 +637,9 @@ public class GeoShapeQueryTests extends GeoQueryTests {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         );
 
-        client().admin().indices().prepareCreate("geo_points_only").addMapping("type1", mapping, XContentType.JSON).get();
+        client().admin().indices().prepareCreate("geo_points_only").setMapping(mapping).get();
         ensureGreen();
 
         ShapeBuilder shape = RandomShapeGenerator.createShape(random());
@@ -669,7 +665,6 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("geo")
                 .field("type", "geo_shape")
@@ -680,10 +675,9 @@ public class GeoShapeQueryTests extends GeoQueryTests {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         );
 
-        client().admin().indices().prepareCreate("geo_points_only").addMapping("type1", mapping, XContentType.JSON).get();
+        client().admin().indices().prepareCreate("geo_points_only").setMapping(mapping).get();
         ensureGreen();
 
         // MULTIPOINT
@@ -710,7 +704,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
 
     public void testIndexedShapeReference() throws Exception {
         String mapping = Strings.toString(createDefaultMapping());
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).get();
+        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         createIndex("shapes");
         ensureGreen();
 
@@ -907,7 +901,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
 
     public void testDistanceQuery() throws Exception {
         String mapping = Strings.toString(createRandomMapping());
-        client().admin().indices().prepareCreate("test_distance").addMapping("type1", mapping, XContentType.JSON).get();
+        client().admin().indices().prepareCreate("test_distance").setMapping(mapping).get();
         ensureGreen();
 
         CircleBuilder circleBuilder = new CircleBuilder().center(new Coordinate(1, 0)).radius(350, DistanceUnit.KILOMETERS);
@@ -950,7 +944,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
     public void testIndexRectangleSpanningDateLine() throws Exception {
         String mapping = Strings.toString(createRandomMapping());
 
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).get();
+        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();
 
         EnvelopeBuilder envelopeBuilder = new EnvelopeBuilder(new Coordinate(178, 10), new Coordinate(-178, -10));

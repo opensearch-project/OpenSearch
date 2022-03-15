@@ -40,7 +40,6 @@ import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
@@ -175,7 +174,7 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test-index")
-                .addMapping("type", "{\"type\":{}}", XContentType.JSON)
+                .setMapping("{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{}}")
                 .setSettings(Settings.builder().put("index.number_of_shards", 4).put("index.routing_partition_size", 2))
                 .execute()
                 .actionGet();
@@ -187,7 +186,7 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test-index")
-                .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}", XContentType.JSON)
+                .setMapping("{\"_routing\":{\"required\":true}}")
                 .setSettings(Settings.builder().put("index.number_of_shards", 4).put("index.routing_partition_size", 2))
                 .execute()
                 .actionGet()

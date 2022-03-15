@@ -57,7 +57,6 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.indices.IndexClosedException;
@@ -483,19 +482,15 @@ public class GatewayIndexStateIT extends OpenSearchIntegTestCase {
         prepareCreate("test").setSettings(
             Settings.builder().put("index.analysis.analyzer.test.tokenizer", "standard").put("index.number_of_shards", "1")
         )
-            .addMapping(
-                "type1",
+            .setMapping(
                 "{\n"
-                    + "    \"type1\": {\n"
-                    + "      \"properties\": {\n"
-                    + "        \"field1\": {\n"
-                    + "          \"type\": \"text\",\n"
-                    + "          \"analyzer\": \"test\"\n"
-                    + "        }\n"
+                    + "    \"properties\": {\n"
+                    + "      \"field1\": {\n"
+                    + "        \"type\": \"text\",\n"
+                    + "        \"analyzer\": \"test\"\n"
                     + "      }\n"
                     + "    }\n"
-                    + "  }}",
-                XContentType.JSON
+                    + "  }"
             )
             .get();
         logger.info("--> indexing a simple document");
