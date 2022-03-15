@@ -121,7 +121,7 @@ public class ReplicationCollection {
         if (replicationRef == null) {
             throw new IndexShardClosedException(shardId);
         }
-        SegmentReplicationTarget replicationTarget = replicationRef.get(SegmentReplicationTarget.class);
+        SegmentReplicationTarget replicationTarget = replicationRef.get();
         assert replicationTarget.indexShard().shardId().equals(shardId);
         return replicationRef;
     }
@@ -208,7 +208,7 @@ public class ReplicationCollection {
      * causes {@link SegmentReplicationTarget#decRef()} to be called. This makes sure that the underlying resources
      * will not be freed until {@link ReplicationRef#close()} is called.
      */
-    public static class ReplicationRef extends AutoCloseableRefCounted {
+    public static class ReplicationRef extends AutoCloseableRefCounted<SegmentReplicationTarget> {
 
         /**
          * Important: {@link SegmentReplicationTarget#tryIncRef()} should

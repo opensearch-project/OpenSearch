@@ -24,16 +24,16 @@ import static org.mockito.Mockito.verify;
 public class AutoCloseableRefCountedTests extends OpenSearchTestCase {
 
     private RefCounted mockRefCounted;
-    private AutoCloseableRefCounted testObject;
+    private AutoCloseableRefCounted<RefCounted> testObject;
 
     @Before
     public void setup() {
         mockRefCounted = mock(RefCounted.class);
-        testObject = new AutoCloseableRefCounted(mockRefCounted);
+        testObject = new AutoCloseableRefCounted<>(mockRefCounted);
     }
 
     public void testGet() {
-        assertEquals(mockRefCounted, testObject.get(RefCounted.class));
+        assertEquals(mockRefCounted, testObject.get());
     }
 
     public void testClose() {

@@ -69,14 +69,10 @@ public class RecoveriesCollectionTests extends OpenSearchIndexLevelReplicationTe
             final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool);
             final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica());
             try (RecoveriesCollection.RecoveryRef status = collection.getRecovery(recoveryId)) {
-                final long lastSeenTime = status.get(RecoveryTarget.class).lastAccessTime();
+                final long lastSeenTime = status.get().lastAccessTime();
                 assertBusy(() -> {
                     try (RecoveriesCollection.RecoveryRef currentStatus = collection.getRecovery(recoveryId)) {
-                        assertThat(
-                            "access time failed to update",
-                            lastSeenTime,
-                            lessThan(currentStatus.get(RecoveryTarget.class).lastAccessTime())
-                        );
+                        assertThat("access time failed to update", lastSeenTime, lessThan(currentStatus.get().lastAccessTime()));
                     }
                 });
             } finally {
@@ -124,7 +120,7 @@ public class RecoveriesCollectionTests extends OpenSearchIndexLevelReplicationTe
             final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica());
             final long recoveryId2 = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica());
             try (RecoveriesCollection.RecoveryRef recoveryRef = collection.getRecovery(recoveryId)) {
-                ShardId shardId = recoveryRef.get(RecoveryTarget.class).indexShard().shardId();
+                ShardId shardId = recoveryRef.get().indexShard().shardId();
                 assertTrue("failed to cancel recoveries", collection.cancelRecoveriesForShard(shardId, "test"));
                 assertThat("all recoveries should be cancelled", collection.size(), equalTo(0));
             } finally {
@@ -164,7 +160,7 @@ public class RecoveriesCollectionTests extends OpenSearchIndexLevelReplicationTe
             assertEquals(currentAsTarget, shard.recoveryStats().currentAsTarget());
             try (RecoveriesCollection.RecoveryRef newRecoveryRef = collection.getRecovery(resetRecoveryId)) {
                 shards.recoverReplica(shard, (s, n) -> {
-                    RecoveryTarget newRecoveryTarget = newRecoveryRef.get(RecoveryTarget.class);
+                    RecoveryTarget newRecoveryTarget = newRecoveryRef.get();
                     assertSame(s, newRecoveryTarget.indexShard());
                     return newRecoveryTarget;
                 }, false);

@@ -183,7 +183,7 @@ public class RecoveriesCollection {
         if (recoveryRef == null) {
             throw new IndexShardClosedException(shardId);
         }
-        RecoveryTarget recoveryTarget = recoveryRef.get(RecoveryTarget.class);
+        RecoveryTarget recoveryTarget = recoveryRef.get();
         assert recoveryTarget.indexShard().shardId().equals(shardId);
         return recoveryRef;
     }
@@ -284,7 +284,7 @@ public class RecoveriesCollection {
      * causes {@link RecoveryTarget#decRef()} to be called. This makes sure that the underlying resources
      * will not be freed until {@link RecoveryRef#close()} is called.
      */
-    public static class RecoveryRef extends AutoCloseableRefCounted {
+    public static class RecoveryRef extends AutoCloseableRefCounted<RecoveryTarget> {
 
         /**
          * Important: {@link RecoveryTarget#tryIncRef()} should
