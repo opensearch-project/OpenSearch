@@ -47,6 +47,7 @@ import org.opensearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -278,6 +279,34 @@ public class RestRequestTests extends OpenSearchTestCase {
         assertEquals("request body is required", e.getMessage());
         e = expectThrows(IllegalStateException.class, () -> contentRestRequest("test", null, Collections.emptyMap()).requiredContent());
         assertEquals("unknown content type", e.getMessage());
+    }
+
+    /*
+     * The test is added in 2.0 when the request parameter "cluster_manager_timeout" is introduced.
+     * Remove the test along with the removal of the non-inclusive terminology "master_timeout".
+     */
+    public void testValidateParamValuesAreEqual() {
+        FakeRestRequest request = new FakeRestRequest();
+        List<String> valueList = new ArrayList<>(Arrays.asList(null, "value1", "value2"));
+        String valueForKey1 = randomFrom(valueList);
+        String valueForKey2 = randomFrom(valueList);
+        request.params().put("key1", valueForKey1);
+        request.params().put("key2", valueForKey2);
+        try {
+            request.validateParamValuesAreEqual("key1", "key2");
+        } catch (OpenSearchParseException e) {
+            assertEquals(
+                "The values of the request parameters: [key1, key2] are required to be equal, otherwise please only assign value to one of the request parameters.",
+                e.getMessage()
+            );
+            assertNotEquals(valueForKey1, valueForKey2);
+            assertNotNull(valueForKey1);
+            assertNotNull(valueForKey2);
+        }
+        assertTrue(
+            "The 2 keys should be either equal, or having null value.",
+            valueForKey1 == null || valueForKey2 == null || valueForKey1.equals(valueForKey2)
+        );
     }
 
     private static RestRequest contentRestRequest(String content, Map<String, String> params) {
