@@ -630,13 +630,11 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertAcked(
             prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("doc")
                     .startObject("properties")
                     .startObject("join_field")
                     .field("type", "join")
                     .startObject("relations")
                     .field("parent", new String[] { "child", "child1" })
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -1110,14 +1108,12 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertAcked(
             prepareCreate("grandissue").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("doc")
                     .startObject("properties")
                     .startObject("join_field")
                     .field("type", "join")
                     .startObject("relations")
                     .field("grandparent", "parent")
                     .field("parent", new String[] { "child_type_one", "child_type_two" })
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()

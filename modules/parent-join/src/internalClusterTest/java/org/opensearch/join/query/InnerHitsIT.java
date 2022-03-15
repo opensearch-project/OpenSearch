@@ -105,7 +105,6 @@ public class InnerHitsIT extends ParentChildTestCase {
         assertAcked(
             prepareCreate("articles").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("doc")
                     .startObject("properties")
                     .startObject("join_field")
                     .field("type", "join")
@@ -119,7 +118,6 @@ public class InnerHitsIT extends ParentChildTestCase {
                     .startObject("message")
                     .field("type", "text")
                     .field("fielddata", true)
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -224,7 +222,6 @@ public class InnerHitsIT extends ParentChildTestCase {
         assertAcked(
             prepareCreate("idx").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("doc")
                     .startObject("properties")
                     .startObject("id")
                     .field("type", "keyword")
@@ -233,7 +230,6 @@ public class InnerHitsIT extends ParentChildTestCase {
                     .field("type", "join")
                     .startObject("relations")
                     .field("parent", new String[] { "child1", "child2" })
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
