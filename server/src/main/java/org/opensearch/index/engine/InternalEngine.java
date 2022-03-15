@@ -2772,7 +2772,13 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
+    public Translog.Snapshot newChangesSnapshot(
+        String source,
+        long fromSeqNo,
+        long toSeqNo,
+        boolean requiredFullRange,
+        boolean accurateCount
+    ) throws IOException {
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
@@ -2782,7 +2788,8 @@ public class InternalEngine extends Engine {
                 LuceneChangesSnapshot.DEFAULT_BATCH_SIZE,
                 fromSeqNo,
                 toSeqNo,
-                requiredFullRange
+                requiredFullRange,
+                accurateCount
             );
             searcher = null;
             return snapshot;
@@ -2795,6 +2802,21 @@ public class InternalEngine extends Engine {
             throw e;
         } finally {
             IOUtils.close(searcher);
+        }
+    }
+
+    public int countNumberOfHistoryOperations(String source, long fromSeqNo, long toSeqNo) throws IOException {
+        ensureOpen();
+        refreshIfNeeded(source, toSeqNo);
+        try (Searcher s = acquireSearcher(source, SearcherScope.INTERNAL)) {
+            return LuceneChangesSnapshot.countNumberOfHistoryOperations(s, fromSeqNo, toSeqNo);
+        } catch (IOException e) {
+            try {
+                maybeFailEngine(source, e);
+            } catch (Exception innerException) {
+                e.addSuppressed(innerException);
+            }
+            throw e;
         }
     }
 

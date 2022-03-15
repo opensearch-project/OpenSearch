@@ -2231,13 +2231,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     *
      * Creates a new history snapshot for reading operations since
      * the provided starting seqno (inclusive) and ending seqno (inclusive)
      * The returned snapshot can be retrieved from either Lucene index or translog files.
      */
-    public Translog.Snapshot getHistoryOperations(String reason, long startingSeqNo, long endSeqNo) throws IOException {
-        return getEngine().newChangesSnapshot(reason, startingSeqNo, endSeqNo, true);
+    public Translog.Snapshot getHistoryOperations(String reason, long startingSeqNo, long endSeqNo, boolean accurateCount)
+        throws IOException {
+        return getEngine().newChangesSnapshot(reason, startingSeqNo, endSeqNo, true, accurateCount);
     }
 
     /**
@@ -2258,6 +2258,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Counts the number of history operations within the provided sequence numbers
+     * @param source     source of the requester (e.g., peer-recovery)
+     * @param fromSeqNo  from sequence number, included
+     * @param toSeqNo    to sequence number, included
+     * @return           number of history operations in the sequence number range
+     */
+    public int countNumberOfHistoryOperations(String source, long fromSeqNo, long toSeqNo) throws IOException {
+        return getEngine().countNumberOfHistoryOperations(source, fromSeqNo, toSeqNo);
+    }
+
+    /**
      * Creates a new changes snapshot for reading operations whose seq_no are between {@code fromSeqNo}(inclusive)
      * and {@code toSeqNo}(inclusive). The caller has to close the returned snapshot after finishing the reading.
      *
@@ -2268,8 +2279,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *                          if any operation between {@code fromSeqNo} and {@code toSeqNo} is missing.
      *                          This parameter should be only enabled when the entire requesting range is below the global checkpoint.
      */
-    public Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
-        return getEngine().newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange);
+    public Translog.Snapshot newChangesSnapshot(
+        String source,
+        long fromSeqNo,
+        long toSeqNo,
+        boolean requiredFullRange,
+        boolean accurateCount
+    ) throws IOException {
+        return getEngine().newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange, accurateCount);
     }
 
     public List<Segment> segments(boolean verbose) {
