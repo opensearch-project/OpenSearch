@@ -63,15 +63,13 @@ public class CustomHighlighterSearchIT extends OpenSearchIntegTestCase {
     protected void setup() throws Exception {
         indexRandom(
             true,
-            client().prepareIndex("test", "test", "1")
-                .setSource("name", "arbitrary content", "other_name", "foo", "other_other_name", "bar"),
-            client().prepareIndex("test", "test", "2").setSource("other_name", "foo", "other_other_name", "bar")
+            client().prepareIndex("test").setId("1").setSource("name", "arbitrary content", "other_name", "foo", "other_other_name", "bar"),
+            client().prepareIndex("test").setId("2").setSource("other_name", "foo", "other_other_name", "bar")
         );
     }
 
     public void testThatCustomHighlightersAreSupported() throws IOException {
         SearchResponse searchResponse = client().prepareSearch("test")
-            .setTypes("test")
             .setQuery(QueryBuilders.matchAllQuery())
             .highlighter(new HighlightBuilder().field("name").highlighterType("test-custom"))
             .get();
@@ -86,7 +84,6 @@ public class CustomHighlighterSearchIT extends OpenSearchIntegTestCase {
         highlightConfig.options(options);
 
         SearchResponse searchResponse = client().prepareSearch("test")
-            .setTypes("test")
             .setQuery(QueryBuilders.matchAllQuery())
             .highlighter(new HighlightBuilder().field(highlightConfig))
             .get();
@@ -100,7 +97,6 @@ public class CustomHighlighterSearchIT extends OpenSearchIntegTestCase {
         options.put("myGlobalOption", "someValue");
 
         SearchResponse searchResponse = client().prepareSearch("test")
-            .setTypes("test")
             .setQuery(QueryBuilders.matchAllQuery())
             .highlighter(new HighlightBuilder().field("name").highlighterType("test-custom").options(options))
             .get();
@@ -111,7 +107,6 @@ public class CustomHighlighterSearchIT extends OpenSearchIntegTestCase {
 
     public void testThatCustomHighlighterReceivesFieldsInOrder() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("test")
-            .setTypes("test")
             .setQuery(QueryBuilders.boolQuery().must(QueryBuilders.matchAllQuery()).should(QueryBuilders.termQuery("name", "arbitrary")))
             .highlighter(
                 new HighlightBuilder().highlighterType("test-custom")

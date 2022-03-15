@@ -102,8 +102,8 @@ public class RetryTests extends OpenSearchIntegTestCase {
 
     final Settings nodeSettings() {
         return Settings.builder()
-            // whitelist reindexing from the HTTP host we're going to use
-            .put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "127.0.0.1:*")
+            // allowlist reindexing from the HTTP host we're going to use
+            .put(TransportReindexAction.REMOTE_CLUSTER_ALLOWLIST.getKey(), "127.0.0.1:*")
             .build();
     }
 
@@ -198,7 +198,7 @@ public class RetryTests extends OpenSearchIntegTestCase {
         // Build the test data. Don't use indexRandom because that won't work consistently with such small thread pools.
         BulkRequestBuilder bulk = client().prepareBulk();
         for (int i = 0; i < DOC_COUNT; i++) {
-            bulk.add(client().prepareIndex("source", "test").setSource("foo", "bar " + i));
+            bulk.add(client().prepareIndex("source").setSource("foo", "bar " + i));
         }
 
         Retry retry = new Retry(BackoffPolicy.exponentialBackoff(), client().threadPool());

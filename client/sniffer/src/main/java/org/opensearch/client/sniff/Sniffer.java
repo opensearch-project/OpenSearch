@@ -160,9 +160,8 @@ public class Sniffer implements Closeable {
                 // tasks are run by a single threaded executor, so swapping is safe with a simple volatile variable
                 ScheduledTask previousTask = nextScheduledTask;
                 nextScheduledTask = new ScheduledTask(task, future);
-                assert initialized.get() == false
-                    || previousTask.task.isSkipped()
-                    || previousTask.task.hasStarted() : "task that we are replacing is neither " + "cancelled nor has it ever started";
+                assert initialized.get() == false || previousTask.task.isSkipped() || previousTask.task.hasStarted()
+                    : "task that we are replacing is neither " + "cancelled nor has it ever started";
             }
         }
 

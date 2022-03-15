@@ -43,7 +43,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Strings;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.lease.Releasables;
@@ -51,7 +50,6 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.index.mapper.IdFieldMapper;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
@@ -116,7 +114,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         request.request().filteringAlias(aliasFilter);
         // Fail fast on the node that received the request.
         if (request.request().routing() == null && state.getMetadata().routingRequired(request.concreteIndex())) {
-            throw new RoutingMissingException(request.concreteIndex(), request.request().type(), request.request().id());
+            throw new RoutingMissingException(request.concreteIndex(), request.request().id());
         }
     }
 
@@ -136,21 +134,15 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
 
     @Override
     protected ExplainResponse shardOperation(ExplainRequest request, ShardId shardId) throws IOException {
-        String[] types;
-        if (MapperService.SINGLE_MAPPING_NAME.equals(request.type())) { // typeless explain call
-            types = Strings.EMPTY_ARRAY;
-        } else {
-            types = new String[] { request.type() };
-        }
-        ShardSearchRequest shardSearchLocalRequest = new ShardSearchRequest(shardId, types, request.nowInMillis, request.filteringAlias());
+        ShardSearchRequest shardSearchLocalRequest = new ShardSearchRequest(shardId, request.nowInMillis, request.filteringAlias());
         SearchContext context = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);
         Engine.GetResult result = null;
         try {
             // No need to check the type, IndexShard#get does it for us
             Term uidTerm = new Term(IdFieldMapper.NAME, Uid.encodeId(request.id()));
-            result = context.indexShard().get(new Engine.Get(false, false, request.type(), request.id(), uidTerm));
+            result = context.indexShard().get(new Engine.Get(false, false, request.id(), uidTerm));
             if (!result.exists()) {
-                return new ExplainResponse(shardId.getIndexName(), request.type(), request.id(), false);
+                return new ExplainResponse(shardId.getIndexName(), request.id(), false);
             }
             context.parsedQuery(context.getQueryShardContext().toQuery(request.query()));
             context.preProcess(true);
@@ -166,10 +158,10 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
                 // doc isn't deleted between the initial get and this call.
                 GetResult getResult = context.indexShard()
                     .getService()
-                    .get(result, request.id(), request.type(), request.storedFields(), request.fetchSourceContext());
-                return new ExplainResponse(shardId.getIndexName(), request.type(), request.id(), true, explanation, getResult);
+                    .get(result, request.id(), request.storedFields(), request.fetchSourceContext());
+                return new ExplainResponse(shardId.getIndexName(), request.id(), true, explanation, getResult);
             } else {
-                return new ExplainResponse(shardId.getIndexName(), request.type(), request.id(), true, explanation);
+                return new ExplainResponse(shardId.getIndexName(), request.id(), true, explanation);
             }
         } catch (IOException e) {
             throw new OpenSearchException("Could not explain", e);

@@ -124,19 +124,19 @@ public class MappingUpdatedActionTests extends OpenSearchTestCase {
         ) {
 
             @Override
-            protected void sendUpdateMapping(Index index, String type, Mapping mappingUpdate, ActionListener<Void> listener) {
+            protected void sendUpdateMapping(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {
                 inFlightListeners.add(listener);
             }
         };
 
         PlainActionFuture<Void> fut1 = new PlainActionFuture<>();
-        mua.updateMappingOnMaster(null, "test", null, fut1);
+        mua.updateMappingOnMaster(null, null, fut1);
         assertEquals(1, inFlightListeners.size());
         assertEquals(0, mua.blockedThreads());
 
         PlainActionFuture<Void> fut2 = new PlainActionFuture<>();
         Thread thread = new Thread(() -> {
-            mua.updateMappingOnMaster(null, "test", null, fut2); // blocked
+            mua.updateMappingOnMaster(null, null, fut2); // blocked
         });
         thread.start();
         assertBusy(() -> assertEquals(1, mua.blockedThreads()));
@@ -180,7 +180,7 @@ public class MappingUpdatedActionTests extends OpenSearchTestCase {
         RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder("name").build(context);
         Mapping update = new Mapping(LegacyESVersion.V_7_8_0, rootObjectMapper, new MetadataFieldMapper[0], Map.of());
 
-        mua.sendUpdateMapping(new Index("name", "uuid"), "type", update, ActionListener.wrap(() -> {}));
+        mua.sendUpdateMapping(new Index("name", "uuid"), update, ActionListener.wrap(() -> {}));
         verify(indicesAdminClient).putMapping(any(), any());
     }
 
@@ -210,7 +210,7 @@ public class MappingUpdatedActionTests extends OpenSearchTestCase {
         RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder("name").build(context);
         Mapping update = new Mapping(LegacyESVersion.V_7_9_0, rootObjectMapper, new MetadataFieldMapper[0], Map.of());
 
-        mua.sendUpdateMapping(new Index("name", "uuid"), "type", update, ActionListener.wrap(() -> {}));
+        mua.sendUpdateMapping(new Index("name", "uuid"), update, ActionListener.wrap(() -> {}));
         verify(indicesAdminClient).execute(eq(AutoPutMappingAction.INSTANCE), any(), any());
     }
 }

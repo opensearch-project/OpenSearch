@@ -404,11 +404,6 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         writeUnicastHostsFiles();
     }
 
-    public void fullRestart() {
-        stop(false);
-        start();
-    }
-
     public void nextNodeToNextVersion() {
         OpenSearchNode node = upgradeNodeToNextVersion();
         node.start();

@@ -48,8 +48,9 @@ import org.gradle.api.tasks.TaskProvider;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
     @Override
@@ -90,14 +91,14 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
                 // TODO: forbidden apis does not yet support java 15, rethink using runtime version
                 t.setTargetCompatibility(JavaVersion.VERSION_14.getMajorVersion());
             }
-            t.setBundledSignatures(Set.of("jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out"));
+            t.setBundledSignatures(new HashSet<>(Arrays.asList("jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out")));
             t.setSignaturesFiles(
                 project.files(
                     resourcesDir.resolve("forbidden/jdk-signatures.txt"),
                     resourcesDir.resolve("forbidden/opensearch-all-signatures.txt")
                 )
             );
-            t.setSuppressAnnotations(Set.of("**.SuppressForbidden"));
+            t.setSuppressAnnotations(new HashSet<>(Arrays.asList("**.SuppressForbidden")));
             if (t.getName().endsWith("Test")) {
                 t.setSignaturesFiles(
                     t.getSignaturesFiles()

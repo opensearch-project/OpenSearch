@@ -32,70 +32,54 @@
 
 package org.opensearch.client.indices;
 
+import org.opensearch.client.AbstractResponseTestCase;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.common.collect.ImmutableOpenMap;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.ToXContent.Params;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.rest.BaseRestHandler;
-import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Predicate;
 
-import static org.opensearch.client.indices.GetMappingsResponse.MAPPINGS;
-import static org.opensearch.test.AbstractXContentTestCase.xContentTester;
+public class GetMappingsResponseTests extends AbstractResponseTestCase<
+    org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse,
+    GetMappingsResponse> {
 
-public class GetMappingsResponseTests extends OpenSearchTestCase {
-
-    // Because the client-side class does not have a toXContent method, we test xContent serialization by creating
-    // a random client object, converting it to a server object then serializing it to xContent, and finally
-    // parsing it back as a client object. We check equality between the original client object, and the parsed one.
-    public void testFromXContent() throws IOException {
-        xContentTester(
-            this::createParser,
-            GetMappingsResponseTests::createTestInstance,
-            GetMappingsResponseTests::toXContent,
-            GetMappingsResponse::fromXContent
-        ).supportsUnknownFields(true)
-            .assertEqualsConsumer(GetMappingsResponseTests::assertEqualInstances)
-            .randomFieldsExcludeFilter(randomFieldsExcludeFilter())
-            .test();
+    @Override
+    protected org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse createServerTestInstance(XContentType xContentType) {
+        ImmutableOpenMap.Builder<String, MappingMetadata> mappings = ImmutableOpenMap.builder();
+        int numberOfIndexes = randomIntBetween(1, 5);
+        for (int i = 0; i < numberOfIndexes; i++) {
+            mappings.put("index-" + randomAlphaOfLength(5), randomMappingMetadata());
+        }
+        return new org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse(mappings.build());
     }
 
-    private static GetMappingsResponse createTestInstance() {
-        Map<String, MappingMetadata> mappings = Collections.singletonMap("index-" + randomAlphaOfLength(5), randomMappingMetadata());
-        return new GetMappingsResponse(mappings);
+    @Override
+    protected GetMappingsResponse doParseToClientInstance(XContentParser parser) throws IOException {
+        return GetMappingsResponse.fromXContent(parser);
     }
 
-    private static void assertEqualInstances(GetMappingsResponse expected, GetMappingsResponse actual) {
-        assertEquals(expected.mappings(), actual.mappings());
-    }
-
-    private Predicate<String> randomFieldsExcludeFilter() {
-        return field -> !field.equals(MAPPINGS.getPreferredName());
+    @Override
+    protected void assertInstances(
+        org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse serverTestInstance,
+        GetMappingsResponse clientInstance
+    ) {
+        assertMapEquals(serverTestInstance.getMappings(), clientInstance.mappings());
     }
 
     public static MappingMetadata randomMappingMetadata() {
         Map<String, Object> mappings = new HashMap<>();
-
         if (frequently()) { // rarely have no fields
             mappings.put("field1", randomFieldMapping());
             if (randomBoolean()) {
                 mappings.put("field2", randomFieldMapping());
             }
         }
-
-        try {
-            return new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, mappings);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        return new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, mappings);
     }
 
     private static Map<String, Object> randomFieldMapping() {
@@ -109,23 +93,5 @@ public class GetMappingsResponseTests extends OpenSearchTestCase {
             mappings.put("index", Objects.toString(randomBoolean()));
         }
         return mappings;
-    }
-
-    private static void toXContent(GetMappingsResponse response, XContentBuilder builder) throws IOException {
-        Params params = new ToXContent.MapParams(Collections.singletonMap(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, "false"));
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetadata>> allMappings = ImmutableOpenMap.builder();
-
-        for (Map.Entry<String, MappingMetadata> indexEntry : response.mappings().entrySet()) {
-            ImmutableOpenMap.Builder<String, MappingMetadata> mappings = ImmutableOpenMap.builder();
-            mappings.put(MapperService.SINGLE_MAPPING_NAME, indexEntry.getValue());
-            allMappings.put(indexEntry.getKey(), mappings.build());
-        }
-
-        org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse serverResponse =
-            new org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse(allMappings.build());
-
-        builder.startObject();
-        serverResponse.toXContent(builder, params);
-        builder.endObject();
     }
 }

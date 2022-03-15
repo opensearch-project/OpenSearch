@@ -845,23 +845,15 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert pendingInSync.isEmpty() || (primaryMode && !handoffInProgress);
 
         // the computed global checkpoint is always up-to-date
-        assert !primaryMode
-            || globalCheckpoint == computeGlobalCheckpoint(
-                pendingInSync,
-                checkpoints.values(),
-                globalCheckpoint
-            ) : "global checkpoint is not up-to-date, expected: "
+        assert !primaryMode || globalCheckpoint == computeGlobalCheckpoint(pendingInSync, checkpoints.values(), globalCheckpoint)
+            : "global checkpoint is not up-to-date, expected: "
                 + computeGlobalCheckpoint(pendingInSync, checkpoints.values(), globalCheckpoint)
                 + " but was: "
                 + globalCheckpoint;
 
         // when in primary mode, the global checkpoint is at most the minimum local checkpoint on all in-sync shard copies
-        assert !primaryMode
-            || globalCheckpoint <= inSyncCheckpointStates(
-                checkpoints,
-                CheckpointState::getLocalCheckpoint,
-                LongStream::min
-            ) : "global checkpoint ["
+        assert !primaryMode || globalCheckpoint <= inSyncCheckpointStates(checkpoints, CheckpointState::getLocalCheckpoint, LongStream::min)
+            : "global checkpoint ["
                 + globalCheckpoint
                 + "] "
                 + "for primary mode allocation ID ["
@@ -877,11 +869,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             + " but replication group is "
             + replicationGroup;
 
-        assert replicationGroup == null
-            || replicationGroup.equals(calculateReplicationGroup()) : "cached replication group out of sync: expected: "
-                + calculateReplicationGroup()
-                + " but was: "
-                + replicationGroup;
+        assert replicationGroup == null || replicationGroup.equals(calculateReplicationGroup())
+            : "cached replication group out of sync: expected: " + calculateReplicationGroup() + " but was: " + replicationGroup;
 
         // all assigned shards from the routing table are tracked
         assert routingTable == null || checkpoints.keySet().containsAll(routingTable.getAllAllocationIds()) : "local checkpoints "
@@ -907,9 +896,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             // all tracked shard copies have a corresponding peer-recovery retention lease
             for (final ShardRouting shardRouting : routingTable.assignedShards()) {
                 if (checkpoints.get(shardRouting.allocationId().getId()).tracked) {
-                    assert retentionLeases.contains(
-                        getPeerRecoveryRetentionLeaseId(shardRouting)
-                    ) : "no retention lease for tracked shard [" + shardRouting + "] in " + retentionLeases;
+                    assert retentionLeases.contains(getPeerRecoveryRetentionLeaseId(shardRouting))
+                        : "no retention lease for tracked shard [" + shardRouting + "] in " + retentionLeases;
                     assert PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(
                         retentionLeases.get(getPeerRecoveryRetentionLeaseId(shardRouting)).source()
                     ) : "incorrect source ["
@@ -1190,13 +1178,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         if (applyingClusterStateVersion > appliedClusterStateVersion) {
             // check that the master does not fabricate new in-sync entries out of thin air once we are in primary mode
             assert !primaryMode
-                || inSyncAllocationIds.stream()
-                    .allMatch(
-                        inSyncId -> checkpoints.containsKey(inSyncId) && checkpoints.get(inSyncId).inSync
-                    ) : "update from master in primary mode contains in-sync ids "
-                        + inSyncAllocationIds
-                        + " that have no matching entries in "
-                        + checkpoints;
+                || inSyncAllocationIds.stream().allMatch(inSyncId -> checkpoints.containsKey(inSyncId) && checkpoints.get(inSyncId).inSync)
+                : "update from master in primary mode contains in-sync ids "
+                    + inSyncAllocationIds
+                    + " that have no matching entries in "
+                    + checkpoints;
             // remove entries which don't exist on master
             Set<String> initializingAllocationIds = routingTable.getAllInitializingShards()
                 .stream()

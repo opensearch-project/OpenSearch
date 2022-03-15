@@ -61,7 +61,7 @@ public class MultiFieldsIntegrationIT extends OpenSearchIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("my-index").addMapping("my-type", createTypeSource()));
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("my-index").get();
-        MappingMetadata mappingMetadata = getMappingsResponse.mappings().get("my-index").get("my-type");
+        MappingMetadata mappingMetadata = getMappingsResponse.mappings().get("my-index");
         assertThat(mappingMetadata, not(nullValue()));
         Map<String, Object> mappingSource = mappingMetadata.sourceAsMap();
         Map<String, Object> titleFields = ((Map<String, Object>) XContentMapValues.extractValue("properties.title.fields", mappingSource));
@@ -69,17 +69,17 @@ public class MultiFieldsIntegrationIT extends OpenSearchIntegTestCase {
         assertThat(titleFields.get("not_analyzed"), notNullValue());
         assertThat(((Map<String, Object>) titleFields.get("not_analyzed")).get("type").toString(), equalTo("keyword"));
 
-        client().prepareIndex("my-index", "my-type", "1").setSource("title", "Multi fields").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("my-index").setId("1").setSource("title", "Multi fields").setRefreshPolicy(IMMEDIATE).get();
 
         SearchResponse searchResponse = client().prepareSearch("my-index").setQuery(matchQuery("title", "multi")).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         searchResponse = client().prepareSearch("my-index").setQuery(matchQuery("title.not_analyzed", "Multi fields")).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
-        assertAcked(client().admin().indices().preparePutMapping("my-index").setType("my-type").setSource(createPutMappingSource()));
+        assertAcked(client().admin().indices().preparePutMapping("my-index").setSource(createPutMappingSource()));
 
         getMappingsResponse = client().admin().indices().prepareGetMappings("my-index").get();
-        mappingMetadata = getMappingsResponse.mappings().get("my-index").get("my-type");
+        mappingMetadata = getMappingsResponse.mappings().get("my-index");
         assertThat(mappingMetadata, not(nullValue()));
         mappingSource = mappingMetadata.sourceAsMap();
         assertThat(((Map<String, Object>) XContentMapValues.extractValue("properties.title", mappingSource)).size(), equalTo(2));
@@ -90,7 +90,7 @@ public class MultiFieldsIntegrationIT extends OpenSearchIntegTestCase {
         assertThat(titleFields.get("uncased"), notNullValue());
         assertThat(((Map<String, Object>) titleFields.get("uncased")).get("analyzer").toString(), equalTo("whitespace"));
 
-        client().prepareIndex("my-index", "my-type", "1").setSource("title", "Multi fields").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("my-index").setId("1").setSource("title", "Multi fields").setRefreshPolicy(IMMEDIATE).get();
 
         searchResponse = client().prepareSearch("my-index").setQuery(matchQuery("title.uncased", "Multi")).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
@@ -101,7 +101,7 @@ public class MultiFieldsIntegrationIT extends OpenSearchIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("my-index").addMapping("my-type", createMappingSource("geo_point")));
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("my-index").get();
-        MappingMetadata mappingMetadata = getMappingsResponse.mappings().get("my-index").get("my-type");
+        MappingMetadata mappingMetadata = getMappingsResponse.mappings().get("my-index");
         assertThat(mappingMetadata, not(nullValue()));
         Map<String, Object> mappingSource = mappingMetadata.sourceAsMap();
         Map<String, Object> aField = ((Map<String, Object>) XContentMapValues.extractValue("properties.a", mappingSource));
@@ -115,7 +115,7 @@ public class MultiFieldsIntegrationIT extends OpenSearchIntegTestCase {
         assertThat(bField.get("type").toString(), equalTo("keyword"));
 
         GeoPoint point = new GeoPoint(51, 19);
-        client().prepareIndex("my-index", "my-type", "1").setSource("a", point.toString()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("my-index").setId("1").setSource("a", point.toString()).setRefreshPolicy(IMMEDIATE).get();
         SearchResponse countResponse = client().prepareSearch("my-index")
             .setSize(0)
             .setQuery(constantScoreQuery(geoDistanceQuery("a").point(51, 19).distance(50, DistanceUnit.KILOMETERS)))
@@ -130,7 +130,7 @@ public class MultiFieldsIntegrationIT extends OpenSearchIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("my-index").addMapping("my-type", createMappingSource("completion")));
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("my-index").get();
-        MappingMetadata mappingMetadata = getMappingsResponse.mappings().get("my-index").get("my-type");
+        MappingMetadata mappingMetadata = getMappingsResponse.mappings().get("my-index");
         assertThat(mappingMetadata, not(nullValue()));
         Map<String, Object> mappingSource = mappingMetadata.sourceAsMap();
         Map<String, Object> aField = ((Map<String, Object>) XContentMapValues.extractValue("properties.a", mappingSource));
@@ -142,7 +142,7 @@ public class MultiFieldsIntegrationIT extends OpenSearchIntegTestCase {
         assertThat(bField.size(), equalTo(1));
         assertThat(bField.get("type").toString(), equalTo("keyword"));
 
-        client().prepareIndex("my-index", "my-type", "1").setSource("a", "complete me").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("my-index").setId("1").setSource("a", "complete me").setRefreshPolicy(IMMEDIATE).get();
         SearchResponse countResponse = client().prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", "complete me")).get();
         assertThat(countResponse.getHits().getTotalHits().value, equalTo(1L));
     }
@@ -152,7 +152,7 @@ public class MultiFieldsIntegrationIT extends OpenSearchIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("my-index").addMapping("my-type", createMappingSource("ip")));
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("my-index").get();
-        MappingMetadata mappingMetadata = getMappingsResponse.mappings().get("my-index").get("my-type");
+        MappingMetadata mappingMetadata = getMappingsResponse.mappings().get("my-index");
         assertThat(mappingMetadata, not(nullValue()));
         Map<String, Object> mappingSource = mappingMetadata.sourceAsMap();
         Map<String, Object> aField = ((Map<String, Object>) XContentMapValues.extractValue("properties.a", mappingSource));
@@ -164,7 +164,7 @@ public class MultiFieldsIntegrationIT extends OpenSearchIntegTestCase {
         assertThat(bField.size(), equalTo(1));
         assertThat(bField.get("type").toString(), equalTo("keyword"));
 
-        client().prepareIndex("my-index", "my-type", "1").setSource("a", "127.0.0.1").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("my-index").setId("1").setSource("a", "127.0.0.1").setRefreshPolicy(IMMEDIATE).get();
         SearchResponse countResponse = client().prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", "127.0.0.1")).get();
         assertThat(countResponse.getHits().getTotalHits().value, equalTo(1L));
     }
@@ -208,7 +208,6 @@ public class MultiFieldsIntegrationIT extends OpenSearchIntegTestCase {
     private XContentBuilder createPutMappingSource() throws IOException {
         return XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("my-type")
             .startObject("properties")
             .startObject("title")
             .field("type", "text")
@@ -216,7 +215,6 @@ public class MultiFieldsIntegrationIT extends OpenSearchIntegTestCase {
             .startObject("uncased")
             .field("type", "text")
             .field("analyzer", "whitespace")
-            .endObject()
             .endObject()
             .endObject()
             .endObject()

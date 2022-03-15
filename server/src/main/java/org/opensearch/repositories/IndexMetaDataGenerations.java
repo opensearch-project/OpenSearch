@@ -66,11 +66,8 @@ public final class IndexMetaDataGenerations {
     final Map<String, String> identifiers;
 
     IndexMetaDataGenerations(Map<SnapshotId, Map<IndexId, String>> lookup, Map<String, String> identifiers) {
-        assert identifiers.keySet()
-            .equals(lookup.values().stream().flatMap(m -> m.values().stream()).collect(Collectors.toSet())) : "identifier mappings "
-                + identifiers
-                + " don't track the same blob ids as the lookup map "
-                + lookup;
+        assert identifiers.keySet().equals(lookup.values().stream().flatMap(m -> m.values().stream()).collect(Collectors.toSet()))
+            : "identifier mappings " + identifiers + " don't track the same blob ids as the lookup map " + lookup;
         assert lookup.values().stream().noneMatch(Map::isEmpty) : "Lookup contained empty map [" + lookup + "]";
         this.lookup = Collections.unmodifiableMap(lookup);
         this.identifiers = Collections.unmodifiableMap(identifiers);

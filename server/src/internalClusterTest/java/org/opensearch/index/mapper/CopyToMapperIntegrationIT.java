@@ -36,7 +36,6 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.Strings;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -56,7 +55,7 @@ public class CopyToMapperIntegrationIT extends OpenSearchIntegTestCase {
         int recordCount = between(1, 200);
 
         for (int i = 0; i < recordCount * 2; i++) {
-            client().prepareIndex("test-idx", "_doc", Integer.toString(i)).setSource("test_field", "test " + i, "even", i % 2 == 0).get();
+            client().prepareIndex("test-idx").setId(Integer.toString(i)).setSource("test_field", "test " + i, "even", i % 2 == 0).get();
         }
         client().admin().indices().prepareRefresh("test-idx").execute().actionGet();
 
@@ -81,7 +80,6 @@ public class CopyToMapperIntegrationIT extends OpenSearchIntegTestCase {
     public void testDynamicObjectCopyTo() throws Exception {
         String mapping = Strings.toString(
             jsonBuilder().startObject()
-                .startObject("_doc")
                 .startObject("properties")
                 .startObject("foo")
                 .field("type", "text")
@@ -89,10 +87,9 @@ public class CopyToMapperIntegrationIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         );
-        assertAcked(client().admin().indices().prepareCreate("test-idx").addMapping("_doc", mapping, XContentType.JSON));
-        client().prepareIndex("test-idx", "_doc", "1").setSource("foo", "bar").get();
+        assertAcked(client().admin().indices().prepareCreate("test-idx").setMapping(mapping));
+        client().prepareIndex("test-idx").setId("1").setSource("foo", "bar").get();
         client().admin().indices().prepareRefresh("test-idx").execute().actionGet();
         SearchResponse response = client().prepareSearch("test-idx").setQuery(QueryBuilders.termQuery("root.top.child", "bar")).get();
         assertThat(response.getHits().getTotalHits().value, equalTo(1L));

@@ -41,9 +41,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.Index;
 
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -61,7 +59,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     private Settings settings = Settings.Builder.EMPTY_SETTINGS;
 
-    private final Map<String, String> mappings = new HashMap<>();
+    private String mappings = "{}";
 
     private final Set<Alias> aliases = new HashSet<>();
 
@@ -80,8 +78,8 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return this;
     }
 
-    public CreateIndexClusterStateUpdateRequest mappings(Map<String, String> mappings) {
-        this.mappings.putAll(mappings);
+    public CreateIndexClusterStateUpdateRequest mappings(String mappings) {
+        this.mappings = mappings;
         return this;
     }
 
@@ -122,7 +120,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return settings;
     }
 
-    public Map<String, String> mappings() {
+    public String mappings() {
         return mappings;
     }
 

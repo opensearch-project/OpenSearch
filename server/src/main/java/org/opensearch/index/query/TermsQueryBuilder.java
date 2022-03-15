@@ -225,10 +225,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         return this.termsLookup;
     }
 
-    public boolean isTypeless() {
-        return termsLookup == null || termsLookup.type() == null;
-    }
-
     private static final Set<Class<? extends Number>> INTEGER_TYPES = new HashSet<>(
         Arrays.asList(Byte.class, Short.class, Integer.class, Long.class)
     );
@@ -479,9 +475,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     }
 
     private void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {
-        GetRequest getRequest = termsLookup.type() == null
-            ? new GetRequest(termsLookup.index(), termsLookup.id())
-            : new GetRequest(termsLookup.index(), termsLookup.type(), termsLookup.id());
+        GetRequest getRequest = new GetRequest(termsLookup.index(), termsLookup.id());
         getRequest.preference("_local").routing(termsLookup.routing());
         client.get(getRequest, ActionListener.delegateFailure(actionListener, (delegatedListener, getResponse) -> {
             List<Object> terms = new ArrayList<>();

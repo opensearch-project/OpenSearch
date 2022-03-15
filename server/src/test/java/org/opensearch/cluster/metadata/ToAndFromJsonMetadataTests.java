@@ -112,8 +112,7 @@ public class ToAndFromJsonMetadataTests extends OpenSearchTestCase {
                     .creationDate(2L)
                     .numberOfShards(1)
                     .numberOfReplicas(2)
-                    .putMapping("mapping1", MAPPING_SOURCE1)
-                    .putMapping("mapping2", MAPPING_SOURCE2)
+                    .putMapping(MAPPING_SOURCE1)
                     .putAlias(newAliasMetadataBuilder("alias1").filter(ALIAS_FILTER1))
                     .putAlias(newAliasMetadataBuilder("alias3").writeIndex(randomBoolean() ? null : randomBoolean()))
                     .putAlias(newAliasMetadataBuilder("alias4").filter(ALIAS_FILTER2))
@@ -264,11 +263,9 @@ public class ToAndFromJsonMetadataTests extends OpenSearchTestCase {
                 + Version.CURRENT.id
                 + "\"\n"
                 + "        },\n"
-                + "        \"mappings\" : [\n"
-                + "          {\n"
-                + "            \"key1\" : { }\n"
-                + "          }\n"
-                + "        ],\n"
+                + "        \"mappings\" : {\n"
+                + "          \"key1\" : { }\n"
+                + "        },\n"
                 + "        \"aliases\" : { }\n"
                 + "      }\n"
                 + "    },\n"
@@ -434,11 +431,7 @@ public class ToAndFromJsonMetadataTests extends OpenSearchTestCase {
                 + "            }\n"
                 + "          }\n"
                 + "        },\n"
-                + "        \"mappings\" : {\n"
-                + "          \"type\" : {\n"
-                + "            \"key1\" : { }\n"
-                + "          }\n"
-                + "        },\n"
+                + "        \"mappings\" : { },\n"
                 + "        \"aliases\" : { }\n"
                 + "      }\n"
                 + "    },\n"
@@ -500,9 +493,7 @@ public class ToAndFromJsonMetadataTests extends OpenSearchTestCase {
                 + "\"\n"
                 + "        },\n"
                 + "        \"mappings\" : {\n"
-                + "          \"type\" : {\n"
-                + "            \"key1\" : { }\n"
-                + "          }\n"
+                + "          \"key1\" : { }\n"
                 + "        },\n"
                 + "        \"aliases\" : { }\n"
                 + "      }\n"
@@ -610,11 +601,7 @@ public class ToAndFromJsonMetadataTests extends OpenSearchTestCase {
                 + "            }\n"
                 + "          }\n"
                 + "        },\n"
-                + "        \"mappings\" : {\n"
-                + "          \"type\" : {\n"
-                + "            \"key1\" : { }\n"
-                + "          }\n"
-                + "        },\n"
+                + "        \"mappings\" : { },\n"
                 + "        \"aliases\" : { }\n"
                 + "      }\n"
                 + "    },\n"

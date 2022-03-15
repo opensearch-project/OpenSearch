@@ -88,7 +88,7 @@ public class GeoHashGridIT extends OpenSearchIntegTestCase {
             source = source.field("location", latLon);
         }
         source = source.endObject();
-        return client().prepareIndex(index, "type").setSource(source);
+        return client().prepareIndex(index).setSource(source);
     }
 
     private static IndexRequestBuilder indexCity(String index, String name, String latLon) throws Exception {

@@ -49,14 +49,12 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 
-import static java.util.Collections.singletonMap;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.contains;
 
 public class IndexTemplateMetadataTests extends OpenSearchTestCase {
 
     public void testIndexTemplateMetadataXContentRoundTrip() throws Exception {
-        ToXContent.Params params = new ToXContent.MapParams(singletonMap("reduce_mappings", "true"));
 
         String template = "{\"index_patterns\" : [ \".test-*\" ],\"order\" : 1000,"
             + "\"settings\" : {\"number_of_shards\" : 1,\"number_of_replicas\" : 0},"
@@ -84,7 +82,7 @@ public class IndexTemplateMetadataTests extends OpenSearchTestCase {
         final BytesReference templateBytesRoundTrip;
         try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent)) {
             builder.startObject();
-            IndexTemplateMetadata.Builder.toXContentWithTypes(indexTemplateMetadata, builder, params);
+            IndexTemplateMetadata.Builder.toXContentWithTypes(indexTemplateMetadata, builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             templateBytesRoundTrip = BytesReference.bytes(builder);
         }

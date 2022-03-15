@@ -58,7 +58,7 @@ public class BulkRequestModifierTests extends OpenSearchTestCase {
         int numRequests = scaledRandomIntBetween(8, 64);
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < numRequests; i++) {
-            bulkRequest.add(new IndexRequest("_index", "_type", String.valueOf(i)).source("{}", XContentType.JSON));
+            bulkRequest.add(new IndexRequest("_index").id(String.valueOf(i)).source("{}", XContentType.JSON));
         }
         CaptureActionListener actionListener = new CaptureActionListener();
         TransportBulkAction.BulkRequestModifier bulkRequestModifier = new TransportBulkAction.BulkRequestModifier(bulkRequest);
@@ -87,7 +87,6 @@ public class BulkRequestModifierTests extends OpenSearchTestCase {
                 BulkItemResponse item = bulkResponse.getItems()[j];
                 assertThat(item.isFailed(), is(true));
                 assertThat(item.getFailure().getIndex(), equalTo("_index"));
-                assertThat(item.getFailure().getType(), equalTo("_type"));
                 assertThat(item.getFailure().getId(), equalTo(String.valueOf(j)));
                 assertThat(item.getFailure().getMessage(), equalTo("java.lang.RuntimeException"));
             } else {
@@ -99,7 +98,7 @@ public class BulkRequestModifierTests extends OpenSearchTestCase {
     public void testPipelineFailures() {
         BulkRequest originalBulkRequest = new BulkRequest();
         for (int i = 0; i < 32; i++) {
-            originalBulkRequest.add(new IndexRequest("index", "type", String.valueOf(i)));
+            originalBulkRequest.add(new IndexRequest("index").id(String.valueOf(i)));
         }
 
         TransportBulkAction.BulkRequestModifier modifier = new TransportBulkAction.BulkRequestModifier(originalBulkRequest);
@@ -128,15 +127,7 @@ public class BulkRequestModifierTests extends OpenSearchTestCase {
         List<BulkItemResponse> originalResponses = new ArrayList<>();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests()) {
             IndexRequest indexRequest = (IndexRequest) actionRequest;
-            IndexResponse indexResponse = new IndexResponse(
-                new ShardId("index", "_na_", 0),
-                indexRequest.type(),
-                indexRequest.id(),
-                1,
-                17,
-                1,
-                true
-            );
+            IndexResponse indexResponse = new IndexResponse(new ShardId("index", "_na_", 0), indexRequest.id(), 1, 17, 1, true);
             originalResponses.add(new BulkItemResponse(Integer.parseInt(indexRequest.id()), indexRequest.opType(), indexResponse));
         }
         bulkResponseListener.onResponse(new BulkResponse(originalResponses.toArray(new BulkItemResponse[originalResponses.size()]), 0));
@@ -150,7 +141,7 @@ public class BulkRequestModifierTests extends OpenSearchTestCase {
     public void testNoFailures() {
         BulkRequest originalBulkRequest = new BulkRequest();
         for (int i = 0; i < 32; i++) {
-            originalBulkRequest.add(new IndexRequest("index", "type", String.valueOf(i)));
+            originalBulkRequest.add(new IndexRequest("index").id(String.valueOf(i)));
         }
 
         TransportBulkAction.BulkRequestModifier modifier = new TransportBulkAction.BulkRequestModifier(originalBulkRequest);

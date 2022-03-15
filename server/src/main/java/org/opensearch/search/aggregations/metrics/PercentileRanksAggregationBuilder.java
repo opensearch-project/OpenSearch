@@ -82,7 +82,7 @@ public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggreg
     }
 
     public PercentileRanksAggregationBuilder(StreamInput in) throws IOException {
-        super(in);
+        super(in, VALUES_FIELD);
     }
 
     private PercentileRanksAggregationBuilder(

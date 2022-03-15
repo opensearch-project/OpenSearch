@@ -168,7 +168,7 @@ public class SerialDiffIT extends OpenSearchIntegTestCase {
         for (PipelineAggregationHelperTests.MockBucket mockBucket : mockHisto) {
             for (double value : mockBucket.docValues) {
                 builders.add(
-                    client().prepareIndex("idx", "type")
+                    client().prepareIndex("idx")
                         .setSource(jsonBuilder().startObject().field(INTERVAL_FIELD, mockBucket.key).field(VALUE_FIELD, value).endObject())
                 );
             }
@@ -241,7 +241,6 @@ public class SerialDiffIT extends OpenSearchIntegTestCase {
 
     public void testBasicDiff() {
         SearchResponse response = client().prepareSearch("idx")
-            .setTypes("type")
             .addAggregation(
                 histogram("histo").field(INTERVAL_FIELD)
                     .interval(interval)
@@ -286,7 +285,6 @@ public class SerialDiffIT extends OpenSearchIntegTestCase {
     public void testInvalidLagSize() {
         try {
             client().prepareSearch("idx")
-                .setTypes("type")
                 .addAggregation(
                     histogram("histo").field(INTERVAL_FIELD)
                         .interval(interval)

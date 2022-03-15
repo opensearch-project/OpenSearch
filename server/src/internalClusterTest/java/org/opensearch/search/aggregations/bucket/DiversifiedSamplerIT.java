@@ -106,10 +106,12 @@ public class DiversifiedSamplerIT extends OpenSearchIntegTestCase {
 
         for (int i = 0; i < data.length; i++) {
             String[] parts = data[i].split(",");
-            client().prepareIndex("test", "book", "" + i)
+            client().prepareIndex("test")
+                .setId("" + i)
                 .setSource("author", parts[5], "name", parts[2], "genre", parts[8], "price", Float.parseFloat(parts[3]))
                 .get();
-            client().prepareIndex("idx_unmapped_author", "book", "" + i)
+            client().prepareIndex("idx_unmapped_author")
+                .setId("" + i)
                 .setSource("name", parts[2], "genre", parts[8], "price", Float.parseFloat(parts[3]))
                 .get();
         }
@@ -121,7 +123,6 @@ public class DiversifiedSamplerIT extends OpenSearchIntegTestCase {
         // statement
         boolean asc = randomBoolean();
         SearchResponse response = client().prepareSearch("test")
-            .setTypes("book")
             .setSearchType(SearchType.QUERY_THEN_FETCH)
             .addAggregation(
                 terms("genres").field("genre")

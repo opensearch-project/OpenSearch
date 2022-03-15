@@ -183,11 +183,11 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         build.accept(builder);
         builder.endObject();
-        return new SourceToParse("test", "_doc", "1", BytesReference.bytes(builder), XContentType.JSON);
+        return new SourceToParse("test", "1", BytesReference.bytes(builder), XContentType.JSON);
     }
 
     protected final SourceToParse source(String source) {
-        return new SourceToParse("test", "_doc", "1", new BytesArray(source), XContentType.JSON);
+        return new SourceToParse("test", "1", new BytesArray(source), XContentType.JSON);
     }
 
     /**
@@ -250,7 +250,7 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
         );
         when(queryShardContext.allowExpensiveQueries()).thenReturn(true);
         when(queryShardContext.lookup()).thenReturn(
-            new SearchLookup(mapperService, (ft, s) -> { throw new UnsupportedOperationException("search lookup not available"); }, null)
+            new SearchLookup(mapperService, (ft, s) -> { throw new UnsupportedOperationException("search lookup not available"); })
         );
         return queryShardContext;
     }

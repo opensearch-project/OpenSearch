@@ -42,8 +42,6 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.monitor.os.OsStats;
 import org.opensearch.node.NodeRoleSettings;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -276,19 +274,13 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
         assertTrue(response.getIndicesStats().getMappings().getFieldTypeStats().isEmpty());
 
-        client().admin()
-            .indices()
-            .prepareCreate("test1")
-            .addMapping(MapperService.SINGLE_MAPPING_NAME, "{\"properties\":{\"foo\":{\"type\": \"keyword\"}}}", XContentType.JSON)
-            .get();
+        client().admin().indices().prepareCreate("test1").setMapping("{\"properties\":{\"foo\":{\"type\": \"keyword\"}}}").get();
         client().admin()
             .indices()
             .prepareCreate("test2")
-            .addMapping(
-                MapperService.SINGLE_MAPPING_NAME,
+            .setMapping(
                 "{\"properties\":{\"foo\":{\"type\": \"keyword\"},\"bar\":{\"properties\":{\"baz\":{\"type\":\"keyword\"},"
-                    + "\"eggplant\":{\"type\":\"integer\"}}}}}",
-                XContentType.JSON
+                    + "\"eggplant\":{\"type\":\"integer\"}}}}}"
             )
             .get();
         response = client().admin().cluster().prepareClusterStats().get();

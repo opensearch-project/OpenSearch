@@ -131,7 +131,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         if (request.query() == null) {
             rewriteListener.onResponse(request.query());
         } else {
-            Rewriteable.rewriteAndFetch(request.query(), searchService.getRewriteContext(timeProvider), rewriteListener);
+            Rewriteable.rewriteAndFetch(request.query(), searchService.getValidationRewriteContext(timeProvider), rewriteListener);
         }
     }
 
@@ -222,11 +222,10 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         String error = null;
         ShardSearchRequest shardSearchLocalRequest = new ShardSearchRequest(
             request.shardId(),
-            request.types(),
             request.nowInMillis(),
             request.filteringAliases()
         );
-        SearchContext searchContext = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);
+        SearchContext searchContext = searchService.createValidationContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);
         try {
             ParsedQuery parsedQuery = searchContext.getQueryShardContext().toQuery(request.query());
             searchContext.parsedQuery(parsedQuery);

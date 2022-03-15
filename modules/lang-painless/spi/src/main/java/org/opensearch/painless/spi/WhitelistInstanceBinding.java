@@ -46,7 +46,7 @@ import java.util.stream.Collectors;
  */
 public class WhitelistInstanceBinding {
 
-    /** Information about where this constructor was whitelisted from. */
+    /** Information about where this constructor was allowlisted from. */
     public final String origin;
 
     /** The Java instance this instance binding targets. */

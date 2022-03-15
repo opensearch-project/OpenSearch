@@ -39,18 +39,18 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Whitelist contains data structures designed to be used to generate a whitelist of Java classes,
+ * Allowlist contains data structures designed to be used to generate an allowlist of Java classes,
  * constructors, methods, and fields that can be used within a Painless script at both compile-time
  * and run-time.
  *
- * A whitelist consists of several pieces with {@link WhitelistClass}s as the top level. Each
+ * A Allowlist consists of several pieces with {@link WhitelistClass}s as the top level. Each
  * {@link WhitelistClass} will contain zero-to-many {@link WhitelistConstructor}s, {@link WhitelistMethod}s, and
  * {@link WhitelistField}s which are what will be available with a Painless script.  See each individual
- * whitelist object for more detail.
+ * allowlist object for more detail.
  */
 public final class Whitelist {
 
-    private static final String[] BASE_WHITELIST_FILES = new String[] {
+    private static final String[] BASE_ALLOWLIST_FILES = new String[] {
         "org.opensearch.txt",
         "java.lang.txt",
         "java.math.txt",
@@ -66,37 +66,37 @@ public final class Whitelist {
         "java.util.stream.txt" };
 
     public static final List<Whitelist> BASE_WHITELISTS = Collections.singletonList(
-        WhitelistLoader.loadFromResourceFiles(Whitelist.class, WhitelistAnnotationParser.BASE_ANNOTATION_PARSERS, BASE_WHITELIST_FILES)
+        WhitelistLoader.loadFromResourceFiles(Whitelist.class, WhitelistAnnotationParser.BASE_ANNOTATION_PARSERS, BASE_ALLOWLIST_FILES)
     );
 
-    /** The {@link ClassLoader} used to look up the whitelisted Java classes, constructors, methods, and fields. */
+    /** The {@link ClassLoader} used to look up the allowlisted Java classes, constructors, methods, and fields. */
     public final ClassLoader classLoader;
 
-    /** The {@link List} of all the whitelisted Painless classes. */
+    /** The {@link List} of all the allowlisted Painless classes. */
     public final List<WhitelistClass> whitelistClasses;
 
-    /** The {@link List} of all the whitelisted static Painless methods. */
+    /** The {@link List} of all the allowlisted static Painless methods. */
     public final List<WhitelistMethod> whitelistImportedMethods;
 
-    /** The {@link List} of all the whitelisted Painless class bindings. */
+    /** The {@link List} of all the allowlisted Painless class bindings. */
     public final List<WhitelistClassBinding> whitelistClassBindings;
 
-    /** The {@link List} of all the whitelisted Painless instance bindings. */
+    /** The {@link List} of all the allowlisted Painless instance bindings. */
     public final List<WhitelistInstanceBinding> whitelistInstanceBindings;
 
     /** Standard constructor. All values must be not {@code null}. */
     public Whitelist(
         ClassLoader classLoader,
-        List<WhitelistClass> whitelistClasses,
-        List<WhitelistMethod> whitelistImportedMethods,
-        List<WhitelistClassBinding> whitelistClassBindings,
-        List<WhitelistInstanceBinding> whitelistInstanceBindings
+        List<WhitelistClass> allowlistClasses,
+        List<WhitelistMethod> allowlistImportedMethods,
+        List<WhitelistClassBinding> allowlistClassBindings,
+        List<WhitelistInstanceBinding> allowlistInstanceBindings
     ) {
 
         this.classLoader = Objects.requireNonNull(classLoader);
-        this.whitelistClasses = Collections.unmodifiableList(Objects.requireNonNull(whitelistClasses));
-        this.whitelistImportedMethods = Collections.unmodifiableList(Objects.requireNonNull(whitelistImportedMethods));
-        this.whitelistClassBindings = Collections.unmodifiableList(Objects.requireNonNull(whitelistClassBindings));
-        this.whitelistInstanceBindings = Collections.unmodifiableList(Objects.requireNonNull(whitelistInstanceBindings));
+        this.whitelistClasses = Collections.unmodifiableList(Objects.requireNonNull(allowlistClasses));
+        this.whitelistImportedMethods = Collections.unmodifiableList(Objects.requireNonNull(allowlistImportedMethods));
+        this.whitelistClassBindings = Collections.unmodifiableList(Objects.requireNonNull(allowlistClassBindings));
+        this.whitelistInstanceBindings = Collections.unmodifiableList(Objects.requireNonNull(allowlistInstanceBindings));
     }
 }

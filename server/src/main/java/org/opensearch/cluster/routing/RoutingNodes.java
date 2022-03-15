@@ -599,13 +599,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         ensureMutable();
         assert failedShard.assignedToNode() : "only assigned shards can be failed";
         assert indexMetadata.getIndex().equals(failedShard.index()) : "shard failed for unknown index (shard entry: " + failedShard + ")";
-        assert getByAllocationId(
-            failedShard.shardId(),
-            failedShard.allocationId().getId()
-        ) == failedShard : "shard routing to fail does not exist in routing table, expected: "
-            + failedShard
-            + " but was: "
-            + getByAllocationId(failedShard.shardId(), failedShard.allocationId().getId());
+        assert getByAllocationId(failedShard.shardId(), failedShard.allocationId().getId()) == failedShard
+            : "shard routing to fail does not exist in routing table, expected: "
+                + failedShard
+                + " but was: "
+                + getByAllocationId(failedShard.shardId(), failedShard.allocationId().getId());
 
         logger.debug("{} failing shard {} with unassigned info ({})", failedShard.shardId(), failedShard, unassignedInfo.shortSummary());
 
@@ -850,12 +848,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             + oldShard
             + " by shard with same shard id but was "
             + newShard;
-        assert oldShard.unassigned() == false
-            && newShard.unassigned() == false : "only assigned shards can be updated in list of assigned shards (prev: "
-                + oldShard
-                + ", new: "
-                + newShard
-                + ")";
+        assert oldShard.unassigned() == false && newShard.unassigned() == false
+            : "only assigned shards can be updated in list of assigned shards (prev: " + oldShard + ", new: " + newShard + ")";
         assert oldShard.currentNodeId().equals(newShard.currentNodeId()) : "shard to update "
             + oldShard
             + " can only update "

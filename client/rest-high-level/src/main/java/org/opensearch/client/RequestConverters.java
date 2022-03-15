@@ -117,7 +117,7 @@ final class RequestConverters {
     }
 
     static Request delete(DeleteRequest deleteRequest) {
-        String endpoint = endpoint(deleteRequest.index(), deleteRequest.type(), deleteRequest.id());
+        String endpoint = endpoint(deleteRequest.index(), deleteRequest.id());
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
 
         Params parameters = new Params();
@@ -184,11 +184,6 @@ final class RequestConverters {
                     metadata.startObject(opType.getLowercase());
                     if (Strings.hasLength(action.index())) {
                         metadata.field("_index", action.index());
-                    }
-                    if (Strings.hasLength(action.type())) {
-                        if (MapperService.SINGLE_MAPPING_NAME.equals(action.type()) == false) {
-                            metadata.field("_type", action.type());
-                        }
                     }
                     if (Strings.hasLength(action.id())) {
                         metadata.field("_id", action.id());
@@ -284,7 +279,7 @@ final class RequestConverters {
     }
 
     private static Request getStyleRequest(String method, GetRequest getRequest) {
-        Request request = new Request(method, endpoint(getRequest.index(), getRequest.type(), getRequest.id()));
+        Request request = new Request(method, endpoint(getRequest.index(), getRequest.id()));
 
         Params parameters = new Params();
         parameters.withPreference(getRequest.preference());
@@ -315,13 +310,7 @@ final class RequestConverters {
         parameters.withRealtime(getSourceRequest.realtime());
         parameters.withFetchSourceContext(getSourceRequest.fetchSourceContext());
 
-        String optionalType = getSourceRequest.type();
-        String endpoint;
-        if (optionalType == null) {
-            endpoint = endpoint(getSourceRequest.index(), "_source", getSourceRequest.id());
-        } else {
-            endpoint = endpoint(getSourceRequest.index(), optionalType, getSourceRequest.id(), "_source");
-        }
+        String endpoint = endpoint(getSourceRequest.index(), "_source", getSourceRequest.id());
         Request request = new Request(httpMethodName, endpoint);
         request.addParameters(parameters.asMap());
         return request;
@@ -344,11 +333,9 @@ final class RequestConverters {
 
         String endpoint;
         if (indexRequest.opType() == DocWriteRequest.OpType.CREATE) {
-            endpoint = indexRequest.type().equals(MapperService.SINGLE_MAPPING_NAME)
-                ? endpoint(indexRequest.index(), "_create", indexRequest.id())
-                : endpoint(indexRequest.index(), indexRequest.type(), indexRequest.id(), "_create");
+            endpoint = endpoint(indexRequest.index(), "_create", indexRequest.id());
         } else {
-            endpoint = endpoint(indexRequest.index(), indexRequest.type(), indexRequest.id());
+            endpoint = endpoint(indexRequest.index(), indexRequest.id());
         }
 
         Request request = new Request(method, endpoint);
@@ -377,9 +364,7 @@ final class RequestConverters {
     }
 
     static Request update(UpdateRequest updateRequest) throws IOException {
-        String endpoint = updateRequest.type().equals(MapperService.SINGLE_MAPPING_NAME)
-            ? endpoint(updateRequest.index(), "_update", updateRequest.id())
-            : endpoint(updateRequest.index(), updateRequest.type(), updateRequest.id(), "_update");
+        String endpoint = endpoint(updateRequest.index(), "_update", updateRequest.id());
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
 
         Params parameters = new Params();
@@ -432,7 +417,7 @@ final class RequestConverters {
      *    for standard searches
      */
     static Request search(SearchRequest searchRequest, String searchEndpoint) throws IOException {
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint(searchRequest.indices(), searchRequest.types(), searchEndpoint));
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint(searchRequest.indices(), searchEndpoint));
 
         Params params = new Params();
         addSearchRequestParams(params, searchRequest);
@@ -502,7 +487,7 @@ final class RequestConverters {
             request = new Request(HttpGet.METHOD_NAME, "_render/template");
         } else {
             SearchRequest searchRequest = searchTemplateRequest.getRequest();
-            String endpoint = endpoint(searchRequest.indices(), searchRequest.types(), "_search/template");
+            String endpoint = endpoint(searchRequest.indices(), "_search/template");
             request = new Request(HttpGet.METHOD_NAME, endpoint);
 
             Params params = new Params();
@@ -548,9 +533,7 @@ final class RequestConverters {
     }
 
     static Request explain(ExplainRequest explainRequest) throws IOException {
-        String endpoint = explainRequest.type().equals(MapperService.SINGLE_MAPPING_NAME)
-            ? endpoint(explainRequest.index(), "_explain", explainRequest.id())
-            : endpoint(explainRequest.index(), explainRequest.type(), explainRequest.id(), "_explain");
+        String endpoint = endpoint(explainRequest.index(), "_explain", explainRequest.id());
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         Params params = new Params();
@@ -633,7 +616,7 @@ final class RequestConverters {
 
     private static Request prepareDeleteByQueryRequest(DeleteByQueryRequest deleteByQueryRequest, boolean waitForCompletion)
         throws IOException {
-        String endpoint = endpoint(deleteByQueryRequest.indices(), deleteByQueryRequest.getDocTypes(), "_delete_by_query");
+        String endpoint = endpoint(deleteByQueryRequest.indices(), "_delete_by_query");
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         Params params = new Params().withRouting(deleteByQueryRequest.getRouting())
             .withRefresh(deleteByQueryRequest.isRefresh())
@@ -661,7 +644,7 @@ final class RequestConverters {
     }
 
     static Request prepareUpdateByQueryRequest(UpdateByQueryRequest updateByQueryRequest, boolean waitForCompletion) throws IOException {
-        String endpoint = endpoint(updateByQueryRequest.indices(), updateByQueryRequest.getDocTypes(), "_update_by_query");
+        String endpoint = endpoint(updateByQueryRequest.indices(), "_update_by_query");
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         Params params = new Params().withRouting(updateByQueryRequest.getRouting())
             .withPipeline(updateByQueryRequest.getPipeline())
@@ -799,10 +782,16 @@ final class RequestConverters {
         return new NByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
     }
 
+    static String endpoint(String index, String id) {
+        return new EndpointBuilder().addPathPart(index, MapperService.SINGLE_MAPPING_NAME, id).build();
+    }
+
+    @Deprecated
     static String endpoint(String index, String type, String id) {
         return new EndpointBuilder().addPathPart(index, type, id).build();
     }
 
+    @Deprecated
     static String endpoint(String index, String type, String id, String endpoint) {
         return new EndpointBuilder().addPathPart(index, type, id).addPathPartAsIs(endpoint).build();
     }
@@ -815,6 +804,7 @@ final class RequestConverters {
         return new EndpointBuilder().addCommaSeparatedPathParts(indices).addPathPartAsIs(endpoint).build();
     }
 
+    @Deprecated
     static String endpoint(String[] indices, String[] types, String endpoint) {
         return new EndpointBuilder().addCommaSeparatedPathParts(indices)
             .addCommaSeparatedPathParts(types)
@@ -829,6 +819,7 @@ final class RequestConverters {
             .build();
     }
 
+    @Deprecated
     static String endpoint(String[] indices, String endpoint, String type) {
         return new EndpointBuilder().addCommaSeparatedPathParts(indices).addPathPartAsIs(endpoint).addPathPart(type).build();
     }

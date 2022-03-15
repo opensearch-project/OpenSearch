@@ -155,7 +155,7 @@ public class DuelScrollIT extends OpenSearchIntegTestCase {
         }
 
         for (int i = 1; i <= numDocs; i++) {
-            IndexRequestBuilder indexRequestBuilder = client().prepareIndex("index", "type", String.valueOf(i));
+            IndexRequestBuilder indexRequestBuilder = client().prepareIndex("index").setId(String.valueOf(i));
             if (missingDocs.contains(i)) {
                 indexRequestBuilder.setSource("x", "y");
             } else {
@@ -230,7 +230,7 @@ public class DuelScrollIT extends OpenSearchIntegTestCase {
 
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; ++i) {
-            builders[i] = client().prepareIndex("test", "type", Integer.toString(i)).setSource("foo", random().nextBoolean());
+            builders[i] = client().prepareIndex("test").setId(Integer.toString(i)).setSource("foo", random().nextBoolean());
         }
         indexRandom(true, builders);
         return numDocs;

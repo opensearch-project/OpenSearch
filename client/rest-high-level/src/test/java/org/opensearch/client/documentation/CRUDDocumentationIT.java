@@ -1719,9 +1719,8 @@ public class CRUDDocumentationIT extends OpenSearchRestHighLevelClientTestCase {
 
         // tag::term-vectors-response
         String index = response.getIndex(); // <1>
-        String type = response.getType(); // <2>
-        String id = response.getId(); // <3>
-        boolean found = response.getFound(); // <4>
+        String id = response.getId(); // <2>
+        boolean found = response.getFound(); // <3>
         // end::term-vectors-response
 
         if (response.getTermVectorsList() != null) {
@@ -2051,7 +2050,6 @@ public class CRUDDocumentationIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(response.getResponses(), arrayWithSize(1));
         MultiGetItemResponse item = response.getResponses()[0];
         assertEquals("index", item.getIndex());
-        assertEquals("_doc", item.getType());
         assertEquals("example_id", item.getId());
         return item;
     }

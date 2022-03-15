@@ -34,7 +34,6 @@ package org.opensearch.action.termvectors;
 
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
-import org.opensearch.common.Nullable;
 
 public class MultiTermVectorsRequestBuilder extends ActionRequestBuilder<MultiTermVectorsRequest, MultiTermVectorsResponse> {
 
@@ -42,16 +41,16 @@ public class MultiTermVectorsRequestBuilder extends ActionRequestBuilder<MultiTe
         super(client, action, new MultiTermVectorsRequest());
     }
 
-    public MultiTermVectorsRequestBuilder add(String index, @Nullable String type, Iterable<String> ids) {
+    public MultiTermVectorsRequestBuilder add(String index, Iterable<String> ids) {
         for (String id : ids) {
-            request.add(index, type, id);
+            request.add(index, id);
         }
         return this;
     }
 
-    public MultiTermVectorsRequestBuilder add(String index, @Nullable String type, String... ids) {
+    public MultiTermVectorsRequestBuilder add(String index, String... ids) {
         for (String id : ids) {
-            request.add(index, type, id);
+            request.add(index, id);
         }
         return this;
     }

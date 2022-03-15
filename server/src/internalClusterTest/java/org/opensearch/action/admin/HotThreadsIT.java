@@ -128,9 +128,9 @@ public class HotThreadsIT extends OpenSearchIntegTestCase {
 
             indexRandom(
                 true,
-                client().prepareIndex("test", "type1", "1").setSource("field1", "value1"),
-                client().prepareIndex("test", "type1", "2").setSource("field1", "value2"),
-                client().prepareIndex("test", "type1", "3").setSource("field1", "value3")
+                client().prepareIndex("test").setId("1").setSource("field1", "value1"),
+                client().prepareIndex("test").setId("2").setSource("field1", "value2"),
+                client().prepareIndex("test").setId("3").setSource("field1", "value3")
             );
             ensureSearchable();
             while (latch.getCount() > 0) {

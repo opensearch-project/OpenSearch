@@ -63,8 +63,8 @@ import org.gradle.external.javadoc.CoreJavadocOptions;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.io.File;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.opensearch.gradle.util.Util.toStringable;
@@ -173,17 +173,16 @@ public class OpenSearchJavaPlugin implements Plugin<Project> {
                 // workaround for https://github.com/gradle/gradle/issues/14141
                 compileTask.getConventionMapping().map("sourceCompatibility", () -> java.getSourceCompatibility().toString());
                 compileTask.getConventionMapping().map("targetCompatibility", () -> java.getTargetCompatibility().toString());
-                compileOptions.getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
+                // The '--release is available from JDK-9 and above
+                if (BuildParams.getRuntimeJavaVersion().compareTo(JavaVersion.VERSION_1_8) > 0) {
+                    compileOptions.getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
+                }
             });
             // also apply release flag to groovy, which is used in build-tools
-            project.getTasks()
-                .withType(GroovyCompile.class)
-                .configureEach(
-                    compileTask -> {
-                        // TODO: this probably shouldn't apply to groovy at all?
-                        compileTask.getOptions().getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
-                    }
-                );
+            project.getTasks().withType(GroovyCompile.class).configureEach(compileTask -> {
+                // TODO: this probably shouldn't apply to groovy at all?
+                compileTask.getOptions().getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
+            });
         });
     }
 
@@ -205,50 +204,39 @@ public class OpenSearchJavaPlugin implements Plugin<Project> {
      * Adds additional manifest info to jars
      */
     static void configureJars(Project project) {
-        project.getTasks()
-            .withType(Jar.class)
-            .configureEach(
-                jarTask -> {
-                    // we put all our distributable files under distributions
-                    jarTask.getDestinationDirectory().set(new File(project.getBuildDir(), "distributions"));
-                    // fixup the jar manifest
-                    // Explicitly using an Action interface as java lambdas
-                    // are not supported by Gradle up-to-date checks
-                    jarTask.doFirst(new Action<Task>() {
-                        @Override
-                        public void execute(Task task) {
-                            // this doFirst is added before the info plugin, therefore it will run
-                            // after the doFirst added by the info plugin, and we can override attributes
-                            jarTask.getManifest()
-                                .attributes(
-                                    Map.of(
-                                        "Build-Date",
-                                        BuildParams.getBuildDate(),
-                                        "Build-Java-Version",
-                                        BuildParams.getGradleJavaVersion()
-                                    )
-                                );
+        project.getTasks().withType(Jar.class).configureEach(jarTask -> {
+            // we put all our distributable files under distributions
+            jarTask.getDestinationDirectory().set(new File(project.getBuildDir(), "distributions"));
+            // fixup the jar manifest
+            // Explicitly using an Action interface as java lambdas
+            // are not supported by Gradle up-to-date checks
+            jarTask.doFirst(new Action<Task>() {
+                @Override
+                public void execute(Task task) {
+                    // this doFirst is added before the info plugin, therefore it will run
+                    // after the doFirst added by the info plugin, and we can override attributes
+                    jarTask.getManifest().attributes(new HashMap<String, Object>() {
+                        {
+                            put("Build-Date", BuildParams.getBuildDate());
+                            put("Build-Java-Version", BuildParams.getGradleJavaVersion());
                         }
                     });
                 }
-            );
+            });
+        });
         project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", p -> {
-            project.getTasks()
-                .withType(ShadowJar.class)
-                .configureEach(
-                    shadowJar -> {
-                        /*
-                         * Replace the default "-all" classifier with null
-                         * which will leave the classifier off of the file name.
-                         */
-                        shadowJar.getArchiveClassifier().set((String) null);
-                        /*
-                         * Not all cases need service files merged but it is
-                         * better to be safe
-                         */
-                        shadowJar.mergeServiceFiles();
-                    }
-                );
+            project.getTasks().withType(ShadowJar.class).configureEach(shadowJar -> {
+                /*
+                 * Replace the default "-all" classifier with null
+                 * which will leave the classifier off of the file name.
+                 */
+                shadowJar.getArchiveClassifier().set((String) null);
+                /*
+                 * Not all cases need service files merged but it is
+                 * better to be safe
+                 */
+                shadowJar.mergeServiceFiles();
+            });
             // Add "original" classifier to the non-shadowed JAR to distinguish it from the shadow JAR
             project.getTasks().named(JavaPlugin.JAR_TASK_NAME, Jar.class).configure(jar -> jar.getArchiveClassifier().set("original"));
             // Make sure we assemble the shadow jar
@@ -282,7 +270,9 @@ public class OpenSearchJavaPlugin implements Plugin<Project> {
              * that the default will change to html5 in the future.
              */
             CoreJavadocOptions javadocOptions = (CoreJavadocOptions) javadoc.getOptions();
-            javadocOptions.addBooleanOption("html5", true);
+            if (BuildParams.getRuntimeJavaVersion().compareTo(JavaVersion.VERSION_1_8) > 0) {
+                javadocOptions.addBooleanOption("html5", true);
+            }
         });
 
         TaskProvider<Javadoc> javadoc = project.getTasks().withType(Javadoc.class).named("javadoc");

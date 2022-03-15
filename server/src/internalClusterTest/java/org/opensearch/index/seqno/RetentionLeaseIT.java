@@ -43,7 +43,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.engine.Engine;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
@@ -122,7 +121,7 @@ public class RetentionLeaseIT extends OpenSearchIntegTestCase {
             final CountDownLatch latch = new CountDownLatch(1);
             final ActionListener<ReplicationResponse> listener = countDownLatchListener(latch);
             // simulate a peer recovery which locks the soft deletes policy on the primary
-            final Closeable retentionLock = randomBoolean() ? primary.acquireHistoryRetentionLock(Engine.HistorySource.INDEX) : () -> {};
+            final Closeable retentionLock = randomBoolean() ? primary.acquireHistoryRetentionLock() : () -> {};
             currentRetentionLeases.put(id, primary.addRetentionLease(id, retainingSequenceNumber, source, listener));
             latch.await();
             retentionLock.close();
@@ -175,7 +174,7 @@ public class RetentionLeaseIT extends OpenSearchIntegTestCase {
             final CountDownLatch latch = new CountDownLatch(1);
             final ActionListener<ReplicationResponse> listener = countDownLatchListener(latch);
             // simulate a peer recovery which locks the soft deletes policy on the primary
-            final Closeable retentionLock = randomBoolean() ? primary.acquireHistoryRetentionLock(Engine.HistorySource.INDEX) : () -> {};
+            final Closeable retentionLock = randomBoolean() ? primary.acquireHistoryRetentionLock() : () -> {};
             currentRetentionLeases.put(id, primary.addRetentionLease(id, retainingSequenceNumber, source, listener));
             latch.await();
             retentionLock.close();
@@ -186,7 +185,7 @@ public class RetentionLeaseIT extends OpenSearchIntegTestCase {
             final CountDownLatch latch = new CountDownLatch(1);
             primary.removeRetentionLease(id, countDownLatchListener(latch));
             // simulate a peer recovery which locks the soft deletes policy on the primary
-            final Closeable retentionLock = randomBoolean() ? primary.acquireHistoryRetentionLock(Engine.HistorySource.INDEX) : () -> {};
+            final Closeable retentionLock = randomBoolean() ? primary.acquireHistoryRetentionLock() : () -> {};
             currentRetentionLeases.remove(id);
             latch.await();
             retentionLock.close();
@@ -346,22 +345,16 @@ public class RetentionLeaseIT extends OpenSearchIntegTestCase {
                     )
                 );
             }
-            assertBusy(
-                () -> {
-                    // check all retention leases have been synced to all replicas
-                    for (final ShardRouting replicaShard : clusterService().state()
-                        .routingTable()
-                        .index("index")
-                        .shard(0)
-                        .replicaShards()) {
-                        final String replicaShardNodeId = replicaShard.currentNodeId();
-                        final String replicaShardNodeName = clusterService().state().nodes().get(replicaShardNodeId).getName();
-                        final IndexShard replica = internalCluster().getInstance(IndicesService.class, replicaShardNodeName)
-                            .getShardOrNull(new ShardId(resolveIndex("index"), 0));
-                        assertThat(replica.getRetentionLeases(), equalTo(primary.getRetentionLeases()));
-                    }
+            assertBusy(() -> {
+                // check all retention leases have been synced to all replicas
+                for (final ShardRouting replicaShard : clusterService().state().routingTable().index("index").shard(0).replicaShards()) {
+                    final String replicaShardNodeId = replicaShard.currentNodeId();
+                    final String replicaShardNodeName = clusterService().state().nodes().get(replicaShardNodeId).getName();
+                    final IndexShard replica = internalCluster().getInstance(IndicesService.class, replicaShardNodeName)
+                        .getShardOrNull(new ShardId(resolveIndex("index"), 0));
+                    assertThat(replica.getRetentionLeases(), equalTo(primary.getRetentionLeases()));
                 }
-            );
+            });
         }
     }
 

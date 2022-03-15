@@ -201,7 +201,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
         // TEST FETCHING _parent from child
         SearchResponse searchResponse;
-        searchResponse = client().prepareSearch("test").setQuery(idsQuery("doc").addIds("c1")).get();
+        searchResponse = client().prepareSearch("test").setQuery(idsQuery().addIds("c1")).get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("c1"));
@@ -534,7 +534,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         createIndexRequest("test", "parent", "1", null, "p_field", 1).get();
         createIndexRequest("test", "child", "2", "1", "c_field", 1).get();
 
-        client().prepareIndex("test", "doc", "3").setSource("p_field", 1).get();
+        client().prepareIndex("test").setId("3").setSource("p_field", 1).get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -608,7 +608,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertHitCount(searchResponse, 1L);
         assertThat(searchResponse.getHits().getAt(0).getExplanation().getDescription(), containsString("join value p1"));
 
-        ExplainResponse explainResponse = client().prepareExplain("test", "doc", parentId)
+        ExplainResponse explainResponse = client().prepareExplain("test", parentId)
             .setQuery(hasChildQuery("child", termQuery("c_field", "1"), ScoreMode.Max))
             .get();
         assertThat(explainResponse.isExists(), equalTo(true));
@@ -769,7 +769,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertNoFailures(response);
         assertThat(response.getHits().getTotalHits().value, equalTo(0L));
 
-        client().prepareIndex("test", "doc")
+        client().prepareIndex("test")
             .setSource(jsonBuilder().startObject().field("text", "value").endObject())
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .get();
@@ -801,7 +801,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         createIndexRequest("test", "child", "2", "1", "c_field", 1).get();
         client().admin().indices().prepareFlush("test").get();
 
-        client().prepareIndex("test", "doc", "3").setSource("p_field", 2).get();
+        client().prepareIndex("test").setId("3").setSource("p_field", 2).get();
 
         refresh();
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -1326,7 +1326,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         ensureGreen();
 
         String parentId = "p1";
-        client().prepareIndex("test", "doc", parentId).setSource("p_field", "1").get();
+        client().prepareIndex("test").setId(parentId).setSource("p_field", "1").get();
         refresh();
 
         try {

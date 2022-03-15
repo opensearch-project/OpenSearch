@@ -203,7 +203,6 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             "/releases" + RELEASE_PATTERN_LAYOUT,
             "/release-candidates" + RELEASE_PATTERN_LAYOUT
         );
-
         addIvyRepo(project, SNAPSHOT_REPO_NAME, "https://artifacts.opensearch.org", FAKE_SNAPSHOT_IVY_GROUP, SNAPSHOT_PATTERN_LAYOUT);
 
         addIvyRepo2(project, DOWNLOAD_REPO_NAME_ES, "https://artifacts-no-kpi.elastic.co", FAKE_IVY_GROUP_ES);

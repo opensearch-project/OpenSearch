@@ -106,7 +106,8 @@ public class SearchScrollIT extends OpenSearchIntegTestCase {
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i))
+            client().prepareIndex("test")
+                .setId(Integer.toString(i))
                 .setSource(jsonBuilder().startObject().field("field", i).endObject())
                 .get();
         }
@@ -161,7 +162,7 @@ public class SearchScrollIT extends OpenSearchIntegTestCase {
             } else if (i > 60) {
                 routing = "2";
             }
-            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", i).setRouting(routing).get();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", i).setRouting(routing).get();
         }
 
         client().admin().indices().prepareRefresh().get();
@@ -220,7 +221,8 @@ public class SearchScrollIT extends OpenSearchIntegTestCase {
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         for (int i = 0; i < 500; i++) {
-            client().prepareIndex("test", "tweet", Integer.toString(i))
+            client().prepareIndex("test")
+                .setId(Integer.toString(i))
                 .setSource(
                     jsonBuilder().startObject()
                         .field("user", "foobar")
@@ -262,7 +264,7 @@ public class SearchScrollIT extends OpenSearchIntegTestCase {
                 for (SearchHit searchHit : searchResponse.getHits().getHits()) {
                     Map<String, Object> map = searchHit.getSourceAsMap();
                     map.put("message", "update");
-                    client().prepareIndex("test", "tweet", searchHit.getId()).setSource(map).get();
+                    client().prepareIndex("test").setId(searchHit.getId()).setSource(map).get();
                 }
                 searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
             } while (searchResponse.getHits().getHits().length > 0);
@@ -297,7 +299,8 @@ public class SearchScrollIT extends OpenSearchIntegTestCase {
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i))
+            client().prepareIndex("test")
+                .setId(Integer.toString(i))
                 .setSource(jsonBuilder().startObject().field("field", i).endObject())
                 .get();
         }
@@ -416,7 +419,8 @@ public class SearchScrollIT extends OpenSearchIntegTestCase {
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i))
+            client().prepareIndex("test")
+                .setId(Integer.toString(i))
                 .setSource(jsonBuilder().startObject().field("field", i).endObject())
                 .get();
         }
@@ -490,7 +494,7 @@ public class SearchScrollIT extends OpenSearchIntegTestCase {
      * Tests that we use an optimization shrinking the batch to the size of the shard. Thus the Integer.MAX_VALUE window doesn't OOM us.
      */
     public void testDeepScrollingDoesNotBlowUp() throws Exception {
-        client().prepareIndex("index", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).execute().get();
+        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).execute().get();
         /*
          * Disable the max result window setting for this test because it'll reject the search's unreasonable batch size. We want
          * unreasonable batch sizes to just OOM.
@@ -521,7 +525,7 @@ public class SearchScrollIT extends OpenSearchIntegTestCase {
     }
 
     public void testThatNonExistingScrollIdReturnsCorrectException() throws Exception {
-        client().prepareIndex("index", "type", "1").setSource("field", "value").execute().get();
+        client().prepareIndex("index").setId("1").setSource("field", "value").execute().get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("index").setSize(1).setScroll("1m").get();
@@ -539,11 +543,10 @@ public class SearchScrollIT extends OpenSearchIntegTestCase {
                 Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             ).addMapping("test", "no_field", "type=keyword", "some_field", "type=keyword")
         );
-        client().prepareIndex("test", "test", "1").setSource("some_field", "test").get();
+        client().prepareIndex("test").setId("1").setSource("some_field", "test").get();
         refresh();
 
         SearchResponse response = client().prepareSearch("test")
-            .setTypes("test")
             .addSort(new FieldSortBuilder("no_field").order(SortOrder.ASC).missing("_last"))
             .setScroll("1m")
             .get();
@@ -556,7 +559,6 @@ public class SearchScrollIT extends OpenSearchIntegTestCase {
         assertNoSearchHits(response);
 
         response = client().prepareSearch("test")
-            .setTypes("test")
             .addSort(new FieldSortBuilder("no_field").order(SortOrder.ASC).missing("_first"))
             .setScroll("1m")
             .get();
@@ -571,7 +573,7 @@ public class SearchScrollIT extends OpenSearchIntegTestCase {
     public void testCloseAndReopenOrDeleteWithActiveScroll() {
         createIndex("test");
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", i).get();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", i).get();
         }
         refresh();
         SearchResponse searchResponse = client().prepareSearch()
@@ -662,7 +664,8 @@ public class SearchScrollIT extends OpenSearchIntegTestCase {
     public void testInvalidScrollKeepAlive() throws IOException {
         createIndex("test");
         for (int i = 0; i < 2; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i))
+            client().prepareIndex("test")
+                .setId(Integer.toString(i))
                 .setSource(jsonBuilder().startObject().field("field", i).endObject())
                 .get();
         }
@@ -717,9 +720,9 @@ public class SearchScrollIT extends OpenSearchIntegTestCase {
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards))
                 .addMapping("_doc", "created_date", "type=date,format=yyyy-MM-dd")
         );
-        client().prepareIndex("test", "_doc").setId("1").setSource("created_date", "2020-01-01").get();
-        client().prepareIndex("test", "_doc").setId("2").setSource("created_date", "2020-01-02").get();
-        client().prepareIndex("test", "_doc").setId("3").setSource("created_date", "2020-01-03").get();
+        client().prepareIndex("test").setId("1").setSource("created_date", "2020-01-01").get();
+        client().prepareIndex("test").setId("2").setSource("created_date", "2020-01-02").get();
+        client().prepareIndex("test").setId("3").setSource("created_date", "2020-01-03").get();
         client().admin().indices().prepareRefresh("test").get();
         SearchResponse resp = null;
         try {

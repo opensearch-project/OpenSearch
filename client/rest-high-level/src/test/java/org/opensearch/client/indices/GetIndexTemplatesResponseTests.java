@@ -50,7 +50,6 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -84,7 +83,7 @@ public class GetIndexTemplatesResponseTests extends OpenSearchTestCase {
             .test();
     }
 
-    public void testParsingFromEsResponse() throws IOException {
+    public void testParsingFromOpenSearchResponse() throws IOException {
         for (int runs = 0; runs < 20; runs++) {
             org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse esResponse =
                 new org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse(new ArrayList<>());
@@ -132,8 +131,7 @@ public class GetIndexTemplatesResponseTests extends OpenSearchTestCase {
                     assertThat(result.order(), equalTo(esIMD.order()));
                     assertThat(result.version(), equalTo(esIMD.version()));
 
-                    assertThat(esIMD.mappings().size(), equalTo(1));
-                    BytesReference mappingSource = esIMD.mappings().valuesIt().next().uncompressed();
+                    BytesReference mappingSource = esIMD.mappings().uncompressed();
                     Map<String, Object> expectedMapping = XContentHelper.convertToMap(mappingSource, true, xContentBuilder.contentType())
                         .v2();
                     assertThat(result.mappings().sourceAsMap(), equalTo(expectedMapping.get("_doc")));
@@ -196,13 +194,9 @@ public class GetIndexTemplatesResponseTests extends OpenSearchTestCase {
                 templateBuilder.version(between(0, 100));
             }
             if (randomBoolean()) {
-                try {
-                    Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(mappingString), true, XContentType.JSON).v2();
-                    MappingMetadata mapping = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, map);
-                    templateBuilder.mapping(mapping);
-                } catch (IOException ex) {
-                    throw new UncheckedIOException(ex);
-                }
+                Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(mappingString), true, XContentType.JSON).v2();
+                MappingMetadata mapping = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, map);
+                templateBuilder.mapping(mapping);
             }
             templates.add(templateBuilder.build());
         }
@@ -229,7 +223,10 @@ public class GetIndexTemplatesResponseTests extends OpenSearchTestCase {
             serverTemplateBuilder.order(clientITMD.order());
             serverTemplateBuilder.version(clientITMD.version());
             if (clientITMD.mappings() != null) {
-                serverTemplateBuilder.putMapping(MapperService.SINGLE_MAPPING_NAME, clientITMD.mappings().source());
+                // The client-side mappings never include a wrapping type, but server-side mappings
+                // for index templates still do so we need to wrap things here
+                String mappings = "{\"" + MapperService.SINGLE_MAPPING_NAME + "\": " + clientITMD.mappings().source().string() + "}";
+                serverTemplateBuilder.putMapping(MapperService.SINGLE_MAPPING_NAME, mappings);
             }
             serverIndexTemplates.add(serverTemplateBuilder.build());
 

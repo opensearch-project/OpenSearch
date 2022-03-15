@@ -195,7 +195,12 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
         }
 
         static RangeFieldMapper createExtractedRangeFieldBuilder(String name, RangeType rangeType, BuilderContext context) {
-            RangeFieldMapper.Builder builder = new RangeFieldMapper.Builder(name, rangeType, true);
+            RangeFieldMapper.Builder builder = new RangeFieldMapper.Builder(
+                name,
+                rangeType,
+                true,
+                hasIndexCreated(context.indexSettings()) ? context.indexCreatedVersion() : null
+            );
             // For now no doc values, because in processQuery(...) only the Lucene range fields get added:
             builder.docValues(false);
             return builder.build(context);

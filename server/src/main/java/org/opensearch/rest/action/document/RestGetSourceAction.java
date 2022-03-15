@@ -38,7 +38,6 @@ import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.rest.BaseRestHandler;
@@ -64,20 +63,9 @@ import static org.opensearch.rest.RestStatus.OK;
  */
 public class RestGetSourceAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetSourceAction.class);
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in get_source and exist_source"
-        + "requests is deprecated.";
-
     @Override
     public List<Route> routes() {
-        return unmodifiableList(
-            asList(
-                new Route(GET, "/{index}/_source/{id}"),
-                new Route(HEAD, "/{index}/_source/{id}"),
-                new Route(GET, "/{index}/{type}/{id}/_source"),
-                new Route(HEAD, "/{index}/{type}/{id}/_source")
-            )
-        );
+        return unmodifiableList(asList(new Route(GET, "/{index}/_source/{id}"), new Route(HEAD, "/{index}/_source/{id}")));
     }
 
     @Override
@@ -87,13 +75,7 @@ public class RestGetSourceAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final GetRequest getRequest;
-        if (request.hasParam("type")) {
-            deprecationLogger.deprecate("get_source_with_types", TYPES_DEPRECATION_MESSAGE);
-            getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
-        } else {
-            getRequest = new GetRequest(request.param("index"), request.param("id"));
-        }
+        final GetRequest getRequest = new GetRequest(request.param("index"), request.param("id"));
         getRequest.refresh(request.paramAsBoolean("refresh", getRequest.refresh()));
         getRequest.routing(request.param("routing"));
         getRequest.preference(request.param("preference"));
@@ -140,13 +122,12 @@ public class RestGetSourceAction extends BaseRestHandler {
          */
         private void checkResource(final GetResponse response) {
             final String index = response.getIndex();
-            final String type = response.getType();
             final String id = response.getId();
 
             if (response.isExists() == false) {
-                throw new ResourceNotFoundException("Document not found [" + index + "]/[" + type + "]/[" + id + "]");
+                throw new ResourceNotFoundException("Document not found [" + index + "]/[" + id + "]");
             } else if (response.isSourceEmpty()) {
-                throw new ResourceNotFoundException("Source not found [" + index + "]/[" + type + "]/[" + id + "]");
+                throw new ResourceNotFoundException("Source not found [" + index + "]/[" + id + "]");
             }
         }
     }

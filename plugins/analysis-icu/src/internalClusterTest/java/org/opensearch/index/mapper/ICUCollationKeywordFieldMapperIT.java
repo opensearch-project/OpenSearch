@@ -93,13 +93,12 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
         // both values should collate to same value
         indexRandom(
             true,
-            client().prepareIndex(index, type, "1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
-            client().prepareIndex(index, type, "2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
+            client().prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
+            client().prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
         );
 
         // searching for either of the terms should return both results since they collate to the same value
         SearchRequest request = new SearchRequest().indices(index)
-            .types(type)
             .source(
                 new SearchSourceBuilder().fetchSource(false)
                     .query(QueryBuilders.termQuery("collate", randomBoolean() ? equivalent[0] : equivalent[1]))
@@ -136,14 +135,14 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
         // everything should be indexed fine, no exceptions
         indexRandom(
             true,
-            client().prepareIndex(index, type, "1")
+            client().prepareIndex(index)
+                .setId("1")
                 .setSource("{\"id\":\"1\", \"collate\":[\"" + equivalent[0] + "\", \"" + equivalent[1] + "\"]}", XContentType.JSON),
-            client().prepareIndex(index, type, "2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[2] + "\"}", XContentType.JSON)
+            client().prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[2] + "\"}", XContentType.JSON)
         );
 
         // using sort mode = max, values B and C will be used for the sort
         SearchRequest request = new SearchRequest().indices(index)
-            .types(type)
             .source(
                 new SearchSourceBuilder().fetchSource(false)
                     .query(QueryBuilders.termQuery("collate", "a"))
@@ -159,7 +158,6 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
 
         // same thing, using different sort mode that will use a for both docs
         request = new SearchRequest().indices(index)
-            .types(type)
             .source(
                 new SearchSourceBuilder().fetchSource(false)
                     .query(QueryBuilders.termQuery("collate", "a"))
@@ -201,13 +199,12 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex(index, type, "1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
-            client().prepareIndex(index, type, "2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
+            client().prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
+            client().prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
         );
 
         // searching for either of the terms should return both results since they collate to the same value
         SearchRequest request = new SearchRequest().indices(index)
-            .types(type)
             .source(
                 new SearchSourceBuilder().fetchSource(false)
                     .query(QueryBuilders.termQuery("collate", randomBoolean() ? equivalent[0] : equivalent[1]))
@@ -248,12 +245,11 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex(index, type, "1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
-            client().prepareIndex(index, type, "2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
+            client().prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
+            client().prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
         );
 
         SearchRequest request = new SearchRequest().indices(index)
-            .types(type)
             .source(
                 new SearchSourceBuilder().fetchSource(false)
                     .query(QueryBuilders.termQuery("collate", randomBoolean() ? equivalent[0] : equivalent[1]))
@@ -295,12 +291,11 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex(index, type, "1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
-            client().prepareIndex(index, type, "2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
+            client().prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
+            client().prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
         );
 
         SearchRequest request = new SearchRequest().indices(index)
-            .types(type)
             .source(
                 new SearchSourceBuilder().fetchSource(false)
                     .query(QueryBuilders.termQuery("collate", randomBoolean() ? equivalent[0] : equivalent[1]))
@@ -342,13 +337,12 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex(index, type, "1").setSource("{\"id\":\"1\",\"collate\":\"foo bar\"}", XContentType.JSON),
-            client().prepareIndex(index, type, "2").setSource("{\"id\":\"2\",\"collate\":\"foobar\"}", XContentType.JSON),
-            client().prepareIndex(index, type, "3").setSource("{\"id\":\"3\",\"collate\":\"foo-bar\"}", XContentType.JSON)
+            client().prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"foo bar\"}", XContentType.JSON),
+            client().prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"foobar\"}", XContentType.JSON),
+            client().prepareIndex(index).setId("3").setSource("{\"id\":\"3\",\"collate\":\"foo-bar\"}", XContentType.JSON)
         );
 
         SearchRequest request = new SearchRequest().indices(index)
-            .types(type)
             .source(
                 new SearchSourceBuilder().fetchSource(false).sort("collate", SortOrder.ASC).sort("id", SortOrder.ASC) // secondary sort
                                                                                                                       // should kick in on
@@ -386,12 +380,11 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex(index, type, "1").setSource("{\"collate\":\"foobar-10\"}", XContentType.JSON),
-            client().prepareIndex(index, type, "2").setSource("{\"collate\":\"foobar-9\"}", XContentType.JSON)
+            client().prepareIndex(index).setId("1").setSource("{\"collate\":\"foobar-10\"}", XContentType.JSON),
+            client().prepareIndex(index).setId("2").setSource("{\"collate\":\"foobar-9\"}", XContentType.JSON)
         );
 
         SearchRequest request = new SearchRequest().indices(index)
-            .types(type)
             .source(new SearchSourceBuilder().fetchSource(false).sort("collate", SortOrder.ASC));
 
         SearchResponse response = client().search(request).actionGet();
@@ -427,14 +420,13 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex(index, type, "1").setSource("{\"id\":\"1\",\"collate\":\"résumé\"}", XContentType.JSON),
-            client().prepareIndex(index, type, "2").setSource("{\"id\":\"2\",\"collate\":\"Resume\"}", XContentType.JSON),
-            client().prepareIndex(index, type, "3").setSource("{\"id\":\"3\",\"collate\":\"resume\"}", XContentType.JSON),
-            client().prepareIndex(index, type, "4").setSource("{\"id\":\"4\",\"collate\":\"Résumé\"}", XContentType.JSON)
+            client().prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"résumé\"}", XContentType.JSON),
+            client().prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"Resume\"}", XContentType.JSON),
+            client().prepareIndex(index).setId("3").setSource("{\"id\":\"3\",\"collate\":\"resume\"}", XContentType.JSON),
+            client().prepareIndex(index).setId("4").setSource("{\"id\":\"4\",\"collate\":\"Résumé\"}", XContentType.JSON)
         );
 
         SearchRequest request = new SearchRequest().indices(index)
-            .types(type)
             .source(new SearchSourceBuilder().fetchSource(false).sort("collate", SortOrder.ASC).sort("id", SortOrder.DESC));
 
         SearchResponse response = client().search(request).actionGet();
@@ -467,12 +459,11 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex(index, type, "1").setSource("{\"collate\":\"resume\"}", XContentType.JSON),
-            client().prepareIndex(index, type, "2").setSource("{\"collate\":\"Resume\"}", XContentType.JSON)
+            client().prepareIndex(index).setId("1").setSource("{\"collate\":\"resume\"}", XContentType.JSON),
+            client().prepareIndex(index).setId("2").setSource("{\"collate\":\"Resume\"}", XContentType.JSON)
         );
 
         SearchRequest request = new SearchRequest().indices(index)
-            .types(type)
             .source(new SearchSourceBuilder().fetchSource(false).sort("collate", SortOrder.ASC));
 
         SearchResponse response = client().search(request).actionGet();
@@ -517,12 +508,11 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex(index, type, "1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
-            client().prepareIndex(index, type, "2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
+            client().prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
+            client().prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
         );
 
         SearchRequest request = new SearchRequest().indices(index)
-            .types(type)
             .source(
                 new SearchSourceBuilder().fetchSource(false)
                     .query(QueryBuilders.termQuery("collate", randomBoolean() ? equivalent[0] : equivalent[1]))

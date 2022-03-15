@@ -150,13 +150,13 @@ public class RelocationIT extends OpenSearchIntegTestCase {
 
         logger.info("--> index 10 docs");
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
         logger.info("--> flush so we have an actual index");
         client().admin().indices().prepareFlush().execute().actionGet();
         logger.info("--> index more docs so we have something in the translog");
         for (int i = 10; i < 20; i++) {
-            client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
 
         logger.info("--> verifying count");
@@ -376,12 +376,12 @@ public class RelocationIT extends OpenSearchIntegTestCase {
 
             List<IndexRequestBuilder> builders1 = new ArrayList<>();
             for (int numDocs = randomIntBetween(10, 30); numDocs > 0; numDocs--) {
-                builders1.add(client().prepareIndex("test", "type").setSource("{}", XContentType.JSON));
+                builders1.add(client().prepareIndex("test").setSource("{}", XContentType.JSON));
             }
 
             List<IndexRequestBuilder> builders2 = new ArrayList<>();
             for (int numDocs = randomIntBetween(10, 30); numDocs > 0; numDocs--) {
-                builders2.add(client().prepareIndex("test", "type").setSource("{}", XContentType.JSON));
+                builders2.add(client().prepareIndex("test").setSource("{}", XContentType.JSON));
             }
 
             logger.info("--> START relocate the shard from {} to {}", nodes[fromNode], nodes[toNode]);
@@ -441,7 +441,7 @@ public class RelocationIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> requests = new ArrayList<>();
         int numDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName, "type").setSource("{}", XContentType.JSON));
+            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("3").setWaitForGreenStatus().get().isTimedOut());
@@ -560,7 +560,7 @@ public class RelocationIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             String id = randomRealisticUnicodeOfLength(10) + String.valueOf(i);
             ids.add(id);
-            docs[i] = client().prepareIndex("test", "type1", id).setSource("field1", English.intToEnglish(i));
+            docs[i] = client().prepareIndex("test").setId(id).setSource("field1", English.intToEnglish(i));
         }
         indexRandom(true, docs);
         SearchResponse countResponse = client().prepareSearch("test").get();
@@ -578,7 +578,7 @@ public class RelocationIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             String id = randomRealisticUnicodeOfLength(10) + String.valueOf(numDocs + i);
             ids.add(id);
-            docs[i] = client().prepareIndex("test", "type1", id).setSource("field1", English.intToEnglish(numDocs + i));
+            docs[i] = client().prepareIndex("test").setId(id).setSource("field1", English.intToEnglish(numDocs + i));
         }
         indexRandom(true, docs);
 
@@ -614,13 +614,14 @@ public class RelocationIT extends OpenSearchIntegTestCase {
 
         logger.info("--> index 10 docs");
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
         logger.info("--> flush so we have an actual index");
         client().admin().indices().prepareFlush().execute().actionGet();
         logger.info("--> index more docs so we have something in the translog");
         for (int i = 10; i < 20; i++) {
-            client().prepareIndex("test", "type", Integer.toString(i))
+            client().prepareIndex("test")
+                .setId(Integer.toString(i))
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
                 .setSource("field", "value" + i)
                 .execute();
@@ -671,7 +672,7 @@ public class RelocationIT extends OpenSearchIntegTestCase {
 
         logger.info("--> index 10 docs");
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
         logger.info("--> flush so we have an actual index");
         client().admin().indices().prepareFlush().execute().actionGet();
@@ -679,7 +680,8 @@ public class RelocationIT extends OpenSearchIntegTestCase {
         final List<ActionFuture<IndexResponse>> pendingIndexResponses = new ArrayList<>();
         for (int i = 10; i < 20; i++) {
             pendingIndexResponses.add(
-                client().prepareIndex("test", "type", Integer.toString(i))
+                client().prepareIndex("test")
+                    .setId(Integer.toString(i))
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
                     .setSource("field", "value" + i)
                     .execute()
@@ -706,7 +708,8 @@ public class RelocationIT extends OpenSearchIntegTestCase {
         logger.info("--> index 100 docs while relocating");
         for (int i = 20; i < 120; i++) {
             pendingIndexResponses.add(
-                client().prepareIndex("test", "type", Integer.toString(i))
+                client().prepareIndex("test")
+                    .setId(Integer.toString(i))
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
                     .setSource("field", "value" + i)
                     .execute()
@@ -810,8 +813,8 @@ public class RelocationIT extends OpenSearchIntegTestCase {
                 if (chunkRequest.name().startsWith(IndexFileNames.SEGMENTS)) {
                     // corrupting the segments_N files in order to make sure future recovery re-send files
                     logger.debug("corrupting [{}] to {}. file name: [{}]", action, connection.getNode(), chunkRequest.name());
-                    assert chunkRequest.content().toBytesRef().bytes == chunkRequest.content()
-                        .toBytesRef().bytes : "no internal reference!!";
+                    assert chunkRequest.content().toBytesRef().bytes == chunkRequest.content().toBytesRef().bytes
+                        : "no internal reference!!";
                     byte[] array = chunkRequest.content().toBytesRef().bytes;
                     array[0] = (byte) ~array[0]; // flip one byte in the content
                     corruptionCount.countDown();
