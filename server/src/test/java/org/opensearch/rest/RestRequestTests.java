@@ -34,6 +34,7 @@ package org.opensearch.rest;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.MapBuilder;
@@ -287,7 +288,7 @@ public class RestRequestTests extends OpenSearchTestCase {
      */
     public void testValidateParamValuesAreEqual() {
         FakeRestRequest request = new FakeRestRequest();
-        List<String> valueList = new ArrayList<>(Arrays.asList(null, "value1", "value2"));
+        List<String> valueList = new ArrayList<>(Arrays.asList(null, "", "value1", "value2"));
         String valueForKey1 = randomFrom(valueList);
         String valueForKey2 = randomFrom(valueList);
         request.params().put("key1", valueForKey1);
@@ -300,12 +301,12 @@ public class RestRequestTests extends OpenSearchTestCase {
                 e.getMessage()
             );
             assertNotEquals(valueForKey1, valueForKey2);
-            assertNotNull(valueForKey1);
-            assertNotNull(valueForKey2);
+            assertFalse(Strings.isNullOrEmpty(valueForKey1));
+            assertFalse(Strings.isNullOrEmpty(valueForKey2));
         }
         assertTrue(
-            "The 2 keys should be either equal, or having null value.",
-            valueForKey1 == null || valueForKey2 == null || valueForKey1.equals(valueForKey2)
+            "Values of the 2 keys should be equal, or having a least 1 null value or empty String.",
+            Strings.isNullOrEmpty(valueForKey1) || Strings.isNullOrEmpty(valueForKey2) || valueForKey1.equals(valueForKey2)
         );
     }
 

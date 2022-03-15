@@ -587,11 +587,11 @@ public class RestRequest implements ToXContent.Params {
      */
     @Deprecated
     public void validateParamValuesAreEqual(String... keys) {
-        // Filter the non-null values of the parameters with the key, and get the distinct values.
+        // Filter the non-empty values of the parameters with the key, and get the distinct values.
         Set<String> set = new HashSet<>();
         for (String key : keys) {
             String value = param(key);
-            if (value != null) {
+            if (!Strings.isNullOrEmpty(value)) {
                 set.add(value);
             }
         }
