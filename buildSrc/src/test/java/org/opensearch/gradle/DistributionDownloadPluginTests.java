@@ -32,6 +32,7 @@
 
 package org.opensearch.gradle;
 
+import org.gradle.api.internal.artifacts.repositories.DefaultIvyArtifactRepository;
 import org.opensearch.gradle.OpenSearchDistribution.Platform;
 import org.opensearch.gradle.OpenSearchDistribution.Type;
 import org.opensearch.gradle.info.BuildParams;
@@ -77,6 +78,59 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
     public void testVersionDefault() {
         OpenSearchDistribution distro = checkDistro(createProject(null, false), "testdistro", null, Type.ARCHIVE, Platform.LINUX, true);
         assertEquals(distro.getVersion(), VersionProperties.getOpenSearch());
+    }
+
+    public void testCustomDistributionUrlWithUrl() {
+        Project project = ProjectBuilder.builder().build();
+        String customUrl = "https://artifacts.opensearch.org/custom";
+        project.getExtensions().getExtraProperties().set("customDistributionUrl", customUrl);
+        DistributionDownloadPlugin plugin = new DistributionDownloadPlugin();
+        plugin.apply(project);
+        assertEquals(4, project.getRepositories().size());
+        assertEquals(
+            ((DefaultIvyArtifactRepository) project.getRepositories().getAt("opensearch-downloads")).getUrl().toString(),
+            customUrl
+        );
+        assertEquals(
+            ((DefaultIvyArtifactRepository) project.getRepositories().getAt("opensearch-snapshots")).getUrl().toString(),
+            customUrl
+        );
+        assertEquals(
+            ((DefaultIvyArtifactRepository) project.getRepositories().getAt("elasticsearch-downloads")).getUrl().toString(),
+            "https://artifacts-no-kpi.elastic.co"
+        );
+        assertEquals(
+            ((DefaultIvyArtifactRepository) project.getRepositories().getAt("elasticsearch-snapshots")).getUrl().toString(),
+            "https://snapshots-no-kpi.elastic.co"
+        );
+
+    }
+
+    public void testCustomDistributionUrlWithoutUrl() {
+        Project project = ProjectBuilder.builder().build();
+        DistributionDownloadPlugin plugin = new DistributionDownloadPlugin();
+        plugin.apply(project);
+        assertEquals(5, project.getRepositories().size());
+        assertEquals(
+            ((DefaultIvyArtifactRepository) project.getRepositories().getAt("opensearch-downloads")).getUrl().toString(),
+            "https://artifacts.opensearch.org"
+        );
+        assertEquals(
+            ((DefaultIvyArtifactRepository) project.getRepositories().getAt("opensearch-downloads2")).getUrl().toString(),
+            "https://artifacts.opensearch.org"
+        );
+        assertEquals(
+            ((DefaultIvyArtifactRepository) project.getRepositories().getAt("opensearch-snapshots")).getUrl().toString(),
+            "https://artifacts.opensearch.org"
+        );
+        assertEquals(
+            ((DefaultIvyArtifactRepository) project.getRepositories().getAt("elasticsearch-downloads")).getUrl().toString(),
+            "https://artifacts-no-kpi.elastic.co"
+        );
+        assertEquals(
+            ((DefaultIvyArtifactRepository) project.getRepositories().getAt("elasticsearch-snapshots")).getUrl().toString(),
+            "https://snapshots-no-kpi.elastic.co"
+        );
     }
 
     public void testBadVersionFormat() {
