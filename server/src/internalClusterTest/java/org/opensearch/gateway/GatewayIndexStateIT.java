@@ -60,7 +60,6 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.mapper.MapperParsingException;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.IndexClosedException;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -123,9 +122,8 @@ public class GatewayIndexStateIT extends OpenSearchIntegTestCase {
             .getState()
             .metadata()
             .index("test")
-            .getMappings()
-            .get(MapperService.SINGLE_MAPPING_NAME);
-        assertThat(mappingMd.routing().required(), equalTo(true));
+            .mapping();
+        assertThat(mappingMd.routingRequired(), equalTo(true));
 
         logger.info("--> restarting nodes...");
         internalCluster().fullRestart();
@@ -134,17 +132,8 @@ public class GatewayIndexStateIT extends OpenSearchIntegTestCase {
         ensureYellow();
 
         logger.info("--> verify meta _routing required exists");
-        mappingMd = client().admin()
-            .cluster()
-            .prepareState()
-            .execute()
-            .actionGet()
-            .getState()
-            .metadata()
-            .index("test")
-            .getMappings()
-            .get(MapperService.SINGLE_MAPPING_NAME);
-        assertThat(mappingMd.routing().required(), equalTo(true));
+        mappingMd = client().admin().cluster().prepareState().execute().actionGet().getState().metadata().index("test").mapping();
+        assertThat(mappingMd.routingRequired(), equalTo(true));
     }
 
     public void testSimpleOpenClose() throws Exception {

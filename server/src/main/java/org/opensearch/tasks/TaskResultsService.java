@@ -80,13 +80,11 @@ public class TaskResultsService {
 
     public static final String TASK_INDEX = ".tasks";
 
-    public static final String TASK_TYPE = "task";
-
     public static final String TASK_RESULT_INDEX_MAPPING_FILE = "task-index-mapping.json";
 
     public static final String TASK_RESULT_MAPPING_VERSION_META_FIELD = "version";
 
-    public static final int TASK_RESULT_MAPPING_VERSION = 3;
+    public static final int TASK_RESULT_MAPPING_VERSION = 3; // must match version in task-index-mapping.json
 
     /**
      * The backoff policy to use when saving a task result fails. The total wait
@@ -115,7 +113,7 @@ public class TaskResultsService {
             CreateIndexRequest createIndexRequest = new CreateIndexRequest();
             createIndexRequest.settings(taskResultIndexSettings());
             createIndexRequest.index(TASK_INDEX);
-            createIndexRequest.mapping(TASK_TYPE, taskResultIndexMapping(), XContentType.JSON);
+            createIndexRequest.mapping(taskResultIndexMapping());
             createIndexRequest.cause("auto(task api)");
 
             client.admin().indices().create(createIndexRequest, new ActionListener<CreateIndexResponse>() {
@@ -155,7 +153,7 @@ public class TaskResultsService {
     }
 
     private int getTaskResultMappingVersion(IndexMetadata metadata) {
-        MappingMetadata mappingMetadata = metadata.getMappings().get(TASK_TYPE);
+        MappingMetadata mappingMetadata = metadata.mapping();
         if (mappingMetadata == null) {
             return 0;
         }
