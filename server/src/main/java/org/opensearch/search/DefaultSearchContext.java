@@ -324,7 +324,7 @@ final class DefaultSearchContext extends SearchContext {
         if (mapperService().hasNested()
             && new NestedHelper(mapperService()).mightMatchNestedDocs(query)
             && (aliasFilter == null || new NestedHelper(mapperService()).mightMatchNestedDocs(aliasFilter))) {
-            filters.add(Queries.newNonNestedFilter(mapperService().getIndexSettings().getIndexVersionCreated()));
+            filters.add(Queries.newNonNestedFilter());
         }
 
         if (aliasFilter != null) {

@@ -57,7 +57,6 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
-import org.opensearch.Version;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.settings.Settings;
@@ -826,7 +825,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         IndexSearcher searcher
     ) throws IOException {
         Query query = new BooleanQuery.Builder().add(queryBuilder.toQuery(queryShardContext), Occur.MUST)
-            .add(Queries.newNonNestedFilter(Version.CURRENT), Occur.FILTER)
+            .add(Queries.newNonNestedFilter(), Occur.FILTER)
             .build();
         Sort sort = new Sort(sortBuilder.build(queryShardContext).field);
         return searcher.search(query, 10, sort);

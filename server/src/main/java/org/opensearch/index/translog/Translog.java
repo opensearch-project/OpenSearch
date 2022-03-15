@@ -2018,7 +2018,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(0, generation, initialGlobalCheckpoint, minTranslogGeneration);
 
         Checkpoint.write(channelFactory, checkpointFile, checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
-        IOUtils.fsync(checkpointFile, false);
         final TranslogWriter writer = TranslogWriter.create(
             shardId,
             uuid,

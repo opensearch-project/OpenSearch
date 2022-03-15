@@ -32,9 +32,9 @@
 
 package org.opensearch.index.query;
 
+import org.apache.lucene.queries.spans.FieldMaskingSpanQuery;
+import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
-import org.apache.lucene.search.spans.SpanQuery;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
@@ -135,6 +135,7 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
                         );
                     }
                     inner = (SpanQueryBuilder) query;
+                    SpanQueryBuilderUtil.checkNoBoost(SPAN_FIELD_MASKING_FIELD.getPreferredName(), currentFieldName, parser, inner);
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -176,7 +177,7 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
     }
 
     @Override
-    protected SpanQuery doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(QueryShardContext context) throws IOException {
         String fieldInQuery = fieldName;
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType != null) {

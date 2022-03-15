@@ -56,6 +56,7 @@ public class IndexPrimaryRelocationIT extends OpenSearchIntegTestCase {
 
     private static final int RELOCATION_COUNT = 15;
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/2063")
     public void testPrimaryRelocationWhileIndexing() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(randomIntBetween(2, 3));
         client().admin()

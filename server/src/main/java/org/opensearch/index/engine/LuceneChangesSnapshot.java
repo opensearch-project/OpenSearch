@@ -47,7 +47,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.util.ArrayUtil;
-import org.opensearch.Version;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.Queries;
@@ -247,7 +246,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
 
     private static Query operationsRangeQuery(long fromSeqNo, long toSeqNo) {
         return new BooleanQuery.Builder().add(LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, fromSeqNo, toSeqNo), BooleanClause.Occur.MUST)
-            .add(Queries.newNonNestedFilter(Version.CURRENT), BooleanClause.Occur.MUST) // exclude non-root nested docs
+            .add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST) // exclude non-root nested docs
             .build();
     }
 

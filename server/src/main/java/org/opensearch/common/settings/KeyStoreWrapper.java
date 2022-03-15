@@ -32,13 +32,12 @@
 
 package org.opensearch.common.settings;
 
+import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
-import org.apache.lucene.store.BufferedChecksumIndexInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.SetOnce;
@@ -238,8 +237,7 @@ public class KeyStoreWrapper implements SecureSettings {
         }
 
         NIOFSDirectory directory = new NIOFSDirectory(configDir);
-        try (IndexInput indexInput = directory.openInput(keystoreFileName, IOContext.READONCE)) {
-            ChecksumIndexInput input = new BufferedChecksumIndexInput(indexInput);
+        try (ChecksumIndexInput input = EndiannessReverserUtil.openChecksumInput(directory, keystoreFileName, IOContext.READONCE)) {
             final int formatVersion;
             try {
                 formatVersion = CodecUtil.checkHeader(input, keystoreFileName, MIN_FORMAT_VERSION, FORMAT_VERSION);
@@ -521,7 +519,7 @@ public class KeyStoreWrapper implements SecureSettings {
         NIOFSDirectory directory = new NIOFSDirectory(configDir);
         // write to tmp file first, then overwrite
         String tmpFile = KEYSTORE_FILENAME + ".tmp";
-        try (IndexOutput output = directory.createOutput(tmpFile, IOContext.DEFAULT)) {
+        try (IndexOutput output = EndiannessReverserUtil.createOutput(directory, tmpFile, IOContext.DEFAULT)) {
             CodecUtil.writeHeader(output, KEYSTORE_FILENAME, FORMAT_VERSION);
             output.writeByte(password.length == 0 ? (byte) 0 : (byte) 1);
 

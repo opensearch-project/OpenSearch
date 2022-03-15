@@ -3288,6 +3288,36 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         );
     }
 
+    public void testCopyToFields() throws Exception {
+        XContentBuilder b = jsonBuilder().startObject().startObject("properties");
+        b.startObject("foo");
+        {
+            b.field("type", "text");
+            b.field("copy_to", "foo_copy");
+        }
+        b.endObject();
+        // If field is not stored, it is looked up in source (but source has only 'foo'
+        b.startObject("foo_copy").field("type", "text").field("store", true).endObject();
+        b.endObject().endObject();
+        prepareCreate("test").addMapping("type", b).get();
+
+        client().prepareIndex("test")
+            .setId("1")
+            .setSource(jsonBuilder().startObject().field("foo", "how now brown cow").endObject())
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        SearchResponse response = client().prepareSearch()
+            .setQuery(matchQuery("foo_copy", "brown"))
+            .highlighter(new HighlightBuilder().field(new Field("foo_copy")))
+            .get();
+
+        assertHitCount(response, 1);
+        HighlightField field = response.getHits().getAt(0).getHighlightFields().get("foo_copy");
+        assertThat(field.getFragments().length, equalTo(1));
+        assertThat(field.getFragments()[0].string(), equalTo("how now <em>brown</em> cow"));
+    }
+
     public void testACopyFieldWithNestedQuery() throws Exception {
         String mapping = Strings.toString(
             jsonBuilder().startObject()

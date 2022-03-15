@@ -32,9 +32,7 @@
 
 package org.opensearch.recovery;
 
-import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.procedures.IntProcedure;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.util.English;
 import org.opensearch.action.ActionFuture;
@@ -61,6 +59,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.shard.IndexEventListener;
@@ -192,6 +191,7 @@ public class RelocationIT extends OpenSearchIntegTestCase {
         assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(20L));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/2063")
     public void testRelocationWhileIndexingRandom() throws Exception {
         int numberOfRelocations = scaledRandomIntBetween(1, rarely() ? 10 : 4);
         int numberOfReplicas = randomBoolean() ? 0 : 1;
@@ -228,7 +228,7 @@ public class RelocationIT extends OpenSearchIntegTestCase {
         }
 
         int numDocs = scaledRandomIntBetween(200, 2500);
-        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type1", client(), numDocs)) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer("test", MapperService.SINGLE_MAPPING_NAME, client(), numDocs)) {
             logger.info("--> waiting for {} docs to be indexed ...", numDocs);
             waitForDocs(numDocs, indexer);
             logger.info("--> {} docs indexed", numDocs);
@@ -285,20 +285,20 @@ public class RelocationIT extends OpenSearchIntegTestCase {
                     for (int hit = 0; hit < indexer.totalIndexedDocs(); hit++) {
                         hitIds[hit] = hit + 1;
                     }
-                    IntHashSet set = IntHashSet.from(hitIds);
+                    Set<Integer> set = Arrays.stream(hitIds).boxed().collect(Collectors.toSet());
                     for (SearchHit hit : hits.getHits()) {
                         int id = Integer.parseInt(hit.getId());
-                        if (!set.remove(id)) {
+                        if (set.remove(id) == false) {
                             logger.error("Extra id [{}]", id);
                         }
                     }
-                    set.forEach((IntProcedure) value -> { logger.error("Missing id [{}]", value); });
+                    set.forEach(value -> logger.error("Missing id [{}]", value));
                 }
                 assertThat(hits.getTotalHits().value, equalTo(indexer.totalIndexedDocs()));
                 logger.info("--> DONE search test round {}", i + 1);
 
             }
-            if (!ranOnce) {
+            if (ranOnce == false) {
                 fail();
             }
         }
