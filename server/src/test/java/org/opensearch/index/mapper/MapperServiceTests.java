@@ -186,7 +186,7 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test-index")
-                .setMapping("{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"_routing\":{\"required\":true}}}")
+                .setMapping("{\"_routing\":{\"required\":true}}")
                 .setSettings(Settings.builder().put("index.number_of_shards", 4).put("index.routing_partition_size", 2))
                 .execute()
                 .actionGet()
