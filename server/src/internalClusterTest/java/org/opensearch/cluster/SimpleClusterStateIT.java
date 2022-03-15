@@ -261,7 +261,7 @@ public class SimpleClusterStateIT extends OpenSearchIntegTestCase {
             ByteSizeValue.parseBytesSizeValue("10k", "estimatedBytesSize").bytesAsInt(),
             ByteSizeValue.parseBytesSizeValue("256k", "estimatedBytesSize").bytesAsInt()
         );
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties");
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties");
         int counter = 0;
         int numberOfFields = 0;
         while (true) {
@@ -273,7 +273,7 @@ public class SimpleClusterStateIT extends OpenSearchIntegTestCase {
             }
         }
         logger.info("number of fields [{}], estimated bytes [{}]", numberOfFields, estimatedBytesSize);
-        mapping.endObject().endObject().endObject();
+        mapping.endObject().endObject();
 
         int numberOfShards = scaledRandomIntBetween(1, cluster().numDataNodes());
         // if the create index is ack'ed, then all nodes have successfully processed the cluster state
@@ -287,7 +287,7 @@ public class SimpleClusterStateIT extends OpenSearchIntegTestCase {
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                         .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), Long.MAX_VALUE)
                 )
-                .addMapping("type", mapping)
+                .setMapping(mapping)
                 .setTimeout("60s")
                 .get()
         );

@@ -646,7 +646,7 @@ public class MoreExpressionIT extends OpenSearchIntegTestCase {
             .startObject("location")
             .field("type", "geo_point");
         xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
+        assertAcked(prepareCreate("test").setMapping(xContentBuilder));
         ensureGreen();
         client().prepareIndex("test")
             .setId("1")
@@ -692,7 +692,7 @@ public class MoreExpressionIT extends OpenSearchIntegTestCase {
             .startObject("vip")
             .field("type", "boolean");
         xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").addMapping("doc", xContentBuilder));
+        assertAcked(prepareCreate("test").setMapping(xContentBuilder));
         ensureGreen();
         indexRandom(
             true,

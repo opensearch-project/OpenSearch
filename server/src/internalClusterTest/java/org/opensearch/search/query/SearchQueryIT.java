@@ -1119,16 +1119,13 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     public void testTermsLookupFilter() throws Exception {
         assertAcked(prepareCreate("lookup").addMapping("type", "terms", "type=text", "other", "type=text"));
         assertAcked(
-            prepareCreate("lookup2").addMapping(
-                "type",
+            prepareCreate("lookup2").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type")
                     .startObject("properties")
                     .startObject("arr")
                     .startObject("properties")
                     .startObject("term")
                     .field("type", "text")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -1600,10 +1597,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
 
     public void testSimpleDFSQuery() throws IOException {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "_doc",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("_doc")
                     .startObject("_routing")
                     .field("required", true)
                     .endObject()
@@ -1618,7 +1613,6 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
                     .endObject()
                     .startObject("bs")
                     .field("type", "keyword")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -1876,8 +1870,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
         assert ("SPI,COMPAT".equals(System.getProperty("java.locale.providers"))) : "`-Djava.locale.providers=SPI,COMPAT` needs to be set";
 
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
                     .startObject("properties")
                     .startObject("date_field")
@@ -1978,7 +1971,6 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     public void testNestedQueryWithFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("_doc")
             .startObject("properties")
             .startObject("section")
             .field("type", "nested")
@@ -1993,9 +1985,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
             .endObject()
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(prepareCreate("index").addMapping("_doc", mapping));
+        assertAcked(prepareCreate("index").setMapping(mapping));
 
         XContentBuilder source = XContentFactory.jsonBuilder()
             .startObject()
@@ -2019,7 +2010,6 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     public void testFieldAliasesForMetaFields() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type")
             .startObject("properties")
             .startObject("id-alias")
             .field("type", "alias")
@@ -2030,9 +2020,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
             .field("path", "_routing")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(prepareCreate("test").addMapping("type", mapping));
+        assertAcked(prepareCreate("test").setMapping(mapping));
 
         IndexRequestBuilder indexRequest = client().prepareIndex("test").setId("1").setRouting("custom").setSource("field", "value");
         indexRandom(true, false, indexRequest);

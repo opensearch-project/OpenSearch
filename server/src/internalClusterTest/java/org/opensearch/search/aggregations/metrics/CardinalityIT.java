@@ -128,10 +128,8 @@ public class CardinalityIT extends OpenSearchIntegTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
 
-        prepareCreate("idx").addMapping(
-            "type",
+        prepareCreate("idx").setMapping(
             jsonBuilder().startObject()
-                .startObject("type")
                 .startObject("properties")
                 .startObject("str_value")
                 .field("type", "keyword")
@@ -150,7 +148,6 @@ public class CardinalityIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .startObject("d_values")
                 .field("type", "double")
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()

@@ -844,8 +844,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test3")
-                .addMapping(
-                    "type",
+                .setMapping(
                     jsonBuilder().startObject()
                         .startObject("type")
                         .startObject("properties")
@@ -876,8 +875,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test2")
-                .addMapping(
-                    "type",
+                .setMapping(
                     jsonBuilder().startObject()
                         .startObject("type")
                         .startObject("properties")
@@ -977,7 +975,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             .endObject()
             .endObject()
             .endObject();
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("employee", mapping));
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(mapping));
         client().prepareIndex("test")
             .setId("q1")
             .setSource(

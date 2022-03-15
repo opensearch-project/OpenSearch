@@ -239,10 +239,8 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
 
     public void testNestedFieldSimpleQueryString() throws IOException {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("body")
                     .field("type", "text")
@@ -253,7 +251,6 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
                     .endObject() // fields
                     .endObject() // body
                     .endObject() // properties
-                    .endObject() // type1
                     .endObject()
             )
         );
@@ -607,19 +604,17 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
     public void testLimitOnExpandedFields() throws Exception {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
-        builder.startObject("type1");
         builder.startObject("properties");
         for (int i = 0; i < CLUSTER_MAX_CLAUSE_COUNT + 1; i++) {
             builder.startObject("field" + i).field("type", "text").endObject();
         }
         builder.endObject(); // properties
-        builder.endObject(); // type1
         builder.endObject();
 
         assertAcked(
             prepareCreate("toomanyfields").setSettings(
                 Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT + 100)
-            ).addMapping("type1", builder)
+            ).setMapping(builder)
         );
 
         client().prepareIndex("toomanyfields").setId("1").setSource("field1", "foo bar baz").get();
