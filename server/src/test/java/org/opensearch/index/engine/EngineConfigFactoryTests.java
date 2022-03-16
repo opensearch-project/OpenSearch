@@ -146,6 +146,21 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
         assertNotNull(config.getCodec());
     }
 
+    public void testGetEngineFactory() {
+        final EngineFactory engineFactory = config -> null;
+        EnginePlugin enginePluginThatImplementsGetEngineFactory = new EnginePlugin() {
+            @Override
+            public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
+                return Optional.of(engineFactory);
+            }
+        };
+        assertEquals(engineFactory, enginePluginThatImplementsGetEngineFactory.getEngineFactory(null).orElse(null));
+
+        EnginePlugin enginePluginThatDoesNotImplementsGetEngineFactory = new EnginePlugin() {
+        };
+        assertFalse(enginePluginThatDoesNotImplementsGetEngineFactory.getEngineFactory(null).isPresent());
+    }
+
     private static class FooEnginePlugin extends Plugin implements EnginePlugin {
         @Override
         public Optional<EngineFactory> getEngineFactory(final IndexSettings indexSettings) {
