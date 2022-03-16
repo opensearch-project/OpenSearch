@@ -36,7 +36,7 @@ import org.opensearch.action.support.WriteRequest.RefreshPolicy;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 
-import static org.apache.lucene.util.TestUtil.randomSimpleString;
+import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 
 public class BulkShardRequestTests extends OpenSearchTestCase {
     public void testToString() {

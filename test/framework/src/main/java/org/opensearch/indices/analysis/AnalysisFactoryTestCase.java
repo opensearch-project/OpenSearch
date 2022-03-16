@@ -61,7 +61,7 @@ import static java.util.Collections.emptyMap;
 public abstract class AnalysisFactoryTestCase extends OpenSearchTestCase {
 
     private static final Map<String, Class<?>> KNOWN_TOKENIZERS = new MapBuilder<String, Class<?>>()
-        // exposed in ES
+        // exposed in OpenSearch
         .put("classic", MovedToAnalysisCommon.class)
         .put("edgengram", MovedToAnalysisCommon.class)
         .put("keyword", MovedToAnalysisCommon.class)
@@ -81,7 +81,7 @@ public abstract class AnalysisFactoryTestCase extends OpenSearchTestCase {
         .immutableMap();
 
     static final Map<String, Class<?>> KNOWN_TOKENFILTERS = new MapBuilder<String, Class<?>>()
-        // exposed in ES
+        // exposed in OpenSearch
         .put("apostrophe", MovedToAnalysisCommon.class)
         .put("arabicnormalization", MovedToAnalysisCommon.class)
         .put("arabicstem", MovedToAnalysisCommon.class)
@@ -217,6 +217,10 @@ public abstract class AnalysisFactoryTestCase extends OpenSearchTestCase {
         .put("japanesecompletion", Void.class)
         // LUCENE-9575: recognize arbitrary patterns that include punctuation
         .put("patterntyping", Void.class)
+        // LUCENE-10248
+        .put("spanishpluralstem", Void.class)
+        // LUCENE-10352
+        .put("daitchmokotoffsoundex", Void.class)
         .immutableMap();
 
     static final Map<String, Class<?>> KNOWN_CHARFILTERS = new MapBuilder<String, Class<?>>()

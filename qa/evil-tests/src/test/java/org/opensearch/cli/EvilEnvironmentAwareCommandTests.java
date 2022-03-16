@@ -33,7 +33,7 @@
 package org.opensearch.cli;
 
 import joptsimple.OptionSet;
-import org.apache.lucene.util.TestRuleRestoreSystemProperties;
+import org.apache.lucene.tests.util.TestRuleRestoreSystemProperties;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.env.Environment;
 import org.opensearch.test.OpenSearchTestCase;
