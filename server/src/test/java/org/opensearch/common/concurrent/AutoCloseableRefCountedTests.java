@@ -14,33 +14,36 @@
 package org.opensearch.common.concurrent;
 
 import org.junit.Before;
+import org.opensearch.common.util.concurrent.RefCounted;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.concurrent.atomic.AtomicInteger;
+import static org.mockito.Mockito.atMostOnce;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
-public class GatedAutoCloseableTests extends OpenSearchTestCase {
+public class AutoCloseableRefCountedTests extends OpenSearchTestCase {
 
-    private AtomicInteger testRef;
-    private GatedAutoCloseable<AtomicInteger> testObject;
+    private RefCounted mockRefCounted;
+    private AutoCloseableRefCounted<RefCounted> testObject;
 
     @Before
     public void setup() {
-        testRef = new AtomicInteger(0);
-        testObject = new GatedAutoCloseable<>(testRef, testRef::incrementAndGet);
+        mockRefCounted = mock(RefCounted.class);
+        testObject = new AutoCloseableRefCounted<>(mockRefCounted);
     }
 
     public void testGet() {
-        assertEquals(0, testObject.get().get());
+        assertEquals(mockRefCounted, testObject.get());
     }
 
     public void testClose() {
         testObject.close();
-        assertEquals(1, testObject.get().get());
+        verify(mockRefCounted, atMostOnce()).decRef();
     }
 
     public void testIdempotent() {
         testObject.close();
         testObject.close();
-        assertEquals(1, testObject.get().get());
+        verify(mockRefCounted, atMostOnce()).decRef();
     }
 }

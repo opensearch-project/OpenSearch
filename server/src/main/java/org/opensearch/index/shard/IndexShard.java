@@ -167,7 +167,7 @@ import org.opensearch.indices.replication.checkpoint.TransportCheckpointPublishe
 import org.opensearch.indices.replication.copy.PrimaryShardReplicationSource;
 import org.opensearch.indices.replication.copy.ReplicationCheckpoint;
 import org.opensearch.indices.replication.copy.ReplicationFailedException;
-import org.opensearch.indices.replication.copy.ReplicationState;
+import org.opensearch.indices.replication.copy.SegmentReplicationState;
 import org.opensearch.indices.replication.copy.TrackShardResponse;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -262,7 +262,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     @Nullable
     private volatile RecoveryState recoveryState;
 
-    private volatile ReplicationState replicationState;
+    private volatile SegmentReplicationState segRepState;
 
     private final RecoveryStats recoveryStats = new RecoveryStats();
     private final MeanMetric refreshMetric = new MeanMetric();
@@ -413,7 +413,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
         this.checkpointRefreshListener = new CheckpointRefreshListener(this, checkpointPublisher);
-        this.replicationState = new ReplicationState();
+        this.segRepState = new SegmentReplicationState();
     }
 
     public ThreadPool getThreadPool() {
@@ -3040,7 +3040,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void startRecovery(
         RecoveryState recoveryState,
         SegmentReplicationReplicaService segmentReplicationReplicaService,
-        SegmentReplicationReplicaService.ReplicationListener replicationListener,
+        SegmentReplicationReplicaService.SegmentReplicationListener segRepListener,
         PrimaryShardReplicationSource replicationSource,
         PeerRecoveryTargetService peerRecoveryTargetService,
         PeerRecoveryTargetService.RecoveryListener recoveryListener,
@@ -3082,7 +3082,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             new ActionListener<TrackShardResponse>() {
                                 @Override
                                 public void onResponse(TrackShardResponse unused) {
-                                    replicationListener.onReplicationDone(replicationState);
+                                    segRepListener.onReplicationDone(segRepState);
                                     recoveryState.getIndex().setFileDetailsComplete();
                                     finalizeRecovery();
                                     postRecovery("Shard setup complete.");
@@ -3090,11 +3090,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                                 @Override
                                 public void onFailure(Exception e) {
-                                    replicationListener.onReplicationFailure(
-                                        replicationState,
-                                        new ReplicationFailedException(indexShard, e),
-                                        true
-                                    );
+                                    segRepListener.onReplicationFailure(segRepState, new ReplicationFailedException(indexShard, e), true);
                                 }
                             }
                         );
@@ -3748,15 +3744,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 checkpoint,
                 this,
                 source,
-                new SegmentReplicationReplicaService.ReplicationListener() {
+                new SegmentReplicationReplicaService.SegmentReplicationListener() {
                     @Override
-                    public void onReplicationDone(ReplicationState state) {
+                    public void onReplicationDone(SegmentReplicationState state) {
                         markReplicationComplete();
                         logger.debug("Replication complete to {}", getLatestReplicationCheckpoint());
                     }
 
                     @Override
-                    public void onReplicationFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
+                    public void onReplicationFailure(
+                        SegmentReplicationState state,
+                        ReplicationFailedException e,
+                        boolean sendShardFailure
+                    ) {
                         markReplicationComplete();
                         logger.error("Failure", e);
                     }
@@ -3767,20 +3767,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    public ReplicationState getReplicationState() {
-        return this.replicationState;
+    public SegmentReplicationState getReplicationState() {
+        return this.segRepState;
     }
 
     public void markAsReplicating() {
-        this.replicationState.setStage(ReplicationState.Stage.ACTIVE);
+        this.segRepState.setStage(SegmentReplicationState.Stage.ACTIVE);
     }
 
     public void markReplicationComplete() {
-        this.replicationState.setStage(ReplicationState.Stage.INACTIVE);
+        this.segRepState.setStage(SegmentReplicationState.Stage.INACTIVE);
     }
 
     private boolean isReplicating() {
-        return this.replicationState.getStage() == ReplicationState.Stage.ACTIVE;
+        return this.segRepState.getStage() == SegmentReplicationState.Stage.ACTIVE;
     }
 
     /**

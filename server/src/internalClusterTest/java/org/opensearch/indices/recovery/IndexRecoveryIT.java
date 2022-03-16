@@ -836,7 +836,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         return client().admin().indices().prepareStats(name).execute().actionGet();
     }
 
-    private void validateIndexRecoveryState(RecoveryState.Index indexState) {
+    private void validateIndexRecoveryState(RecoveryIndex indexState) {
         assertThat(indexState.time(), greaterThanOrEqualTo(0L));
         assertThat(indexState.recoveredFilesPercent(), greaterThanOrEqualTo(0.0f));
         assertThat(indexState.recoveredFilesPercent(), lessThanOrEqualTo(100.0f));

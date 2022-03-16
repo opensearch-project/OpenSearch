@@ -44,6 +44,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentOpenSearchExtension;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.indices.recovery.RecoveryIndex;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.Timer;
 import org.opensearch.test.OpenSearchTestCase;
@@ -91,7 +92,7 @@ public class RestRecoveryActionTests extends OpenSearchTestCase {
             when(targetNode.getHostName()).thenReturn(randomAlphaOfLength(8));
             when(state.getTargetNode()).thenReturn(targetNode);
 
-            RecoveryState.Index index = mock(RecoveryState.Index.class);
+            RecoveryIndex index = mock(RecoveryIndex.class);
 
             final int totalRecoveredFiles = randomIntBetween(1, 64);
             when(index.totalRecoverFiles()).thenReturn(totalRecoveredFiles);

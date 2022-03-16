@@ -838,7 +838,7 @@ public class IndicesService extends AbstractLifecycleComponent
     public IndexShard createShard(
         final ShardRouting shardRouting,
         final SegmentReplicationReplicaService segmentReplicationReplicaService,
-        final SegmentReplicationReplicaService.ReplicationListener replicationListener,
+        final SegmentReplicationReplicaService.SegmentReplicationListener segRepListener,
         final PrimaryShardReplicationSource replicationSource,
         final PeerRecoveryTargetService recoveryTargetService,
         final PeerRecoveryTargetService.RecoveryListener recoveryListener,
@@ -859,7 +859,7 @@ public class IndicesService extends AbstractLifecycleComponent
         indexShard.startRecovery(
             recoveryState,
             segmentReplicationReplicaService,
-            replicationListener,
+            segRepListener,
             replicationSource,
             recoveryTargetService,
             recoveryListener,

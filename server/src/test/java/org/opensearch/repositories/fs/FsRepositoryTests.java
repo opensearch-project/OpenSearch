@@ -66,6 +66,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.store.Store;
+import org.opensearch.indices.recovery.RecoveryIndex;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.repositories.IndexId;
@@ -203,12 +204,12 @@ public class FsRepositoryTests extends OpenSearchTestCase {
             futureC.actionGet();
             assertEquals(secondState.getIndex().reusedFileCount(), commitFileNames.size() - 2);
             assertEquals(secondState.getIndex().recoveredFileCount(), 2);
-            List<RecoveryState.FileDetail> recoveredFiles = secondState.getIndex()
+            List<RecoveryIndex.FileDetail> recoveredFiles = secondState.getIndex()
                 .fileDetails()
                 .stream()
                 .filter(f -> f.reused() == false)
                 .collect(Collectors.toList());
-            Collections.sort(recoveredFiles, Comparator.comparing(RecoveryState.FileDetail::name));
+            Collections.sort(recoveredFiles, Comparator.comparing(RecoveryIndex.FileDetail::name));
             assertTrue(recoveredFiles.get(0).name(), recoveredFiles.get(0).name().endsWith(".liv"));
             assertTrue(recoveredFiles.get(1).name(), recoveredFiles.get(1).name().endsWith("segments_" + incIndexCommit.getGeneration()));
         } finally {
