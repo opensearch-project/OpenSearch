@@ -43,6 +43,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
 
@@ -185,7 +186,7 @@ public class MultiPhrasePrefixQuery extends Query {
             // which rewrites query with an empty reader.
             return new BooleanQuery.Builder().add(query.build(), BooleanClause.Occur.MUST)
                 .add(
-                    Queries.newMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName()),
+                    Queries.newMatchNoDocsQueryWithoutRewrite("No terms supplied for " + MultiPhrasePrefixQuery.class.getName()),
                     BooleanClause.Occur.MUST
                 )
                 .build();
@@ -319,5 +320,10 @@ public class MultiPhrasePrefixQuery extends Query {
 
     public String getField() {
         return field;
+    }
+
+    @Override
+    public void visit(QueryVisitor visitor) {
+        visitor.visitLeaf(this);
     }
 }

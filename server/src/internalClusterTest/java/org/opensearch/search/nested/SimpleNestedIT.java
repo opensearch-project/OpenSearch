@@ -719,25 +719,22 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
 
     public void testNestedSortWithMultiLevelFiltering() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 "{\n"
-                    + "  \"type1\": {\n"
-                    + "    \"properties\": {\n"
-                    + "      \"acl\": {\n"
-                    + "        \"type\": \"nested\",\n"
-                    + "        \"properties\": {\n"
-                    + "          \"access_id\": {\"type\": \"keyword\"},\n"
-                    + "          \"operation\": {\n"
-                    + "            \"type\": \"nested\",\n"
-                    + "            \"properties\": {\n"
-                    + "              \"name\": {\"type\": \"keyword\"},\n"
-                    + "              \"user\": {\n"
-                    + "                \"type\": \"nested\",\n"
-                    + "                \"properties\": {\n"
-                    + "                  \"username\": {\"type\": \"keyword\"},\n"
-                    + "                  \"id\": {\"type\": \"integer\"}\n"
-                    + "                }\n"
+                    + "  \"properties\": {\n"
+                    + "    \"acl\": {\n"
+                    + "      \"type\": \"nested\",\n"
+                    + "      \"properties\": {\n"
+                    + "        \"access_id\": {\"type\": \"keyword\"},\n"
+                    + "        \"operation\": {\n"
+                    + "          \"type\": \"nested\",\n"
+                    + "          \"properties\": {\n"
+                    + "            \"name\": {\"type\": \"keyword\"},\n"
+                    + "            \"user\": {\n"
+                    + "              \"type\": \"nested\",\n"
+                    + "              \"properties\": {\n"
+                    + "                \"username\": {\"type\": \"keyword\"},\n"
+                    + "                \"id\": {\"type\": \"integer\"}\n"
                     + "              }\n"
                     + "            }\n"
                     + "          }\n"
@@ -745,8 +742,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
                     + "      }\n"
                     + "    }\n"
                     + "  }\n"
-                    + "}",
-                XContentType.JSON
+                    + "}"
             )
         );
         ensureGreen();
@@ -965,8 +961,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
     public void testLeakingSortValues() throws Exception {
         assertAcked(
             prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", 1))
-                .addMapping(
-                    "test-type",
+                .setMapping(
                     "{\n"
                         + "        \"dynamic\": \"strict\",\n"
                         + "        \"properties\": {\n"
@@ -987,8 +982,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
                         + "            }\n"
                         + "          }\n"
                         + "        }\n"
-                        + "      }\n",
-                    XContentType.JSON
+                        + "      }\n"
                 )
         );
         ensureGreen();

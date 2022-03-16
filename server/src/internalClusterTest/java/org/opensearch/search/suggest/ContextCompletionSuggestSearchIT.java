@@ -32,7 +32,7 @@
 package org.opensearch.search.suggest;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.index.IndexResponse;

@@ -34,7 +34,6 @@ package org.opensearch.common.lucene.search.function;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
@@ -57,7 +56,6 @@ import org.opensearch.script.Script;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * A query that uses a script to compute documents' scores.
@@ -134,11 +132,6 @@ public class ScriptScoreQuery extends Query {
                 } else {
                     return super.bulkScorer(context);
                 }
-            }
-
-            @Override
-            public void extractTerms(Set<Term> terms) {
-                subQueryWeight.extractTerms(terms);
             }
 
             @Override

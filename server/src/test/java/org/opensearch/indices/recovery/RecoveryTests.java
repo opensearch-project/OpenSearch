@@ -225,7 +225,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             IndexShard newReplica = shards.addReplicaWithExistingPath(orgPrimary.shardPath(), orgPrimary.routingEntry().currentNodeId());
             shards.recoverReplica(newReplica);
             shards.assertAllEqual(3);
-            try (Translog.Snapshot snapshot = newReplica.newChangesSnapshot("test", 0, Long.MAX_VALUE, false)) {
+            try (Translog.Snapshot snapshot = newReplica.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean())) {
                 assertThat(snapshot, SnapshotMatchers.size(6));
             }
         }

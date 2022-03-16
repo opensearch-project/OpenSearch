@@ -32,7 +32,7 @@
 
 package org.opensearch.search.aggregations.bucket.composite;
 
-import org.apache.lucene.analysis.MockAnalyzer;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
@@ -46,7 +46,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -60,7 +60,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.Settings;
@@ -313,11 +313,11 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         final String mappedFieldName = "price";
         dataset.addAll(
             Arrays.asList(
-                createDocument(mappedFieldName, 103L),
-                createDocument(mappedFieldName, 51L),
-                createDocument(mappedFieldName, 56L),
-                createDocument(mappedFieldName, 105L),
-                createDocument(mappedFieldName, 25L)
+                createDocument(mappedFieldName, 103),
+                createDocument(mappedFieldName, 51),
+                createDocument(mappedFieldName, 56),
+                createDocument(mappedFieldName, 105),
+                createDocument(mappedFieldName, 25)
             )
         );
 
@@ -1908,10 +1908,10 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         final List<Map<String, List<Object>>> dataset = new ArrayList<>();
         dataset.addAll(
             Arrays.asList(
-                createDocument("price", 50L, "long", 1L),
-                createDocument("price", 60L, "long", 2L),
-                createDocument("price", 70L, "long", 3L),
-                createDocument("price", 62L, "long", 4L),
+                createDocument("price", 50, "long", 1L),
+                createDocument("price", 60, "long", 2L),
+                createDocument("price", 70, "long", 3L),
+                createDocument("price", 62, "long", 4L),
                 createDocument("long", 5L)
             )
         );

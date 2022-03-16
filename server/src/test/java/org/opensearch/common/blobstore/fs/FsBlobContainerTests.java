@@ -31,9 +31,9 @@
 
 package org.opensearch.common.blobstore.fs;
 
-import org.apache.lucene.mockfile.FilterFileSystemProvider;
-import org.apache.lucene.mockfile.FilterSeekableByteChannel;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
+import org.apache.lucene.tests.mockfile.FilterSeekableByteChannel;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.PathUtilsForTesting;

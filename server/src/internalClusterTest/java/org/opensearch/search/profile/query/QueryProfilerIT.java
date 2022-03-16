@@ -32,7 +32,7 @@
 
 package org.opensearch.search.profile.query;
 
-import org.apache.lucene.util.English;
+import org.apache.lucene.tests.util.English;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.*;
 import org.opensearch.common.settings.Settings;

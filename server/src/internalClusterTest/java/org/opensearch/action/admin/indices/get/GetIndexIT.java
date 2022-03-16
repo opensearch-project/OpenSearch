@@ -40,7 +40,6 @@ import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -64,12 +63,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class GetIndexIT extends OpenSearchIntegTestCase {
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
-        assertAcked(
-            prepareCreate("idx").addAlias(new Alias("alias_idx"))
-                .addMapping("type1", "{\"type1\":{}}", XContentType.JSON)
-                .setSettings(Settings.builder().put("number_of_shards", 1))
-                .get()
-        );
+        assertAcked(prepareCreate("idx").addAlias(new Alias("alias_idx")).setSettings(Settings.builder().put("number_of_shards", 1)).get());
         ensureSearchable("idx");
         createIndex("empty_idx");
         ensureSearchable("idx", "empty_idx");

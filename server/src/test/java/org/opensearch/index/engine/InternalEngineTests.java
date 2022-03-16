@@ -50,7 +50,6 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.IndexWriterMaxDocsChanger;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -77,7 +76,7 @@ import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
-import org.apache.lucene.store.MockDirectoryWrapper;
+import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
@@ -317,7 +316,6 @@ public class InternalEngineTests extends EngineTestCase {
 
             segments = engine.segments(true);
             assertThat(segments.size(), equalTo(1));
-            assertThat(segments.get(0).ramTree, notNullValue());
 
             ParsedDocument doc2 = testParsedDocument("2", null, testDocumentWithTextField(), B_2, null);
             engine.index(indexForDoc(doc2));
@@ -328,9 +326,6 @@ public class InternalEngineTests extends EngineTestCase {
 
             segments = engine.segments(true);
             assertThat(segments.size(), equalTo(3));
-            assertThat(segments.get(0).ramTree, notNullValue());
-            assertThat(segments.get(1).ramTree, notNullValue());
-            assertThat(segments.get(2).ramTree, notNullValue());
         }
     }
 
@@ -6362,8 +6357,12 @@ public class InternalEngineTests extends EngineTestCase {
                     @Override
                     protected void doRun() throws Exception {
                         latch.await();
-                        Translog.Snapshot changes = engine.newChangesSnapshot("test", min, max, true);
-                        changes.close();
+                        if (randomBoolean()) {
+                            Translog.Snapshot changes = engine.newChangesSnapshot("test", min, max, true, randomBoolean());
+                            changes.close();
+                        } else {
+                            engine.countNumberOfHistoryOperations("test", min, max);
+                        }
                     }
                 });
                 snapshotThreads[i].start();
@@ -7121,7 +7120,7 @@ public class InternalEngineTests extends EngineTestCase {
     public void testMaxDocsOnPrimary() throws Exception {
         engine.close();
         int maxDocs = randomIntBetween(1, 100);
-        IndexWriterMaxDocsChanger.setMaxDocs(maxDocs);
+        setIndexWriterMaxDocs(maxDocs);
         try {
             engine = new InternalTestEngine(engine.config(), maxDocs, LocalCheckpointTracker::new);
             int numDocs = between(maxDocs + 1, maxDocs * 2);
@@ -7156,14 +7155,14 @@ public class InternalEngineTests extends EngineTestCase {
                 assertFalse(engine.isClosed.get());
             }
         } finally {
-            IndexWriterMaxDocsChanger.restoreMaxDocs();
+            restoreIndexWriterMaxDocs();
         }
     }
 
     public void testMaxDocsOnReplica() throws Exception {
         engine.close();
         int maxDocs = randomIntBetween(1, 100);
-        IndexWriterMaxDocsChanger.setMaxDocs(maxDocs);
+        setIndexWriterMaxDocs(maxDocs);
         try {
             engine = new InternalTestEngine(engine.config(), maxDocs, LocalCheckpointTracker::new);
             int numDocs = between(maxDocs + 1, maxDocs * 2);
@@ -7176,7 +7175,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(error.getMessage(), containsString("number of documents in the index cannot exceed " + maxDocs));
             assertTrue(engine.isClosed.get());
         } finally {
-            IndexWriterMaxDocsChanger.restoreMaxDocs();
+            restoreIndexWriterMaxDocs();
         }
     }
 }
