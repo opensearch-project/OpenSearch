@@ -69,6 +69,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FieldDoc;
@@ -119,7 +120,7 @@ import java.util.List;
 import java.util.Map;
 
 public class Lucene {
-    public static final String LATEST_CODEC = "Lucene87";
+    public static final String LATEST_CODEC = "Lucene90";
 
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
 
@@ -217,7 +218,7 @@ public class Lucene {
                  * since checksums don's match anymore. that's why we prune the name here directly.
                  * We also want the caller to know if we were not able to remove a segments_N file.
                  */
-                if (file.startsWith(IndexFileNames.SEGMENTS) || file.equals(IndexFileNames.OLD_SEGMENTS_GEN)) {
+                if (file.startsWith(IndexFileNames.SEGMENTS)) {
                     foundSegmentFiles++;
                     if (file.equals(si.getSegmentsFileName()) == false) {
                         directory.deleteFile(file); // remove all segment_N files except of the one we wanna keep
@@ -260,7 +261,7 @@ public class Lucene {
     public static void cleanLuceneIndex(Directory directory) throws IOException {
         try (Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
             for (final String file : directory.listAll()) {
-                if (file.startsWith(IndexFileNames.SEGMENTS) || file.equals(IndexFileNames.OLD_SEGMENTS_GEN)) {
+                if (file.startsWith(IndexFileNames.SEGMENTS)) {
                     directory.deleteFile(file); // remove all segment_N files
                 }
             }
@@ -1108,6 +1109,16 @@ public class Lucene {
             }
 
             public CacheHelper getReaderCacheHelper() {
+                return null;
+            }
+
+            @Override
+            public VectorValues getVectorValues(String field) throws IOException {
+                return null;
+            }
+
+            @Override
+            public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs) throws IOException {
                 return null;
             }
         };

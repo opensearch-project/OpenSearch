@@ -83,6 +83,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 
@@ -273,9 +274,7 @@ public class FetchPhase {
 
     private int findRootDocumentIfNested(SearchContext context, LeafReaderContext subReaderContext, int subDocId) throws IOException {
         if (context.mapperService().hasNested()) {
-            BitSet bits = context.bitsetFilterCache()
-                .getBitSetProducer(Queries.newNonNestedFilter(context.indexShard().indexSettings().getIndexVersionCreated()))
-                .getBitSet(subReaderContext);
+            BitSet bits = context.bitsetFilterCache().getBitSetProducer(Queries.newNonNestedFilter()).getBitSet(subReaderContext);
             if (!bits.get(subDocId)) {
                 return bits.nextSetBit(subDocId);
             }
@@ -333,7 +332,7 @@ public class FetchPhase {
             return new HitContext(hit, subReaderContext, subDocId, lookup.source());
         } else {
             SearchHit hit;
-            loadStoredFields(context.mapperService(), fieldReader, fieldsVisitor, subDocId);
+            loadStoredFields(context::fieldType, fieldReader, fieldsVisitor, subDocId);
             String id = fieldsVisitor.id();
             if (fieldsVisitor.fields().isEmpty() == false) {
                 Map<String, DocumentField> docFields = new HashMap<>();
@@ -391,8 +390,8 @@ public class FetchPhase {
             }
         } else {
             FieldsVisitor rootFieldsVisitor = new FieldsVisitor(needSource);
-            loadStoredFields(context.mapperService(), storedFieldReader, rootFieldsVisitor, rootDocId);
-            rootFieldsVisitor.postProcess(context.mapperService());
+            loadStoredFields(context::fieldType, storedFieldReader, rootFieldsVisitor, rootDocId);
+            rootFieldsVisitor.postProcess(context::fieldType);
             rootId = rootFieldsVisitor.id();
 
             if (needSource) {
@@ -410,7 +409,7 @@ public class FetchPhase {
         Map<String, DocumentField> metaFields = emptyMap();
         if (context.hasStoredFields() && !context.storedFieldsContext().fieldNames().isEmpty()) {
             FieldsVisitor nestedFieldsVisitor = new CustomFieldsVisitor(storedToRequestedFields.keySet(), false);
-            loadStoredFields(context.mapperService(), storedFieldReader, nestedFieldsVisitor, nestedDocId);
+            loadStoredFields(context::fieldType, storedFieldReader, nestedFieldsVisitor, nestedDocId);
             if (nestedFieldsVisitor.fields().isEmpty() == false) {
                 docFields = new HashMap<>();
                 metaFields = new HashMap<>();
@@ -508,7 +507,7 @@ public class FetchPhase {
                 }
                 parentFilter = nestedParentObjectMapper.nestedTypeFilter();
             } else {
-                parentFilter = Queries.newNonNestedFilter(context.indexShard().indexSettings().getIndexVersionCreated());
+                parentFilter = Queries.newNonNestedFilter();
             }
 
             Query childFilter = nestedObjectMapper.nestedTypeFilter();
@@ -553,14 +552,14 @@ public class FetchPhase {
     }
 
     private void loadStoredFields(
-        MapperService mapperService,
+        Function<String, MappedFieldType> fieldTypeLookup,
         CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader,
         FieldsVisitor fieldVisitor,
         int docId
     ) throws IOException {
         fieldVisitor.reset();
         fieldReader.accept(docId, fieldVisitor);
-        fieldVisitor.postProcess(mapperService);
+        fieldVisitor.postProcess(fieldTypeLookup);
     }
 
     private static void fillDocAndMetaFields(

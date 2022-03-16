@@ -36,8 +36,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.queries.MinDocQuery;
-import org.apache.lucene.queries.SearchAfterSortedDocQuery;
+import org.opensearch.lucene.queries.MinDocQuery;
+import org.opensearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
@@ -47,7 +47,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.action.search.SearchShardTask;
@@ -55,9 +54,6 @@ import org.opensearch.common.Booleans;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.util.concurrent.QueueResizingOpenSearchThreadPoolExecutor;
-import org.opensearch.index.IndexSortConfig;
-import org.opensearch.index.mapper.DateFieldMapper.DateFieldType;
-import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchContextSourcePrinter;
 import org.opensearch.search.SearchService;
@@ -235,10 +231,6 @@ public class QueryPhase {
                 // this collector can filter documents during the collection
                 hasFilterCollector = true;
             }
-            // optimizing sort on Numerics (long and date)
-            if ((searchContext.sort() != null) && SYS_PROP_REWRITE_SORT) {
-                enhanceSortOnNumeric(searchContext, searcher.getIndexReader());
-            }
 
             boolean timeoutSet = scrollContext == null
                 && searchContext.timeout() != null
@@ -330,27 +322,6 @@ public class QueryPhase {
             ctx.postProcess(queryResult);
         }
         return topDocsFactory.shouldRescore();
-    }
-
-    private static void enhanceSortOnNumeric(SearchContext searchContext, IndexReader reader) {
-        if (canEarlyTerminate(reader, searchContext.sort())) {
-            // disable this optimization if index sorting matches the query sort since it's already optimized by index searcher
-            return;
-        }
-        Sort sort = searchContext.sort().sort;
-        SortField sortField = sort.getSort()[0];
-        if (SortField.Type.LONG.equals(IndexSortConfig.getSortFieldType(sortField)) == false) return;
-
-        // check if this is a field of type Long or Date, that is indexed and has doc values
-        String fieldName = sortField.getField();
-        if (fieldName == null) return; // happens when _score or _doc is the 1st sort field
-        if (searchContext.mapperService() == null) return; // mapperService can be null in tests
-        final MappedFieldType fieldType = searchContext.mapperService().fieldType(fieldName);
-        if (fieldType == null) return; // for unmapped fields, default behaviour depending on "unmapped_type" flag
-        if ((fieldType.typeName().equals("long") == false) && (fieldType instanceof DateFieldType == false)) return;
-        if (fieldType.isSearchable() == false) return;
-        if (fieldType.hasDocValues() == false) return;
-        sortField.setCanUsePoints();
     }
 
     /**

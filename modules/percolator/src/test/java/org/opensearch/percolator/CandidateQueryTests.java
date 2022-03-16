@@ -37,7 +37,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatPoint;
-import org.apache.lucene.document.HalfFloatPoint;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
@@ -60,10 +59,15 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.queries.CommonTermsQuery;
+import org.apache.lucene.queries.spans.SpanNearQuery;
+import org.apache.lucene.queries.spans.SpanNotQuery;
+import org.apache.lucene.queries.spans.SpanOrQuery;
+import org.apache.lucene.queries.spans.SpanTermQuery;
+import org.apache.lucene.sandbox.document.HalfFloatPoint;
+import org.apache.lucene.sandbox.search.CoveringQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.CoveringQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
@@ -74,6 +78,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Sort;
@@ -83,10 +88,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.WildcardQuery;
-import org.apache.lucene.search.spans.SpanNearQuery;
-import org.apache.lucene.search.spans.SpanNotQuery;
-import org.apache.lucene.search.spans.SpanOrQuery;
-import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
@@ -123,7 +124,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -1280,6 +1280,11 @@ public class CandidateQueryTests extends OpenSearchSingleNodeTestCase {
         }
 
         @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
+        }
+
+        @Override
         public String toString(String field) {
             return "custom{" + field + "}";
         }
@@ -1309,9 +1314,6 @@ public class CandidateQueryTests extends OpenSearchSingleNodeTestCase {
         public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
             final IndexSearcher percolatorIndexSearcher = memoryIndex.createSearcher();
             return new Weight(this) {
-
-                @Override
-                public void extractTerms(Set<Term> terms) {}
 
                 @Override
                 public Explanation explain(LeafReaderContext context, int doc) throws IOException {
@@ -1384,6 +1386,11 @@ public class CandidateQueryTests extends OpenSearchSingleNodeTestCase {
                     return false; // doesn't matter
                 }
             };
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
         }
 
         @Override
