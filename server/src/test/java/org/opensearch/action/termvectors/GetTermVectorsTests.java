@@ -169,13 +169,11 @@ public class GetTermVectorsTests extends OpenSearchSingleNodeTestCase {
         String queryString = createString(tokens, payloads, encoding, delimiter.charAt(0));
         // create the mapping
         XContentBuilder mapping = jsonBuilder().startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("field")
             .field("type", "text")
             .field("term_vector", "with_positions_offsets_payloads")
             .field("analyzer", "payload_test")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();

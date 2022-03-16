@@ -748,7 +748,6 @@ public class GeoShapeQueryTests extends GeoQueryTests {
     public void testFieldAlias() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type")
             .startObject("properties")
             .startObject("location")
             .field("type", "geo_shape")
@@ -757,7 +756,6 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             .startObject("alias")
             .field("type", "alias")
             .field("path", "location")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();
