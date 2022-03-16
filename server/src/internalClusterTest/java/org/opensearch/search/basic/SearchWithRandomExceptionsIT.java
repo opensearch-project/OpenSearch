@@ -50,7 +50,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.Settings.Builder;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.MockEngineFactoryPlugin;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
@@ -85,11 +84,9 @@ public class SearchWithRandomExceptionsIT extends OpenSearchIntegTestCase {
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type")
                 .startObject("properties")
                 .startObject("test")
                 .field("type", "keyword")
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -121,7 +118,7 @@ public class SearchWithRandomExceptionsIT extends OpenSearchIntegTestCase {
             .put(EXCEPTION_LOW_LEVEL_RATIO_KEY, lowLevelRate)
             .put(MockEngineSupport.WRAP_READER_RATIO.getKey(), 1.0d);
         logger.info("creating index: [test] using settings: [{}]", settings.build());
-        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type", mapping, XContentType.JSON));
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping(mapping));
         ensureSearchable();
         final int numDocs = between(10, 100);
         int numCreated = 0;

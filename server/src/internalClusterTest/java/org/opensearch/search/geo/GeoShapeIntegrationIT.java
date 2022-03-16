@@ -76,7 +76,6 @@ public class GeoShapeIntegrationIT extends OpenSearchIntegTestCase {
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("shape")
                 .startObject("properties")
                 .startObject("location")
                 .field("type", "geo_shape")
@@ -84,16 +83,14 @@ public class GeoShapeIntegrationIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         );
 
         // create index
-        assertAcked(prepareCreate(idxName).addMapping("shape", mapping, XContentType.JSON));
+        assertAcked(prepareCreate(idxName).setMapping(mapping));
 
         mapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("shape")
                 .startObject("properties")
                 .startObject("location")
                 .field("type", "geo_shape")
@@ -101,10 +98,9 @@ public class GeoShapeIntegrationIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         );
 
-        assertAcked(prepareCreate(idxName + "2").addMapping("shape", mapping, XContentType.JSON));
+        assertAcked(prepareCreate(idxName + "2").setMapping(mapping));
         ensureGreen(idxName, idxName + "2");
 
         internalCluster().fullRestart();
@@ -227,7 +223,7 @@ public class GeoShapeIntegrationIT extends OpenSearchIntegTestCase {
             + "  }";
 
         // create index
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("doc", mapping, XContentType.JSON).get());
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(mapping).get());
         ensureGreen();
 
         String source = "{\n"
@@ -265,10 +261,10 @@ public class GeoShapeIntegrationIT extends OpenSearchIntegTestCase {
             + "  }";
 
         // create index
-        assertAcked(client().admin().indices().prepareCreate("vector").addMapping("doc", mappingVector, XContentType.JSON).get());
+        assertAcked(client().admin().indices().prepareCreate("vector").setMapping(mappingVector).get());
         ensureGreen();
 
-        assertAcked(client().admin().indices().prepareCreate("quad").addMapping("doc", mappingQuad, XContentType.JSON).get());
+        assertAcked(client().admin().indices().prepareCreate("quad").setMapping(mappingQuad).get());
         ensureGreen();
 
         String source = "{\n" + "    \"shape\" : \"POLYGON((179 0, -179 0, -179 2, 179 2, 179 0))\"" + "}";

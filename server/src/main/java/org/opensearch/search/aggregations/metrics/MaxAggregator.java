@@ -37,7 +37,6 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.FutureArrays;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.DoubleArray;
@@ -54,6 +53,7 @@ import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -200,7 +200,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
             @Override
             public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-                if (FutureArrays.equals(maxValue, 0, numBytes, maxPackedValue, 0, numBytes)) {
+                if (Arrays.equals(maxValue, 0, numBytes, maxPackedValue, 0, numBytes)) {
                     // we only check leaves that contain the max value for the segment.
                     return PointValues.Relation.CELL_CROSSES_QUERY;
                 } else {

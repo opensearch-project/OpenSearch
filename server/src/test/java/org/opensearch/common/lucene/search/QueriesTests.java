@@ -48,9 +48,9 @@ public class QueriesTests extends OpenSearchTestCase {
     public void testNonNestedQuery() {
         for (Version version : VersionUtils.allVersions()) {
             // This is a custom query that extends AutomatonQuery and want to make sure the equals method works
-            assertEquals(Queries.newNonNestedFilter(version), Queries.newNonNestedFilter(version));
-            assertEquals(Queries.newNonNestedFilter(version).hashCode(), Queries.newNonNestedFilter(version).hashCode());
-            assertEquals(Queries.newNonNestedFilter(version), new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME));
+            assertEquals(Queries.newNonNestedFilter(), Queries.newNonNestedFilter());
+            assertEquals(Queries.newNonNestedFilter().hashCode(), Queries.newNonNestedFilter().hashCode());
+            assertEquals(Queries.newNonNestedFilter(), new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME));
         }
     }
 

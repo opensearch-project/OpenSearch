@@ -35,7 +35,7 @@ opensearchplugin {
 }
 
 dependencies {
-  api "org.apache.lucene:lucene-analyzers-stempel:${versions.lucene}"
+  api "org.apache.lucene:lucene-analysis-stempel:${versions.lucene}"
 }
 
 restResources {

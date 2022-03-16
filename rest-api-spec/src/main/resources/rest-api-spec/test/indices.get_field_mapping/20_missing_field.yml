@@ -1,5 +1,9 @@
 ---
 "Return empty object if field doesn't exist, but index does":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/opensearch-project/OpenSearch/issues/2440"
+
   - do:
         indices.create:
           index: test_index
