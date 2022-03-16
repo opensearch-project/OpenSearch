@@ -78,18 +78,16 @@ public class PreBuiltAnalyzerIntegrationIT extends OpenSearchIntegTestCase {
             loadedAnalyzers.get(preBuiltAnalyzer).add(randomVersion);
 
             final XContentBuilder mapping = jsonBuilder().startObject()
-                .startObject("type")
                 .startObject("properties")
                 .startObject("foo")
                 .field("type", "text")
                 .field("analyzer", name)
                 .endObject()
                 .endObject()
-                .endObject()
                 .endObject();
 
             Settings versionSettings = settings(randomVersion).build();
-            client().admin().indices().prepareCreate(indexName).addMapping("type", mapping).setSettings(versionSettings).get();
+            client().admin().indices().prepareCreate(indexName).setMapping(mapping).setSettings(versionSettings).get();
         }
 
         ensureGreen();

@@ -278,16 +278,14 @@ public class QueryStringIT extends OpenSearchIntegTestCase {
     public void testLimitOnExpandedFieldsButIgnoreUnmappedFields() throws Exception {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
-        builder.startObject("_doc");
         builder.startObject("properties");
         for (int i = 0; i < CLUSTER_MAX_CLAUSE_COUNT; i++) {
             builder.startObject("field" + i).field("type", "text").endObject();
         }
         builder.endObject(); // properties
-        builder.endObject(); // type1
         builder.endObject();
 
-        assertAcked(prepareCreate("ignoreunmappedfields").addMapping("_doc", builder));
+        assertAcked(prepareCreate("ignoreunmappedfields").setMapping(builder));
 
         client().prepareIndex("ignoreunmappedfields").setId("1").setSource("field1", "foo bar baz").get();
         refresh();
@@ -303,25 +301,19 @@ public class QueryStringIT extends OpenSearchIntegTestCase {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
         {
-            builder.startObject("_doc");
-            {
-                builder.startObject("properties");
-                {
-                    for (int i = 0; i < CLUSTER_MAX_CLAUSE_COUNT; i++) {
-                        builder.startObject("field_A" + i).field("type", "text").endObject();
-                        builder.startObject("field_B" + i).field("type", "text").endObject();
-                    }
-                    builder.endObject();
-                }
-                builder.endObject();
+            builder.startObject("properties");
+            for (int i = 0; i < CLUSTER_MAX_CLAUSE_COUNT; i++) {
+                builder.startObject("field_A" + i).field("type", "text").endObject();
+                builder.startObject("field_B" + i).field("type", "text").endObject();
             }
             builder.endObject();
         }
+        builder.endObject();
 
         assertAcked(
             prepareCreate("testindex").setSettings(
                 Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT + 100)
-            ).addMapping("_doc", builder)
+            ).setMapping(builder)
         );
 
         client().prepareIndex("testindex").setId("1").setSource("field_A0", "foo bar baz").get();

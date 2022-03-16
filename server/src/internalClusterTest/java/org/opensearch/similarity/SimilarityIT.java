@@ -53,10 +53,8 @@ public class SimilarityIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate("test")
-            .addMapping(
-                "type1",
+            .setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("field1")
                     .field("similarity", "custom")
@@ -65,7 +63,6 @@ public class SimilarityIT extends OpenSearchIntegTestCase {
                     .startObject("field2")
                     .field("similarity", "boolean")
                     .field("type", "text")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()

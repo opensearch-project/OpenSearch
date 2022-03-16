@@ -64,12 +64,11 @@ public class GeoBoundingBoxQueryIT extends OpenSearchIntegTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("location")
             .field("type", "geo_point");
-        xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
+        xContentBuilder.endObject().endObject().endObject();
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 
         client().prepareIndex("test")
@@ -195,12 +194,11 @@ public class GeoBoundingBoxQueryIT extends OpenSearchIntegTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("location")
             .field("type", "geo_point");
-        xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
+        xContentBuilder.endObject().endObject().endObject();
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 
         client().prepareIndex("test")
@@ -275,12 +273,11 @@ public class GeoBoundingBoxQueryIT extends OpenSearchIntegTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("location")
             .field("type", "geo_point");
-        xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
+        xContentBuilder.endObject().endObject().endObject();
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 
         client().prepareIndex("test")

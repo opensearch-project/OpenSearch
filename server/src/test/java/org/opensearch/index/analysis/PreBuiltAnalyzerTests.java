@@ -114,12 +114,10 @@ public class PreBuiltAnalyzerTests extends OpenSearchSingleNodeTestCase {
 
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type")
             .startObject("properties")
             .startObject("field")
             .field("type", "text")
             .field("analyzer", analyzerName)
-            .endObject()
             .endObject()
             .endObject()
             .endObject();

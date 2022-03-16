@@ -160,7 +160,7 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
         String index = randomAlphaOfLength(5);
 
         PutMappingRequest request = new PutMappingRequest(index);
-        request.source(RandomCreateIndexGenerator.randomMapping("_doc"));
+        request.source(RandomCreateIndexGenerator.randomMapping());
 
         return request;
     }

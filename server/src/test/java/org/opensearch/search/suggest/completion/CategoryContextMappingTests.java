@@ -77,7 +77,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
     public void testIndexingWithNoContexts() throws Exception {
         String mapping = Strings.toString(
             jsonBuilder().startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("completion")
                 .field("type", "completion")
@@ -87,7 +86,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
                 .field("type", "category")
                 .endObject()
                 .endArray()
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -129,7 +127,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
     public void testIndexingWithSimpleContexts() throws Exception {
         String mapping = Strings.toString(
             jsonBuilder().startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("completion")
                 .field("type", "completion")
@@ -139,7 +136,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
                 .field("type", "category")
                 .endObject()
                 .endArray()
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -176,7 +172,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
     public void testIndexingWithSimpleNumberContexts() throws Exception {
         String mapping = Strings.toString(
             jsonBuilder().startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("completion")
                 .field("type", "completion")
@@ -186,7 +181,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
                 .field("type", "category")
                 .endObject()
                 .endArray()
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -223,7 +217,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
     public void testIndexingWithSimpleBooleanContexts() throws Exception {
         String mapping = Strings.toString(
             jsonBuilder().startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("completion")
                 .field("type", "completion")
@@ -233,7 +226,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
                 .field("type", "category")
                 .endObject()
                 .endArray()
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -270,7 +262,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
     public void testIndexingWithSimpleNULLContexts() throws Exception {
         String mapping = Strings.toString(
             jsonBuilder().startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("completion")
                 .field("type", "completion")
@@ -280,7 +271,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
                 .field("type", "category")
                 .endObject()
                 .endArray()
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -314,7 +304,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
     public void testIndexingWithContextList() throws Exception {
         String mapping = Strings.toString(
             jsonBuilder().startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("completion")
                 .field("type", "completion")
@@ -324,7 +313,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
                 .field("type", "category")
                 .endObject()
                 .endArray()
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -359,7 +347,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
     public void testIndexingWithMixedTypeContextList() throws Exception {
         String mapping = Strings.toString(
             jsonBuilder().startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("completion")
                 .field("type", "completion")
@@ -369,7 +356,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
                 .field("type", "category")
                 .endObject()
                 .endArray()
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -404,7 +390,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
     public void testIndexingWithMixedTypeContextListHavingNULL() throws Exception {
         String mapping = Strings.toString(
             jsonBuilder().startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("completion")
                 .field("type", "completion")
@@ -414,7 +399,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
                 .field("type", "category")
                 .endObject()
                 .endArray()
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -443,7 +427,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
     public void testIndexingWithMultipleContexts() throws Exception {
         String mapping = Strings.toString(
             jsonBuilder().startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("completion")
                 .field("type", "completion")
@@ -457,7 +440,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
                 .field("type", "category")
                 .endObject()
                 .endArray()
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -798,7 +780,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
 
     public void testUnknownQueryContextParsing() throws Exception {
         XContentBuilder mapping = jsonBuilder().startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("completion")
             .field("type", "completion")
@@ -812,7 +793,6 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
             .field("type", "category")
             .endObject()
             .endArray()
-            .endObject()
             .endObject()
             .endObject()
             .endObject();

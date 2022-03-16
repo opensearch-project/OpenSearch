@@ -139,18 +139,16 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     public void testHighlightingWithKeywordIgnoreBoundaryScanner() throws IOException {
         XContentBuilder mappings = jsonBuilder();
         mappings.startObject();
-        mappings.startObject("type")
-            .startObject("properties")
+        mappings.startObject("properties")
             .startObject("tags")
             .field("type", "keyword")
             .endObject()
             .startObject("sort")
             .field("type", "long")
             .endObject()
-            .endObject()
             .endObject();
         mappings.endObject();
-        assertAcked(prepareCreate("test").addMapping("type", mappings));
+        assertAcked(prepareCreate("test").setMapping(mappings));
         client().prepareIndex("test")
             .setId("1")
             .setSource(jsonBuilder().startObject().array("tags", "foo bar", "foo bar", "foo bar", "foo baz").field("sort", 1).endObject())
@@ -176,16 +174,9 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     public void testHighlightingWithStoredKeyword() throws IOException {
         XContentBuilder mappings = jsonBuilder();
         mappings.startObject();
-        mappings.startObject("type")
-            .startObject("properties")
-            .startObject("text")
-            .field("type", "keyword")
-            .field("store", true)
-            .endObject()
-            .endObject()
-            .endObject();
+        mappings.startObject("properties").startObject("text").field("type", "keyword").field("store", true).endObject().endObject();
         mappings.endObject();
-        assertAcked(prepareCreate("test").addMapping("type", mappings));
+        assertAcked(prepareCreate("test").setMapping(mappings));
         client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("text", "foo").endObject()).get();
         refresh();
         SearchResponse search = client().prepareSearch()
@@ -199,18 +190,16 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         // test the kibana case with * as fieldname that will try highlight all fields including meta fields
         XContentBuilder mappings = jsonBuilder();
         mappings.startObject();
-        mappings.startObject("type")
-            .startObject("properties")
+        mappings.startObject("properties")
             .startObject("text")
             .field("type", "text")
             .field("analyzer", "keyword")
             .field("index_options", "offsets")
             .field("term_vector", "with_positions_offsets")
             .endObject()
-            .endObject()
             .endObject();
         mappings.endObject();
-        assertAcked(prepareCreate("test").addMapping("type", mappings));
+        assertAcked(prepareCreate("test").setMapping(mappings));
         client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("text", "text").endObject()).get();
         refresh();
         for (String type : ALL_TYPES) {
@@ -224,7 +213,6 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
     public void testFieldAlias() throws IOException {
         XContentBuilder mappings = jsonBuilder().startObject()
-            .startObject("type")
             .startObject("properties")
             .startObject("text")
             .field("type", "text")
@@ -236,9 +224,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
             .field("path", "text")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(prepareCreate("test").addMapping("type", mappings));
+        assertAcked(prepareCreate("test").setMapping(mappings));
 
         client().prepareIndex("test").setId("1").setSource("text", "foo").get();
         refresh();
@@ -253,7 +240,6 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
     public void testFieldAliasWithSourceLookup() throws IOException {
         XContentBuilder mappings = jsonBuilder().startObject()
-            .startObject("type")
             .startObject("properties")
             .startObject("text")
             .field("type", "text")
@@ -266,9 +252,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
             .field("path", "text")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(prepareCreate("test").addMapping("type", mappings));
+        assertAcked(prepareCreate("test").setMapping(mappings));
 
         client().prepareIndex("test").setId("1").setSource("text", "foo bar").get();
         refresh();
@@ -283,7 +268,6 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
     public void testFieldAliasWithWildcardField() throws IOException {
         XContentBuilder mappings = jsonBuilder().startObject()
-            .startObject("type")
             .startObject("properties")
             .startObject("keyword")
             .field("type", "keyword")
@@ -293,9 +277,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
             .field("path", "keyword")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(prepareCreate("test").addMapping("type", mappings));
+        assertAcked(prepareCreate("test").setMapping(mappings));
 
         client().prepareIndex("test").setId("1").setSource("keyword", "foo").get();
         refresh();
@@ -308,8 +291,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     public void testHighlightingWhenFieldsAreNotStoredThereIsNoSource() throws IOException {
         XContentBuilder mappings = jsonBuilder();
         mappings.startObject();
-        mappings.startObject("type")
-            .startObject("_source")
+        mappings.startObject("_source")
             .field("enabled", false)
             .endObject()
             .startObject("properties")
@@ -325,10 +307,9 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
             .field("type", "text")
             .field("store", true)
             .endObject()
-            .endObject()
             .endObject();
         mappings.endObject();
-        assertAcked(prepareCreate("test").addMapping("type", mappings));
+        assertAcked(prepareCreate("test").setMapping(mappings));
         client().prepareIndex("test")
             .setId("1")
             .setSource(jsonBuilder().startObject().field("unstored_text", "text").field("text", "text").endObject())
@@ -410,10 +391,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
     public void testSourceLookupHighlightingUsingPlainHighlighter() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     // we don't store title and don't use term vector, now lets see if it works...
                     .startObject("title")
@@ -427,7 +406,6 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
                     .field("type", "text")
                     .field("store", false)
                     .field("term_vector", "no")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -480,10 +458,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
     public void testSourceLookupHighlightingUsingFastVectorHighlighter() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     // we don't store title, now lets see if it works...
                     .startObject("title")
@@ -497,7 +473,6 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
                     .field("type", "text")
                     .field("store", false)
                     .field("term_vector", "with_positions_offsets")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -550,10 +525,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
     public void testSourceLookupHighlightingUsingPostingsHighlighter() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     // we don't store title, now lets see if it works...
                     .startObject("title")
@@ -567,7 +540,6 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
                     .field("type", "text")
                     .field("store", false)
                     .field("index_options", "offsets")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -771,10 +743,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
     public void testForceSourceWithSourceDisabled() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("_source")
                     .field("enabled", false)
                     .endObject()
@@ -787,7 +757,6 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
                     .endObject()
                     .startObject("field2")
                     .field("type", "text")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -852,7 +821,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testFastVectorHighlighter() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
+        assertAcked(prepareCreate("test").setMapping(type1TermVectorMapping()));
         ensureGreen();
 
         indexRandom(
@@ -886,7 +855,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testHighlighterWithSentenceBoundaryScanner() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
+        assertAcked(prepareCreate("test").setMapping(type1TermVectorMapping()));
         ensureGreen();
 
         indexRandom(
@@ -927,7 +896,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testHighlighterWithSentenceBoundaryScannerAndLocale() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
+        assertAcked(prepareCreate("test").setMapping(type1TermVectorMapping()));
         ensureGreen();
 
         indexRandom(
@@ -970,7 +939,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testHighlighterWithWordBoundaryScanner() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
+        assertAcked(prepareCreate("test").setMapping(type1TermVectorMapping()));
         ensureGreen();
 
         indexRandom(true, client().prepareIndex("test").setSource("field1", "some quick and hairy brown:fox jumped over the lazy dog"));
@@ -1000,7 +969,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testHighlighterWithWordBoundaryScannerAndLocale() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
+        assertAcked(prepareCreate("test").setMapping(type1TermVectorMapping()));
         ensureGreen();
 
         indexRandom(true, client().prepareIndex("test").setSource("field1", "some quick and hairy brown:fox jumped over the lazy dog"));
@@ -1034,7 +1003,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
      * phraseLimit is not set. Its default is now reasonably low.
      */
     public void testFVHManyMatches() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
+        assertAcked(prepareCreate("test").setMapping(type1TermVectorMapping()));
         ensureGreen();
 
         // Index one megabyte of "t " over and over and over again
@@ -1085,11 +1054,9 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         settings.put("index.analysis.analyzer.mock_english.filter", "mock_snowball");
         assertAcked(
             prepareCreate("test").setSettings(settings)
-                .addMapping(
-                    "type1",
+                .setMapping(
                     XContentFactory.jsonBuilder()
                         .startObject()
-                        .startObject("type1")
                         .startObject("properties")
                         .startObject("foo")
                         .field("type", "text")
@@ -1114,7 +1081,6 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
                         .field("type", "text")
                         .field("term_vector", "with_positions_offsets")
                         .field("analyzer", "standard")
-                        .endObject()
                         .endObject()
                         .endObject()
                         .endObject()
@@ -1270,7 +1236,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testFastVectorHighlighterManyDocs() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
+        assertAcked(prepareCreate("test").setMapping(type1TermVectorMapping()));
         ensureGreen();
 
         int COUNT = between(20, 100);
@@ -1297,7 +1263,6 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     public XContentBuilder type1TermVectorMapping() throws IOException {
         return XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("field1")
             .field("type", "text")
@@ -1306,7 +1271,6 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
             .startObject("field2")
             .field("type", "text")
             .field("term_vector", "with_positions_offsets")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();
@@ -1406,10 +1370,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
     public void testMultiMapperVectorWithStore() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("title")
                     .field("type", "text")
@@ -1422,7 +1384,6 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
                     .field("store", true)
                     .field("term_vector", "with_positions_offsets")
                     .field("analyzer", "whitespace")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -1453,10 +1414,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
     public void testMultiMapperVectorFromSource() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("title")
                     .field("type", "text")
@@ -1469,7 +1428,6 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
                     .field("store", false)
                     .field("term_vector", "with_positions_offsets")
                     .field("analyzer", "whitespace")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -1501,10 +1459,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
     public void testMultiMapperNoVectorWithStore() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("title")
                     .field("type", "text")
@@ -1517,7 +1473,6 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
                     .field("store", true)
                     .field("term_vector", "no")
                     .field("analyzer", "whitespace")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -1549,10 +1504,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
     public void testMultiMapperNoVectorFromSource() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("title")
                     .field("type", "text")
@@ -1565,7 +1518,6 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
                     .field("store", false)
                     .field("term_vector", "no")
                     .field("analyzer", "whitespace")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -1739,7 +1691,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testBoostingQueryTermVector() throws IOException {
-        assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
+        assertAcked(prepareCreate("test").setMapping(type1TermVectorMapping()));
         ensureGreen();
         client().prepareIndex("test").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog").get();
         refresh();
@@ -1770,7 +1722,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testCommonTermsTermVector() throws IOException {
-        assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
+        assertAcked(prepareCreate("test").setMapping(type1TermVectorMapping()));
         ensureGreen();
 
         client().prepareIndex("test").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog").get();
@@ -2278,7 +2230,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testPostingsHighlighter() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
+        assertAcked(prepareCreate("test").setMapping(type1PostingsffsetsMapping()));
         ensureGreen();
 
         client().prepareIndex("test")
@@ -2349,7 +2301,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testPostingsHighlighterMultipleFields() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()).get());
+        assertAcked(prepareCreate("test").setMapping(type1PostingsffsetsMapping()).get());
         ensureGreen();
 
         index(
@@ -2371,7 +2323,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testPostingsHighlighterNumberOfFragments() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
+        assertAcked(prepareCreate("test").setMapping(type1PostingsffsetsMapping()));
         ensureGreen();
 
         client().prepareIndex("test")
@@ -2457,7 +2409,6 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     public void testMultiMatchQueryHighlight() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("field1")
             .field("type", "text")
@@ -2470,9 +2421,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
             .field("term_vector", "with_positions_offsets")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(prepareCreate("test").addMapping("type1", mapping));
+        assertAcked(prepareCreate("test").setMapping(mapping));
         ensureGreen();
         client().prepareIndex("test")
             .setSource("field1", "The quick brown fox jumps over", "field2", "The quick brown fox jumps over")
@@ -2507,7 +2457,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testPostingsHighlighterOrderByScore() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
+        assertAcked(prepareCreate("test").setMapping(type1PostingsffsetsMapping()));
         ensureGreen();
 
         client().prepareIndex("test")
@@ -2585,10 +2535,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
     public void testPostingsHighlighterMultiMapperWithStore() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("title")
                     .field("type", "text")
@@ -2601,7 +2549,6 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
                     .field("store", true)
                     .field("index_options", "offsets")
                     .field("analyzer", "whitespace")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -2645,10 +2592,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
     public void testPostingsHighlighterMultiMapperFromSource() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("title")
                     .field("type", "text")
@@ -2661,7 +2606,6 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
                     .field("store", false)
                     .field("index_options", "offsets")
                     .field("analyzer", "whitespace")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -2693,16 +2637,13 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
     public void testPostingsHighlighterShouldFailIfNoOffsets() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("title")
                     .field("type", "text")
                     .field("store", true)
                     .field("index_options", "docs")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -2726,7 +2667,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testPostingsHighlighterBoostingQuery() throws IOException {
-        assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
+        assertAcked(prepareCreate("test").setMapping(type1PostingsffsetsMapping()));
         ensureGreen();
         client().prepareIndex("test")
             .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog! Second sentence.")
@@ -2743,7 +2684,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testPostingsHighlighterCommonTermsQuery() throws IOException {
-        assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
+        assertAcked(prepareCreate("test").setMapping(type1PostingsffsetsMapping()));
         ensureGreen();
 
         client().prepareIndex("test")
@@ -2770,7 +2711,6 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     private static XContentBuilder type1PostingsffsetsMapping() throws IOException {
         return XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("field1")
             .field("type", "text")
@@ -2781,12 +2721,11 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
             .field("index_options", "offsets")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
     }
 
     public void testPostingsHighlighterPrefixQuery() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
+        assertAcked(prepareCreate("test").setMapping(type1PostingsffsetsMapping()));
         ensureGreen();
 
         client().prepareIndex("test")
@@ -2808,7 +2747,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testPostingsHighlighterFuzzyQuery() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
+        assertAcked(prepareCreate("test").setMapping(type1PostingsffsetsMapping()));
         ensureGreen();
 
         client().prepareIndex("test")
@@ -2831,7 +2770,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testPostingsHighlighterRegexpQuery() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
+        assertAcked(prepareCreate("test").setMapping(type1PostingsffsetsMapping()));
         ensureGreen();
 
         client().prepareIndex("test")
@@ -2854,7 +2793,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testPostingsHighlighterWildcardQuery() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
+        assertAcked(prepareCreate("test").setMapping(type1PostingsffsetsMapping()));
         ensureGreen();
 
         client().prepareIndex("test")
@@ -2890,7 +2829,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testPostingsHighlighterTermRangeQuery() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
+        assertAcked(prepareCreate("test").setMapping(type1PostingsffsetsMapping()));
         ensureGreen();
 
         client().prepareIndex("test").setSource("field1", "this is a test", "field2", "aaab").get();
@@ -2905,7 +2844,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testPostingsHighlighterQueryString() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
+        assertAcked(prepareCreate("test").setMapping(type1PostingsffsetsMapping()));
         ensureGreen();
 
         client().prepareIndex("test")
@@ -2928,7 +2867,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testPostingsHighlighterRegexpQueryWithinConstantScoreQuery() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
+        assertAcked(prepareCreate("test").setMapping(type1PostingsffsetsMapping()));
         ensureGreen();
 
         client().prepareIndex("test").setSource("field1", "The photography word will get highlighted").get();
@@ -2942,7 +2881,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testPostingsHighlighterMultiTermQueryMultipleLevels() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
+        assertAcked(prepareCreate("test").setMapping(type1PostingsffsetsMapping()));
         ensureGreen();
 
         client().prepareIndex("test").setSource("field1", "The photography word will get highlighted").get();
@@ -2959,7 +2898,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testPostingsHighlighterPrefixQueryWithinBooleanQuery() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
+        assertAcked(prepareCreate("test").setMapping(type1PostingsffsetsMapping()));
         ensureGreen();
 
         client().prepareIndex("test").setSource("field1", "The photography word will get highlighted").get();
@@ -2974,7 +2913,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testPostingsHighlighterQueryStringWithinFilteredQuery() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
+        assertAcked(prepareCreate("test").setMapping(type1PostingsffsetsMapping()));
         ensureGreen();
 
         client().prepareIndex("test").setSource("field1", "The photography word will get highlighted").get();
@@ -2989,7 +2928,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testPostingsHighlighterManyDocs() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
+        assertAcked(prepareCreate("test").setMapping(type1PostingsffsetsMapping()));
         ensureGreen();
 
         int COUNT = between(20, 100);
@@ -3025,7 +2964,6 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     public void testDoesNotHighlightTypeName() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("typename")
             .startObject("properties")
             .startObject("foo")
             .field("type", "text")
@@ -3033,9 +2971,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
             .field("term_vector", "with_positions_offsets")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(prepareCreate("test").addMapping("typename", mapping));
+        assertAcked(prepareCreate("test").setMapping(mapping));
         ensureGreen();
 
         indexRandom(true, client().prepareIndex("test").setSource("foo", "test typename"));
@@ -3052,7 +2989,6 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     public void testDoesNotHighlightAliasFilters() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("typename")
             .startObject("properties")
             .startObject("foo")
             .field("type", "text")
@@ -3060,9 +2996,8 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
             .field("term_vector", "with_positions_offsets")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(prepareCreate("test").addMapping("typename", mapping));
+        assertAcked(prepareCreate("test").setMapping(mapping));
         assertAcked(client().admin().indices().prepareAliases().addAlias("test", "filtered_alias", matchQuery("foo", "japanese")));
         ensureGreen();
 
@@ -3078,7 +3013,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testFastVectorHighlighterPhraseBoost() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
+        assertAcked(prepareCreate("test").setMapping(type1TermVectorMapping()));
         phraseBoostTestCase("fvh");
     }
 
@@ -3174,8 +3109,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         // see https://github.com/elastic/elasticsearch/issues/17537
         XContentBuilder mappings = jsonBuilder();
         mappings.startObject();
-        mappings.startObject("type")
-            .startObject("properties")
+        mappings.startObject("properties")
             .startObject("geo_point")
             .field("type", "geo_point")
             .endObject()
@@ -3184,10 +3118,9 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
             .field("term_vector", "with_positions_offsets_payloads")
             .field("index_options", "offsets")
             .endObject()
-            .endObject()
             .endObject();
         mappings.endObject();
-        assertAcked(prepareCreate("test").addMapping("type", mappings));
+        assertAcked(prepareCreate("test").setMapping(mappings));
 
         client().prepareIndex("test")
             .setId("1")
@@ -3216,18 +3149,16 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         // see https://github.com/elastic/elasticsearch/issues/17537#issuecomment-244939633
         XContentBuilder mappings = jsonBuilder();
         mappings.startObject();
-        mappings.startObject("jobs")
-            .startObject("properties")
+        mappings.startObject("properties")
             .startObject("loc")
             .field("type", "geo_point")
             .endObject()
             .startObject("jd")
             .field("type", "text")
             .endObject()
-            .endObject()
             .endObject();
         mappings.endObject();
-        assertAcked(prepareCreate("test").addMapping("jobs", mappings));
+        assertAcked(prepareCreate("test").setMapping(mappings));
         ensureYellow();
 
         client().prepareIndex("test")
@@ -3259,15 +3190,9 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         // check that keyword highlighting works
         XContentBuilder mappings = jsonBuilder();
         mappings.startObject();
-        mappings.startObject("type")
-            .startObject("properties")
-            .startObject("keyword_field")
-            .field("type", "keyword")
-            .endObject()
-            .endObject()
-            .endObject();
+        mappings.startObject("properties").startObject("keyword_field").field("type", "keyword").endObject().endObject();
         mappings.endObject();
-        assertAcked(prepareCreate("test").addMapping("type", mappings));
+        assertAcked(prepareCreate("test").setMapping(mappings));
 
         client().prepareIndex("test")
             .setId("1")
@@ -3299,7 +3224,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         // If field is not stored, it is looked up in source (but source has only 'foo'
         b.startObject("foo_copy").field("type", "text").field("store", true).endObject();
         b.endObject().endObject();
-        prepareCreate("test").addMapping("type", b).get();
+        prepareCreate("test").setMapping(b).get();
 
         client().prepareIndex("test")
             .setId("1")

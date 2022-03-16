@@ -57,17 +57,14 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertOrderedSea
 public class FunctionScoreFieldValueIT extends OpenSearchIntegTestCase {
     public void testFieldValueFactor() throws IOException {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("test")
                     .field("type", randomFrom(new String[] { "short", "float", "long", "integer", "double" }))
                     .endObject()
                     .startObject("body")
                     .field("type", "text")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -169,17 +166,14 @@ public class FunctionScoreFieldValueIT extends OpenSearchIntegTestCase {
 
     public void testFieldValueFactorExplain() throws IOException {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("test")
                     .field("type", randomFrom(new String[] { "short", "float", "long", "integer", "double" }))
                     .endObject()
                     .startObject("body")
                     .field("type", "text")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
