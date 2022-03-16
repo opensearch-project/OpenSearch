@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class CopyToMapperIntegrationIT extends OpenSearchIntegTestCase {
     public void testDynamicTemplateCopyTo() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test-idx").addMapping("_doc", createDynamicTemplateMapping()));
+        assertAcked(client().admin().indices().prepareCreate("test-idx").setMapping(createDynamicTemplateMapping()));
 
         int recordCount = between(1, 200);
 
@@ -98,7 +98,6 @@ public class CopyToMapperIntegrationIT extends OpenSearchIntegTestCase {
     private XContentBuilder createDynamicTemplateMapping() throws IOException {
         return XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("_doc")
             .startArray("dynamic_templates")
 
             .startObject()
@@ -124,7 +123,6 @@ public class CopyToMapperIntegrationIT extends OpenSearchIntegTestCase {
             .endObject()
 
             .endArray()
-            .endObject()
             .endObject();
     }
 

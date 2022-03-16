@@ -262,7 +262,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
 
         XContentBuilder mapping = createRandomMapping();
         Settings settings = Settings.builder().put("index.number_of_shards", 1).build();
-        client().admin().indices().prepareCreate("test").addMapping("_doc", mapping).setSettings(settings).get();
+        client().admin().indices().prepareCreate("test").setMapping(mapping).setSettings(settings).get();
         ensureGreen();
 
         XContentBuilder docSource = gcb.toXContent(jsonBuilder().startObject().field("geo"), null).endObject();
@@ -282,7 +282,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
     // Test for issue #34418
     public void testEnvelopeSpanningDateline() throws Exception {
         XContentBuilder mapping = createDefaultMapping();
-        client().admin().indices().prepareCreate("test").addMapping("_doc", mapping).get();
+        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();
 
         String doc1 = "{\"geo\": {\r\n"
@@ -488,7 +488,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
 
     public void testIndexedShapeReferenceSourceDisabled() throws Exception {
         XContentBuilder mapping = createDefaultMapping();
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping).get();
+        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         createIndex("shapes", Settings.EMPTY, "shape_type", "_source", "enabled=false");
         ensureGreen();
 
@@ -612,7 +612,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(random());
 
         XContentBuilder builder = createRandomMapping();
-        client().admin().indices().prepareCreate("test").addMapping("type", builder).execute().actionGet();
+        client().admin().indices().prepareCreate("test").setMapping(builder).execute().actionGet();
 
         XContentBuilder docSource = gcb.toXContent(jsonBuilder().startObject().field("geo"), null).endObject();
         client().prepareIndex("test").setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
@@ -748,7 +748,6 @@ public class GeoShapeQueryTests extends GeoQueryTests {
     public void testFieldAlias() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type")
             .startObject("properties")
             .startObject("location")
             .field("type", "geo_shape")
@@ -757,7 +756,6 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             .startObject("alias")
             .field("type", "alias")
             .field("path", "location")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();
@@ -786,7 +784,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         gcb.shape(new PolygonBuilder(cb));
 
         XContentBuilder builder = createRandomMapping();
-        client().admin().indices().prepareCreate("test").addMapping("type", builder).get();
+        client().admin().indices().prepareCreate("test").setMapping(builder).get();
 
         XContentBuilder docSource = gcb.toXContent(jsonBuilder().startObject().field("geo"), null).endObject();
         client().prepareIndex("test").setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();

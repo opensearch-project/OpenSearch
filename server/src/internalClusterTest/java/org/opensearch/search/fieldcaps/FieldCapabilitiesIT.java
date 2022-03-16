@@ -88,7 +88,7 @@ public class FieldCapabilitiesIT extends OpenSearchIntegTestCase {
             .endObject()
             .endObject()
             .endObject();
-        assertAcked(prepareCreate("old_index").addMapping("_doc", oldIndexMapping));
+        assertAcked(prepareCreate("old_index").setMapping(oldIndexMapping));
 
         XContentBuilder newIndexMapping = XContentFactory.jsonBuilder()
             .startObject()
@@ -106,7 +106,7 @@ public class FieldCapabilitiesIT extends OpenSearchIntegTestCase {
             .endObject()
             .endObject()
             .endObject();
-        assertAcked(prepareCreate("new_index").addMapping("_doc", newIndexMapping));
+        assertAcked(prepareCreate("new_index").setMapping(newIndexMapping));
         assertAcked(client().admin().indices().prepareAliases().addAlias("new_index", "current"));
     }
 

@@ -55,8 +55,7 @@ public abstract class AbstractParentChildTestCase extends ParentChildTestCase {
     @Before
     public void setupCluster() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "doc",
+            prepareCreate("test").setMapping(
                 addFieldMappings(
                     buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "article", "comment"),
                     "commenter",
