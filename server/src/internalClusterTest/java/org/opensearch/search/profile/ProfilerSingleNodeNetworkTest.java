@@ -7,7 +7,7 @@
 
 package org.opensearch.search.profile;
 
-import org.apache.lucene.util.English;
+import org.apache.lucene.tests.util.English;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;

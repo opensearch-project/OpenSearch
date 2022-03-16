@@ -196,6 +196,84 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
     }
 
+    // delegates to PointValues but adds query cancellation checks
+    private static class ExitablePointTree implements PointValues.PointTree {
+        private final PointValues values;
+        private final PointValues.PointTree pointTree;
+        private final ExitableIntersectVisitor exitableIntersectVisitor;
+        private final QueryCancellation queryCancellation;
+        private int calls;
+
+        private ExitablePointTree(PointValues values, PointValues.PointTree pointTree, QueryCancellation queryCancellation) {
+            this.values = values;
+            this.pointTree = pointTree;
+            this.exitableIntersectVisitor = new ExitableIntersectVisitor(queryCancellation);
+            this.queryCancellation = queryCancellation;
+        }
+
+        @Override
+        public PointValues.PointTree clone() {
+            queryCancellation.checkCancelled();
+            return new ExitablePointTree(values, pointTree.clone(), queryCancellation);
+        }
+
+        @Override
+        public boolean moveToChild() throws IOException {
+            checkAndThrowWithSampling();
+            return pointTree.moveToChild();
+        }
+
+        @Override
+        public boolean moveToSibling() throws IOException {
+            checkAndThrowWithSampling();
+            return pointTree.moveToSibling();
+        }
+
+        @Override
+        public boolean moveToParent() throws IOException {
+            checkAndThrowWithSampling();
+            return pointTree.moveToParent();
+        }
+
+        @Override
+        public byte[] getMinPackedValue() {
+            checkAndThrowWithSampling();
+            return pointTree.getMinPackedValue();
+        }
+
+        @Override
+        public byte[] getMaxPackedValue() {
+            checkAndThrowWithSampling();
+            return pointTree.getMaxPackedValue();
+        }
+
+        @Override
+        public long size() {
+            queryCancellation.checkCancelled();
+            return pointTree.size();
+        }
+
+        @Override
+        public void visitDocIDs(PointValues.IntersectVisitor visitor) throws IOException {
+            queryCancellation.checkCancelled();
+            pointTree.visitDocIDs(visitor);
+        }
+
+        @Override
+        public void visitDocValues(PointValues.IntersectVisitor visitor) throws IOException {
+            queryCancellation.checkCancelled();
+            exitableIntersectVisitor.setVisitor(visitor);
+            pointTree.visitDocValues(exitableIntersectVisitor);
+        }
+
+        // reuse ExitableIntersectVisitor#checkAndThrowWithSampling
+        private void checkAndThrowWithSampling() {
+            if ((calls++ & ExitableIntersectVisitor.MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK) == 0) {
+                queryCancellation.checkCancelled();
+            }
+        }
+    }
+
     /**
      * Wrapper class for {@link PointValues} that checks for query cancellation or timeout.
      */
@@ -211,15 +289,8 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public void intersect(IntersectVisitor visitor) throws IOException {
-            queryCancellation.checkCancelled();
-            in.intersect(new ExitableIntersectVisitor(visitor, queryCancellation));
-        }
-
-        @Override
-        public long estimatePointCount(IntersectVisitor visitor) {
-            queryCancellation.checkCancelled();
-            return in.estimatePointCount(visitor);
+        public PointTree getPointTree() throws IOException {
+            return new ExitablePointTree(in, in.getPointTree(), queryCancellation);
         }
 
         @Override
@@ -269,12 +340,11 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
 
         private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = (1 << 13) - 1; // 8191
 
-        private final PointValues.IntersectVisitor in;
+        private PointValues.IntersectVisitor in;
         private final QueryCancellation queryCancellation;
         private int calls;
 
-        private ExitableIntersectVisitor(PointValues.IntersectVisitor in, QueryCancellation queryCancellation) {
-            this.in = in;
+        private ExitableIntersectVisitor(QueryCancellation queryCancellation) {
             this.queryCancellation = queryCancellation;
         }
 
@@ -282,6 +352,10 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             if ((calls++ & MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK) == 0) {
                 queryCancellation.checkCancelled();
             }
+        }
+
+        private void setVisitor(PointValues.IntersectVisitor in) {
+            this.in = in;
         }
 
         @Override

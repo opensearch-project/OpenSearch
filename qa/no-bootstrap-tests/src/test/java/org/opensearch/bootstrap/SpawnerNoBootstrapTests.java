@@ -33,7 +33,7 @@
 package org.opensearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.Version;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;

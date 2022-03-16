@@ -33,8 +33,8 @@ package org.opensearch.search.fetch.subphase.highlight;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.MockAnalyzer;
-import org.apache.lucene.analysis.MockTokenizer;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;

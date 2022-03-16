@@ -121,7 +121,7 @@ import static java.util.Collections.newSetFromMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.synchronizedSet;
-import static org.apache.lucene.util.TestUtil.randomSimpleString;
+import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 import static org.opensearch.action.bulk.BackoffPolicy.constantBackoff;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.common.unit.TimeValue.timeValueSeconds;

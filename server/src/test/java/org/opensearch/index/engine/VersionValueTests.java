@@ -32,7 +32,7 @@
 
 package org.opensearch.index.engine;
 
-import org.apache.lucene.util.RamUsageTester;
+import org.apache.lucene.tests.util.RamUsageTester;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.test.OpenSearchTestCase;
 

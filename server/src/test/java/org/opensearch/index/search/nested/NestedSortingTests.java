@@ -56,7 +56,7 @@ import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.settings.Settings;
