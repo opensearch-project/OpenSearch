@@ -43,7 +43,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.search.Scroll;
 import org.opensearch.search.SearchException;
 import org.opensearch.search.SearchHit;
@@ -67,7 +66,6 @@ public class SearchSliceIT extends OpenSearchIntegTestCase {
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type")
                 .startObject("properties")
                 .startObject("invalid_random_kw")
                 .field("type", "keyword")
@@ -83,14 +81,13 @@ public class SearchSliceIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         );
         assertAcked(
             client().admin()
                 .indices()
                 .prepareCreate("test")
                 .setSettings(Settings.builder().put("number_of_shards", numberOfShards).put("index.max_slices_per_scroll", 10000))
-                .addMapping("type", mapping, XContentType.JSON)
+                .setMapping(mapping)
         );
         ensureGreen();
 

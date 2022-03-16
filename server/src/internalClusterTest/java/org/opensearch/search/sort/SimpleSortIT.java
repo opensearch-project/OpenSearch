@@ -38,7 +38,6 @@ import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.common.Strings;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptPlugin;
@@ -243,7 +242,6 @@ public class SimpleSortIT extends OpenSearchIntegTestCase {
     public void testSortMinValueScript() throws IOException {
         String mapping = Strings.toString(
             jsonBuilder().startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("lvalue")
                 .field("type", "long")
@@ -259,10 +257,9 @@ public class SimpleSortIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         );
 
-        assertAcked(prepareCreate("test").addMapping("type1", mapping, XContentType.JSON));
+        assertAcked(prepareCreate("test").setMapping(mapping));
         ensureGreen();
 
         for (int i = 0; i < 10; i++) {
@@ -359,7 +356,6 @@ public class SimpleSortIT extends OpenSearchIntegTestCase {
         // be propagated to all nodes yet and sort operation fail when the sort field is not defined
         String mapping = Strings.toString(
             jsonBuilder().startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("id")
                 .field("type", "keyword")
@@ -369,9 +365,8 @@ public class SimpleSortIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         );
-        assertAcked(prepareCreate("test").addMapping("type1", mapping, XContentType.JSON));
+        assertAcked(prepareCreate("test").setMapping(mapping));
         ensureGreen();
 
         client().prepareIndex("test").setSource(jsonBuilder().startObject().field("id", "1").field("svalue", "aaa").endObject()).get();

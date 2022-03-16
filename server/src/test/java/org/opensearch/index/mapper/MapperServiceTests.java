@@ -40,7 +40,6 @@ import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
@@ -76,32 +75,6 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Arrays.asList(InternalSettingsPlugin.class, ReloadableFilterPlugin.class);
-    }
-
-    public void testTypeNameStartsWithIllegalDot() {
-        String index = "test-index";
-        String type = ".test-type";
-        String field = "field";
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { client().admin().indices().prepareCreate(index).addMapping(type, field, "type=text").execute().actionGet(); }
-        );
-        assertTrue(e.getMessage(), e.getMessage().contains("mapping type name [.test-type] must not start with a '.'"));
-    }
-
-    public void testTypeNameTooLong() {
-        String index = "text-index";
-        String field = "field";
-        String type = new String(new char[256]).replace("\0", "a");
-
-        MapperException e = expectThrows(
-            MapperException.class,
-            () -> { client().admin().indices().prepareCreate(index).addMapping(type, field, "type=text").execute().actionGet(); }
-        );
-        assertTrue(
-            e.getMessage(),
-            e.getMessage().contains("mapping type name [" + type + "] is too long; limit is length 255 but was [256]")
-        );
     }
 
     public void testTypeValidation() {
@@ -201,7 +174,7 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test-index")
-                .addMapping("type", "{\"type\":{}}", XContentType.JSON)
+                .setMapping("{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{}}")
                 .setSettings(Settings.builder().put("index.number_of_shards", 4).put("index.routing_partition_size", 2))
                 .execute()
                 .actionGet();
@@ -213,7 +186,7 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test-index")
-                .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}", XContentType.JSON)
+                .setMapping("{\"_routing\":{\"required\":true}}")
                 .setSettings(Settings.builder().put("index.number_of_shards", 4).put("index.routing_partition_size", 2))
                 .execute()
                 .actionGet()

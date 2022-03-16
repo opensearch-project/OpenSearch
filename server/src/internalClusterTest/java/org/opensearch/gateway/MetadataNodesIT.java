@@ -153,11 +153,7 @@ public class MetadataNodesIT extends OpenSearchIntegTestCase {
 
         // make sure it was also written on red node although index is closed
         ImmutableOpenMap<String, IndexMetadata> indicesMetadata = getIndicesMetadataOnNode(dataNode);
-        assertNotNull(
-            ((Map<String, ?>) (indicesMetadata.get(index).getMappings().get("_doc").getSourceAsMap().get("properties"))).get(
-                "integer_field"
-            )
-        );
+        assertNotNull(((Map<String, ?>) (indicesMetadata.get(index).mapping().getSourceAsMap().get("properties"))).get("integer_field"));
         assertThat(indicesMetadata.get(index).getState(), equalTo(IndexMetadata.State.CLOSE));
 
         /* Try the same and see if this also works if node was just restarted.
@@ -190,9 +186,7 @@ public class MetadataNodesIT extends OpenSearchIntegTestCase {
 
         // make sure it was also written on red node although index is closed
         indicesMetadata = getIndicesMetadataOnNode(dataNode);
-        assertNotNull(
-            ((Map<String, ?>) (indicesMetadata.get(index).getMappings().get("_doc").getSourceAsMap().get("properties"))).get("float_field")
-        );
+        assertNotNull(((Map<String, ?>) (indicesMetadata.get(index).mapping().getSourceAsMap().get("properties"))).get("float_field"));
         assertThat(indicesMetadata.get(index).getState(), equalTo(IndexMetadata.State.CLOSE));
 
         // finally check that meta data is also written of index opened again

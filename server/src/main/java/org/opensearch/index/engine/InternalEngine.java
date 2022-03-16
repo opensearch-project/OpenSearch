@@ -54,7 +54,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ReferenceManager;
@@ -82,6 +81,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.LoggerInfoStream;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
@@ -96,7 +96,6 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.fieldvisitor.IdOnlyFieldVisitor;
 import org.opensearch.index.mapper.IdFieldMapper;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
@@ -1435,15 +1434,13 @@ public class InternalEngine extends Engine {
         final VersionValue versionValue = versionMap.getVersionForAssert(index.uid().bytes());
         if (versionValue != null) {
             if (versionValue.isDelete() == false || allowDeleted == false) {
-                throw new AssertionError(
-                    "doc [" + index.type() + "][" + index.id() + "] exists in version map (version " + versionValue + ")"
-                );
+                throw new AssertionError("doc [" + index.id() + "] exists in version map (version " + versionValue + ")");
             }
         } else {
             try (Searcher searcher = acquireSearcher("assert doc doesn't exist", SearcherScope.INTERNAL)) {
                 final long docsWithId = searcher.count(new TermQuery(index.uid()));
                 if (docsWithId > 0) {
-                    throw new AssertionError("doc [" + index.type() + "][" + index.id() + "] exists [" + docsWithId + "] times in index");
+                    throw new AssertionError("doc [" + index.id() + "] exists [" + docsWithId + "] times in index");
                 }
             }
         }
@@ -1479,7 +1476,6 @@ public class InternalEngine extends Engine {
                 // generate or register sequence number
                 if (delete.origin() == Operation.Origin.PRIMARY) {
                     delete = new Delete(
-                        delete.type(),
                         delete.id(),
                         delete.uid(),
                         generateSeqNoForOperationOnPrimary(delete),
@@ -1667,7 +1663,7 @@ public class InternalEngine extends Engine {
     private DeleteResult deleteInLucene(Delete delete, DeletionStrategy plan) throws IOException {
         assert assertMaxSeqNoOfUpdatesIsAdvanced(delete.uid(), delete.seqNo(), false, false);
         try {
-            final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newDeleteTombstoneDoc(delete.type(), delete.id());
+            final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newDeleteTombstoneDoc(delete.id());
             assert tombstone.docs().size() == 1 : "Tombstone doc should have single doc [" + tombstone + "]";
             tombstone.updateSeqID(delete.seqNo(), delete.primaryTerm());
             tombstone.version().setLongValue(plan.versionOfDeletion);
@@ -2872,10 +2868,10 @@ public class InternalEngine extends Engine {
     @Override
     public Translog.Snapshot newChangesSnapshot(
         String source,
-        MapperService mapperService,
         long fromSeqNo,
         long toSeqNo,
-        boolean requiredFullRange
+        boolean requiredFullRange,
+        boolean accurateCount
     ) throws IOException {
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
@@ -2883,11 +2879,11 @@ public class InternalEngine extends Engine {
         try {
             LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(
                 searcher,
-                mapperService,
                 LuceneChangesSnapshot.DEFAULT_BATCH_SIZE,
                 fromSeqNo,
                 toSeqNo,
-                requiredFullRange
+                requiredFullRange,
+                accurateCount
             );
             searcher = null;
             return snapshot;
@@ -2900,6 +2896,21 @@ public class InternalEngine extends Engine {
             throw e;
         } finally {
             IOUtils.close(searcher);
+        }
+    }
+
+    public int countNumberOfHistoryOperations(String source, long fromSeqNo, long toSeqNo) throws IOException {
+        ensureOpen();
+        refreshIfNeeded(source, toSeqNo);
+        try (Searcher s = acquireSearcher(source, SearcherScope.INTERNAL)) {
+            return LuceneChangesSnapshot.countNumberOfHistoryOperations(s, fromSeqNo, toSeqNo);
+        } catch (IOException e) {
+            try {
+                maybeFailEngine(source, e);
+            } catch (Exception innerException) {
+                e.addSuppressed(innerException);
+            }
+            throw e;
         }
     }
 
@@ -3064,7 +3075,7 @@ public class InternalEngine extends Engine {
             BooleanClause.Occur.MUST
         )
             // exclude non-root nested documents
-            .add(new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME), BooleanClause.Occur.MUST)
+            .add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST)
             .build();
         final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
         for (LeafReaderContext leaf : directoryReader.leaves()) {

@@ -43,9 +43,9 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.sandbox.search.CoveringQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.CoveringQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LongValuesSource;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -279,7 +279,7 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
             }
             Query filter = null;
             if (excludeNestedDocuments) {
-                filter = Queries.newNonNestedFilter(indexVersion);
+                filter = Queries.newNonNestedFilter();
             }
             return new PercolateQuery(name, queryStore, documents, candidateQuery, searcher, filter, verifiedMatchesQuery);
         }

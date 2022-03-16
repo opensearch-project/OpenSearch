@@ -379,7 +379,6 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("location")
                 .field("type", "text")
@@ -387,13 +386,9 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         );
 
-        CreateIndexRequestBuilder mappingRequest = client().admin()
-            .indices()
-            .prepareCreate("test1")
-            .addMapping("type1", mapping, XContentType.JSON);
+        CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test1").setMapping(mapping);
         mappingRequest.get();
         indexRandom(true, client().prepareIndex("test1").setId("1").setSource("location", "Köln"));
         refresh();
@@ -431,7 +426,6 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("body")
                 .field("type", "text")
@@ -439,13 +433,9 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         );
 
-        CreateIndexRequestBuilder mappingRequest = client().admin()
-            .indices()
-            .prepareCreate("test1")
-            .addMapping("type1", mapping, XContentType.JSON);
+        CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test1").setMapping(mapping);
         mappingRequest.get();
         indexRandom(true, client().prepareIndex("test1").setId("1").setSource("body", "Some Text"));
         refresh();

@@ -32,8 +32,7 @@
 
 package org.opensearch.indices;
 
-import org.opensearch.LegacyESVersion;
-import org.opensearch.common.Nullable;
+import org.opensearch.Version;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -42,13 +41,13 @@ import org.opensearch.common.xcontent.ConstructingObjectParser;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.TermsQueryBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Encapsulates the parameters needed to fetch terms.
@@ -56,20 +55,11 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalCo
 public class TermsLookup implements Writeable, ToXContentFragment {
 
     private final String index;
-    private @Nullable String type;
     private final String id;
     private final String path;
     private String routing;
 
     public TermsLookup(String index, String id, String path) {
-        this(index, null, id, path);
-    }
-
-    /**
-     * @deprecated Types are in the process of being removed, use {@link TermsLookup(String, String, String)} instead.
-     */
-    @Deprecated
-    public TermsLookup(String index, String type, String id, String path) {
         if (id == null) {
             throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying the id.");
         }
@@ -80,7 +70,6 @@ public class TermsLookup implements Writeable, ToXContentFragment {
             throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying the index.");
         }
         this.index = index;
-        this.type = type;
         this.id = id;
         this.path = path;
     }
@@ -89,11 +78,8 @@ public class TermsLookup implements Writeable, ToXContentFragment {
      * Read from a stream.
      */
     public TermsLookup(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            type = in.readOptionalString();
-        } else {
-            // Before 7.0, the type parameter was always non-null and serialized as a (non-optional) string.
-            type = in.readString();
+        if (in.getVersion().before(Version.V_2_0_0)) {
+            in.readOptionalString();
         }
         id = in.readString();
         path = in.readString();
@@ -103,16 +89,8 @@ public class TermsLookup implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            out.writeOptionalString(type);
-        } else {
-            if (type == null) {
-                throw new IllegalArgumentException(
-                    "Typeless [terms] lookup queries are not supported if any " + "node is running a version before 7.0."
-                );
-
-            }
-            out.writeString(type);
+        if (out.getVersion().before(Version.V_2_0_0)) {
+            out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
         }
         out.writeString(id);
         out.writeString(path);
@@ -122,14 +100,6 @@ public class TermsLookup implements Writeable, ToXContentFragment {
 
     public String index() {
         return index;
-    }
-
-    /**
-     * @deprecated Types are in the process of being removed.
-     */
-    @Deprecated
-    public String type() {
-        return type;
     }
 
     public String id() {
@@ -151,14 +121,12 @@ public class TermsLookup implements Writeable, ToXContentFragment {
 
     private static final ConstructingObjectParser<TermsLookup, Void> PARSER = new ConstructingObjectParser<>("terms_lookup", args -> {
         String index = (String) args[0];
-        String type = (String) args[1];
-        String id = (String) args[2];
-        String path = (String) args[3];
-        return new TermsLookup(index, type, id, path);
+        String id = (String) args[1];
+        String path = (String) args[2];
+        return new TermsLookup(index, id, path);
     });
     static {
         PARSER.declareString(constructorArg(), new ParseField("index"));
-        PARSER.declareString(optionalConstructorArg(), new ParseField("type").withAllDeprecated());
         PARSER.declareString(constructorArg(), new ParseField("id"));
         PARSER.declareString(constructorArg(), new ParseField("path"));
         PARSER.declareString(TermsLookup::routing, new ParseField("routing"));
@@ -170,19 +138,12 @@ public class TermsLookup implements Writeable, ToXContentFragment {
 
     @Override
     public String toString() {
-        if (type == null) {
-            return index + "/" + id + "/" + path;
-        } else {
-            return index + "/" + type + "/" + id + "/" + path;
-        }
+        return index + "/" + id + "/" + path;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("index", index);
-        if (type != null) {
-            builder.field("type", type);
-        }
         builder.field("id", id);
         builder.field("path", path);
         if (routing != null) {
@@ -193,7 +154,7 @@ public class TermsLookup implements Writeable, ToXContentFragment {
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, type, id, path, routing);
+        return Objects.hash(index, id, path, routing);
     }
 
     @Override
@@ -206,7 +167,6 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         }
         TermsLookup other = (TermsLookup) obj;
         return Objects.equals(index, other.index)
-            && Objects.equals(type, other.type)
             && Objects.equals(id, other.id)
             && Objects.equals(path, other.path)
             && Objects.equals(routing, other.routing);

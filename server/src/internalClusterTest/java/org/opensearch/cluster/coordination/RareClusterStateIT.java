@@ -365,7 +365,7 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
             final IndexService indexService = indicesService.indexServiceSafe(index);
             assertNotNull(indexService);
             final MapperService mapperService = indexService.mapperService();
-            DocumentMapper mapper = mapperService.documentMapper(MapperService.SINGLE_MAPPING_NAME);
+            DocumentMapper mapper = mapperService.documentMapper();
             assertNotNull(mapper);
             assertNotNull(mapper.mappers().getMapper("field"));
         });
@@ -389,7 +389,7 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
             final IndexService indexService = indicesService.indexServiceSafe(index);
             assertNotNull(indexService);
             final MapperService mapperService = indexService.mapperService();
-            DocumentMapper mapper = mapperService.documentMapper(MapperService.SINGLE_MAPPING_NAME);
+            DocumentMapper mapper = mapperService.documentMapper();
             assertNotNull(mapper);
             assertNotNull(mapper.mappers().getMapper("field2"));
         });

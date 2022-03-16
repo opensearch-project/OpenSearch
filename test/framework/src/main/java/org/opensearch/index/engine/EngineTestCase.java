@@ -175,10 +175,6 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     // A default primary term is used by engine instances created in this test.
     protected final PrimaryTermSupplier primaryTerm = new PrimaryTermSupplier(1L);
 
-    protected static void assertVisibleCount(Engine engine, int numDocs) throws IOException {
-        assertVisibleCount(engine, numDocs, true);
-    }
-
     protected static void assertVisibleCount(Engine engine, int numDocs, boolean refresh) throws IOException {
         if (refresh) {
             engine.refresh("test");
@@ -336,14 +332,14 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         try {
             if (engine != null && engine.isClosed.get() == false) {
                 engine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
-                assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, createMapperService("test"));
+                assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
                 assertNoInFlightDocuments(engine);
                 assertMaxSeqNoInCommitUserData(engine);
                 assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
             }
             if (replicaEngine != null && replicaEngine.isClosed.get() == false) {
                 replicaEngine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
-                assertConsistentHistoryBetweenTranslogAndLuceneIndex(replicaEngine, createMapperService("test"));
+                assertConsistentHistoryBetweenTranslogAndLuceneIndex(replicaEngine);
                 assertNoInFlightDocuments(replicaEngine);
                 assertMaxSeqNoInCommitUserData(replicaEngine);
                 assertAtMostOneLuceneDocumentPerSequenceNumber(replicaEngine);
@@ -415,21 +411,11 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         } else {
             document.add(new StoredField(SourceFieldMapper.NAME, ref.bytes, ref.offset, ref.length));
         }
-        return new ParsedDocument(
-            versionField,
-            seqID,
-            id,
-            "test",
-            routing,
-            Arrays.asList(document),
-            source,
-            XContentType.JSON,
-            mappingUpdate
-        );
+        return new ParsedDocument(versionField, seqID, id, routing, Arrays.asList(document), source, XContentType.JSON, mappingUpdate);
     }
 
     public static CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedParsedDocFactory() throws Exception {
-        final MapperService mapperService = createMapperService("type");
+        final MapperService mapperService = createMapperService();
         final String nestedMapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
@@ -453,7 +439,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                 source.endObject();
             }
             source.endObject();
-            return nestedMapper.parse(new SourceToParse("test", "type", docId, BytesReference.bytes(source), XContentType.JSON));
+            return nestedMapper.parse(new SourceToParse("test", docId, BytesReference.bytes(source), XContentType.JSON));
         };
     }
 
@@ -463,7 +449,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     public static EngineConfig.TombstoneDocSupplier tombstoneDocSupplier() {
         return new EngineConfig.TombstoneDocSupplier() {
             @Override
-            public ParsedDocument newDeleteTombstoneDoc(String type, String id) {
+            public ParsedDocument newDeleteTombstoneDoc(String id) {
                 final ParseContext.Document doc = new ParseContext.Document();
                 Field uidField = new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE);
                 doc.add(uidField);
@@ -479,7 +465,6 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                     versionField,
                     seqID,
                     id,
-                    type,
                     null,
                     Collections.singletonList(doc),
                     new BytesArray("{}"),
@@ -501,17 +486,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                 doc.add(versionField);
                 BytesRef byteRef = new BytesRef(reason);
                 doc.add(new StoredField(SourceFieldMapper.NAME, byteRef.bytes, byteRef.offset, byteRef.length));
-                return new ParsedDocument(
-                    versionField,
-                    seqID,
-                    null,
-                    null,
-                    null,
-                    Collections.singletonList(doc),
-                    null,
-                    XContentType.JSON,
-                    null
-                );
+                return new ParsedDocument(versionField, seqID, null, null, Collections.singletonList(doc), null, XContentType.JSON, null);
             }
         };
     }
@@ -996,7 +971,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     }
 
     protected Engine.Delete replicaDeleteForDoc(String id, long version, long seqNo, long startTime) {
-        return new Engine.Delete("test", id, newUid(id), seqNo, 1, version, null, REPLICA, startTime, SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
+        return new Engine.Delete(id, newUid(id), seqNo, 1, version, null, REPLICA, startTime, SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
     }
 
     protected static void assertVisibleCount(InternalEngine engine, int numDocs) throws IOException {
@@ -1061,7 +1036,6 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                 );
             } else {
                 op = new Engine.Delete(
-                    "test",
                     docId,
                     id,
                     forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbers.UNASSIGNED_SEQ_NO,
@@ -1120,7 +1094,6 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                     case DELETE:
                         operations.add(
                             new Engine.Delete(
-                                doc.type(),
                                 doc.id(),
                                 EngineTestCase.newUid(doc),
                                 seqNo,
@@ -1342,9 +1315,9 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
      * Reads all engine operations that have been processed by the engine from Lucene index.
      * The returned operations are sorted and de-duplicated, thus each sequence number will be have at most one operation.
      */
-    public static List<Translog.Operation> readAllOperationsInLucene(Engine engine, MapperService mapper) throws IOException {
+    public static List<Translog.Operation> readAllOperationsInLucene(Engine engine) throws IOException {
         final List<Translog.Operation> operations = new ArrayList<>();
-        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", mapper, 0, Long.MAX_VALUE, false)) {
+        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean())) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
                 operations.add(op);
@@ -1356,9 +1329,9 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     /**
      * Reads all engine operations that have been processed by the engine from Lucene index/Translog based on source.
      */
-    public static List<Translog.Operation> readAllOperationsBasedOnSource(Engine engine, MapperService mapper) throws IOException {
+    public static List<Translog.Operation> readAllOperationsBasedOnSource(Engine engine) throws IOException {
         final List<Translog.Operation> operations = new ArrayList<>();
-        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", mapper, 0, Long.MAX_VALUE, false)) {
+        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean())) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
                 operations.add(op);
@@ -1370,8 +1343,8 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     /**
      * Asserts the provided engine has a consistent document history between translog and Lucene index.
      */
-    public static void assertConsistentHistoryBetweenTranslogAndLuceneIndex(Engine engine, MapperService mapper) throws IOException {
-        if (mapper == null || mapper.documentMapper() == null || (engine instanceof InternalEngine) == false) {
+    public static void assertConsistentHistoryBetweenTranslogAndLuceneIndex(Engine engine) throws IOException {
+        if (engine instanceof InternalEngine == false) {
             return;
         }
         final List<Translog.Operation> translogOps = new ArrayList<>();
@@ -1381,7 +1354,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                 translogOps.add(op);
             }
         }
-        final Map<Long, Translog.Operation> luceneOps = readAllOperationsInLucene(engine, mapper).stream()
+        final Map<Long, Translog.Operation> luceneOps = readAllOperationsInLucene(engine).stream()
             .collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
         final long maxSeqNo = ((InternalEngine) engine).getLocalCheckpointTracker().getMaxSeqNo();
         for (Translog.Operation op : translogOps) {
@@ -1483,7 +1456,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         }
     }
 
-    public static MapperService createMapperService(String type) throws IOException {
+    public static MapperService createMapperService() throws IOException {
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(
                 Settings.builder()
@@ -1491,7 +1464,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             )
-            .putMapping(type, "{\"properties\": {}}")
+            .putMapping("{\"properties\": {}}")
             .build();
         MapperService mapperService = MapperTestUtils.newMapperService(
             new NamedXContentRegistry(ClusterModule.getNamedXWriteables()),
