@@ -176,7 +176,8 @@ final class DefaultSearchContext extends SearchContext {
         TimeValue timeout,
         FetchPhase fetchPhase,
         boolean lowLevelCancellation,
-        Version minNodeVersion
+        Version minNodeVersion,
+        boolean validate
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
@@ -206,7 +207,8 @@ final class DefaultSearchContext extends SearchContext {
             request.shardId().id(),
             this.searcher,
             request::nowInMillis,
-            shardTarget.getClusterAlias()
+            shardTarget.getClusterAlias(),
+            validate
         );
         queryBoost = request.indexBoost();
         this.lowLevelCancellation = lowLevelCancellation;
@@ -322,7 +324,7 @@ final class DefaultSearchContext extends SearchContext {
         if (mapperService().hasNested()
             && new NestedHelper(mapperService()).mightMatchNestedDocs(query)
             && (aliasFilter == null || new NestedHelper(mapperService()).mightMatchNestedDocs(aliasFilter))) {
-            filters.add(Queries.newNonNestedFilter(mapperService().getIndexSettings().getIndexVersionCreated()));
+            filters.add(Queries.newNonNestedFilter());
         }
 
         if (aliasFilter != null) {

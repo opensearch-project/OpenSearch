@@ -38,11 +38,8 @@ import org.opensearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.opensearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.rest.BaseRestHandler;
-import org.opensearch.common.xcontent.ToXContent.Params;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,7 +48,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.Collections;
 
 import static org.opensearch.test.AbstractXContentTestCase.xContentTester;
 
@@ -94,7 +90,6 @@ public class RolloverResponseTests extends OpenSearchTestCase {
     }
 
     private static void toXContent(RolloverResponse response, XContentBuilder builder) throws IOException {
-        Params params = new ToXContent.MapParams(Collections.singletonMap(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, "false"));
         org.opensearch.action.admin.indices.rollover.RolloverResponse serverResponse =
             new org.opensearch.action.admin.indices.rollover.RolloverResponse(
                 response.getOldIndex(),
@@ -105,6 +100,6 @@ public class RolloverResponseTests extends OpenSearchTestCase {
                 response.isAcknowledged(),
                 response.isShardsAcknowledged()
             );
-        serverResponse.toXContent(builder, params);
+        serverResponse.toXContent(builder, null);
     }
 }

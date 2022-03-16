@@ -245,8 +245,6 @@ public class TruncateTranslogAction {
             StandardOpenOption.READ,
             StandardOpenOption.CREATE_NEW
         );
-        // fsync with metadata here to make sure.
-        IOUtils.fsync(filename, false);
     }
 
     /**

@@ -171,7 +171,7 @@ public class FunctionScorePluginIT extends OpenSearchIntegTestCase {
             }
 
             @Override
-            public Explanation explainFunction(String distanceString, double distanceVal, double scale) {
+            public Explanation explainFunction(String distanceString, double distanceVal, double scale, String functionName) {
                 return Explanation.match((float) distanceVal, "" + distanceVal);
             }
 

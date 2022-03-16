@@ -118,6 +118,46 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
     }
 
+    public void testSerializationWithPercentilesQueryObject() throws IOException {
+        String restContent = "{\n"
+            + "    \"aggregations\": {"
+            + "        \"percentiles_duration\": {\n"
+            + "            \"percentiles\" : {\n"
+            + "                \"field\": \"duration\"\n"
+            + "            }\n"
+            + "        }\n"
+            + "    }\n"
+            + "}\n";
+        String expectedContent = "{\"aggregations\":{"
+            + "\"percentiles_duration\":{"
+            + "\"percentiles\":{"
+            + "\"field\":\"duration\","
+            + "\"percents\":[1.0,5.0,25.0,50.0,75.0,95.0,99.0],"
+            + "\"keyed\":true,"
+            + "\"tdigest\":{"
+            + "\"compression\":100.0"
+            + "}"
+            + "}"
+            + "}"
+            + "}}";
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+            SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                searchSourceBuilder.writeTo(output);
+                try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
+                    SearchSourceBuilder deserializedBuilder = new SearchSourceBuilder(in);
+                    String actualContent = deserializedBuilder.toString();
+
+                    assertEquals(expectedContent, actualContent);
+                    assertEquals(searchSourceBuilder.hashCode(), deserializedBuilder.hashCode());
+                    assertNotSame(searchSourceBuilder, deserializedBuilder);
+                }
+            }
+        }
+    }
+
     public void testShallowCopy() {
         for (int i = 0; i < 10; i++) {
             SearchSourceBuilder original = createSearchSourceBuilder();

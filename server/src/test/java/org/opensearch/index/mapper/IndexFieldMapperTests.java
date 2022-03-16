@@ -63,7 +63,6 @@ public class IndexFieldMapperTests extends OpenSearchSingleNodeTestCase {
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
                 "test",
-                "type",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject()),
                 XContentType.JSON

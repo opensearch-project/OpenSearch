@@ -84,6 +84,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.nullable;
 import static org.mockito.Mockito.mock;
@@ -122,7 +123,9 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
         when(indexCache.query()).thenReturn(queryCache);
         when(indexService.cache()).thenReturn(indexCache);
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(indexService.newQueryShardContext(eq(shardId.id()), any(), any(), nullable(String.class))).thenReturn(queryShardContext);
+        when(indexService.newQueryShardContext(eq(shardId.id()), any(), any(), nullable(String.class), anyBoolean())).thenReturn(
+            queryShardContext
+        );
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.hasNested()).thenReturn(randomBoolean());
         when(indexService.mapperService()).thenReturn(mapperService);
@@ -178,7 +181,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 timeout,
                 null,
                 false,
-                Version.CURRENT
+                Version.CURRENT,
+                false
             );
             contextWithoutScroll.from(300);
             contextWithoutScroll.close();
@@ -218,7 +222,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 timeout,
                 null,
                 false,
-                Version.CURRENT
+                Version.CURRENT,
+                false
             );
             context1.from(300);
             exception = expectThrows(IllegalArgumentException.class, () -> context1.preProcess(false));
@@ -286,7 +291,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 timeout,
                 null,
                 false,
-                Version.CURRENT
+                Version.CURRENT,
+                false
             );
 
             SliceBuilder sliceBuilder = mock(SliceBuilder.class);
@@ -323,7 +329,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 timeout,
                 null,
                 false,
-                Version.CURRENT
+                Version.CURRENT,
+                false
             );
             ParsedQuery parsedQuery = ParsedQuery.parsedMatchAllQuery();
             context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess(false);
@@ -352,7 +359,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 timeout,
                 null,
                 false,
-                Version.CURRENT
+                Version.CURRENT,
+                false
             );
             context4.sliceBuilder(new SliceBuilder(1, 2)).parsedQuery(parsedQuery).preProcess(false);
             Query query1 = context4.query();
@@ -380,7 +388,9 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
 
         IndexService indexService = mock(IndexService.class);
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(indexService.newQueryShardContext(eq(shardId.id()), any(), any(), nullable(String.class))).thenReturn(queryShardContext);
+        when(indexService.newQueryShardContext(eq(shardId.id()), any(), any(), nullable(String.class), anyBoolean())).thenReturn(
+            queryShardContext
+        );
 
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
 
@@ -429,7 +439,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 timeout,
                 null,
                 false,
-                Version.CURRENT
+                Version.CURRENT,
+                false
             );
             assertThat(context.searcher().hasCancellations(), is(false));
             context.searcher().addQueryCancellation(() -> {});

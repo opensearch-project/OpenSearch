@@ -63,6 +63,7 @@ import static org.opensearch.script.MockScriptPlugin.NAME;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -287,6 +288,37 @@ public class RandomScoreFunctionIT extends OpenSearchIntegTestCase {
         assertEquals(1, resp.getHits().getTotalHits().value);
         SearchHit firstHit = resp.getHits().getAt(0);
         assertThat(firstHit.getExplanation().toString(), containsString("" + seed));
+    }
+
+    public void testSeedAndNameReportedInExplain() throws Exception {
+        createIndex("test");
+        ensureGreen();
+        index("test", "type", "1", jsonBuilder().startObject().endObject());
+        flush();
+        refresh();
+
+        int seed = 12345678;
+
+        final String queryName = "query1";
+        final String functionName = "func1";
+        SearchResponse resp = client().prepareSearch("test")
+            .setQuery(
+                functionScoreQuery(
+                    matchAllQuery().queryName(queryName),
+                    randomFunction(functionName).seed(seed).setField(SeqNoFieldMapper.NAME)
+                )
+            )
+            .setExplain(true)
+            .get();
+        assertNoFailures(resp);
+        assertEquals(1, resp.getHits().getTotalHits().value);
+        SearchHit firstHit = resp.getHits().getAt(0);
+        assertThat(firstHit.getExplanation().getDetails(), arrayWithSize(2));
+        // "description": "*:* (_name: query1)"
+        assertThat(firstHit.getExplanation().getDetails()[0].getDescription().toString(), containsString("_name: " + queryName));
+        assertThat(firstHit.getExplanation().getDetails()[1].getDetails(), arrayWithSize(2));
+        // "description": "random score function (seed: 12345678, field: _seq_no, _name: func1)"
+        assertThat(firstHit.getExplanation().getDetails()[1].getDetails()[0].getDescription().toString(), containsString("seed: " + seed));
     }
 
     public void testNoDocs() throws Exception {

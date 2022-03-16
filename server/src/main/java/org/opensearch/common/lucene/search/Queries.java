@@ -44,7 +44,6 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
-import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.TypeFieldMapper;
@@ -84,9 +83,8 @@ public class Queries {
 
     /**
      * Creates a new non-nested docs query
-     * @param indexVersionCreated the index version created since newer indices can identify a parent field more efficiently
      */
-    public static Query newNonNestedFilter(Version indexVersionCreated) {
+    public static Query newNonNestedFilter() {
         return new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME);
     }
 

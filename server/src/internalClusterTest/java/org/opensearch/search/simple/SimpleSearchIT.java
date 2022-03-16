@@ -43,6 +43,7 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.rest.RestStatus;
@@ -118,11 +119,10 @@ public class SimpleSearchIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .preparePutMapping("test")
-            .setType("type1")
             .setSource(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
+                    .startObject(MapperService.SINGLE_MAPPING_NAME)
                     .startObject("properties")
                     .startObject("from")
                     .field("type", "ip")
@@ -151,11 +151,10 @@ public class SimpleSearchIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .preparePutMapping("test")
-            .setType("type1")
             .setSource(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
+                    .startObject(MapperService.SINGLE_MAPPING_NAME)
                     .startObject("properties")
                     .startObject("ip")
                     .field("type", "ip")
@@ -296,7 +295,7 @@ public class SimpleSearchIT extends OpenSearchIntegTestCase {
     public void testSimpleIndexSortEarlyTerminate() throws Exception {
         prepareCreate("test").setSettings(
             Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0).put("index.sort.field", "rank")
-        ).addMapping("type1", "rank", "type=integer").get();
+        ).addMapping(MapperService.SINGLE_MAPPING_NAME, "rank", "type=integer").get();
         ensureGreen();
         int max = randomIntBetween(3, 29);
         List<IndexRequestBuilder> docbuilders = new ArrayList<>(max);

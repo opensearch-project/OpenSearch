@@ -37,6 +37,10 @@ import org.apache.lucene.analysis.CannedBinaryTokenStream;
 import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
+import org.apache.lucene.queries.spans.SpanNearQuery;
+import org.apache.lucene.queries.spans.SpanOrQuery;
+import org.apache.lucene.queries.spans.SpanQuery;
+import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FuzzyQuery;
@@ -47,10 +51,6 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.spans.SpanNearQuery;
-import org.apache.lucene.search.spans.SpanOrQuery;
-import org.apache.lucene.search.spans.SpanQuery;
-import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.common.ParsingException;
@@ -390,13 +390,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             "_doc",
             new CompressedXContent(
                 Strings.toString(
-                    PutMappingRequest.buildFromSimplifiedDef(
-                        "_doc",
-                        "string_boost",
-                        "type=text",
-                        "string_no_pos",
-                        "type=text,index_options=docs"
-                    )
+                    PutMappingRequest.buildFromSimplifiedDef("string_boost", "type=text", "string_no_pos", "type=text,index_options=docs")
                 )
             ),
             MapperService.MergeReason.MAPPING_UPDATE

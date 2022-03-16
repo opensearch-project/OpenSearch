@@ -50,7 +50,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.Version;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lucene.search.Queries;
@@ -91,7 +90,6 @@ import org.opensearch.search.aggregations.pipeline.BucketScriptPipelineAggregati
 import org.opensearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
 import org.opensearch.search.aggregations.support.ValueType;
-import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -395,7 +393,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
                 BooleanQuery.Builder bq = new BooleanQuery.Builder();
-                bq.add(Queries.newNonNestedFilter(VersionUtils.randomVersion(random())), BooleanClause.Occur.MUST);
+                bq.add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST);
                 bq.add(new TermQuery(new Term(IdFieldMapper.NAME, Uid.encodeId("2"))), BooleanClause.Occur.MUST_NOT);
 
                 InternalNested nested = searchAndReduce(
@@ -687,7 +685,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
 
                 Filter filter = searchAndReduce(
                     newSearcher(indexReader, false, true),
-                    Queries.newNonNestedFilter(Version.CURRENT),
+                    Queries.newNonNestedFilter(),
                     filterAggregationBuilder,
                     fieldType1,
                     fieldType2

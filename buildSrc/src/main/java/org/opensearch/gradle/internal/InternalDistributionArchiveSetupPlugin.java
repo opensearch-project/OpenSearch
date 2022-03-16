@@ -39,6 +39,7 @@ import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.logging.Logger;
@@ -46,6 +47,7 @@ import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.AbstractCopyTask;
 import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskContainer;
+import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 import org.gradle.api.tasks.bundling.Compression;
 import org.gradle.api.tasks.bundling.Zip;
@@ -105,14 +107,18 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
 
     private void registerAndConfigureDistributionArchivesExtension(Project project) {
         container = project.container(DistributionArchive.class, name -> {
-            var subProjectDir = archiveToSubprojectName(name);
-            var copyDistributionTaskName = "build" + capitalize(name.substring(0, name.length() - 3));
+            String subProjectDir = archiveToSubprojectName(name);
+            String copyDistributionTaskName = "build" + capitalize(name.substring(0, name.length() - 3));
             TaskContainer tasks = project.getTasks();
-            var explodedDist = tasks.register(copyDistributionTaskName, Sync.class, sync -> sync.into(subProjectDir + "/build/install/"));
+            TaskProvider<Sync> explodedDist = tasks.register(
+                copyDistributionTaskName,
+                Sync.class,
+                sync -> sync.into(subProjectDir + "/build/install/")
+            );
             explodedDist.configure(configure(name));
-            var archiveTaskName = "build" + capitalize(name);
+            String archiveTaskName = "build" + capitalize(name);
 
-            var archiveTask = name.endsWith("Tar")
+            TaskProvider<? extends AbstractArchiveTask> archiveTask = name.endsWith("Tar")
                 ? tasks.register(archiveTaskName, SymbolicLinkPreservingTar.class)
                 : tasks.register(archiveTaskName, Zip.class);
             archiveTask.configure(configure(name));
@@ -122,11 +128,11 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
         // Each defined distribution archive is linked to a subproject.
         // A distribution archive definition not matching a sub project will result in build failure.
         container.whenObjectAdded(distributionArchive -> {
-            var subProjectName = archiveToSubprojectName(distributionArchive.getName());
+            String subProjectName = archiveToSubprojectName(distributionArchive.getName());
             project.project(subProjectName, sub -> {
                 sub.getPlugins().apply(BasePlugin.class);
                 sub.getArtifacts().add(DEFAULT_CONFIGURATION_NAME, distributionArchive.getArchiveTask());
-                var extractedConfiguration = sub.getConfigurations().create("extracted");
+                Configuration extractedConfiguration = sub.getConfigurations().create("extracted");
                 extractedConfiguration.setCanBeResolved(false);
                 extractedConfiguration.getAttributes().attribute(ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
                 sub.getArtifacts().add(EXTRACTED_CONFIGURATION_NAME, distributionArchive.getExpandedDistTask());

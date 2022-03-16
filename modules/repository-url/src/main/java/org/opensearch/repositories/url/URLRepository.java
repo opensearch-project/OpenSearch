@@ -95,7 +95,7 @@ public class URLRepository extends BlobStoreRepository {
 
     private final List<String> supportedProtocols;
 
-    private final URIPattern[] urlWhiteList;
+    private final URIPattern[] urlAllowList;
 
     private final Environment environment;
 
@@ -120,7 +120,7 @@ public class URLRepository extends BlobStoreRepository {
         }
         this.environment = environment;
         supportedProtocols = SUPPORTED_PROTOCOLS_SETTING.get(environment.settings());
-        urlWhiteList = ALLOWED_URLS_SETTING.get(environment.settings()).toArray(new URIPattern[] {});
+        urlAllowList = ALLOWED_URLS_SETTING.get(environment.settings()).toArray(new URIPattern[] {});
         basePath = BlobPath.cleanPath();
         url = URL_SETTING.exists(metadata.settings())
             ? URL_SETTING.get(metadata.settings())
@@ -161,7 +161,7 @@ public class URLRepository extends BlobStoreRepository {
         for (String supportedProtocol : supportedProtocols) {
             if (supportedProtocol.equals(protocol)) {
                 try {
-                    if (URIPattern.match(urlWhiteList, url.toURI())) {
+                    if (URIPattern.match(urlAllowList, url.toURI())) {
                         // URL matches white list - no additional processing is needed
                         return url;
                     }
