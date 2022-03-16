@@ -2,7 +2,7 @@
   "cat.cluster_manager":{
     "documentation":{
       "url":"https://opensearch.org/docs/latest/opensearch/rest-api/cat/cat-master/",
-      "description":"Returns information about the cluster manager node."
+      "description":"Returns information about the cluster-manager node."
     },
     "stability":"stable",
     "url":{
@@ -22,7 +22,7 @@
       },
       "local":{
         "type":"boolean",
-        "description":"Return local information, do not retrieve the state from master node (default: false)"
+        "description":"Return local information, do not retrieve the state from cluster-manager node (default: false)"
       },
       "master_timeout":{
         "type":"time",
