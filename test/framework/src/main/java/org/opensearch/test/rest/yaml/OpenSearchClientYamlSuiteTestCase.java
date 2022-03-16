@@ -143,10 +143,15 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
             validateSpec(restSpec);
             final List<HttpHost> hosts = getClusterHosts();
             Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(adminClient());
-            final Version esVersion = versionVersionTuple.v1();
+            final Version minVersion = versionVersionTuple.v1();
             final Version masterVersion = versionVersionTuple.v2();
-            logger.info("initializing client, minimum es version [{}], master version, [{}], hosts {}", esVersion, masterVersion, hosts);
-            clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, masterVersion);
+            logger.info(
+                "initializing client, minimum OpenSearch version [{}], master version, [{}], hosts {}",
+                minVersion,
+                masterVersion,
+                hosts
+            );
+            clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, minVersion, masterVersion);
             restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, randomizeContentType());
             adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, false);
             final String[] denylist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
@@ -321,6 +326,13 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
         }
     }
 
+    /**
+     * Detect minimal node version and master node version of cluster using REST Client.
+     *
+     * @param restClient REST client used to discover cluster nodes
+     * @return {@link Tuple} of [minimal node version, master node version]
+     * @throws IOException When _cat API output parsing fails
+     */
     private Tuple<Version, Version> readVersionsFromCatNodes(RestClient restClient) throws IOException {
         // we simply go to the _cat/nodes API and parse all versions in the cluster
         final Request request = new Request("GET", "/_cat/nodes");
