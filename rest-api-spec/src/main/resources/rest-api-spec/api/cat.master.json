@@ -2,11 +2,17 @@
   "cat.master":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cat-master.html",
-      "description":"Returns information about the master node."
+      "description":"Returns information about the cluster-manager node."
     },
     "stability":"stable",
     "url":{
       "paths":[
+        {
+          "path":"/_cat/cluster_manager",
+          "methods":[
+            "GET"
+          ]
+        },
         {
           "path":"/_cat/master",
           "methods":[
