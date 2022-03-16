@@ -114,10 +114,14 @@ public class ClusterBootstrapService {
         Consumer<VotingConfiguration> votingConfigurationConsumer
     ) {
         if (DiscoveryModule.isSingleNodeDiscovery(settings)) {
-            if (INITIAL_CLUSTER_MANAGER_NODES_SETTING.exists(settings)) {
+            if (INITIAL_MASTER_NODES_SETTING.exists(settings) || INITIAL_CLUSTER_MANAGER_NODES_SETTING.exists(settings)) {
+                // TODO: Remove variable 'initialClusterManagerSettingName' after removing MASTER_ROLE.
+                String initialClusterManagerSettingName = INITIAL_CLUSTER_MANAGER_NODES_SETTING.exists(settings)
+                    ? INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey()
+                    : INITIAL_MASTER_NODES_SETTING.getKey();
                 throw new IllegalArgumentException(
                     "setting ["
-                        + INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey()
+                        + initialClusterManagerSettingName
                         + "] is not allowed when ["
                         + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey()
                         + "] is set to ["

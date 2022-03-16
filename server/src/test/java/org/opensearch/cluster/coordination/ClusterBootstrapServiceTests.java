@@ -56,9 +56,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
-import static org.opensearch.cluster.coordination.ClusterBootstrapService.BOOTSTRAP_PLACEHOLDER_PREFIX;
-import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING;
-import static org.opensearch.cluster.coordination.ClusterBootstrapService.UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING;
+import static org.opensearch.cluster.coordination.ClusterBootstrapService.*;
 import static org.opensearch.common.settings.Settings.builder;
 import static org.opensearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
@@ -657,6 +655,27 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
         final Settings.Builder settings = Settings.builder()
             .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE)
             .put(NODE_NAME_SETTING.getKey(), localNode.getName())
+            .put(INITIAL_MASTER_NODES_SETTING.getKey(), "test");
+
+        assertThat(
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> new ClusterBootstrapService(settings.build(), transportService, () -> emptyList(), () -> false, vc -> fail())
+            ).getMessage(),
+            containsString(
+                "setting [" + INITIAL_MASTER_NODES_SETTING.getKey() + "] is not allowed when [discovery.type] is set " + "to [single-node]"
+            )
+        );
+    }
+
+    /**
+     * Validate the correct setting name of cluster.initial_cluster_manager_nodes is shown in the exception,
+     * when discovery type is single-node.
+     */
+    public void testFailBootstrapWithBothSingleNodeDiscoveryAndInitialClusterManagerNodes() {
+        final Settings.Builder settings = Settings.builder()
+            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE)
+            .put(NODE_NAME_SETTING.getKey(), localNode.getName())
             .put(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), "test");
 
         assertThat(
@@ -667,8 +686,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
             containsString(
                 "setting ["
                     + INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey()
-                    + "] is not allowed when [discovery.type] is set "
-                    + "to [single-node]"
+                    + "] is not allowed when [discovery.type] is set to [single-node]"
             )
         );
     }
