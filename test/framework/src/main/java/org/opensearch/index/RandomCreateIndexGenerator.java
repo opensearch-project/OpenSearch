@@ -93,8 +93,7 @@ public final class RandomCreateIndexGenerator {
     }
 
     /**
-     * Creates a random mapping, with the mapping definition nested
-     * under the given type name.
+     * Creates a random mapping
      */
     public static XContentBuilder randomMapping() throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
