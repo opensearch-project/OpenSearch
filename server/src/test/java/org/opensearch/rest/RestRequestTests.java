@@ -286,30 +286,38 @@ public class RestRequestTests extends OpenSearchTestCase {
      * The test is added in 2.0 when the request parameter "cluster_manager_timeout" is introduced.
      * Remove the test along with the removal of the non-inclusive terminology "master_timeout".
      */
-    public void testValidateParamValuesAreEqual() {
+    public void testValidateParamValuesAreEqualWhenTheyAreEqual() {
         FakeRestRequest request = new FakeRestRequest();
-        List<String> valueList = new ArrayList<>(Arrays.asList(null, "", "value1", "value2"));
+        List<String> valueList = new ArrayList<>(Arrays.asList(null, "", "value1"));
         String valueForKey1 = randomFrom(valueList);
-        String valueForKey2 = randomFrom(valueList);
+        String valueForKey2 = "value1";
         request.params().put("key1", valueForKey1);
         request.params().put("key2", valueForKey2);
+        request.validateParamValuesAreEqual("key1", "key2");
+        assertTrue(
+            "Values of the 2 keys should be equal, or having a least 1 null value or empty String. Value of key1: "
+                + valueForKey1
+                + ". Value of key2: "
+                + valueForKey2,
+            Strings.isNullOrEmpty(valueForKey1) || valueForKey1.equals(valueForKey2)
+        );
+    }
+
+    /*
+     * The test is added in 2.0 when the request parameter "cluster_manager_timeout" is introduced.
+     * Remove the test along with the removal of the non-inclusive terminology "master_timeout".
+     */
+    public void testValidateParamValuesAreEqualWhenTheyAreNotEqual() {
+        FakeRestRequest request = new FakeRestRequest();
+        request.params().put("key1", "value1");
+        request.params().put("key2", "value2");
         try {
             request.validateParamValuesAreEqual("key1", "key2");
-            assertTrue(
-                "Values of the 2 keys should be equal, or having a least 1 null value or empty String. Value of key1: "
-                    + valueForKey1
-                    + ". Value of key2: "
-                    + valueForKey2,
-                Strings.isNullOrEmpty(valueForKey1) || Strings.isNullOrEmpty(valueForKey2) || valueForKey1.equals(valueForKey2)
-            );
         } catch (OpenSearchParseException e) {
             assertEquals(
                 "The values of the request parameters: [key1, key2] are required to be equal, otherwise please only assign value to one of the request parameters.",
                 e.getMessage()
             );
-            assertNotEquals(valueForKey1, valueForKey2);
-            assertFalse(Strings.isNullOrEmpty(valueForKey1));
-            assertFalse(Strings.isNullOrEmpty(valueForKey2));
         }
     }
 

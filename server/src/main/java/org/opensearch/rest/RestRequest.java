@@ -582,25 +582,26 @@ public class RestRequest implements ToXContent.Params {
     /**
      * The method is only used to validate whether the values of the 2 request parameters "master_timeout" and "cluster_manager_timeout" is the same value or not.
      * If the 2 values are not the same, throw an {@link OpenSearchParseException}.
-     * @param keys Keys of the request parameters.
+     * @param keys Names of the request parameters.
      * @deprecated The method will be removed along with the request parameter "master_timeout".
      */
     @Deprecated
     public void validateParamValuesAreEqual(String... keys) {
-        // Filter the non-empty values of the parameters with the key, and get the distinct values.
-        Set<String> set = new HashSet<>();
+        // Track the last seen value and ensure that every subsequent value matches it.
+        // The value to be tracked is the non-empty values of the parameters with the key.
+        String lastSeenValue = null;
         for (String key : keys) {
             String value = param(key);
             if (!Strings.isNullOrEmpty(value)) {
-                set.add(value);
+                if (lastSeenValue == null || value.equals(lastSeenValue)) {
+                    lastSeenValue = value;
+                } else {
+                    throw new OpenSearchParseException(
+                        "The values of the request parameters: {} are required to be equal, otherwise please only assign value to one of the request parameters.",
+                        Arrays.toString(keys)
+                    );
+                }
             }
-        }
-        // If there are more than 1 distinct value of the request parameters, throw an exception.
-        if (set.size() > 1) {
-            throw new OpenSearchParseException(
-                "The values of the request parameters: {} are required to be equal, otherwise please only assign value to one of the request parameters.",
-                Arrays.toString(keys)
-            );
         }
     }
 
