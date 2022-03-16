@@ -42,4 +42,5 @@ grant {
   permission org.opensearch.script.ClassPermission "java.lang.Math";
   permission org.opensearch.script.ClassPermission "org.apache.lucene.util.MathUtil";
   permission org.opensearch.script.ClassPermission "org.apache.lucene.util.SloppyMath";
+  permission org.opensearch.script.ClassPermission "org.apache.lucene.expressions.js.ExpressionMath";
 };

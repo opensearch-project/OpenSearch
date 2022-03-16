@@ -32,7 +32,9 @@
 
 package org.opensearch.common.settings;
 
+import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.NIOFSDirectory;
@@ -328,13 +330,14 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
         byte[] encryptedBytes,
         int truncEncryptedDataLength
     ) throws Exception {
-        indexOutput.writeInt(4 + salt.length + 4 + iv.length + 4 + encryptedBytes.length);
-        indexOutput.writeInt(salt.length);
-        indexOutput.writeBytes(salt, salt.length);
-        indexOutput.writeInt(iv.length);
-        indexOutput.writeBytes(iv, iv.length);
-        indexOutput.writeInt(encryptedBytes.length - truncEncryptedDataLength);
-        indexOutput.writeBytes(encryptedBytes, encryptedBytes.length);
+        DataOutput io = EndiannessReverserUtil.wrapDataOutput(indexOutput);
+        io.writeInt(4 + salt.length + 4 + iv.length + 4 + encryptedBytes.length);
+        io.writeInt(salt.length);
+        io.writeBytes(salt, salt.length);
+        io.writeInt(iv.length);
+        io.writeBytes(iv, iv.length);
+        io.writeInt(encryptedBytes.length - truncEncryptedDataLength);
+        io.writeBytes(encryptedBytes, encryptedBytes.length);
     }
 
     public void testUpgradeAddsSeed() throws Exception {
@@ -363,7 +366,7 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
         assumeFalse("Can't run in a FIPS JVM as PBE is not available", inFipsJvm());
         Path configDir = env.configFile();
         NIOFSDirectory directory = new NIOFSDirectory(configDir);
-        try (IndexOutput output = directory.createOutput("opensearch.keystore", IOContext.DEFAULT)) {
+        try (IndexOutput output = EndiannessReverserUtil.createOutput(directory, "opensearch.keystore", IOContext.DEFAULT)) {
             CodecUtil.writeHeader(output, "opensearch.keystore", 1);
             output.writeByte((byte) 0); // hasPassword = false
             output.writeString("PKCS12");
@@ -396,7 +399,7 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
         NIOFSDirectory directory = new NIOFSDirectory(configDir);
         byte[] fileBytes = new byte[20];
         random().nextBytes(fileBytes);
-        try (IndexOutput output = directory.createOutput("opensearch.keystore", IOContext.DEFAULT)) {
+        try (IndexOutput output = EndiannessReverserUtil.createOutput(directory, "opensearch.keystore", IOContext.DEFAULT)) {
 
             CodecUtil.writeHeader(output, "opensearch.keystore", 2);
             output.writeByte((byte) 0); // hasPassword = false

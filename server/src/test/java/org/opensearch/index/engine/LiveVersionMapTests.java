@@ -68,7 +68,7 @@ public class LiveVersionMapTests extends OpenSearchTestCase {
                 map.putIndexUnderLock(uid.toBytesRef(), randomIndexVersionValue());
             }
         }
-        long actualRamBytesUsed = RamUsageTester.sizeOf(map);
+        long actualRamBytesUsed = RamUsageTester.ramUsed(map);
         long estimatedRamBytesUsed = map.ramBytesUsed();
         // less than 50% off
         assertEquals(actualRamBytesUsed, estimatedRamBytesUsed, actualRamBytesUsed / 2);
@@ -84,7 +84,7 @@ public class LiveVersionMapTests extends OpenSearchTestCase {
                 map.putIndexUnderLock(uid.toBytesRef(), randomIndexVersionValue());
             }
         }
-        actualRamBytesUsed = RamUsageTester.sizeOf(map);
+        actualRamBytesUsed = RamUsageTester.ramUsed(map);
         estimatedRamBytesUsed = map.ramBytesUsed();
         long tolerance;
         if (Constants.JRE_IS_MINIMUM_JAVA9) {

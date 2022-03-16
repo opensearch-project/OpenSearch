@@ -79,7 +79,7 @@ public class MetadataMappingServiceTests extends OpenSearchSingleNodeTestCase {
         // the task really was a mapping update
         assertThat(
             indexService.mapperService().documentMapper().mappingSource(),
-            not(equalTo(result.resultingState.metadata().index("test").getMappings().get(MapperService.SINGLE_MAPPING_NAME).source()))
+            not(equalTo(result.resultingState.metadata().index("test").mapping().source()))
         );
         // since we never committed the cluster state update, the in-memory state is unchanged
         assertThat(indexService.mapperService().documentMapper().mappingSource(), equalTo(currentMapping));

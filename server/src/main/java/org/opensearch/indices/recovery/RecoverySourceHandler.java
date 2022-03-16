@@ -132,7 +132,7 @@ public class RecoverySourceHandler {
     private final CancellableThreads cancellableThreads = new CancellableThreads();
     private final List<Closeable> resources = new CopyOnWriteArrayList<>();
     private final ListenableFuture<RecoveryResponse> future = new ListenableFuture<>();
-    private static final String PEER_RECOVERY_NAME = "peer-recovery";
+    public static final String PEER_RECOVERY_NAME = "peer-recovery";
 
     public RecoverySourceHandler(
         IndexShard shard,
@@ -272,7 +272,7 @@ public class RecoverySourceHandler {
                 logger.trace("performing file-based recovery followed by history replay starting at [{}]", startingSeqNo);
 
                 try {
-                    final int estimateNumOps = estimateNumberOfHistoryOperations(startingSeqNo);
+                    final int estimateNumOps = countNumberOfHistoryOperations(startingSeqNo);
                     final Releasable releaseStore = acquireStore(shard.store());
                     resources.add(releaseStore);
                     sendFileStep.whenComplete(r -> IOUtils.close(wrappedSafeCommit, releaseStore), e -> {
@@ -319,7 +319,7 @@ public class RecoverySourceHandler {
             sendFileStep.whenComplete(r -> {
                 assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[prepareTargetForTranslog]");
                 // For a sequence based recovery, the target can keep its local translog
-                prepareTargetForTranslog(estimateNumberOfHistoryOperations(startingSeqNo), prepareEngineStep);
+                prepareTargetForTranslog(countNumberOfHistoryOperations(startingSeqNo), prepareEngineStep);
             }, onFailure);
 
             prepareEngineStep.whenComplete(prepareEngineTime -> {
@@ -340,9 +340,15 @@ public class RecoverySourceHandler {
 
                 final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
                 if (logger.isTraceEnabled()) {
-                    logger.trace("snapshot translog for recovery; current size is [{}]", estimateNumberOfHistoryOperations(startingSeqNo));
+                    logger.trace("snapshot translog for recovery; current size is [{}]", countNumberOfHistoryOperations(startingSeqNo));
                 }
-                final Translog.Snapshot phase2Snapshot = shard.newChangesSnapshot(PEER_RECOVERY_NAME, startingSeqNo, Long.MAX_VALUE, false);
+                final Translog.Snapshot phase2Snapshot = shard.newChangesSnapshot(
+                    PEER_RECOVERY_NAME,
+                    startingSeqNo,
+                    Long.MAX_VALUE,
+                    false,
+                    true
+                );
                 resources.add(phase2Snapshot);
                 retentionLock.close();
 
@@ -403,10 +409,13 @@ public class RecoverySourceHandler {
         return targetHistoryUUID.equals(shard.getHistoryUUID());
     }
 
-    private int estimateNumberOfHistoryOperations(long startingSeqNo) throws IOException {
-        try (Translog.Snapshot snapshot = shard.newChangesSnapshot(PEER_RECOVERY_NAME, startingSeqNo, Long.MAX_VALUE, false)) {
-            return snapshot.totalOperations();
-        }
+    /**
+     * Counts the number of history operations from the starting sequence number
+     * @param startingSeqNo   the starting sequence number to count; included
+     * @return                number of history operations
+     */
+    private int countNumberOfHistoryOperations(long startingSeqNo) throws IOException {
+        return shard.countNumberOfHistoryOperations(PEER_RECOVERY_NAME, startingSeqNo, Long.MAX_VALUE);
     }
 
     static void runUnderPrimaryPermit(

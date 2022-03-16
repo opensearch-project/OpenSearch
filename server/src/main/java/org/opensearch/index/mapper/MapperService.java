@@ -32,7 +32,6 @@
 
 package org.opensearch.index.mapper;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
@@ -416,8 +415,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private synchronized Map<String, DocumentMapper> internalMerge(IndexMetadata indexMetadata, MergeReason reason) {
         assert reason != MergeReason.MAPPING_UPDATE_PREFLIGHT;
         Map<String, CompressedXContent> map = new LinkedHashMap<>();
-        for (ObjectCursor<MappingMetadata> cursor : indexMetadata.getMappings().values()) {
-            MappingMetadata mappingMetadata = cursor.value;
+        MappingMetadata mappingMetadata = indexMetadata.mapping();
+        if (mappingMetadata != null) {
             map.put(mappingMetadata.type(), mappingMetadata.source());
         }
         return internalMerge(map, reason);

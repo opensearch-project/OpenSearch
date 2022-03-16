@@ -32,7 +32,6 @@
 
 package org.opensearch.index.fielddata.plain;
 
-import org.apache.lucene.document.HalfFloatPoint;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReader;
@@ -53,6 +52,7 @@ import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.opensearch.index.mapper.DocValueFetcher;
 import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.support.ValuesSourceType;

@@ -35,7 +35,6 @@ package org.opensearch.action.admin.indices.create;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.common.Strings;
-import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
@@ -45,6 +44,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -57,8 +57,10 @@ public class CreateIndexRequestTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
         CreateIndexRequest request = new CreateIndexRequest("foo");
-        String mapping = Strings.toString(JsonXContent.contentBuilder().startObject().startObject("my_type").endObject().endObject());
-        request.mapping("my_type", mapping, XContentType.JSON);
+        String mapping = Strings.toString(
+            JsonXContent.contentBuilder().startObject().startObject(MapperService.SINGLE_MAPPING_NAME).endObject().endObject()
+        );
+        request.mapping(mapping);
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             request.writeTo(output);
@@ -133,29 +135,6 @@ public class CreateIndexRequestTests extends OpenSearchTestCase {
                 .endObject()
                 .endObject();
             request2.mapping("type1", builder);
-            assertEquals(request1.mappings(), request2.mappings());
-        }
-        {
-            request1 = new CreateIndexRequest("foo");
-            request2 = new CreateIndexRequest("bar");
-            String nakedMapping = "{\"properties\": {\"foo\": {\"type\": \"integer\"}}}";
-            request1.mapping("type2", nakedMapping, XContentType.JSON);
-            request2.mapping("type2", "{\"type2\": " + nakedMapping + "}", XContentType.JSON);
-            assertEquals(request1.mappings(), request2.mappings());
-        }
-        {
-            request1 = new CreateIndexRequest("foo");
-            request2 = new CreateIndexRequest("bar");
-            Map<String, Object> nakedMapping = MapBuilder.<String, Object>newMapBuilder()
-                .put(
-                    "properties",
-                    MapBuilder.<String, Object>newMapBuilder()
-                        .put("bar", MapBuilder.<String, Object>newMapBuilder().put("type", "scaled_float").put("scaling_factor", 100).map())
-                        .map()
-                )
-                .map();
-            request1.mapping("type3", nakedMapping);
-            request2.mapping("type3", MapBuilder.<String, Object>newMapBuilder().put("type3", nakedMapping).map());
             assertEquals(request1.mappings(), request2.mappings());
         }
     }

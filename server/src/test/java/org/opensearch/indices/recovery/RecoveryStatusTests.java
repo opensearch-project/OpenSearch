@@ -31,6 +31,7 @@
 
 package org.opensearch.indices.recovery;
 
+import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.util.set.Sets;
@@ -65,10 +66,10 @@ public class RecoveryStatusTests extends OpenSearchSingleNodeTestCase {
                 indexShard.store()
             )
         ) {
-            indexOutput.writeInt(1);
+            EndiannessReverserUtil.wrapDataOutput(indexOutput).writeInt(1);
             IndexOutput openIndexOutput = multiFileWriter.getOpenIndexOutput("foo.bar");
             assertSame(openIndexOutput, indexOutput);
-            openIndexOutput.writeInt(1);
+            EndiannessReverserUtil.wrapDataOutput(indexOutput).writeInt(1);
             CodecUtil.writeFooter(indexOutput);
         }
 
