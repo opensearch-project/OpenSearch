@@ -1159,7 +1159,7 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         int autoBootstrapMasterNodeIndex = -1;
-        final List<String> masterNodeNames = settings.stream()
+        final List<String> clusterManagerNodeNames = settings.stream()
             .filter(DiscoveryNode::isMasterNode)
             .map(Node.NODE_NAME_SETTING::get)
             .collect(Collectors.toList());
@@ -1177,7 +1177,10 @@ public final class InternalTestCluster extends TestCluster {
         for (int i = 0; i < numSharedDedicatedClusterManagerNodes + numSharedDataNodes + numSharedCoordOnlyNodes; i++) {
             Settings nodeSettings = updatedSettings.get(i);
             if (i == autoBootstrapMasterNodeIndex) {
-                nodeSettings = Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), masterNodeNames).put(nodeSettings).build();
+                nodeSettings = Settings.builder()
+                    .putList(INITIAL_MASTER_NODES_SETTING.getKey(), clusterManagerNodeNames)
+                    .put(nodeSettings)
+                    .build();
             }
             final NodeAndClient nodeAndClient = buildNode(i, nodeSettings, true, onTransportServiceStarted);
             toStartAndPublish.add(nodeAndClient);
