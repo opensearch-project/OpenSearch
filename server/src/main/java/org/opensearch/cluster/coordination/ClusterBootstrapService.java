@@ -114,7 +114,7 @@ public class ClusterBootstrapService {
         Consumer<VotingConfiguration> votingConfigurationConsumer
     ) {
         if (DiscoveryModule.isSingleNodeDiscovery(settings)) {
-            if (INITIAL_MASTER_NODES_SETTING.exists(settings) || INITIAL_CLUSTER_MANAGER_NODES_SETTING.exists(settings)) {
+            if (INITIAL_CLUSTER_MANAGER_NODES_SETTING.existsOrFallbackExists(settings)) {
                 // TODO: Remove variable 'initialClusterManagerSettingName' after removing MASTER_ROLE.
                 String initialClusterManagerSettingName = INITIAL_CLUSTER_MANAGER_NODES_SETTING.exists(settings)
                     ? INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey()
