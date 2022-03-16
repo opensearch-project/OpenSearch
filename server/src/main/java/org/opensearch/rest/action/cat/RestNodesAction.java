@@ -538,11 +538,10 @@ public class RestNodesAction extends AbstractCatAction {
     @Deprecated
     private void parseDeprecatedMasterTimeoutParameter(ClusterStateRequest clusterStateRequest, RestRequest request) {
         final String deprecatedTimeoutParam = "master_timeout";
-        final String clusterManagerTimeoutParam = "cluster_manager_timeout";
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime(deprecatedTimeoutParam, clusterStateRequest.masterNodeTimeout()));
         if (request.hasParam(deprecatedTimeoutParam)) {
             deprecationLogger.deprecate("cat_nodes_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
-            request.validateParamValuesAreEqual(deprecatedTimeoutParam, clusterManagerTimeoutParam);
+            request.validateParamValuesAreEqual(deprecatedTimeoutParam, "cluster_manager_timeout");
+            clusterStateRequest.masterNodeTimeout(request.paramAsTime(deprecatedTimeoutParam, clusterStateRequest.masterNodeTimeout()));
         }
     }
 }
