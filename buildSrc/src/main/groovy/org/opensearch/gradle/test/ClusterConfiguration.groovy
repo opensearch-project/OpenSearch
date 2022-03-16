@@ -87,12 +87,12 @@ class ClusterConfiguration {
     }
 
     /**
-     * Whether the initial_master_nodes setting should be automatically derived from the nodes
+     * Whether the initial_cluster_manager_nodes setting should be automatically derived from the nodes
      * in the cluster. Only takes effect if all nodes in the cluster understand this setting
      * and the discovery type is not explicitly set.
      */
     @Input
-    boolean autoSetInitialMasterNodes = true
+    boolean autoSetInitialClusterManagerNodes = true
 
     /**
      * Whether the file-based discovery provider should be automatically setup based on

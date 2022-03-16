@@ -151,8 +151,8 @@ class ClusterFormationTasks {
                         }
                         esConfig[node.nodeVersion.onOrAfter("7.0.0") ? "discovery.seed_hosts" : "discovery.zen.ping.unicast.hosts"] = []
                     }
-                    boolean supportsInitialMasterNodes = hasBwcNodes == false || config.bwcVersion.onOrAfter("7.0.0")
-                    if (esConfig['discovery.type'] == null && config.getAutoSetInitialMasterNodes() && supportsInitialMasterNodes) {
+                    boolean supportsInitialClusterManagerNodes = hasBwcNodes == false || config.bwcVersion.onOrAfter("7.0.0")
+                    if (esConfig['discovery.type'] == null && config.getAutoSetClusterManagerNodes() && supportsInitialClusterManagerNodes) {
                         esConfig['cluster.initial_master_nodes'] = nodes.stream().map({ n ->
                             if (n.config.settings['node.name'] == null) {
                                 return "node-" + n.nodeNum

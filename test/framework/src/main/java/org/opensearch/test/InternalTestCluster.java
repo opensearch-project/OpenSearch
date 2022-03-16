@@ -2113,7 +2113,7 @@ public final class InternalTestCluster extends TestCluster {
         }
         nextNodeId.set(firstNodeId + numOfNodes);
 
-        final List<String> initialMasterNodes = settings.stream()
+        final List<String> initialClusterManagerNodes = settings.stream()
             .filter(DiscoveryNode::isMasterNode)
             .map(Node.NODE_NAME_SETTING::get)
             .collect(Collectors.toList());
@@ -2125,7 +2125,7 @@ public final class InternalTestCluster extends TestCluster {
             final Builder builder = Settings.builder();
             if (DiscoveryNode.isMasterNode(nodeSettings)) {
                 if (autoBootstrapClusterManagerNodeIndex == 0) {
-                    builder.putList(INITIAL_MASTER_NODES_SETTING.getKey(), initialMasterNodes);
+                    builder.putList(INITIAL_MASTER_NODES_SETTING.getKey(), initialClusterManagerNodes);
                 }
                 autoBootstrapClusterManagerNodeIndex -= 1;
             }
