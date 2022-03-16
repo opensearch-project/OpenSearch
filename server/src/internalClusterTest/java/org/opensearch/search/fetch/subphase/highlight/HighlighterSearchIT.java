@@ -2964,13 +2964,11 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     public void testDoesNotHighlightTypeName() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("typename")
             .startObject("properties")
             .startObject("foo")
             .field("type", "text")
             .field("index_options", "offsets")
             .field("term_vector", "with_positions_offsets")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();
@@ -2991,13 +2989,11 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     public void testDoesNotHighlightAliasFilters() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("typename")
             .startObject("properties")
             .startObject("foo")
             .field("type", "text")
             .field("index_options", "offsets")
             .field("term_vector", "with_positions_offsets")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();
@@ -3113,8 +3109,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         // see https://github.com/elastic/elasticsearch/issues/17537
         XContentBuilder mappings = jsonBuilder();
         mappings.startObject();
-        mappings.startObject("type")
-            .startObject("properties")
+        mappings.startObject("properties")
             .startObject("geo_point")
             .field("type", "geo_point")
             .endObject()
@@ -3122,7 +3117,6 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
             .field("type", "text")
             .field("term_vector", "with_positions_offsets_payloads")
             .field("index_options", "offsets")
-            .endObject()
             .endObject()
             .endObject();
         mappings.endObject();
@@ -3155,14 +3149,12 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         // see https://github.com/elastic/elasticsearch/issues/17537#issuecomment-244939633
         XContentBuilder mappings = jsonBuilder();
         mappings.startObject();
-        mappings.startObject("jobs")
-            .startObject("properties")
+        mappings.startObject("properties")
             .startObject("loc")
             .field("type", "geo_point")
             .endObject()
             .startObject("jd")
             .field("type", "text")
-            .endObject()
             .endObject()
             .endObject();
         mappings.endObject();
@@ -3198,13 +3190,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         // check that keyword highlighting works
         XContentBuilder mappings = jsonBuilder();
         mappings.startObject();
-        mappings.startObject("type")
-            .startObject("properties")
-            .startObject("keyword_field")
-            .field("type", "keyword")
-            .endObject()
-            .endObject()
-            .endObject();
+        mappings.startObject("properties").startObject("keyword_field").field("type", "keyword").endObject().endObject();
         mappings.endObject();
         assertAcked(prepareCreate("test").setMapping(mappings));
 
@@ -3238,7 +3224,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         // If field is not stored, it is looked up in source (but source has only 'foo'
         b.startObject("foo_copy").field("type", "text").field("store", true).endObject();
         b.endObject().endObject();
-        prepareCreate("test").addMapping("type", b).get();
+        prepareCreate("test").setMapping(b).get();
 
         client().prepareIndex("test")
             .setId("1")

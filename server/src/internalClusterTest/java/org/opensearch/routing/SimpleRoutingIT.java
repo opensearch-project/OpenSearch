@@ -524,15 +524,7 @@ public class SimpleRoutingIT extends OpenSearchIntegTestCase {
             .indices()
             .prepareCreate("test")
             .addAlias(new Alias("alias"))
-            .setMapping(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .startObject("type1")
-                    .startObject("_routing")
-                    .field("required", true)
-                    .endObject()
-                    .endObject()
-            )
+            .setMapping(XContentFactory.jsonBuilder().startObject().startObject("_routing").field("required", true).endObject().endObject())
             .execute()
             .actionGet();
         ensureGreen();
