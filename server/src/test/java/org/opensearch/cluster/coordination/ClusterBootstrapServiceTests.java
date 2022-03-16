@@ -422,7 +422,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
         deterministicTaskQueue.runAllTasks();
     }
 
-    public void testDoesNotBootstrapsIfLocalNodeNotInInitialMasterNodes() {
+    public void testDoesNotBootstrapsIfLocalNodeNotInInitialClusterManagerNodes() {
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder().putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), otherNode1.getName(), otherNode2.getName()).build(),
             transportService,
