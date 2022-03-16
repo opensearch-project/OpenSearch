@@ -1195,75 +1195,63 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
         );
 
         SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "type", "1", "terms")))
+            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "1", "terms")))
             .get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "3");
 
         // same as above, just on the _id...
-        searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("_id", new TermsLookup("lookup", "type", "1", "terms")))
-            .get();
+        searchResponse = client().prepareSearch("test").setQuery(termsLookupQuery("_id", new TermsLookup("lookup", "1", "terms"))).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "3");
 
         // another search with same parameters...
-        searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "type", "1", "terms")))
-            .get();
+        searchResponse = client().prepareSearch("test").setQuery(termsLookupQuery("term", new TermsLookup("lookup", "1", "terms"))).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "3");
 
-        searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "type", "2", "terms")))
-            .get();
+        searchResponse = client().prepareSearch("test").setQuery(termsLookupQuery("term", new TermsLookup("lookup", "2", "terms"))).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("2"));
 
-        searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "type", "3", "terms")))
-            .get();
+        searchResponse = client().prepareSearch("test").setQuery(termsLookupQuery("term", new TermsLookup("lookup", "3", "terms"))).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "2", "4");
 
-        searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "type", "4", "terms")))
-            .get();
+        searchResponse = client().prepareSearch("test").setQuery(termsLookupQuery("term", new TermsLookup("lookup", "4", "terms"))).get();
         assertHitCount(searchResponse, 0L);
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup2", "type", "1", "arr.term")))
+            .setQuery(termsLookupQuery("term", new TermsLookup("lookup2", "1", "arr.term")))
             .get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "3");
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup2", "type", "2", "arr.term")))
+            .setQuery(termsLookupQuery("term", new TermsLookup("lookup2", "2", "arr.term")))
             .get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("2"));
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup2", "type", "3", "arr.term")))
+            .setQuery(termsLookupQuery("term", new TermsLookup("lookup2", "3", "arr.term")))
             .get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "2", "4");
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("not_exists", new TermsLookup("lookup2", "type", "3", "arr.term")))
+            .setQuery(termsLookupQuery("not_exists", new TermsLookup("lookup2", "3", "arr.term")))
             .get();
         assertHitCount(searchResponse, 0L);
 
         // index "lookup" type "type" id "missing" document does not exist: ignore the lookup terms
         searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "type", "missing", "terms")))
+            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "missing", "terms")))
             .get();
         assertHitCount(searchResponse, 0L);
 
         // index "lookup3" type "type" has the source disabled: ignore the lookup terms
-        searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup3", "type", "1", "terms")))
-            .get();
+        searchResponse = client().prepareSearch("test").setQuery(termsLookupQuery("term", new TermsLookup("lookup3", "1", "terms"))).get();
         assertHitCount(searchResponse, 0L);
     }
 
@@ -1984,41 +1972,6 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
 
         RangeQueryBuilder range = new RangeQueryBuilder("int_range").relation("intersects").from(Integer.MIN_VALUE).to(Integer.MAX_VALUE);
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 1);
-    }
-
-    public void testRangeQueryTypeField_31476() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("foo", "field", "type=keyword"));
-
-        client().prepareIndex("test").setId("1").setSource("field", "value").get();
-        refresh();
-
-        RangeQueryBuilder range = new RangeQueryBuilder("_type").from("ape").to("zebra");
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 1);
-
-        range = new RangeQueryBuilder("_type").from("monkey").to("zebra");
-        searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 0);
-
-        range = new RangeQueryBuilder("_type").from("ape").to("donkey");
-        searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 0);
-
-        range = new RangeQueryBuilder("_type").from("ape").to("foo").includeUpper(false);
-        searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 0);
-
-        range = new RangeQueryBuilder("_type").from("ape").to("foo").includeUpper(true);
-        searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 1);
-
-        range = new RangeQueryBuilder("_type").from("foo").to("zebra").includeLower(false);
-        searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 0);
-
-        range = new RangeQueryBuilder("_type").from("foo").to("zebra").includeLower(true);
-        searchResponse = client().prepareSearch("test").setQuery(range).get();
         assertHitCount(searchResponse, 1);
     }
 

@@ -214,7 +214,6 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("polygon")
                 .startObject("properties")
                 .startObject("area")
                 .field("type", "geo_shape")
@@ -222,13 +221,9 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         );
 
-        CreateIndexRequestBuilder mappingRequest = client().admin()
-            .indices()
-            .prepareCreate("shapes")
-            .addMapping("polygon", mapping, XContentType.JSON);
+        CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("shapes").setMapping(mapping);
         mappingRequest.get();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 

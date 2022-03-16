@@ -32,6 +32,7 @@
 
 package org.opensearch.index.similarity;
 
+import org.apache.lucene.misc.search.similarity.LegacyBM25Similarity;
 import org.apache.lucene.search.similarities.AfterEffectL;
 import org.apache.lucene.search.similarities.BasicModelG;
 import org.apache.lucene.search.similarities.BooleanSimilarity;
@@ -44,7 +45,6 @@ import org.apache.lucene.search.similarities.LMDirichletSimilarity;
 import org.apache.lucene.search.similarities.LMJelinekMercerSimilarity;
 import org.apache.lucene.search.similarities.LambdaTTF;
 import org.apache.lucene.search.similarities.NormalizationH2;
-import org.apache.lucene.search.similarity.LegacyBM25Similarity;
 import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;

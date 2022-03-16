@@ -34,9 +34,6 @@ package org.opensearch.plugins;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.analysis.util.CharFilterFactory;
-import org.apache.lucene.analysis.util.TokenFilterFactory;
-import org.apache.lucene.analysis.util.TokenizerFactory;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
@@ -748,10 +745,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         PostingsFormat.reloadPostingsFormats(loader);
         DocValuesFormat.reloadDocValuesFormats(loader);
         Codec.reloadCodecs(loader);
-        // Analysis:
-        CharFilterFactory.reloadCharFilters(loader);
-        TokenFilterFactory.reloadTokenFilters(loader);
-        TokenizerFactory.reloadTokenizers(loader);
     }
 
     private Class<? extends Plugin> loadPluginClass(String className, ClassLoader loader) {

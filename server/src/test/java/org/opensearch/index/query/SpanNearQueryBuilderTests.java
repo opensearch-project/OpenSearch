@@ -33,11 +33,10 @@
 package org.opensearch.index.query;
 
 import org.apache.lucene.queries.SpanMatchNoDocsQuery;
+import org.apache.lucene.queries.spans.SpanNearQuery;
+import org.apache.lucene.queries.spans.SpanQuery;
+import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanBoostQuery;
-import org.apache.lucene.search.spans.SpanNearQuery;
-import org.apache.lucene.search.spans.SpanQuery;
-import org.apache.lucene.search.spans.SpanTermQuery;
 import org.opensearch.common.ParsingException;
 import org.opensearch.test.AbstractQueryTestCase;
 
@@ -66,7 +65,6 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
         assertThat(
             query,
             either(instanceOf(SpanNearQuery.class)).or(instanceOf(SpanTermQuery.class))
-                .or(instanceOf(SpanBoostQuery.class))
                 .or(instanceOf(SpanMatchNoDocsQuery.class))
                 .or(instanceOf(MatchAllQueryBuilder.class))
         );
@@ -79,7 +77,7 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
             for (SpanQuery spanQuery : spanNearQuery.getClauses()) {
                 assertThat(spanQuery, equalTo(spanQueryBuilderIterator.next().toQuery(context)));
             }
-        } else if (query instanceof SpanTermQuery || query instanceof SpanBoostQuery) {
+        } else if (query instanceof SpanTermQuery) {
             assertThat(queryBuilder.clauses().size(), equalTo(1));
             assertThat(query, equalTo(queryBuilder.clauses().get(0).toQuery(context)));
         }

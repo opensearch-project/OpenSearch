@@ -109,6 +109,7 @@ public class IndexShardHotSpotTests extends OpenSearchAllocationWithConstraintsT
     /**
      * Test cluster scale in scenario with skewed shard distribution in remaining nodes.
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/2063")
     public void testClusterScaleInWithSkew() {
         setupInitialCluster(4, 100, 5, 1);
         buildAllocationService("node_0,node_1");

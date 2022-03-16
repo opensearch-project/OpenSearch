@@ -119,9 +119,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
 
     private TermsLookup randomTermsLookup() {
         // Randomly choose between a typeless terms lookup and one with an explicit type to make sure we are
-        TermsLookup lookup = maybeIncludeType && randomBoolean()
-            ? new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10), termsPath)
-            : new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), termsPath);
+        TermsLookup lookup = new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), termsPath);
         // testing both cases.
         lookup.routing(randomBoolean() ? randomAlphaOfLength(10) : null);
         return lookup;
@@ -379,13 +377,6 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         try {
             QueryBuilder query = super.parseQuery(parser);
             assertThat(query, CoreMatchers.instanceOf(TermsQueryBuilder.class));
-
-            TermsQueryBuilder termsQuery = (TermsQueryBuilder) query;
-            String deprecationWarning = "Deprecated field [type] used, this field is unused and will be removed entirely";
-            if (termsQuery.isTypeless() == false && !assertedWarnings.contains(deprecationWarning)) {
-                assertWarnings(deprecationWarning);
-                assertedWarnings.add(deprecationWarning);
-            }
             return query;
         } finally {
 

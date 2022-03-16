@@ -109,7 +109,7 @@ public class S3RetryingInputStreamTests extends OpenSearchTestCase {
         final AmazonS3 client = mock(AmazonS3.class);
         when(client.getObject(any(GetObjectRequest.class))).thenReturn(s3Object);
         final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
-        when(clientReference.client()).thenReturn(client);
+        when(clientReference.get()).thenReturn(client);
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         when(blobStore.clientReference()).thenReturn(clientReference);
 

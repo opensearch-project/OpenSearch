@@ -57,7 +57,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.FutureArrays;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
@@ -408,7 +407,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
             @Override
             public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-                if (FutureArrays.equals(maxPackedValue, 0, numBytes, maxValue, 0, numBytes)) {
+                if (Arrays.equals(maxPackedValue, 0, numBytes, maxValue, 0, numBytes)) {
                     return PointValues.Relation.CELL_CROSSES_QUERY;
                 }
                 return PointValues.Relation.CELL_OUTSIDE_QUERY;

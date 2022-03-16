@@ -51,7 +51,6 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
@@ -115,16 +114,14 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("appAccountIds")
                 .field("type", "text")
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         );
-        assertAcked(prepareCreate("test").addMapping("type1", mapping, XContentType.JSON));
+        assertAcked(prepareCreate("test").setMapping(mapping));
 
         client().prepareIndex("test")
             .setId("10990239")
@@ -212,7 +209,6 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("field")
                 .field("type", "text")
@@ -222,14 +218,13 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         );
         // note: default replica settings are tied to #data nodes-1 which is 0 here. We can do with 1 in this test.
         int numberOfShards = numberOfShards();
         assertAcked(
             prepareCreate("test").setSettings(
                 Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards()).put(SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1))
-            ).addMapping("type1", mapping, XContentType.JSON)
+            ).setMapping(mapping)
         );
 
         int value1Docs;

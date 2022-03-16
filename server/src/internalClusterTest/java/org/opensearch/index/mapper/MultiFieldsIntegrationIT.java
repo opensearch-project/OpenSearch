@@ -208,7 +208,6 @@ public class MultiFieldsIntegrationIT extends OpenSearchIntegTestCase {
     private XContentBuilder createPutMappingSource() throws IOException {
         return XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("my-type")
             .startObject("properties")
             .startObject("title")
             .field("type", "text")
@@ -216,7 +215,6 @@ public class MultiFieldsIntegrationIT extends OpenSearchIntegTestCase {
             .startObject("uncased")
             .field("type", "text")
             .field("analyzer", "whitespace")
-            .endObject()
             .endObject()
             .endObject()
             .endObject()

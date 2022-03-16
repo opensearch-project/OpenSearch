@@ -67,6 +67,7 @@ import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.gateway.MetadataStateFormat;
 import org.opensearch.index.Index;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
@@ -660,17 +661,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     /**
-     * Return an object that maps each type to the associated mappings.
-     * The return value is never {@code null} but may be empty if the index
-     * has no mappings.
-     * @deprecated Use {@link #mapping()} instead now that indices have a single type
-     */
-    @Deprecated
-    public ImmutableOpenMap<String, MappingMetadata> getMappings() {
-        return mappings;
-    }
-
-    /**
      * Return the concrete mapping for this index or {@code null} if this index has no mappings at all.
      */
     @Nullable
@@ -1159,17 +1149,25 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return this;
         }
 
-        public MappingMetadata mapping(String type) {
-            return mappings.get(type);
+        public MappingMetadata mapping() {
+            return mappings.get(MapperService.SINGLE_MAPPING_NAME);
         }
 
-        public Builder putMapping(String type, String source) throws IOException {
-            putMapping(new MappingMetadata(type, XContentHelper.convertToMap(XContentFactory.xContent(source), source, true)));
+        public Builder putMapping(String source) throws IOException {
+            putMapping(
+                new MappingMetadata(
+                    MapperService.SINGLE_MAPPING_NAME,
+                    XContentHelper.convertToMap(XContentFactory.xContent(source), source, true)
+                )
+            );
             return this;
         }
 
         public Builder putMapping(MappingMetadata mappingMd) {
-            mappings.put(mappingMd.type(), mappingMd);
+            mappings.clear();
+            if (mappingMd != null) {
+                mappings.put(mappingMd.type(), mappingMd);
+            }
             return this;
         }
 
@@ -1458,23 +1456,25 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             if (context != Metadata.XContentContext.API) {
                 builder.startArray(KEY_MAPPINGS);
-                for (ObjectObjectCursor<String, MappingMetadata> cursor : indexMetadata.getMappings()) {
+                MappingMetadata mmd = indexMetadata.mapping();
+                if (mmd != null) {
                     if (binary) {
-                        builder.value(cursor.value.source().compressed());
+                        builder.value(mmd.source().compressed());
                     } else {
-                        builder.map(XContentHelper.convertToMap(cursor.value.source().uncompressed(), true).v2());
+                        builder.map(XContentHelper.convertToMap(mmd.source().uncompressed(), true).v2());
                     }
                 }
                 builder.endArray();
             } else {
                 builder.startObject(KEY_MAPPINGS);
-                for (ObjectObjectCursor<String, MappingMetadata> cursor : indexMetadata.getMappings()) {
-                    Map<String, Object> mapping = XContentHelper.convertToMap(cursor.value.source().uncompressed(), false).v2();
-                    if (mapping.size() == 1 && mapping.containsKey(cursor.key)) {
+                MappingMetadata mmd = indexMetadata.mapping();
+                if (mmd != null) {
+                    Map<String, Object> mapping = XContentHelper.convertToMap(mmd.source().uncompressed(), false).v2();
+                    if (mapping.size() == 1 && mapping.containsKey(mmd.type())) {
                         // the type name is the root value, reduce it
-                        mapping = (Map<String, Object>) mapping.get(cursor.key);
+                        mapping = (Map<String, Object>) mapping.get(mmd.type());
                     }
-                    builder.field(cursor.key);
+                    builder.field(mmd.type());
                     builder.map(mapping);
                 }
                 builder.endObject();

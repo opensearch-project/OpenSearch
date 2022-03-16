@@ -39,6 +39,10 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.SpanMatchNoDocsQuery;
+import org.apache.lucene.queries.spans.FieldMaskingSpanQuery;
+import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.queries.spans.SpanQuery;
+import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -47,10 +51,6 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopTermsRewrite;
-import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
-import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
-import org.apache.lucene.search.spans.SpanQuery;
-import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.store.Directory;
 import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
@@ -182,6 +182,11 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         public String fieldName() {
             return "foo";
         }
+    }
+
+    @Override
+    protected boolean supportsBoost() {
+        return false;
     }
 
     /**

@@ -32,9 +32,9 @@
 
 package org.opensearch.index.query;
 
+import org.apache.lucene.queries.spans.SpanContainingQuery;
+import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanContainingQuery;
-import org.apache.lucene.search.spans.SpanQuery;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
@@ -48,7 +48,7 @@ import java.util.Objects;
 import static org.opensearch.index.query.SpanQueryBuilder.SpanQueryBuilderUtil.checkNoBoost;
 
 /**
- * Builder for {@link org.apache.lucene.search.spans.SpanContainingQuery}.
+ * Builder for {@link org.apache.lucene.queries.spans.SpanContainingQuery}.
  */
 public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContainingQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "span_containing";
