@@ -41,8 +41,9 @@ public class NoMasterBlockServiceRenamedSettingTests extends OpenSearchTestCase 
      */
     public void testSettingFallback() {
         assertEquals(
-            NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.get(Settings.EMPTY),
-            NoMasterBlockService.NO_MASTER_BLOCK_SETTING.get(Settings.EMPTY)
+            NoMasterBlockService.NO_MASTER_BLOCK_SETTING.get(Settings.EMPTY),
+            NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.get(Settings.EMPTY)
+
         );
     }
 
@@ -51,10 +52,10 @@ public class NoMasterBlockServiceRenamedSettingTests extends OpenSearchTestCase 
      */
     public void testSettingGetValue() {
         Settings settings = Settings.builder().put("cluster.no_cluster_manager_block", "all").build();
-        assertEquals(NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.get(settings), NoMasterBlockService.NO_MASTER_BLOCK_ALL);
+        assertEquals(NoMasterBlockService.NO_MASTER_BLOCK_ALL, NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.get(settings));
         assertEquals(
-            NoMasterBlockService.NO_MASTER_BLOCK_SETTING.get(settings),
-            NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getDefault(Settings.EMPTY)
+            NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getDefault(Settings.EMPTY),
+            NoMasterBlockService.NO_MASTER_BLOCK_SETTING.get(settings)
         );
     }
 
@@ -64,8 +65,8 @@ public class NoMasterBlockServiceRenamedSettingTests extends OpenSearchTestCase 
     public void testSettingGetValueWithFallback() {
         Settings settings = Settings.builder().put("cluster.no_master_block", "metadata_write").build();
         assertEquals(
-            NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.get(settings),
-            NoMasterBlockService.NO_MASTER_BLOCK_METADATA_WRITES
+            NoMasterBlockService.NO_MASTER_BLOCK_METADATA_WRITES,
+            NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.get(settings)
         );
         assertSettingDeprecationsAndWarnings(new Setting<?>[] { NoMasterBlockService.NO_MASTER_BLOCK_SETTING });
     }
@@ -78,8 +79,8 @@ public class NoMasterBlockServiceRenamedSettingTests extends OpenSearchTestCase 
             .put("cluster.no_cluster_manager_block", "all")
             .put("cluster.no_master_block", "metadata_write")
             .build();
-        assertEquals(NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.get(settings), NoMasterBlockService.NO_MASTER_BLOCK_ALL);
-        assertEquals(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.get(settings), NoMasterBlockService.NO_MASTER_BLOCK_METADATA_WRITES);
+        assertEquals(NoMasterBlockService.NO_MASTER_BLOCK_ALL, NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.get(settings));
+        assertEquals(NoMasterBlockService.NO_MASTER_BLOCK_METADATA_WRITES, NoMasterBlockService.NO_MASTER_BLOCK_SETTING.get(settings));
         assertSettingDeprecationsAndWarnings(new Setting<?>[] { NoMasterBlockService.NO_MASTER_BLOCK_SETTING });
     }
 
