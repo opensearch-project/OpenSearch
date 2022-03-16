@@ -31,7 +31,7 @@
 
 package org.opensearch.lucene.queries;
 
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.index.mapper.RangeType;
 
 public class IntegerRandomBinaryDocValuesRangeQueryTests extends BaseRandomBinaryDocValuesRangeQueryTestCase {

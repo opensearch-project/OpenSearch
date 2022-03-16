@@ -32,25 +32,34 @@
 
 package org.opensearch.common.lucene.search;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.TypeFieldMapper;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.regex.Pattern;
 
 public class Queries {
@@ -200,4 +209,57 @@ public class Queries {
 
         return result < 0 ? 0 : result;
     }
+
+    public static Query newMatchNoDocsQueryWithoutRewrite(String reason) {
+        return new MatchNoDocsWithoutRewriteQuery(reason);
+    }
+
+    static class MatchNoDocsWithoutRewriteQuery extends Query {
+        private final String reason;
+
+        public MatchNoDocsWithoutRewriteQuery(String reason) {
+            this.reason = reason;
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            return new Weight(this) {
+                @Override
+                public Explanation explain(LeafReaderContext context, int doc) {
+                    return Explanation.noMatch(reason);
+                }
+
+                @Override
+                public Scorer scorer(LeafReaderContext context) {
+                    return null;
+                }
+
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    return true;
+                }
+            };
+        }
+
+        @Override
+        public String toString(String field) {
+            return "MatchNoDocsWithoutRewriteQuery(" + reason + ")";
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            // noop
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof MatchNoDocsWithoutRewriteQuery && Objects.equals(this.reason, ((MatchNoDocsWithoutRewriteQuery) o).reason);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hashCode(reason);
+        }
+    }
+
 }

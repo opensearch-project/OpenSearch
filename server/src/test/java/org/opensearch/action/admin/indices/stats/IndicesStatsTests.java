@@ -67,7 +67,6 @@ public class IndicesStatsTests extends OpenSearchSingleNodeTestCase {
         IndexModule.Type storeType = IndexModule.defaultStoreType(true);
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("doc")
             .startObject("properties")
             .startObject("foo")
             .field("type", "keyword")
@@ -82,13 +81,12 @@ public class IndicesStatsTests extends OpenSearchSingleNodeTestCase {
             .field("type", "long")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
         assertAcked(
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .addMapping("doc", mapping)
+                .setMapping(mapping)
                 .setSettings(Settings.builder().put("index.store.type", storeType.getSettingsKey()))
         );
         ensureGreen("test");

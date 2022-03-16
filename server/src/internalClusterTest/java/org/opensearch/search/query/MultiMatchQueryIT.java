@@ -109,7 +109,7 @@ public class MultiMatchQueryIT extends OpenSearchIntegTestCase {
                 .put("index.analysis.analyzer.category.tokenizer", "standard")
                 .put("index.analysis.analyzer.category.filter", "lowercase")
         );
-        assertAcked(builder.addMapping("test", createMapping()));
+        assertAcked(builder.setMapping(createMapping()));
         ensureGreen();
         int numDocs = scaledRandomIntBetween(50, 100);
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -259,7 +259,6 @@ public class MultiMatchQueryIT extends OpenSearchIntegTestCase {
     private XContentBuilder createMapping() throws IOException {
         return XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("test")
             .startObject("properties")
             .startObject("id")
             .field("type", "keyword")
@@ -285,7 +284,6 @@ public class MultiMatchQueryIT extends OpenSearchIntegTestCase {
             .endObject()
             .startObject("date")
             .field("type", "date")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();

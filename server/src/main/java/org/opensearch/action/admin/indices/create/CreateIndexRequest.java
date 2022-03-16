@@ -248,16 +248,33 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     /**
      * Adds mapping that will be added when the index gets created.
      *
-     * @param type   The mapping type
      * @param source The mapping source
      * @param xContentType the content type of the mapping source
      * @deprecated types are being removed
      */
     @Deprecated
-    private CreateIndexRequest mapping(String type, BytesReference source, XContentType xContentType) {
+    private CreateIndexRequest mapping(BytesReference source, XContentType xContentType) {
         Objects.requireNonNull(xContentType);
         Map<String, Object> mappingAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
-        return mapping(type, mappingAsMap);
+        return mapping(MapperService.SINGLE_MAPPING_NAME, mappingAsMap);
+    }
+
+    /**
+     * Adds mapping that will be added when the index gets created.
+     *
+     * @param source The mapping source
+     */
+    public CreateIndexRequest mapping(XContentBuilder source) {
+        return mapping(BytesReference.bytes(source), source.contentType());
+    }
+
+    /**
+     * Set the mapping for this index
+     *
+     * @param source The mapping source
+     */
+    public CreateIndexRequest mapping(Map<String, ?> source) {
+        return mapping(MapperService.SINGLE_MAPPING_NAME, source);
     }
 
     /**
@@ -268,19 +285,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * @deprecated types are being removed
      */
     @Deprecated
-    public CreateIndexRequest mapping(String type, XContentBuilder source) {
-        return mapping(type, BytesReference.bytes(source), source.contentType());
-    }
-
-    /**
-     * Adds mapping that will be added when the index gets created.
-     *
-     * @param type   The mapping type
-     * @param source The mapping source
-     * @deprecated types are being removed
-     */
-    @Deprecated
-    public CreateIndexRequest mapping(String type, Map<String, ?> source) {
+    private CreateIndexRequest mapping(String type, Map<String, ?> source) {
         // wrap it in a type map if its not
         if (source.size() != 1 || !source.containsKey(type)) {
             source = Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, source);
@@ -304,7 +309,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      */
     @Deprecated
     public CreateIndexRequest mapping(String type, Object... source) {
-        mapping(type, PutMappingRequest.buildFromSimplifiedDef(source));
+        mapping(PutMappingRequest.buildFromSimplifiedDef(source));
         return this;
     }
 

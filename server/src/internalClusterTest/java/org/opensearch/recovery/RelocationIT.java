@@ -34,7 +34,7 @@ package org.opensearch.recovery;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.index.IndexFileNames;
-import org.apache.lucene.util.English;
+import org.apache.lucene.tests.util.English;
 import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteResponse;

@@ -89,7 +89,7 @@ public class GeoPointShapeQueryTests extends GeoQueryTests {
 
     public void testProcessRelationSupport() throws Exception {
         XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
+        client().admin().indices().prepareCreate("test").setMapping(xcb).get();
         ensureGreen();
 
         Rectangle rectangle = new Rectangle(-35, -25, -25, -35);
@@ -112,7 +112,7 @@ public class GeoPointShapeQueryTests extends GeoQueryTests {
 
     public void testQueryLine() throws Exception {
         XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
+        client().admin().indices().prepareCreate("test").setMapping(xcb).get();
         ensureGreen();
 
         Line line = new Line(new double[] { -25, -25 }, new double[] { -35, -35 });
@@ -126,7 +126,7 @@ public class GeoPointShapeQueryTests extends GeoQueryTests {
 
     public void testQueryLinearRing() throws Exception {
         XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
+        client().admin().indices().prepareCreate("test").setMapping(xcb).get();
         ensureGreen();
 
         LinearRing linearRing = new LinearRing(new double[] { -25, -35, -25 }, new double[] { -25, -35, -25 });
@@ -148,7 +148,7 @@ public class GeoPointShapeQueryTests extends GeoQueryTests {
 
     public void testQueryMultiLine() throws Exception {
         XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
+        client().admin().indices().prepareCreate("test").setMapping(xcb).get();
         ensureGreen();
 
         CoordinatesBuilder coords1 = new CoordinatesBuilder().coordinate(-35, -35).coordinate(-25, -25);
@@ -167,7 +167,7 @@ public class GeoPointShapeQueryTests extends GeoQueryTests {
 
     public void testQueryMultiPoint() throws Exception {
         XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
+        client().admin().indices().prepareCreate("test").setMapping(xcb).get();
         ensureGreen();
 
         MultiPointBuilder mpb = new MultiPointBuilder().coordinate(-35, -25).coordinate(-15, -5);
@@ -182,7 +182,7 @@ public class GeoPointShapeQueryTests extends GeoQueryTests {
 
     public void testQueryPoint() throws Exception {
         XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
+        client().admin().indices().prepareCreate("test").setMapping(xcb).get();
         ensureGreen();
 
         PointBuilder pb = new PointBuilder().coordinate(-35, -25);

@@ -70,10 +70,8 @@ public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
 
     public void testNgramHighlightingWithBrokenPositions() throws IOException {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "test",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("test")
                     .startObject("properties")
                     .startObject("name")
                     .field("type", "text")
@@ -83,7 +81,6 @@ public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
                     .field("analyzer", "autocomplete")
                     .field("search_analyzer", "search_autocomplete")
                     .field("term_vector", "with_positions_offsets")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -260,7 +257,7 @@ public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
             .put("index.analysis.filter.synonym.type", "synonym")
             .putList("index.analysis.filter.synonym.synonyms", "quick => fast");
 
-        assertAcked(prepareCreate("first_test_index").setSettings(builder.build()).addMapping("type1", type1TermVectorMapping()));
+        assertAcked(prepareCreate("first_test_index").setSettings(builder.build()).setMapping(type1TermVectorMapping()));
 
         ensureGreen();
 
@@ -421,7 +418,6 @@ public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
     public static XContentBuilder type1TermVectorMapping() throws IOException {
         return XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("field1")
             .field("type", "text")
@@ -430,7 +426,6 @@ public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
             .startObject("field2")
             .field("type", "text")
             .field("term_vector", "with_positions_offsets")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();
