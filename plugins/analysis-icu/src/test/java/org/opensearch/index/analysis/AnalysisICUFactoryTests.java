@@ -56,6 +56,7 @@ public class AnalysisICUFactoryTests extends AnalysisFactoryTestCase {
         filters.put("icufolding", IcuFoldingTokenFilterFactory.class);
         filters.put("icunormalizer2", IcuNormalizerTokenFilterFactory.class);
         filters.put("icutransform", IcuTransformTokenFilterFactory.class);
+        filters.put("spanishpluralstem", IcuTransformTokenFilterFactory.class);
         return filters;
     }
 
