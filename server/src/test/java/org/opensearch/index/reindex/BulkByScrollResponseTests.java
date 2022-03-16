@@ -51,7 +51,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.apache.lucene.util.TestUtil.randomSimpleString;
+import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 
 public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkByScrollResponse> {

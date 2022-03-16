@@ -32,7 +32,7 @@
 package org.opensearch.index.engine;
 
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene90.Lucene90Codec;
+import org.apache.lucene.codecs.lucene91.Lucene91Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -70,7 +70,7 @@ public class CompletionStatsCacheTests extends OpenSearchTestCase {
     public void testCompletionStatsCache() throws IOException, InterruptedException {
         final IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
         final PostingsFormat postingsFormat = new Completion90PostingsFormat();
-        indexWriterConfig.setCodec(new Lucene90Codec() {
+        indexWriterConfig.setCodec(new Lucene91Codec() {
             @Override
             public PostingsFormat getPostingsFormatForField(String field) {
                 return postingsFormat; // all fields are suggest fields

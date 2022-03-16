@@ -33,7 +33,7 @@
 package org.opensearch.search.geo;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
-import org.apache.lucene.geo.GeoTestUtil;
+import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.CheckedSupplier;

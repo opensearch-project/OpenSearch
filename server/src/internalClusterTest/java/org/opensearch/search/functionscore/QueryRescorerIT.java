@@ -33,7 +33,7 @@
 package org.opensearch.search.functionscore;
 
 import org.apache.lucene.search.Explanation;
-import org.apache.lucene.util.English;
+import org.apache.lucene.tests.util.English;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
