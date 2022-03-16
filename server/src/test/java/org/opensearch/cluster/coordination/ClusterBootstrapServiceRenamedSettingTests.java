@@ -43,8 +43,8 @@ public class ClusterBootstrapServiceRenamedSettingTests extends OpenSearchTestCa
      */
     public void testSettingFallback() {
         assertEquals(
-            ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING.get(Settings.EMPTY),
-            ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY)
+            ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY),
+            ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING.get(Settings.EMPTY)
         );
     }
 
@@ -53,10 +53,10 @@ public class ClusterBootstrapServiceRenamedSettingTests extends OpenSearchTestCa
      */
     public void testSettingGetValue() {
         Settings settings = Settings.builder().put("cluster.initial_cluster_manager_nodes", "node-a").build();
-        assertEquals(ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING.get(settings), Arrays.asList("node-a"));
+        assertEquals(Arrays.asList("node-a"), ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING.get(settings));
         assertEquals(
-            ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(settings),
-            ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getDefault(Settings.EMPTY)
+            ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getDefault(Settings.EMPTY),
+            ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(settings)
         );
     }
 
@@ -65,7 +65,7 @@ public class ClusterBootstrapServiceRenamedSettingTests extends OpenSearchTestCa
      */
     public void testSettingGetValueWithFallback() {
         Settings settings = Settings.builder().put("cluster.initial_master_nodes", "node-a").build();
-        assertEquals(ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING.get(settings), Arrays.asList("node-a"));
+        assertEquals(Arrays.asList("node-a"), ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING.get(settings));
         assertSettingDeprecationsAndWarnings(new Setting<?>[] { ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING });
     }
 
@@ -77,8 +77,8 @@ public class ClusterBootstrapServiceRenamedSettingTests extends OpenSearchTestCa
             .put("cluster.initial_cluster_manager_nodes", "node-a")
             .put("cluster.initial_master_nodes", "node-a, node-b")
             .build();
-        assertEquals(ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING.get(settings), Arrays.asList("node-a"));
-        assertEquals(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(settings), Arrays.asList("node-a", "node-b"));
+        assertEquals(Arrays.asList("node-a"), ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING.get(settings));
+        assertEquals(Arrays.asList("node-a", "node-b"), ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(settings));
         assertSettingDeprecationsAndWarnings(new Setting<?>[] { ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING });
     }
 }
