@@ -323,7 +323,7 @@ public class SearchAfterIT extends OpenSearchIntegTestCase {
                 fail("Can't match type [" + type + "]");
             }
         }
-        indexRequestBuilder.addMapping(typeName, mappings.toArray()).get();
+        indexRequestBuilder.addMapping(typeName, mappings.toArray(new String[0])).get();
         ensureGreen();
     }
 

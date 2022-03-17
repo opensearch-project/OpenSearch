@@ -93,7 +93,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
         String docType = "_doc";
         mapperService.merge(
             docType,
-            new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef("m_s_m", "type=long"))),
+            new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping("m_s_m", "type=long"))),
             MapperService.MergeReason.MAPPING_UPDATE
         );
     }
