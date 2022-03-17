@@ -419,47 +419,46 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                             } else {
                                 resolvedNodesIds.removeAll(dataNodes.keys());
                             }
-                        } else if (DiscoveryNodeRole.MASTER_ROLE.roleName().equals(matchAttrName)
-                            || DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName().equals(matchAttrName)) {
-                                if (Booleans.parseBoolean(matchAttrValue, true)) {
-                                    resolvedNodesIds.addAll(masterNodes.keys());
-                                } else {
-                                    resolvedNodesIds.removeAll(masterNodes.keys());
-                                }
-                            } else if (DiscoveryNodeRole.INGEST_ROLE.roleName().equals(matchAttrName)) {
-                                if (Booleans.parseBoolean(matchAttrValue, true)) {
-                                    resolvedNodesIds.addAll(ingestNodes.keys());
-                                } else {
-                                    resolvedNodesIds.removeAll(ingestNodes.keys());
-                                }
-                            } else if (DiscoveryNode.COORDINATING_ONLY.equals(matchAttrName)) {
-                                if (Booleans.parseBoolean(matchAttrValue, true)) {
-                                    resolvedNodesIds.addAll(getCoordinatingOnlyNodes().keys());
-                                } else {
-                                    resolvedNodesIds.removeAll(getCoordinatingOnlyNodes().keys());
-                                }
+                        } else if (roleNameIsClusterManager(matchAttrName)) {
+                            if (Booleans.parseBoolean(matchAttrValue, true)) {
+                                resolvedNodesIds.addAll(masterNodes.keys());
                             } else {
-                                for (DiscoveryNode node : this) {
-                                    for (DiscoveryNodeRole role : Sets.difference(node.getRoles(), DiscoveryNodeRole.BUILT_IN_ROLES)) {
-                                        if (role.roleName().equals(matchAttrName)) {
-                                            if (Booleans.parseBoolean(matchAttrValue, true)) {
-                                                resolvedNodesIds.add(node.getId());
-                                            } else {
-                                                resolvedNodesIds.remove(node.getId());
-                                            }
-                                        }
-                                    }
-                                }
-                                for (DiscoveryNode node : this) {
-                                    for (Map.Entry<String, String> entry : node.getAttributes().entrySet()) {
-                                        String attrName = entry.getKey();
-                                        String attrValue = entry.getValue();
-                                        if (Regex.simpleMatch(matchAttrName, attrName) && Regex.simpleMatch(matchAttrValue, attrValue)) {
+                                resolvedNodesIds.removeAll(masterNodes.keys());
+                            }
+                        } else if (DiscoveryNodeRole.INGEST_ROLE.roleName().equals(matchAttrName)) {
+                            if (Booleans.parseBoolean(matchAttrValue, true)) {
+                                resolvedNodesIds.addAll(ingestNodes.keys());
+                            } else {
+                                resolvedNodesIds.removeAll(ingestNodes.keys());
+                            }
+                        } else if (DiscoveryNode.COORDINATING_ONLY.equals(matchAttrName)) {
+                            if (Booleans.parseBoolean(matchAttrValue, true)) {
+                                resolvedNodesIds.addAll(getCoordinatingOnlyNodes().keys());
+                            } else {
+                                resolvedNodesIds.removeAll(getCoordinatingOnlyNodes().keys());
+                            }
+                        } else {
+                            for (DiscoveryNode node : this) {
+                                for (DiscoveryNodeRole role : Sets.difference(node.getRoles(), DiscoveryNodeRole.BUILT_IN_ROLES)) {
+                                    if (role.roleName().equals(matchAttrName)) {
+                                        if (Booleans.parseBoolean(matchAttrValue, true)) {
                                             resolvedNodesIds.add(node.getId());
+                                        } else {
+                                            resolvedNodesIds.remove(node.getId());
                                         }
                                     }
                                 }
                             }
+                            for (DiscoveryNode node : this) {
+                                for (Map.Entry<String, String> entry : node.getAttributes().entrySet()) {
+                                    String attrName = entry.getKey();
+                                    String attrValue = entry.getValue();
+                                    if (Regex.simpleMatch(matchAttrName, attrName) && Regex.simpleMatch(matchAttrValue, attrValue)) {
+                                        resolvedNodesIds.add(node.getId());
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -797,5 +796,18 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         public boolean isLocalNodeElectedMaster() {
             return masterNodeId != null && masterNodeId.equals(localNodeId);
         }
+    }
+
+    /**
+     * Check if the given name of the node role is 'cluster_manger' or 'master'.
+     * The method is added for {@link #resolveNodes} to keep the code clear, when support the both above roles.
+     * @deprecated As of 2.0, because promoting inclusive language. MASTER_ROLE is deprecated.
+     * @param matchAttrName a given String for a name of the node role.
+     * @return true if the given roleName is 'cluster_manger' or 'master'
+     */
+    @Deprecated
+    private boolean roleNameIsClusterManager(String matchAttrName) {
+        return DiscoveryNodeRole.MASTER_ROLE.roleName().equals(matchAttrName)
+            || DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName().equals(matchAttrName);
     }
 }

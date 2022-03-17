@@ -312,4 +312,13 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
 
     }
 
+    /**
+     * Check if the role is {@link #CLUSTER_MANAGER_ROLE} or {@link #MASTER_ROLE}.
+     * @deprecated As of 2.0, because promoting inclusive language. MASTER_ROLE is deprecated.
+     * @return true if the node role is{@link #CLUSTER_MANAGER_ROLE} or {@link #MASTER_ROLE}
+     */
+    @Deprecated
+    public boolean isClusterManager() {
+        return this.equals(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE) || this.equals(DiscoveryNodeRole.MASTER_ROLE);
+    }
 }

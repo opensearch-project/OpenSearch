@@ -84,7 +84,7 @@ public class NodeRoles {
                     // It's used to remove both CLUSTER_MANAGER_ROLE and MASTER_ROLE, when requested to remove either.
                     .filter(
                         roles.contains(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE) || roles.contains(DiscoveryNodeRole.MASTER_ROLE)
-                            ? r -> (!r.equals(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE) && !r.equals(DiscoveryNodeRole.MASTER_ROLE))
+                            ? r -> !r.isClusterManager()
                             : r -> true
                     )
                     .map(DiscoveryNodeRole::roleName)
