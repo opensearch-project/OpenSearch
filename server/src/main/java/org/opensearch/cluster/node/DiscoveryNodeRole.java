@@ -55,7 +55,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DiscoveryNodeRole.class);
     public static final String MASTER_ROLE_DEPRECATION_MESSAGE =
-        "[master] role is deprecated. To promote inclusive language, please use [cluster_manager] role instead.";
+        "Assigning [master] role in setting [node.roles] is deprecated. To promote inclusive language, please use [cluster_manager] role instead.";
 
     private final String roleName;
 
