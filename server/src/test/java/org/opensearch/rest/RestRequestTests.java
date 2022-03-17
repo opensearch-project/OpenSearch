@@ -57,6 +57,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -295,7 +296,7 @@ public class RestRequestTests extends OpenSearchTestCase {
         request.params().put("key2", valueForKey2);
         request.validateParamValuesAreEqual("key1", "key2");
         assertTrue(
-            "Values of the 2 keys should be equal, or having a least 1 null value or empty String. Value of key1: "
+            "Values of the 2 keys should be equal, or having 1 null value or empty String. Value of key1: "
                 + valueForKey1
                 + ". Value of key2: "
                 + valueForKey2,
@@ -311,14 +312,8 @@ public class RestRequestTests extends OpenSearchTestCase {
         FakeRestRequest request = new FakeRestRequest();
         request.params().put("key1", "value1");
         request.params().put("key2", "value2");
-        try {
-            request.validateParamValuesAreEqual("key1", "key2");
-        } catch (OpenSearchParseException e) {
-            assertEquals(
-                "The values of the request parameters: [key1, key2] are required to be equal, otherwise please only assign value to one of the request parameters.",
-                e.getMessage()
-            );
-        }
+        Exception e = assertThrows(OpenSearchParseException.class, () -> request.validateParamValuesAreEqual("key1", "key2"));
+        assertThat(e.getMessage(), containsString("The values of the request parameters: [key1, key2] are required to be equal"));
     }
 
     private static RestRequest contentRestRequest(String content, Map<String, String> params) {

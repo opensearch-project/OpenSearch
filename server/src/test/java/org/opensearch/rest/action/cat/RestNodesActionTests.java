@@ -102,11 +102,8 @@ public class RestNodesActionTests extends OpenSearchTestCase {
         FakeRestRequest request = new FakeRestRequest();
         request.params().put("cluster_manager_timeout", randomFrom("1h", "2m"));
         request.params().put("master_timeout", "3s");
-        try {
-            action.doCatRequest(request, client);
-        } catch (OpenSearchParseException e) {
-            assertThat(e.getMessage(), containsString("cluster_manager_timeout"));
-        }
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(request, client));
+        assertThat(e.getMessage(), containsString("[master_timeout, cluster_manager_timeout] are required to be equal"));
         assertWarnings(RestNodesAction.MASTER_TIMEOUT_DEPRECATED_MESSAGE);
         terminate(threadPool);
     }
