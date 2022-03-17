@@ -37,7 +37,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.function.Predicate;
 
 import static org.opensearch.test.NodeRoles.onlyRole;
@@ -56,10 +55,9 @@ public class DiscoveryNodeRoleSettingTests extends OpenSearchTestCase {
         runRoleTest(DiscoveryNode::isIngestNode, DiscoveryNodeRole.INGEST_ROLE);
     }
 
-    // TODO: Remove the test along with MASTER_ROLE. It is added in 2.0, along with the introduction of CLUSTER_MANAGER_ROLE.
     public void testIsMasterNode() {
-        // It's used to add MASTER_ROLE into 'roleMap', because MASTER_ROLE is removed from DiscoveryNodeRole.BUILT_IN_ROLES.
-        DiscoveryNode.setAdditionalRoles(new HashSet<>());
+        // It's used to add MASTER_ROLE into 'roleMap', because MASTER_ROLE is removed from DiscoveryNodeRole.BUILT_IN_ROLES in 2.0.
+        DiscoveryNode.setAdditionalRoles(Collections.emptySet());
         runRoleTest(DiscoveryNode::isMasterNode, DiscoveryNodeRole.MASTER_ROLE);
     }
 
