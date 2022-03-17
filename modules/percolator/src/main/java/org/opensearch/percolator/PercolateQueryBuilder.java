@@ -230,12 +230,16 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         name = in.readOptionalString();
         if (in.getVersion().before(Version.V_2_0_0)) {
             String documentType = in.readOptionalString();
-            assert documentType == null;
+            if (documentType != null) {
+                throw new IllegalStateException("documentType must be null");
+            }
         }
         indexedDocumentIndex = in.readOptionalString();
         if (in.getVersion().before(Version.V_2_0_0)) {
             String indexedDocumentType = in.readOptionalString();
-            assert indexedDocumentType == null;
+            if (indexedDocumentType != null) {
+                throw new IllegalStateException("indexedDocumentType must be null");
+            }
         }
 
         indexedDocumentId = in.readOptionalString();
