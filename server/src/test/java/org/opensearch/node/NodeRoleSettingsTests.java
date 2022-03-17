@@ -15,7 +15,6 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -38,8 +37,21 @@ public class NodeRoleSettingsTests extends OpenSearchTestCase {
      */
     public void testClusterManagerAndDataNodeRoles() {
         Settings roleSettings = Settings.builder().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), "cluster_manager, data").build();
-        List<DiscoveryNodeRole> actualNodeRoles = NodeRoleSettings.NODE_ROLES_SETTING.get(roleSettings);
-        List<DiscoveryNodeRole> expectedNodeRoles = Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE);
-        assertEquals(expectedNodeRoles, actualNodeRoles);
+        assertEquals(
+            Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE),
+            NodeRoleSettings.NODE_ROLES_SETTING.get(roleSettings)
+        );
+    }
+
+    /**
+     * Validate setting master role will result a deprecation message.
+     * Remove the test after removing MASTER_ROLE.
+     */
+    public void testMasterRoleDeprecationMessage() {
+        // It's used to add MASTER_ROLE into 'roleMap', because MASTER_ROLE is removed from DiscoveryNodeRole.BUILT_IN_ROLES in 2.0.
+        DiscoveryNode.setAdditionalRoles(Collections.emptySet());
+        Settings roleSettings = Settings.builder().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), "master").build();
+        assertEquals(Collections.singletonList(DiscoveryNodeRole.MASTER_ROLE), NodeRoleSettings.NODE_ROLES_SETTING.get(roleSettings));
+        assertWarnings(DiscoveryNodeRole.MASTER_ROLE_DEPRECATION_MESSAGE);
     }
 }

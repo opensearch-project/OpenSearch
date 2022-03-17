@@ -34,6 +34,7 @@ package org.opensearch.cluster.node;
 
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -51,6 +52,10 @@ import java.util.TreeSet;
  * Represents a node role.
  */
 public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DiscoveryNodeRole.class);
+    public static final String MASTER_ROLE_DEPRECATION_MESSAGE =
+        "[master] role is deprecated. To promote inclusive language, please use [cluster_manager] role instead.";
 
     private final String roleName;
 
@@ -214,6 +219,11 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
             return Setting.boolSetting("node.master", false, Property.Deprecated, Property.NodeScope);
         }
 
+        @Override
+        public void validateRole(List<DiscoveryNodeRole> roles) {
+            deprecationLogger.deprecate("node_role_master", MASTER_ROLE_DEPRECATION_MESSAGE);
+        }
+
     };
 
     /**
@@ -242,16 +252,15 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
                 throw new IllegalArgumentException(
                     String.format(
                         Locale.ROOT,
-                        "The two roles [%s, %s] can not be assigned together to a node. "
-                            + "To promote inclusive language, [%s] role is deprecated, and replaced by [%s] role.",
+                        "The two roles [%s, %s] can not be assigned together to a node. %s",
                         DiscoveryNodeRole.MASTER_ROLE.roleName(),
                         DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(),
-                        DiscoveryNodeRole.MASTER_ROLE.roleName(),
-                        DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName()
+                        MASTER_ROLE_DEPRECATION_MESSAGE
                     )
                 );
             }
         }
+
     };
 
     public static final DiscoveryNodeRole REMOTE_CLUSTER_CLIENT_ROLE = new DiscoveryNodeRole("remote_cluster_client", "r") {
