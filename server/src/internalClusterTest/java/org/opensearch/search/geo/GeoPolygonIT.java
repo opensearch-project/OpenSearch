@@ -66,8 +66,7 @@ public class GeoPolygonIT extends OpenSearchIntegTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
 
         assertAcked(
-            prepareCreate("test").setSettings(settings)
-                .addMapping("type1", "location", "type=geo_point", "alias", "type=alias,path=location")
+            prepareCreate("test").setSettings(settings).setMapping("location", "type=geo_point", "alias", "type=alias,path=location")
         );
         ensureGreen();
 

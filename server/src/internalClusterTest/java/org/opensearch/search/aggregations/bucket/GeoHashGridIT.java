@@ -101,7 +101,7 @@ public class GeoHashGridIT extends OpenSearchIntegTestCase {
 
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
 
-        assertAcked(prepareCreate("idx").setSettings(settings).addMapping("type", "location", "type=geo_point", "city", "type=keyword"));
+        assertAcked(prepareCreate("idx").setSettings(settings).setMapping("location", "type=geo_point", "city", "type=keyword"));
 
         List<IndexRequestBuilder> cities = new ArrayList<>();
         Random random = random();
@@ -126,7 +126,7 @@ public class GeoHashGridIT extends OpenSearchIntegTestCase {
         indexRandom(true, cities);
 
         assertAcked(
-            prepareCreate("multi_valued_idx").setSettings(settings).addMapping("type", "location", "type=geo_point", "city", "type=keyword")
+            prepareCreate("multi_valued_idx").setSettings(settings).setMapping("location", "type=geo_point", "city", "type=keyword")
         );
 
         cities = new ArrayList<>();

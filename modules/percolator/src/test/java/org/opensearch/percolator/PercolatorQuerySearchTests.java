@@ -96,7 +96,7 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testPercolateScriptQuery() throws IOException {
-        client().admin().indices().prepareCreate("index").addMapping("type", "query", "type=percolator").get();
+        client().admin().indices().prepareCreate("index").setMapping("query", "type=percolator").get();
         client().prepareIndex("index")
             .setId("1")
             .setSource(

@@ -148,7 +148,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
 
     public void testShapeFetchingPath() throws Exception {
         createIndex("shapes");
-        client().admin().indices().prepareCreate("test").addMapping("type", "geo", "type=geo_shape").get();
+        client().admin().indices().prepareCreate("test").setMapping("geo", "type=geo_shape").get();
 
         String location = "\"geo\" : {\"type\":\"polygon\", \"coordinates\":[[[-10,-10],[10,-10],[10,10],[-10,10],[-10,-10]]]}";
 
@@ -538,14 +538,9 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         PointBuilder pb = new PointBuilder(pt[0], pt[1]);
         gcb.shape(pb);
         if (randomBoolean()) {
-            client().admin().indices().prepareCreate("test").addMapping("type", "geo", "type=geo_shape").execute().actionGet();
+            client().admin().indices().prepareCreate("test").setMapping("geo", "type=geo_shape").execute().actionGet();
         } else {
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .addMapping("type", "geo", "type=geo_shape,tree=quadtree")
-                .execute()
-                .actionGet();
+            client().admin().indices().prepareCreate("test").setMapping("geo", "type=geo_shape,tree=quadtree").execute().actionGet();
         }
         XContentBuilder docSource = gcb.toXContent(jsonBuilder().startObject().field("geo"), null).endObject();
         client().prepareIndex("test").setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
@@ -578,14 +573,9 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         }
 
         if (usePrefixTrees) {
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .addMapping("type", "geo", "type=geo_shape,tree=quadtree")
-                .execute()
-                .actionGet();
+            client().admin().indices().prepareCreate("test").setMapping("geo", "type=geo_shape,tree=quadtree").execute().actionGet();
         } else {
-            client().admin().indices().prepareCreate("test").addMapping("type", "geo", "type=geo_shape").execute().actionGet();
+            client().admin().indices().prepareCreate("test").setMapping("geo", "type=geo_shape").execute().actionGet();
         }
 
         XContentBuilder docSource = gcb.toXContent(jsonBuilder().startObject().field("geo"), null).endObject();
@@ -805,7 +795,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
 
     public void testShapeFilterWithDefinedGeoCollection() throws Exception {
         createIndex("shapes");
-        client().admin().indices().prepareCreate("test").addMapping("type", "geo", "type=geo_shape,tree=quadtree").get();
+        client().admin().indices().prepareCreate("test").setMapping("geo", "type=geo_shape,tree=quadtree").get();
 
         XContentBuilder docSource = jsonBuilder().startObject()
             .startObject("geo")

@@ -242,7 +242,7 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
     }
 
     public void testRandomNested() throws Exception {
-        assertAcked(prepareCreate("idx").addMapping("type", "field1", "type=nested", "field2", "type=nested"));
+        assertAcked(prepareCreate("idx").setMapping("field1", "type=nested", "field2", "type=nested"));
         int numDocs = scaledRandomIntBetween(25, 100);
         List<IndexRequestBuilder> requestBuilders = new ArrayList<>();
 
@@ -538,7 +538,7 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
 
     // Issue #9723
     public void testNestedDefinedAsObject() throws Exception {
-        assertAcked(prepareCreate("articles").addMapping("article", "comments", "type=nested", "title", "type=text"));
+        assertAcked(prepareCreate("articles").setMapping("comments", "type=nested", "title", "type=text"));
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(
@@ -852,7 +852,7 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
     }
 
     public void testNestedSource() throws Exception {
-        assertAcked(prepareCreate("index1").addMapping("message", "comments", "type=nested"));
+        assertAcked(prepareCreate("index1").setMapping("comments", "type=nested"));
         client().prepareIndex("index1")
             .setId("1")
             .setSource(
@@ -947,7 +947,7 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
     }
 
     public void testInnerHitsWithIgnoreUnmapped() throws Exception {
-        assertAcked(prepareCreate("index1").addMapping("_doc", "nested_type", "type=nested"));
+        assertAcked(prepareCreate("index1").setMapping("nested_type", "type=nested"));
         createIndex("index2");
         client().prepareIndex("index1").setId("1").setSource("nested_type", Collections.singletonMap("key", "value")).get();
         client().prepareIndex("index2").setId("3").setSource("key", "value").get();
@@ -967,7 +967,7 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
     }
 
     public void testUseMaxDocInsteadOfSize() throws Exception {
-        assertAcked(prepareCreate("index2").addMapping("type", "nested", "type=nested"));
+        assertAcked(prepareCreate("index2").setMapping("nested", "type=nested"));
         client().admin()
             .indices()
             .prepareUpdateSettings("index2")
@@ -990,7 +990,7 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
     }
 
     public void testTooHighResultWindow() throws Exception {
-        assertAcked(prepareCreate("index2").addMapping("type", "nested", "type=nested"));
+        assertAcked(prepareCreate("index2").setMapping("nested", "type=nested"));
         client().prepareIndex("index2")
             .setId("1")
             .setSource(

@@ -74,7 +74,7 @@ public class TermsDocCountErrorIT extends OpenSearchIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx").addMapping("type", STRING_FIELD_NAME, "type=keyword").get());
+        assertAcked(client().admin().indices().prepareCreate("idx").setMapping(STRING_FIELD_NAME, "type=keyword").get());
         List<IndexRequestBuilder> builders = new ArrayList<>();
         int numDocs = between(10, 200);
         int numUniqueTerms = between(2, numDocs / 2);
@@ -92,7 +92,7 @@ public class TermsDocCountErrorIT extends OpenSearchIntegTestCase {
             );
         }
         assertAcked(
-            prepareCreate("idx_single_shard").addMapping("type", STRING_FIELD_NAME, "type=keyword")
+            prepareCreate("idx_single_shard").setMapping(STRING_FIELD_NAME, "type=keyword")
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
         );
         for (int i = 0; i < numDocs; i++) {
@@ -125,7 +125,7 @@ public class TermsDocCountErrorIT extends OpenSearchIntegTestCase {
             );
         }
         assertAcked(
-            prepareCreate("idx_fixed_docs_0").addMapping("type", STRING_FIELD_NAME, "type=keyword")
+            prepareCreate("idx_fixed_docs_0").setMapping(STRING_FIELD_NAME, "type=keyword")
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
         );
         Map<String, Integer> shard0DocsPerTerm = new HashMap<>();
@@ -151,7 +151,7 @@ public class TermsDocCountErrorIT extends OpenSearchIntegTestCase {
         }
 
         assertAcked(
-            prepareCreate("idx_fixed_docs_1").addMapping("type", STRING_FIELD_NAME, "type=keyword")
+            prepareCreate("idx_fixed_docs_1").setMapping(STRING_FIELD_NAME, "type=keyword")
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
         );
         Map<String, Integer> shard1DocsPerTerm = new HashMap<>();
@@ -177,7 +177,7 @@ public class TermsDocCountErrorIT extends OpenSearchIntegTestCase {
         }
 
         assertAcked(
-            prepareCreate("idx_fixed_docs_2").addMapping("type", STRING_FIELD_NAME, "type=keyword")
+            prepareCreate("idx_fixed_docs_2").setMapping(STRING_FIELD_NAME, "type=keyword")
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
         );
         Map<String, Integer> shard2DocsPerTerm = new HashMap<>();

@@ -136,9 +136,7 @@ public class GeoShapeIntegrationIT extends OpenSearchIntegTestCase {
      */
     public void testIgnoreMalformed() throws Exception {
         // create index
-        assertAcked(
-            client().admin().indices().prepareCreate("test").addMapping("geometry", "shape", "type=geo_shape,ignore_malformed=true").get()
-        );
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping("shape", "type=geo_shape,ignore_malformed=true").get());
         ensureGreen();
 
         // test self crossing ccw poly not crossing dateline
@@ -188,7 +186,7 @@ public class GeoShapeIntegrationIT extends OpenSearchIntegTestCase {
 
     public void testMappingUpdate() throws Exception {
         // create index
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("geometry", "shape", "type=geo_shape").get());
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping("shape", "type=geo_shape").get());
         ensureGreen();
 
         String update = "{\n"

@@ -240,7 +240,7 @@ public class ScriptQuerySearchIT extends OpenSearchIntegTestCase {
 
     public void testDisallowExpensiveQueries() {
         try {
-            assertAcked(prepareCreate("test-index").addMapping("_doc", "num1", "type=double"));
+            assertAcked(prepareCreate("test-index").setMapping("num1", "type=double"));
             int docCount = 10;
             for (int i = 1; i <= docCount; i++) {
                 client().prepareIndex("test-index").setId("" + i).setSource("num1", i).get();

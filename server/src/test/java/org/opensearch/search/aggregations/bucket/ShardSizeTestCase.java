@@ -55,7 +55,7 @@ public abstract class ShardSizeTestCase extends OpenSearchIntegTestCase {
     }
 
     protected void createIdx(String keyFieldMapping) {
-        assertAcked(prepareCreate("idx").addMapping("type", "key", keyFieldMapping));
+        assertAcked(prepareCreate("idx").setMapping("key", keyFieldMapping));
     }
 
     protected static String routing1; // routing key to shard 1
