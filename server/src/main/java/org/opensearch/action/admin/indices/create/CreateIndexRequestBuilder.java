@@ -144,8 +144,8 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<
      * @deprecated types are being removed
      */
     @Deprecated
-    public CreateIndexRequestBuilder addMapping(String type, Object... source) {
-        request.mapping(type, source);
+    public CreateIndexRequestBuilder addMapping(String type, String... source) {
+        request.simpleMapping(source);
         return this;
     }
 

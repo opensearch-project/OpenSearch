@@ -305,11 +305,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     /**
      * A specialized simplified mapping source method, takes the form of simple properties definition:
      * ("field1", "type=string,store=true").
-     * @deprecated types are being removed
      */
-    @Deprecated
-    public CreateIndexRequest mapping(String type, Object... source) {
-        mapping(PutMappingRequest.buildFromSimplifiedDef(source));
+    public CreateIndexRequest simpleMapping(String... source) {
+        mapping(PutMappingRequest.simpleMapping(source));
         return this;
     }
 
