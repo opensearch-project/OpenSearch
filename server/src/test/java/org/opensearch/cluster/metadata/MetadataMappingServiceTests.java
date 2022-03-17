@@ -57,7 +57,7 @@ public class MetadataMappingServiceTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testMappingClusterStateUpdateDoesntChangeExistingIndices() throws Exception {
-        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test"));
+        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test").setMapping());
         final CompressedXContent currentMapping = indexService.mapperService().documentMapper().mappingSource();
 
         final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
@@ -118,7 +118,7 @@ public class MetadataMappingServiceTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testMappingVersionUnchanged() throws Exception {
-        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test"));
+        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test").setMapping());
         final long previousVersion = indexService.getMetadata().getMappingVersion();
         final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
