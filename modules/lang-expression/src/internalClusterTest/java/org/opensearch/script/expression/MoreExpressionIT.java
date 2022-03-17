@@ -641,12 +641,11 @@ public class MoreExpressionIT extends OpenSearchIntegTestCase {
     public void testGeo() throws Exception {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("location")
             .field("type", "geo_point");
-        xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
+        xContentBuilder.endObject().endObject().endObject();
+        assertAcked(prepareCreate("test").setMapping(xContentBuilder));
         ensureGreen();
         client().prepareIndex("test")
             .setId("1")
@@ -687,12 +686,11 @@ public class MoreExpressionIT extends OpenSearchIntegTestCase {
     public void testBoolean() throws Exception {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("doc")
             .startObject("properties")
             .startObject("vip")
             .field("type", "boolean");
-        xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").addMapping("doc", xContentBuilder));
+        xContentBuilder.endObject().endObject().endObject();
+        assertAcked(prepareCreate("test").setMapping(xContentBuilder));
         ensureGreen();
         indexRandom(
             true,

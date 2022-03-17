@@ -100,12 +100,10 @@ public class SimilarityTests extends OpenSearchSingleNodeTestCase {
     public void testResolveSimilaritiesFromMapping_bm25() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type")
             .startObject("properties")
             .startObject("field1")
             .field("type", "text")
             .field("similarity", "my_similarity")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();
@@ -131,12 +129,10 @@ public class SimilarityTests extends OpenSearchSingleNodeTestCase {
     public void testResolveSimilaritiesFromMapping_boolean() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type")
             .startObject("properties")
             .startObject("field1")
             .field("type", "text")
             .field("similarity", "boolean")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();
@@ -148,12 +144,10 @@ public class SimilarityTests extends OpenSearchSingleNodeTestCase {
     public void testResolveSimilaritiesFromMapping_DFR() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type")
             .startObject("properties")
             .startObject("field1")
             .field("type", "text")
             .field("similarity", "my_similarity")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();
@@ -178,12 +172,10 @@ public class SimilarityTests extends OpenSearchSingleNodeTestCase {
     public void testResolveSimilaritiesFromMapping_IB() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type")
             .startObject("properties")
             .startObject("field1")
             .field("type", "text")
             .field("similarity", "my_similarity")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();
@@ -208,12 +200,10 @@ public class SimilarityTests extends OpenSearchSingleNodeTestCase {
     public void testResolveSimilaritiesFromMapping_DFI() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type")
             .startObject("properties")
             .startObject("field1")
             .field("type", "text")
             .field("similarity", "my_similarity")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();
@@ -233,12 +223,10 @@ public class SimilarityTests extends OpenSearchSingleNodeTestCase {
     public void testResolveSimilaritiesFromMapping_LMDirichlet() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type")
             .startObject("properties")
             .startObject("field1")
             .field("type", "text")
             .field("similarity", "my_similarity")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();
@@ -261,12 +249,10 @@ public class SimilarityTests extends OpenSearchSingleNodeTestCase {
     public void testResolveSimilaritiesFromMapping_LMJelinekMercer() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type")
             .startObject("properties")
             .startObject("field1")
             .field("type", "text")
             .field("similarity", "my_similarity")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();
@@ -292,12 +278,10 @@ public class SimilarityTests extends OpenSearchSingleNodeTestCase {
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type")
                 .startObject("properties")
                 .startObject("field1")
                 .field("type", "text")
                 .field("similarity", "unknown_similarity")
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()

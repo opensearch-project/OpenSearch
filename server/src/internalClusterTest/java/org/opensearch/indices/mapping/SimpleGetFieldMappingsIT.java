@@ -80,9 +80,8 @@ public class SimpleGetFieldMappingsIT extends OpenSearchIntegTestCase {
         assertThat(response.fieldMappings("index", "field"), nullValue());
     }
 
-    private XContentBuilder getMappingForType(String type) throws IOException {
+    private XContentBuilder getMappingForType() throws IOException {
         return jsonBuilder().startObject()
-            .startObject(type)
             .startObject("properties")
             .startObject("field1")
             .field("type", "text")
@@ -99,14 +98,13 @@ public class SimpleGetFieldMappingsIT extends OpenSearchIntegTestCase {
             .endObject()
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
     }
 
     public void testGetFieldMappings() throws Exception {
 
-        assertAcked(prepareCreate("indexa").addMapping("typeA", getMappingForType("typeA")));
-        assertAcked(client().admin().indices().prepareCreate("indexb").addMapping("typeB", getMappingForType("typeB")));
+        assertAcked(prepareCreate("indexa").setMapping(getMappingForType()));
+        assertAcked(client().admin().indices().prepareCreate("indexb").setMapping(getMappingForType()));
 
         // Get mappings by full name
         GetFieldMappingsResponse response = client().admin()
@@ -136,7 +134,7 @@ public class SimpleGetFieldMappingsIT extends OpenSearchIntegTestCase {
 
     @SuppressWarnings("unchecked")
     public void testSimpleGetFieldMappingsWithDefaults() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", getMappingForType("type")));
+        assertAcked(prepareCreate("test").setMapping(getMappingForType()));
         client().admin().indices().preparePutMapping("test").setSource("num", "type=long").get();
         client().admin().indices().preparePutMapping("test").setSource("field2", "type=text,index=false").get();
 
@@ -163,7 +161,7 @@ public class SimpleGetFieldMappingsIT extends OpenSearchIntegTestCase {
 
     @SuppressWarnings("unchecked")
     public void testGetFieldMappingsWithFieldAlias() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", getMappingForType("type")));
+        assertAcked(prepareCreate("test").setMapping(getMappingForType()));
 
         GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings().setFields("alias", "field1").get();
 
@@ -179,7 +177,7 @@ public class SimpleGetFieldMappingsIT extends OpenSearchIntegTestCase {
 
     // fix #6552
     public void testSimpleGetFieldMappingsWithPretty() throws Exception {
-        assertAcked(prepareCreate("index").addMapping("type", getMappingForType("type")));
+        assertAcked(prepareCreate("index").setMapping(getMappingForType()));
         Map<String, String> params = new HashMap<>();
         params.put("pretty", "true");
         GetFieldMappingsResponse response = client().admin()
@@ -209,7 +207,7 @@ public class SimpleGetFieldMappingsIT extends OpenSearchIntegTestCase {
     }
 
     public void testGetFieldMappingsWithBlocks() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("_doc", getMappingForType("_doc")));
+        assertAcked(prepareCreate("test").setMapping(getMappingForType()));
 
         for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY)) {
             try {

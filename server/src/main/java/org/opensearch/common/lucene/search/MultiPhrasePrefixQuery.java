@@ -186,7 +186,7 @@ public class MultiPhrasePrefixQuery extends Query {
             // which rewrites query with an empty reader.
             return new BooleanQuery.Builder().add(query.build(), BooleanClause.Occur.MUST)
                 .add(
-                    Queries.newMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName()),
+                    Queries.newMatchNoDocsQueryWithoutRewrite("No terms supplied for " + MultiPhrasePrefixQuery.class.getName()),
                     BooleanClause.Occur.MUST
                 )
                 .build();

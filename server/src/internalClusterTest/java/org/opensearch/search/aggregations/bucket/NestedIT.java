@@ -158,17 +158,14 @@ public class NestedIT extends OpenSearchIntegTestCase {
         }
 
         assertAcked(
-            prepareCreate("idx_nested_nested_aggs").addMapping(
-                "type",
+            prepareCreate("idx_nested_nested_aggs").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type")
                     .startObject("properties")
                     .startObject("nested1")
                     .field("type", "nested")
                     .startObject("properties")
                     .startObject("nested2")
                     .field("type", "nested")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -400,7 +397,6 @@ public class NestedIT extends OpenSearchIntegTestCase {
     // Test based on: https://github.com/elastic/elasticsearch/issues/9280
     public void testParentFilterResolvedCorrectly() throws Exception {
         XContentBuilder mapping = jsonBuilder().startObject()
-            .startObject("provider")
             .startObject("properties")
             .startObject("comments")
             .field("type", "nested")
@@ -450,11 +446,10 @@ public class NestedIT extends OpenSearchIntegTestCase {
             .endObject()
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
         assertAcked(
             prepareCreate("idx2").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .addMapping("provider", mapping)
+                .setMapping(mapping)
         );
         ensureGreen("idx2");
 
@@ -649,10 +644,8 @@ public class NestedIT extends OpenSearchIntegTestCase {
 
     public void testFilterAggInsideNestedAgg() throws Exception {
         assertAcked(
-            prepareCreate("classes").addMapping(
-                "class",
+            prepareCreate("classes").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("class")
                     .startObject("properties")
                     .startObject("name")
                     .field("type", "text")
@@ -674,7 +667,6 @@ public class NestedIT extends OpenSearchIntegTestCase {
                     .endObject()
                     .startObject("type")
                     .field("type", "keyword")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()

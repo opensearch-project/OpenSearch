@@ -36,7 +36,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene90.Lucene90Codec;
+import org.apache.lucene.codecs.lucene91.Lucene91Codec;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.mapper.CompletionFieldMapper;
@@ -51,7 +51,7 @@ import org.opensearch.index.mapper.MapperService;
  * per index in real time via the mapping API. If no specific postings format is
  * configured for a specific field the default postings format is used.
  */
-public class PerFieldMappingPostingFormatCodec extends Lucene90Codec {
+public class PerFieldMappingPostingFormatCodec extends Lucene91Codec {
     private final Logger logger;
     private final MapperService mapperService;
     private final DocValuesFormat dvFormat = new Lucene90DocValuesFormat();

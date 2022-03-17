@@ -541,16 +541,13 @@ public class GetActionIT extends OpenSearchIntegTestCase {
     public void testGetFieldsNonLeafField() throws Exception {
         assertAcked(
             prepareCreate("test").addAlias(new Alias("alias"))
-                .addMapping(
-                    "my-type1",
+                .setMapping(
                     jsonBuilder().startObject()
-                        .startObject("my-type1")
                         .startObject("properties")
                         .startObject("field1")
                         .startObject("properties")
                         .startObject("field2")
                         .field("type", "text")
-                        .endObject()
                         .endObject()
                         .endObject()
                         .endObject()
@@ -582,10 +579,8 @@ public class GetActionIT extends OpenSearchIntegTestCase {
             prepareCreate("my-index")
                 // multi types in 5.6
                 .setSettings(Settings.builder().put("index.refresh_interval", -1))
-                .addMapping(
-                    "my-type",
+                .setMapping(
                     jsonBuilder().startObject()
-                        .startObject("my-type")
                         .startObject("properties")
                         .startObject("field1")
                         .field("type", "object")
@@ -599,7 +594,6 @@ public class GetActionIT extends OpenSearchIntegTestCase {
                         .startObject("field4")
                         .field("type", "text")
                         .field("store", true)
-                        .endObject()
                         .endObject()
                         .endObject()
                         .endObject()

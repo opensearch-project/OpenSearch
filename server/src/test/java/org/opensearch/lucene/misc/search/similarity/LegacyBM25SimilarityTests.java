@@ -29,7 +29,7 @@ import java.util.Random;
 
 import org.apache.lucene.misc.search.similarity.LegacyBM25Similarity;
 import org.apache.lucene.search.similarities.BM25Similarity;
-import org.apache.lucene.search.similarities.BaseSimilarityTestCase;
+import org.apache.lucene.tests.search.similarities.BaseSimilarityTestCase;
 import org.apache.lucene.search.similarities.Similarity;
 
 @Deprecated
