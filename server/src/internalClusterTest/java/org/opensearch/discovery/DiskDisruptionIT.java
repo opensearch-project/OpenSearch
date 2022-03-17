@@ -32,7 +32,7 @@
 package org.opensearch.discovery;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-import org.apache.lucene.mockfile.FilterFileSystemProvider;
+import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.io.PathUtils;

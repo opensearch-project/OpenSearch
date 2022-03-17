@@ -102,7 +102,7 @@ testingConventions {
   // We only have one "special" integration test here to connect to wildfly
   naming {
     IT {
-      baseClass 'org.apache.lucene.util.LuceneTestCase'
+      baseClass 'org.apache.lucene.tests.util.LuceneTestCase'
     }
   }
 }

@@ -100,10 +100,8 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
 
     public void testSimpleNested() throws Exception {
         assertAcked(
-            prepareCreate("articles").addMapping(
-                "article",
+            prepareCreate("articles").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("article")
                     .startObject("properties")
                     .startObject("comments")
                     .field("type", "nested")
@@ -116,7 +114,6 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
                     .endObject()
                     .startObject("title")
                     .field("type", "text")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -313,10 +310,8 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
 
     public void testNestedMultipleLayers() throws Exception {
         assertAcked(
-            prepareCreate("articles").addMapping(
-                "article",
+            prepareCreate("articles").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("article")
                     .startObject("properties")
                     .startObject("comments")
                     .field("type", "nested")
@@ -336,7 +331,6 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
                     .endObject()
                     .startObject("title")
                     .field("type", "text")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -583,8 +577,7 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
                 // number_of_shards = 1, because then we catch the expected exception in the same way.
                 // (See expectThrows(...) below)
                 .setSettings(Settings.builder().put("index.number_of_shards", 1))
-                .addMapping(
-                    "article",
+                .setMapping(
                     jsonBuilder().startObject()
                         .startObject("properties")
                         .startObject("comments")
@@ -741,7 +734,6 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
 
     public void testMatchesQueriesNestedInnerHits() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("nested1")
             .field("type", "nested")
@@ -755,9 +747,8 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
             .field("type", "long")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(prepareCreate("test").addMapping("type1", builder));
+        assertAcked(prepareCreate("test").setMapping(builder));
         ensureGreen();
 
         List<IndexRequestBuilder> requests = new ArrayList<>();

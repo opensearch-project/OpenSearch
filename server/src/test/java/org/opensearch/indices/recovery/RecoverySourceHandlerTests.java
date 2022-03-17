@@ -40,9 +40,9 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.store.BaseDirectoryWrapper;
+import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.SetOnce;
@@ -1188,13 +1188,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
             if (randomBoolean()) {
                 op = new Translog.Index("id", seqNo, randomNonNegativeLong(), randomNonNegativeLong(), source, null, -1);
             } else if (randomBoolean()) {
-                op = new Translog.Delete(
-                    "id",
-                    new Term("_id", Uid.encodeId("id")),
-                    seqNo,
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong()
-                );
+                op = new Translog.Delete("id", seqNo, randomNonNegativeLong(), randomNonNegativeLong());
             } else {
                 op = new Translog.NoOp(seqNo, randomNonNegativeLong(), "test");
             }

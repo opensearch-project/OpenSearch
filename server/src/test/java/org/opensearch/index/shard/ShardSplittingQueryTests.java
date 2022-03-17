@@ -38,7 +38,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;

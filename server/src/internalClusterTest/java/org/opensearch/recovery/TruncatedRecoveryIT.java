@@ -32,8 +32,8 @@
 
 package org.opensearch.recovery;
 
-import org.apache.lucene.util.English;
-import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.apache.lucene.tests.util.English;
+import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.index.IndexRequestBuilder;

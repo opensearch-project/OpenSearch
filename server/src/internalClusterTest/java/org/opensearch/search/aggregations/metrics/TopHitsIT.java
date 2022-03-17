@@ -139,10 +139,8 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("field-collapsing").addMapping("type", "group", "type=keyword"));
         createIndex("empty");
         assertAcked(
-            prepareCreate("articles").addMapping(
-                "article",
+            prepareCreate("articles").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("article")
                     .startObject("properties")
                     .startObject(TERMS_AGGS_FIELD)
                     .field("type", "keyword")
@@ -167,7 +165,6 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
                     .startObject("properties")
                     .startObject("name")
                     .field("type", "keyword")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()

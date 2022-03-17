@@ -33,7 +33,7 @@ package org.opensearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.Version;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;

@@ -63,8 +63,7 @@ public final class RandomCreateIndexGenerator {
         CreateIndexRequest request = new CreateIndexRequest(index);
         randomAliases(request);
         if (randomBoolean()) {
-            String type = randomAlphaOfLength(5);
-            request.mapping(type, randomMapping(type));
+            request.mapping(randomMapping());
         }
         if (randomBoolean()) {
             request.settings(randomIndexSettings());
@@ -94,16 +93,15 @@ public final class RandomCreateIndexGenerator {
     }
 
     /**
-     * Creates a random mapping, with the mapping definition nested
-     * under the given type name.
+     * Creates a random mapping
      */
-    public static XContentBuilder randomMapping(String type) throws IOException {
+    public static XContentBuilder randomMapping() throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-        builder.startObject().startObject(type);
+        builder.startObject();
 
         randomMappingFields(builder, true);
 
-        builder.endObject().endObject();
+        builder.endObject();
         return builder;
     }
 

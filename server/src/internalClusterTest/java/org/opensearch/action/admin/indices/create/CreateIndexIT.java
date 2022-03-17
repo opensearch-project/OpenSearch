@@ -110,8 +110,7 @@ public class CreateIndexIT extends OpenSearchIntegTestCase {
 
     public void testNonNestedMappings() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "_doc",
+            prepareCreate("test").setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
                     .startObject("properties")
@@ -131,7 +130,7 @@ public class CreateIndexIT extends OpenSearchIntegTestCase {
     }
 
     public void testEmptyNestedMappings() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("_doc", XContentFactory.jsonBuilder().startObject().endObject()));
+        assertAcked(prepareCreate("test").setMapping(XContentFactory.jsonBuilder().startObject().endObject()));
 
         GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
 
@@ -144,10 +143,8 @@ public class CreateIndexIT extends OpenSearchIntegTestCase {
     public void testMappingParamAndNestedMismatch() throws Exception {
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> prepareCreate("test").addMapping(
-                MapperService.SINGLE_MAPPING_NAME,
-                XContentFactory.jsonBuilder().startObject().startObject("type2").endObject().endObject()
-            ).get()
+            () -> prepareCreate("test").setMapping(XContentFactory.jsonBuilder().startObject().startObject("type2").endObject().endObject())
+                .get()
         );
         assertThat(
             e.getMessage(),
@@ -159,10 +156,7 @@ public class CreateIndexIT extends OpenSearchIntegTestCase {
 
     public void testEmptyMappings() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "_doc",
-                XContentFactory.jsonBuilder().startObject().startObject("_doc").endObject().endObject()
-            )
+            prepareCreate("test").setMapping(XContentFactory.jsonBuilder().startObject().startObject("_doc").endObject().endObject())
         );
 
         GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();

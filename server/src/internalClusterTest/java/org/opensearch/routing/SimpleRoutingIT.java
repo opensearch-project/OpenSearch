@@ -351,17 +351,7 @@ public class SimpleRoutingIT extends OpenSearchIntegTestCase {
             .indices()
             .prepareCreate("test")
             .addAlias(new Alias("alias"))
-            .addMapping(
-                "type1",
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .startObject("type1")
-                    .startObject("_routing")
-                    .field("required", true)
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            )
+            .setMapping(XContentFactory.jsonBuilder().startObject().startObject("_routing").field("required", true).endObject().endObject())
             .execute()
             .actionGet();
         ensureGreen();
@@ -450,17 +440,7 @@ public class SimpleRoutingIT extends OpenSearchIntegTestCase {
             .indices()
             .prepareCreate("test")
             .addAlias(new Alias("alias"))
-            .addMapping(
-                "type1",
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .startObject("type1")
-                    .startObject("_routing")
-                    .field("required", true)
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            )
+            .setMapping(XContentFactory.jsonBuilder().startObject().startObject("_routing").field("required", true).endObject().endObject())
             .execute()
             .actionGet();
         ensureGreen();
@@ -544,17 +524,7 @@ public class SimpleRoutingIT extends OpenSearchIntegTestCase {
             .indices()
             .prepareCreate("test")
             .addAlias(new Alias("alias"))
-            .addMapping(
-                "type1",
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .startObject("type1")
-                    .startObject("_routing")
-                    .field("required", true)
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            )
+            .setMapping(XContentFactory.jsonBuilder().startObject().startObject("_routing").field("required", true).endObject().endObject())
             .execute()
             .actionGet();
         ensureGreen();

@@ -35,9 +35,9 @@ package org.opensearch.test;
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
-import org.apache.lucene.analysis.BaseTokenStreamTestCase;
-import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.TimeUnits;
+import org.apache.lucene.tests.analysis.BaseTokenStreamTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.tests.util.TimeUnits;
 import org.opensearch.Version;
 import org.opensearch.bootstrap.BootstrapForTesting;
 import org.opensearch.cluster.metadata.IndexMetadata;

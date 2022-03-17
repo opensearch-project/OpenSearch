@@ -31,7 +31,7 @@
 
 package org.opensearch.index.shard;
 
-import org.apache.lucene.mockfile.FilterFileSystemProvider;
+import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.PathUtilsForTesting;

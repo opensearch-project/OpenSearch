@@ -115,10 +115,8 @@ public class DuelScrollIT extends OpenSearchIntegTestCase {
 
     private TestContext create(SearchType... searchTypes) throws Exception {
         assertAcked(
-            prepareCreate("index").addMapping(
-                "type",
+            prepareCreate("index").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type")
                     .startObject("properties")
                     .startObject("field1")
                     .field("type", "long")
@@ -134,7 +132,6 @@ public class DuelScrollIT extends OpenSearchIntegTestCase {
                     .endObject()
                     .startObject("field4")
                     .field("type", "keyword")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()

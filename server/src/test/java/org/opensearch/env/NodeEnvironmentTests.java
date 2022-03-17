@@ -32,7 +32,7 @@
 package org.opensearch.env;
 
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;

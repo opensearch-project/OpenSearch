@@ -41,7 +41,7 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -136,7 +136,6 @@ public class AnnotatedTextHighlighterTests extends OpenSearchTestCase {
             noMatchSize,
             expectedPassages.length,
             name -> "text".equals(name),
-            Integer.MAX_VALUE,
             Integer.MAX_VALUE
         );
         highlighter.setFieldMatcher((name) -> "text".equals(name));

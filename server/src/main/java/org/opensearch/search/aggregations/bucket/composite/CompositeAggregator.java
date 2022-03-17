@@ -37,7 +37,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.queries.SearchAfterSortedDocQuery;
+import org.opensearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -349,8 +349,8 @@ final class CompositeAggregator extends BucketsAggregator {
                     }
 
                     @Override
-                    public FieldComparator<?> getComparator(int numHits, int sortPos) {
-                        return new LongComparator(1, delegate.getField(), (Long) missingValue, delegate.getReverse(), sortPos) {
+                    public FieldComparator<?> getComparator(int numHits, boolean enableSkipping) {
+                        return new LongComparator(1, delegate.getField(), (Long) missingValue, delegate.getReverse(), false) {
                             @Override
                             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                                 return new LongLeafComparator(context) {

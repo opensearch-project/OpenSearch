@@ -35,7 +35,7 @@ package org.opensearch.bootstrap;
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;

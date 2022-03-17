@@ -50,7 +50,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Random;
 
-import static org.apache.lucene.util.LuceneTestCase.assumeTrue;
+import static org.apache.lucene.tests.util.LuceneTestCase.assumeTrue;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertThat;
@@ -100,7 +100,7 @@ public final class CorruptionUtils {
                 input.seek(input.length() - CodecUtil.footerLength());
                 checksumAfterCorruption = input.getChecksum();
                 input.seek(input.length() - 8);
-                actualChecksumAfterCorruption = input.readLong();
+                actualChecksumAfterCorruption = CodecUtil.readBELong(input);
             }
             // we need to add assumptions here that the checksums actually really don't match there is a small chance to get collisions
             // in the checksum which is ok though....

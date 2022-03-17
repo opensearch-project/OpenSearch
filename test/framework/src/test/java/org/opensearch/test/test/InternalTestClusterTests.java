@@ -31,7 +31,7 @@
 
 package org.opensearch.test.test;
 
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;

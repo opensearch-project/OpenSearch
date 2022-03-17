@@ -32,13 +32,13 @@
 
 package org.opensearch.search.query;
 
-import org.apache.lucene.analysis.MockTokenizer;
+import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.analysis.pattern.PatternReplaceCharFilter;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.AttributeSource;
-import org.apache.lucene.util.English;
+import org.apache.lucene.tests.util.English;
 
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
@@ -1119,16 +1119,13 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     public void testTermsLookupFilter() throws Exception {
         assertAcked(prepareCreate("lookup").addMapping("type", "terms", "type=text", "other", "type=text"));
         assertAcked(
-            prepareCreate("lookup2").addMapping(
-                "type",
+            prepareCreate("lookup2").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type")
                     .startObject("properties")
                     .startObject("arr")
                     .startObject("properties")
                     .startObject("term")
                     .field("type", "text")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -1195,75 +1192,63 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
         );
 
         SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "type", "1", "terms")))
+            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "1", "terms")))
             .get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "3");
 
         // same as above, just on the _id...
-        searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("_id", new TermsLookup("lookup", "type", "1", "terms")))
-            .get();
+        searchResponse = client().prepareSearch("test").setQuery(termsLookupQuery("_id", new TermsLookup("lookup", "1", "terms"))).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "3");
 
         // another search with same parameters...
-        searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "type", "1", "terms")))
-            .get();
+        searchResponse = client().prepareSearch("test").setQuery(termsLookupQuery("term", new TermsLookup("lookup", "1", "terms"))).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "3");
 
-        searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "type", "2", "terms")))
-            .get();
+        searchResponse = client().prepareSearch("test").setQuery(termsLookupQuery("term", new TermsLookup("lookup", "2", "terms"))).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("2"));
 
-        searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "type", "3", "terms")))
-            .get();
+        searchResponse = client().prepareSearch("test").setQuery(termsLookupQuery("term", new TermsLookup("lookup", "3", "terms"))).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "2", "4");
 
-        searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "type", "4", "terms")))
-            .get();
+        searchResponse = client().prepareSearch("test").setQuery(termsLookupQuery("term", new TermsLookup("lookup", "4", "terms"))).get();
         assertHitCount(searchResponse, 0L);
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup2", "type", "1", "arr.term")))
+            .setQuery(termsLookupQuery("term", new TermsLookup("lookup2", "1", "arr.term")))
             .get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "3");
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup2", "type", "2", "arr.term")))
+            .setQuery(termsLookupQuery("term", new TermsLookup("lookup2", "2", "arr.term")))
             .get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("2"));
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup2", "type", "3", "arr.term")))
+            .setQuery(termsLookupQuery("term", new TermsLookup("lookup2", "3", "arr.term")))
             .get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "2", "4");
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("not_exists", new TermsLookup("lookup2", "type", "3", "arr.term")))
+            .setQuery(termsLookupQuery("not_exists", new TermsLookup("lookup2", "3", "arr.term")))
             .get();
         assertHitCount(searchResponse, 0L);
 
         // index "lookup" type "type" id "missing" document does not exist: ignore the lookup terms
         searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "type", "missing", "terms")))
+            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "missing", "terms")))
             .get();
         assertHitCount(searchResponse, 0L);
 
         // index "lookup3" type "type" has the source disabled: ignore the lookup terms
-        searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup3", "type", "1", "terms")))
-            .get();
+        searchResponse = client().prepareSearch("test").setQuery(termsLookupQuery("term", new TermsLookup("lookup3", "1", "terms"))).get();
         assertHitCount(searchResponse, 0L);
     }
 
@@ -1612,10 +1597,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
 
     public void testSimpleDFSQuery() throws IOException {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "_doc",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("_doc")
                     .startObject("_routing")
                     .field("required", true)
                     .endObject()
@@ -1630,7 +1613,6 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
                     .endObject()
                     .startObject("bs")
                     .field("type", "keyword")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -1888,8 +1870,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
         assert ("SPI,COMPAT".equals(System.getProperty("java.locale.providers"))) : "`-Djava.locale.providers=SPI,COMPAT` needs to be set";
 
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
                     .startObject("properties")
                     .startObject("date_field")
@@ -1990,7 +1971,6 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     public void testNestedQueryWithFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("_doc")
             .startObject("properties")
             .startObject("section")
             .field("type", "nested")
@@ -2005,9 +1985,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
             .endObject()
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(prepareCreate("index").addMapping("_doc", mapping));
+        assertAcked(prepareCreate("index").setMapping(mapping));
 
         XContentBuilder source = XContentFactory.jsonBuilder()
             .startObject()
@@ -2031,7 +2010,6 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     public void testFieldAliasesForMetaFields() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type")
             .startObject("properties")
             .startObject("id-alias")
             .field("type", "alias")
@@ -2042,9 +2020,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
             .field("path", "_routing")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(prepareCreate("test").addMapping("type", mapping));
+        assertAcked(prepareCreate("test").setMapping(mapping));
 
         IndexRequestBuilder indexRequest = client().prepareIndex("test").setId("1").setRouting("custom").setSource("field", "value");
         indexRandom(true, false, indexRequest);
