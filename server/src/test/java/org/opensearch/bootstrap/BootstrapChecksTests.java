@@ -802,7 +802,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
             hasToString(
                 containsString(
                     "the default discovery settings are unsuitable for production use; at least one "
-                        + "of [discovery.seed_hosts, discovery.seed_providers, cluster.initial_master_nodes] must be configured"
+                        + "of [discovery.seed_hosts, discovery.seed_providers, cluster.initial_cluster_manager_nodes / cluster.initial_master_nodes] must be configured"
                 )
             )
         );
