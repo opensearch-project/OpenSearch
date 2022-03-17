@@ -129,7 +129,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
                 incrementCountForRole(DiscoveryNodeRole.INGEST_ROLE.roleName(), expectedCounts);
             }
             if (isMasterNode) {
-                incrementCountForRole(DiscoveryNodeRole.MASTER_ROLE.roleName(), expectedCounts); // TODO: Remove along with MASTER_ROLE
+                incrementCountForRole(DiscoveryNodeRole.MASTER_ROLE.roleName(), expectedCounts);
                 incrementCountForRole(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(), expectedCounts);
             }
             if (isRemoteClusterClientNode) {
