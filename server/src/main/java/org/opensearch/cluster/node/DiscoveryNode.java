@@ -390,11 +390,11 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
                 .collect(Collectors.toList());
             out.writeVInt(rolesToWrite.size());
             for (final DiscoveryNodeRole role : rolesToWrite) {
-                if (role == DiscoveryNodeRole.MASTER_ROLE || role == DiscoveryNodeRole.CLUSTER_MANAGER_ROLE) {
+                if (role.equals(DiscoveryNodeRole.MASTER_ROLE) || role.equals(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)) {
                     out.writeEnum(LegacyRole.MASTER);
-                } else if (role == DiscoveryNodeRole.DATA_ROLE) {
+                } else if (role.equals(DiscoveryNodeRole.DATA_ROLE)) {
                     out.writeEnum(LegacyRole.DATA);
-                } else if (role == DiscoveryNodeRole.INGEST_ROLE) {
+                } else if (role.equals(DiscoveryNodeRole.INGEST_ROLE)) {
                     out.writeEnum(LegacyRole.INGEST);
                 }
             }
