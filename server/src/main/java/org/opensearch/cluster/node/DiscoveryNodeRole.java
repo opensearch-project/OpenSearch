@@ -41,6 +41,8 @@ import org.opensearch.transport.RemoteClusterService;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -129,6 +131,13 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         return this;
     }
 
+    /**
+     * Validate the role is compatible with the other roles in the list, when assigning the list of roles to a node.
+     * An {@link IllegalArgumentException} is expected to be thrown, if the role can't coexist with the other roles.
+     * @param roles A {@link List} of {@link DiscoveryNodeRole} that a node is going to have.
+     */
+    public void validateRole(List<DiscoveryNodeRole> roles) {};
+
     @Override
     public final boolean equals(Object o) {
         if (this == o) return true;
@@ -205,6 +214,19 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
             return Setting.boolSetting("node.master", false, Property.Deprecated, Property.NodeScope);
         }
 
+        @Override
+        public void validateRole(List<DiscoveryNodeRole> roles) {
+            if (roles.contains(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "To promote inclusive language, [%s] role is deprecated, and is replaced by [%s] role. The two roles can not be assigned together to a node.",
+                        DiscoveryNodeRole.MASTER_ROLE.roleName(),
+                        DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName()
+                    )
+                );
+            }
+        }
     };
 
     /**
@@ -227,6 +249,19 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
             }
         }
 
+        @Override
+        public void validateRole(List<DiscoveryNodeRole> roles) {
+            if (roles.contains(DiscoveryNodeRole.MASTER_ROLE)) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "To promote inclusive language, [%s] role is deprecated, and is replaced by [%s] role. The two roles can not be assigned together to a node.",
+                        DiscoveryNodeRole.MASTER_ROLE.roleName(),
+                        DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName()
+                    )
+                );
+            }
+        }
     };
 
     public static final DiscoveryNodeRole REMOTE_CLUSTER_CLIENT_ROLE = new DiscoveryNodeRole("remote_cluster_client", "r") {
