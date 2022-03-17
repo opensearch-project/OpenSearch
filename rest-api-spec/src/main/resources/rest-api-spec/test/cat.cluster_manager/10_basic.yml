@@ -1,9 +1,12 @@
+setup:
+  - skip:
+      features: allowed_warnings
+
 ---
 "Help":
   - skip:
       version: " - 1.4.99"
       reason: "path _cat/cluster_manager is introduced in 2.0.0"
-      features: allowed_warnings
 
   - do:
       cat.cluster_manager:
@@ -25,7 +28,6 @@
   - skip:
       version: " - 1.4.99"
       reason: "path _cat/cluster_manager is introduced in 2.0.0"
-      features: allowed_warnings
 
   - do:
       cat.cluster_manager: {}
