@@ -217,8 +217,8 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      * Also supports metadata mapping fields such as `_all` and `_parent` as property definition, these metadata
      * mapping fields will automatically be put on the top level mapping object.
      */
-    public PutMappingRequest source(Object... source) {
-        return source(buildFromSimplifiedDef(source));
+    public PutMappingRequest source(String... source) {
+        return source(simpleMapping(source));
     }
 
     public String origin() {
@@ -239,7 +239,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      *             if the number of the source arguments is not divisible by two
      * @return the mappings definition
      */
-    public static XContentBuilder buildFromSimplifiedDef(Object... source) {
+    public static XContentBuilder simpleMapping(String... source) {
         if (source.length % 2 != 0) {
             throw new IllegalArgumentException("mapping source must be pairs of fieldnames and properties definition.");
         }
@@ -248,10 +248,10 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
             builder.startObject();
 
             for (int i = 0; i < source.length; i++) {
-                String fieldName = source[i++].toString();
+                String fieldName = source[i++];
                 if (RESERVED_FIELDS.contains(fieldName)) {
                     builder.startObject(fieldName);
-                    String[] s1 = Strings.splitStringByCommaToArray(source[i].toString());
+                    String[] s1 = Strings.splitStringByCommaToArray(source[i]);
                     for (String s : s1) {
                         String[] s2 = Strings.split(s, "=");
                         if (s2.length != 2) {
@@ -265,13 +265,13 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
 
             builder.startObject("properties");
             for (int i = 0; i < source.length; i++) {
-                String fieldName = source[i++].toString();
+                String fieldName = source[i++];
                 if (RESERVED_FIELDS.contains(fieldName)) {
                     continue;
                 }
 
                 builder.startObject(fieldName);
-                String[] s1 = Strings.splitStringByCommaToArray(source[i].toString());
+                String[] s1 = Strings.splitStringByCommaToArray(source[i]);
                 for (String s : s1) {
                     String[] s2 = Strings.split(s, "=");
                     if (s2.length != 2) {

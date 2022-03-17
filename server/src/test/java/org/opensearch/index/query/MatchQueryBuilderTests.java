@@ -390,7 +390,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             "_doc",
             new CompressedXContent(
                 Strings.toString(
-                    PutMappingRequest.buildFromSimplifiedDef("string_boost", "type=text", "string_no_pos", "type=text,index_options=docs")
+                    PutMappingRequest.simpleMapping("string_boost", "type=text", "string_no_pos", "type=text,index_options=docs")
                 )
             ),
             MapperService.MergeReason.MAPPING_UPDATE

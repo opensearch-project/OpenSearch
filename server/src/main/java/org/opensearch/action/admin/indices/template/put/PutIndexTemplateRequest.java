@@ -58,6 +58,7 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -303,8 +304,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * A specialized simplified mapping source method, takes the form of simple properties definition:
      * ("field1", "type=string,store=true").
      */
-    public PutIndexTemplateRequest mapping(String type, Object... source) {
-        mapping(type, PutMappingRequest.buildFromSimplifiedDef(source));
+    public PutIndexTemplateRequest mapping(String... source) {
+        mapping(MapperService.SINGLE_MAPPING_NAME, PutMappingRequest.simpleMapping(source));
         return this;
     }
 

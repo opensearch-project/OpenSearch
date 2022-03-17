@@ -565,7 +565,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .addMapping("type", "id", "type=keyword", "field1", fieldMapping, "query", "type=percolator")
+                .addMapping("type", "id", "type=keyword", "field1", fieldMapping.toString(), "query", "type=percolator")
         );
         client().prepareIndex("test")
             .setId("1")
