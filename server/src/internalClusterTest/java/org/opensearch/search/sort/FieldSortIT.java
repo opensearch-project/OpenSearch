@@ -276,18 +276,15 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
     public void testRandomSorting() throws IOException, InterruptedException, ExecutionException {
         Random random = random();
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type",
+            prepareCreate("test").setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type")
                     .startObject("properties")
                     .startObject("sparse_bytes")
                     .field("type", "keyword")
                     .endObject()
                     .startObject("dense_bytes")
                     .field("type", "keyword")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -558,11 +555,9 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
     public void testSimpleSorts() throws Exception {
         Random random = random();
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("str_value")
                     .field("type", "keyword")
@@ -587,7 +582,6 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
                     .endObject()
                     .startObject("double_value")
                     .field("type", "double")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -801,18 +795,15 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
 
     public void testSortMissingNumbers() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("i_value")
                     .field("type", "integer")
                     .endObject()
                     .startObject("d_value")
                     .field("type", "float")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -873,15 +864,12 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
 
     public void testSortMissingStrings() throws IOException {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("value")
                     .field("type", "keyword")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -1009,11 +997,9 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
 
     public void testSortMVField() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("long_values")
                     .field("type", "long")
@@ -1035,7 +1021,6 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
                     .endObject()
                     .startObject("string_values")
                     .field("type", "keyword")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -1345,15 +1330,12 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
 
     public void testSortOnRareField() throws IOException {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("string_values")
                     .field("type", "keyword")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -1494,11 +1476,9 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
      */
     public void testNestedSort() throws IOException, InterruptedException, ExecutionException {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type",
+            prepareCreate("test").setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type")
                     .startObject("properties")
                     .startObject("nested")
                     .field("type", "nested")
@@ -1521,7 +1501,6 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
                     .startObject("fields")
                     .startObject("sub")
                     .field("type", "keyword")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()

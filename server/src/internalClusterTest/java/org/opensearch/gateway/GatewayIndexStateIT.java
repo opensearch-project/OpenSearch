@@ -105,10 +105,7 @@ public class GatewayIndexStateIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate("test")
-            .addMapping(
-                "type1",
-                XContentFactory.jsonBuilder().startObject().startObject("_routing").field("required", true).endObject().endObject()
-            )
+            .setMapping(XContentFactory.jsonBuilder().startObject().startObject("_routing").field("required", true).endObject().endObject())
             .execute()
             .actionGet();
 

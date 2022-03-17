@@ -42,7 +42,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.search.suggest.CompletionSuggestSearchIT.CompletionMappingBuilder;
 import org.opensearch.search.suggest.completion.CompletionSuggestionBuilder;
@@ -608,7 +607,7 @@ public class ContextCompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         mapping.endObject();
         mapping.endObject();
 
-        assertAcked(prepareCreate(INDEX).addMapping(MapperService.SINGLE_MAPPING_NAME, mapping));
+        assertAcked(prepareCreate(INDEX).setMapping(mapping));
 
         XContentBuilder source1 = jsonBuilder().startObject()
             .startObject("location")
@@ -754,7 +753,7 @@ public class ContextCompletionSuggestSearchIT extends OpenSearchIntegTestCase {
                 .indices()
                 .prepareCreate(INDEX)
                 .setSettings(Settings.builder().put(indexSettings()).put(settings))
-                .addMapping(MapperService.SINGLE_MAPPING_NAME, mapping)
+                .setMapping(mapping)
                 .get()
         );
     }

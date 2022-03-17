@@ -127,15 +127,12 @@ public class QueryRescorerIT extends OpenSearchIntegTestCase {
 
     public void testRescorePhrase() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("field1")
                     .field("analyzer", "whitespace")
                     .field("type", "text")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -190,22 +187,16 @@ public class QueryRescorerIT extends OpenSearchIntegTestCase {
 
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("field1")
             .field("type", "text")
             .field("analyzer", "whitespace")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
 
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .addMapping("type1", mapping)
-                .setSettings(builder.put("index.number_of_shards", 1))
+            client().admin().indices().prepareCreate("test").setMapping(mapping).setSettings(builder.put("index.number_of_shards", 1))
         );
 
         client().prepareIndex("test").setId("1").setSource("field1", "massachusetts avenue boston massachusetts").get();
@@ -285,22 +276,16 @@ public class QueryRescorerIT extends OpenSearchIntegTestCase {
 
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("field1")
             .field("type", "text")
             .field("analyzer", "whitespace")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
 
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .addMapping("type1", mapping)
-                .setSettings(builder.put("index.number_of_shards", 1))
+            client().admin().indices().prepareCreate("test").setMapping(mapping).setSettings(builder.put("index.number_of_shards", 1))
         );
 
         client().prepareIndex("test").setId("3").setSource("field1", "massachusetts").get();
@@ -371,22 +356,16 @@ public class QueryRescorerIT extends OpenSearchIntegTestCase {
 
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("field1")
             .field("type", "text")
             .field("analyzer", "whitespace")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
 
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .addMapping("type1", mapping)
-                .setSettings(builder.put("index.number_of_shards", 1))
+            client().admin().indices().prepareCreate("test").setMapping(mapping).setSettings(builder.put("index.number_of_shards", 1))
         );
 
         client().prepareIndex("test").setId("3").setSource("field1", "massachusetts").get();
@@ -524,15 +503,12 @@ public class QueryRescorerIT extends OpenSearchIntegTestCase {
 
     public void testExplain() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("field1")
                     .field("analyzer", "whitespace")
                     .field("type", "text")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -785,15 +761,12 @@ public class QueryRescorerIT extends OpenSearchIntegTestCase {
         }
 
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("field1")
                     .field("analyzer", analyzer)
                     .field("type", "text")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()

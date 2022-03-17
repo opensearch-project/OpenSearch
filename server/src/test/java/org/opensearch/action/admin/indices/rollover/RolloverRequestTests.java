@@ -218,8 +218,7 @@ public class RolloverRequestTests extends OpenSearchTestCase {
     private static RolloverRequest createTestItem() throws IOException {
         RolloverRequest rolloverRequest = new RolloverRequest();
         if (randomBoolean()) {
-            rolloverRequest.getCreateIndexRequest()
-                .mapping(MapperService.SINGLE_MAPPING_NAME, RandomCreateIndexGenerator.randomMapping(MapperService.SINGLE_MAPPING_NAME));
+            rolloverRequest.getCreateIndexRequest().mapping(RandomCreateIndexGenerator.randomMapping());
         }
         if (randomBoolean()) {
             RandomCreateIndexGenerator.randomAliases(rolloverRequest.getCreateIndexRequest());

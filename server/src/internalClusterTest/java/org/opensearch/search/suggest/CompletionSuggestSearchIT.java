@@ -682,15 +682,13 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
 
     public void testThatUpgradeToMultiFieldsWorks() throws Exception {
         final XContentBuilder mapping = jsonBuilder().startObject()
-            .startObject(MapperService.SINGLE_MAPPING_NAME)
             .startObject("properties")
             .startObject(FIELD)
             .field("type", "text")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(prepareCreate(INDEX).addMapping(MapperService.SINGLE_MAPPING_NAME, mapping));
+        assertAcked(prepareCreate(INDEX).setMapping(mapping));
         client().prepareIndex(INDEX)
             .setId("1")
             .setRefreshPolicy(IMMEDIATE)
@@ -1328,7 +1326,7 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
                 .indices()
                 .prepareCreate(INDEX)
                 .setSettings(Settings.builder().put(indexSettings()).put(settings))
-                .addMapping(MapperService.SINGLE_MAPPING_NAME, mapping)
+                .setMapping(mapping)
                 .get()
         );
     }
@@ -1376,14 +1374,11 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate(INDEX)
-                .addMapping(
-                    MapperService.SINGLE_MAPPING_NAME,
+                .setMapping(
                     jsonBuilder().startObject()
-                        .startObject(MapperService.SINGLE_MAPPING_NAME)
                         .startObject("properties")
                         .startObject(FIELD)
                         .field("type", "completion")
-                        .endObject()
                         .endObject()
                         .endObject()
                         .endObject()
@@ -1408,14 +1403,11 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate(INDEX)
-                .addMapping(
-                    MapperService.SINGLE_MAPPING_NAME,
+                .setMapping(
                     jsonBuilder().startObject()
-                        .startObject(MapperService.SINGLE_MAPPING_NAME)
                         .startObject("properties")
                         .startObject(FIELD)
                         .field("type", "completion")
-                        .endObject()
                         .endObject()
                         .endObject()
                         .endObject()
@@ -1449,14 +1441,11 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate(INDEX)
-                .addMapping(
-                    MapperService.SINGLE_MAPPING_NAME,
+                .setMapping(
                     jsonBuilder().startObject()
-                        .startObject(MapperService.SINGLE_MAPPING_NAME)
                         .startObject("properties")
                         .startObject(FIELD)
                         .field("type", "completion")
-                        .endObject()
                         .endObject()
                         .endObject()
                         .endObject()
@@ -1508,7 +1497,6 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
     public void testSuggestWithFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject(MapperService.SINGLE_MAPPING_NAME)
             .startObject("properties")
             .startObject(FIELD)
             .field("type", "completion")
@@ -1518,9 +1506,8 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
             .field("path", FIELD)
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(prepareCreate(INDEX).addMapping(MapperService.SINGLE_MAPPING_NAME, mapping));
+        assertAcked(prepareCreate(INDEX).setMapping(mapping));
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         builders.add(client().prepareIndex(INDEX).setSource(FIELD, "apple"));

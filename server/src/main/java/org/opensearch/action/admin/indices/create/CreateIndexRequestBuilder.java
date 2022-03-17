@@ -113,43 +113,28 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<
      *
      * @param source The mapping source
      */
-    @Deprecated
     public CreateIndexRequestBuilder setMapping(String source) {
         request.mapping(source);
         return this;
     }
 
     /**
-     * The cause for this index creation.
+     * Adds mapping that will be added when the index gets created.
+     *
+     * @param source The mapping source
      */
-    public CreateIndexRequestBuilder setCause(String cause) {
-        request.cause(cause);
+    public CreateIndexRequestBuilder setMapping(XContentBuilder source) {
+        request.mapping(source);
         return this;
     }
 
     /**
      * Adds mapping that will be added when the index gets created.
      *
-     * @param type   The mapping type
      * @param source The mapping source
-     * @deprecated types are being removed
      */
-    @Deprecated
-    public CreateIndexRequestBuilder addMapping(String type, XContentBuilder source) {
-        request.mapping(type, source);
-        return this;
-    }
-
-    /**
-     * Adds mapping that will be added when the index gets created.
-     *
-     * @param type   The mapping type
-     * @param source The mapping source
-     * @deprecated types are being removed
-     */
-    @Deprecated
-    public CreateIndexRequestBuilder addMapping(String type, Map<String, Object> source) {
-        request.mapping(type, source);
+    public CreateIndexRequestBuilder setMapping(Map<String, Object> source) {
+        request.mapping(source);
         return this;
     }
 
@@ -161,6 +146,14 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<
     @Deprecated
     public CreateIndexRequestBuilder addMapping(String type, Object... source) {
         request.mapping(type, source);
+        return this;
+    }
+
+    /**
+     * The cause for this index creation.
+     */
+    public CreateIndexRequestBuilder setCause(String cause) {
+        request.cause(cause);
         return this;
     }
 
