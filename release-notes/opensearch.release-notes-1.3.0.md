@@ -405,7 +405,6 @@
     [opensearch-trigger-bot[bot]](mailto:98922864+opensearch-trigger-bot[bot]@users.noreply.github.com) - Thu, 10 Feb 2022 13:48:38 -0500
 
     When some node or set of nodes is excluded (based on some cluster setting)
-
     BalancedShardsAllocator iterates over them in breadth first order picking 1
     shard from
     each node and repeating the process until all shards are balanced.
@@ -425,7 +424,6 @@
     setting enabled performance of this change is a direct function of number
     of
     indices, shards, replicas, and nodes. The larger the indices, replicas, and
-
     distribution scale, the slower the allocation becomes. This should be used with
     care.
      Signed-off-by: Ankit Jain &lt;jain.ankitk@gmail.com&gt;
@@ -465,21 +463,20 @@
     * Introduce FS Health HEALTHY threshold to fail stuck node (#1167)
      This will cause the leader stuck on IO during publication to step down and
     eventually trigger a leader election.
-     Issue Description
-    ---
-    The publication of cluster state is time bound to 30s by a
-    cluster.publish.timeout settings. If this time is reached before the new
-    cluster state is committed, then the cluster state change is rejected and the
-    leader considers itself to have failed. It stands down and starts trying to
-    elect a new master.
-     There is a bug in leader that when it tries to publish the new cluster state
-    it first tries acquire a lock to flush the new state under a mutex to disk. The
-    same lock is used to cancel the publication on timeout. Below is the state of
-    the timeout scheduler meant to cancel the publication. So essentially if the
-    flushing of cluster state is stuck on IO, so will the cancellation of the
-    publication since both of them share the same mutex. So leader will not step
-    down and effectively block the cluster from making progress.
-     Signed-off-by: Bukhtawar Khan &lt;bukhtawa@amazon.com&gt;
+    * Issue Description
+      * The publication of cluster state is time bound to 30s by a
+        cluster.publish.timeout settings. If this time is reached before the new
+        cluster state is committed, then the cluster state change is rejected and the
+        leader considers itself to have failed. It stands down and starts trying to
+        elect a new master.
+         There is a bug in leader that when it tries to publish the new cluster state
+        it first tries acquire a lock to flush the new state under a mutex to disk. The
+        same lock is used to cancel the publication on timeout. Below is the state of
+        the timeout scheduler meant to cancel the publication. So essentially if the
+        flushing of cluster state is stuck on IO, so will the cancellation of the
+        publication since both of them share the same mutex. So leader will not step
+        down and effectively block the cluster from making progress.
+         Signed-off-by: Bukhtawar Khan &lt;bukhtawa@amazon.com&gt;
 
     * Fix up settings
      Signed-off-by: Bukhtawar Khan &lt;bukhtawa@amazon.com&gt;
@@ -1212,7 +1209,8 @@
 
        error: warnings found and -Werror specified
       ```
-     Suppress this warning explicitly for this module.
+
+    * Suppress this warning explicitly for this module.
      Signed-off-by: Robert Muir &lt;rmuir@apache.org&gt;
 
     * more java14 -&gt; java11 cleanup
