@@ -122,7 +122,7 @@ public class HiddenIndexIT extends OpenSearchIntegTestCase {
                 .indices()
                 .preparePutTemplate("a_global_template")
                 .setPatterns(Collections.singletonList("*"))
-                .setMapping("_doc", "foo", "type=text")
+                .setMapping("foo", "type=text")
                 .get()
         );
         assertAcked(
@@ -130,7 +130,7 @@ public class HiddenIndexIT extends OpenSearchIntegTestCase {
                 .indices()
                 .preparePutTemplate("not_global_template")
                 .setPatterns(Collections.singletonList("a*"))
-                .setMapping("_doc", "bar", "type=text")
+                .setMapping("bar", "type=text")
                 .get()
         );
         assertAcked(
@@ -138,7 +138,7 @@ public class HiddenIndexIT extends OpenSearchIntegTestCase {
                 .indices()
                 .preparePutTemplate("specific_template")
                 .setPatterns(Collections.singletonList("a_hidden_index"))
-                .setMapping("_doc", "baz", "type=text")
+                .setMapping("baz", "type=text")
                 .get()
         );
         assertAcked(
@@ -146,7 +146,7 @@ public class HiddenIndexIT extends OpenSearchIntegTestCase {
                 .indices()
                 .preparePutTemplate("unused_template")
                 .setPatterns(Collections.singletonList("not_used"))
-                .setMapping("_doc", "foobar", "type=text")
+                .setMapping("foobar", "type=text")
                 .get()
         );
 
@@ -192,7 +192,7 @@ public class HiddenIndexIT extends OpenSearchIntegTestCase {
                 .indices()
                 .preparePutTemplate("a_global_template")
                 .setPatterns(Collections.singletonList("my_hidden_pattern*"))
-                .setMapping("_doc", "foo", "type=text")
+                .setMapping("foo", "type=text")
                 .setSettings(Settings.builder().put("index.hidden", true).build())
                 .get()
         );
