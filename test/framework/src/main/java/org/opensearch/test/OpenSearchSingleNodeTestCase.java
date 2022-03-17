@@ -310,7 +310,7 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
     protected IndexService createIndex(String index, Settings settings, String type, XContentBuilder mappings) {
         CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);
         if (type != null && mappings != null) {
-            createIndexRequestBuilder.addMapping(type, mappings);
+            createIndexRequestBuilder.setMapping(mappings);
         }
         return createIndex(index, createIndexRequestBuilder);
     }

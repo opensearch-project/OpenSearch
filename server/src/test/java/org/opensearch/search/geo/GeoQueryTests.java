@@ -82,7 +82,7 @@ public abstract class GeoQueryTests extends OpenSearchSingleNodeTestCase {
 
     public void testNullShape() throws Exception {
         XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate(defaultIndexName).addMapping("_doc", xcb).get();
+        client().admin().indices().prepareCreate(defaultIndexName).setMapping(xcb).get();
         ensureGreen();
 
         client().prepareIndex(defaultIndexName)
@@ -96,7 +96,7 @@ public abstract class GeoQueryTests extends OpenSearchSingleNodeTestCase {
 
     public void testIndexPointsFilterRectangle() throws Exception {
         XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate(defaultIndexName).addMapping("_doc", xcb).get();
+        client().admin().indices().prepareCreate(defaultIndexName).setMapping(xcb).get();
         ensureGreen();
 
         client().prepareIndex(defaultIndexName)
@@ -134,7 +134,7 @@ public abstract class GeoQueryTests extends OpenSearchSingleNodeTestCase {
 
     public void testIndexPointsCircle() throws Exception {
         XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate(defaultIndexName).addMapping("_doc", xcb).get();
+        client().admin().indices().prepareCreate(defaultIndexName).setMapping(xcb).get();
         ensureGreen();
 
         client().prepareIndex(defaultIndexName)
@@ -167,7 +167,7 @@ public abstract class GeoQueryTests extends OpenSearchSingleNodeTestCase {
 
     public void testIndexPointsPolygon() throws Exception {
         XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate(defaultIndexName).addMapping("_doc", xcb).get();
+        client().admin().indices().prepareCreate(defaultIndexName).setMapping(xcb).get();
         ensureGreen();
 
         client().prepareIndex(defaultIndexName)
@@ -203,7 +203,7 @@ public abstract class GeoQueryTests extends OpenSearchSingleNodeTestCase {
 
     public void testIndexPointsMultiPolygon() throws Exception {
         XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate(defaultIndexName).addMapping("_doc", xcb).get();
+        client().admin().indices().prepareCreate(defaultIndexName).setMapping(xcb).get();
         ensureGreen();
 
         client().prepareIndex(defaultIndexName)
@@ -257,7 +257,7 @@ public abstract class GeoQueryTests extends OpenSearchSingleNodeTestCase {
 
     public void testIndexPointsRectangle() throws Exception {
         XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate(defaultIndexName).addMapping("_doc", xcb).get();
+        client().admin().indices().prepareCreate(defaultIndexName).setMapping(xcb).get();
         ensureGreen();
 
         client().prepareIndex(defaultIndexName)
@@ -285,7 +285,7 @@ public abstract class GeoQueryTests extends OpenSearchSingleNodeTestCase {
 
     public void testIndexPointsIndexedRectangle() throws Exception {
         XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate(defaultIndexName).addMapping(defaultIndexName, xcb).get();
+        client().admin().indices().prepareCreate(defaultIndexName).setMapping(xcb).get();
         ensureGreen();
 
         client().prepareIndex(defaultIndexName)
@@ -310,7 +310,7 @@ public abstract class GeoQueryTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .endObject()
             .endObject();
-        client().admin().indices().prepareCreate(indexedShapeIndex).addMapping(defaultIndexName, xcb).get();
+        client().admin().indices().prepareCreate(indexedShapeIndex).setMapping(xcb).get();
         ensureGreen();
 
         client().prepareIndex(indexedShapeIndex)
@@ -352,7 +352,7 @@ public abstract class GeoQueryTests extends OpenSearchSingleNodeTestCase {
 
     public void testRectangleSpanningDateline() throws Exception {
         XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
+        client().admin().indices().prepareCreate("test").setMapping(xcb).get();
         ensureGreen();
 
         client().prepareIndex(defaultIndexName)
@@ -385,7 +385,7 @@ public abstract class GeoQueryTests extends OpenSearchSingleNodeTestCase {
 
     public void testPolygonSpanningDateline() throws Exception {
         XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
+        client().admin().indices().prepareCreate("test").setMapping(xcb).get();
         ensureGreen();
 
         client().prepareIndex(defaultIndexName)
@@ -429,7 +429,7 @@ public abstract class GeoQueryTests extends OpenSearchSingleNodeTestCase {
 
     public void testMultiPolygonSpanningDateline() throws Exception {
         XContentBuilder xcb = createDefaultMapping();
-        client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
+        client().admin().indices().prepareCreate("test").setMapping(xcb).get();
         ensureGreen();
 
         client().prepareIndex(defaultIndexName)

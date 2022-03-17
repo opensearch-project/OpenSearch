@@ -34,8 +34,8 @@ package org.opensearch.monitor.fs;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.apache.lucene.mockfile.FilterFileChannel;
-import org.apache.lucene.mockfile.FilterFileSystemProvider;
+import org.apache.lucene.tests.mockfile.FilterFileChannel;
+import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.opensearch.cluster.coordination.DeterministicTaskQueue;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.PathUtilsForTesting;

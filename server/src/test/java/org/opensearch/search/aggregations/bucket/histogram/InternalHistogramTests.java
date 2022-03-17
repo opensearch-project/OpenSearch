@@ -32,7 +32,7 @@
 
 package org.opensearch.search.aggregations.bucket.histogram;
 
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregations;

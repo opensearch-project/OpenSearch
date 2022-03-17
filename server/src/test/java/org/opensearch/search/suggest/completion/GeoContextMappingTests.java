@@ -245,7 +245,6 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
     public void testMalformedGeoField() throws Exception {
         XContentBuilder mapping = jsonBuilder();
         mapping.startObject();
-        mapping.startObject("type1");
         mapping.startObject("properties");
         mapping.startObject("pin");
         String type = randomFrom("text", "keyword", "long");
@@ -268,7 +267,6 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
 
         mapping.endObject();
         mapping.endObject();
-        mapping.endObject();
 
         OpenSearchParseException ex = expectThrows(
             OpenSearchParseException.class,
@@ -281,7 +279,6 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
     public void testMissingGeoField() throws Exception {
         XContentBuilder mapping = jsonBuilder();
         mapping.startObject();
-        mapping.startObject("type1");
         mapping.startObject("properties");
         mapping.startObject("suggestion");
         mapping.field("type", "completion");
@@ -298,7 +295,6 @@ public class GeoContextMappingTests extends OpenSearchSingleNodeTestCase {
 
         mapping.endObject();
 
-        mapping.endObject();
         mapping.endObject();
         mapping.endObject();
 

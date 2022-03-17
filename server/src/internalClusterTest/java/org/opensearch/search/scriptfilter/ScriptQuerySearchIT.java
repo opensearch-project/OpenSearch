@@ -127,11 +127,7 @@ public class ScriptQuerySearchIT extends OpenSearchIntegTestCase {
         final byte[] randomBytesDoc2 = getRandomBytes(16);
 
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("my-index")
-                .addMapping("my-type", createMappingSource("binary"))
-                .setSettings(indexSettings())
+            client().admin().indices().prepareCreate("my-index").setMapping(createMappingSource("binary")).setSettings(indexSettings())
         );
         client().prepareIndex("my-index")
             .setId("1")
@@ -170,12 +166,10 @@ public class ScriptQuerySearchIT extends OpenSearchIntegTestCase {
     private XContentBuilder createMappingSource(String fieldType) throws IOException {
         return XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("my-type")
             .startObject("properties")
             .startObject("binaryData")
             .field("type", fieldType)
             .field("doc_values", "true")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();

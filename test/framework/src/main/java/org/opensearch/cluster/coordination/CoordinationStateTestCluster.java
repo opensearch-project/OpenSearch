@@ -50,7 +50,7 @@ import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.rarely;
 import static java.util.stream.Collectors.toSet;
-import static org.apache.lucene.util.LuceneTestCase.random;
+import static org.apache.lucene.tests.util.LuceneTestCase.random;
 import static org.opensearch.test.OpenSearchTestCase.randomBoolean;
 import static org.opensearch.test.OpenSearchTestCase.randomFrom;
 import static org.opensearch.test.OpenSearchTestCase.randomIntBetween;

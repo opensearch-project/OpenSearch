@@ -96,17 +96,14 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
 
     public void testDistanceScoreGeoLinGaussExp() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("test")
                     .field("type", "text")
                     .endObject()
                     .startObject("loc")
                     .field("type", "geo_point")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -223,17 +220,14 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
 
     public void testDistanceScoreGeoLinGaussExpWithOffset() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("test")
                     .field("type", "text")
                     .endObject()
                     .startObject("num")
                     .field("type", "double")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -337,17 +331,14 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1).build();
         assertAcked(
             prepareCreate("test").setSettings(settings)
-                .addMapping(
-                    "type1",
+                .setMapping(
                     jsonBuilder().startObject()
-                        .startObject("type1")
                         .startObject("properties")
                         .startObject("test")
                         .field("type", "text")
                         .endObject()
                         .startObject("loc")
                         .field("type", "geo_point")
-                        .endObject()
                         .endObject()
                         .endObject()
                         .endObject()
@@ -436,17 +427,14 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
 
     public void testParseGeoPoint() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("test")
                     .field("type", "text")
                     .endObject()
                     .startObject("loc")
                     .field("type", "geo_point")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -504,17 +492,14 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
 
     public void testCombineModes() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("test")
                     .field("type", "text")
                     .endObject()
                     .startObject("num")
                     .field("type", "double")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -621,17 +606,14 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
 
     public void testCombineModesExplain() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("test")
                     .field("type", "text")
                     .endObject()
                     .startObject("num")
                     .field("type", "double")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -691,17 +673,14 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
 
     public void testExceptionThrownIfScaleLE0() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("test")
                     .field("type", "text")
                     .endObject()
                     .startObject("num1")
                     .field("type", "date")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -731,10 +710,8 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
 
     public void testParseDateMath() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("test")
                     .field("type", "text")
@@ -742,7 +719,6 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
                     .startObject("num1")
                     .field("type", "date")
                     .field("format", "epoch_millis")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -785,10 +761,8 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
 
     public void testValueMissingLin() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("test")
                     .field("type", "text")
@@ -798,7 +772,6 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
                     .endObject()
                     .startObject("num2")
                     .field("type", "double")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -854,17 +827,14 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         ZonedDateTime dt = ZonedDateTime.now(ZoneOffset.UTC);
 
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("test")
                     .field("type", "text")
                     .endObject()
                     .startObject("num1")
                     .field("type", "date")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -933,7 +903,6 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
-            .startObject("type")
             .startObject("properties")
             .startObject("test")
             .field("type", "text")
@@ -949,8 +918,8 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
             .startObject("geo")
             .field("type", "geo_point")
             .field("ignore_malformed", true);
-        xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type", xContentBuilder));
+        xContentBuilder.endObject().endObject().endObject();
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         int numDocs = 200;
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
 
@@ -1013,17 +982,14 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
 
     public void testParsingExceptionIfFieldDoesNotExist() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type")
                     .startObject("properties")
                     .startObject("test")
                     .field("type", "text")
                     .endObject()
                     .startObject("geo")
                     .field("type", "geo_point")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -1066,17 +1032,14 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
 
     public void testParsingExceptionIfFieldTypeDoesNotMatch() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type")
                     .startObject("properties")
                     .startObject("test")
                     .field("type", "text")
                     .endObject()
                     .startObject("num")
                     .field("type", "text")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -1105,17 +1068,14 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
 
     public void testNoQueryGiven() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type")
                     .startObject("properties")
                     .startObject("test")
                     .field("type", "text")
                     .endObject()
                     .startObject("num")
                     .field("type", "double")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -1138,10 +1098,8 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
 
     public void testMultiFieldOptions() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("test")
                     .field("type", "text")
@@ -1151,7 +1109,6 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
                     .endObject()
                     .startObject("num")
                     .field("type", "float")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -1271,17 +1228,14 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
 
     public void testDistanceScoreGeoLinGaussExplain() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("test")
                     .field("type", "text")
                     .endObject()
                     .startObject("loc")
                     .field("type", "geo_point")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()

@@ -32,7 +32,7 @@
 
 package org.opensearch.search.basic;
 
-import org.apache.lucene.util.English;
+import org.apache.lucene.tests.util.English;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.DocWriteResponse;

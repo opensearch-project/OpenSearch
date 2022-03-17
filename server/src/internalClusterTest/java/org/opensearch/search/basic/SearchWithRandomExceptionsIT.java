@@ -35,7 +35,7 @@ package org.opensearch.search.basic;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.util.English;
+import org.apache.lucene.tests.util.English;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.DocWriteResponse;

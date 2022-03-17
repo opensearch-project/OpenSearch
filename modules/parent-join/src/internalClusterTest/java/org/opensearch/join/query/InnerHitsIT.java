@@ -103,10 +103,8 @@ public class InnerHitsIT extends ParentChildTestCase {
 
     public void testSimpleParentChild() throws Exception {
         assertAcked(
-            prepareCreate("articles").addMapping(
-                "doc",
+            prepareCreate("articles").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("doc")
                     .startObject("properties")
                     .startObject("join_field")
                     .field("type", "join")
@@ -120,7 +118,6 @@ public class InnerHitsIT extends ParentChildTestCase {
                     .startObject("message")
                     .field("type", "text")
                     .field("fielddata", true)
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -223,10 +220,8 @@ public class InnerHitsIT extends ParentChildTestCase {
 
     public void testRandomParentChild() throws Exception {
         assertAcked(
-            prepareCreate("idx").addMapping(
-                "doc",
+            prepareCreate("idx").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("doc")
                     .startObject("properties")
                     .startObject("id")
                     .field("type", "keyword")
@@ -235,7 +230,6 @@ public class InnerHitsIT extends ParentChildTestCase {
                     .field("type", "join")
                     .startObject("relations")
                     .field("parent", new String[] { "child1", "child2" })
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -323,8 +317,7 @@ public class InnerHitsIT extends ParentChildTestCase {
 
     public void testInnerHitsOnHasParent() throws Exception {
         assertAcked(
-            prepareCreate("stack").addMapping(
-                "doc",
+            prepareCreate("stack").setMapping(
                 addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "question", "answer"), "body", "text")
             )
         );
@@ -379,8 +372,7 @@ public class InnerHitsIT extends ParentChildTestCase {
 
     public void testParentChildMultipleLayers() throws Exception {
         assertAcked(
-            prepareCreate("articles").addMapping(
-                "doc",
+            prepareCreate("articles").setMapping(
                 addFieldMappings(
                     buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "article", "comment", "comment", "remark"),
                     "title",
@@ -449,8 +441,7 @@ public class InnerHitsIT extends ParentChildTestCase {
 
     public void testRoyals() throws Exception {
         assertAcked(
-            prepareCreate("royals").addMapping(
-                "doc",
+            prepareCreate("royals").setMapping(
                 buildParentJoinFieldMappingFromSimplifiedDef(
                     "join_field",
                     true,
@@ -536,9 +527,7 @@ public class InnerHitsIT extends ParentChildTestCase {
     }
 
     public void testMatchesQueriesParentChildInnerHits() throws Exception {
-        assertAcked(
-            prepareCreate("index").addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
-        );
+        assertAcked(prepareCreate("index").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(createIndexRequest("index", "parent", "1", null));
         requests.add(createIndexRequest("index", "child", "3", "1", "field", "value1"));
@@ -577,7 +566,7 @@ public class InnerHitsIT extends ParentChildTestCase {
 
     public void testUseMaxDocInsteadOfSize() throws Exception {
         assertAcked(
-            prepareCreate("index1").addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
+            prepareCreate("index1").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
         );
         client().admin()
             .indices()
@@ -599,8 +588,7 @@ public class InnerHitsIT extends ParentChildTestCase {
 
     public void testNestedInnerHitWrappedInParentChildInnerhit() {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "doc",
+            prepareCreate("test").setMapping(
                 addFieldMappings(
                     buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent_type", "child_type"),
                     "nested_type",
@@ -632,8 +620,7 @@ public class InnerHitsIT extends ParentChildTestCase {
 
     public void testInnerHitsWithIgnoreUnmapped() {
         assertAcked(
-            prepareCreate("index1").addMapping(
-                "doc",
+            prepareCreate("index1").setMapping(
                 addFieldMappings(
                     buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent_type", "child_type"),
                     "nested_type",
@@ -662,8 +649,7 @@ public class InnerHitsIT extends ParentChildTestCase {
 
     public void testTooHighResultWindow() {
         assertAcked(
-            prepareCreate("index1").addMapping(
-                "doc",
+            prepareCreate("index1").setMapping(
                 addFieldMappings(
                     buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent_type", "child_type"),
                     "nested_type",

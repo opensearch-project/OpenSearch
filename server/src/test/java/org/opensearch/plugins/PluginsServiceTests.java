@@ -35,7 +35,7 @@ package org.opensearch.plugins;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.bootstrap.JarHell;
@@ -648,7 +648,6 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         assertThat(deps, containsInAnyOrder(pluginJar.toUri().toURL(), dep1Jar.toUri().toURL(), dep2Jar.toUri().toURL()));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/2063")
     public void testNonExtensibleDep() throws Exception {
         // This test opens a child classloader, reading a jar under the test temp
         // dir (a dummy plugin). Classloaders are closed by GC, so when test teardown
@@ -791,7 +790,6 @@ public class PluginsServiceTests extends OpenSearchTestCase {
 
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/2063")
     public void testExistingMandatoryInstalledPlugin() throws IOException {
         // This test opens a child classloader, reading a jar under the test temp
         // dir (a dummy plugin). Classloaders are closed by GC, so when test teardown
@@ -825,7 +823,6 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         newPluginsService(settings);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/2063")
     public void testPluginFromParentClassLoader() throws IOException {
         final Path pathHome = createTempDir();
         final Path plugins = pathHome.resolve("plugins");
@@ -863,7 +860,6 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/2063")
     public void testPluginLoadFailure() throws IOException {
         final Path pathHome = createTempDir();
         final Path plugins = pathHome.resolve("plugins");
