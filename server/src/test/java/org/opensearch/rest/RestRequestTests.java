@@ -48,10 +48,10 @@ import org.opensearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -289,17 +289,18 @@ public class RestRequestTests extends OpenSearchTestCase {
      */
     public void testValidateParamValuesAreEqualWhenTheyAreEqual() {
         FakeRestRequest request = new FakeRestRequest();
-        List<String> valueList = new ArrayList<>(Arrays.asList(null, "", "value1"));
-        String valueForKey1 = randomFrom(valueList);
+        String valueForKey1 = randomFrom("value1", "", null);
         String valueForKey2 = "value1";
         request.params().put("key1", valueForKey1);
         request.params().put("key2", valueForKey2);
         request.validateParamValuesAreEqual("key1", "key2");
         assertTrue(
-            "Values of the 2 keys should be equal, or having 1 null value or empty String. Value of key1: "
-                + valueForKey1
-                + ". Value of key2: "
-                + valueForKey2,
+            String.format(
+                Locale.ROOT,
+                "The 2 values should be equal, or having 1 null/empty value. Value of key1: %s. Value of key2: %s",
+                valueForKey1,
+                valueForKey2
+            ),
             Strings.isNullOrEmpty(valueForKey1) || valueForKey1.equals(valueForKey2)
         );
     }
