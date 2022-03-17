@@ -242,7 +242,10 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
                 throw new IllegalArgumentException(
                     String.format(
                         Locale.ROOT,
-                        "To promote inclusive language, [%s] role is deprecated, and is replaced by [%s] role. The two roles can not be assigned together to a node.",
+                        "The two roles [%s, %s] can not be assigned together to a node. "
+                            + "To promote inclusive language, [%s] role is deprecated, and replaced by [%s] role.",
+                        DiscoveryNodeRole.MASTER_ROLE.roleName(),
+                        DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(),
                         DiscoveryNodeRole.MASTER_ROLE.roleName(),
                         DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName()
                     )

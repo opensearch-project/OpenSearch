@@ -30,7 +30,7 @@ public class NodeRoleSettingsTests extends OpenSearchTestCase {
         DiscoveryNode.setAdditionalRoles(Collections.emptySet());
         Settings roleSettings = Settings.builder().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), "cluster_manager, master").build();
         Exception exception = expectThrows(IllegalArgumentException.class, () -> NodeRoleSettings.NODE_ROLES_SETTING.get(roleSettings));
-        assertThat(exception.getMessage(), containsString("The two roles can not be assigned together to a node"));
+        assertThat(exception.getMessage(), containsString("[master, cluster_manager] can not be assigned together to a node"));
     }
 
     /**
