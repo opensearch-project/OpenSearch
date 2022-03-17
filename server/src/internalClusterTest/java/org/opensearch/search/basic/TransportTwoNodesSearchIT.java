@@ -96,7 +96,7 @@ public class TransportTwoNodesSearchIT extends OpenSearchIntegTestCase {
 
         client().admin()
             .indices()
-            .create(createIndexRequest("test").settings(settingsBuilder).mapping("type", "foo", "type=geo_point"))
+            .create(createIndexRequest("test").settings(settingsBuilder).simpleMapping("foo", "type=geo_point"))
             .actionGet();
 
         ensureGreen();
