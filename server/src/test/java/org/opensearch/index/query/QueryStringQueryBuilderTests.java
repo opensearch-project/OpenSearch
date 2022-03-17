@@ -32,7 +32,7 @@
 
 package org.opensearch.index.query;
 
-import org.apache.lucene.analysis.MockSynonymAnalyzer;
+import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.Term;

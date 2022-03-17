@@ -32,8 +32,8 @@
 
 package org.opensearch.ingest.attachment;
 
-import org.apache.lucene.util.LuceneTestCase.SuppressFileSystems;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.LuceneTestCase.SuppressFileSystems;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.tika.metadata.Metadata;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.test.OpenSearchTestCase;

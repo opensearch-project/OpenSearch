@@ -556,7 +556,7 @@ public class MaxBucketIT extends OpenSearchIntegTestCase {
             .endObject()
             .endObject()
             .endObject();
-        assertAcked(client().admin().indices().prepareCreate("foo_2").addMapping("doc", builder).get());
+        assertAcked(client().admin().indices().prepareCreate("foo_2").setMapping(builder).get());
 
         XContentBuilder docBuilder = jsonBuilder().startObject()
             .startObject("license")

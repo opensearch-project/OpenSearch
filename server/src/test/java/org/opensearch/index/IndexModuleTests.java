@@ -33,7 +33,7 @@ package org.opensearch.index;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
-import org.apache.lucene.index.AssertingDirectoryReader;
+import org.apache.lucene.tests.index.AssertingDirectoryReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInvertState;
 import org.apache.lucene.index.Term;

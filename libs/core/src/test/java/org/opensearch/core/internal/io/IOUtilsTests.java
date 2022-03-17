@@ -30,8 +30,8 @@
 
 package org.opensearch.core.internal.io;
 
-import org.apache.lucene.mockfile.FilterFileSystemProvider;
-import org.apache.lucene.mockfile.FilterPath;
+import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
+import org.apache.lucene.tests.mockfile.FilterPath;
 import org.apache.lucene.util.Constants;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.io.PathUtils;

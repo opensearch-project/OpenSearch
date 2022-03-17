@@ -134,10 +134,8 @@ public class SimpleSortIT extends OpenSearchIntegTestCase {
     public void testSimpleSorts() throws Exception {
         Random random = random();
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("str_value")
                     .field("type", "keyword")
@@ -162,7 +160,6 @@ public class SimpleSortIT extends OpenSearchIntegTestCase {
                     .endObject()
                     .startObject("double_value")
                     .field("type", "double")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -446,14 +443,11 @@ public class SimpleSortIT extends OpenSearchIntegTestCase {
 
     public void test2920() throws IOException {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "test",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("test")
                     .startObject("properties")
                     .startObject("value")
                     .field("type", "keyword")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()

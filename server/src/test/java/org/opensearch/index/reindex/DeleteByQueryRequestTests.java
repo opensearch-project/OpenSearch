@@ -40,7 +40,7 @@ import org.opensearch.index.query.QueryBuilders;
 
 import java.io.IOException;
 
-import static org.apache.lucene.util.TestUtil.randomSimpleString;
+import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;

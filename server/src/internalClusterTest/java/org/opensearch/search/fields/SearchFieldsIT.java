@@ -774,10 +774,8 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             .indices()
             .prepareCreate("my-index")
             .setSettings(Settings.builder().put("index.refresh_interval", -1))
-            .addMapping(
-                MapperService.SINGLE_MAPPING_NAME,
+            .setMapping(
                 jsonBuilder().startObject()
-                    .startObject(MapperService.SINGLE_MAPPING_NAME)
                     .startObject("properties")
                     .startObject("field1")
                     .field("type", "object")
@@ -791,7 +789,6 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
                     .startObject("field4")
                     .field("type", "text")
                     .field("store", true)
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -1181,7 +1178,6 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
     public void testDocValueFieldsWithFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject(MapperService.SINGLE_MAPPING_NAME)
             .startObject("_source")
             .field("enabled", false)
             .endObject()
@@ -1203,9 +1199,8 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             .field("path", "date_field")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(prepareCreate("test").addMapping(MapperService.SINGLE_MAPPING_NAME, mapping));
+        assertAcked(prepareCreate("test").setMapping(mapping));
         ensureGreen("test");
 
         DateTime date = new DateTime(1990, 12, 29, 0, 0, DateTimeZone.UTC);
@@ -1244,7 +1239,6 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
     public void testWildcardDocValueFieldsWithFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject(MapperService.SINGLE_MAPPING_NAME)
             .startObject("_source")
             .field("enabled", false)
             .endObject()
@@ -1266,9 +1260,8 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             .field("path", "date_field")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(prepareCreate("test").addMapping(MapperService.SINGLE_MAPPING_NAME, mapping));
+        assertAcked(prepareCreate("test").setMapping(mapping));
         ensureGreen("test");
 
         DateTime date = new DateTime(1990, 12, 29, 0, 0, DateTimeZone.UTC);
@@ -1306,7 +1299,6 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
     public void testStoredFieldsWithFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject(MapperService.SINGLE_MAPPING_NAME)
             .startObject("properties")
             .startObject("field1")
             .field("type", "text")
@@ -1325,9 +1317,8 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             .field("path", "field2")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(prepareCreate("test").addMapping(MapperService.SINGLE_MAPPING_NAME, mapping));
+        assertAcked(prepareCreate("test").setMapping(mapping));
 
         index("test", MapperService.SINGLE_MAPPING_NAME, "1", "field1", "value1", "field2", "value2");
         refresh("test");
@@ -1350,7 +1341,6 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
     public void testWildcardStoredFieldsWithFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject(MapperService.SINGLE_MAPPING_NAME)
             .startObject("properties")
             .startObject("field1")
             .field("type", "text")
@@ -1369,9 +1359,8 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             .field("path", "field2")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(prepareCreate("test").addMapping(MapperService.SINGLE_MAPPING_NAME, mapping));
+        assertAcked(prepareCreate("test").setMapping(mapping));
 
         index("test", MapperService.SINGLE_MAPPING_NAME, "1", "field1", "value1", "field2", "value2");
         refresh("test");

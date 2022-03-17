@@ -32,7 +32,7 @@
 
 package org.opensearch.index.search;
 
-import org.apache.lucene.analysis.MockSynonymAnalyzer;
+import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.search.BooleanClause;

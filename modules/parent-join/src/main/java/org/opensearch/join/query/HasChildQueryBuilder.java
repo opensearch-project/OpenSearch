@@ -443,7 +443,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                     // blow up since for this query to work we have to have a DirectoryReader otherwise
                     // we can't load global ordinals - for this to work we simply check if the reader has no leaves
                     // and rewrite to match nothing
-                    return new MatchNoDocsQuery();
+                    return Queries.newMatchNoDocsQueryWithoutRewrite("unable to load global ordinals with an empty directory reader");
                 }
                 throw new IllegalStateException(
                     "can't load global ordinals for reader of type: " + reader.getClass() + " must be a DirectoryReader"
