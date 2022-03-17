@@ -214,19 +214,6 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
             return Setting.boolSetting("node.master", false, Property.Deprecated, Property.NodeScope);
         }
 
-        @Override
-        public void validateRole(List<DiscoveryNodeRole> roles) {
-            if (roles.contains(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)) {
-                throw new IllegalArgumentException(
-                    String.format(
-                        Locale.ROOT,
-                        "To promote inclusive language, [%s] role is deprecated, and is replaced by [%s] role. The two roles can not be assigned together to a node.",
-                        DiscoveryNodeRole.MASTER_ROLE.roleName(),
-                        DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName()
-                    )
-                );
-            }
-        }
     };
 
     /**
