@@ -624,7 +624,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             )
             .get();
 
-        assertAcked(prepareCreate("test_index").addMapping("_doc"));
+        assertAcked(prepareCreate("test_index"));
         ensureGreen();
 
         GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().setIndices("test_index").get();
@@ -663,7 +663,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             )
             .get();
 
-        assertAcked(prepareCreate("test_index").addMapping("_doc"));
+        assertAcked(prepareCreate("test_index"));
         ensureGreen();
 
         GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().setIndices("test_index").get();

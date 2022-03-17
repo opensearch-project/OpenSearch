@@ -444,7 +444,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
     }
 
     public void testIdBasedScriptFields() throws Exception {
-        prepareCreate("test").addMapping("type1", "num1", "type=long").get();
+        prepareCreate("test").setMapping("num1", "type=long").get();
 
         int numDocs = randomIntBetween(1, 30);
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];
@@ -839,7 +839,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
 
     // see #8203
     public void testSingleValueFieldDatatField() throws ExecutionException, InterruptedException {
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type", "test_field", "type=keyword").get());
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping("test_field", "type=keyword").get());
         indexRandom(true, client().prepareIndex("test").setId("1").setSource("test_field", "foobar"));
         refresh();
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -1114,8 +1114,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
 
     public void testScriptFields() throws Exception {
         assertAcked(
-            prepareCreate("index").addMapping(
-                "type",
+            prepareCreate("index").setMapping(
                 "s",
                 "type=keyword",
                 "l",

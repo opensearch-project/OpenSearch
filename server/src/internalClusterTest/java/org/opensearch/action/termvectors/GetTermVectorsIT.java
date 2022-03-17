@@ -161,8 +161,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         // must be of type string and indexed.
         assertAcked(
             prepareCreate("test").addAlias(new Alias("alias"))
-                .addMapping(
-                    "type1",
+                .setMapping(
                     "field0",
                     "type=integer,", // no tvs
                     "field1",
@@ -548,10 +547,8 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
     public void testDuelWithAndWithoutTermVectors() throws IOException, ExecutionException, InterruptedException {
         // setup indices
         String[] indexNames = new String[] { "with_tv", "without_tv" };
-        assertAcked(
-            prepareCreate(indexNames[0]).addMapping("type1", "field1", "type=text,term_vector=with_positions_offsets,analyzer=keyword")
-        );
-        assertAcked(prepareCreate(indexNames[1]).addMapping("type1", "field1", "type=text,term_vector=no,analyzer=keyword"));
+        assertAcked(prepareCreate(indexNames[0]).setMapping("field1", "type=text,term_vector=with_positions_offsets,analyzer=keyword"));
+        assertAcked(prepareCreate(indexNames[1]).setMapping("field1", "type=text,term_vector=no,analyzer=keyword"));
         ensureGreen();
 
         // index documents with and without term vectors
@@ -656,9 +653,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
     public void testArtificialVsExisting() throws ExecutionException, InterruptedException, IOException {
         // setup indices
         Settings.Builder settings = Settings.builder().put(indexSettings()).put("index.analysis.analyzer", "standard");
-        assertAcked(
-            prepareCreate("test").setSettings(settings).addMapping("type1", "field1", "type=text,term_vector=with_positions_offsets")
-        );
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping("field1", "type=text,term_vector=with_positions_offsets"));
         ensureGreen();
 
         // index documents existing document
@@ -704,7 +699,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
     public void testArtificialNoDoc() throws IOException {
         // setup indices
         Settings.Builder settings = Settings.builder().put(indexSettings()).put("index.analysis.analyzer", "standard");
-        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", "field1", "type=text"));
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping("field1", "type=text"));
         ensureGreen();
 
         // request tvs from artificial document
@@ -929,7 +924,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
     public void testFilterLength() throws ExecutionException, InterruptedException, IOException {
         logger.info("Setting up the index ...");
         Settings.Builder settings = Settings.builder().put(indexSettings()).put("index.analysis.analyzer", "keyword");
-        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", "tags", "type=text"));
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping("tags", "type=text"));
 
         int numTerms = scaledRandomIntBetween(10, 50);
         logger.info("Indexing one document with tags of increasing length ...");
@@ -962,7 +957,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
     public void testFilterTermFreq() throws ExecutionException, InterruptedException, IOException {
         logger.info("Setting up the index ...");
         Settings.Builder settings = Settings.builder().put(indexSettings()).put("index.analysis.analyzer", "keyword");
-        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", "tags", "type=text"));
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping("tags", "type=text"));
 
         logger.info("Indexing one document with tags of increasing frequencies ...");
         int numTerms = scaledRandomIntBetween(10, 50);
@@ -1000,7 +995,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
             .put(indexSettings())
             .put("index.analysis.analyzer", "keyword")
             .put("index.number_of_shards", 1); // no dfs
-        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", "tags", "type=text"));
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping("tags", "type=text"));
 
         int numDocs = scaledRandomIntBetween(10, 50); // as many terms as there are docs
         logger.info("Indexing {} documents with tags of increasing dfs ...", numDocs);
@@ -1030,9 +1025,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
     public void testArtificialDocWithPreference() throws InterruptedException, IOException {
         // setup indices
         Settings.Builder settings = Settings.builder().put(indexSettings()).put("index.analysis.analyzer", "standard");
-        assertAcked(
-            prepareCreate("test").setSettings(settings).addMapping("type1", "field1", "type=text,term_vector=with_positions_offsets")
-        );
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping("field1", "type=text,term_vector=with_positions_offsets"));
         ensureGreen();
 
         // index document
@@ -1076,8 +1069,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
             .putList("index.analysis.normalizer.my_normalizer.filter", "lowercase");
         assertAcked(
             prepareCreate(indexNames[0]).setSettings(builder.build())
-                .addMapping(
-                    "type1",
+                .setMapping(
                     "field1",
                     "type=text,term_vector=with_positions_offsets,analyzer=my_analyzer",
                     "field2",
@@ -1086,7 +1078,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         );
         assertAcked(
             prepareCreate(indexNames[1]).setSettings(builder.build())
-                .addMapping("type1", "field1", "type=keyword,normalizer=my_normalizer", "field2", "type=keyword")
+                .setMapping("field1", "type=keyword,normalizer=my_normalizer", "field2", "type=keyword")
         );
         ensureGreen();
 

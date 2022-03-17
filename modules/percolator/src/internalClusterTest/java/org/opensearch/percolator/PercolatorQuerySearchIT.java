@@ -101,7 +101,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .addMapping("type", "id", "type=keyword", "field1", "type=keyword", "field2", "type=keyword", "query", "type=percolator")
+                .setMapping("id", "type=keyword", "field1", "type=keyword", "field2", "type=keyword", "query", "type=percolator")
         );
 
         client().prepareIndex("test")
@@ -183,8 +183,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .addMapping(
-                    "type",
+                .setMapping(
                     "field1",
                     "type=long",
                     "field2",
@@ -315,17 +314,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .addMapping(
-                    "type",
-                    "id",
-                    "type=keyword",
-                    "field1",
-                    "type=geo_point",
-                    "field2",
-                    "type=geo_shape",
-                    "query",
-                    "type=percolator"
-                )
+                .setMapping("id", "type=keyword", "field1", "type=geo_point", "field2", "type=geo_shape", "query", "type=percolator")
         );
 
         client().prepareIndex("test")
@@ -380,7 +369,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .addMapping("type", "id", "type=keyword", "field1", "type=keyword", "field2", "type=keyword", "query", "type=percolator")
+                .setMapping("id", "type=keyword", "field1", "type=keyword", "field2", "type=keyword", "query", "type=percolator")
         );
 
         client().prepareIndex("test")
@@ -438,7 +427,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .addMapping("type", "_source", "enabled=false", "field1", "type=keyword", "query", "type=percolator")
+                .setMapping("_source", "enabled=false", "field1", "type=keyword", "query", "type=percolator")
         );
 
         client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject()).get();
@@ -459,7 +448,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .addMapping("type", "id", "type=keyword", "field1", "type=text", "field2", "type=text", "query", "type=percolator")
+                .setMapping("id", "type=keyword", "field1", "type=text", "field2", "type=text", "query", "type=percolator")
         );
 
         client().prepareIndex("test")
@@ -565,7 +554,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .addMapping("type", "id", "type=keyword", "field1", fieldMapping.toString(), "query", "type=percolator")
+                .setMapping("id", "type=keyword", "field1", fieldMapping.toString(), "query", "type=percolator")
         );
         client().prepareIndex("test")
             .setId("1")
@@ -810,7 +799,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .addMapping("type", "field", "type=text,position_increment_gap=5", "query", "type=percolator")
+                .setMapping("field", "type=text,position_increment_gap=5", "query", "type=percolator")
         );
         client().prepareIndex("test")
             .setId("1")
@@ -832,13 +821,13 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
     public void testManyPercolatorFields() throws Exception {
         String queryFieldName = randomAlphaOfLength(8);
         assertAcked(
-            client().admin().indices().prepareCreate("test1").addMapping("type", queryFieldName, "type=percolator", "field", "type=keyword")
+            client().admin().indices().prepareCreate("test1").setMapping(queryFieldName, "type=percolator", "field", "type=keyword")
         );
         assertAcked(
             client().admin()
                 .indices()
                 .prepareCreate("test2")
-                .addMapping("type", queryFieldName, "type=percolator", "second_query_field", "type=percolator", "field", "type=keyword")
+                .setMapping(queryFieldName, "type=percolator", "second_query_field", "type=percolator", "field", "type=keyword")
         );
         assertAcked(
             client().admin()
@@ -867,7 +856,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
     public void testWithMultiplePercolatorFields() throws Exception {
         String queryFieldName = randomAlphaOfLength(8);
         assertAcked(
-            client().admin().indices().prepareCreate("test1").addMapping("type", queryFieldName, "type=percolator", "field", "type=keyword")
+            client().admin().indices().prepareCreate("test1").setMapping(queryFieldName, "type=percolator", "field", "type=keyword")
         );
         assertAcked(
             client().admin()
@@ -1130,7 +1119,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testPercolatorQueryViaMultiSearch() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type", "field1", "type=text", "query", "type=percolator"));
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping("field1", "type=text", "query", "type=percolator"));
 
         client().prepareIndex("test")
             .setId("1")
@@ -1248,7 +1237,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
                 client().admin()
                     .indices()
                     .prepareCreate("test")
-                    .addMapping("_doc", "id", "type=keyword", "field1", "type=keyword", "query", "type=percolator")
+                    .setMapping("id", "type=keyword", "field1", "type=keyword", "query", "type=percolator")
             );
 
             client().prepareIndex("test")
@@ -1298,7 +1287,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
 
     public void testWrappedWithConstantScore() throws Exception {
 
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("_doc", "d", "type=date", "q", "type=percolator"));
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping("d", "type=date", "q", "type=percolator"));
 
         client().prepareIndex("test")
             .setId("1")

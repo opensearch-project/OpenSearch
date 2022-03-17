@@ -108,7 +108,7 @@ public class TruncatedRecoveryIT extends OpenSearchIntegTestCase {
         // create the index and prevent allocation on any other nodes than the lucky one
         // we have no replicas so far and make sure that we allocate the primary on the lucky node
         assertAcked(
-            prepareCreate("test").addMapping("type1", "field1", "type=text", "the_id", "type=text")
+            prepareCreate("test").setMapping("field1", "type=text", "the_id", "type=text")
                 .setSettings(
                     Settings.builder()
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)

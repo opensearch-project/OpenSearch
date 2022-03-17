@@ -149,8 +149,7 @@ public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
          * query. We cut off and extract terms if there are more than 16 terms in the query
          */
         assertAcked(
-            prepareCreate("test").addMapping(
-                "test",
+            prepareCreate("test").setMapping(
                 "body",
                 "type=text,analyzer=custom_analyzer," + "search_analyzer=custom_analyzer,term_vector=with_positions_offsets"
             )
@@ -225,8 +224,7 @@ public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
 
         assertAcked(
             prepareCreate("test").setSettings(builder.build())
-                .addMapping(
-                    "type1",
+                .setMapping(
                     "field1",
                     "type=text,term_vector=with_positions_offsets,search_analyzer=synonym," + "analyzer=standard,index_options=offsets"
                 )
@@ -335,8 +333,7 @@ public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
 
         assertAcked(
             prepareCreate("second_test_index").setSettings(builder.build())
-                .addMapping(
-                    "doc",
+                .setMapping(
                     "field4",
                     "type=text,term_vector=with_positions_offsets,analyzer=synonym",
                     "field3",
