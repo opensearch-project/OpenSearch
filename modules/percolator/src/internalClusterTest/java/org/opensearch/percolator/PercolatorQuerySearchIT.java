@@ -397,14 +397,14 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
 
         logger.info("percolating empty doc");
         SearchResponse response = client().prepareSearch()
-            .setQuery(new PercolateQueryBuilder("query", "test", "type", "1", null, null, null))
+            .setQuery(new PercolateQueryBuilder("query", "test", "1", null, null, null))
             .get();
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
 
         logger.info("percolating doc with 1 field");
         response = client().prepareSearch()
-            .setQuery(new PercolateQueryBuilder("query", "test", "type", "5", null, null, null))
+            .setQuery(new PercolateQueryBuilder("query", "test", "5", null, null, null))
             .addSort("id", SortOrder.ASC)
             .get();
         assertHitCount(response, 2);
@@ -413,7 +413,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
 
         logger.info("percolating doc with 2 fields");
         response = client().prepareSearch()
-            .setQuery(new PercolateQueryBuilder("query", "test", "type", "6", null, null, null))
+            .setQuery(new PercolateQueryBuilder("query", "test", "6", null, null, null))
             .addSort("id", SortOrder.ASC)
             .get();
         assertHitCount(response, 3);
@@ -438,7 +438,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
         logger.info("percolating empty doc with source disabled");
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> { client().prepareSearch().setQuery(new PercolateQueryBuilder("query", "test", "type", "1", null, null, null)).get(); }
+            () -> { client().prepareSearch().setQuery(new PercolateQueryBuilder("query", "test", "1", null, null, null)).get(); }
         );
         assertThat(e.getMessage(), containsString("source disabled"));
     }
@@ -1193,10 +1193,10 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
                         )
                     )
             )
-            .add(client().prepareSearch("test").setQuery(new PercolateQueryBuilder("query", "test", "type", "5", null, null, null)))
+            .add(client().prepareSearch("test").setQuery(new PercolateQueryBuilder("query", "test", "5", null, null, null)))
             .add(
                 client().prepareSearch("test") // non existing doc, so error element
-                    .setQuery(new PercolateQueryBuilder("query", "test", "type", "6", null, null, null))
+                    .setQuery(new PercolateQueryBuilder("query", "test", "6", null, null, null))
             )
             .get();
 
@@ -1228,7 +1228,7 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
         item = response.getResponses()[5];
         assertThat(item.getResponse(), nullValue());
         assertThat(item.getFailureMessage(), notNullValue());
-        assertThat(item.getFailureMessage(), containsString("[test/type/6] couldn't be found"));
+        assertThat(item.getFailureMessage(), containsString("[test/6] couldn't be found"));
     }
 
     public void testDisallowExpensiveQueries() throws IOException {
