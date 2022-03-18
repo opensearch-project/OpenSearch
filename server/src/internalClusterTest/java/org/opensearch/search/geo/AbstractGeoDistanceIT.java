@@ -44,18 +44,19 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.geometry.utils.Geohash;
 import org.opensearch.index.fielddata.ScriptDocValues;
+import org.opensearch.index.query.IdsQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
+import org.opensearch.search.SearchHit;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.Aggregations;
 import org.opensearch.search.aggregations.bucket.range.InternalGeoDistance;
 import org.opensearch.search.aggregations.bucket.range.Range;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -65,11 +66,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.closeTo;
 
-public class GeoDistanceIT extends OpenSearchIntegTestCase {
+/** base class for testing geo_distance queries on geo_ field types */
+abstract class AbstractGeoDistanceIT extends OpenSearchIntegTestCase {
 
     private static final double src_lat = 32.798;
     private static final double src_lon = -117.151;
@@ -118,30 +122,89 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
         return false;
     }
 
-    @Before
-    public void setupTestIndex() throws IOException {
+    protected void indexSetup() throws IOException {
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("properties")
-            .startObject("location")
-            .field("type", "geo_point");
-        xContentBuilder.endObject().endObject().endObject();
+        XContentBuilder xContentBuilder = getMapping();
         assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
+
+        client().prepareIndex("test")
+            .setId("1")
+            .setSource(jsonBuilder().startObject().field("name", "New York").field("location", "POINT(-74.0059731 40.7143528)").endObject())
+            .get();
+
+        // to NY: 5.286 km
+        client().prepareIndex("test")
+            .setId("2")
+            .setSource(
+                jsonBuilder().startObject().field("name", "Times Square").field("location", "POINT(-73.9844722 40.759011)").endObject()
+            )
+            .get();
+
+        // to NY: 0.4621 km
+        client().prepareIndex("test")
+            .setId("3")
+            .setSource(jsonBuilder().startObject().field("name", "Tribeca").field("location", "POINT(-74.007819 40.718266)").endObject())
+            .get();
+
+        // to NY: 1.055 km
+        client().prepareIndex("test")
+            .setId("4")
+            .setSource(
+                jsonBuilder().startObject().field("name", "Wall Street").field("location", "POINT(-74.0088305 40.7051157)").endObject()
+            )
+            .get();
+
+        // to NY: 1.258 km
+        client().prepareIndex("test")
+            .setId("5")
+            .setSource(jsonBuilder().startObject().field("name", "Soho").field("location", "POINT(-74 40.7247222)").endObject())
+            .get();
+
+        // to NY: 2.029 km
+        client().prepareIndex("test")
+            .setId("6")
+            .setSource(
+                jsonBuilder().startObject().field("name", "Greenwich Village").field("location", "POINT(-73.9962255 40.731033)").endObject()
+            )
+            .get();
+
+        // to NY: 8.572 km
+        client().prepareIndex("test")
+            .setId("7")
+            .setSource(jsonBuilder().startObject().field("name", "Brooklyn").field("location", "POINT(-73.95 40.65)").endObject())
+            .get();
+
+        client().admin().indices().prepareRefresh().get();
+    }
+
+    public abstract XContentBuilder addGeoMapping(XContentBuilder parentMapping) throws IOException;
+
+    public XContentBuilder getMapping() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties");
+        mapping = addGeoMapping(mapping);
+        return mapping.endObject().endObject();
+    }
+
+    public void testSimpleDistanceQuery() {
+        SearchResponse searchResponse = client().prepareSearch() // from NY
+            .setQuery(QueryBuilders.geoDistanceQuery("location").point(40.5, -73.9).distance(25, DistanceUnit.KILOMETERS))
+            .get();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(2));
+        for (SearchHit hit : searchResponse.getHits()) {
+            assertThat(hit.getId(), anyOf(equalTo("7"), equalTo("4")));
+        }
     }
 
     public void testDistanceScript() throws Exception {
         client().prepareIndex("test")
-            .setId("1")
+            .setId("8")
             .setSource(
                 jsonBuilder().startObject()
                     .field("name", "TestPosition")
-                    .startObject("location")
-                    .field("lat", src_lat)
-                    .field("lon", src_lon)
-                    .endObject()
+                    .field("location", "POINT(" + src_lon + " " + src_lat + ")")
                     .endObject()
             )
             .get();
@@ -150,6 +213,7 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
 
         // Test doc['location'].arcDistance(lat, lon)
         SearchResponse searchResponse1 = client().prepareSearch()
+            .setQuery(new IdsQueryBuilder().addIds("8"))
             .addStoredField("_source")
             .addScriptField("distance", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "arcDistance", Collections.emptyMap()))
             .get();
@@ -158,6 +222,7 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
 
         // Test doc['location'].planeDistance(lat, lon)
         SearchResponse searchResponse2 = client().prepareSearch()
+            .setQuery(new IdsQueryBuilder().addIds("8"))
             .addStoredField("_source")
             .addScriptField("distance", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "planeDistance", Collections.emptyMap()))
             .get();
@@ -166,6 +231,7 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
 
         // Test doc['location'].geohashDistance(lat, lon)
         SearchResponse searchResponse4 = client().prepareSearch()
+            .setQuery(new IdsQueryBuilder().addIds("8"))
             .addStoredField("_source")
             .addScriptField("distance", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "geohashDistance", Collections.emptyMap()))
             .get();
@@ -180,6 +246,7 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
 
         // Test doc['location'].arcDistance(lat, lon + 360)/1000d
         SearchResponse searchResponse5 = client().prepareSearch()
+            .setQuery(new IdsQueryBuilder().addIds("8"))
             .addStoredField("_source")
             .addScriptField(
                 "distance",
@@ -191,6 +258,7 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
 
         // Test doc['location'].arcDistance(lat + 360, lon)/1000d
         SearchResponse searchResponse6 = client().prepareSearch()
+            .setQuery(new IdsQueryBuilder().addIds("8"))
             .addStoredField("_source")
             .addScriptField(
                 "distance",
@@ -207,10 +275,7 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
             .setSource(
                 jsonBuilder().startObject()
                     .field("name", "TestPosition")
-                    .startObject("location")
-                    .field("lat", src_lat)
-                    .field("lon", src_lon)
-                    .endObject()
+                    .field("location", "POINT(" + src_lon + " " + src_lat + ")")
                     .endObject()
             )
             .get();
@@ -225,7 +290,7 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
                 AggregationBuilders.geoDistance(name, new GeoPoint(tgt_lat, tgt_lon))
                     .field("location")
                     .unit(DistanceUnit.MILES)
-                    .addRange(0, 25000)
+                    .addRange(0, 25000) // limits the distance (expected to omit one point outside this range)
             );
 
         search.setSize(0); // no hits please
@@ -239,6 +304,6 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
         List<? extends Range.Bucket> buckets = ((Range) geoDistance).getBuckets();
         assertNotNull("Buckets should not be null", buckets);
         assertEquals("Unexpected number of buckets", 1, buckets.size());
-        assertEquals("Unexpected doc count for geo distance", 1, buckets.get(0).getDocCount());
+        assertEquals("Unexpected doc count for geo distance", 7, buckets.get(0).getDocCount());
     }
 }
