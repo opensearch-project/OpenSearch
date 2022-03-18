@@ -86,6 +86,8 @@ public class RestNodesAction extends AbstractCatAction {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestNodesAction.class);
     static final String LOCAL_DEPRECATED_MESSAGE = "Deprecated parameter [local] used. This parameter does not cause this API to act "
         + "locally, and should not be used. It will be unsupported in version 8.0.";
+    static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
+        "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
 
     @Override
     public List<Route> routes() {
@@ -110,7 +112,8 @@ public class RestNodesAction extends AbstractCatAction {
             deprecationLogger.deprecate("cat_nodes_local_parameter", LOCAL_DEPRECATED_MESSAGE);
         }
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
+        clusterStateRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", clusterStateRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(clusterStateRequest, request);
         final boolean fullId = request.paramAsBoolean("full_id", false);
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
@@ -524,5 +527,21 @@ public class RestNodesAction extends AbstractCatAction {
      */
     private short calculatePercentage(long used, long max) {
         return max <= 0 ? 0 : (short) ((100d * used) / max);
+    }
+
+    /**
+     * Parse the deprecated request parameter 'master_timeout', and add deprecated log if the parameter is used.
+     * It also validates whether the value of 'master_timeout' is the same with 'cluster_manager_timeout'.
+     * Remove the method along with MASTER_ROLE.
+     * @deprecated As of 2.0, because promoting inclusive language.
+     */
+    @Deprecated
+    private void parseDeprecatedMasterTimeoutParameter(ClusterStateRequest clusterStateRequest, RestRequest request) {
+        final String deprecatedTimeoutParam = "master_timeout";
+        if (request.hasParam(deprecatedTimeoutParam)) {
+            deprecationLogger.deprecate("cat_nodes_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+            request.validateParamValuesAreEqual(deprecatedTimeoutParam, "cluster_manager_timeout");
+            clusterStateRequest.masterNodeTimeout(request.paramAsTime(deprecatedTimeoutParam, clusterStateRequest.masterNodeTimeout()));
+        }
     }
 }
