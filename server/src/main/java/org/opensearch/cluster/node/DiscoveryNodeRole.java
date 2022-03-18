@@ -139,7 +139,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
     /**
      * Validate the role is compatible with the other roles in the list, when assigning the list of roles to a node.
      * An {@link IllegalArgumentException} is expected to be thrown, if the role can't coexist with the other roles.
-     * @param roles A {@link List} of {@link DiscoveryNodeRole} that a node is going to have.
+     * @param roles a {@link List} of {@link DiscoveryNodeRole} that a node is going to have
      */
     public void validateRole(List<DiscoveryNodeRole> roles) {};
 
