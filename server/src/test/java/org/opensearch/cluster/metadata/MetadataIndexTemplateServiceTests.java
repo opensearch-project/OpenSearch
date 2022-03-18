@@ -2070,7 +2070,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
             pr.settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).build());
         }
         if (randomBoolean()) {
-        pr.mappings("{}");
+            pr.mappings("{}");
         }
         if (randomBoolean()) {
             pr.aliases(Collections.singleton(new Alias("alias")));
