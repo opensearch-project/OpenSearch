@@ -43,6 +43,8 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
 
+import java.io.IOException;
+
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.boolQuery;
@@ -52,7 +54,15 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
-public class GeoBoundingBoxQueryIT extends OpenSearchIntegTestCase {
+abstract class AbstractGeoBoundingBoxQueryIT extends OpenSearchIntegTestCase {
+
+    public abstract XContentBuilder addGeoMapping(XContentBuilder parentMapping) throws IOException;
+
+    public XContentBuilder getMapping() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties");
+        mapping = addGeoMapping(mapping);
+        return mapping.endObject().endObject();
+    }
 
     @Override
     protected boolean forbidPrivateIndexSettings() {
@@ -62,110 +72,55 @@ public class GeoBoundingBoxQueryIT extends OpenSearchIntegTestCase {
     public void testSimpleBoundingBoxTest() throws Exception {
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("properties")
-            .startObject("location")
-            .field("type", "geo_point");
-        xContentBuilder.endObject().endObject().endObject();
+        XContentBuilder xContentBuilder = getMapping();
         assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 
         client().prepareIndex("test")
             .setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("name", "New York")
-                    .startObject("location")
-                    .field("lat", 40.7143528)
-                    .field("lon", -74.0059731)
-                    .endObject()
-                    .endObject()
-            )
+            .setSource(jsonBuilder().startObject().field("name", "New York").field("location", "POINT(-74.0059731 40.7143528)").endObject())
             .get();
 
         // to NY: 5.286 km
         client().prepareIndex("test")
             .setId("2")
             .setSource(
-                jsonBuilder().startObject()
-                    .field("name", "Times Square")
-                    .startObject("location")
-                    .field("lat", 40.759011)
-                    .field("lon", -73.9844722)
-                    .endObject()
-                    .endObject()
+                jsonBuilder().startObject().field("name", "Times Square").field("location", "POINT(-73.9844722 40.759011)").endObject()
             )
             .get();
 
         // to NY: 0.4621 km
         client().prepareIndex("test")
             .setId("3")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("name", "Tribeca")
-                    .startObject("location")
-                    .field("lat", 40.718266)
-                    .field("lon", -74.007819)
-                    .endObject()
-                    .endObject()
-            )
+            .setSource(jsonBuilder().startObject().field("name", "Tribeca").field("location", "POINT(-74.007819 40.718266)").endObject())
             .get();
 
         // to NY: 1.055 km
         client().prepareIndex("test")
             .setId("4")
             .setSource(
-                jsonBuilder().startObject()
-                    .field("name", "Wall Street")
-                    .startObject("location")
-                    .field("lat", 40.7051157)
-                    .field("lon", -74.0088305)
-                    .endObject()
-                    .endObject()
+                jsonBuilder().startObject().field("name", "Wall Street").field("location", "POINT(-74.0088305 40.7051157)").endObject()
             )
             .get();
 
         // to NY: 1.258 km
         client().prepareIndex("test")
             .setId("5")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("name", "Soho")
-                    .startObject("location")
-                    .field("lat", 40.7247222)
-                    .field("lon", -74)
-                    .endObject()
-                    .endObject()
-            )
+            .setSource(jsonBuilder().startObject().field("name", "Soho").field("location", "POINT(-74 40.7247222)").endObject())
             .get();
 
         // to NY: 2.029 km
         client().prepareIndex("test")
             .setId("6")
             .setSource(
-                jsonBuilder().startObject()
-                    .field("name", "Greenwich Village")
-                    .startObject("location")
-                    .field("lat", 40.731033)
-                    .field("lon", -73.9962255)
-                    .endObject()
-                    .endObject()
+                jsonBuilder().startObject().field("name", "Greenwich Village").field("location", "POINT(-73.9962255 40.731033)").endObject()
             )
             .get();
 
         // to NY: 8.572 km
         client().prepareIndex("test")
             .setId("7")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("name", "Brooklyn")
-                    .startObject("location")
-                    .field("lat", 40.65)
-                    .field("lon", -73.95)
-                    .endObject()
-                    .endObject()
-            )
+            .setSource(jsonBuilder().startObject().field("name", "Brooklyn").field("location", "POINT(-73.95 40.65)").endObject())
             .get();
 
         client().admin().indices().prepareRefresh().get();
@@ -192,12 +147,7 @@ public class GeoBoundingBoxQueryIT extends OpenSearchIntegTestCase {
     public void testLimit2BoundingBox() throws Exception {
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("properties")
-            .startObject("location")
-            .field("type", "geo_point");
-        xContentBuilder.endObject().endObject().endObject();
+        XContentBuilder xContentBuilder = getMapping();
         assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 
@@ -207,10 +157,7 @@ public class GeoBoundingBoxQueryIT extends OpenSearchIntegTestCase {
                 jsonBuilder().startObject()
                     .field("userid", 880)
                     .field("title", "Place in Stockholm")
-                    .startObject("location")
-                    .field("lat", 59.328355000000002)
-                    .field("lon", 18.036842)
-                    .endObject()
+                    .field("location", "POINT(59.328355000000002 18.036842)")
                     .endObject()
             )
             .setRefreshPolicy(IMMEDIATE)
@@ -222,10 +169,7 @@ public class GeoBoundingBoxQueryIT extends OpenSearchIntegTestCase {
                 jsonBuilder().startObject()
                     .field("userid", 534)
                     .field("title", "Place in Montreal")
-                    .startObject("location")
-                    .field("lat", 45.509526999999999)
-                    .field("lon", -73.570986000000005)
-                    .endObject()
+                    .field("location", "POINT(-73.570986000000005 45.509526999999999)")
                     .endObject()
             )
             .setRefreshPolicy(IMMEDIATE)
@@ -271,12 +215,7 @@ public class GeoBoundingBoxQueryIT extends OpenSearchIntegTestCase {
     public void testCompleteLonRange() throws Exception {
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("properties")
-            .startObject("location")
-            .field("type", "geo_point");
-        xContentBuilder.endObject().endObject().endObject();
+        XContentBuilder xContentBuilder = getMapping();
         assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 
@@ -286,10 +225,7 @@ public class GeoBoundingBoxQueryIT extends OpenSearchIntegTestCase {
                 jsonBuilder().startObject()
                     .field("userid", 880)
                     .field("title", "Place in Stockholm")
-                    .startObject("location")
-                    .field("lat", 59.328355000000002)
-                    .field("lon", 18.036842)
-                    .endObject()
+                    .field("location", "POINT(18.036842 59.328355000000002)")
                     .endObject()
             )
             .setRefreshPolicy(IMMEDIATE)
@@ -301,10 +237,7 @@ public class GeoBoundingBoxQueryIT extends OpenSearchIntegTestCase {
                 jsonBuilder().startObject()
                     .field("userid", 534)
                     .field("title", "Place in Montreal")
-                    .startObject("location")
-                    .field("lat", 45.509526999999999)
-                    .field("lon", -73.570986000000005)
-                    .endObject()
+                    .field("location", "POINT(-73.570986000000005 45.509526999999999)")
                     .endObject()
             )
             .setRefreshPolicy(IMMEDIATE)
