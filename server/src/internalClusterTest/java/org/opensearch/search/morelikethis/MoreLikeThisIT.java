@@ -42,7 +42,6 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.MoreLikeThisQueryBuilder;
 import org.opensearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.opensearch.index.query.QueryBuilder;
@@ -183,7 +182,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
 
     public void testSimpleMoreLikeOnLongField() throws Exception {
         logger.info("Creating index test");
-        assertAcked(prepareCreate("test").addMapping("type1", "some_long", "type=long"));
+        assertAcked(prepareCreate("test").setMapping("some_long", "type=long"));
         logger.info("Running Cluster Health");
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
@@ -598,7 +597,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
     public void testMoreLikeThisMultiValueFields() throws Exception {
         logger.info("Creating the index ...");
         assertAcked(
-            prepareCreate("test").addMapping("type1", "text", "type=text,analyzer=keyword")
+            prepareCreate("test").setMapping("text", "type=text,analyzer=keyword")
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1))
         );
         ensureGreen();
@@ -632,7 +631,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
     public void testMinimumShouldMatch() throws ExecutionException, InterruptedException {
         logger.info("Creating the index ...");
         assertAcked(
-            prepareCreate("test").addMapping("type1", "text", "type=text,analyzer=whitespace")
+            prepareCreate("test").setMapping("text", "type=text,analyzer=whitespace")
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1))
         );
         ensureGreen();
@@ -693,15 +692,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
 
     public void testMoreLikeThisMalformedArtificialDocs() throws Exception {
         logger.info("Creating the index ...");
-        assertAcked(
-            prepareCreate("test").addMapping(
-                MapperService.SINGLE_MAPPING_NAME,
-                "text",
-                "type=text,analyzer=whitespace",
-                "date",
-                "type=date"
-            )
-        );
+        assertAcked(prepareCreate("test").setMapping("text", "type=text,analyzer=whitespace", "date", "type=date"));
         ensureGreen("test");
 
         logger.info("Creating an index with a single document ...");
@@ -790,9 +781,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
     }
 
     public void testSelectFields() throws IOException, ExecutionException, InterruptedException {
-        assertAcked(
-            prepareCreate("test").addMapping("type1", "text", "type=text,analyzer=whitespace", "text1", "type=text,analyzer=whitespace")
-        );
+        assertAcked(prepareCreate("test").setMapping("text", "type=text,analyzer=whitespace", "text1", "type=text,analyzer=whitespace"));
         ensureGreen("test");
 
         indexRandom(

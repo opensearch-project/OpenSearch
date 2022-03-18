@@ -72,7 +72,7 @@ public class DateHistogramOffsetIT extends OpenSearchIntegTestCase {
 
     @Before
     public void beforeEachTest() throws IOException {
-        prepareCreate("idx2").addMapping("type", "date", "type=date").get();
+        prepareCreate("idx2").setMapping("date", "type=date").get();
     }
 
     @After

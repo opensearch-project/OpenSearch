@@ -69,7 +69,7 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class DocumentActionsIT extends OpenSearchIntegTestCase {
     protected void createIndex() {
-        OpenSearchAssertions.assertAcked(prepareCreate(getConcreteIndexName()).addMapping("type1", "name", "type=keyword,store=true"));
+        OpenSearchAssertions.assertAcked(prepareCreate(getConcreteIndexName()).setMapping("name", "type=keyword,store=true"));
     }
 
     protected String getConcreteIndexName() {

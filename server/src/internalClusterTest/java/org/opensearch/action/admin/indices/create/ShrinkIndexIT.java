@@ -71,7 +71,6 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.SegmentsStats;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.shard.IndexShard;
@@ -527,7 +526,7 @@ public class ShrinkIndexIT extends OpenSearchIntegTestCase {
                 .put("sort.order", "desc")
                 .put("number_of_shards", 8)
                 .put("number_of_replicas", 0)
-        ).addMapping(MapperService.SINGLE_MAPPING_NAME, "id", "type=keyword,doc_values=true").get();
+        ).setMapping("id", "type=keyword,doc_values=true").get();
         for (int i = 0; i < 20; i++) {
             client().prepareIndex("source")
                 .setId(Integer.toString(i))

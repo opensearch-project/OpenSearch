@@ -222,8 +222,8 @@ public class FieldCapabilitiesIT extends OpenSearchIntegTestCase {
     }
 
     public void testWithIndexFilter() throws InterruptedException {
-        assertAcked(prepareCreate("index-1").addMapping("_doc", "timestamp", "type=date", "field1", "type=keyword"));
-        assertAcked(prepareCreate("index-2").addMapping("_doc", "timestamp", "type=date", "field1", "type=long"));
+        assertAcked(prepareCreate("index-1").setMapping("timestamp", "type=date", "field1", "type=keyword"));
+        assertAcked(prepareCreate("index-2").setMapping("timestamp", "type=date", "field1", "type=long"));
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         reqs.add(client().prepareIndex("index-1").setSource("timestamp", "2015-07-08"));

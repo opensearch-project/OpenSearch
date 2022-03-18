@@ -76,7 +76,7 @@ public class IpTermsIT extends AbstractTermsTestCase {
     }
 
     public void testScriptValue() throws Exception {
-        assertAcked(prepareCreate("index").addMapping("type", "ip", "type=ip"));
+        assertAcked(prepareCreate("index").setMapping("ip", "type=ip"));
         indexRandom(
             true,
             client().prepareIndex("index").setId("1").setSource("ip", "192.168.1.7"),
@@ -104,7 +104,7 @@ public class IpTermsIT extends AbstractTermsTestCase {
     }
 
     public void testScriptValues() throws Exception {
-        assertAcked(prepareCreate("index").addMapping("type", "ip", "type=ip"));
+        assertAcked(prepareCreate("index").setMapping("ip", "type=ip"));
         indexRandom(
             true,
             client().prepareIndex("index").setId("1").setSource("ip", "192.168.1.7"),
@@ -132,7 +132,7 @@ public class IpTermsIT extends AbstractTermsTestCase {
     }
 
     public void testMissingValue() throws Exception {
-        assertAcked(prepareCreate("index").addMapping("type", "ip", "type=ip"));
+        assertAcked(prepareCreate("index").setMapping("ip", "type=ip"));
         indexRandom(
             true,
             client().prepareIndex("index").setId("1").setSource("ip", "192.168.1.7"),

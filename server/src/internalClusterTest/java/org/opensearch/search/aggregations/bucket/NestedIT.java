@@ -96,7 +96,7 @@ public class NestedIT extends OpenSearchIntegTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
 
-        assertAcked(prepareCreate("idx").addMapping("type", "nested", "type=nested", "incorrect", "type=object"));
+        assertAcked(prepareCreate("idx").setMapping("nested", "type=nested", "incorrect", "type=object"));
         ensureGreen("idx");
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -126,7 +126,7 @@ public class NestedIT extends OpenSearchIntegTestCase {
             builders.add(client().prepareIndex("idx").setId("" + i + 1).setSource(source));
         }
 
-        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer", "nested", "type=nested").get();
+        prepareCreate("empty_bucket_idx").setMapping("value", "type=integer", "nested", "type=nested").get();
         ensureGreen("empty_bucket_idx");
         for (int i = 0; i < 2; i++) {
             builders.add(
@@ -539,7 +539,7 @@ public class NestedIT extends OpenSearchIntegTestCase {
     public void testNestedSameDocIdProcessedMultipleTime() throws Exception {
         assertAcked(
             prepareCreate("idx4").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .addMapping("product", "categories", "type=keyword", "name", "type=text", "property", "type=nested")
+                .setMapping("categories", "type=keyword", "name", "type=text", "property", "type=nested")
         );
         ensureGreen("idx4");
 
@@ -808,7 +808,7 @@ public class NestedIT extends OpenSearchIntegTestCase {
         assertAcked(
             prepareCreate("idxduplicatehitnames").setSettings(
                 Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)
-            ).addMapping("product", "categories", "type=keyword", "name", "type=text", "property", "type=nested")
+            ).setMapping("categories", "type=keyword", "name", "type=text", "property", "type=nested")
         );
         ensureGreen("idxduplicatehitnames");
 
@@ -832,7 +832,7 @@ public class NestedIT extends OpenSearchIntegTestCase {
         assertAcked(
             prepareCreate("idxnullhitnames").setSettings(
                 Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)
-            ).addMapping("product", "categories", "type=keyword", "name", "type=text", "property", "type=nested")
+            ).setMapping("categories", "type=keyword", "name", "type=text", "property", "type=nested")
         );
         ensureGreen("idxnullhitnames");
 
