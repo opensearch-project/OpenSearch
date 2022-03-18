@@ -1789,7 +1789,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     "resolvableNodeId",
                     buildNewFakeTransportAddress(),
                     emptyMap(),
-                    singleton(DiscoveryNodeRole.MASTER_ROLE),
+                    singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
                     Version.CURRENT
                 )
             )

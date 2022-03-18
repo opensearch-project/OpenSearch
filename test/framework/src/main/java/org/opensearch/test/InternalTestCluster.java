@@ -787,13 +787,13 @@ public final class InternalTestCluster extends TestCluster {
         String suffix = "";
         // only add the suffixes if roles are explicitly defined
         if (settings.hasValue("nodes.roles")) {
-            if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.MASTER_ROLE)) {
-                suffix = suffix + DiscoveryNodeRole.MASTER_ROLE.roleNameAbbreviation();
+            if (DiscoveryNode.isMasterNode(settings)) {
+                suffix = suffix + DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleNameAbbreviation();
             }
             if (DiscoveryNode.isDataNode(settings)) {
                 suffix = suffix + DiscoveryNodeRole.DATA_ROLE.roleNameAbbreviation();
             }
-            if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.MASTER_ROLE) == false && DiscoveryNode.isDataNode(settings) == false) {
+            if (!DiscoveryNode.isMasterNode(settings) && !DiscoveryNode.isDataNode(settings)) {
                 suffix = suffix + "c";
             }
         }
@@ -2150,7 +2150,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public List<String> startMasterOnlyNodes(int numNodes, Settings settings) {
-        return startNodes(numNodes, Settings.builder().put(onlyRole(settings, DiscoveryNodeRole.MASTER_ROLE)).build());
+        return startNodes(numNodes, Settings.builder().put(onlyRole(settings, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)).build());
     }
 
     public List<String> startDataOnlyNodes(int numNodes) {

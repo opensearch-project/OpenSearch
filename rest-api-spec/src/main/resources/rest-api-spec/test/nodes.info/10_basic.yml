@@ -12,14 +12,24 @@ setup:
   - is_true: cluster_name
 
 ---
-"node_info role test":
+"node_info role test - before 2.0.0":
   - skip:
-      version: " - 7.7.99"
+      version: " - 7.7.99 , 2.0.0 - "
       reason: "node roles were not sorted before 7.8.0"
+      features: node_selector
 
   - do:
       nodes.info: {}
+      node_selector:
+        # Only send request to nodes in <2.0 versions, especially during ':qa:mixed-cluster:v1.x.x#mixedClusterTest'.
+        # Because YAML REST test takes the minimum OpenSearch version in the cluster to apply the filter in 'skip' section,
+        # see OpenSearchClientYamlSuiteTestCase#initAndResetContext() for detail.
+        # During 'mixedClusterTest', the cluster can be mixed with nodes in 1.x and 2.x versions,
+        # so node_selector is required, and only filtering version in 'skip' is not enough.
+        version: "1.0.0 - 1.4.99"
+
   - set:
+      # Note: It will only stash the first node_id in the api response.
       nodes._arbitrary_key_: node_id
 
   - is_true: nodes.$node_id.roles
@@ -29,3 +39,21 @@ setup:
   - match: { nodes.$node_id.roles.2: "master" }
   - match: { nodes.$node_id.roles.3: "remote_cluster_client" }
 
+---
+"node_info role test":
+  - skip:
+      version: " - 1.4.99"
+      reason: "node role cluster_manager is added in 2.0.0"
+
+  - do:
+      nodes.info: {}
+
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - is_true: nodes.$node_id.roles
+  # the roles output is sorted
+  - match: { nodes.$node_id.roles.0: "cluster_manager" }
+  - match: { nodes.$node_id.roles.1: "data" }
+  - match: { nodes.$node_id.roles.2: "ingest" }
+  - match: { nodes.$node_id.roles.3: "remote_cluster_client" }

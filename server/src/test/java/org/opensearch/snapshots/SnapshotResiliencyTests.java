@@ -1500,7 +1500,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         }
 
         private TestClusterNode newMasterNode(String nodeName) throws IOException {
-            return newNode(nodeName, DiscoveryNodeRole.MASTER_ROLE);
+            return newNode(nodeName, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
         }
 
         private TestClusterNode newDataNode(String nodeName) throws IOException {
