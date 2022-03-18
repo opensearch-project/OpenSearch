@@ -272,7 +272,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING,
                 InternalSnapshotsInfoService.INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING,
                 DestructiveOperations.REQUIRES_NAME_SETTING,
-                NoMasterBlockService.NO_MASTER_BLOCK_SETTING,
+                NoMasterBlockService.NO_MASTER_BLOCK_SETTING,  // deprecated
+                NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING,
                 GatewayService.EXPECTED_DATA_NODES_SETTING,
                 GatewayService.EXPECTED_MASTER_NODES_SETTING,
                 GatewayService.EXPECTED_NODES_SETTING,

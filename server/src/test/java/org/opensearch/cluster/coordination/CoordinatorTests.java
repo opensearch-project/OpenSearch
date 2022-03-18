@@ -84,7 +84,7 @@ import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RET
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING;
 import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_ALL;
 import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_METADATA_WRITES;
-import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_SETTING;
+import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING;
 import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_WRITES;
 import static org.opensearch.cluster.coordination.Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION;
 import static org.opensearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
@@ -1143,9 +1143,9 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.stabilise();
 
             final ClusterNode leader = cluster.getAnyLeader();
-            leader.submitUpdateTask("update NO_MASTER_BLOCK_SETTING", cs -> {
+            leader.submitUpdateTask("update NO_CLUSTER_MANAGER_BLOCK_SETTING", cs -> {
                 final Builder settingsBuilder = Settings.builder().put(cs.metadata().persistentSettings());
-                settingsBuilder.put(NO_MASTER_BLOCK_SETTING.getKey(), noMasterBlockSetting);
+                settingsBuilder.put(NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), noMasterBlockSetting);
                 return ClusterState.builder(cs)
                     .metadata(Metadata.builder(cs.metadata()).persistentSettings(settingsBuilder.build()))
                     .build();
