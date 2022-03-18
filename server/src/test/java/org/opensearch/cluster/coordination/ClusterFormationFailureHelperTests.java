@@ -56,7 +56,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
 import static org.opensearch.cluster.coordination.ClusterBootstrapService.BOOTSTRAP_PLACEHOLDER_PREFIX;
-import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
+import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING;
 import static org.opensearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.opensearch.node.Node.NODE_NAME_SETTING;
@@ -329,7 +329,7 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             ).getDescription(),
             is(
                 "master not discovered yet, this node has not previously joined a bootstrapped cluster, and "
-                    + "[cluster.initial_master_nodes] is empty on this node: have discovered []; "
+                    + "[cluster.initial_cluster_manager_nodes] is empty on this node: have discovered []; "
                     + "discovery will continue using [] from hosts providers and ["
                     + localNode
                     + "] from last-known cluster state; node term 1, last-accepted version 7 in term 4"
@@ -349,7 +349,7 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             ).getDescription(),
             is(
                 "master not discovered yet, this node has not previously joined a bootstrapped cluster, and "
-                    + "[cluster.initial_master_nodes] is empty on this node: have discovered []; "
+                    + "[cluster.initial_cluster_manager_nodes] is empty on this node: have discovered []; "
                     + "discovery will continue using ["
                     + otherAddress
                     + "] from hosts providers and ["
@@ -371,7 +371,7 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             ).getDescription(),
             is(
                 "master not discovered yet, this node has not previously joined a bootstrapped cluster, and "
-                    + "[cluster.initial_master_nodes] is empty on this node: have discovered ["
+                    + "[cluster.initial_cluster_manager_nodes] is empty on this node: have discovered ["
                     + otherNode
                     + "]; "
                     + "discovery will continue using [] from hosts providers and ["
@@ -382,7 +382,7 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
 
         assertThat(
             new ClusterFormationState(
-                Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), "other").build(),
+                Settings.builder().putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), "other").build(),
                 clusterState,
                 emptyList(),
                 emptyList(),

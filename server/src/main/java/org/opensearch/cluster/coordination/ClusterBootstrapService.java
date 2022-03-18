@@ -75,6 +75,15 @@ public class ClusterBootstrapService {
         "cluster.initial_master_nodes",
         emptyList(),
         Function.identity(),
+        Property.NodeScope,
+        Property.Deprecated
+    );
+    // The setting below is going to replace the above.
+    // To keep backwards compatibility, the old usage is remained, and it's also used as the fallback for the new usage.
+    public static final Setting<List<String>> INITIAL_CLUSTER_MANAGER_NODES_SETTING = Setting.listSetting(
+        "cluster.initial_cluster_manager_nodes",
+        INITIAL_MASTER_NODES_SETTING,
+        Function.identity(),
         Property.NodeScope
     );
 
@@ -105,10 +114,14 @@ public class ClusterBootstrapService {
         Consumer<VotingConfiguration> votingConfigurationConsumer
     ) {
         if (DiscoveryModule.isSingleNodeDiscovery(settings)) {
-            if (INITIAL_MASTER_NODES_SETTING.exists(settings)) {
+            if (INITIAL_CLUSTER_MANAGER_NODES_SETTING.existsOrFallbackExists(settings)) {
+                // TODO: Remove variable 'initialClusterManagerSettingName' after removing MASTER_ROLE.
+                String initialClusterManagerSettingName = INITIAL_CLUSTER_MANAGER_NODES_SETTING.exists(settings)
+                    ? INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey()
+                    : INITIAL_MASTER_NODES_SETTING.getKey();
                 throw new IllegalArgumentException(
                     "setting ["
-                        + INITIAL_MASTER_NODES_SETTING.getKey()
+                        + initialClusterManagerSettingName
                         + "] is not allowed when ["
                         + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey()
                         + "] is set to ["
@@ -128,11 +141,11 @@ public class ClusterBootstrapService {
             bootstrapRequirements = Collections.singleton(Node.NODE_NAME_SETTING.get(settings));
             unconfiguredBootstrapTimeout = null;
         } else {
-            final List<String> initialMasterNodes = INITIAL_MASTER_NODES_SETTING.get(settings);
+            final List<String> initialMasterNodes = INITIAL_CLUSTER_MANAGER_NODES_SETTING.get(settings);
             bootstrapRequirements = unmodifiableSet(new LinkedHashSet<>(initialMasterNodes));
             if (bootstrapRequirements.size() != initialMasterNodes.size()) {
                 throw new IllegalArgumentException(
-                    "setting [" + INITIAL_MASTER_NODES_SETTING.getKey() + "] contains duplicates: " + initialMasterNodes
+                    "setting [" + INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey() + "] contains duplicates: " + initialMasterNodes
                 );
             }
             unconfiguredBootstrapTimeout = discoveryIsConfigured(settings) ? null : UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING.get(settings);
@@ -150,7 +163,7 @@ public class ClusterBootstrapService {
             LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING,
             DISCOVERY_SEED_HOSTS_SETTING,
             LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
-            INITIAL_MASTER_NODES_SETTING
+            INITIAL_CLUSTER_MANAGER_NODES_SETTING
         ).anyMatch(s -> s.exists(settings));
     }
 

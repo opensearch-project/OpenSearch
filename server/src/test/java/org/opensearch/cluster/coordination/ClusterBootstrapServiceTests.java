@@ -57,6 +57,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
 import static org.opensearch.cluster.coordination.ClusterBootstrapService.BOOTSTRAP_PLACEHOLDER_PREFIX;
+import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING;
 import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.opensearch.cluster.coordination.ClusterBootstrapService.UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING;
 import static org.opensearch.common.settings.Settings.builder;
@@ -166,7 +167,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
     }
 
     public void testDoesNothingByDefaultIfMasterNodesConfigured() {
-        testDoesNothingWithSettings(builder().putList(INITIAL_MASTER_NODES_SETTING.getKey()));
+        testDoesNothingWithSettings(builder().putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey()));
     }
 
     public void testDoesNothingByDefaultOnMasterIneligibleNodes() {
@@ -197,7 +198,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
     public void testThrowsExceptionOnDuplicates() {
         final IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class, () -> {
             new ClusterBootstrapService(
-                builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), "duplicate-requirement", "duplicate-requirement").build(),
+                builder().putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), "duplicate-requirement", "duplicate-requirement").build(),
                 transportService,
                 Collections::emptyList,
                 () -> false,
@@ -205,7 +206,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
             );
         });
 
-        assertThat(illegalArgumentException.getMessage(), containsString(INITIAL_MASTER_NODES_SETTING.getKey()));
+        assertThat(illegalArgumentException.getMessage(), containsString(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey()));
         assertThat(illegalArgumentException.getMessage(), containsString("duplicate-requirement"));
     }
 
@@ -214,7 +215,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
 
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder()
-                .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
+                .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
                 .build(),
             transportService,
             () -> Stream.of(otherNode1, otherNode2).collect(Collectors.toList()),
@@ -242,7 +243,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
 
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder()
-                .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
+                .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
                 .build(),
             transportService,
             () -> singletonList(otherNode1),
@@ -276,7 +277,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder()
                 .putList(
-                    INITIAL_MASTER_NODES_SETTING.getKey(),
+                    INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(),
                     localNode.getName(),
                     otherNode1.getName(),
                     otherNode2.getName(),
@@ -325,7 +326,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
     public void testDoesNotBootstrapIfNoNodesDiscovered() {
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder()
-                .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
+                .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
                 .build(),
             transportService,
             Collections::emptyList,
@@ -342,7 +343,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder()
                 .putList(
-                    INITIAL_MASTER_NODES_SETTING.getKey(),
+                    INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(),
                     localNode.getName(),
                     otherNode1.getName(),
                     otherNode2.getName(),
@@ -365,7 +366,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder()
                 .putList(
-                    INITIAL_MASTER_NODES_SETTING.getKey(),
+                    INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(),
                     localNode.getName(),
                     otherNode1.getName(),
                     otherNode2.getName(),
@@ -388,7 +389,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
     public void testDoesNotBootstrapIfAlreadyBootstrapped() {
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder()
-                .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
+                .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
                 .build(),
             transportService,
             () -> Stream.of(otherNode1, otherNode2).collect(Collectors.toList()),
@@ -412,7 +413,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
         );
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder()
-                .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
+                .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
                 .build(),
             transportService,
             () -> Stream.of(localNode, otherNode1, otherNode2).collect(Collectors.toList()),
@@ -424,9 +425,9 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
         deterministicTaskQueue.runAllTasks();
     }
 
-    public void testDoesNotBootstrapsIfLocalNodeNotInInitialMasterNodes() {
+    public void testDoesNotBootstrapsIfLocalNodeNotInInitialClusterManagerNodes() {
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), otherNode1.getName(), otherNode2.getName()).build(),
+            Settings.builder().putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), otherNode1.getName(), otherNode2.getName()).build(),
             transportService,
             () -> Stream.of(localNode, otherNode1, otherNode2).collect(Collectors.toList()),
             () -> false,
@@ -439,7 +440,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
 
     public void testDoesNotBootstrapsIfNotConfigured() {
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey()).build(),
+            Settings.builder().putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey()).build(),
             transportService,
             () -> Stream.of(localNode, otherNode1, otherNode2).collect(Collectors.toList()),
             () -> false,
@@ -455,7 +456,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
         final AtomicLong bootstrappingAttempts = new AtomicLong();
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder()
-                .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
+                .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
                 .build(),
             transportService,
             () -> Stream.of(otherNode1, otherNode2).collect(Collectors.toList()),
@@ -480,7 +481,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
             Stream.of(otherNode1, otherNode2).collect(Collectors.toList())
         );
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getAddress().getAddress()).build(),
+            Settings.builder().putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), localNode.getAddress().getAddress()).build(),
             transportService,
             discoveredNodes::get,
             () -> false,
@@ -502,7 +503,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
         );
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder()
-                .putList(INITIAL_MASTER_NODES_SETTING.getKey(), otherNode1.getAddress().toString(), otherNode1.getName())
+                .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), otherNode1.getAddress().toString(), otherNode1.getName())
                 .build(),
             transportService,
             discoveredNodes::get,
@@ -542,7 +543,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
     public void testMatchesOnNodeName() {
         final AtomicBoolean bootstrapped = new AtomicBoolean();
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName()).build(),
+            Settings.builder().putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), localNode.getName()).build(),
             transportService,
             Collections::emptyList,
             () -> false,
@@ -558,7 +559,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
     public void testMatchesOnNodeAddress() {
         final AtomicBoolean bootstrapped = new AtomicBoolean();
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getAddress().toString()).build(),
+            Settings.builder().putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), localNode.getAddress().toString()).build(),
             transportService,
             Collections::emptyList,
             () -> false,
@@ -574,7 +575,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
     public void testMatchesOnNodeHostAddress() {
         final AtomicBoolean bootstrapped = new AtomicBoolean();
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getAddress().getAddress()).build(),
+            Settings.builder().putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), localNode.getAddress().getAddress()).build(),
             transportService,
             Collections::emptyList,
             () -> false,
@@ -589,7 +590,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
 
     public void testDoesNotJustMatchEverything() {
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), randomAlphaOfLength(10)).build(),
+            Settings.builder().putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), randomAlphaOfLength(10)).build(),
             transportService,
             Collections::emptyList,
             () -> false,
@@ -606,7 +607,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
         final AtomicBoolean bootstrapped = new AtomicBoolean();
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder()
-                .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
+                .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
                 .build(),
             transportService,
             () -> Stream.of(otherNode1, otherNode2, extraNode).collect(Collectors.toList()),
@@ -666,6 +667,29 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
             ).getMessage(),
             containsString(
                 "setting [" + INITIAL_MASTER_NODES_SETTING.getKey() + "] is not allowed when [discovery.type] is set " + "to [single-node]"
+            )
+        );
+    }
+
+    /**
+     * Validate the correct setting name of cluster.initial_cluster_manager_nodes is shown in the exception,
+     * when discovery type is single-node.
+     */
+    public void testFailBootstrapWithBothSingleNodeDiscoveryAndInitialClusterManagerNodes() {
+        final Settings.Builder settings = Settings.builder()
+            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE)
+            .put(NODE_NAME_SETTING.getKey(), localNode.getName())
+            .put(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), "test");
+
+        assertThat(
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> new ClusterBootstrapService(settings.build(), transportService, () -> emptyList(), () -> false, vc -> fail())
+            ).getMessage(),
+            containsString(
+                "setting ["
+                    + INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey()
+                    + "] is not allowed when [discovery.type] is set to [single-node]"
             )
         );
     }
