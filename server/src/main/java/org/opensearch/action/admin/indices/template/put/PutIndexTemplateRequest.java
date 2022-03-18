@@ -519,17 +519,19 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             builder.endObject();
 
             builder.startObject("mappings");
-            try (
-                XContentParser parser = JsonXContent.jsonXContent.createParser(
-                    NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                    mappings
-                )
-            ) {
-                builder.copyCurrentStructure(parser);
+            if (mappings != null) {
+                builder.field(MapperService.SINGLE_MAPPING_NAME);
+                try (
+                    XContentParser parser = JsonXContent.jsonXContent.createParser(
+                        NamedXContentRegistry.EMPTY,
+                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        mappings
+                    )
+                ) {
+                    builder.copyCurrentStructure(parser);
+                }
             }
             builder.endObject();
-
             builder.startObject("aliases");
             for (Alias alias : aliases) {
                 alias.toXContent(builder, params);

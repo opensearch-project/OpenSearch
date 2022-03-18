@@ -464,7 +464,6 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
             .setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("_doc")
                     .startObject("properties")
                     .startObject("field1")
                     .field("type", "text")
@@ -473,7 +472,6 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
                     .startObject("field2")
                     .field("type", "keyword")
                     .field("store", true)
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()

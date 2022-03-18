@@ -169,7 +169,6 @@ public class SimpleClusterStateIT extends OpenSearchIntegTestCase {
             .setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("_doc")
                     .startObject("properties")
                     .startObject("field1")
                     .field("type", "text")
@@ -178,7 +177,6 @@ public class SimpleClusterStateIT extends OpenSearchIntegTestCase {
                     .startObject("field2")
                     .field("type", "keyword")
                     .field("store", true)
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -193,12 +191,10 @@ public class SimpleClusterStateIT extends OpenSearchIntegTestCase {
             .setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("_doc")
                     .startObject("properties")
                     .startObject("field2")
                     .field("type", "text")
                     .field("store", false)
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()

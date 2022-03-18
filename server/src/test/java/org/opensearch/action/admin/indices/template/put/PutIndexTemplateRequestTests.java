@@ -39,6 +39,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
@@ -93,7 +94,6 @@ public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIn
             request1.mapping(builder);
             builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
             builder.startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("field1")
                 .field("type", "text")
@@ -102,7 +102,6 @@ public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIn
                 .startObject("properties")
                 .startObject("field21")
                 .field("type", "keyword")
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -116,7 +115,7 @@ public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIn
             request2 = new PutIndexTemplateRequest("bar");
             String nakedMapping = "{\"properties\": {\"foo\": {\"type\": \"integer\"}}}";
             request1.mapping(nakedMapping, XContentType.JSON);
-            request2.mapping("{\"type2\": " + nakedMapping + "}", XContentType.JSON);
+            request2.mapping(nakedMapping, XContentType.JSON);
             assertEquals(request1.mappings(), request2.mappings());
         }
         {
@@ -131,7 +130,7 @@ public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIn
                 )
                 .map();
             request1.mapping(nakedMapping);
-            request2.mapping(MapBuilder.<String, Object>newMapBuilder().put("type3", nakedMapping).map());
+            request2.mapping(MapBuilder.<String, Object>newMapBuilder().put(MapperService.SINGLE_MAPPING_NAME, nakedMapping).map());
             assertEquals(request1.mappings(), request2.mappings());
         }
     }
