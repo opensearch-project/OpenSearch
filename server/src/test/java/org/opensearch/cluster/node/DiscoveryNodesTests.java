@@ -108,12 +108,12 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
         assertThat(discoveryNodes.resolveNodes(new String[0]), arrayContainingInAnyOrder(allNodes));
         assertThat(discoveryNodes.resolveNodes("_all"), arrayContainingInAnyOrder(allNodes));
 
-        final String[] nonMasterNodes = StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
+        final String[] nonClusterManagerNodes = StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
             .map(n -> n.value)
             .filter(n -> n.isMasterNode() == false)
             .map(DiscoveryNode::getId)
             .toArray(String[]::new);
-        assertThat(discoveryNodes.resolveNodes("_all", "master:false"), arrayContainingInAnyOrder(nonMasterNodes));
+        assertThat(discoveryNodes.resolveNodes("_all", "master:false"), arrayContainingInAnyOrder(nonClusterManagerNodes));
 
         assertThat(discoveryNodes.resolveNodes("master:false", "_all"), arrayContainingInAnyOrder(allNodes));
     }
@@ -254,18 +254,18 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
             nodesB.add(node);
         }
 
-        DiscoveryNode masterA = randomBoolean() ? null : RandomPicks.randomFrom(random(), nodesA);
-        DiscoveryNode masterB = randomBoolean() ? null : RandomPicks.randomFrom(random(), nodesB);
+        DiscoveryNode clusterManagerA = randomBoolean() ? null : RandomPicks.randomFrom(random(), nodesA);
+        DiscoveryNode clusterManagerB = randomBoolean() ? null : RandomPicks.randomFrom(random(), nodesB);
 
         DiscoveryNodes.Builder builderA = DiscoveryNodes.builder();
         nodesA.stream().forEach(builderA::add);
-        final String masterAId = masterA == null ? null : masterA.getId();
-        builderA.masterNodeId(masterAId);
+        final String clusterManagerAId = clusterManagerA == null ? null : clusterManagerA.getId();
+        builderA.masterNodeId(clusterManagerAId);
         builderA.localNodeId(RandomPicks.randomFrom(random(), nodesA).getId());
 
         DiscoveryNodes.Builder builderB = DiscoveryNodes.builder();
         nodesB.stream().forEach(builderB::add);
-        final String masterBId = masterB == null ? null : masterB.getId();
+        final String masterBId = clusterManagerB == null ? null : clusterManagerB.getId();
         builderB.masterNodeId(masterBId);
         builderB.localNodeId(RandomPicks.randomFrom(random(), nodesB).getId());
 
@@ -276,18 +276,18 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
 
         DiscoveryNodes.Delta delta = discoNodesB.delta(discoNodesA);
 
-        if (masterA == null) {
-            assertThat(delta.previousMasterNode(), nullValue());
+        if (clusterManagerA == null) {
+            assertThat(delta.previousClusterManagerNode(), nullValue());
         } else {
-            assertThat(delta.previousMasterNode().getId(), equalTo(masterAId));
+            assertThat(delta.previousClusterManagerNode().getId(), equalTo(clusterManagerAId));
         }
-        if (masterB == null) {
+        if (clusterManagerB == null) {
             assertThat(delta.newMasterNode(), nullValue());
         } else {
             assertThat(delta.newMasterNode().getId(), equalTo(masterBId));
         }
 
-        if (Objects.equals(masterAId, masterBId)) {
+        if (Objects.equals(clusterManagerAId, masterBId)) {
             assertFalse(delta.masterNodeChanged());
         } else {
             assertTrue(delta.masterNodeChanged());

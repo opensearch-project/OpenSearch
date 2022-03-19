@@ -566,10 +566,10 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
         verifyFailsOnMetadata(noDataNoMasterSettings, indexPath);
 
         // build settings using same path.data as original but without master role
-        Settings noMasterSettings = nonMasterNode(settings);
+        Settings noClusterManagerSettings = nonMasterNode(settings);
 
         // test that we can create master=false env regardless of data.
-        newNodeEnvironment(noMasterSettings).close();
+        newNodeEnvironment(noClusterManagerSettings).close();
 
         // test that we can create data=true, master=true env. Also remove state dir to leave only shard data for following asserts
         try (NodeEnvironment env = newNodeEnvironment(settings)) {

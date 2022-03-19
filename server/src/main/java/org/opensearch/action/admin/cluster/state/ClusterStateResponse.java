@@ -108,20 +108,20 @@ public class ClusterStateResponse extends ActionResponse {
         if (o == null || getClass() != o.getClass()) return false;
         ClusterStateResponse response = (ClusterStateResponse) o;
         return waitForTimedOut == response.waitForTimedOut && Objects.equals(clusterName, response.clusterName) &&
-        // Best effort. Only compare cluster state version and master node id,
+        // Best effort. Only compare cluster state version and cluster-manager node id,
         // because cluster state doesn't implement equals()
             Objects.equals(getVersion(clusterState), getVersion(response.clusterState))
-            && Objects.equals(getMasterNodeId(clusterState), getMasterNodeId(response.clusterState));
+            && Objects.equals(getClusterManagerNodeId(clusterState), getClusterManagerNodeId(response.clusterState));
     }
 
     @Override
     public int hashCode() {
-        // Best effort. Only use cluster state version and master node id,
+        // Best effort. Only use cluster state version and cluster-manager node id,
         // because cluster state doesn't implement hashcode()
-        return Objects.hash(clusterName, getVersion(clusterState), getMasterNodeId(clusterState), waitForTimedOut);
+        return Objects.hash(clusterName, getVersion(clusterState), getClusterManagerNodeId(clusterState), waitForTimedOut);
     }
 
-    private static String getMasterNodeId(ClusterState clusterState) {
+    private static String getClusterManagerNodeId(ClusterState clusterState) {
         if (clusterState == null) {
             return null;
         }

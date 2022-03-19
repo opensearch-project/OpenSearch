@@ -374,9 +374,9 @@ public class TransportBroadcastByNodeActionTests extends OpenSearchTestCase {
         Request request = new Request(new String[] { TEST_INDEX });
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
-        DiscoveryNode masterNode = clusterService.state().nodes().getMasterNode();
+        DiscoveryNode clusterManagerNode = clusterService.state().nodes().getMasterNode();
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder(clusterService.state().getNodes());
-        builder.remove(masterNode.getId());
+        builder.remove(clusterManagerNode.getId());
 
         setState(clusterService, ClusterState.builder(clusterService.state()).nodes(builder));
 
@@ -384,11 +384,11 @@ public class TransportBroadcastByNodeActionTests extends OpenSearchTestCase {
 
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
 
-        // the master should not be in the list of nodes that requests were sent to
+        // the cluster manager should not be in the list of nodes that requests were sent to
         ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[] { TEST_INDEX });
         Set<String> set = new HashSet<>();
         for (ShardRouting shard : shardIt) {
-            if (!shard.currentNodeId().equals(masterNode.getId())) {
+            if (!shard.currentNodeId().equals(clusterManagerNode.getId())) {
                 set.add(shard.currentNodeId());
             }
         }

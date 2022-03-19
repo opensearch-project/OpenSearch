@@ -190,7 +190,7 @@ public class HandshakingTransportAddressConnectorTests extends OpenSearchTestCas
         }
     }
 
-    public void testDoesNotConnectToNonMasterNode() throws InterruptedException {
+    public void testDoesNotConnectToNonClusterManagerNode() throws InterruptedException {
         remoteNode = new DiscoveryNode("remote-node", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         discoveryAddress = getDiscoveryAddress();
         remoteClusterName = "local-cluster";

@@ -109,7 +109,7 @@ public class RestIndicesAction extends AbstractCatAction {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, IndicesOptions.strictExpand());
         final boolean local = request.paramAsBoolean("local", false);
-        final TimeValue masterNodeTimeout = request.paramAsTime("master_timeout", DEFAULT_MASTER_NODE_TIMEOUT);
+        final TimeValue clusterManagerNodeTimeout = request.paramAsTime("master_timeout", DEFAULT_MASTER_NODE_TIMEOUT);
         final boolean includeUnloadedSegments = request.paramAsBoolean("include_unloaded_segments", false);
 
         return channel -> {
@@ -120,7 +120,7 @@ public class RestIndicesAction extends AbstractCatAction {
                 }
             });
 
-            sendGetSettingsRequest(indices, indicesOptions, local, masterNodeTimeout, client, new ActionListener<GetSettingsResponse>() {
+            sendGetSettingsRequest(indices, indicesOptions, local, clusterManagerNodeTimeout, client, new ActionListener<GetSettingsResponse>() {
                 @Override
                 public void onResponse(final GetSettingsResponse getSettingsResponse) {
                     final GroupedActionListener<ActionResponse> groupedListener = createGroupedListener(request, 4, listener);
@@ -151,7 +151,7 @@ public class RestIndicesAction extends AbstractCatAction {
                         indices,
                         subRequestIndicesOptions,
                         local,
-                        masterNodeTimeout,
+                        clusterManagerNodeTimeout,
                         client,
                         ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
                     );
@@ -159,7 +159,7 @@ public class RestIndicesAction extends AbstractCatAction {
                         indices,
                         subRequestIndicesOptions,
                         local,
-                        masterNodeTimeout,
+                        clusterManagerNodeTimeout,
                         client,
                         ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
                     );
@@ -185,7 +185,7 @@ public class RestIndicesAction extends AbstractCatAction {
         final String[] indices,
         final IndicesOptions indicesOptions,
         final boolean local,
-        final TimeValue masterNodeTimeout,
+        final TimeValue clusterManagerNodeTimeout,
         final NodeClient client,
         final ActionListener<GetSettingsResponse> listener
     ) {
@@ -193,7 +193,7 @@ public class RestIndicesAction extends AbstractCatAction {
         request.indices(indices);
         request.indicesOptions(indicesOptions);
         request.local(local);
-        request.masterNodeTimeout(masterNodeTimeout);
+        request.masterNodeTimeout(clusterManagerNodeTimeout);
         request.names(IndexSettings.INDEX_SEARCH_THROTTLED.getKey());
 
         client.admin().indices().getSettings(request, listener);
@@ -203,7 +203,7 @@ public class RestIndicesAction extends AbstractCatAction {
         final String[] indices,
         final IndicesOptions indicesOptions,
         final boolean local,
-        final TimeValue masterNodeTimeout,
+        final TimeValue clusterManagerNodeTimeout,
         final NodeClient client,
         final ActionListener<ClusterStateResponse> listener
     ) {
@@ -212,7 +212,7 @@ public class RestIndicesAction extends AbstractCatAction {
         request.indices(indices);
         request.indicesOptions(indicesOptions);
         request.local(local);
-        request.masterNodeTimeout(masterNodeTimeout);
+        request.masterNodeTimeout(clusterManagerNodeTimeout);
 
         client.admin().cluster().state(request, listener);
     }
@@ -221,7 +221,7 @@ public class RestIndicesAction extends AbstractCatAction {
         final String[] indices,
         final IndicesOptions indicesOptions,
         final boolean local,
-        final TimeValue masterNodeTimeout,
+        final TimeValue clusterManagerNodeTimeout,
         final NodeClient client,
         final ActionListener<ClusterHealthResponse> listener
     ) {
@@ -230,7 +230,7 @@ public class RestIndicesAction extends AbstractCatAction {
         request.indices(indices);
         request.indicesOptions(indicesOptions);
         request.local(local);
-        request.masterNodeTimeout(masterNodeTimeout);
+        request.masterNodeTimeout(clusterManagerNodeTimeout);
 
         client.admin().cluster().health(request, listener);
     }

@@ -517,20 +517,20 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
 
         private final String localNodeId;
         @Nullable
-        private final DiscoveryNode previousMasterNode;
+        private final DiscoveryNode previousClusterManagerNode;
         @Nullable
         private final DiscoveryNode newMasterNode;
         private final List<DiscoveryNode> removed;
         private final List<DiscoveryNode> added;
 
         private Delta(
-            @Nullable DiscoveryNode previousMasterNode,
+            @Nullable DiscoveryNode previousClusterManagerNode,
             @Nullable DiscoveryNode newMasterNode,
             String localNodeId,
             List<DiscoveryNode> removed,
             List<DiscoveryNode> added
         ) {
-            this.previousMasterNode = previousMasterNode;
+            this.previousClusterManagerNode = previousClusterManagerNode;
             this.newMasterNode = newMasterNode;
             this.localNodeId = localNodeId;
             this.removed = removed;
@@ -542,12 +542,12 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         }
 
         public boolean masterNodeChanged() {
-            return Objects.equals(newMasterNode, previousMasterNode) == false;
+            return Objects.equals(newMasterNode, previousClusterManagerNode) == false;
         }
 
         @Nullable
-        public DiscoveryNode previousMasterNode() {
-            return previousMasterNode;
+        public DiscoveryNode previousClusterManagerNode() {
+            return previousClusterManagerNode;
         }
 
         @Nullable
@@ -575,8 +575,8 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             final StringBuilder summary = new StringBuilder();
             if (masterNodeChanged()) {
                 summary.append("master node changed {previous [");
-                if (previousMasterNode() != null) {
-                    summary.append(previousMasterNode());
+                if (previousClusterManagerNode() != null) {
+                    summary.append(previousClusterManagerNode());
                 }
                 summary.append("], current [");
                 if (newMasterNode() != null) {

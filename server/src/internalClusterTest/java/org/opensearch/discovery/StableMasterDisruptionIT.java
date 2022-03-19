@@ -73,8 +73,8 @@ import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Tests relating to the loss of the master, but which work with the default fault detection settings which are rather lenient and will
- * not detect a master failure too quickly.
+ * Tests relating to the loss of the cluster-manager, but which work with the default fault detection settings which are rather lenient and will
+ * not detect a cluster-manager failure too quickly.
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {
@@ -228,9 +228,9 @@ public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {
                         event.state(),
                         event.previousState()
                     );
-                    String previousMasterNodeName = previousMaster != null ? previousMaster.getName() : null;
+                    String previousClusterManagerNodeName = previousMaster != null ? previousMaster.getName() : null;
                     String currentMasterNodeName = currentMaster != null ? currentMaster.getName() : null;
-                    masters.get(node).add(new Tuple<>(previousMasterNodeName, currentMasterNodeName));
+                    masters.get(node).add(new Tuple<>(previousClusterManagerNodeName, currentMasterNodeName));
                 }
             });
         }

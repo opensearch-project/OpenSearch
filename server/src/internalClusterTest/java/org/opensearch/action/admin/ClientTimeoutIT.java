@@ -47,7 +47,7 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
     }
 
     public void testNodesInfoTimeout() {
-        String masterNode = internalCluster().startMasterOnlyNode();
+        String clusterManagerNode = internalCluster().startMasterOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
         String anotherDataNode = internalCluster().startDataOnlyNode();
 
@@ -65,11 +65,11 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
             nodes.add(node.getNode().getName());
         }
         assertThat(response.getNodes().size(), equalTo(2));
-        assertThat(nodes.contains(masterNode), is(true));
+        assertThat(nodes.contains(clusterManagerNode), is(true));
     }
 
     public void testNodesStatsTimeout() {
-        String masterNode = internalCluster().startMasterOnlyNode();
+        String clusterManagerNode = internalCluster().startMasterOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
         String anotherDataNode = internalCluster().startDataOnlyNode();
         TimeValue timeout = TimeValue.timeValueMillis(1000);
@@ -87,11 +87,11 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
             nodes.add(node.getNode().getName());
         }
         assertThat(response.getNodes().size(), equalTo(2));
-        assertThat(nodes.contains(masterNode), is(true));
+        assertThat(nodes.contains(clusterManagerNode), is(true));
     }
 
     public void testListTasksTimeout() {
-        String masterNode = internalCluster().startMasterOnlyNode();
+        String clusterManagerNode = internalCluster().startMasterOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
         String anotherDataNode = internalCluster().startDataOnlyNode();
         TimeValue timeout = TimeValue.timeValueMillis(1000);

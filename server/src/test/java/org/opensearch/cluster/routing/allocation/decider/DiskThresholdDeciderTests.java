@@ -1222,7 +1222,7 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             .build();
         RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
 
-        DiscoveryNode masterNode = new DiscoveryNode(
+        DiscoveryNode clusterManagerNode = new DiscoveryNode(
             "master",
             "master",
             buildNewFakeTransportAddress(),
@@ -1240,7 +1240,7 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
         );
         DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder().add(dataNode);
         if (randomBoolean()) {
-            discoveryNodesBuilder.add(masterNode);
+            discoveryNodesBuilder.add(clusterManagerNode);
         }
         DiscoveryNodes discoveryNodes = discoveryNodesBuilder.build();
 
