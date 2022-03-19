@@ -27,7 +27,7 @@ dependencies {
   api "com.google.oauth-client:google-oauth-client:1.31.0"
   api "com.google.http-client:google-http-client:${versions.google}"
   api "com.google.http-client:google-http-client-jackson2:${versions.google}"
-  api 'com.google.code.findbugs:jsr305:1.3.9'
+  api 'com.google.code.findbugs:jsr305:3.0.2'
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
