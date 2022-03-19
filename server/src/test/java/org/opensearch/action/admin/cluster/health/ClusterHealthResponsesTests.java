@@ -112,9 +112,9 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
         assertThat(clusterHealth.getActiveShardsPercent(), is(allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(100.0))));
     }
 
-    public void testClusterHealthVerifyMasterNodeDiscovery() throws IOException {
+    public void testClusterHealthVerifyClusterManagerNodeDiscovery() throws IOException {
         DiscoveryNode localNode = new DiscoveryNode("node", OpenSearchTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
-        // set the node information to verify master_node discovery in ClusterHealthResponse
+        // set the node information to verify cluster_manager_node discovery in ClusterHealthResponse
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
             .build();
@@ -150,7 +150,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
     }
 
     public void testVersionCompatibleSerialization() throws IOException {
-        boolean hasDiscoveredMaster = false;
+        boolean hasDiscoveredClusterManager = false;
         int indicesSize = randomInt(20);
         Map<String, ClusterIndexHealth> indices = new HashMap<>(indicesSize);
         if ("indices".equals(level) || "shards".equals(level)) {
@@ -167,12 +167,12 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
             randomInt(100),
             randomInt(100),
             randomInt(100),
-            hasDiscoveredMaster,
+            hasDiscoveredClusterManager,
             randomDoubleBetween(0d, 100d, true),
             randomFrom(ClusterHealthStatus.values()),
             indices
         );
-        // Create the Cluster Health Response object with discovered master as false,
+        // Create the Cluster Health Response object with discovered cluster manager as false,
         // to verify serialization puts default value for the field
         ClusterHealthResponse clusterHealth = new ClusterHealthResponse(
             "test-cluster",
@@ -209,7 +209,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
         StreamInput in_gt_7_0 = out_gt_1_0.bytes().streamInput();
         in_gt_7_0.setVersion(new_version);
         clusterHealth = ClusterHealthResponse.readResponseFrom(in_gt_7_0);
-        assertThat(clusterHealth.hasDiscoveredMaster(), Matchers.equalTo(hasDiscoveredMaster));
+        assertThat(clusterHealth.hasDiscoveredMaster(), Matchers.equalTo(hasDiscoveredClusterManager));
     }
 
     ClusterHealthResponse maybeSerialize(ClusterHealthResponse clusterHealth) throws IOException {
@@ -222,7 +222,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
         return clusterHealth;
     }
 
-    public void testParseFromXContentWithDiscoveredMasterField() throws IOException {
+    public void testParseFromXContentWithDiscoveredClusterManagerField() throws IOException {
         try (
             XContentParser parser = JsonXContent.jsonXContent.createParser(
                 NamedXContentRegistry.EMPTY,
