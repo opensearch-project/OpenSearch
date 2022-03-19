@@ -71,33 +71,40 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
     public void testMasterNodeGCs() throws Exception {
         List<String> nodes = startCluster(3);
 
-        String oldMasterNode = internalCluster().getMasterName();
+        String oldClusterManagerNode = internalCluster().getMasterName();
         // a very long GC, but it's OK as we remove the disruption when it has had an effect
-        SingleNodeDisruption masterNodeDisruption = new IntermittentLongGCDisruption(random(), oldMasterNode, 100, 200, 30000, 60000);
+        SingleNodeDisruption masterNodeDisruption = new IntermittentLongGCDisruption(
+            random(),
+            oldClusterManagerNode,
+            100,
+            200,
+            30000,
+            60000
+        );
         internalCluster().setDisruptionScheme(masterNodeDisruption);
         masterNodeDisruption.startDisrupting();
 
-        Set<String> oldNonMasterNodesSet = new HashSet<>(nodes);
-        oldNonMasterNodesSet.remove(oldMasterNode);
+        Set<String> oldNonClusterManagerNodesSet = new HashSet<>(nodes);
+        oldNonClusterManagerNodesSet.remove(oldClusterManagerNode);
 
-        List<String> oldNonMasterNodes = new ArrayList<>(oldNonMasterNodesSet);
+        List<String> oldNonClusterManagerNodes = new ArrayList<>(oldNonClusterManagerNodesSet);
 
-        logger.info("waiting for nodes to de-elect master [{}]", oldMasterNode);
-        for (String node : oldNonMasterNodesSet) {
-            assertDifferentMaster(node, oldMasterNode);
+        logger.info("waiting for nodes to de-elect master [{}]", oldClusterManagerNode);
+        for (String node : oldNonClusterManagerNodesSet) {
+            assertDifferentMaster(node, oldClusterManagerNode);
         }
 
         logger.info("waiting for nodes to elect a new master");
-        ensureStableCluster(2, oldNonMasterNodes.get(0));
+        ensureStableCluster(2, oldNonClusterManagerNodes.get(0));
 
         // restore GC
         masterNodeDisruption.stopDisrupting();
         final TimeValue waitTime = new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + masterNodeDisruption.expectedTimeToHeal().millis());
-        ensureStableCluster(3, waitTime, false, oldNonMasterNodes.get(0));
+        ensureStableCluster(3, waitTime, false, oldNonClusterManagerNodes.get(0));
 
         // make sure all nodes agree on master
         String newMaster = internalCluster().getMasterName();
-        assertThat(newMaster, not(equalTo(oldMasterNode)));
+        assertThat(newMaster, not(equalTo(oldClusterManagerNode)));
         assertMaster(newMaster, nodes);
     }
 

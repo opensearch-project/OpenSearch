@@ -93,9 +93,13 @@ import static org.hamcrest.Matchers.is;
 public class ClusterStateDiffIT extends OpenSearchIntegTestCase {
     public void testClusterStateDiffSerialization() throws Exception {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
-        DiscoveryNode masterNode = randomNode("master");
+        DiscoveryNode clusterManagerNode = randomNode("master");
         DiscoveryNode otherNode = randomNode("other");
-        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(masterNode).add(otherNode).localNodeId(masterNode.getId()).build();
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
+            .add(clusterManagerNode)
+            .add(otherNode)
+            .localNodeId(clusterManagerNode.getId())
+            .build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).build();
         ClusterState clusterStateFromDiffs = ClusterState.Builder.fromBytes(
             ClusterState.Builder.toBytes(clusterState),

@@ -204,9 +204,9 @@ public class TransportClusterStateActionDisruptionIT extends OpenSearchIntegTest
             String value = "none";
             while (shutdown.get() == false) {
                 value = "none".equals(value) ? "all" : "none";
-                final String nonMasterNode = randomValueOtherThan(masterName, () -> randomFrom(internalCluster().getNodeNames()));
+                final String nonClusterManagerNode = randomValueOtherThan(masterName, () -> randomFrom(internalCluster().getNodeNames()));
                 assertAcked(
-                    client(nonMasterNode).admin()
+                    client(nonClusterManagerNode).admin()
                         .cluster()
                         .prepareUpdateSettings()
                         .setPersistentSettings(Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), value))
@@ -235,8 +235,8 @@ public class TransportClusterStateActionDisruptionIT extends OpenSearchIntegTest
         }
 
         assertBusy(() -> {
-            final String nonMasterNode = randomValueOtherThan(masterName, () -> randomFrom(internalCluster().getNodeNames()));
-            final String claimedMasterName = internalCluster().getMasterName(nonMasterNode);
+            final String nonClusterManagerNode = randomValueOtherThan(masterName, () -> randomFrom(internalCluster().getNodeNames()));
+            final String claimedMasterName = internalCluster().getMasterName(nonClusterManagerNode);
             assertThat(claimedMasterName, not(equalTo(masterName)));
         });
 

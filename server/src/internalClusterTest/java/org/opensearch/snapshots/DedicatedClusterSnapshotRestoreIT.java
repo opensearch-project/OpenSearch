@@ -1393,7 +1393,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
      * correctly by testing a snapshot name collision.
      */
     public void testCreateSnapshotLegacyPath() throws Exception {
-        final String masterNode = internalCluster().startMasterOnlyNode();
+        final String clusterManagerNode = internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "fs");
@@ -1403,7 +1403,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final Snapshot snapshot1 = PlainActionFuture.get(
             f -> snapshotsService.createSnapshotLegacy(new CreateSnapshotRequest(repoName, "snap-1"), f)
         );
-        awaitNoMoreRunningOperations(masterNode);
+        awaitNoMoreRunningOperations(clusterManagerNode);
 
         final InvalidSnapshotNameException sne = expectThrows(
             InvalidSnapshotNameException.class,
