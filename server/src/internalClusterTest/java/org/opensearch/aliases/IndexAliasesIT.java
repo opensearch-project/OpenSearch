@@ -226,7 +226,7 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
 
     public void testFilteringAliases() throws Exception {
         logger.info("--> creating index [test]");
-        assertAcked(prepareCreate("test").addMapping("type", "user", "type=text"));
+        assertAcked(prepareCreate("test").setMapping("user", "type=text"));
 
         ensureGreen();
 
@@ -260,7 +260,7 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
 
     public void testSearchingFilteringAliasesSingleIndex() throws Exception {
         logger.info("--> creating index [test]");
-        assertAcked(prepareCreate("test").addMapping("type1", "id", "type=text", "name", "type=text,fielddata=true"));
+        assertAcked(prepareCreate("test").setMapping("id", "type=text", "name", "type=text,fielddata=true"));
 
         ensureGreen();
 
@@ -363,9 +363,9 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
 
     public void testSearchingFilteringAliasesTwoIndices() throws Exception {
         logger.info("--> creating index [test1]");
-        assertAcked(prepareCreate("test1").addMapping("type1", "name", "type=text"));
+        assertAcked(prepareCreate("test1").setMapping("name", "type=text"));
         logger.info("--> creating index [test2]");
-        assertAcked(prepareCreate("test2").addMapping("type1", "name", "type=text"));
+        assertAcked(prepareCreate("test2").setMapping("name", "type=text"));
         ensureGreen();
 
         logger.info("--> adding filtering aliases to index [test1]");
@@ -593,8 +593,8 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
 
     public void testDeletingByQueryFilteringAliases() throws Exception {
         logger.info("--> creating index [test1] and [test2");
-        assertAcked(prepareCreate("test1").addMapping("type1", "name", "type=text"));
-        assertAcked(prepareCreate("test2").addMapping("type1", "name", "type=text"));
+        assertAcked(prepareCreate("test1").setMapping("name", "type=text"));
+        assertAcked(prepareCreate("test2").setMapping("name", "type=text"));
         ensureGreen();
 
         logger.info("--> adding filtering aliases to index [test1]");
@@ -648,8 +648,8 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
 
     public void testDeleteAliases() throws Exception {
         logger.info("--> creating index [test1] and [test2]");
-        assertAcked(prepareCreate("test1").addMapping("type", "name", "type=text"));
-        assertAcked(prepareCreate("test2").addMapping("type", "name", "type=text"));
+        assertAcked(prepareCreate("test1").setMapping("name", "type=text"));
+        assertAcked(prepareCreate("test2").setMapping("name", "type=text"));
         ensureGreen();
 
         logger.info("--> adding filtering aliases to index [test1]");
@@ -780,7 +780,7 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
 
     public void testSameAlias() throws Exception {
         logger.info("--> creating index [test]");
-        assertAcked(prepareCreate("test").addMapping("type", "name", "type=text"));
+        assertAcked(prepareCreate("test").setMapping("name", "type=text"));
         ensureGreen();
 
         logger.info("--> creating alias1 ");
@@ -1073,7 +1073,7 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
 
     public void testCreateIndexWithAliases() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping("type", "field", "type=text")
+            prepareCreate("test").setMapping("field", "type=text")
                 .addAlias(new Alias("alias1"))
                 .addAlias(new Alias("alias2").filter(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("field"))))
                 .addAlias(new Alias("alias3").indexRouting("index").searchRouting("search"))
@@ -1103,7 +1103,7 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
 
     public void testCreateIndexWithAliasesSource() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping("type", "field", "type=text")
+            prepareCreate("test").setMapping("field", "type=text")
                 .setAliases(
                     "{\n"
                         + "        \"alias1\" : {},\n"
@@ -1180,7 +1180,7 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
     }
 
     public void testAliasFilterWithNowInRangeFilterAndQuery() throws Exception {
-        assertAcked(prepareCreate("my-index").addMapping("my-type", "timestamp", "type=date"));
+        assertAcked(prepareCreate("my-index").setMapping("timestamp", "type=date"));
         assertAliasesVersionIncreases(
             "my-index",
             () -> assertAcked(

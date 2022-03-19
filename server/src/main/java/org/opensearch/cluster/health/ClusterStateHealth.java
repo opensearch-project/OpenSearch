@@ -53,7 +53,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
 
     private final int numberOfNodes;
     private final int numberOfDataNodes;
-    private final boolean hasDiscoveredMaster;
+    private final boolean hasDiscoveredClusterManager;
     private final int activeShards;
     private final int relocatingShards;
     private final int activePrimaryShards;
@@ -81,7 +81,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
     public ClusterStateHealth(final ClusterState clusterState, final String[] concreteIndices) {
         numberOfNodes = clusterState.nodes().getSize();
         numberOfDataNodes = clusterState.nodes().getDataNodes().size();
-        hasDiscoveredMaster = clusterState.nodes().getMasterNodeId() != null;
+        hasDiscoveredClusterManager = clusterState.nodes().getMasterNodeId() != null;
         indices = new HashMap<>();
         for (String index : concreteIndices) {
             IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
@@ -150,9 +150,9 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         numberOfNodes = in.readVInt();
         numberOfDataNodes = in.readVInt();
         if (in.getVersion().onOrAfter(Version.V_1_0_0)) {
-            hasDiscoveredMaster = in.readBoolean();
+            hasDiscoveredClusterManager = in.readBoolean();
         } else {
-            hasDiscoveredMaster = true;
+            hasDiscoveredClusterManager = true;
         }
         status = ClusterHealthStatus.fromValue(in.readByte());
         int size = in.readVInt();
@@ -187,7 +187,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         this.unassignedShards = unassignedShards;
         this.numberOfNodes = numberOfNodes;
         this.numberOfDataNodes = numberOfDataNodes;
-        this.hasDiscoveredMaster = hasDiscoveredMaster;
+        this.hasDiscoveredClusterManager = hasDiscoveredMaster;
         this.activeShardsPercent = activeShardsPercent;
         this.status = status;
         this.indices = indices;
@@ -234,7 +234,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
     }
 
     public boolean hasDiscoveredMaster() {
-        return hasDiscoveredMaster;
+        return hasDiscoveredClusterManager;
     }
 
     @Override
@@ -252,7 +252,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         out.writeVInt(numberOfNodes);
         out.writeVInt(numberOfDataNodes);
         if (out.getVersion().onOrAfter(Version.V_1_0_0)) {
-            out.writeBoolean(hasDiscoveredMaster);
+            out.writeBoolean(hasDiscoveredClusterManager);
         }
         out.writeByte(status.value());
         out.writeVInt(indices.size());
@@ -270,7 +270,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
             + ", numberOfDataNodes="
             + numberOfDataNodes
             + ", hasDiscoveredMaster="
-            + hasDiscoveredMaster
+            + hasDiscoveredClusterManager
             + ", activeShards="
             + activeShards
             + ", relocatingShards="
@@ -297,7 +297,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         ClusterStateHealth that = (ClusterStateHealth) o;
         return numberOfNodes == that.numberOfNodes
             && numberOfDataNodes == that.numberOfDataNodes
-            && hasDiscoveredMaster == that.hasDiscoveredMaster
+            && hasDiscoveredClusterManager == that.hasDiscoveredClusterManager
             && activeShards == that.activeShards
             && relocatingShards == that.relocatingShards
             && activePrimaryShards == that.activePrimaryShards
@@ -313,7 +313,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         return Objects.hash(
             numberOfNodes,
             numberOfDataNodes,
-            hasDiscoveredMaster,
+            hasDiscoveredClusterManager,
             activeShards,
             relocatingShards,
             activePrimaryShards,

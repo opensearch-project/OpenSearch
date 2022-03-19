@@ -158,7 +158,7 @@ public class MoreExpressionIT extends OpenSearchIntegTestCase {
     }
 
     public void testDateMethods() throws Exception {
-        OpenSearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "date0", "type=date", "date1", "type=date"));
+        OpenSearchAssertions.assertAcked(prepareCreate("test").setMapping("date0", "type=date", "date1", "type=date"));
         ensureGreen("test");
         indexRandom(
             true,
@@ -188,7 +188,7 @@ public class MoreExpressionIT extends OpenSearchIntegTestCase {
     }
 
     public void testDateObjectMethods() throws Exception {
-        OpenSearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "date0", "type=date", "date1", "type=date"));
+        OpenSearchAssertions.assertAcked(prepareCreate("test").setMapping("date0", "type=date", "date1", "type=date"));
         ensureGreen("test");
         indexRandom(
             true,
@@ -219,7 +219,7 @@ public class MoreExpressionIT extends OpenSearchIntegTestCase {
 
     public void testMultiValueMethods() throws Exception {
         OpenSearchAssertions.assertAcked(
-            prepareCreate("test").addMapping("doc", "double0", "type=double", "double1", "type=double", "double2", "type=double")
+            prepareCreate("test").setMapping("double0", "type=double", "double1", "type=double", "double2", "type=double")
         );
         ensureGreen("test");
 
@@ -322,7 +322,7 @@ public class MoreExpressionIT extends OpenSearchIntegTestCase {
     }
 
     public void testInvalidDateMethodCall() throws Exception {
-        OpenSearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "double", "type=double"));
+        OpenSearchAssertions.assertAcked(prepareCreate("test").setMapping("double", "type=double"));
         ensureGreen("test");
         indexRandom(true, client().prepareIndex("test").setId("1").setSource("double", "178000000.0"));
         try {
@@ -343,7 +343,7 @@ public class MoreExpressionIT extends OpenSearchIntegTestCase {
     }
 
     public void testSparseField() throws Exception {
-        OpenSearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "x", "type=long", "y", "type=long"));
+        OpenSearchAssertions.assertAcked(prepareCreate("test").setMapping("x", "type=long", "y", "type=long"));
         ensureGreen("test");
         indexRandom(
             true,
@@ -528,7 +528,7 @@ public class MoreExpressionIT extends OpenSearchIntegTestCase {
 
     public void testStringSpecialValueVariable() throws Exception {
         // i.e. expression script for term aggregations, which is not allowed
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("doc", "text", "type=keyword").get());
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping("text", "type=keyword").get());
         ensureGreen("test");
         indexRandom(
             true,

@@ -541,7 +541,7 @@ public class SearchScrollIT extends OpenSearchIntegTestCase {
         assertAcked(
             prepareCreate("test").setSettings(
                 Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            ).addMapping("test", "no_field", "type=keyword", "some_field", "type=keyword")
+            ).setMapping("no_field", "type=keyword", "some_field", "type=keyword")
         );
         client().prepareIndex("test").setId("1").setSource("some_field", "test").get();
         refresh();
@@ -718,7 +718,7 @@ public class SearchScrollIT extends OpenSearchIntegTestCase {
                 .indices()
                 .prepareCreate("test")
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards))
-                .addMapping("_doc", "created_date", "type=date,format=yyyy-MM-dd")
+                .setMapping("created_date", "type=date,format=yyyy-MM-dd")
         );
         client().prepareIndex("test").setId("1").setSource("created_date", "2020-01-01").get();
         client().prepareIndex("test").setId("2").setSource("created_date", "2020-01-02").get();

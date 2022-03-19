@@ -38,8 +38,7 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 public class CommonTermsQueryParserTests extends OpenSearchSingleNodeTestCase {
     public void testWhenParsedQueryIsNullNoNullPointerExceptionIsThrown() {
         final String index = "test-index";
-        final String type = "test-type";
-        client().admin().indices().prepareCreate(index).addMapping(type, "name", "type=text,analyzer=stop").execute().actionGet();
+        client().admin().indices().prepareCreate(index).setMapping("name", "type=text,analyzer=stop").execute().actionGet();
         ensureGreen();
 
         CommonTermsQueryBuilder commonTermsQueryBuilder = new CommonTermsQueryBuilder("name", "the").queryName("query-name");

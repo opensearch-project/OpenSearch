@@ -310,7 +310,7 @@ public class ScriptedMetricIT extends OpenSearchIntegTestCase {
         // "1". then each test will have
         // to check that this bucket exists with the appropriate sub
         // aggregations.
-        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").get();
+        prepareCreate("empty_bucket_idx").setMapping("value", "type=integer").get();
         builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             builders.add(
@@ -1183,7 +1183,7 @@ public class ScriptedMetricIT extends OpenSearchIntegTestCase {
         Script ndRandom = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "return Math.random()", Collections.emptyMap());
 
         assertAcked(
-            prepareCreate("cache_test_idx").addMapping("type", "d", "type=long")
+            prepareCreate("cache_test_idx").setMapping("d", "type=long")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get()
         );

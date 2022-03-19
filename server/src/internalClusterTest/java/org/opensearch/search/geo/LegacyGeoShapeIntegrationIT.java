@@ -131,11 +131,7 @@ public class LegacyGeoShapeIntegrationIT extends OpenSearchIntegTestCase {
     public void testIgnoreMalformed() throws Exception {
         // create index
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .addMapping("geometry", "shape", "type=geo_shape,tree=quadtree,ignore_malformed=true")
-                .get()
+            client().admin().indices().prepareCreate("test").setMapping("shape", "type=geo_shape,tree=quadtree,ignore_malformed=true").get()
         );
         ensureGreen();
 
@@ -226,11 +222,7 @@ public class LegacyGeoShapeIntegrationIT extends OpenSearchIntegTestCase {
     public void testLegacyCircle() throws Exception {
         // create index
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .addMapping("geometry", "shape", "type=geo_shape,strategy=recursive,tree=geohash")
-                .get()
+            client().admin().indices().prepareCreate("test").setMapping("shape", "type=geo_shape,strategy=recursive,tree=geohash").get()
         );
         ensureGreen();
 
@@ -255,11 +247,7 @@ public class LegacyGeoShapeIntegrationIT extends OpenSearchIntegTestCase {
         try {
             // create index
             assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareCreate("test")
-                    .addMapping("_doc", "shape", "type=geo_shape,strategy=recursive,tree=geohash")
-                    .get()
+                client().admin().indices().prepareCreate("test").setMapping("shape", "type=geo_shape,strategy=recursive,tree=geohash").get()
             );
             ensureGreen();
 

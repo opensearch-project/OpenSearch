@@ -304,7 +304,7 @@ public class ClusterStateUpdatersTests extends OpenSearchTestCase {
             "node1",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE),
+            Sets.newHashSet(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
 
@@ -354,7 +354,7 @@ public class ClusterStateUpdatersTests extends OpenSearchTestCase {
             "node1",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE),
+            Sets.newHashSet(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         final ClusterState updatedState = Function.<ClusterState>identity()

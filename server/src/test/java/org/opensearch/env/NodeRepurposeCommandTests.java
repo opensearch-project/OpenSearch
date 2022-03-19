@@ -105,7 +105,7 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
         dataNoClusterManagerSettings = nonMasterNode(dataClusterManagerSettings);
         noDataNoClusterManagerSettings = removeRoles(
             dataClusterManagerSettings,
-            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)))
+            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)))
         );
 
         noDataClusterManagerSettings = masterNode(nonDataNode(dataClusterManagerSettings));

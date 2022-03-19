@@ -398,17 +398,19 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
             Function.identity()
         );
         cluster.beforeTest(random());
+        // TODO: Remove this line, and replace 'clusterManagerRole' with CLUSTER_MANAGER_ROLE, after MASTER_ROLE is removed.
+        // It is added in 2.0, along with the introduction of CLUSTER_MANAGER_ROLE, aims to test the 2 roles have the same effect.
+        DiscoveryNodeRole clusterManagerRole = randomFrom(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.MASTER_ROLE);
         List<DiscoveryNodeRole> roles = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
-            final DiscoveryNodeRole role = i == numNodes - 1 && roles.contains(DiscoveryNodeRole.MASTER_ROLE) == false
-                ? DiscoveryNodeRole.MASTER_ROLE
-                : // last node and still no master
-                randomFrom(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE);
+            final DiscoveryNodeRole role = i == numNodes - 1 && roles.contains(clusterManagerRole) == false
+                ? clusterManagerRole  // last node and still no master
+                : randomFrom(clusterManagerRole, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE);
             roles.add(role);
         }
 
         cluster.setBootstrapMasterNodeIndex(
-            randomIntBetween(0, (int) roles.stream().filter(role -> role.equals(DiscoveryNodeRole.MASTER_ROLE)).count() - 1)
+            randomIntBetween(0, (int) roles.stream().filter(role -> role.equals(clusterManagerRole)).count() - 1)
         );
 
         try {
@@ -416,7 +418,7 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
             for (int i = 0; i < numNodes; i++) {
                 final DiscoveryNodeRole role = roles.get(i);
                 final String node;
-                if (role == DiscoveryNodeRole.MASTER_ROLE) {
+                if (role == clusterManagerRole) {
                     node = cluster.startMasterOnlyNode();
                 } else if (role == DiscoveryNodeRole.DATA_ROLE) {
                     node = cluster.startDataOnlyNode();
@@ -438,7 +440,7 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
                 DiscoveryNode node = cluster.getInstance(ClusterService.class, name).localNode();
                 List<String> paths = Arrays.stream(getNodePaths(cluster, name)).map(Path::toString).collect(Collectors.toList());
                 if (node.isMasterNode()) {
-                    result.computeIfAbsent(DiscoveryNodeRole.MASTER_ROLE, k -> new HashSet<>()).addAll(paths);
+                    result.computeIfAbsent(clusterManagerRole, k -> new HashSet<>()).addAll(paths);
                 } else if (node.isDataNode()) {
                     result.computeIfAbsent(DiscoveryNodeRole.DATA_ROLE, k -> new HashSet<>()).addAll(paths);
                 } else {

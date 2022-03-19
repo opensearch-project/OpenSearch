@@ -5,7 +5,7 @@ services:
     image: opensearch:test
     environment:
        - node.name=opensearch-1
-       - cluster.initial_master_nodes=opensearch-1
+       - cluster.initial_cluster_manager_nodes=opensearch-1
        - cluster.name=opensearch-1
        - bootstrap.memory_lock=true
        - network.publish_host=127.0.0.1
@@ -39,7 +39,7 @@ services:
     image: opensearch:test
     environment:
        - node.name=opensearch-2
-       - cluster.initial_master_nodes=opensearch-2
+       - cluster.initial_cluster_manager_nodes=opensearch-2
        - cluster.name=opensearch-2
        - bootstrap.memory_lock=true
        - network.publish_host=127.0.0.1

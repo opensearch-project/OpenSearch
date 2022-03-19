@@ -141,11 +141,9 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<
     /**
      * A specialized simplified mapping source method, takes the form of simple properties definition:
      * ("field1", "type=string,store=true").
-     * @deprecated types are being removed
      */
-    @Deprecated
-    public CreateIndexRequestBuilder addMapping(String type, Object... source) {
-        request.mapping(type, source);
+    public CreateIndexRequestBuilder setMapping(String... source) {
+        request.simpleMapping(source);
         return this;
     }
 

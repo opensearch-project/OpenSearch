@@ -1,17 +1,27 @@
 {
-  "cat.master":{
+  "cat.cluster_manager":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cat-master.html",
-      "description":"Returns information about the master node."
+      "url":"https://opensearch.org/docs/latest/opensearch/rest-api/cat/cat-master/",
+      "description":"Returns information about the cluster-manager node."
     },
     "stability":"stable",
     "url":{
       "paths":[
         {
-          "path":"/_cat/master",
+          "path":"/_cat/cluster_manager",
           "methods":[
             "GET"
           ]
+        },
+        {
+          "path":"/_cat/master",
+          "methods":[
+            "GET"
+          ],
+          "deprecated":{
+            "version":"2.0.0",
+            "description":"To promote inclusive language, please use '/_cat/cluster_manager' instead."
+          }
         }
       ]
     },
@@ -22,7 +32,7 @@
       },
       "local":{
         "type":"boolean",
-        "description":"Return local information, do not retrieve the state from master node (default: false)"
+        "description":"Return local information, do not retrieve the state from cluster-manager node (default: false)"
       },
       "master_timeout":{
         "type":"time",

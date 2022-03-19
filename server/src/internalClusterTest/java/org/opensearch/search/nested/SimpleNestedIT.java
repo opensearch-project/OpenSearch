@@ -73,7 +73,7 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class SimpleNestedIT extends OpenSearchIntegTestCase {
     public void testSimpleNested() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "nested1", "type=nested"));
+        assertAcked(prepareCreate("test").setMapping("nested1", "type=nested"));
         ensureGreen();
 
         // check on no data, see it works
@@ -1597,7 +1597,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
         if (loadFixedBitSeLazily) {
             settingsBuilder.put("index.load_fixed_bitset_filters_eagerly", false);
         }
-        assertAcked(prepareCreate("test").setSettings(settingsBuilder).addMapping("type"));
+        assertAcked(prepareCreate("test").setSettings(settingsBuilder));
 
         client().prepareIndex("test").setId("0").setSource("field", "value").get();
         client().prepareIndex("test").setId("1").setSource("field", "value").get();

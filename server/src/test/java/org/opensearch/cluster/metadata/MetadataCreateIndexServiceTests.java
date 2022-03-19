@@ -582,7 +582,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     private DiscoveryNode newNode(String nodeId) {
         final Set<DiscoveryNodeRole> roles = Collections.unmodifiableSet(
-            new HashSet<>(Arrays.asList(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+            new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE))
         );
         return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
     }

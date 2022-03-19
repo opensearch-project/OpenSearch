@@ -87,8 +87,7 @@ public abstract class AbstractGeoTestCase extends OpenSearchIntegTestCase {
     public void setupSuiteScopeCluster() throws Exception {
         createIndex(UNMAPPED_IDX_NAME);
         assertAcked(
-            prepareCreate(IDX_NAME).addMapping(
-                "type",
+            prepareCreate(IDX_NAME).setMapping(
                 SINGLE_VALUED_FIELD_NAME,
                 "type=geo_point",
                 MULTI_VALUED_FIELD_NAME,
@@ -168,11 +167,10 @@ public abstract class AbstractGeoTestCase extends OpenSearchIntegTestCase {
             );
         }
 
-        assertAcked(prepareCreate(EMPTY_IDX_NAME).addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=geo_point"));
+        assertAcked(prepareCreate(EMPTY_IDX_NAME).setMapping(SINGLE_VALUED_FIELD_NAME, "type=geo_point"));
 
         assertAcked(
-            prepareCreate(DATELINE_IDX_NAME).addMapping(
-                "type",
+            prepareCreate(DATELINE_IDX_NAME).setMapping(
                 SINGLE_VALUED_FIELD_NAME,
                 "type=geo_point",
                 MULTI_VALUED_FIELD_NAME,
@@ -205,8 +203,7 @@ public abstract class AbstractGeoTestCase extends OpenSearchIntegTestCase {
         }
         assertAcked(
             prepareCreate(HIGH_CARD_IDX_NAME).setSettings(Settings.builder().put("number_of_shards", 2))
-                .addMapping(
-                    "type",
+                .setMapping(
                     SINGLE_VALUED_FIELD_NAME,
                     "type=geo_point",
                     MULTI_VALUED_FIELD_NAME,
@@ -247,7 +244,7 @@ public abstract class AbstractGeoTestCase extends OpenSearchIntegTestCase {
             client().prepareIndex(IDX_ZERO_NAME)
                 .setSource(jsonBuilder().startObject().array(SINGLE_VALUED_FIELD_NAME, 0.0, 1.0).endObject())
         );
-        assertAcked(prepareCreate(IDX_ZERO_NAME).addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=geo_point"));
+        assertAcked(prepareCreate(IDX_ZERO_NAME).setMapping(SINGLE_VALUED_FIELD_NAME, "type=geo_point"));
 
         indexRandom(true, builders);
         ensureSearchable();

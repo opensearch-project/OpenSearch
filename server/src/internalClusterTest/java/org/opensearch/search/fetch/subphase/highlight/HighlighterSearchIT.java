@@ -332,9 +332,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
     // see #3486
     public void testHighTermFrequencyDoc() throws IOException {
-        assertAcked(
-            prepareCreate("test").addMapping("test", "name", "type=text,term_vector=with_positions_offsets,store=" + randomBoolean())
-        );
+        assertAcked(prepareCreate("test").setMapping("name", "type=text,term_vector=with_positions_offsets,store=" + randomBoolean()));
         StringBuilder builder = new StringBuilder();
         for (int i = 0; i < 6000; i++) {
             builder.append("abc").append(" ");
@@ -350,8 +348,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
     public void testEnsureNoNegativeOffsets() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 "no_long_term",
                 "type=text,term_vector=with_positions_offsets",
                 "long_term",
@@ -620,8 +617,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
     public void testHighlightIssue1994() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 "title",
                 "type=text,store=false",
                 "titleTV",
@@ -697,8 +693,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     // Issue #5175
     public void testHighlightingOnWildcardFields() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 "field-postings",
                 "type=text,index_options=offsets",
                 "field-fvh",
@@ -1277,7 +1272,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testSameContent() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "title", "type=text,store=true,term_vector=with_positions_offsets"));
+        assertAcked(prepareCreate("test").setMapping("title", "type=text,store=true,term_vector=with_positions_offsets"));
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < 5; i++) {
@@ -1305,7 +1300,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testFastVectorHighlighterOffsetParameter() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "title", "type=text,store=true,term_vector=with_positions_offsets").get());
+        assertAcked(prepareCreate("test").setMapping("title", "type=text,store=true,term_vector=with_positions_offsets").get());
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < 5; i++) {
@@ -1327,7 +1322,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testEscapeHtml() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "title", "type=text,store=true"));
+        assertAcked(prepareCreate("test").setMapping("title", "type=text,store=true"));
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < indexRequestBuilders.length; i++) {
@@ -1348,7 +1343,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testEscapeHtmlVector() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "title", "type=text,store=true,term_vector=with_positions_offsets"));
+        assertAcked(prepareCreate("test").setMapping("title", "type=text,store=true,term_vector=with_positions_offsets"));
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < 5; i++) {
@@ -1547,7 +1542,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testFastVectorHighlighterShouldFailIfNoTermVectors() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "title", "type=text,store=true,term_vector=no"));
+        assertAcked(prepareCreate("test").setMapping("title", "type=text,store=true,term_vector=no"));
         ensureGreen();
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
@@ -1584,9 +1579,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testDisableFastVectorHighlighter() throws Exception {
-        assertAcked(
-            prepareCreate("test").addMapping("type1", "title", "type=text,store=true,term_vector=with_positions_offsets,analyzer=classic")
-        );
+        assertAcked(prepareCreate("test").setMapping("title", "type=text,store=true,term_vector=with_positions_offsets,analyzer=classic"));
         ensureGreen();
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
@@ -1645,7 +1638,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testFSHHighlightAllMvFragments() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "tags", "type=text,term_vector=with_positions_offsets"));
+        assertAcked(prepareCreate("test").setMapping("tags", "type=text,term_vector=with_positions_offsets"));
         ensureGreen();
         client().prepareIndex("test")
             .setId("1")
@@ -1737,7 +1730,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testPlainHighlightDifferentFragmenter() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "tags", "type=text"));
+        assertAcked(prepareCreate("test").setMapping("tags", "type=text"));
         ensureGreen();
         client().prepareIndex("test")
             .setId("1")
@@ -1824,8 +1817,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
     public void testFastVectorHighlighterMultipleFields() {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 "field1",
                 "type=text,term_vector=with_positions_offsets",
                 "field2",
@@ -1849,7 +1841,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testMissingStoredField() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "highlight_field", "type=text,store=true"));
+        assertAcked(prepareCreate("test").setMapping("highlight_field", "type=text,store=true"));
         ensureGreen();
         client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("field", "highlight").endObject()).get();
         refresh();
@@ -1869,8 +1861,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     // Issue #3211
     public void testNumericHighlighting() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "test",
+            prepareCreate("test").setMapping(
                 "text",
                 "type=text",
                 "byte",
@@ -1911,7 +1902,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
         assertAcked(
             prepareCreate("test").setSettings(
                 Settings.builder().put(indexSettings()).put("analysis.analyzer.my_analyzer.type", "mock_whitespace").build()
-            ).addMapping("type", "text", "type=text,analyzer=my_analyzer")
+            ).setMapping("text", "type=text,analyzer=my_analyzer")
         );
         ensureGreen();
         client().prepareIndex("test").setId("1").setSource("text", "opensearch test").get();
@@ -1927,8 +1918,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
     public void testHighlightUsesHighlightQuery() throws IOException {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 "text",
                 "type=text," + randomStoreField() + "term_vector=with_positions_offsets,index_options=offsets"
             )
@@ -1974,8 +1964,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
     public void testHighlightNoMatchSize() throws IOException {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 "text",
                 "type=text," + randomStoreField() + "term_vector=with_positions_offsets,index_options=offsets"
             )
@@ -2085,8 +2074,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
     public void testHighlightNoMatchSizeWithMultivaluedFields() throws IOException {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 "text",
                 "type=text," + randomStoreField() + "term_vector=with_positions_offsets,index_options=offsets"
             )
@@ -2181,8 +2169,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
 
     public void testHighlightNoMatchSizeNumberOfFragments() throws IOException {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 "text",
                 "type=text," + randomStoreField() + "term_vector=with_positions_offsets,index_options=offsets"
             )
@@ -2506,7 +2493,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testPostingsHighlighterEscapeHtml() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "title", "type=text," + randomStoreField() + "index_options=offsets"));
+        assertAcked(prepareCreate("test").setMapping("title", "type=text," + randomStoreField() + "index_options=offsets"));
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < 5; i++) {
@@ -3342,7 +3329,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("index-1")
-                .addMapping("type", "d", "type=date", "field", "type=text,store=true,term_vector=with_positions_offsets")
+                .setMapping("d", "type=date", "field", "type=text,store=true,term_vector=with_positions_offsets")
                 .setSettings(Settings.builder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
                 .get()
         );
@@ -3461,9 +3448,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     public void testWithNormalizer() throws Exception {
         Builder builder = Settings.builder().put(indexSettings()).putList("index.analysis.normalizer.my_normalizer.filter", "lowercase");
 
-        assertAcked(
-            prepareCreate("test").setSettings(builder.build()).addMapping("doc", "keyword", "type=keyword,normalizer=my_normalizer")
-        );
+        assertAcked(prepareCreate("test").setSettings(builder.build()).setMapping("keyword", "type=keyword,normalizer=my_normalizer"));
         ensureGreen();
 
         client().prepareIndex("test")
@@ -3485,7 +3470,7 @@ public class HighlighterSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testDisableHighlightIdField() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("doc", "keyword", "type=keyword"));
+        assertAcked(prepareCreate("test").setMapping("keyword", "type=keyword"));
         ensureGreen();
 
         client().prepareIndex("test")

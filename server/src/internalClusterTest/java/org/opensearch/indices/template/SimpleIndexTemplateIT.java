@@ -554,7 +554,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             .indices()
             .preparePutTemplate("template_with_aliases")
             .setPatterns(Collections.singletonList("te*"))
-            .addMapping("_doc", "type", "type=keyword", "field", "type=text")
+            .setMapping("type", "type=keyword", "field", "type=text")
             .addAlias(new Alias("simple_alias"))
             .addAlias(new Alias("templated_alias-{index}"))
             .addAlias(new Alias("filtered_alias").filter("{\"term\":{\"type\":\"type2\"}}"))
@@ -624,7 +624,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             )
             .get();
 
-        assertAcked(prepareCreate("test_index").addMapping("_doc"));
+        assertAcked(prepareCreate("test_index"));
         ensureGreen();
 
         GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().setIndices("test_index").get();
@@ -663,7 +663,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             )
             .get();
 
-        assertAcked(prepareCreate("test_index").addMapping("_doc"));
+        assertAcked(prepareCreate("test_index"));
         ensureGreen();
 
         GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().setIndices("test_index").get();
@@ -820,7 +820,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             .preparePutTemplate("template1")
             .setPatterns(Collections.singletonList("a*"))
             .setOrder(0)
-            .addMapping("test", "field", "type=text")
+            .setMapping("field", "type=text")
             .addAlias(new Alias("alias1").filter(termQuery("field", "value")))
             .get();
         // Indexing into b index should fail, since there is field with name 'field' in the mapping
@@ -930,7 +930,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
                 .setPatterns(Collections.singletonList("te*"))
                 .setVersion(version)
                 .setOrder(order)
-                .addMapping("test", "field", "type=text")
+                .setMapping("field", "type=text")
                 .get()
         );
 
