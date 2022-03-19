@@ -90,7 +90,7 @@ public class NoMasterNodeIT extends OpenSearchIntegTestCase {
     public void testNoMasterActions() throws Exception {
         Settings settings = Settings.builder()
             .put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), true)
-            .put(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), "all")
+            .put(NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), "all")
             .build();
 
         final TimeValue timeout = TimeValue.timeValueMillis(10);
@@ -242,7 +242,7 @@ public class NoMasterNodeIT extends OpenSearchIntegTestCase {
     public void testNoMasterActionsWriteMasterBlock() throws Exception {
         Settings settings = Settings.builder()
             .put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), false)
-            .put(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), "write")
+            .put(NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), "write")
             .build();
 
         final List<String> nodes = internalCluster().startNodes(3, settings);
@@ -323,7 +323,7 @@ public class NoMasterNodeIT extends OpenSearchIntegTestCase {
 
     public void testNoMasterActionsMetadataWriteMasterBlock() throws Exception {
         Settings settings = Settings.builder()
-            .put(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), "metadata_write")
+            .put(NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), "metadata_write")
             .put(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey(), "100ms")
             .build();
 

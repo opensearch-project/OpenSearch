@@ -55,6 +55,7 @@
                 "routing_table",
                 "routing_nodes",
                 "master_node",
+                "cluster_manager_node",
                 "version"
               ],
               "description":"Limit the information returned to the specified metrics"

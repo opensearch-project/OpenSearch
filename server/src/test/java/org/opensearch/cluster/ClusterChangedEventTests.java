@@ -447,17 +447,17 @@ public class ClusterChangedEventTests extends OpenSearchTestCase {
             if (i == 0) {
                 // the master node
                 builder.masterNodeId(nodeId);
-                roles.add(DiscoveryNodeRole.MASTER_ROLE);
+                roles.add(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
             } else if (i == 1) {
                 // the alternate master node
-                roles.add(DiscoveryNodeRole.MASTER_ROLE);
+                roles.add(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
             } else if (i == 2) {
                 // we need at least one data node
                 roles.add(DiscoveryNodeRole.DATA_ROLE);
             } else {
                 // remaining nodes can be anything (except for master)
                 if (randomBoolean()) {
-                    roles.add(DiscoveryNodeRole.MASTER_ROLE);
+                    roles.add(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
                 }
                 if (randomBoolean()) {
                     roles.add(DiscoveryNodeRole.DATA_ROLE);

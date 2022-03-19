@@ -94,6 +94,7 @@ public class ClusterRerouteResponseTests extends OpenSearchTestCase {
                     + clusterState.stateUUID()
                     + "\",\n"
                     + "    \"master_node\" : \"node0\",\n"
+                    + "    \"cluster_manager_node\" : \"node0\",\n"
                     + "    \"blocks\" : { },\n"
                     + "    \"nodes\" : {\n"
                     + "      \"node0\" : {\n"
@@ -173,7 +174,7 @@ public class ClusterRerouteResponseTests extends OpenSearchTestCase {
             XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
             Map<String, String> params = new HashMap<>();
             params.put("explain", "true");
-            params.put("metric", "version,master_node");
+            params.put("metric", "version,cluster_manager_node");
             clusterRerouteResponse.toXContent(builder, new ToXContent.MapParams(params));
             assertEquals(
                 "{\n"
@@ -184,7 +185,7 @@ public class ClusterRerouteResponseTests extends OpenSearchTestCase {
                     + "    \"state_uuid\" : \""
                     + clusterState.stateUUID()
                     + "\",\n"
-                    + "    \"master_node\" : \"node0\"\n"
+                    + "    \"cluster_manager_node\" : \"node0\"\n"
                     + "  },\n"
                     + "  \"explanations\" : [\n"
                     + "    {\n"

@@ -91,3 +91,22 @@
       cluster.stats: {}
 
   - is_true: nodes.packaging_types
+
+---
+"get cluster stats nodes count with both master and cluster_manager":
+  - skip:
+      version: " - 1.4.99"
+      reason: "node role cluster_manager is added in 2.0.0"
+
+  - do:
+      cluster.stats: {}
+
+  - set:
+      nodes.count.cluster_manager: cluster_manager_count
+
+  - gte: { nodes.count.total: 1}
+  - match: { nodes.count.cluster_manager: $cluster_manager_count }
+  - match: { nodes.count.master: $cluster_manager_count }
+  - gte: { nodes.count.data: 1}
+  - gte: { nodes.count.ingest: 0}
+  - gte: { nodes.count.coordinating_only: 0}

@@ -327,7 +327,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         Supplier<MockIndicesService> indicesServiceSupplier
     ) {
         List<DiscoveryNode> allNodes = new ArrayList<>();
-        DiscoveryNode localNode = createNode(DiscoveryNodeRole.MASTER_ROLE); // local node is the master
+        DiscoveryNode localNode = createNode(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE); // local node is the master
         allNodes.add(localNode);
         // at least two nodes that have the data role so that we can allocate shards
         allNodes.add(createNode(DiscoveryNodeRole.DATA_ROLE));

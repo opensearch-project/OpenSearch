@@ -602,7 +602,7 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
         );
 
         assertThat(ex.getMessage(), containsString(indexPath.resolve(MetadataStateFormat.STATE_DIR_NAME).toAbsolutePath().toString()));
-        assertThat(ex.getMessage(), startsWith("node does not have the data and master roles but has index metadata"));
+        assertThat(ex.getMessage(), startsWith("node does not have the data and cluster_manager roles but has index metadata"));
     }
 
     /** Converts an array of Strings to an array of Paths, adding an additional child if specified */

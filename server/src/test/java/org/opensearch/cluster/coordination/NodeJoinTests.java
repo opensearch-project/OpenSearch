@@ -248,7 +248,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
     protected DiscoveryNode newNode(int i, boolean master) {
         final Set<DiscoveryNodeRole> roles;
         if (master) {
-            roles = singleton(DiscoveryNodeRole.MASTER_ROLE);
+            roles = singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
         } else {
             roles = Collections.emptySet();
         }
@@ -492,7 +492,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
             "newNodeId",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         long newTerm = initialTerm + randomLongBetween(1, 10);

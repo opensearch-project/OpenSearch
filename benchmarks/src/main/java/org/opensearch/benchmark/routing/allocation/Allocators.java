@@ -111,7 +111,7 @@ public final class Allocators {
             nodeId,
             new TransportAddress(TransportAddress.META_ADDRESS, portGenerator.incrementAndGet()),
             attributes,
-            Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
+            Sets.newHashSet(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE),
             Version.CURRENT
         );
     }

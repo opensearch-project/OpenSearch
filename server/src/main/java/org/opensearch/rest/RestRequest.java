@@ -54,6 +54,7 @@ import org.opensearch.http.HttpRequest;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -576,6 +577,32 @@ public class RestRequest implements ToXContent.Params {
             }
         }
         throw new IllegalArgumentException("empty Content-Type header");
+    }
+
+    /**
+     * The method is only used to validate whether the values of the 2 request parameters "master_timeout" and "cluster_manager_timeout" is the same value or not.
+     * If the 2 values are not the same, throw an {@link OpenSearchParseException}.
+     * @param keys Names of the request parameters.
+     * @deprecated The method will be removed along with the request parameter "master_timeout".
+     */
+    @Deprecated
+    public void validateParamValuesAreEqual(String... keys) {
+        // Track the last seen value and ensure that every subsequent value matches it.
+        // The value to be tracked is the non-empty values of the parameters with the key.
+        String lastSeenValue = null;
+        for (String key : keys) {
+            String value = param(key);
+            if (!Strings.isNullOrEmpty(value)) {
+                if (lastSeenValue == null || value.equals(lastSeenValue)) {
+                    lastSeenValue = value;
+                } else {
+                    throw new OpenSearchParseException(
+                        "The values of the request parameters: {} are required to be equal, otherwise please only assign value to one of the request parameters.",
+                        Arrays.toString(keys)
+                    );
+                }
+            }
+        }
     }
 
     public static class ContentTypeHeaderException extends RuntimeException {

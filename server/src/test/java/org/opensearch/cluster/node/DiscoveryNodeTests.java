@@ -174,6 +174,12 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
         runTestDiscoveryNodeIsRemoteClusterClient(nonRemoteClusterClientNode(), false);
     }
 
+    // TODO: Remove the test along with MASTER_ROLE. It is added in 2.0, along with the introduction of CLUSTER_MANAGER_ROLE.
+    public void testSetAdditionalRolesCanAddDeprecatedMasterRole() {
+        DiscoveryNode.setAdditionalRoles(Collections.emptySet());
+        assertTrue(DiscoveryNode.getPossibleRoleNames().contains(DiscoveryNodeRole.MASTER_ROLE.roleName()));
+    }
+
     private void runTestDiscoveryNodeIsRemoteClusterClient(final Settings settings, final boolean expected) {
         final DiscoveryNode node = DiscoveryNode.createLocal(settings, new TransportAddress(TransportAddress.META_ADDRESS, 9200), "node");
         assertThat(node.isRemoteClusterClient(), equalTo(expected));
