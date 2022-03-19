@@ -722,7 +722,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         private final AckedClusterStateTaskListener ackedTaskListener;
         private final CountDown countDown;
-        private final DiscoveryNode masterNode;
+        private final DiscoveryNode clusterManagerNode;
         private final ThreadPool threadPool;
         private final long clusterStateVersion;
         private volatile Scheduler.Cancellable ackTimeoutCallback;
@@ -737,11 +737,11 @@ public class MasterService extends AbstractLifecycleComponent {
             this.ackedTaskListener = ackedTaskListener;
             this.clusterStateVersion = clusterStateVersion;
             this.threadPool = threadPool;
-            this.masterNode = nodes.getMasterNode();
+            this.clusterManagerNode = nodes.getMasterNode();
             int countDown = 0;
             for (DiscoveryNode node : nodes) {
                 // we always wait for at least the master node
-                if (node.equals(masterNode) || ackedTaskListener.mustAck(node)) {
+                if (node.equals(clusterManagerNode) || ackedTaskListener.mustAck(node)) {
                     countDown++;
                 }
             }
@@ -771,7 +771,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         @Override
         public void onNodeAck(DiscoveryNode node, @Nullable Exception e) {
-            if (node.equals(masterNode) == false && ackedTaskListener.mustAck(node) == false) {
+            if (node.equals(clusterManagerNode) == false && ackedTaskListener.mustAck(node) == false) {
                 return;
             }
             if (e == null) {

@@ -177,14 +177,14 @@ public class ShardStateAction {
         final ActionListener<Void> listener
     ) {
         ClusterStateObserver observer = new ClusterStateObserver(currentState, clusterService, null, logger, threadPool.getThreadContext());
-        DiscoveryNode masterNode = currentState.nodes().getMasterNode();
+        DiscoveryNode clusterManagerNode = currentState.nodes().getMasterNode();
         Predicate<ClusterState> changePredicate = MasterNodeChangePredicate.build(currentState);
-        if (masterNode == null) {
+        if (clusterManagerNode == null) {
             logger.warn("no master known for action [{}] for shard entry [{}]", actionName, request);
             waitForNewMasterAndRetry(actionName, observer, request, listener, changePredicate);
         } else {
-            logger.debug("sending [{}] to [{}] for shard entry [{}]", actionName, masterNode.getId(), request);
-            transportService.sendRequest(masterNode, actionName, request, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+            logger.debug("sending [{}] to [{}] for shard entry [{}]", actionName, clusterManagerNode.getId(), request);
+            transportService.sendRequest(clusterManagerNode, actionName, request, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                 @Override
                 public void handleResponse(TransportResponse.Empty response) {
                     listener.onResponse(null);
@@ -199,7 +199,7 @@ public class ShardStateAction {
                             new ParameterizedMessage(
                                 "unexpected failure while sending request [{}]" + " to [{}] for shard entry [{}]",
                                 actionName,
-                                masterNode,
+                                clusterManagerNode,
                                 request
                             ),
                             exp
