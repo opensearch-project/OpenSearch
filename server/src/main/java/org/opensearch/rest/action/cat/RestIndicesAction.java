@@ -109,7 +109,7 @@ public class RestIndicesAction extends AbstractCatAction {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, IndicesOptions.strictExpand());
         final boolean local = request.paramAsBoolean("local", false);
-        final TimeValue clusterManagerNodeTimeout = request.paramAsTime("master_timeout", DEFAULT_MASTER_NODE_TIMEOUT);
+        final TimeValue masterNodeTimeout = request.paramAsTime("master_timeout", DEFAULT_MASTER_NODE_TIMEOUT);
         final boolean includeUnloadedSegments = request.paramAsBoolean("include_unloaded_segments", false);
 
         return channel -> {
@@ -120,7 +120,7 @@ public class RestIndicesAction extends AbstractCatAction {
                 }
             });
 
-            sendGetSettingsRequest(indices, indicesOptions, local, clusterManagerNodeTimeout, client, new ActionListener<GetSettingsResponse>() {
+            sendGetSettingsRequest(indices, indicesOptions, local, masterNodeTimeout, client, new ActionListener<GetSettingsResponse>() {
                 @Override
                 public void onResponse(final GetSettingsResponse getSettingsResponse) {
                     final GroupedActionListener<ActionResponse> groupedListener = createGroupedListener(request, 4, listener);
@@ -151,7 +151,7 @@ public class RestIndicesAction extends AbstractCatAction {
                         indices,
                         subRequestIndicesOptions,
                         local,
-                        clusterManagerNodeTimeout,
+                        masterNodeTimeout,
                         client,
                         ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
                     );
@@ -159,7 +159,7 @@ public class RestIndicesAction extends AbstractCatAction {
                         indices,
                         subRequestIndicesOptions,
                         local,
-                        clusterManagerNodeTimeout,
+                        masterNodeTimeout,
                         client,
                         ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
                     );
