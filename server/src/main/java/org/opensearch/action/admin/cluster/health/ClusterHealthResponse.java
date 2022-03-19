@@ -151,7 +151,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         // ClusterStateHealth fields
         PARSER.declareInt(constructorArg(), new ParseField(NUMBER_OF_NODES));
         PARSER.declareInt(constructorArg(), new ParseField(NUMBER_OF_DATA_NODES));
-        PARSER.declareBoolean(constructorArg(), new ParseField(DISCOVERED_CLUSTER_MANAGER));
+        PARSER.declareBoolean(constructorArg(), new ParseField(DISCOVERED_MASTER));
         PARSER.declareInt(constructorArg(), new ParseField(ACTIVE_SHARDS));
         PARSER.declareInt(constructorArg(), new ParseField(RELOCATING_SHARDS));
         PARSER.declareInt(constructorArg(), new ParseField(ACTIVE_PRIMARY_SHARDS));
