@@ -122,7 +122,7 @@ dependencies {
   testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
   testFixturesApi gradleApi()
   testFixturesApi gradleTestKit()
-  testImplementation 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
+  testImplementation 'com.github.tomakehurst:wiremock-jre8-standalone:2.32.0'
   testImplementation "org.mockito:mockito-core:${props.getProperty('mockito')}"
   integTestImplementation('org.spockframework:spock-core:2.1-groovy-3.0') {
     exclude module: "groovy"
