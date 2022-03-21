@@ -39,6 +39,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
@@ -90,10 +91,9 @@ public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIn
                 .endObject()
                 .endObject()
                 .endObject();
-            request1.mapping("type1", builder);
+            request1.mapping(builder);
             builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
             builder.startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("field1")
                 .field("type", "text")
@@ -106,17 +106,16 @@ public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIn
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
                 .endObject();
-            request2.mapping("type1", builder);
+            request2.mapping(builder);
             assertEquals(request1.mappings(), request2.mappings());
         }
         {
             request1 = new PutIndexTemplateRequest("foo");
             request2 = new PutIndexTemplateRequest("bar");
             String nakedMapping = "{\"properties\": {\"foo\": {\"type\": \"integer\"}}}";
-            request1.mapping("type2", nakedMapping, XContentType.JSON);
-            request2.mapping("type2", "{\"type2\": " + nakedMapping + "}", XContentType.JSON);
+            request1.mapping(nakedMapping, XContentType.JSON);
+            request2.mapping(nakedMapping, XContentType.JSON);
             assertEquals(request1.mappings(), request2.mappings());
         }
         {
@@ -130,8 +129,8 @@ public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIn
                         .map()
                 )
                 .map();
-            request1.mapping("type3", nakedMapping);
-            request2.mapping("type3", MapBuilder.<String, Object>newMapBuilder().put("type3", nakedMapping).map());
+            request1.mapping(nakedMapping);
+            request2.mapping(MapBuilder.<String, Object>newMapBuilder().put(MapperService.SINGLE_MAPPING_NAME, nakedMapping).map());
             assertEquals(request1.mappings(), request2.mappings());
         }
     }
@@ -163,7 +162,6 @@ public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIn
         if (randomBoolean()) {
             try {
                 request.mapping(
-                    "doc",
                     XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("doc")
