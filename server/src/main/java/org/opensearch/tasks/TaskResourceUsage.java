@@ -30,6 +30,9 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
  * information of running tasks.
  */
 public class TaskResourceUsage implements Writeable, ToXContentFragment {
+    private static final ParseField CPU_TIME_IN_NANOS = new ParseField("cpu_time_in_nanos");
+    private static final ParseField MEMORY_IN_BYTES = new ParseField("memory_in_bytes");
+
     private final long cpuTimeInNanos;
     private final long memoryInBytes;
 
@@ -61,8 +64,8 @@ public class TaskResourceUsage implements Writeable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(ResourceStats.CPU.toString(), cpuTimeInNanos);
-        builder.field(ResourceStats.MEMORY.toString(), memoryInBytes);
+        builder.field(CPU_TIME_IN_NANOS.getPreferredName(), cpuTimeInNanos);
+        builder.field(MEMORY_IN_BYTES.getPreferredName(), memoryInBytes);
         return builder;
     }
 
@@ -72,8 +75,8 @@ public class TaskResourceUsage implements Writeable, ToXContentFragment {
     );
 
     static {
-        PARSER.declareLong(constructorArg(), new ParseField(ResourceStats.CPU.toString()));
-        PARSER.declareLong(constructorArg(), new ParseField(ResourceStats.MEMORY.toString()));
+        PARSER.declareLong(constructorArg(), CPU_TIME_IN_NANOS);
+        PARSER.declareLong(constructorArg(), MEMORY_IN_BYTES);
     }
 
     public static TaskResourceUsage fromXContent(XContentParser parser) {

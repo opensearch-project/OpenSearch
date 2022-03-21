@@ -135,4 +135,5 @@ public class CancelTasksResponseTests extends AbstractXContentTestCase<CancelTas
         }
         return new CancelTasksResponse(randomTasks(), taskFailures, nodeFailures);
     }
+
 }

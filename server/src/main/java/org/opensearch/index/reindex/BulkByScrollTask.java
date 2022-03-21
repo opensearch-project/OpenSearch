@@ -122,7 +122,7 @@ public class BulkByScrollTask extends CancellableTask {
             sliceStatuses.set(status.getSliceId(), new BulkByScrollTask.StatusOrException(status));
         }
         Status status = leaderState.getStatus(sliceStatuses);
-        return taskInfo(localNodeId, getDescription(), status, null);
+        return taskInfo(localNodeId, getDescription(), status);
     }
 
     private BulkByScrollTask.Status emptyStatus() {

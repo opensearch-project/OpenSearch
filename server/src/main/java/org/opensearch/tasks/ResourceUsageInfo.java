@@ -11,13 +11,15 @@ package org.opensearch.tasks;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.Collections;
 import java.util.EnumMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Thread resource usage information for particular resource stats type.
  * <p>
- * It captures the resource usage information about a particular execution of thread
+ * It captures the resource usage information like memory, CPU about a particular execution of thread
  * for a specific stats type.
  */
 public class ResourceUsageInfo {
@@ -32,11 +34,16 @@ public class ResourceUsageInfo {
 
     public void recordResourceUsageMetrics(ResourceUsageMetric... resourceUsageMetrics) {
         for (ResourceUsageMetric resourceUsageMetric : resourceUsageMetrics) {
-            ResourceStatsInfo resourceStatsInfo = statsInfo.get(resourceUsageMetric.getStats());
-            if (resourceStatsInfo == null) {
-                statsInfo.put(resourceUsageMetric.getStats(), new ResourceStatsInfo(resourceUsageMetric.getValue()));
-            } else {
+            final ResourceStatsInfo resourceStatsInfo = statsInfo.get(resourceUsageMetric.getStats());
+            if (resourceStatsInfo != null) {
                 updateResourceUsageInfo(resourceStatsInfo, resourceUsageMetric);
+            } else {
+                throw new IllegalStateException(
+                    "cannot update ["
+                        + resourceUsageMetric.getStats().toString()
+                        + "] entry as its not present current_stats_info:"
+                        + statsInfo
+                );
             }
         }
     }
@@ -49,7 +56,7 @@ public class ResourceUsageInfo {
             newEndValue = resourceUsageMetric.getValue();
             if (currentEndValue > newEndValue) {
                 logger.debug(
-                    "Dropping resource usage update as the new value is lower than current value ["
+                    "dropping resource usage update as the new value is lower than current value ["
                         + "resource_stats=[{}], "
                         + "current_end_value={}, "
                         + "new_end_value={}]",
@@ -61,15 +68,15 @@ public class ResourceUsageInfo {
             }
         } while (!resourceStatsInfo.endValue.compareAndSet(currentEndValue, newEndValue));
         logger.debug(
-            "Updated resource usage info [resource_stats=[{}], " + "old_end_value={}, new_end_value={}]",
+            "updated resource usage info [resource_stats=[{}], " + "old_end_value={}, new_end_value={}]",
             resourceUsageMetric.getStats(),
             currentEndValue,
             newEndValue
         );
     }
 
-    public EnumMap<ResourceStats, ResourceStatsInfo> getStatsInfo() {
-        return statsInfo;
+    public Map<ResourceStats, ResourceStatsInfo> getStatsInfo() {
+        return Collections.unmodifiableMap(statsInfo);
     }
 
     @Override

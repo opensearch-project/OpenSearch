@@ -42,6 +42,7 @@ import org.opensearch.common.xcontent.ToXContentObject;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -122,7 +123,7 @@ public class Task {
      *            generate data?
      */
     public final TaskInfo taskInfo(String localNodeId, boolean detailed) {
-        return taskInfo(localNodeId, detailed, !detailed);
+        return taskInfo(localNodeId, detailed, detailed == false);
     }
 
     /**
@@ -144,13 +145,20 @@ public class Task {
             status = getStatus();
         }
         if (excludeStats == false) {
-            resourceStats = new TaskResourceStats(new HashMap<String, TaskResourceUsage>() {
+            resourceStats = new TaskResourceStats(new HashMap<>() {
                 {
                     put(TOTAL, getTotalResourceStats());
                 }
             });
         }
         return taskInfo(localNodeId, description, status, resourceStats);
+    }
+
+    /**
+     * Build a {@link TaskInfo} for this task without resource stats.
+     */
+    protected final TaskInfo taskInfo(String localNodeId, String description, Status status) {
+        return taskInfo(localNodeId, description, status, null);
     }
 
     /**
@@ -236,11 +244,13 @@ public class Task {
      * Returns thread level resource consumption of the task
      */
     public Map<Long, List<ThreadResourceInfo>> getResourceStats() {
-        return resourceStats;
+        return Collections.unmodifiableMap(resourceStats);
     }
 
     /**
-     * Returns total resource usage of the task
+     * Returns current total resource usage of the task.
+     * Currently, this method is only called on demand, during get and listing of tasks.
+     * In the future, these values can be cached as an optimization.
      */
     public TaskResourceUsage getTotalResourceStats() {
         return new TaskResourceUsage(getTotalResourceUtilization(ResourceStats.CPU), getTotalResourceUtilization(ResourceStats.MEMORY));
@@ -249,14 +259,13 @@ public class Task {
     /**
      * Returns total resource consumption for a specific task stat.
      */
-    public long getTotalResourceUtilization(ResourceStats taskStats) {
+    public long getTotalResourceUtilization(ResourceStats stats) {
         long totalResourceConsumption = 0L;
         for (List<ThreadResourceInfo> threadResourceInfosList : resourceStats.values()) {
             for (ThreadResourceInfo threadResourceInfo : threadResourceInfosList) {
-                for (Map.Entry<ResourceStatsType, ResourceUsageInfo> entry : threadResourceInfo.getResourceUsageInfos().entrySet()) {
-                    if (entry.getKey().isOnlyForAnalysis() == false) {
-                        totalResourceConsumption += entry.getValue().getStatsInfo().get(taskStats).getTotalValue();
-                    }
+                final ResourceUsageInfo.ResourceStatsInfo statsInfo = threadResourceInfo.getResourceUsageInfo().getStatsInfo().get(stats);
+                if (threadResourceInfo.getStatsType().isOnlyForAnalysis() == false && statsInfo != null) {
+                    totalResourceConsumption += statsInfo.getTotalValue();
                 }
             }
         }
@@ -264,67 +273,67 @@ public class Task {
     }
 
     /**
-     * Adds thread's resource consumption information
+     * Adds thread's starting resource consumption information
      * @param threadId ID of the thread
      * @param statsType stats type
      * @param resourceUsageMetrics resource consumption metrics of the thread
+     * @throws IllegalStateException matching active thread entry was found which is not expected.
      */
     public void startThreadResourceTracking(long threadId, ResourceStatsType statsType, ResourceUsageMetric... resourceUsageMetrics) {
-        if (statsType != ResourceStatsType.WORKER_STATS) {
-            throw new IllegalArgumentException("Adding thread resource information should always have WORKER_STATS as stats type");
-        }
         final List<ThreadResourceInfo> threadResourceInfoList = resourceStats.computeIfAbsent(threadId, k -> new ArrayList<>());
-        // active thread entry should not be present in the list.
+        // active thread entry should not be present in the list
         for (ThreadResourceInfo threadResourceInfo : threadResourceInfoList) {
-            if (threadResourceInfo.isActive()) {
-                throw new IllegalStateException("Unexpected active thread entry is present");
+            if (threadResourceInfo.getStatsType() == statsType && threadResourceInfo.isActive()) {
+                throw new IllegalStateException(
+                    "unexpected active thread resource entry present [" + threadId + "]:[" + threadResourceInfo + "]"
+                );
             }
         }
-        threadResourceInfoList.add(new ThreadResourceInfo(ResourceStatsType.WORKER_STATS, resourceUsageMetrics));
+        threadResourceInfoList.add(new ThreadResourceInfo(statsType, resourceUsageMetrics));
     }
 
     /**
      * This method is used to update the resource consumption stats so that the data isn't too stale for long-running task.
-     * If an active thread entry is not present in the list, the update is dropped.
+     * If active thread entry is present in the list, the entry is updated. If one is not found, it throws an exception.
      * @param threadId ID of the thread
      * @param statsType stats type
      * @param resourceUsageMetrics resource consumption metrics of the thread
+     * @throws IllegalStateException if no matching active thread entry was found.
      */
     public void updateThreadResourceStats(long threadId, ResourceStatsType statsType, ResourceUsageMetric... resourceUsageMetrics) {
         final List<ThreadResourceInfo> threadResourceInfoList = resourceStats.get(threadId);
-        if (threadResourceInfoList == null) {
-            throw new IllegalStateException("Cannot update if thread resource info is not present");
-        } else {
-            // If active entry is not present, the update is dropped. If present, the active entry is updated.
+        if (threadResourceInfoList != null) {
             for (ThreadResourceInfo threadResourceInfo : threadResourceInfoList) {
-                if (threadResourceInfo.isActive()) {
-                    threadResourceInfo.updateResourceInfo(statsType, resourceUsageMetrics);
+                // the active entry present in the list is updated
+                if (threadResourceInfo.getStatsType() == statsType && threadResourceInfo.isActive()) {
+                    threadResourceInfo.recordResourceUsageMetrics(resourceUsageMetrics);
                     return;
                 }
             }
         }
+        throw new IllegalStateException("cannot update if active thread resource entry is not present");
     }
 
     /**
      * Record the thread's final resource consumption values.
+     * If active thread entry is present in the list, the entry is updated. If one is not found, it throws an exception.
      * @param threadId ID of the thread
      * @param statsType stats type
      * @param resourceUsageMetrics resource consumption metrics of the thread
+     * @throws IllegalStateException if no matching active thread entry was found.
      */
     public void stopThreadResourceTracking(long threadId, ResourceStatsType statsType, ResourceUsageMetric... resourceUsageMetrics) {
         final List<ThreadResourceInfo> threadResourceInfoList = resourceStats.get(threadId);
-        if (statsType != ResourceStatsType.WORKER_STATS || threadResourceInfoList == null) {
-            throw new IllegalArgumentException(
-                "Recording the end should have WORKER_STATS as stats type" + "and an active entry should be present in the list"
-            );
-        }
-        // marking active entries as done before updating the final resource usage values.
-        for (ThreadResourceInfo threadResourceInfo : threadResourceInfoList) {
-            if (threadResourceInfo.isActive()) {
-                threadResourceInfo.setActive(false);
-                threadResourceInfo.updateResourceInfo(ResourceStatsType.WORKER_STATS, resourceUsageMetrics);
+        if (threadResourceInfoList != null) {
+            for (ThreadResourceInfo threadResourceInfo : threadResourceInfoList) {
+                if (threadResourceInfo.getStatsType() == statsType && threadResourceInfo.isActive()) {
+                    threadResourceInfo.setActive(false);
+                    threadResourceInfo.recordResourceUsageMetrics(resourceUsageMetrics);
+                    return;
+                }
             }
         }
+        throw new IllegalStateException("cannot update final values if active thread resource entry is not present");
     }
 
     /**

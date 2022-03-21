@@ -281,8 +281,8 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
         String action = randomAlphaOfLength(5);
         Task.Status status = detailed ? randomRawTaskStatus() : null;
         String description = detailed ? randomAlphaOfLength(5) : null;
-        long startTime = randomNonNegativeLong();
-        long runningTimeNanos = randomNonNegativeLong();
+        long startTime = randomLong();
+        long runningTimeNanos = randomLong();
         boolean cancellable = randomBoolean();
         boolean cancelled = cancellable == true ? randomBoolean() : false;
         TaskId parentTaskId = randomBoolean() ? TaskId.EMPTY_TASK_ID : randomTaskId();
@@ -323,7 +323,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
         }
     }
 
-    private static TaskResourceStats randomResourceStats(boolean detailed) {
+    public static TaskResourceStats randomResourceStats(boolean detailed) {
         return detailed ? new TaskResourceStats(new HashMap<String, TaskResourceUsage>() {
             {
                 for (int i = 0; i < randomInt(5); i++) {

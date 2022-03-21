@@ -8,45 +8,47 @@
 
 package org.opensearch.tasks;
 
-import java.util.EnumMap;
-
 /**
  * Resource consumption information about a particular execution of thread.
  * <p>
- * It captures the resource usage information about a particular execution of thread.
- * across different stats type like worker_stats or response_stats etc.,
+ * It captures the resource usage information about a particular execution of thread
+ * for a specific stats type like worker_stats or response_stats etc.,
  */
 public class ThreadResourceInfo {
-    private final EnumMap<ResourceStatsType, ResourceUsageInfo> resourceUsageInfos = new EnumMap<>(ResourceStatsType.class);
     private volatile boolean isActive = true;
+    private final ResourceStatsType statsType;
+    private final ResourceUsageInfo resourceUsageInfo;
 
     public ThreadResourceInfo(ResourceStatsType statsType, ResourceUsageMetric... resourceUsageMetrics) {
-        this.resourceUsageInfos.put(statsType, new ResourceUsageInfo(resourceUsageMetrics));
+        this.statsType = statsType;
+        this.resourceUsageInfo = new ResourceUsageInfo(resourceUsageMetrics);
     }
 
-    public void updateResourceInfo(ResourceStatsType statsType, ResourceUsageMetric... resourceUsageMetrics) {
-        ResourceUsageInfo resourceUsageInfo = resourceUsageInfos.get(statsType);
-        if (resourceUsageInfo == null) {
-            resourceUsageInfos.put(statsType, new ResourceUsageInfo());
-        } else {
-            resourceUsageInfo.recordResourceUsageMetrics(resourceUsageMetrics);
-        }
+    /**
+     * Updates thread's resource consumption information.
+     */
+    public void recordResourceUsageMetrics(ResourceUsageMetric... resourceUsageMetrics) {
+        resourceUsageInfo.recordResourceUsageMetrics(resourceUsageMetrics);
     }
 
-    public EnumMap<ResourceStatsType, ResourceUsageInfo> getResourceUsageInfos() {
-        return resourceUsageInfos;
+    public void setActive(boolean isActive) {
+        this.isActive = isActive;
     }
 
     public boolean isActive() {
         return isActive;
     }
 
-    public boolean setActive(boolean active) {
-        return isActive = active;
+    public ResourceStatsType getStatsType() {
+        return statsType;
+    }
+
+    public ResourceUsageInfo getResourceUsageInfo() {
+        return resourceUsageInfo;
     }
 
     @Override
     public String toString() {
-        return resourceUsageInfos + ", is_active=" + isActive;
+        return resourceUsageInfo + ", stats_type=" + statsType + ", is_active=" + isActive;
     }
 }
