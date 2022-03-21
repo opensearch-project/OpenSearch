@@ -509,7 +509,7 @@ public final class IndexSettings {
      * If this time is reached, we proceed with the commit based on segments merged up to that point. The merges are not
      * aborted, and will still run to completion independent of the commit or getReader call, like natural segment merges.
      */
-    public static final Setting<TimeValue> INDEX_MAX_FULL_FLASH_MERGE = Setting.timeSetting(
+    public static final Setting<TimeValue> INDEX_MAX_FULL_FLUSH_MERGE = Setting.timeSetting(
         "index.max_full_flush_merge",
         new TimeValue(0, TimeUnit.MILLISECONDS),
         new TimeValue(0, TimeUnit.MILLISECONDS),
@@ -715,7 +715,7 @@ public final class IndexSettings {
         mappingTotalFieldsLimit = scopedSettings.get(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
         mappingDepthLimit = scopedSettings.get(INDEX_MAPPING_DEPTH_LIMIT_SETTING);
         mappingFieldNameLengthLimit = scopedSettings.get(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
-        maxFullFlushMerge = scopedSettings.get(INDEX_MAX_FULL_FLASH_MERGE);
+        maxFullFlushMerge = scopedSettings.get(INDEX_MAX_FULL_FLUSH_MERGE);
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(
@@ -785,7 +785,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING, this::setMappingTotalFieldsLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DEPTH_LIMIT_SETTING, this::setMappingDepthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING, this::setMappingFieldNameLengthLimit);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_MAX_FULL_FLASH_MERGE, this::setMaxFullFlushMerge);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_MAX_FULL_FLUSH_MERGE, this::setMaxFullFlushMerge);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {

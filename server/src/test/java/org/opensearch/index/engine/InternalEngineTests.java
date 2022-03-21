@@ -499,7 +499,7 @@ public class InternalEngineTests extends EngineTestCase {
 
         final Settings.Builder settings = Settings.builder()
             .put(defaultSettings.getSettings())
-            .put(IndexSettings.INDEX_MAX_FULL_FLASH_MERGE.getKey(), TimeValue.timeValueMillis(5000));
+            .put(IndexSettings.INDEX_MAX_FULL_FLUSH_MERGE.getKey(), TimeValue.timeValueMillis(5000));
         final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
 
@@ -567,7 +567,7 @@ public class InternalEngineTests extends EngineTestCase {
 
         final Settings.Builder settings = Settings.builder()
             .put(defaultSettings.getSettings())
-            .put(IndexSettings.INDEX_MAX_FULL_FLASH_MERGE.getKey(), TimeValue.timeValueMillis(5000));
+            .put(IndexSettings.INDEX_MAX_FULL_FLUSH_MERGE.getKey(), TimeValue.timeValueMillis(5000));
         final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
 
