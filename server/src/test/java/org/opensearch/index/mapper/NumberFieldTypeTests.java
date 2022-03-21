@@ -531,7 +531,6 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         dir.close();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/2063")
     public void testIndexSortIntRange() throws Exception {
         doTestIndexSortRangeQueries(NumberType.INTEGER, random()::nextInt);
     }
