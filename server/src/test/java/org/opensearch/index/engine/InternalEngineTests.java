@@ -494,6 +494,138 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testMergeSegmentsOnCommit() throws Exception {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+
+        final Settings.Builder settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexSettings.INDEX_MAX_FULL_FLASH_MERGE.getKey(), TimeValue.timeValueMillis(5000));
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
+
+        try (
+            Store store = createStore();
+            InternalEngine engine = createEngine(
+                config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get)
+            )
+        ) {
+            assertThat(engine.segments(false), empty());
+            int numDocsFirstSegment = randomIntBetween(5, 50);
+            Set<String> liveDocsFirstSegment = new HashSet<>();
+            for (int i = 0; i < numDocsFirstSegment; i++) {
+                String id = Integer.toString(i);
+                ParsedDocument doc = testParsedDocument(id, null, testDocument(), B_1, null);
+                engine.index(indexForDoc(doc));
+                liveDocsFirstSegment.add(id);
+            }
+            engine.refresh("test");
+            List<Segment> segments = engine.segments(randomBoolean());
+            assertThat(segments, hasSize(1));
+            assertThat(segments.get(0).getNumDocs(), equalTo(liveDocsFirstSegment.size()));
+            assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
+            assertFalse(segments.get(0).committed);
+            int deletes = 0;
+            int updates = 0;
+            int appends = 0;
+            int iterations = scaledRandomIntBetween(1, 50);
+            for (int i = 0; i < iterations && liveDocsFirstSegment.isEmpty() == false; i++) {
+                String idToUpdate = randomFrom(liveDocsFirstSegment);
+                liveDocsFirstSegment.remove(idToUpdate);
+                ParsedDocument doc = testParsedDocument(idToUpdate, null, testDocument(), B_1, null);
+                if (randomBoolean()) {
+                    engine.delete(new Engine.Delete(doc.id(), newUid(doc), primaryTerm.get()));
+                    deletes++;
+                } else {
+                    engine.index(indexForDoc(doc));
+                    updates++;
+                }
+                if (randomBoolean()) {
+                    engine.index(indexForDoc(testParsedDocument(UUIDs.randomBase64UUID(), null, testDocument(), B_1, null)));
+                    appends++;
+                }
+            }
+
+            boolean committed = randomBoolean();
+            if (committed) {
+                engine.flush();
+            }
+
+            engine.refresh("test");
+            segments = engine.segments(randomBoolean());
+
+            // All segments have to be merged into one
+            assertThat(segments, hasSize(1));
+            assertThat(segments.get(0).getNumDocs(), equalTo(numDocsFirstSegment + appends - deletes));
+            assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
+            assertThat(segments.get(0).committed, equalTo(committed));
+        }
+    }
+
+    // this test writes documents to the engine while concurrently flushing/commit
+    public void testConcurrentMergeSegmentsOnCommit() throws Exception {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+
+        final Settings.Builder settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexSettings.INDEX_MAX_FULL_FLASH_MERGE.getKey(), TimeValue.timeValueMillis(5000));
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
+
+        try (
+            Store store = createStore();
+            InternalEngine engine = createEngine(
+                config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get)
+            )
+        ) {
+            final int numIndexingThreads = scaledRandomIntBetween(3, 8);
+            final int numDocsPerThread = randomIntBetween(500, 1000);
+            final CyclicBarrier barrier = new CyclicBarrier(numIndexingThreads + 1);
+            final List<Thread> indexingThreads = new ArrayList<>();
+            final CountDownLatch doneLatch = new CountDownLatch(numIndexingThreads);
+            // create N indexing threads to index documents simultaneously
+            for (int threadNum = 0; threadNum < numIndexingThreads; threadNum++) {
+                final int threadIdx = threadNum;
+                Thread indexingThread = new Thread(() -> {
+                    try {
+                        barrier.await(); // wait for all threads to start at the same time
+                        // index random number of docs
+                        for (int i = 0; i < numDocsPerThread; i++) {
+                            final String id = "thread" + threadIdx + "#" + i;
+                            ParsedDocument doc = testParsedDocument(id, null, testDocument(), B_1, null);
+                            engine.index(indexForDoc(doc));
+                        }
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    } finally {
+                        doneLatch.countDown();
+                    }
+
+                });
+                indexingThreads.add(indexingThread);
+            }
+
+            // start the indexing threads
+            for (Thread thread : indexingThreads) {
+                thread.start();
+            }
+            barrier.await(); // wait for indexing threads to all be ready to start
+            assertThat(doneLatch.await(10, TimeUnit.SECONDS), is(true));
+
+            boolean committed = randomBoolean();
+            if (committed) {
+                engine.flush();
+            }
+
+            engine.refresh("test");
+            List<Segment> segments = engine.segments(randomBoolean());
+
+            // All segments have to be merged into one
+            assertThat(segments, hasSize(1));
+            assertThat(segments.get(0).getNumDocs(), equalTo(numIndexingThreads * numDocsPerThread));
+            assertThat(segments.get(0).committed, equalTo(committed));
+        }
+    }
+
     public void testCommitStats() throws IOException {
         final AtomicLong maxSeqNo = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final AtomicLong localCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);

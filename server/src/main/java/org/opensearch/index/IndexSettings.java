@@ -503,6 +503,20 @@ public final class IndexSettings {
         Setting.Property.IndexScope
     );
 
+    /**
+     * Expert: sets the amount of time to wait for merges (during {@link org.apache.lucene.index.IndexWriter#commit}
+     * or {@link org.apache.lucene.index.IndexWriter#getReader(boolean, boolean)}) returned by MergePolicy.findFullFlushMerges(...).
+     * If this time is reached, we proceed with the commit based on segments merged up to that point. The merges are not
+     * aborted, and will still run to completion independent of the commit or getReader call, like natural segment merges.
+     */
+    public static final Setting<TimeValue> INDEX_MAX_FULL_FLASH_MERGE = Setting.timeSetting(
+        "index.max_full_flush_merge",
+        new TimeValue(0, TimeUnit.MILLISECONDS),
+        new TimeValue(0, TimeUnit.MILLISECONDS),
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -583,6 +597,11 @@ public final class IndexSettings {
      * The maximum length of regex string allowed in a regexp query.
      */
     private volatile int maxRegexLength;
+
+    /**
+     * The max amount of time to wait for merges
+     */
+    private volatile TimeValue maxFullFlushMerge;
 
     /**
      * Returns the default search fields for this index.
@@ -696,6 +715,7 @@ public final class IndexSettings {
         mappingTotalFieldsLimit = scopedSettings.get(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
         mappingDepthLimit = scopedSettings.get(INDEX_MAPPING_DEPTH_LIMIT_SETTING);
         mappingFieldNameLengthLimit = scopedSettings.get(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
+        maxFullFlushMerge = scopedSettings.get(INDEX_MAX_FULL_FLASH_MERGE);
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(
@@ -765,6 +785,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING, this::setMappingTotalFieldsLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DEPTH_LIMIT_SETTING, this::setMappingDepthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING, this::setMappingFieldNameLengthLimit);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_MAX_FULL_FLASH_MERGE, this::setMaxFullFlushMerge);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -1328,4 +1349,13 @@ public final class IndexSettings {
     private void setMappingFieldNameLengthLimit(long value) {
         this.mappingFieldNameLengthLimit = value;
     }
+
+    private void setMaxFullFlushMerge(TimeValue timeValue) {
+        this.maxFullFlushMerge = timeValue;
+    }
+
+    public TimeValue getMaxFullFlushMerge() {
+        return this.maxFullFlushMerge;
+    }
+
 }

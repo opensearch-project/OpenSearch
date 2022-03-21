@@ -50,6 +50,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.ShuffleForcedMergePolicy;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.sandbox.index.MergeOnFlushMergePolicy;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -2425,6 +2426,13 @@ public class InternalEngine extends Engine {
             // to enable it.
             mergePolicy = new ShuffleForcedMergePolicy(mergePolicy);
         }
+
+        final long maxFullFlushMergeWaitMillis = config().getIndexSettings().getMaxFullFlushMerge().millis();
+        if (maxFullFlushMergeWaitMillis > 0) {
+            iwc.setMaxFullFlushMergeWaitMillis(maxFullFlushMergeWaitMillis);
+            mergePolicy = new MergeOnFlushMergePolicy(mergePolicy);
+        }
+
         iwc.setMergePolicy(new OpenSearchMergePolicy(mergePolicy));
         iwc.setSimilarity(engineConfig.getSimilarity());
         iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
