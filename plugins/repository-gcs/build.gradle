@@ -73,6 +73,7 @@ dependencies {
   api 'com.google.api-client:google-api-client:1.30.10'
   api 'com.google.http-client:google-http-client-appengine:1.35.0'
   api 'com.google.http-client:google-http-client-jackson2:1.35.0'
+  api 'com.google.http-client:google-http-client-gson:1.41.4'
   api 'com.google.api:gax-httpjson:0.62.0'
   api 'io.grpc:grpc-context:1.29.0'
   api 'io.opencensus:opencensus-api:0.18.0'
