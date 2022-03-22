@@ -204,14 +204,6 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         return source * x == target;
     }
 
-    public void testNumberOfShards() {
-        {
-            final Version versionCreated = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, Version.CURRENT);
-            final Settings.Builder indexSettingsBuilder = Settings.builder().put(SETTING_VERSION_CREATED, versionCreated);
-            assertThat(MetadataCreateIndexService.getNumberOfShards(indexSettingsBuilder), equalTo(1));
-        }
-    }
-
     public void testValidateShrinkIndex() {
         int numShards = randomIntBetween(2, 42);
         ClusterState state = createClusterState(
