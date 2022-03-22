@@ -182,7 +182,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 null,
                 false,
                 Version.CURRENT,
-                false
+                false,
+                null
             );
             contextWithoutScroll.from(300);
             contextWithoutScroll.close();
@@ -223,7 +224,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 null,
                 false,
                 Version.CURRENT,
-                false
+                false,
+                null
             );
             context1.from(300);
             exception = expectThrows(IllegalArgumentException.class, () -> context1.preProcess(false));
@@ -292,7 +294,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 null,
                 false,
                 Version.CURRENT,
-                false
+                false,
+                null
             );
 
             SliceBuilder sliceBuilder = mock(SliceBuilder.class);
@@ -330,7 +333,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 null,
                 false,
                 Version.CURRENT,
-                false
+                false,
+                null
             );
             ParsedQuery parsedQuery = ParsedQuery.parsedMatchAllQuery();
             context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess(false);
@@ -360,7 +364,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 null,
                 false,
                 Version.CURRENT,
-                false
+                false,
+                null
             );
             context4.sliceBuilder(new SliceBuilder(1, 2)).parsedQuery(parsedQuery).preProcess(false);
             Query query1 = context4.query();
@@ -440,7 +445,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 null,
                 false,
                 Version.CURRENT,
-                false
+                false,
+                null
             );
             assertThat(context.searcher().hasCancellations(), is(false));
             context.searcher().addQueryCancellation(() -> {});
