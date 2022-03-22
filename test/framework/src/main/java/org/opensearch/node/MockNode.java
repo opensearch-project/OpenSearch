@@ -58,6 +58,7 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.search.MockSearchService;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.fetch.FetchPhase;
+import org.opensearch.search.query.QueryPhase;
 import org.opensearch.test.MockHttpTransport;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.ThreadPool;
@@ -70,6 +71,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 
 /**
@@ -147,9 +149,11 @@ public class MockNode extends Node {
         ThreadPool threadPool,
         ScriptService scriptService,
         BigArrays bigArrays,
+        QueryPhase queryPhase,
         FetchPhase fetchPhase,
         ResponseCollectorService responseCollectorService,
-        CircuitBreakerService circuitBreakerService
+        CircuitBreakerService circuitBreakerService,
+        Executor indexSearcherExecutor
     ) {
         if (getPluginsService().filterPlugins(MockSearchService.TestPlugin.class).isEmpty()) {
             return super.newSearchService(
@@ -158,9 +162,11 @@ public class MockNode extends Node {
                 threadPool,
                 scriptService,
                 bigArrays,
+                queryPhase,
                 fetchPhase,
                 responseCollectorService,
-                circuitBreakerService
+                circuitBreakerService,
+                indexSearcherExecutor
             );
         }
         return new MockSearchService(
@@ -169,6 +175,7 @@ public class MockNode extends Node {
             threadPool,
             scriptService,
             bigArrays,
+            queryPhase,
             fetchPhase,
             circuitBreakerService
         );
