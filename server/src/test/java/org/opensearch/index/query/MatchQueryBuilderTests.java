@@ -33,8 +33,8 @@
 package org.opensearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.CannedBinaryTokenStream;
-import org.apache.lucene.analysis.MockSynonymAnalyzer;
+import org.apache.lucene.tests.analysis.CannedBinaryTokenStream;
+import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.queries.spans.SpanNearQuery;
@@ -390,7 +390,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             "_doc",
             new CompressedXContent(
                 Strings.toString(
-                    PutMappingRequest.buildFromSimplifiedDef("string_boost", "type=text", "string_no_pos", "type=text,index_options=docs")
+                    PutMappingRequest.simpleMapping("string_boost", "type=text", "string_no_pos", "type=text,index_options=docs")
                 )
             ),
             MapperService.MergeReason.MAPPING_UPDATE

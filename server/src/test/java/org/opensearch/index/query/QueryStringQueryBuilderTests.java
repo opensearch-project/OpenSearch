@@ -32,7 +32,7 @@
 
 package org.opensearch.index.query;
 
-import org.apache.lucene.analysis.MockSynonymAnalyzer;
+import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.Term;
@@ -1096,7 +1096,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .merge(
                 "_doc",
                 new CompressedXContent(
-                    Strings.toString(PutMappingRequest.buildFromSimplifiedDef("foo", "type=text", "_field_names", "enabled=false"))
+                    Strings.toString(PutMappingRequest.simpleMapping("foo", "type=text", "_field_names", "enabled=false"))
                 ),
                 MapperService.MergeReason.MAPPING_UPDATE
             );
@@ -1112,7 +1112,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 .merge(
                     "_doc",
                     new CompressedXContent(
-                        Strings.toString(PutMappingRequest.buildFromSimplifiedDef("foo", "type=text", "_field_names", "enabled=true"))
+                        Strings.toString(PutMappingRequest.simpleMapping("foo", "type=text", "_field_names", "enabled=true"))
                     ),
                     MapperService.MergeReason.MAPPING_UPDATE
                 );

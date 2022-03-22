@@ -31,7 +31,7 @@
 
 package org.opensearch.action.termvectors;
 
-import org.apache.lucene.analysis.MockTokenizer;
+import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.payloads.FloatEncoder;
@@ -169,13 +169,11 @@ public class GetTermVectorsTests extends OpenSearchSingleNodeTestCase {
         String queryString = createString(tokens, payloads, encoding, delimiter.charAt(0));
         // create the mapping
         XContentBuilder mapping = jsonBuilder().startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("field")
             .field("type", "text")
             .field("term_vector", "with_positions_offsets_payloads")
             .field("analyzer", "payload_test")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();

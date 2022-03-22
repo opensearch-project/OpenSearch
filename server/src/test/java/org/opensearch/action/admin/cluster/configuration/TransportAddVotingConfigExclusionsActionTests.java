@@ -119,7 +119,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
             name,
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
     }

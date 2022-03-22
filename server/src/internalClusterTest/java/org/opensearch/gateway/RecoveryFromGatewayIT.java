@@ -84,7 +84,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.IntStream;
 
-import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
+import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -384,7 +384,7 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
             public Settings onNodeStopped(String nodeName) {
                 return Settings.builder()
                     .put(RECOVER_AFTER_NODES_SETTING.getKey(), 2)
-                    .putList(INITIAL_MASTER_NODES_SETTING.getKey()) // disable bootstrapping
+                    .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey()) // disable bootstrapping
                     .build();
             }
 
@@ -462,11 +462,9 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
             .preparePutTemplate("template_1")
             .setPatterns(Collections.singletonList("te*"))
             .setOrder(0)
-            .addMapping(
-                "type1",
+            .setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("field1")
                     .field("type", "text")
@@ -475,7 +473,6 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
                     .startObject("field2")
                     .field("type", "keyword")
                     .field("store", true)
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()

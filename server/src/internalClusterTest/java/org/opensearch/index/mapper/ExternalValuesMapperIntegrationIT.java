@@ -55,15 +55,12 @@ public class ExternalValuesMapperIntegrationIT extends OpenSearchIntegTestCase {
     }
 
     public void testHighlightingOnCustomString() throws Exception {
-        prepareCreate("test-idx").addMapping(
-            "type",
+        prepareCreate("test-idx").setMapping(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type")
                 .startObject("properties")
                 .startObject("field")
                 .field("type", FakeStringFieldMapper.CONTENT_TYPE)
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -118,17 +115,14 @@ public class ExternalValuesMapperIntegrationIT extends OpenSearchIntegTestCase {
     }
 
     public void testExternalValues() throws Exception {
-        prepareCreate("test-idx").addMapping(
-            "type",
+        prepareCreate("test-idx").setMapping(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type")
                 .startObject(ExternalMetadataMapper.CONTENT_TYPE)
                 .endObject()
                 .startObject("properties")
                 .startObject("field")
                 .field("type", ExternalMapperPlugin.EXTERNAL)
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -166,11 +160,9 @@ public class ExternalValuesMapperIntegrationIT extends OpenSearchIntegTestCase {
     }
 
     public void testExternalValuesWithMultifield() throws Exception {
-        prepareCreate("test-idx").addMapping(
-            "_doc",
+        prepareCreate("test-idx").setMapping(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("_doc")
                 .startObject("properties")
                 .startObject("f")
                 .field("type", ExternalMapperPlugin.EXTERNAL_UPPER)
@@ -182,7 +174,6 @@ public class ExternalValuesMapperIntegrationIT extends OpenSearchIntegTestCase {
                 .startObject("raw")
                 .field("type", "keyword")
                 .field("store", true)
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()

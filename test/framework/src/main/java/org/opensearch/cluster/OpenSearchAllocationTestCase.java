@@ -149,7 +149,7 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
     }
 
     protected static Set<DiscoveryNodeRole> MASTER_DATA_ROLES = Collections.unmodifiableSet(
-        new HashSet<>(Arrays.asList(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+        new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE))
     );
 
     protected static DiscoveryNode newNode(String nodeId) {

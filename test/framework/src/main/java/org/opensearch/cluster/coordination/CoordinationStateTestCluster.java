@@ -50,7 +50,7 @@ import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.rarely;
 import static java.util.stream.Collectors.toSet;
-import static org.apache.lucene.util.LuceneTestCase.random;
+import static org.apache.lucene.tests.util.LuceneTestCase.random;
 import static org.opensearch.test.OpenSearchTestCase.randomBoolean;
 import static org.opensearch.test.OpenSearchTestCase.randomFrom;
 import static org.opensearch.test.OpenSearchTestCase.randomIntBetween;
@@ -164,10 +164,10 @@ public class CoordinationStateTestCluster {
 
             final Set<DiscoveryNodeRole> roles = new HashSet<>(localNode.getRoles());
             if (randomBoolean()) {
-                if (roles.contains(DiscoveryNodeRole.MASTER_ROLE)) {
-                    roles.remove(DiscoveryNodeRole.MASTER_ROLE);
+                if (roles.contains(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)) {
+                    roles.remove(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
                 } else {
-                    roles.add(DiscoveryNodeRole.MASTER_ROLE);
+                    roles.add(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
                 }
             }
 

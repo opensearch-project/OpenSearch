@@ -370,7 +370,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
      * Works by tracking the current set of nodes and applying each node specification in sequence. The set starts out empty and each node
      * specification may either add or remove nodes. For instance:
      *
-     * - _local, _master and _all respectively add to the subset the local node, the currently-elected master, and all the nodes
+     * - _local, _cluster_manager (_master) and _all respectively add to the subset the local node, the currently-elected cluster_manager, and all the nodes
      * - node IDs, names, hostnames and IP addresses all add to the subset any nodes which match
      * - a wildcard-based pattern of the form "attr*:value*" adds to the subset all nodes with a matching attribute with a matching value
      * - role:true adds to the subset all nodes with a matching role
@@ -393,7 +393,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                     if (localNodeId != null) {
                         resolvedNodesIds.add(localNodeId);
                     }
-                } else if (nodeId.equals("_master")) {
+                } else if (nodeId.equals("_master") || nodeId.equals("_cluster_manager")) {
                     String masterNodeId = getMasterNodeId();
                     if (masterNodeId != null) {
                         resolvedNodesIds.add(masterNodeId);
@@ -419,7 +419,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                             } else {
                                 resolvedNodesIds.removeAll(dataNodes.keys());
                             }
-                        } else if (DiscoveryNodeRole.MASTER_ROLE.roleName().equals(matchAttrName)) {
+                        } else if (roleNameIsClusterManager(matchAttrName)) {
                             if (Booleans.parseBoolean(matchAttrValue, true)) {
                                 resolvedNodesIds.addAll(masterNodes.keys());
                             } else {
@@ -796,5 +796,18 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         public boolean isLocalNodeElectedMaster() {
             return masterNodeId != null && masterNodeId.equals(localNodeId);
         }
+    }
+
+    /**
+     * Check if the given name of the node role is 'cluster_manger' or 'master'.
+     * The method is added for {@link #resolveNodes} to keep the code clear, when support the both above roles.
+     * @deprecated As of 2.0, because promoting inclusive language. MASTER_ROLE is deprecated.
+     * @param matchAttrName a given String for a name of the node role.
+     * @return true if the given roleName is 'cluster_manger' or 'master'
+     */
+    @Deprecated
+    private boolean roleNameIsClusterManager(String matchAttrName) {
+        return DiscoveryNodeRole.MASTER_ROLE.roleName().equals(matchAttrName)
+            || DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName().equals(matchAttrName);
     }
 }

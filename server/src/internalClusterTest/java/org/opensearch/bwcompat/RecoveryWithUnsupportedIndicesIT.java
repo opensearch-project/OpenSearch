@@ -39,8 +39,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;

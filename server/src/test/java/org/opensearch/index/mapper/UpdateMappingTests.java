@@ -259,7 +259,7 @@ public class UpdateMappingTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testMappingVersion() {
-        createIndex("test", client().admin().indices().prepareCreate("test").addMapping(MapperService.SINGLE_MAPPING_NAME));
+        createIndex("test", client().admin().indices().prepareCreate("test"));
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         {
             final long previousVersion = clusterService.state().metadata().index("test").getMappingVersion();

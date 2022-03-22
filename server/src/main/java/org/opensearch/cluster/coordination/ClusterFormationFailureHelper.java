@@ -56,7 +56,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
+import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
 
 public class ClusterFormationFailureHelper {
@@ -198,13 +198,13 @@ public class ClusterFormationFailureHelper {
             if (clusterState.getLastAcceptedConfiguration().isEmpty()) {
                 final String bootstrappingDescription;
 
-                if (INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY).equals(INITIAL_MASTER_NODES_SETTING.get(settings))) {
-                    bootstrappingDescription = "[" + INITIAL_MASTER_NODES_SETTING.getKey() + "] is empty on this node";
+                if (INITIAL_CLUSTER_MANAGER_NODES_SETTING.get(Settings.EMPTY).equals(INITIAL_CLUSTER_MANAGER_NODES_SETTING.get(settings))) {
+                    bootstrappingDescription = "[" + INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey() + "] is empty on this node";
                 } else {
                     bootstrappingDescription = String.format(
                         Locale.ROOT,
                         "this node must discover master-eligible nodes %s to bootstrap a cluster",
-                        INITIAL_MASTER_NODES_SETTING.get(settings)
+                        INITIAL_CLUSTER_MANAGER_NODES_SETTING.get(settings)
                     );
                 }
 

@@ -424,11 +424,9 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .indices()
                 .preparePutTemplate("test-template")
                 .setPatterns(Collections.singletonList("te*"))
-                .addMapping(
-                    "_doc",
+                .setMapping(
                     XContentFactory.jsonBuilder()
                         .startObject()
-                        .startObject("_doc")
                         .startObject("properties")
                         .startObject("field1")
                         .field("type", "text")
@@ -437,7 +435,6 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                         .startObject("field2")
                         .field("type", "keyword")
                         .field("store", true)
-                        .endObject()
                         .endObject()
                         .endObject()
                         .endObject()

@@ -32,7 +32,7 @@
 
 package org.opensearch.indices.stats;
 
-import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
@@ -148,7 +148,7 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
                 .indices()
                 .prepareCreate("test")
                 .setSettings(settingsBuilder().put("index.number_of_shards", 2))
-                .addMapping("type", "field", "type=text,fielddata=true", "field2", "type=text,fielddata=true")
+                .setMapping("field", "type=text,fielddata=true", "field2", "type=text,fielddata=true")
                 .get()
         );
         ensureGreen();
@@ -270,7 +270,7 @@ public class IndexStatsIT extends OpenSearchIntegTestCase {
                 .indices()
                 .prepareCreate("test")
                 .setSettings(settingsBuilder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
-                .addMapping("type", "field", "type=text,fielddata=true")
+                .setMapping("field", "type=text,fielddata=true")
                 .get()
         );
         ensureGreen();

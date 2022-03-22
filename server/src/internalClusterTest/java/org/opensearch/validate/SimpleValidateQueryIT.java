@@ -297,7 +297,7 @@ public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
 
     public void testExplainFilteredAlias() {
         assertAcked(
-            prepareCreate("test").addMapping("test", "field", "type=text")
+            prepareCreate("test").setMapping("field", "type=text")
                 .addAlias(new Alias("alias").filter(QueryBuilders.termQuery("field", "value1")))
         );
         ensureGreen();
@@ -318,7 +318,7 @@ public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate("test")
-            .addMapping(MapperService.SINGLE_MAPPING_NAME, "field", "type=text,analyzer=whitespace")
+            .setMapping("field", "type=text,analyzer=whitespace")
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1))
             .get();
         client().prepareIndex("test").setId("1").setSource("field", "quick lazy huge brown pidgin").get();
@@ -380,7 +380,7 @@ public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate("test")
-            .addMapping(MapperService.SINGLE_MAPPING_NAME, "field", "type=text,analyzer=whitespace")
+            .setMapping("field", "type=text,analyzer=whitespace")
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put("index.number_of_routing_shards", 2))
             .get();
         // We are relying on specific routing behaviors for the result to be right, so
@@ -484,7 +484,7 @@ public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate("twitter")
-            .addMapping("_doc", "user", "type=integer", "followers", "type=integer")
+            .setMapping("user", "type=integer", "followers", "type=integer")
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put("index.number_of_routing_shards", 2))
             .get();
         client().prepareIndex("twitter").setId("1").setSource("followers", new int[] { 1, 2, 3 }).get();

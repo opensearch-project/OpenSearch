@@ -34,6 +34,7 @@ package org.opensearch.rest;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.MapBuilder;
@@ -50,11 +51,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -278,6 +281,40 @@ public class RestRequestTests extends OpenSearchTestCase {
         assertEquals("request body is required", e.getMessage());
         e = expectThrows(IllegalStateException.class, () -> contentRestRequest("test", null, Collections.emptyMap()).requiredContent());
         assertEquals("unknown content type", e.getMessage());
+    }
+
+    /*
+     * The test is added in 2.0 when the request parameter "cluster_manager_timeout" is introduced.
+     * Remove the test along with the removal of the non-inclusive terminology "master_timeout".
+     */
+    public void testValidateParamValuesAreEqualWhenTheyAreEqual() {
+        FakeRestRequest request = new FakeRestRequest();
+        String valueForKey1 = randomFrom("value1", "", null);
+        String valueForKey2 = "value1";
+        request.params().put("key1", valueForKey1);
+        request.params().put("key2", valueForKey2);
+        request.validateParamValuesAreEqual("key1", "key2");
+        assertTrue(
+            String.format(
+                Locale.ROOT,
+                "The 2 values should be equal, or having 1 null/empty value. Value of key1: %s. Value of key2: %s",
+                valueForKey1,
+                valueForKey2
+            ),
+            Strings.isNullOrEmpty(valueForKey1) || valueForKey1.equals(valueForKey2)
+        );
+    }
+
+    /*
+     * The test is added in 2.0 when the request parameter "cluster_manager_timeout" is introduced.
+     * Remove the test along with the removal of the non-inclusive terminology "master_timeout".
+     */
+    public void testValidateParamValuesAreEqualWhenTheyAreNotEqual() {
+        FakeRestRequest request = new FakeRestRequest();
+        request.params().put("key1", "value1");
+        request.params().put("key2", "value2");
+        Exception e = assertThrows(OpenSearchParseException.class, () -> request.validateParamValuesAreEqual("key1", "key2"));
+        assertThat(e.getMessage(), containsString("The values of the request parameters: [key1, key2] are required to be equal"));
     }
 
     private static RestRequest contentRestRequest(String content, Map<String, String> params) {

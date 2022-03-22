@@ -72,6 +72,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.LinkedList;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 
 import static org.opensearch.search.query.QueryCollectorContext.createEarlyTerminationCollectorContext;
@@ -88,12 +89,19 @@ public class QueryPhase {
     private static final Logger LOGGER = LogManager.getLogger(QueryPhase.class);
     // TODO: remove this property
     public static final boolean SYS_PROP_REWRITE_SORT = Booleans.parseBoolean(System.getProperty("opensearch.search.rewrite_sort", "true"));
+    public static final QueryPhaseSearcher DEFAULT_QUERY_PHASE_SEARCHER = new DefaultQueryPhaseSearcher();
 
+    private final QueryPhaseSearcher queryPhaseSearcher;
     private final AggregationPhase aggregationPhase;
     private final SuggestPhase suggestPhase;
     private final RescorePhase rescorePhase;
 
     public QueryPhase() {
+        this(DEFAULT_QUERY_PHASE_SEARCHER);
+    }
+
+    public QueryPhase(QueryPhaseSearcher queryPhaseSearcher) {
+        this.queryPhaseSearcher = Objects.requireNonNull(queryPhaseSearcher, "QueryPhaseSearcher is required");
         this.aggregationPhase = new AggregationPhase();
         this.suggestPhase = new SuggestPhase();
         this.rescorePhase = new RescorePhase();
@@ -139,7 +147,7 @@ public class QueryPhase {
         // request, preProcess is called on the DFS phase phase, this is why we pre-process them
         // here to make sure it happens during the QUERY phase
         aggregationPhase.preProcess(searchContext);
-        boolean rescore = executeInternal(searchContext);
+        boolean rescore = executeInternal(searchContext, queryPhaseSearcher);
 
         if (rescore) { // only if we do a regular search
             rescorePhase.execute(searchContext);
@@ -162,6 +170,15 @@ public class QueryPhase {
      * @return whether the rescoring phase should be executed
      */
     static boolean executeInternal(SearchContext searchContext) throws QueryPhaseExecutionException {
+        return executeInternal(searchContext, QueryPhase.DEFAULT_QUERY_PHASE_SEARCHER);
+    }
+
+    /**
+     * In a package-private method so that it can be tested without having to
+     * wire everything (mapperService, etc.)
+     * @return whether the rescoring phase should be executed
+     */
+    static boolean executeInternal(SearchContext searchContext, QueryPhaseSearcher queryPhaseSearcher) throws QueryPhaseExecutionException {
         final ContextIndexSearcher searcher = searchContext.searcher();
         final IndexReader reader = searcher.getIndexReader();
         QuerySearchResult queryResult = searchContext.queryResult();
@@ -261,13 +278,22 @@ public class QueryPhase {
             }
 
             try {
-                boolean shouldRescore = searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, timeoutSet);
+                boolean shouldRescore = queryPhaseSearcher.searchWith(
+                    searchContext,
+                    searcher,
+                    query,
+                    collectors,
+                    hasFilterCollector,
+                    timeoutSet
+                );
+
                 ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
                 if (executor instanceof QueueResizingOpenSearchThreadPoolExecutor) {
                     QueueResizingOpenSearchThreadPoolExecutor rExecutor = (QueueResizingOpenSearchThreadPoolExecutor) executor;
                     queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
                     queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
                 }
+
                 return shouldRescore;
             } finally {
                 // Search phase has finished, no longer need to check for timeout
@@ -358,5 +384,43 @@ public class QueryPhase {
         return true;
     }
 
-    private static class TimeExceededException extends RuntimeException {}
+    /**
+     * The exception being raised when search timeout is reached.
+     */
+    public static class TimeExceededException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+    }
+
+    /**
+     * Default {@link QueryPhaseSearcher} implementation which delegates to the {@link QueryPhase}.
+     */
+    public static class DefaultQueryPhaseSearcher implements QueryPhaseSearcher {
+        /**
+         * Please use {@link QueryPhase#DEFAULT_QUERY_PHASE_SEARCHER}
+         */
+        protected DefaultQueryPhaseSearcher() {}
+
+        @Override
+        public boolean searchWith(
+            SearchContext searchContext,
+            ContextIndexSearcher searcher,
+            Query query,
+            LinkedList<QueryCollectorContext> collectors,
+            boolean hasFilterCollector,
+            boolean hasTimeout
+        ) throws IOException {
+            return searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
+        }
+
+        protected boolean searchWithCollector(
+            SearchContext searchContext,
+            ContextIndexSearcher searcher,
+            Query query,
+            LinkedList<QueryCollectorContext> collectors,
+            boolean hasFilterCollector,
+            boolean hasTimeout
+        ) throws IOException {
+            return QueryPhase.searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
+        }
+    }
 }

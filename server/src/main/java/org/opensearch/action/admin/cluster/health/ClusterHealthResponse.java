@@ -67,6 +67,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     private static final String NUMBER_OF_NODES = "number_of_nodes";
     private static final String NUMBER_OF_DATA_NODES = "number_of_data_nodes";
     private static final String DISCOVERED_MASTER = "discovered_master";
+    private static final String DISCOVERED_CLUSTER_MANAGER = "discovered_cluster_manager";
     private static final String NUMBER_OF_PENDING_TASKS = "number_of_pending_tasks";
     private static final String NUMBER_OF_IN_FLIGHT_FETCH = "number_of_in_flight_fetch";
     private static final String DELAYED_UNASSIGNED_SHARDS = "delayed_unassigned_shards";
@@ -376,7 +377,8 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         builder.field(TIMED_OUT, isTimedOut());
         builder.field(NUMBER_OF_NODES, getNumberOfNodes());
         builder.field(NUMBER_OF_DATA_NODES, getNumberOfDataNodes());
-        builder.field(DISCOVERED_MASTER, hasDiscoveredMaster());
+        builder.field(DISCOVERED_MASTER, hasDiscoveredMaster());  // the field will be removed in a future major version
+        builder.field(DISCOVERED_CLUSTER_MANAGER, hasDiscoveredMaster());
         builder.field(ACTIVE_PRIMARY_SHARDS, getActivePrimaryShards());
         builder.field(ACTIVE_SHARDS, getActiveShards());
         builder.field(RELOCATING_SHARDS, getRelocatingShards());

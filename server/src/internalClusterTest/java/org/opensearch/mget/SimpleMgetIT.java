@@ -129,16 +129,7 @@ public class SimpleMgetIT extends OpenSearchIntegTestCase {
     public void testThatMgetShouldWorkWithAliasRouting() throws IOException {
         assertAcked(
             prepareCreate("test").addAlias(new Alias("alias1").routing("abc"))
-                .addMapping(
-                    "test",
-                    jsonBuilder().startObject()
-                        .startObject("test")
-                        .startObject("_routing")
-                        .field("required", true)
-                        .endObject()
-                        .endObject()
-                        .endObject()
-                )
+                .setMapping(jsonBuilder().startObject().startObject("_routing").field("required", true).endObject().endObject())
         );
 
         client().prepareIndex("alias1")

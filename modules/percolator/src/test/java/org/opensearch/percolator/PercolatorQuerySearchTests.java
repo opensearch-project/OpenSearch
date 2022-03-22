@@ -96,7 +96,7 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testPercolateScriptQuery() throws IOException {
-        client().admin().indices().prepareCreate("index").addMapping("type", "query", "type=percolator").get();
+        client().admin().indices().prepareCreate("index").setMapping("query", "type=percolator").get();
         client().prepareIndex("index")
             .setId("1")
             .setSource(
@@ -150,7 +150,7 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
                 .prepareCreate("test")
                 // to avoid normal document from being cached by BitsetFilterCache
                 .setSettings(Settings.builder().put(BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING.getKey(), false))
-                .addMapping("employee", mapping)
+                .setMapping(mapping)
         );
         client().prepareIndex("test")
             .setId("q1")
@@ -238,7 +238,7 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
             mapping.endObject();
         }
         mapping.endObject();
-        createIndex("test", client().admin().indices().prepareCreate("test").addMapping("employee", mapping));
+        createIndex("test", client().admin().indices().prepareCreate("test").setMapping(mapping));
         Script script = new Script(ScriptType.INLINE, MockScriptPlugin.NAME, "use_fielddata_please", Collections.emptyMap());
         client().prepareIndex("test")
             .setId("q1")

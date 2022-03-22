@@ -393,7 +393,6 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("country")
             .startObject("properties")
             .startObject("pin")
             .field("type", "geo_point");
@@ -404,10 +403,9 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
             .field("ignore_malformed", true)
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
 
-        client().admin().indices().prepareCreate("countries").setSettings(settings).addMapping("country", xContentBuilder).get();
+        client().admin().indices().prepareCreate("countries").setSettings(settings).setMapping(xContentBuilder).get();
         BulkResponse bulk = client().prepareBulk().add(bulkAction, 0, bulkAction.length, null, xContentBuilder.contentType()).get();
 
         for (BulkItemResponse item : bulk.getItems()) {

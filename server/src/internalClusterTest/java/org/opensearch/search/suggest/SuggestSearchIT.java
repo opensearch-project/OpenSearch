@@ -97,7 +97,7 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
 
     // see #3196
     public void testSuggestAcrossMultipleIndices() throws IOException {
-        assertAcked(prepareCreate("test").addMapping("type1", "text", "type=text"));
+        assertAcked(prepareCreate("test").setMapping("text", "type=text"));
         ensureGreen();
 
         index("test", "type1", "1", "text", "abcd");
@@ -111,7 +111,7 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
             .text("abcd");
         logger.info("--> run suggestions with one index");
         searchSuggest("test", termSuggest);
-        assertAcked(prepareCreate("test_1").addMapping("type1", "text", "type=text"));
+        assertAcked(prepareCreate("test_1").setMapping("text", "type=text"));
         ensureGreen();
 
         index("test_1", "type1", "1", "text", "ab cd");
@@ -127,16 +127,14 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
 
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("text")
             .field("type", "text")
             .field("analyzer", "keyword")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(prepareCreate("test_2").addMapping("type1", mapping));
+        assertAcked(prepareCreate("test_2").setMapping(mapping));
         ensureGreen();
 
         index("test_2", "type1", "1", "text", "ab cd");
@@ -217,7 +215,6 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
 
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("name")
             .field("type", "text")
@@ -230,9 +227,8 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
             .endObject()
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(builder.addMapping("type1", mapping));
+        assertAcked(builder.setMapping(mapping));
         ensureGreen();
 
         index("test", "type1", "1", "name", "I like iced tea");
@@ -300,7 +296,6 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
         );
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("name")
             .field("type", "text")
@@ -313,9 +308,8 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
             .endObject()
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(builder.addMapping("type1", mapping));
+        assertAcked(builder.setMapping(mapping));
         ensureGreen();
 
         indexRandom(
@@ -348,7 +342,7 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testSimple() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "text", "type=text"));
+        assertAcked(prepareCreate("test").setMapping("text", "type=text"));
         ensureGreen();
 
         index("test", "type1", "1", "text", "abcd");
@@ -373,7 +367,7 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testEmpty() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "text", "type=text"));
+        assertAcked(prepareCreate("test").setMapping("text", "type=text"));
         ensureGreen();
 
         index("test", "type1", "1", "text", "bar");
@@ -392,7 +386,7 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testEmptyIndex() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "text", "type=text"));
+        assertAcked(prepareCreate("test").setMapping("text", "type=text"));
         ensureGreen();
 
         // use SuggestMode.ALWAYS, otherwise the results can vary between requests.
@@ -418,7 +412,7 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testWithMultipleCommands() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("typ1", "field1", "type=text", "field2", "type=text"));
+        assertAcked(prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text"));
         ensureGreen();
 
         index("test", "typ1", "1", "field1", "prefix_abcd", "field2", "prefix_efgh");
@@ -522,7 +516,7 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
     // see #2817
     public void testStopwordsOnlyPhraseSuggest() throws IOException {
         assertAcked(
-            prepareCreate("test").addMapping("typ1", "body", "type=text,analyzer=stopwd")
+            prepareCreate("test").setMapping("body", "type=text,analyzer=stopwd")
                 .setSettings(
                     Settings.builder()
                         .put("index.analysis.analyzer.stopwd.tokenizer", "standard")
@@ -558,7 +552,6 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
         );
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("body")
             .field("type", "text")
@@ -569,9 +562,8 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
             .field("analyzer", "bigram")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(builder.addMapping("type1", mapping));
+        assertAcked(builder.setMapping(mapping));
         ensureGreen();
 
         index("test", "type1", "1", "body", "hello world");
@@ -614,7 +606,6 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
         );
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("body")
             .field("type", "text")
@@ -625,9 +616,8 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
             .field("analyzer", "bigram")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(builder.addMapping("type1", mapping));
+        assertAcked(builder.setMapping(mapping));
         ensureGreen();
 
         String[] strings = new String[] {
@@ -758,7 +748,6 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
 
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("body")
             .field("type", "text")
@@ -769,9 +758,8 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
             .field("analyzer", "bigram")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(builder.addMapping("type1", mapping));
+        assertAcked(builder.setMapping(mapping));
         ensureGreen();
 
         String line = "xorr the god jewel";
@@ -833,16 +821,14 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
 
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type2")
             .startObject("properties")
             .startObject("name")
             .field("type", "text")
             .field("analyzer", "suggest")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(builder.addMapping("type2", mapping));
+        assertAcked(builder.setMapping(mapping));
         ensureGreen();
 
         index("test", "type2", "1", "foo", "bar");
@@ -880,12 +866,10 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
     public void testEmptyShards() throws IOException, InterruptedException {
         XContentBuilder mappingBuilder = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("name")
             .field("type", "text")
             .field("analyzer", "suggest")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();
@@ -901,7 +885,7 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
                     .put("index.analysis.filter.shingler.min_shingle_size", 2)
                     .put("index.analysis.filter.shingler.max_shingle_size", 5)
                     .put("index.analysis.filter.shingler.output_unigrams", true)
-            ).addMapping("type1", mappingBuilder)
+            ).setMapping(mappingBuilder)
         );
         ensureGreen();
 
@@ -978,16 +962,14 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
 
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("body")
             .field("type", "text")
             .field("analyzer", "body")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(builder.addMapping("type1", mapping));
+        assertAcked(builder.setMapping(mapping));
         ensureGreen();
 
         NumShards test = getNumShards("test");
@@ -1039,16 +1021,14 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
 
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("title")
             .field("type", "text")
             .field("analyzer", "text")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(builder.addMapping("type1", mapping));
+        assertAcked(builder.setMapping(mapping));
         ensureGreen();
 
         List<String> titles = new ArrayList<>();
@@ -1166,7 +1146,6 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
     public void testSuggestWithFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type")
             .startObject("properties")
             .startObject("text")
             .field("type", "keyword")
@@ -1176,9 +1155,8 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
             .field("path", "text")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(prepareCreate("test").addMapping("type", mapping));
+        assertAcked(prepareCreate("test").setMapping(mapping));
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         builders.add(client().prepareIndex("test").setSource("text", "apple"));
@@ -1195,17 +1173,13 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
     public void testPhraseSuggestMinDocFreq() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type")
             .startObject("properties")
             .startObject("text")
             .field("type", "keyword")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(
-            prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 1).build()).addMapping("type", mapping)
-        );
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 1).build()).setMapping(mapping));
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         builders.add(client().prepareIndex("test").setSource("text", "apple"));
@@ -1298,16 +1272,14 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
 
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("title")
             .field("type", "text")
             .field("analyzer", "text")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(builder.addMapping("type1", mapping));
+        assertAcked(builder.setMapping(mapping));
         ensureGreen();
 
         List<String> titles = new ArrayList<>();

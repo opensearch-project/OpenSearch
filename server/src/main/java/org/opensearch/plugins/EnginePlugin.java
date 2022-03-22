@@ -56,7 +56,9 @@ public interface EnginePlugin {
      *
      * @return an optional engine factory
      */
-    Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings);
+    default Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
+        return Optional.empty();
+    }
 
     /**
      * EXPERT:
