@@ -12,7 +12,6 @@ import org.junit.AfterClass;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.cat.RestAllocationAction;
 import org.opensearch.rest.action.cat.RestIndicesAction;
 import org.opensearch.test.OpenSearchTestCase;
@@ -33,7 +32,7 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
 
     private static final String PARAM_VALUE_ERROR_MESSAGE = "[master_timeout, cluster_manager_timeout] are required to be equal";
     private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
-            "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
+        "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
 
     @AfterClass
     public static void terminateThreadPool() {
@@ -47,10 +46,10 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
         RestAllocationAction action = new RestAllocationAction();
 
         action.doCatRequest(getRestRequestWithNewParam(), client);
-        
+
         action.doCatRequest(getRestRequestWithDeprecatedParam(), client);
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
-        
+
         Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithWrongValues(), client));
         assertThat(e.getMessage(), containsString(PARAM_VALUE_ERROR_MESSAGE));
     }
@@ -59,7 +58,7 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
         RestIndicesAction action = new RestIndicesAction();
 
         action.doCatRequest(getRestRequestWithNewParam(), client);
-        
+
         action.doCatRequest(getRestRequestWithDeprecatedParam(), client);
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
 
