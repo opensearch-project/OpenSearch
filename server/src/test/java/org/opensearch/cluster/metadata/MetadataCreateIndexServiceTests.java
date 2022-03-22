@@ -36,7 +36,6 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.alias.Alias;
