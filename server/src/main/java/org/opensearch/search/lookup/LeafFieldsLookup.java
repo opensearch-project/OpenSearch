@@ -149,7 +149,6 @@ public class LeafFieldsLookup implements Map {
         if (data.fields() == null) {
             List<Object> values;
             if (TypeFieldMapper.NAME.equals(data.fieldType().name())) {
-                TypeFieldMapper.emitTypesDeprecationWarning();
                 values = new ArrayList<>(1);
                 final DocumentMapper mapper = mapperService.documentMapper();
                 if (mapper != null) {

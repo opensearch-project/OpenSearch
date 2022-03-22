@@ -50,7 +50,6 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.index.get.GetResult;
-import org.opensearch.index.mapper.TypeFieldMapper;
 import org.opensearch.indices.TermsLookup;
 import org.opensearch.test.AbstractQueryTestCase;
 import org.hamcrest.CoreMatchers;
@@ -349,12 +348,6 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         list = Arrays.asList(5, 42d);
         assertEquals(Arrays.asList(5, 42d), TermsQueryBuilder.convert(list));
         assertEquals(Arrays.asList(5, 42d), TermsQueryBuilder.convertBack(TermsQueryBuilder.convert(list)));
-    }
-
-    public void testTypeField() throws IOException {
-        TermsQueryBuilder builder = QueryBuilders.termsQuery("_type", "value1", "value2");
-        builder.doToQuery(createShardContext());
-        assertWarnings(TypeFieldMapper.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testRewriteIndexQueryToMatchNone() throws IOException {

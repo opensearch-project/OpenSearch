@@ -1386,7 +1386,7 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
             SearchResponse response = client().prepareSearch("idx")
                 .addRescorer(new QueryRescorerBuilder(new MatchAllQueryBuilder().boost(3.0f)))
                 .addAggregation(
-                    terms("terms").field(TERMS_AGGS_FIELD).subAggregation(topHits("hits").sort(SortBuilders.fieldSort("_type")))
+                    terms("terms").field(TERMS_AGGS_FIELD).subAggregation(topHits("hits").sort(SortBuilders.fieldSort("_index")))
                 )
                 .get();
             Terms terms = response.getAggregations().get("terms");
@@ -1403,7 +1403,7 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
                 .addRescorer(new QueryRescorerBuilder(new MatchAllQueryBuilder().boost(3.0f)))
                 .addAggregation(
                     terms("terms").field(TERMS_AGGS_FIELD)
-                        .subAggregation(topHits("hits").sort(SortBuilders.scoreSort()).sort(SortBuilders.fieldSort("_type")))
+                        .subAggregation(topHits("hits").sort(SortBuilders.scoreSort()).sort(SortBuilders.fieldSort("_index")))
                 )
                 .get();
             Terms terms = response.getAggregations().get("terms");
