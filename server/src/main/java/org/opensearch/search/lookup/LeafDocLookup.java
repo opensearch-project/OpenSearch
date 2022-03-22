@@ -33,7 +33,6 @@ package org.opensearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -49,10 +48,6 @@ import java.util.Set;
 import java.util.function.Function;
 
 public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
-
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(LeafDocLookup.class);
-    static final String TYPES_DEPRECATION_KEY = "type-field-doc-lookup";
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Looking up doc types [_type] in scripts is deprecated.";
 
     private final Map<String, ScriptDocValues<?>> localCacheFieldData = new HashMap<>(4);
 
@@ -78,10 +73,6 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     @Override
     public ScriptDocValues<?> get(Object key) {
-        // deprecate _type
-        if ("_type".equals(key)) {
-            DEPRECATION_LOGGER.deprecate(TYPES_DEPRECATION_KEY, TYPES_DEPRECATION_MESSAGE);
-        }
         // assume its a string...
         String fieldName = key.toString();
         ScriptDocValues<?> scriptValues = localCacheFieldData.get(fieldName);
