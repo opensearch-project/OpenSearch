@@ -165,6 +165,7 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
         PrimaryShardReplicationSource source,
         final SegmentReplicationListener listener
     ) {
+        indexShard.markAsReplicating();
         final long replicationId = onGoingReplications.startReplication(
             checkpoint,
             indexShard,

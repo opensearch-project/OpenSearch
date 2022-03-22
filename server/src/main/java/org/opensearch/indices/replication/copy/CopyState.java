@@ -8,8 +8,6 @@
 
 package org.opensearch.indices.replication.copy;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.ByteBuffersDataOutput;
@@ -28,8 +26,6 @@ import java.util.Set;
 
 public class CopyState extends AbstractRefCounted {
 
-    private static final Logger logger = LogManager.getLogger(CopyState.class);
-
     private final GatedCloseable<SegmentInfos> segmentInfosRef;
     private final ReplicationCheckpoint checkpoint;
     private final Store.MetadataSnapshot metadataSnapshot;
@@ -44,7 +40,7 @@ public class CopyState extends AbstractRefCounted {
         this.segmentInfosRef = shard.getLatestSegmentInfosSafe();
         final SegmentInfos segmentInfos = segmentInfosRef.get();
         this.checkpoint = new ReplicationCheckpoint(
-            shard.shardId(),
+            shardId,
             shard.getOperationPrimaryTerm(),
             segmentInfos.getGeneration(),
             shard.getProcessedLocalCheckpoint()

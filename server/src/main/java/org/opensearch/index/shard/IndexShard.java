@@ -3016,7 +3016,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 try {
                     markAsRecovering("from " + recoveryState.getSourceNode(), recoveryState);
                     if (indexSettings.isSegrepEnabled()) {
-                        markAsReplicating();
                         segmentReplicationReplicaService.startRecovery(
                             this,
                             recoveryState.getTargetNode(),
@@ -3666,7 +3665,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return;
         }
         try {
-            markAsReplicating();
             final ReplicationCheckpoint checkpoint = request.getCheckpoint();
             logger.trace("Received new checkpoint {}", checkpoint);
             segmentReplicationReplicaService.startReplication(

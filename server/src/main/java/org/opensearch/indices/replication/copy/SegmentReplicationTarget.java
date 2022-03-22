@@ -100,17 +100,17 @@ public class SegmentReplicationTarget extends ReplicationTarget {
 
     @Override
     protected void onDone() {
-        // might need to do something on index shard here.
+        indexShard.markReplicationComplete();
     }
 
     @Override
     protected void onCancel(String reason) {
-        // TBD
+        indexShard.markReplicationComplete();
     }
 
     @Override
     protected void onFail(OpenSearchException e, boolean sendShardFailure) {
-        // TBD
+        indexShard.markReplicationComplete();
     }
 
     /**
@@ -227,7 +227,6 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                 throw rfe;
             } finally {
                 store.decRef();
-                indexShard.markReplicationComplete();
             }
             return null;
         });
