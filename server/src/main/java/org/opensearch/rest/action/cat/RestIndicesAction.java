@@ -52,6 +52,7 @@ import org.opensearch.cluster.health.ClusterIndexHealth;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Strings;
 import org.opensearch.common.Table;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.TimeValue;
@@ -82,6 +83,9 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 public class RestIndicesAction extends AbstractCatAction {
 
     private static final DateFormatter STRICT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_time");
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestIndicesAction.class);
+    public static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
+        "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
 
     @Override
     public List<Route> routes() {
@@ -109,7 +113,9 @@ public class RestIndicesAction extends AbstractCatAction {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, IndicesOptions.strictExpand());
         final boolean local = request.paramAsBoolean("local", false);
-        final TimeValue masterNodeTimeout = request.paramAsTime("master_timeout", DEFAULT_MASTER_NODE_TIMEOUT);
+        TimeValue clusterManagerTimeout = request.paramAsTime("cluster_manager_timeout", DEFAULT_MASTER_NODE_TIMEOUT);
+        TimeValue deprecatedMasterTimeout = parseDeprecatedMasterTimeoutParameter(request);
+        final TimeValue clusterManagerNodeTimeout = deprecatedMasterTimeout == null ? clusterManagerTimeout : deprecatedMasterTimeout;
         final boolean includeUnloadedSegments = request.paramAsBoolean("include_unloaded_segments", false);
 
         return channel -> {
@@ -120,56 +126,66 @@ public class RestIndicesAction extends AbstractCatAction {
                 }
             });
 
-            sendGetSettingsRequest(indices, indicesOptions, local, masterNodeTimeout, client, new ActionListener<GetSettingsResponse>() {
-                @Override
-                public void onResponse(final GetSettingsResponse getSettingsResponse) {
-                    final GroupedActionListener<ActionResponse> groupedListener = createGroupedListener(request, 4, listener);
-                    groupedListener.onResponse(getSettingsResponse);
+            sendGetSettingsRequest(
+                indices,
+                indicesOptions,
+                local,
+                clusterManagerNodeTimeout,
+                client,
+                new ActionListener<GetSettingsResponse>() {
+                    @Override
+                    public void onResponse(final GetSettingsResponse getSettingsResponse) {
+                        final GroupedActionListener<ActionResponse> groupedListener = createGroupedListener(request, 4, listener);
+                        groupedListener.onResponse(getSettingsResponse);
 
-                    // The list of indices that will be returned is determined by the indices returned from the Get Settings call.
-                    // All the other requests just provide additional detail, and wildcards may be resolved differently depending on the
-                    // type of request in the presence of security plugins (looking at you, ClusterHealthRequest), so
-                    // force the IndicesOptions for all the sub-requests to be as inclusive as possible.
-                    final IndicesOptions subRequestIndicesOptions = IndicesOptions.lenientExpandHidden();
+                        // The list of indices that will be returned is determined by the indices returned from the Get Settings call.
+                        // All the other requests just provide additional detail, and wildcards may be resolved differently depending on the
+                        // type of request in the presence of security plugins (looking at you, ClusterHealthRequest), so
+                        // force the IndicesOptions for all the sub-requests to be as inclusive as possible.
+                        final IndicesOptions subRequestIndicesOptions = IndicesOptions.lenientExpandHidden();
 
-                    // Indices that were successfully resolved during the get settings request might be deleted when the subsequent cluster
-                    // state, cluster health and indices stats requests execute. We have to distinguish two cases:
-                    // 1) the deleted index was explicitly passed as parameter to the /_cat/indices request. In this case we want the
-                    // subsequent requests to fail.
-                    // 2) the deleted index was resolved as part of a wildcard or _all. In this case, we want the subsequent requests not to
-                    // fail on the deleted index (as we want to ignore wildcards that cannot be resolved).
-                    // This behavior can be ensured by letting the cluster state, cluster health and indices stats requests re-resolve the
-                    // index names with the same indices options that we used for the initial cluster state request (strictExpand).
-                    sendIndicesStatsRequest(
-                        indices,
-                        subRequestIndicesOptions,
-                        includeUnloadedSegments,
-                        client,
-                        ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
-                    );
-                    sendClusterStateRequest(
-                        indices,
-                        subRequestIndicesOptions,
-                        local,
-                        masterNodeTimeout,
-                        client,
-                        ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
-                    );
-                    sendClusterHealthRequest(
-                        indices,
-                        subRequestIndicesOptions,
-                        local,
-                        masterNodeTimeout,
-                        client,
-                        ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
-                    );
+                        // Indices that were successfully resolved during the get settings request might be deleted when the subsequent
+                        // cluster
+                        // state, cluster health and indices stats requests execute. We have to distinguish two cases:
+                        // 1) the deleted index was explicitly passed as parameter to the /_cat/indices request. In this case we want the
+                        // subsequent requests to fail.
+                        // 2) the deleted index was resolved as part of a wildcard or _all. In this case, we want the subsequent requests
+                        // not to
+                        // fail on the deleted index (as we want to ignore wildcards that cannot be resolved).
+                        // This behavior can be ensured by letting the cluster state, cluster health and indices stats requests re-resolve
+                        // the
+                        // index names with the same indices options that we used for the initial cluster state request (strictExpand).
+                        sendIndicesStatsRequest(
+                            indices,
+                            subRequestIndicesOptions,
+                            includeUnloadedSegments,
+                            client,
+                            ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
+                        );
+                        sendClusterStateRequest(
+                            indices,
+                            subRequestIndicesOptions,
+                            local,
+                            clusterManagerNodeTimeout,
+                            client,
+                            ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
+                        );
+                        sendClusterHealthRequest(
+                            indices,
+                            subRequestIndicesOptions,
+                            local,
+                            clusterManagerNodeTimeout,
+                            client,
+                            ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
+                        );
+                    }
+
+                    @Override
+                    public void onFailure(final Exception e) {
+                        listener.onFailure(e);
+                    }
                 }
-
-                @Override
-                public void onFailure(final Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            );
         };
     }
 
@@ -894,5 +910,23 @@ public class RestIndicesAction extends AbstractCatAction {
     @SuppressWarnings("unchecked")
     private static <A extends ActionResponse> A extractResponse(final Collection<? extends ActionResponse> responses, Class<A> c) {
         return (A) responses.stream().filter(c::isInstance).findFirst().get();
+    }
+
+    /**
+     * Parse the deprecated request parameter 'master_timeout', and add deprecated log if the parameter is used.
+     * It also validates whether the value of 'master_timeout' is the same with 'cluster_manager_timeout'.
+     * Remove the method along with MASTER_ROLE.
+     * @deprecated As of 2.0, because promoting inclusive language.
+     */
+    @Deprecated
+    private TimeValue parseDeprecatedMasterTimeoutParameter(RestRequest request) {
+        final String deprecatedTimeoutParam = "master_timeout";
+        TimeValue clusterManagerTimeout = null;
+        if (request.hasParam(deprecatedTimeoutParam)) {
+            deprecationLogger.deprecate("cat_indices_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+            request.validateParamValuesAreEqual(deprecatedTimeoutParam, "cluster_manager_timeout");
+            clusterManagerTimeout = request.paramAsTime(deprecatedTimeoutParam, DEFAULT_MASTER_NODE_TIMEOUT);
+        }
+        return clusterManagerTimeout;
     }
 }

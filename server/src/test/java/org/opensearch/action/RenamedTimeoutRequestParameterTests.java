@@ -8,10 +8,13 @@
 
 package org.opensearch.action;
 
+import org.junit.AfterClass;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.cat.RestAllocationAction;
+import org.opensearch.rest.action.cat.RestIndicesAction;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.threadpool.TestThreadPool;
@@ -19,26 +22,37 @@ import org.opensearch.threadpool.TestThreadPool;
 import static org.hamcrest.CoreMatchers.containsString;
 
 /**
- * As of 2.0, the request parameter 'master_timeout' in all applicable REST APIs is deprecated, 
+ * As of 2.0, the request parameter 'master_timeout' in all applicable REST APIs is deprecated,
  * and alternative parameter 'cluster_manager_timeout' is added.
  * The tests are used to validate the behavior about the renamed request parameter.
  * Remove the test after removing MASTER_ROLE and 'master_timeout'.
  */
 public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     private static final String PARAM_VALUE_ERROR_MESSAGE = "[master_timeout, cluster_manager_timeout] are required to be equal";
+    private static final TestThreadPool threadPool = new TestThreadPool(RenamedTimeoutRequestParameterTests.class.getName());
+    private final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
+    private final RestRequest request = getFakeRestRequestWithBothOldAndNewTimeoutParam();
+
+    @AfterClass
+    public static void terminateThreadPool() {
+        terminate(threadPool);
+    }
 
     /**
      * Validate both cluster_manager_timeout and its predecessor can be parsed correctly.
      */
     public void testCatAllocationTimeoutErrorAndWarning() {
         RestAllocationAction action = new RestAllocationAction();
-        TestThreadPool threadPool = new TestThreadPool(RenamedTimeoutRequestParameterTests.class.getName());
-        NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
-        FakeRestRequest request = getFakeRestRequestWithBothOldAndNewTimeoutParam();
         Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(request, client));
         assertThat(e.getMessage(), containsString(PARAM_VALUE_ERROR_MESSAGE));
         assertWarnings(RestAllocationAction.MASTER_TIMEOUT_DEPRECATED_MESSAGE);
-        terminate(threadPool);
+    }
+
+    public void testCatIndicesTimeoutErrorAndWarning() {
+        RestIndicesAction action = new RestIndicesAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(request, client));
+        assertThat(e.getMessage(), containsString(PARAM_VALUE_ERROR_MESSAGE));
+        assertWarnings(RestIndicesAction.MASTER_TIMEOUT_DEPRECATED_MESSAGE);
     }
 
     private FakeRestRequest getFakeRestRequestWithBothOldAndNewTimeoutParam() {

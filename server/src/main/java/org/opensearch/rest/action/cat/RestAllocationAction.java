@@ -198,7 +198,7 @@ public class RestAllocationAction extends AbstractCatAction {
     private void parseDeprecatedMasterTimeoutParameter(ClusterStateRequest clusterStateRequest, RestRequest request) {
         final String deprecatedTimeoutParam = "master_timeout";
         if (request.hasParam(deprecatedTimeoutParam)) {
-            deprecationLogger.deprecate("cat_nodes_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+            deprecationLogger.deprecate("cat_allocation_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
             request.validateParamValuesAreEqual(deprecatedTimeoutParam, "cluster_manager_timeout");
             clusterStateRequest.masterNodeTimeout(request.paramAsTime(deprecatedTimeoutParam, clusterStateRequest.masterNodeTimeout()));
         }
