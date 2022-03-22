@@ -107,7 +107,6 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.opensearch.transport.TransportHandshaker.V_3_0_0;
 import static org.opensearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -2230,7 +2229,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 // OpenSearch [1.0:3.0) in bwc mode should only "upgrade" to Legacy v7.10.2
                 assertEquals(
                     connection.getVersion(),
-                    version.onOrAfter(Version.V_1_0_0) && version.before(V_3_0_0) ? LegacyESVersion.V_7_10_2 : version
+                    version.onOrAfter(Version.V_1_0_0) && version.before(Version.V_3_0_0) ? LegacyESVersion.V_7_10_2 : version
                 );
             }
         }
