@@ -494,12 +494,85 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testMergeSegmentsOnCommitIsDisabled() throws Exception {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+
+        final Settings.Builder settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexSettings.INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME.getKey(), TimeValue.timeValueMillis(0))
+            .put(IndexSettings.INDEX_MERGE_ON_FLUSH_ENABLED.getKey(), true);
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
+
+        try (
+            Store store = createStore();
+            InternalEngine engine = createEngine(
+                config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get)
+            )
+        ) {
+            assertThat(engine.segments(false), empty());
+            int numDocsFirstSegment = randomIntBetween(5, 50);
+            Set<String> liveDocsFirstSegment = new HashSet<>();
+            for (int i = 0; i < numDocsFirstSegment; i++) {
+                String id = Integer.toString(i);
+                ParsedDocument doc = testParsedDocument(id, null, testDocument(), B_1, null);
+                engine.index(indexForDoc(doc));
+                liveDocsFirstSegment.add(id);
+            }
+            engine.refresh("test");
+            List<Segment> segments = engine.segments(randomBoolean());
+            assertThat(segments, hasSize(1));
+            assertThat(segments.get(0).getNumDocs(), equalTo(liveDocsFirstSegment.size()));
+            assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
+            assertFalse(segments.get(0).committed);
+            int deletes = 0;
+            int updates = 0;
+            int appends = 0;
+            int iterations = scaledRandomIntBetween(1, 50);
+            for (int i = 0; i < iterations && liveDocsFirstSegment.isEmpty() == false; i++) {
+                String idToUpdate = randomFrom(liveDocsFirstSegment);
+                liveDocsFirstSegment.remove(idToUpdate);
+                ParsedDocument doc = testParsedDocument(idToUpdate, null, testDocument(), B_1, null);
+                if (randomBoolean()) {
+                    engine.delete(new Engine.Delete(doc.id(), newUid(doc), primaryTerm.get()));
+                    deletes++;
+                } else {
+                    engine.index(indexForDoc(doc));
+                    updates++;
+                }
+                if (randomBoolean()) {
+                    engine.index(indexForDoc(testParsedDocument(UUIDs.randomBase64UUID(), null, testDocument(), B_1, null)));
+                    appends++;
+                }
+            }
+
+            boolean committed = randomBoolean();
+            if (committed) {
+                engine.flush();
+            }
+
+            engine.refresh("test");
+            segments = engine.segments(randomBoolean());
+
+            assertThat(segments, hasSize(2));
+            assertThat(segments, hasSize(2));
+            assertThat(segments.get(0).getNumDocs(), equalTo(liveDocsFirstSegment.size()));
+            assertThat(segments.get(0).getDeletedDocs(), equalTo(updates + deletes));
+            assertThat(segments.get(0).committed, equalTo(committed));
+
+            assertThat(segments.get(1).getNumDocs(), equalTo(updates + appends));
+            assertThat(segments.get(1).getDeletedDocs(), equalTo(deletes)); // delete tombstones
+            assertThat(segments.get(1).committed, equalTo(committed));
+        }
+    }
+
     public void testMergeSegmentsOnCommit() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
 
         final Settings.Builder settings = Settings.builder()
             .put(defaultSettings.getSettings())
-            .put(IndexSettings.INDEX_MAX_FULL_FLUSH_MERGE.getKey(), TimeValue.timeValueMillis(5000));
+            .put(IndexSettings.INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME.getKey(), TimeValue.timeValueMillis(5000))
+            .put(IndexSettings.INDEX_MERGE_ON_FLUSH_ENABLED.getKey(), true);
         final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
 
@@ -567,7 +640,8 @@ public class InternalEngineTests extends EngineTestCase {
 
         final Settings.Builder settings = Settings.builder()
             .put(defaultSettings.getSettings())
-            .put(IndexSettings.INDEX_MAX_FULL_FLUSH_MERGE.getKey(), TimeValue.timeValueMillis(5000));
+            .put(IndexSettings.INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME.getKey(), TimeValue.timeValueMillis(5000))
+            .put(IndexSettings.INDEX_MERGE_ON_FLUSH_ENABLED.getKey(), true);
         final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
 
