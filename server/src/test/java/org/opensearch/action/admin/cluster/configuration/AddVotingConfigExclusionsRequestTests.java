@@ -163,7 +163,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
                 IllegalArgumentException.class,
                 () -> makeRequestWithNodeDescriptions("not-a-node").resolveVotingConfigExclusions(clusterState)
             ).getMessage(),
-            equalTo("add voting config exclusions request for [not-a-node] matched no master-eligible nodes")
+            equalTo("add voting config exclusions request for [not-a-node] matched no cluster-manager-eligible nodes")
         );
         assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }

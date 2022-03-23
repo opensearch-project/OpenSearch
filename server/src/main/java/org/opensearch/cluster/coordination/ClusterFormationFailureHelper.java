@@ -203,7 +203,7 @@ public class ClusterFormationFailureHelper {
                 } else {
                     bootstrappingDescription = String.format(
                         Locale.ROOT,
-                        "this node must discover master-eligible nodes %s to bootstrap a cluster",
+                        "this node must discover cluster-manager-eligible nodes %s to bootstrap a cluster",
                         INITIAL_CLUSTER_MANAGER_NODES_SETTING.get(settings)
                     );
                 }
@@ -269,8 +269,8 @@ public class ClusterFormationFailureHelper {
 
             if (nodeIds.size() == 1) {
                 if (nodeIds.contains(GatewayMetaState.STALE_STATE_CONFIG_NODE_ID)) {
-                    return "one or more nodes that have already participated as master-eligible nodes in the cluster but this node was "
-                        + "not master-eligible the last time it joined the cluster";
+                    return "one or more nodes that have already participated as cluster-manager-eligible nodes in the cluster but this node was "
+                        + "not cluster-manager-eligible the last time it joined the cluster";
                 } else {
                     return "a node with id " + realNodeIds;
                 }

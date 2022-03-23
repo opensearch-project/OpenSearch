@@ -1558,7 +1558,9 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                             final String message = event.getMessage().getFormattedMessage();
                             assertThat(
                                 message,
-                                startsWith("cluster-manager not discovered or elected yet, an election requires at least 2 nodes with ids from [")
+                                startsWith(
+                                    "cluster-manager not discovered or elected yet, an election requires at least 2 nodes with ids from ["
+                                )
                             );
 
                             final List<ClusterNode> matchingNodes = cluster.clusterNodes.stream()

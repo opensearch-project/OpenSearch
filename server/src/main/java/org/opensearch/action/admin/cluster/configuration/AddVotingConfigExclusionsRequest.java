@@ -136,7 +136,9 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
 
             if (newVotingConfigExclusions.isEmpty()) {
                 throw new IllegalArgumentException(
-                    "add voting config exclusions request for " + Arrays.asList(nodeDescriptions) + " matched no master-eligible nodes"
+                    "add voting config exclusions request for "
+                        + Arrays.asList(nodeDescriptions)
+                        + " matched no cluster-manager-eligible nodes"
                 );
             }
         } else if (nodeIds.length >= 1) {

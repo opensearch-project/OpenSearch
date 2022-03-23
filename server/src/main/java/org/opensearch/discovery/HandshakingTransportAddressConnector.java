@@ -137,7 +137,9 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                                         if (remoteNode.equals(transportService.getLocalNode())) {
                                             listener.onFailure(new ConnectTransportException(remoteNode, "local node found"));
                                         } else if (remoteNode.isMasterNode() == false) {
-                                            listener.onFailure(new ConnectTransportException(remoteNode, "non-master-eligible node found"));
+                                            listener.onFailure(
+                                                new ConnectTransportException(remoteNode, "non-cluster-manager-eligible node found")
+                                            );
                                         } else {
                                             transportService.connectToNode(remoteNode, new ActionListener<Void>() {
                                                 @Override

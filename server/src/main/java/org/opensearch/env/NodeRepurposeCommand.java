@@ -162,12 +162,12 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
         terminal.println(shardMessage(shardDataPaths.size(), indexUUIDs.size()));
         outputHowToSeeVerboseInformation(terminal);
 
-        terminal.println("Node is being re-purposed as master and no-data. Clean-up of shard data will be performed.");
+        terminal.println("Node is being re-purposed as cluster-manager and no-data. Clean-up of shard data will be performed.");
         confirm(terminal, "Do you want to proceed?");
 
         removePaths(terminal, shardDataPaths); // clean-up shard dirs
 
-        terminal.println("Node successfully repurposed to master and no-data.");
+        terminal.println("Node successfully repurposed to cluster-manager and no-data.");
     }
 
     private ClusterState loadClusterState(Terminal terminal, Environment env, PersistedClusterStateService psf) throws IOException {

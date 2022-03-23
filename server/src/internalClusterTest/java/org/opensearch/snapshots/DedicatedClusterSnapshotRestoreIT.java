@@ -759,7 +759,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> start first node");
         internalCluster().startNode();
         logger.info("--> start second node");
-        // Make sure the first node is elected as master
+        // Make sure the first node is elected as cluster-manager
         internalCluster().startNode(nonMasterNode());
         // Register mock repositories
         for (int i = 0; i < 5; i++) {

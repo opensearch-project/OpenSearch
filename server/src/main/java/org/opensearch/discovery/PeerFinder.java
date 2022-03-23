@@ -381,7 +381,7 @@ public abstract class PeerFinder {
             transportAddressConnector.connectToRemoteMasterNode(transportAddress, new ActionListener<DiscoveryNode>() {
                 @Override
                 public void onResponse(DiscoveryNode remoteNode) {
-                    assert remoteNode.isMasterNode() : remoteNode + " is not master-eligible";
+                    assert remoteNode.isMasterNode() : remoteNode + " is not cluster-manager-eligible";
                     assert remoteNode.equals(getLocalNode()) == false : remoteNode + " is the local node";
                     synchronized (mutex) {
                         if (active == false) {
