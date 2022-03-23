@@ -192,7 +192,7 @@ public class ClusterFormationFailureHelper {
             );
 
             if (clusterState.nodes().getLocalNode().isMasterNode() == false) {
-                return String.format(Locale.ROOT, "master not discovered yet: %s", discoveryStateIgnoringQuorum);
+                return String.format(Locale.ROOT, "cluster-manager not discovered yet: %s", discoveryStateIgnoringQuorum);
             }
 
             if (clusterState.getLastAcceptedConfiguration().isEmpty()) {
@@ -210,7 +210,7 @@ public class ClusterFormationFailureHelper {
 
                 return String.format(
                     Locale.ROOT,
-                    "master not discovered yet, this node has not previously joined a bootstrapped cluster, and %s: %s",
+                    "cluster-manager not discovered yet, this node has not previously joined a bootstrapped cluster, and %s: %s",
                     bootstrappingDescription,
                     discoveryStateIgnoringQuorum
                 );
@@ -221,7 +221,7 @@ public class ClusterFormationFailureHelper {
             if (clusterState.getLastCommittedConfiguration().equals(VotingConfiguration.MUST_JOIN_ELECTED_MASTER)) {
                 return String.format(
                     Locale.ROOT,
-                    "master not discovered yet and this node was detached from its previous cluster, have discovered %s; %s",
+                    "cluster-manager not discovered yet and this node was detached from its previous cluster, have discovered %s; %s",
                     foundPeers,
                     discoveryWillContinueDescription
                 );
@@ -250,7 +250,7 @@ public class ClusterFormationFailureHelper {
 
             return String.format(
                 Locale.ROOT,
-                "master not discovered or elected yet, an election requires %s, have discovered %s which %s; %s",
+                "cluster-manager not discovered or elected yet, an election requires %s, have discovered %s which %s; %s",
                 quorumDescription,
                 foundPeers,
                 isQuorumOrNot,

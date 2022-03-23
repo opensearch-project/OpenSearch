@@ -574,7 +574,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         public String shortSummary() {
             final StringBuilder summary = new StringBuilder();
             if (masterNodeChanged()) {
-                summary.append("master node changed {previous [");
+                summary.append("cluster-manager node changed {previous [");
                 if (previousMasterNode() != null) {
                     summary.append(previousMasterNode());
                 }

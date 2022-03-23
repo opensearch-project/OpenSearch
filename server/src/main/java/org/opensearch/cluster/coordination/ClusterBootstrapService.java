@@ -219,7 +219,7 @@ public class ClusterBootstrapService {
 
         logger.info(
             "no discovery configuration found, will perform best-effort cluster bootstrapping after [{}] "
-                + "unless existing master is discovered",
+                + "unless existing cluster-manager is discovered",
             unconfiguredBootstrapTimeout
         );
 

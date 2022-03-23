@@ -191,7 +191,7 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
                 new StatusInfo(HEALTHY, "healthy-info")
             ).getDescription(),
             is(
-                "master not discovered yet: have discovered []; discovery will continue using [] from hosts providers "
+                "cluster-manager yet: have discovered []; discovery will continue using [] from hosts providers "
                     + "and [] from last-known cluster state; node term 15, last-accepted version 12 in term 4"
             )
         );
@@ -208,7 +208,7 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
                 new StatusInfo(HEALTHY, "healthy-info")
             ).getDescription(),
             is(
-                "master not discovered yet: have discovered []; discovery will continue using ["
+                "cluster-manager not discovered yet: have discovered []; discovery will continue using ["
                     + otherAddress
                     + "] from hosts providers and [] from last-known cluster state; node term 16, last-accepted version 12 in term 4"
             )
@@ -226,7 +226,7 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
                 new StatusInfo(HEALTHY, "healthy-info")
             ).getDescription(),
             is(
-                "master not discovered yet: have discovered ["
+                "cluster-manager not discovered yet: have discovered ["
                     + otherNode
                     + "]; discovery will continue using [] from hosts providers "
                     + "and [] from last-known cluster state; node term 17, last-accepted version 12 in term 4"
@@ -257,7 +257,7 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
                 new StatusInfo(HEALTHY, "healthy-info")
             ).getDescription(),
             is(
-                "master not discovered yet: have discovered []; discovery will continue using [] from hosts providers "
+                "cluster-manager not discovered yet: have discovered []; discovery will continue using [] from hosts providers "
                     + "and [] from last-known cluster state; node term 15, last-accepted version 42 in term 0"
             )
         );
@@ -348,7 +348,7 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
                 new StatusInfo(HEALTHY, "healthy-info")
             ).getDescription(),
             is(
-                "master not discovered yet, this node has not previously joined a bootstrapped cluster, and "
+                "cluster-manager not discovered yet, this node has not previously joined a bootstrapped cluster, and "
                     + "[cluster.initial_cluster_manager_nodes] is empty on this node: have discovered []; "
                     + "discovery will continue using ["
                     + otherAddress
@@ -391,8 +391,8 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
                 new StatusInfo(HEALTHY, "healthy-info")
             ).getDescription(),
             is(
-                "master not discovered yet, this node has not previously joined a bootstrapped cluster, and "
-                    + "this node must discover master-eligible nodes [other] to bootstrap a cluster: have discovered []; "
+                "cluster-manager not discovered yet, this node has not previously joined a bootstrapped cluster, and "
+                    + "this node must discover cluster-manager-eligible nodes [other] to bootstrap a cluster: have discovered []; "
                     + "discovery will continue using [] from hosts providers and ["
                     + localNode
                     + "] from last-known cluster state; node term 4, last-accepted version 7 in term 4"
