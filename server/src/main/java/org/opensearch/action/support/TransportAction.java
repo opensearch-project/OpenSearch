@@ -40,6 +40,7 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancelledException;
 import org.opensearch.tasks.TaskId;
@@ -155,18 +156,25 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
      * Use this method when the transport action should continue to run in the context of the current task
      */
     public final void execute(Task task, Request request, ActionListener<Response> listener) {
-        ActionRequestValidationException validationException = request.validate();
-        if (validationException != null) {
-            listener.onFailure(validationException);
-            return;
-        }
+        ThreadContext.StoredContext storedContext = taskManager.addTaskIdInThreadContext(task);
 
-        if (task != null && request.getShouldStoreResult()) {
-            listener = new TaskResultStoringActionListener<>(taskManager, task, listener);
-        }
+        try {
+            ActionRequestValidationException validationException = request.validate();
+            if (validationException != null) {
+                listener.onFailure(validationException);
+                return;
+            }
 
-        RequestFilterChain<Request, Response> requestFilterChain = new RequestFilterChain<>(this, logger);
-        requestFilterChain.proceed(task, actionName, request, listener);
+            if (task != null && request.getShouldStoreResult()) {
+                listener = new TaskResultStoringActionListener<>(taskManager, task, listener);
+            }
+
+            RequestFilterChain<Request, Response> requestFilterChain = new RequestFilterChain<>(this, logger);
+            requestFilterChain.proceed(task, actionName, request, listener);
+
+        } finally {
+            storedContext.restore();
+        }
     }
 
     protected abstract void doExecute(Task task, Request request, ActionListener<Response> listener);

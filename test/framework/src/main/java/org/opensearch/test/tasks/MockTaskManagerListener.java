@@ -43,4 +43,11 @@ public interface MockTaskManagerListener {
     void onTaskUnregistered(Task task);
 
     void waitForTaskCompletion(Task task);
+
+    /**
+     *
+     * @param taskIdAdded if false then task id is removed from the thread context. Null if no change
+     */
+    void onThreadContextUpdate(Task task, Boolean taskIdAdded);
+
 }

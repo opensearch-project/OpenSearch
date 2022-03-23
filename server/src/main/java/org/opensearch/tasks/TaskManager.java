@@ -48,6 +48,7 @@ import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.Settings;
@@ -84,6 +85,8 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_
  * Task Manager service for keeping track of currently running tasks on the nodes
  */
 public class TaskManager implements ClusterStateApplier {
+
+    public static final String TASK_ID = "TASK_ID";
 
     private static final Logger logger = LogManager.getLogger(TaskManager.class);
 
@@ -446,6 +449,37 @@ public class TaskManager implements ClusterStateApplier {
             }
         }
         throw new OpenSearchTimeoutException("Timed out waiting for completion of [{}]", task);
+    }
+
+    /**
+     * Adds Task Id in the ThreadContext.
+     * <p>
+     * Stashes the existing ThreadContext and preserves all the existing ThreadContext's data in the new ThreadContext
+     * as well.
+     *
+     * @param task for which Task Id needs to be added in ThreadContext.
+     * @return StoredContext reference to restore the ThreadContext from which we created a new one.
+     * Caller can call context.restore() to get the existing ThreadContext back.
+     */
+    public ThreadContext.StoredContext addTaskIdInThreadContext(@Nullable Task task) {
+        if (task == null) {
+            return () -> {};
+        }
+
+        ThreadContext threadContext = threadPool.getThreadContext();
+
+        if (threadContext.getTransient(TASK_ID) != null) {
+            logger.warn(
+                "Task Id already present in the thread context. Thread Id: {}, Existing Task Id: {}, New Task Id: {}. Overwriting",
+                Thread.currentThread().getId(),
+                threadContext.getTransient(TASK_ID),
+                task.getId()
+            );
+        }
+
+        ThreadContext.StoredContext storedContext = threadContext.newStoredContext(true, Collections.singletonList(TASK_ID));
+        threadContext.putTransient(TASK_ID, task.getId());
+        return storedContext;
     }
 
     private static class CancellableTaskHolder {

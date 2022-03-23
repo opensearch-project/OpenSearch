@@ -66,6 +66,7 @@ import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
 import org.opensearch.test.tasks.MockTaskManager;
+import org.opensearch.test.tasks.MockTaskManagerListener;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -82,12 +83,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.opensearch.action.support.PlainActionFuture.newFuture;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.opensearch.tasks.TaskManager.TASK_ID;
 
 public class TransportTasksActionTests extends TaskManagerTestCase {
 
@@ -646,6 +649,55 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         checkLatch.countDown();
         NodesResponse responses = future.get();
         assertEquals(0, responses.failureCount());
+    }
+
+    public void testTaskIdPersistsInThreadContext() {
+        Settings settings = Settings.builder().put(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.getKey(), true).build();
+        setupTestNodes(settings);
+        connectNodes(testNodes);
+
+        final List<Long> taskIdsAddedToThreadContext = new ArrayList<>();
+        final List<Long> taskIdsRemovedFromThreadContext = new ArrayList<>();
+        final long[] actualTaskIdInThreadContext = new long[1];
+        final long[] expectedTaskIdInThreadContext = new long[1];
+
+        ((MockTaskManager) testNodes[0].transportService.getTaskManager()).addListener(new MockTaskManagerListener() {
+            @Override
+            public void waitForTaskCompletion(Task task) {}
+
+            @Override
+            public void onThreadContextUpdate(Task task, Boolean taskIdAdded) {
+                if (taskIdAdded) {
+                    taskIdsAddedToThreadContext.add(task.getId());
+                } else {
+                    taskIdsRemovedFromThreadContext.add(task.getId());
+                }
+            }
+
+            @Override
+            public void onTaskRegistered(Task task) {}
+
+            @Override
+            public void onTaskUnregistered(Task task) {
+                if (task.getAction().equals("action1")) {
+                    expectedTaskIdInThreadContext[0] = task.getId();
+                    actualTaskIdInThreadContext[0] = threadPool.getThreadContext().getTransient(TASK_ID);
+                }
+            }
+        });
+
+        TestTasksAction action = new TestTasksAction("action1", testNodes[0].clusterService, testNodes[0].transportService) {
+            @Override
+            protected void taskOperation(TestTasksRequest request, Task task, ActionListener<TestTaskResponse> listener) {
+                listener.onResponse(new TestTaskResponse(testNodes[0].getNodeId()));
+            }
+        };
+        TestTasksRequest testTasksRequest = new TestTasksRequest();
+        testTasksRequest.setActions("action1");
+        ActionTestUtils.executeBlocking(action, testTasksRequest);
+
+        assertEquals(expectedTaskIdInThreadContext[0], actualTaskIdInThreadContext[0]);
+        assertThat(taskIdsAddedToThreadContext, containsInAnyOrder(taskIdsRemovedFromThreadContext.toArray()));
     }
 
     /**
