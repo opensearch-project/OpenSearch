@@ -134,6 +134,29 @@ public class LocalCheckpointTracker {
         markSeqNo(seqNo, persistedCheckpoint, persistedSeqNo);
     }
 
+    /**
+     * Updates the processed checkpoint with the provided sequence number if segment replication is enabled
+     *
+     * @param seqNo the sequence number to mark as processed
+     */
+    public synchronized void segrepMarkSeqNoAsProcessed(final long seqNo) {
+        markSegrepSeqNo(seqNo, processedCheckpoint, persistedCheckpoint);
+    }
+
+    @SuppressForbidden(reason = "Object#notifyAll")
+    private void markSegrepSeqNo(final long seqNo, final AtomicLong processedCheckpoint, final AtomicLong persistedCheckpoint) {
+        assert Thread.holdsLock(this);
+        advanceMaxSeqNo(seqNo);
+        if ((seqNo > persistedCheckpoint.get()) || (seqNo <= processedCheckpoint.get())) {
+            return;
+        }
+        try {
+            processedCheckpoint.compareAndSet(processedCheckpoint.get(), seqNo);
+        } finally {
+            this.notifyAll();
+        }
+    }
+
     private void markSeqNo(final long seqNo, final AtomicLong checkPoint, final LongObjectHashMap<CountedBitSet> bitSetMap) {
         assert Thread.holdsLock(this);
         // make sure we track highest seen sequence number
