@@ -34,6 +34,7 @@ package org.opensearch.tasks;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectIntMap;
+import com.sun.management.ThreadMXBean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -51,6 +52,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
@@ -58,10 +60,12 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TcpChannel;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -80,11 +84,19 @@ import java.util.stream.StreamSupport;
 
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
+import static org.opensearch.tasks.ResourceStatsType.WORKER_STATS;
 
 /**
  * Task Manager service for keeping track of currently running tasks on the nodes
  */
-public class TaskManager implements ClusterStateApplier {
+public class TaskManager implements ClusterStateApplier, RunnableTaskExecutionListener {
+
+    public static final Setting<Boolean> TASK_RESOURCE_TRACKING_ENABLED = Setting.boolSetting(
+        "task_resource_tracking.enabled",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     public static final String TASK_ID = "TASK_ID";
 
@@ -92,7 +104,11 @@ public class TaskManager implements ClusterStateApplier {
 
     private static final TimeValue WAIT_FOR_COMPLETION_POLL = timeValueMillis(100);
 
-    /** Rest headers that are copied to the task */
+    private static final ThreadMXBean threadMXBean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
+
+    /**
+     * Rest headers that are copied to the task
+     */
     private final List<String> taskHeaders;
     private final ThreadPool threadPool;
 
@@ -110,13 +126,23 @@ public class TaskManager implements ClusterStateApplier {
     private volatile DiscoveryNodes lastDiscoveryNodes = DiscoveryNodes.EMPTY_NODES;
 
     private final ByteSizeValue maxHeaderSize;
+    private volatile boolean taskResourceTrackingEnabled;
     private final Map<TcpChannel, ChannelPendingTaskTracker> channelPendingTaskTrackers = ConcurrentCollections.newConcurrentMap();
     private final SetOnce<TaskCancellationService> cancellationService = new SetOnce<>();
+
+    private final ConcurrentMapLong<Task> resourceAwareTasks = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
 
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
         this.threadPool = threadPool;
         this.taskHeaders = new ArrayList<>(taskHeaders);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
+        this.taskResourceTrackingEnabled = TASK_RESOURCE_TRACKING_ENABLED.get(settings);
+    }
+
+    public boolean isTaskResourceTrackingEnabled() {
+        return taskResourceTrackingEnabled
+            && threadMXBean.isThreadAllocatedMemorySupported()
+            && threadMXBean.isThreadAllocatedMemoryEnabled();
     }
 
     public void setTaskResultsService(TaskResultsService taskResultsService) {
@@ -151,6 +177,10 @@ public class TaskManager implements ClusterStateApplier {
         assert task.getParentTaskId().equals(request.getParentTask()) : "Request [ " + request + "] didn't preserve it parentTaskId";
         if (logger.isTraceEnabled()) {
             logger.trace("register {} [{}] [{}] [{}]", task.getId(), type, action, task.getDescription());
+        }
+
+        if (task.supportsResourceTracking() && isTaskResourceTrackingEnabled()) {
+            resourceAwareTasks.put(task.getId(), task);
         }
 
         if (task instanceof CancellableTask) {
@@ -205,6 +235,11 @@ public class TaskManager implements ClusterStateApplier {
      */
     public Task unregister(Task task) {
         logger.trace("unregister task for id: {}", task.getId());
+
+        if (task.supportsResourceTracking()) {
+            resourceAwareTasks.remove(task.getId(), task);
+        }
+
         if (task instanceof CancellableTask) {
             CancellableTaskHolder holder = cancellableTasks.remove(task.getId());
             if (holder != null) {
@@ -327,6 +362,10 @@ public class TaskManager implements ClusterStateApplier {
         return Collections.unmodifiableMap(taskHashMap);
     }
 
+    public Map<Long, Task> getResourceAwareTasks() {
+        return Collections.unmodifiableMap(resourceAwareTasks);
+    }
+
     /**
      * Returns a task with given id, or null if the task is not found.
      */
@@ -364,6 +403,7 @@ public class TaskManager implements ClusterStateApplier {
      * Bans all tasks with the specified parent task from execution, cancels all tasks that are currently executing.
      * <p>
      * This method is called when a parent task that has children is cancelled.
+     *
      * @return a list of pending cancellable child tasks
      */
     public List<CancellableTask> setBan(TaskId parentTaskId, String reason) {
@@ -480,6 +520,46 @@ public class TaskManager implements ClusterStateApplier {
         ThreadContext.StoredContext storedContext = threadContext.newStoredContext(true, Collections.singletonList(TASK_ID));
         threadContext.putTransient(TASK_ID, task.getId());
         return storedContext;
+    }
+
+    /**
+     * Called when a thread starts working on a task's runnable.
+     *
+     * @param taskId   of the task for which runnable is starting
+     * @param threadId of the thread which will be executing the runnable and we need to check resource usage for this
+     *                 thread
+     */
+    @Override
+    public void taskExecutionStartedOnThread(long taskId, long threadId) {
+        if (resourceAwareTasks.containsKey(taskId)) {
+            resourceAwareTasks.get(taskId).startThreadResourceTracking(threadId, WORKER_STATS, getResourceUsageMetricsForThread(threadId));
+        }
+    }
+
+    /**
+     * Called when a thread finishes working on a task's runnable.
+     *
+     * @param taskId   of the task for which runnable is complete
+     * @param threadId of the thread which executed the runnable and we need to check resource usage for this thread
+     */
+    @Override
+    public void taskExecutionFinishedOnThread(long taskId, long threadId) {
+        if (resourceAwareTasks.containsKey(taskId)) {
+            resourceAwareTasks.get(taskId).stopThreadResourceTracking(threadId, WORKER_STATS, getResourceUsageMetricsForThread(threadId));
+        }
+    }
+
+    private ResourceUsageMetric[] getResourceUsageMetricsForThread(long threadId) {
+        ResourceUsageMetric currentMemoryUsage = new ResourceUsageMetric(
+            ResourceStats.MEMORY,
+            threadMXBean.getThreadAllocatedBytes(threadId)
+        );
+        ResourceUsageMetric currentCPUUsage = new ResourceUsageMetric(ResourceStats.CPU, threadMXBean.getThreadCpuTime(threadId));
+        return new ResourceUsageMetric[] { currentMemoryUsage, currentCPUUsage };
+    }
+
+    public void setTaskResourceTrackingEnabled(boolean taskResourceTrackingEnabled) {
+        this.taskResourceTrackingEnabled = taskResourceTrackingEnabled;
     }
 
     private static class CancellableTaskHolder {

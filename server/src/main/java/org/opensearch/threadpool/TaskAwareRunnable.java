@@ -1,0 +1,85 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.threadpool;
+
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.concurrent.WrappedRunnable;
+
+import java.util.Objects;
+
+import static java.lang.Thread.currentThread;
+import static org.opensearch.tasks.TaskManager.TASK_ID;
+
+/**
+ * Responsible for wrapping the original task's runnable and sending updates on when it starts and finishes to
+ * entities listening to the events.
+ *
+ * It's able to associate runnable with a task with the help of task Id available in thread context.
+ */
+public class TaskAwareRunnable extends AbstractRunnable implements WrappedRunnable {
+
+    private static RunnableTaskExecutionListener listener;
+
+    private final Runnable original;
+    private final ThreadContext threadContext;
+
+    public TaskAwareRunnable(ThreadContext threadContext, final Runnable original) {
+        this.original = original;
+        this.threadContext = threadContext;
+    }
+
+    public static void setListener(RunnableTaskExecutionListener l) {
+        listener = l;
+    }
+
+    @Override
+    public void onFailure(Exception e) {
+        ExceptionsHelper.reThrowIfNotNull(e);
+    }
+
+    @Override
+    public boolean isForceExecution() {
+        return original instanceof AbstractRunnable && ((AbstractRunnable) original).isForceExecution();
+    }
+
+    @Override
+    public void onRejection(final Exception e) {
+        if (original instanceof AbstractRunnable) {
+            ((AbstractRunnable) original).onRejection(e);
+        } else {
+            ExceptionsHelper.reThrowIfNotNull(e);
+        }
+    }
+
+    @Override
+    protected void doRun() throws Exception {
+        assert listener != null : "Listener should be attached";
+
+        Long taskId = threadContext.getTransient(TASK_ID);
+
+        if (Objects.nonNull(taskId)) {
+            listener.taskExecutionStartedOnThread(taskId, currentThread().getId());
+        }
+        try {
+            original.run();
+        } finally {
+            if (Objects.nonNull(taskId)) {
+                listener.taskExecutionFinishedOnThread(taskId, currentThread().getId());
+            }
+        }
+
+    }
+
+    @Override
+    public Runnable unwrap() {
+        return original;
+    }
+}

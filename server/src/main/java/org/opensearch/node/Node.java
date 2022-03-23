@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.index.IndexingPressureService;
+import org.opensearch.threadpool.TaskAwareRunnable;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.Assertions;
 import org.opensearch.Build;
@@ -1057,6 +1058,9 @@ public class Node implements Closeable {
         TransportService transportService = injector.getInstance(TransportService.class);
         transportService.getTaskManager().setTaskResultsService(injector.getInstance(TaskResultsService.class));
         transportService.getTaskManager().setTaskCancellationService(new TaskCancellationService(transportService));
+
+        TaskAwareRunnable.setListener(transportService.getTaskManager());
+
         transportService.start();
         assert localNodeFactory.getNode() != null;
         assert transportService.getLocalNode().equals(localNodeFactory.getNode())
