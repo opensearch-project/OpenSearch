@@ -81,9 +81,9 @@ public class InternalProfileCollectorManager
     }
 
     @Override
-    public void onEarlyTemination(int maxCountHits, boolean forcedTermination) {
+    public void onEarlyTermination(int maxCountHits, boolean forcedTermination) {
         if (manager instanceof EarlyTerminatingListener) {
-            ((EarlyTerminatingListener) manager).onEarlyTemination(maxCountHits, forcedTermination);
+            ((EarlyTerminatingListener) manager).onEarlyTermination(maxCountHits, forcedTermination);
         }
     }
 }

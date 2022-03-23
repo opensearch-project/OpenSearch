@@ -50,16 +50,11 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
         // TODO: support aggregations
         if (searchContext.aggregations() != null) {
             couldUseConcurrentSegmentSearch = false;
-            if (LOGGER.isDebugEnabled()) {
-                LOGGER.debug("Unable to use concurrent search over index segments (experimental): aggregations are present");
-            }
+            LOGGER.debug("Unable to use concurrent search over index segments (experimental): aggregations are present");
         }
 
         if (couldUseConcurrentSegmentSearch) {
-            if (LOGGER.isDebugEnabled()) {
-                LOGGER.debug("Using concurrent search over index segments (experimental)");
-            }
-
+            LOGGER.debug("Using concurrent search over index segments (experimental)");
             return searchWithCollectorManager(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
         } else {
             return super.searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);

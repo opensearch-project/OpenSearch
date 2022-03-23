@@ -486,7 +486,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext {
             }
 
             @Override
-            public void onEarlyTemination(int maxCountHits, boolean forcedTermination) {
+            public void onEarlyTermination(int maxCountHits, boolean forcedTermination) {
                 terminatedAfter = maxCountHits;
             }
 

@@ -50,7 +50,7 @@ public class EarlyTerminatingCollectorManager<C extends Collector>
         }
 
         if (didTerminateEarly) {
-            onEarlyTemination(maxCountHits, forceTermination);
+            onEarlyTermination(maxCountHits, forceTermination);
 
             final ReduceableSearchResult result = manager.reduce(innerCollectors);
             return new ReduceableSearchResult() {
@@ -66,9 +66,9 @@ public class EarlyTerminatingCollectorManager<C extends Collector>
     }
 
     @Override
-    public void onEarlyTemination(int maxCountHits, boolean forcedTermination) {
+    public void onEarlyTermination(int maxCountHits, boolean forcedTermination) {
         if (manager instanceof EarlyTerminatingListener) {
-            ((EarlyTerminatingListener) manager).onEarlyTemination(maxCountHits, forcedTermination);
+            ((EarlyTerminatingListener) manager).onEarlyTermination(maxCountHits, forcedTermination);
         }
     }
 }

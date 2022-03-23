@@ -18,5 +18,5 @@ public interface EarlyTerminatingListener {
      * @param maxCountHits desired maximum number of hits
      * @param forcedTermination :true" if forced termination has been requested, "false" otherwise
      */
-    void onEarlyTemination(int maxCountHits, boolean forcedTermination);
+    void onEarlyTermination(int maxCountHits, boolean forcedTermination);
 }
