@@ -175,6 +175,7 @@ import org.opensearch.search.SearchModule;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.support.AggregationUsageService;
 import org.opensearch.search.fetch.FetchPhase;
+import org.opensearch.search.query.QueryPhase;
 import org.opensearch.snapshots.InternalSnapshotsInfoService;
 import org.opensearch.snapshots.RestoreService;
 import org.opensearch.snapshots.SnapshotShardsService;
@@ -211,6 +212,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
@@ -843,9 +845,11 @@ public class Node implements Closeable {
                 threadPool,
                 scriptService,
                 bigArrays,
+                searchModule.getQueryPhase(),
                 searchModule.getFetchPhase(),
                 responseCollectorService,
-                circuitBreakerService
+                circuitBreakerService,
+                searchModule.getIndexSearcherExecutor(threadPool)
             );
 
             final List<PersistentTasksExecutor<?>> tasksExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
@@ -1402,9 +1406,11 @@ public class Node implements Closeable {
         ThreadPool threadPool,
         ScriptService scriptService,
         BigArrays bigArrays,
+        QueryPhase queryPhase,
         FetchPhase fetchPhase,
         ResponseCollectorService responseCollectorService,
-        CircuitBreakerService circuitBreakerService
+        CircuitBreakerService circuitBreakerService,
+        Executor indexSearcherExecutor
     ) {
         return new SearchService(
             clusterService,
@@ -1412,9 +1418,11 @@ public class Node implements Closeable {
             threadPool,
             scriptService,
             bigArrays,
+            queryPhase,
             fetchPhase,
             responseCollectorService,
-            circuitBreakerService
+            circuitBreakerService,
+            indexSearcherExecutor
         );
     }
 
