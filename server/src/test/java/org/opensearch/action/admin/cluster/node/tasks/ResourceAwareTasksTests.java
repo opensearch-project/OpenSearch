@@ -25,6 +25,7 @@ import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancelledException;
 import org.opensearch.tasks.TaskId;
+import org.opensearch.tasks.TaskInfo;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.threadpool.TaskAwareRunnable;
 import org.opensearch.threadpool.ThreadPool;
@@ -473,6 +474,50 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
         };
 
         taskTestContext.operationFinishedValidator = threadId -> { assertEquals(0, resourceTasks.size()); };
+
+        startResourceAwareNodesAction(testNodes[0], false, taskTestContext, new ActionListener<NodesResponse>() {
+            @Override
+            public void onResponse(NodesResponse listTasksResponse) {
+                responseReference.set(listTasksResponse);
+                taskTestContext.requestCompleteLatch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throwableReference.set(e);
+                taskTestContext.requestCompleteLatch.countDown();
+            }
+        });
+
+        // Waiting for whole request to complete and return successfully till client
+        taskTestContext.requestCompleteLatch.await();
+
+        assertTasksRequestFinishedSuccessfully(resourceTasks.size(), responseReference.get(), throwableReference.get());
+    }
+
+    public void testOnDemandRefreshWhileFetchingTasks() throws InterruptedException {
+        setup(true);
+
+        final AtomicReference<Throwable> throwableReference = new AtomicReference<>();
+        final AtomicReference<NodesResponse> responseReference = new AtomicReference<>();
+
+        TaskTestContext taskTestContext = new TaskTestContext();
+
+        Map<Long, Task> resourceTasks = testNodes[0].transportService.getTaskManager().getResourceAwareTasks();
+
+        taskTestContext.operationStartValidator = threadId -> {
+            ListTasksResponse listTasksResponse = ActionTestUtils.executeBlocking(
+                testNodes[0].transportListTasksAction,
+                new ListTasksRequest().setActions("internal:resourceAction*").setDetailed(true)
+            );
+
+            TaskInfo taskInfo = listTasksResponse.getTasks().get(1);
+
+            assertNotNull(taskInfo.getResourceStats());
+            assertNotNull(taskInfo.getResourceStats().getResourceUsageInfo());
+            assertTrue(taskInfo.getResourceStats().getResourceUsageInfo().get("total").getCpuTimeInNanos() > 0);
+            assertTrue(taskInfo.getResourceStats().getResourceUsageInfo().get("total").getMemoryInBytes() > 0);
+        };
 
         startResourceAwareNodesAction(testNodes[0], false, taskTestContext, new ActionListener<NodesResponse>() {
             @Override

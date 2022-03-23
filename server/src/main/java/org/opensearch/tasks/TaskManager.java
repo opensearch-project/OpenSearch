@@ -558,6 +558,28 @@ public class TaskManager implements ClusterStateApplier, RunnableTaskExecutionLi
         return new ResourceUsageMetric[] { currentMemoryUsage, currentCPUUsage };
     }
 
+    public void refreshResourceStats(Task... tasks) {
+        if (isTaskResourceTrackingEnabled() == false) {
+            return;
+        }
+
+        for (Task task : tasks) {
+            if (task.supportsResourceTracking() && resourceAwareTasks.containsKey(task.getId())) {
+                refreshResourceStats(task);
+            }
+        }
+    }
+
+    private void refreshResourceStats(Task resourceAwareTask) {
+        resourceAwareTask.getResourceStats().forEach((threadId, threadResourceInfos) -> {
+            for (ThreadResourceInfo threadResourceInfo : threadResourceInfos) {
+                if (threadResourceInfo.isActive()) {
+                    resourceAwareTask.updateThreadResourceStats(threadId, WORKER_STATS, getResourceUsageMetricsForThread(threadId));
+                }
+            }
+        });
+    }
+
     public void setTaskResourceTrackingEnabled(boolean taskResourceTrackingEnabled) {
         this.taskResourceTrackingEnabled = taskResourceTrackingEnabled;
     }

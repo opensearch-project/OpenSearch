@@ -34,13 +34,16 @@ package org.opensearch.tasks;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.node.tasks.TransportTasksActionTests;
+import org.opensearch.action.search.SearchRequest;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.TaskAwareRunnable;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.FakeTcpChannel;
@@ -58,6 +61,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Phaser;
 import java.util.concurrent.TimeUnit;
 
@@ -115,6 +119,43 @@ public class TaskManagerTests extends OpenSearchTestCase {
         // Post restore only task id should be removed from the thread context
         verifyThreadContextFixedHeaders(key, value);
         assertNull(threadPool.getThreadContext().getTransient(TASK_ID));
+    }
+
+    public void testTaskStatsResourceRefresh() {
+        Settings settings = Settings.builder().put("task_resource_tracking.enabled", true).build();
+
+        final TaskManager taskManager = new TaskManager(settings, threadPool, Collections.emptySet());
+        final Task task = taskManager.register("transport", "test", new SearchRequest());
+
+        TaskAwareRunnable.setListener(taskManager);
+        threadPool.getThreadContext().putTransient(TASK_ID, task.getId());
+        CountDownLatch latch = new CountDownLatch(1);
+
+        threadPool.executor(ThreadPool.Names.SEARCH).submit(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+
+            }
+
+            @Override
+            protected void doRun() throws InterruptedException {
+                Object[] allocation = new Object[100];
+                latch.await();
+            }
+        });
+
+        long cpuConsumptionAtStart = task.getTotalResourceStats().getCpuTimeInNanos();
+        long memoryConsumptionAtStart = task.getTotalResourceStats().getMemoryInBytes();
+
+        taskManager.refreshResourceStats(task);
+
+        long cpuConsumptionAfterRefresh = task.getTotalResourceStats().getCpuTimeInNanos();
+        long memoryConsumptionAfterRefresh = task.getTotalResourceStats().getMemoryInBytes();
+
+        latch.countDown();
+
+        assertTrue(cpuConsumptionAtStart < cpuConsumptionAfterRefresh);
+        assertTrue(memoryConsumptionAtStart < memoryConsumptionAfterRefresh);
     }
 
     private void verifyThreadContextFixedHeaders(String key, String value) {
