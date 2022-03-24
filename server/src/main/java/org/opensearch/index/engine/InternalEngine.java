@@ -340,7 +340,7 @@ public class InternalEngine extends Engine {
         assert engineConfig.isReadOnly() : "Only replicas should update Infos";
         externalReaderManager.internalReaderManager.updateSegments(infos);
         externalReaderManager.maybeRefresh();
-        localCheckpointTracker.segrepMarkSeqNoAsProcessed(seqNo);
+        localCheckpointTracker.fastForwardProcessedSeqNo(seqNo);
     }
 
     private LocalCheckpointTracker createLocalCheckpointTracker(

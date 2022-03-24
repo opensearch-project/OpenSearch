@@ -33,6 +33,7 @@
 package org.opensearch.index.seqno;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.SuppressForbidden;
 
 import java.util.concurrent.atomic.AtomicLong;
@@ -117,6 +118,13 @@ public class LocalCheckpointTracker {
     }
 
     /**
+     * Checks that the sequence number is in an acceptable range for an update to take place.
+     */
+    private boolean shouldUpdateSeqNo(final long seqNo, final AtomicLong lowerBound, @Nullable final AtomicLong upperBound) {
+        return !((seqNo <= lowerBound.get()) || (upperBound != null && seqNo > upperBound.get()));
+    }
+
+    /**
      * Marks the provided sequence number as processed and updates the processed checkpoint if possible.
      *
      * @param seqNo the sequence number to mark as processed
@@ -135,33 +143,27 @@ public class LocalCheckpointTracker {
     }
 
     /**
-     * Updates the processed checkpoint with the provided sequence number if segment replication is enabled
+     * Updates the processed sequence checkpoint to the given value.
+     *
+     * This method is only used for segment replication since indexing doesn't
+     * take place on the replica allowing us to avoid the check that all sequence numbers
+     * are consecutively processed.
      *
      * @param seqNo the sequence number to mark as processed
      */
-    public synchronized void segrepMarkSeqNoAsProcessed(final long seqNo) {
-        markSegrepSeqNo(seqNo, processedCheckpoint, persistedCheckpoint);
-    }
-
-    @SuppressForbidden(reason = "Object#notifyAll")
-    private void markSegrepSeqNo(final long seqNo, final AtomicLong processedCheckpoint, final AtomicLong persistedCheckpoint) {
-        assert Thread.holdsLock(this);
+    public synchronized void fastForwardProcessedSeqNo(final long seqNo) {
         advanceMaxSeqNo(seqNo);
-        if ((seqNo > persistedCheckpoint.get()) || (seqNo <= processedCheckpoint.get())) {
+        if (shouldUpdateSeqNo(seqNo, processedCheckpoint, persistedCheckpoint) == false) {
             return;
         }
-        try {
-            processedCheckpoint.compareAndSet(processedCheckpoint.get(), seqNo);
-        } finally {
-            this.notifyAll();
-        }
+        processedCheckpoint.compareAndSet(processedCheckpoint.get(), seqNo);
     }
 
     private void markSeqNo(final long seqNo, final AtomicLong checkPoint, final LongObjectHashMap<CountedBitSet> bitSetMap) {
         assert Thread.holdsLock(this);
         // make sure we track highest seen sequence number
         advanceMaxSeqNo(seqNo);
-        if (seqNo <= checkPoint.get()) {
+        if (shouldUpdateSeqNo(seqNo, checkPoint, null) == false) {
             // this is possible during recovery where we might replay an operation that was also replicated
             return;
         }
