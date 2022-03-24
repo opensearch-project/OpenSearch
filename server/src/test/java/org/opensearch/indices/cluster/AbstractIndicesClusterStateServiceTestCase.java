@@ -58,6 +58,7 @@ import org.opensearch.indices.cluster.IndicesClusterStateService.Shard;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.SegmentReplicationReplicaService;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.copy.PrimaryShardReplicationSource;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.test.OpenSearchTestCase;
@@ -257,6 +258,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends OpenSea
             final SegmentReplicationReplicaService replicaService,
             final SegmentReplicationReplicaService.SegmentReplicationListener segRepListener,
             final PrimaryShardReplicationSource replicationSource,
+            final SegmentReplicationCheckpointPublisher checkpointPublisher,
             final PeerRecoveryTargetService recoveryTargetService,
             final PeerRecoveryTargetService.RecoveryListener recoveryListener,
             final RepositoriesService repositoriesService,

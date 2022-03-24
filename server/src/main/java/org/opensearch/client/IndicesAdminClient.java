@@ -132,7 +132,6 @@ import org.opensearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.opensearch.common.Nullable;
-import org.opensearch.indices.replication.checkpoint.PublishCheckpointRequest;
 
 /**
  * Administrative actions/operations against indices.
@@ -402,13 +401,6 @@ public interface IndicesAdminClient extends OpenSearchClient {
      * @see org.opensearch.client.Requests#refreshRequest(String...)
      */
     void refresh(RefreshRequest request, ActionListener<RefreshResponse> listener);
-
-    /**
-     * Publish the latest primary checkpoint to replica shards.
-     * @param request {@link PublishCheckpointRequest} The PublishCheckpointRequest
-     * @param listener A listener to be notified with a result
-     */
-    void publishCheckpoint(PublishCheckpointRequest request, ActionListener<RefreshResponse> listener);
 
     /**
      * Explicitly refresh one or more indices (making the content indexed since the last refresh searchable).

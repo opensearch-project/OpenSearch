@@ -11,7 +11,7 @@ package org.opensearch.index.shard;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ReferenceManager;
-import org.opensearch.indices.replication.checkpoint.TransportCheckpointPublisher;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 
 import java.io.IOException;
 
@@ -24,9 +24,9 @@ public class CheckpointRefreshListener implements ReferenceManager.RefreshListen
     protected static Logger logger = LogManager.getLogger(CheckpointRefreshListener.class);
 
     private final IndexShard shard;
-    private final TransportCheckpointPublisher publisher;
+    private final SegmentReplicationCheckpointPublisher publisher;
 
-    public CheckpointRefreshListener(IndexShard shard, TransportCheckpointPublisher publisher) {
+    public CheckpointRefreshListener(IndexShard shard, SegmentReplicationCheckpointPublisher publisher) {
         this.shard = shard;
         this.publisher = publisher;
     }
@@ -38,8 +38,8 @@ public class CheckpointRefreshListener implements ReferenceManager.RefreshListen
 
     @Override
     public void afterRefresh(boolean didRefresh) throws IOException {
-        if (shard.routingEntry().primary()) {
-            publisher.publish(shard.getLatestReplicationCheckpoint());
+        if (didRefresh) {
+            publisher.publish(shard);
         }
     }
 }

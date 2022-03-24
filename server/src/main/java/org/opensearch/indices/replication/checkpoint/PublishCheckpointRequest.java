@@ -8,19 +8,19 @@
 
 package org.opensearch.indices.replication.checkpoint;
 
-import org.opensearch.action.support.broadcast.BroadcastRequest;
+import org.opensearch.action.support.replication.ReplicationRequest;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.indices.replication.copy.ReplicationCheckpoint;
 
 import java.io.IOException;
 
-public class PublishCheckpointRequest extends BroadcastRequest<PublishCheckpointRequest> {
+public class PublishCheckpointRequest extends ReplicationRequest<PublishCheckpointRequest> {
 
-    private ReplicationCheckpoint checkpoint;
+    private final ReplicationCheckpoint checkpoint;
 
-    public PublishCheckpointRequest(ReplicationCheckpoint checkpoint, String... indices) {
-        super(indices);
+    public PublishCheckpointRequest(ReplicationCheckpoint checkpoint) {
+        super(checkpoint.getShardId());
         this.checkpoint = checkpoint;
     }
 

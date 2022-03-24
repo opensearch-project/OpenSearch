@@ -81,6 +81,7 @@ import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryFailedException;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.SegmentReplicationReplicaService;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.copy.PrimaryShardReplicationSource;
 import org.opensearch.indices.replication.copy.ReplicationFailedException;
 import org.opensearch.indices.replication.copy.SegmentReplicationState;
@@ -138,6 +139,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final PrimaryReplicaSyncer primaryReplicaSyncer;
     private final Consumer<ShardId> globalCheckpointSyncer;
     private final RetentionLeaseSyncer retentionLeaseSyncer;
+    private final SegmentReplicationCheckpointPublisher checkpointPublisher;
 
     @Inject
     public IndicesClusterStateService(
@@ -156,7 +158,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final GlobalCheckpointSyncAction globalCheckpointSyncAction,
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final SegmentReplicationReplicaService replicationReplicaService,
-        final PrimaryShardReplicationSource replicationSource
+        final PrimaryShardReplicationSource replicationSource,
+        final SegmentReplicationCheckpointPublisher checkpointPublisher
     ) {
         this(
             settings,
@@ -165,6 +168,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             threadPool,
             replicationReplicaService,
             replicationSource,
+            checkpointPublisher,
             recoveryTargetService,
             shardStateAction,
             nodeMappingRefreshAction,
@@ -186,6 +190,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final ThreadPool threadPool,
         final SegmentReplicationReplicaService replicationReplicaService,
         final PrimaryShardReplicationSource replicationSource,
+        final SegmentReplicationCheckpointPublisher checkpointPublisher,
         final PeerRecoveryTargetService recoveryTargetService,
         final ShardStateAction shardStateAction,
         final NodeMappingRefreshAction nodeMappingRefreshAction,
@@ -200,6 +205,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.settings = settings;
         this.segmentReplicationReplicaService = replicationReplicaService;
         this.replicationSource = replicationSource;
+        this.checkpointPublisher = checkpointPublisher;
         this.buildInIndexListener = Arrays.asList(peerRecoverySourceService, recoveryTargetService, searchService, snapshotShardsService);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
@@ -632,6 +638,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 segmentReplicationReplicaService,
                 new ShardRoutingReplicationListener(shardRouting, primaryTerm),
                 replicationSource,
+                checkpointPublisher,
                 recoveryTargetService,
                 new ShardRoutingRecoveryListener(shardRouting, primaryTerm),
                 repositoriesService,
@@ -1030,6 +1037,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             SegmentReplicationReplicaService replicaService,
             SegmentReplicationReplicaService.SegmentReplicationListener segRepListener,
             PrimaryShardReplicationSource replicationSource,
+            SegmentReplicationCheckpointPublisher checkpointPublisher,
             PeerRecoveryTargetService recoveryTargetService,
             PeerRecoveryTargetService.RecoveryListener recoveryListener,
             RepositoriesService repositoriesService,

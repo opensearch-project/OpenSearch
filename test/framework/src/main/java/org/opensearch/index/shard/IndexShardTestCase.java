@@ -93,7 +93,7 @@ import org.opensearch.indices.recovery.RecoverySourceHandler;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.recovery.StartRecoveryRequest;
-import org.opensearch.indices.replication.checkpoint.TransportCheckpointPublisher;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositoryIntegTestCase;
@@ -461,7 +461,6 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             );
             // No-op checkpoint publisher for backwards compatibliity
             NoOpClient noOpClient = new NoOpClient(this.getTestName());
-            TransportCheckpointPublisher checkpointPublisher = new TransportCheckpointPublisher(noOpClient);
             indexShard = new IndexShard(
                 routing,
                 indexSettings,
@@ -483,7 +482,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 globalCheckpointSyncer,
                 retentionLeaseSyncer,
                 breakerService,
-                checkpointPublisher
+                SegmentReplicationCheckpointPublisher.EMPTY
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;

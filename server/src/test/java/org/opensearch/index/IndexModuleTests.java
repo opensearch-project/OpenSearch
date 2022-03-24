@@ -97,7 +97,6 @@ import org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndice
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.RecoveryState;
-import org.opensearch.indices.replication.checkpoint.TransportCheckpointPublisher;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.internal.ReaderContext;
@@ -196,7 +195,6 @@ public class IndexModuleTests extends OpenSearchTestCase {
 
     private IndexService newIndexService(IndexModule module) throws IOException {
         NoOpClient noOpClient = new NoOpClient(this.getTestName());
-        TransportCheckpointPublisher checkpointPublisher = new TransportCheckpointPublisher(noOpClient);
         return module.newIndexService(
             CREATE_INDEX,
             nodeEnvironment,
@@ -213,8 +211,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
             new IndicesFieldDataCache(settings, listener),
             writableRegistry(),
             () -> false,
-            null,
-            checkpointPublisher
+            null
         );
     }
 
