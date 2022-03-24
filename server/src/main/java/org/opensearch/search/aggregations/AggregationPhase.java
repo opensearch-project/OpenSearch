@@ -32,6 +32,7 @@
 package org.opensearch.search.aggregations;
 
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lucene.search.Queries;
@@ -40,9 +41,11 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.profile.query.CollectorResult;
 import org.opensearch.search.profile.query.InternalProfileCollector;
 import org.opensearch.search.query.QueryPhaseExecutionException;
+import org.opensearch.search.query.ReduceableSearchResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -68,17 +71,18 @@ public class AggregationPhase {
                 }
                 context.aggregations().aggregators(aggregators);
                 if (!collectors.isEmpty()) {
-                    Collector collector = MultiBucketCollector.wrap(collectors);
-                    ((BucketCollector) collector).preCollection();
-                    if (context.getProfilers() != null) {
-                        collector = new InternalProfileCollector(
-                            collector,
-                            CollectorResult.REASON_AGGREGATION,
-                            // TODO: report on child aggs as well
-                            Collections.emptyList()
-                        );
-                    }
-                    context.queryCollectors().put(AggregationPhase.class, collector);
+                    final Collector collector = createCollector(context, collectors);
+                    context.queryCollectorManagers().put(AggregationPhase.class, new CollectorManager<Collector, ReduceableSearchResult>() {
+                        @Override
+                        public Collector newCollector() throws IOException {
+                            return collector;
+                        }
+
+                        @Override
+                        public ReduceableSearchResult reduce(Collection<Collector> collectors) throws IOException {
+                            throw new UnsupportedOperationException("The concurrent aggregation over index segments is not supported");
+                        }
+                    });
                 }
             } catch (IOException e) {
                 throw new AggregationInitializationException("Could not initialize aggregators", e);
@@ -147,6 +151,20 @@ public class AggregationPhase {
 
         // disable aggregations so that they don't run on next pages in case of scrolling
         context.aggregations(null);
-        context.queryCollectors().remove(AggregationPhase.class);
+        context.queryCollectorManagers().remove(AggregationPhase.class);
+    }
+
+    private Collector createCollector(SearchContext context, List<Aggregator> collectors) throws IOException {
+        Collector collector = MultiBucketCollector.wrap(collectors);
+        ((BucketCollector) collector).preCollection();
+        if (context.getProfilers() != null) {
+            collector = new InternalProfileCollector(
+                collector,
+                CollectorResult.REASON_AGGREGATION,
+                // TODO: report on child aggs as well
+                Collections.emptyList()
+            );
+        }
+        return collector;
     }
 }

@@ -334,7 +334,8 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
             indexSearcher.getSimilarity(),
             queryCache,
             queryCachingPolicy,
-            false
+            false,
+            null
         );
 
         SearchContext searchContext = mock(SearchContext.class);
