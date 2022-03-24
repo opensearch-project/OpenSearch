@@ -152,12 +152,12 @@ public class SegmentReplicationTarget extends ReplicationTarget {
             .collect(Collectors.toList());
 
         Set<String> storeFiles = new HashSet<>(Arrays.asList(store.directory().listAll()));
-        final Set<StoreFileMetadata> additionalFiles = checkpointInfo.getAdditionalFiles()
+        final Set<StoreFileMetadata> pendingDeleteFiles = checkpointInfo.getPendingDeleteFiles()
             .stream()
             .filter(f -> storeFiles.contains(f.name()) == false)
             .collect(Collectors.toSet());
 
-        filesToFetch.addAll(additionalFiles);
+        filesToFetch.addAll(pendingDeleteFiles);
 
         for (StoreFileMetadata file : filesToFetch) {
             state.getIndex().addFileDetail(file.name(), file.length(), false);
@@ -185,7 +185,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                     assert indexShard.assertRetentionLeasesPersisted();
                 }
 
-                // Deserialize the new SegmentInfos object sent primary the primary.
+                // Deserialize the new SegmentInfos object sent from the primary.
                 final ReplicationCheckpoint responseCheckpoint = checkpointInfoResponse.getCheckpoint();
                 SegmentInfos infos = SegmentInfos.readCommit(
                     store.directory(),

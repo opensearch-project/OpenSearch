@@ -75,6 +75,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
             waitForDocs(initialDocCount, indexer);
         }
         flush(INDEX_NAME);
+        // wait a short amount of time to give replication a chance to complete.
         Thread.sleep(1000);
         assertHitCount(client(nodeA).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
         assertHitCount(client(nodeB).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);

@@ -1349,6 +1349,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public void forceMerge(ForceMergeRequest forceMerge) throws IOException {
         if (indexSettings.isSegrepEnabled() && shardRouting.primary() == false) {
+            // With segment replication enabled, replicas do not perform this operation.
             return;
         }
         verifyActive();
@@ -3016,6 +3017,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 try {
                     markAsRecovering("from " + recoveryState.getSourceNode(), recoveryState);
                     if (indexSettings.isSegrepEnabled()) {
+                        // Start a "Recovery" using segment replication. This ensures the shard is tracked by the primary
+                        // and started with the latest set of segments.
                         segmentReplicationReplicaService.startRecovery(
                             this,
                             recoveryState.getTargetNode(),

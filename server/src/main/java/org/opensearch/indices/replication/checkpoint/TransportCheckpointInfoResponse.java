@@ -23,7 +23,9 @@ public class TransportCheckpointInfoResponse extends TransportResponse {
     private final ReplicationCheckpoint checkpoint;
     private final Store.MetadataSnapshot snapshot;
     private final byte[] infosBytes;
-    private final Set<StoreFileMetadata> additionalFiles;
+    // pendingDeleteFiles are segments that have been merged away in the latest in memory SegmentInfos
+    // but are still referenced by the latest commit point (Segments_N).
+    private final Set<StoreFileMetadata> pendingDeleteFiles;
 
     public TransportCheckpointInfoResponse(
         final ReplicationCheckpoint checkpoint,
@@ -34,14 +36,14 @@ public class TransportCheckpointInfoResponse extends TransportResponse {
         this.checkpoint = checkpoint;
         this.snapshot = snapshot;
         this.infosBytes = infosBytes;
-        this.additionalFiles = additionalFiles;
+        this.pendingDeleteFiles = additionalFiles;
     }
 
     public TransportCheckpointInfoResponse(StreamInput in) throws IOException {
         this.checkpoint = new ReplicationCheckpoint(in);
         this.snapshot = new Store.MetadataSnapshot(in);
         this.infosBytes = in.readByteArray();
-        this.additionalFiles = in.readSet(StoreFileMetadata::new);
+        this.pendingDeleteFiles = in.readSet(StoreFileMetadata::new);
     }
 
     @Override
@@ -49,7 +51,7 @@ public class TransportCheckpointInfoResponse extends TransportResponse {
         checkpoint.writeTo(out);
         snapshot.writeTo(out);
         out.writeByteArray(infosBytes);
-        out.writeCollection(additionalFiles);
+        out.writeCollection(pendingDeleteFiles);
     }
 
     public ReplicationCheckpoint getCheckpoint() {
@@ -64,7 +66,7 @@ public class TransportCheckpointInfoResponse extends TransportResponse {
         return infosBytes;
     }
 
-    public Set<StoreFileMetadata> getAdditionalFiles() {
-        return additionalFiles;
+    public Set<StoreFileMetadata> getPendingDeleteFiles() {
+        return pendingDeleteFiles;
     }
 }

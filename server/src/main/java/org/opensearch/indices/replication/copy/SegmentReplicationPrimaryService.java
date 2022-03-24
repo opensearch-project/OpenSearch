@@ -34,6 +34,7 @@ package org.opensearch.indices.replication.copy;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.support.ChannelActionListener;
@@ -237,7 +238,20 @@ public class SegmentReplicationPrimaryService {
             final StepListener<ReplicationResponse> addRetentionLeaseStep = new StepListener<>();
             final Consumer<Exception> onFailure = e -> {
                 assert Transports.assertNotTransportThread(this + "[onFailure]");
-                logger.error("Failure", e);
+                logger.error(
+                    new ParameterizedMessage(
+                        "Error marking shard {} as tracked for allocation ID {}",
+                        shardId,
+                        request.getTargetAllocationId()
+                    ),
+                    e
+                );
+                try {
+                    channel.sendResponse(e);
+                } catch (Exception inner) {
+                    inner.addSuppressed(e);
+                    logger.warn("failed to send back failure on track shard request", inner);
+                }
             };
             PrimaryShardReplicationHandler.runUnderPrimaryPermit(
                 () -> shard.cloneLocalPeerRecoveryRetentionLease(
