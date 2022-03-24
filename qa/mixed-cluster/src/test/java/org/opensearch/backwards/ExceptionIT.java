@@ -12,7 +12,6 @@ import org.apache.http.util.EntityUtils;
 import org.opensearch.Version;
 import org.opensearch.client.Node;
 import org.opensearch.client.Request;
-import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
@@ -20,22 +19,15 @@ import org.opensearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
 import static org.apache.http.HttpStatus.SC_NOT_FOUND;
 
 public class ExceptionIT extends OpenSearchRestTestCase {
-    private Set<String> assertedWarnings = new HashSet<>();
-
     public void testOpensearchException() throws Exception {
         logClusterNodes();
 
         Request request = new Request("GET", "/no_such_index");
-
-        String expectedWarning = "[GET /_cat/master] is deprecated! Use [GET /_cat/cluster_manager] instead.";
-        request.setOptions(expectWarnings(expectedWarning));
 
         for (Node node : client().getNodes()) {
             try {
@@ -52,21 +44,15 @@ public class ExceptionIT extends OpenSearchRestTestCase {
         }
     }
 
-    private RequestOptions expectWarnings(String expectedWarning) {
-        final RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
-        if (!assertedWarnings.contains(expectedWarning)) {
-            builder.setWarningsHandler(w -> w.contains(expectedWarning) == false || w.size() != 1);
-            assertedWarnings.add(expectedWarning);
-        }
-        return builder.build();
-    }
-
     private void logClusterNodes() throws IOException {
         ObjectPath objectPath = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "_nodes")));
         Map<String, ?> nodes = objectPath.evaluate("nodes");
         Request request = new Request("GET", "_cat/master?h=id");
-        String expectedWarning = "[GET /_cat/master] is deprecated! Use [GET /_cat/cluster_manager] instead.";
-        request.setOptions(expectWarnings(expectedWarning));
+        String inclusiveWarning = "[GET /_cat/master] is deprecated! Use [GET /_cat/cluster_manager] instead.";
+        request.setOptions(expectVersionSpecificWarnings(v -> {
+            v.current(inclusiveWarning);
+            v.compatible(inclusiveWarning);
+        }));
         String master = EntityUtils.toString(client().performRequest(request).getEntity()).trim();
         logger.info("cluster discovered: master id='{}'", master);
         for (String id : nodes.keySet()) {
