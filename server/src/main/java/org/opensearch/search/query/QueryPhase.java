@@ -238,9 +238,9 @@ public class QueryPhase {
                 // this collector can filter documents during the collection
                 hasFilterCollector = true;
             }
-            if (searchContext.queryCollectors().isEmpty() == false) {
+            if (searchContext.queryCollectorManagers().isEmpty() == false) {
                 // plug in additional collectors, like aggregations
-                collectors.add(createMultiCollectorContext(searchContext.queryCollectors().values()));
+                collectors.add(createMultiCollectorContext(searchContext.queryCollectorManagers().values()));
             }
             if (searchContext.minimumScore() != null) {
                 // apply the minimum score after multi collector so we filter aggs as well

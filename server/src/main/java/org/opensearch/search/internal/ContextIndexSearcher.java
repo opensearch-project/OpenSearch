@@ -101,16 +101,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         Similarity similarity,
         QueryCache queryCache,
         QueryCachingPolicy queryCachingPolicy,
-        boolean wrapWithExitableDirectoryReader
-    ) throws IOException {
-        this(reader, similarity, queryCache, queryCachingPolicy, new MutableQueryTimeout(), wrapWithExitableDirectoryReader, null);
-    }
-
-    public ContextIndexSearcher(
-        IndexReader reader,
-        Similarity similarity,
-        QueryCache queryCache,
-        QueryCachingPolicy queryCachingPolicy,
         boolean wrapWithExitableDirectoryReader,
         Executor executor
     ) throws IOException {
@@ -222,6 +212,25 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             collectors.add(collector);
         }
         TopFieldDocs mergedTopDocs = (TopFieldDocs) manager.reduce(collectors);
+        // Lucene sets shards indexes during merging of topDocs from different collectors
+        // We need to reset shard index; OpenSearch will set shard index later during reduce stage
+        for (ScoreDoc scoreDoc : mergedTopDocs.scoreDocs) {
+            scoreDoc.shardIndex = -1;
+        }
+        if (totalHits != null) { // we have already precalculated totalHits for the whole index
+            mergedTopDocs = new TopFieldDocs(totalHits, mergedTopDocs.scoreDocs, mergedTopDocs.fields);
+        }
+        result.topDocs(new TopDocsAndMaxScore(mergedTopDocs, Float.NaN), formats);
+    }
+
+    public void search(
+        Query query,
+        CollectorManager<?, TopFieldDocs> manager,
+        QuerySearchResult result,
+        DocValueFormat[] formats,
+        TotalHits totalHits
+    ) throws IOException {
+        TopFieldDocs mergedTopDocs = search(query, manager);
         // Lucene sets shards indexes during merging of topDocs from different collectors
         // We need to reset shard index; OpenSearch will set shard index later during reduce stage
         for (ScoreDoc scoreDoc : mergedTopDocs.scoreDocs) {
@@ -419,9 +428,5 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         public void clear() {
             runnables.clear();
         }
-    }
-
-    public boolean allowConcurrentSegmentSearch() {
-        return (getExecutor() != null);
     }
 }
