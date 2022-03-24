@@ -93,6 +93,7 @@ public class SearchTransportService {
     public static final String FETCH_ID_SCROLL_ACTION_NAME = "indices:data/read/search[phase/fetch/id/scroll]";
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
     public static final String QUERY_CAN_MATCH_NAME = "indices:data/read/search[can_match]";
+    public static final String CREATE_READER_CONTEXT_ACTION_NAME = "indices:data/read/search[create_context]";
 
     private final TransportService transportService;
     private final BiFunction<Transport.Connection, SearchActionListener, ActionListener> responseWrapper;
@@ -545,6 +546,12 @@ public class SearchTransportService {
             }
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME, SearchService.CanMatchResponse::new);
+        transportService.registerRequestHandler(CREATE_READER_CONTEXT_ACTION_NAME, ThreadPool.Names.SAME, TransportCreatePITAction.CreateReaderContextRequest::new,
+            (request, channel, task) -> {
+                ChannelActionListener<TransportCreatePITAction.CreateReaderContextResponse, TransportCreatePITAction.CreateReaderContextRequest> listener = new ChannelActionListener<>(channel, CREATE_READER_CONTEXT_ACTION_NAME, request);
+                searchService.openReaderContext(request.getShardId(), request.getKeepAlive(), ActionListener.wrap(r -> listener.onResponse(new TransportCreatePITAction.CreateReaderContextResponse(r)), listener::onFailure));
+            });
+        TransportActionProxy.registerProxyAction(transportService, CREATE_READER_CONTEXT_ACTION_NAME, TransportCreatePITAction.CreateReaderContextResponse::new);
     }
 
     /**

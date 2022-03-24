@@ -130,6 +130,19 @@ public interface SearchOperationListener {
     default void validateReaderContext(ReaderContext readerContext, TransportRequest transportRequest) {}
 
     /**
+     * Executed when a new Point-In-Time {@link ReaderContext} was created
+     * @param readerContext the created reader context
+     */
+    default void onNewPitContext(ReaderContext readerContext) {}
+
+    /**
+     * Executed when a Point-In-Time search {@link SearchContext} is freed.
+     * This happens on deleteion of a Point-In-Time or on it's keep-alive expiring.
+     * @param readerContext the freed search context
+     */
+    default void onFreePitContext(ReaderContext readerContext) {}
+
+    /**
      * A Composite listener that multiplexes calls to each of the listeners methods.
      */
     final class CompositeListener implements SearchOperationListener {
@@ -262,6 +275,28 @@ public interface SearchOperationListener {
                 }
             }
             ExceptionsHelper.reThrowIfNotNull(exception);
+        }
+
+        @Override
+        public void onNewPitContext(ReaderContext readerContext) {
+            for (SearchOperationListener listener : listeners) {
+                try {
+                    listener.onNewPitContext(readerContext);
+                } catch (Exception e) {
+                    logger.warn(() -> new ParameterizedMessage("onNewPitContext listener [{}] failed", listener), e);
+                }
+            }
+        }
+
+        @Override
+        public void onFreePitContext(ReaderContext readerContext) {
+            for (SearchOperationListener listener : listeners) {
+                try {
+                    listener.onNewPitContext(readerContext);
+                } catch (Exception e) {
+                    logger.warn(() -> new ParameterizedMessage("onFreePitContext listener [{}] failed", listener), e);
+                }
+            }
         }
     }
 }
