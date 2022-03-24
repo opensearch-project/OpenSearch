@@ -284,7 +284,6 @@ public class VersionUtilsTests extends OpenSearchTestCase {
                 Arrays.asList(
                     TestNewMinorBranchIn6x.V_1_6_0,
                     TestNewMinorBranchIn6x.V_1_6_1,
-                    TestNewMinorBranchIn6x.V_1_6_2,
                     TestNewMinorBranchIn6x.V_2_0_0,
                     TestNewMinorBranchIn6x.V_2_0_1,
                     TestNewMinorBranchIn6x.V_2_1_0,
@@ -292,7 +291,10 @@ public class VersionUtilsTests extends OpenSearchTestCase {
                 )
             )
         );
-        assertThat(unreleased, equalTo(Arrays.asList(TestNewMinorBranchIn6x.V_2_1_2, TestNewMinorBranchIn6x.V_2_2_0)));
+        assertThat(
+            unreleased,
+            equalTo(Arrays.asList(TestNewMinorBranchIn6x.V_1_6_2, TestNewMinorBranchIn6x.V_2_1_2, TestNewMinorBranchIn6x.V_2_2_0))
+        );
     }
 
     /**
