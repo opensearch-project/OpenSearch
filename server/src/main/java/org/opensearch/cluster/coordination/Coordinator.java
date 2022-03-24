@@ -1046,8 +1046,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
         // exclude any nodes whose ID is in the voting config exclusions list ...
         final Stream<String> excludedNodeIds = clusterState.getVotingConfigExclusions().stream().map(VotingConfigExclusion::getNodeId);
-        // ... and also automatically exclude the node IDs of master-ineligible nodes that were previously master-eligible and are still in
-        // the voting config. We could exclude all the master-ineligible nodes here, but there could be quite a few of them and that makes
+        // ... and also automatically exclude the node IDs of cluster-manager-ineligible nodes that were previously cluster-manager-eligible
+        // and are still in
+        // the voting config. We could exclude all the cluster-manager-ineligible nodes here, but there could be quite a few of them and
+        // that makes
         // the logging much harder to follow.
         final Stream<String> masterIneligibleNodeIdsInVotingConfig = StreamSupport.stream(clusterState.nodes().spliterator(), false)
             .filter(
