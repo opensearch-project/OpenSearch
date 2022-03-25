@@ -1,0 +1,190 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
+
+buildscript {
+    ext {
+        opensearch_version = System.getProperty("opensearch.version", "2.0.0-SNAPSHOT")
+    }
+
+    repositories {
+        mavenLocal()
+        mavenCentral()
+        maven { url "https://aws.oss.sonatype.org/content/repositories/snapshots" }
+    }
+
+    dependencies {
+        classpath "org.opensearch.gradle:build-tools:${opensearch_version}"
+    }
+}
+
+plugins {
+    id 'nebula.ospackage' version "8.3.0"
+    id 'java-library'
+}
+
+apply plugin: 'opensearch.opensearchplugin'
+apply plugin: 'opensearch.testclusters'
+apply plugin: 'opensearch.java-rest-test'
+
+ext {
+    projectSubstitutions = [:]
+    licenseFile = rootProject.file('LICENSE.txt')
+    noticeFile = rootProject.file('NOTICE')
+}
+
+licenseHeaders.enabled = true
+testingConventions.enabled = false
+forbiddenApis.ignoreFailures = false
+
+dependencyLicenses.enabled = false
+thirdPartyAudit.enabled = false
+forbiddenApisTest.ignoreFailures = true
+validateNebulaPom.enabled = false
+loggerUsageCheck.enabled = false
+
+opensearchplugin {
+    name 'opensearch-job-scheduler'
+    description 'OpenSearch Job Scheduler plugin'
+    classname 'org.opensearch.jobscheduler.JobSchedulerPlugin'
+}
+
+javaRestTest {
+    // add "-Dtests.security.manager=false" to VM options if you want to run integ tests in IntelliJ
+    systemProperty 'tests.security.manager', 'false'
+}
+
+testClusters.javaRestTest {
+    testDistribution = 'INTEG_TEST'
+}
+
+ext {
+    isSnapshot = "true" == System.getProperty("build.snapshot", "true")
+    buildVersionQualifier = System.getProperty("build.version_qualifier")
+}
+
+allprojects {
+    group = 'org.opensearch'
+    version = opensearch_version.tokenize('-')[0] + '.0'
+    if (buildVersionQualifier) {
+        version += "-${buildVersionQualifier}"
+    }
+    if (isSnapshot) {
+        version += "-SNAPSHOT"
+    }
+
+    apply from: "$rootDir/build-tools/repositories.gradle"
+
+    plugins.withId('java') {
+        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_11
+    }
+}
+
+allprojects {
+    // Default to the apache license
+    project.ext.licenseName = 'The Apache Software License, Version 2.0'
+    project.ext.licenseUrl = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+    plugins.withType(ShadowPlugin).whenPluginAdded {
+        publishing {
+            repositories {
+                maven {
+                    name = 'staging'
+                    url = "${rootProject.buildDir}/local-staging-repo"
+                }
+            }
+            publications {
+                // add license information to generated poms
+                all {
+                    pom.withXml { XmlProvider xml ->
+                        Node node = xml.asNode()
+                        node.appendNode('inceptionYear', '2021')
+
+                        Node license = node.appendNode('licenses').appendNode('license')
+                        license.appendNode('name', project.licenseName)
+                        license.appendNode('url', project.licenseUrl)
+
+                        Node developer = node.appendNode('developers').appendNode('developer')
+                        developer.appendNode('name', 'OpenSearch')
+                        developer.appendNode('url', 'https://github.com/opensearch-project/job-scheduler')
+                    }
+                }
+            }
+        }
+    }
+}
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+    maven { url "https://aws.oss.sonatype.org/content/repositories/snapshots" }
+}
+
+dependencies {
+    implementation project(path: ":${rootProject.name}-spi", configuration: 'shadow')
+    javaRestTestImplementation project.sourceSets.main.runtimeClasspath
+}
+
+// RPM & Debian build
+apply plugin: 'nebula.ospackage'
+
+// This is afterEvaluate because the bundlePlugin ZIP task is updated afterEvaluate and changes the ZIP name to match the plugin name
+afterEvaluate {
+    ospackage {
+        packageName = "${name}"
+        release = isSnapshot ? "0.1" : '1'
+        version = "${project.version}" - "-SNAPSHOT"
+
+        into '/usr/share/opensearch/plugins'
+        from(zipTree(bundlePlugin.archivePath)) {
+            into opensearchplugin.name
+        }
+
+        user 'root'
+        permissionGroup 'root'
+        fileMode 0644
+        dirMode 0755
+
+        requires('opensearch', versions.opensearch, EQUAL)
+        packager = 'Amazon'
+        vendor = 'Amazon'
+        os = 'LINUX'
+        prefix '/usr'
+
+        license 'ASL-2.0'
+        maintainer 'OpenSearch Team <opensearch@amazon.com>'
+        url 'https://opensearch.org/downloads.html'
+        summary '''
+         JobScheduler plugin for OpenSearch. 
+         Reference documentation can be found at https://docs-beta.opensearch.org/.
+    '''.stripIndent().replace('\n', ' ').trim()
+    }
+
+    buildRpm {
+        arch = 'NOARCH'
+        dependsOn 'assemble'
+        finalizedBy 'renameRpm'
+        task renameRpm(type: Copy) {
+            from("$buildDir/distributions")
+            into("$buildDir/distributions")
+            include archiveName
+            rename archiveName, "${packageName}-${version}.rpm"
+            doLast { delete file("$buildDir/distributions/$archiveName") }
+        }
+    }
+
+    buildDeb {
+        arch = 'all'
+        dependsOn 'assemble'
+        finalizedBy 'renameDeb'
+        task renameDeb(type: Copy) {
+            from("$buildDir/distributions")
+            into("$buildDir/distributions")
+            include archiveName
+            rename archiveName, "${packageName}-${version}.deb"
+            doLast { delete file("$buildDir/distributions/$archiveName") }
+        }
+    }
+}

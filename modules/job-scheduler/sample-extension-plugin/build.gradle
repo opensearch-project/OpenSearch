@@ -1,0 +1,61 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+apply plugin: 'opensearch.opensearchplugin'
+apply plugin: 'opensearch.testclusters'
+apply plugin: 'opensearch.java-rest-test'
+
+
+opensearchplugin {
+    name 'opensearch-job-scheduler-sample-extension'
+    description 'Sample plugin that extends OpenSearch Job Scheduler plugin'
+    classname 'org.opensearch.jobscheduler.sampleextension.SampleExtensionPlugin'
+    extendedPlugins = ['opensearch-job-scheduler']
+}
+
+ext {
+    projectSubstitutions = [:]
+    licenseFile = rootProject.file('LICENSE.txt')
+    noticeFile = rootProject.file('NOTICE.txt')
+}
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+    maven { url "https://aws.oss.sonatype.org/content/repositories/snapshots" }
+}
+
+dependencies {
+    compileOnly project(path: ":${rootProject.name}-spi", configuration: 'shadow')
+}
+
+licenseHeaders.enabled = true
+validateNebulaPom.enabled = false
+testingConventions.enabled = false
+loggerUsageCheck.enabled = false
+
+javaRestTest.dependsOn(rootProject.assemble)
+javaRestTest {
+    systemProperty 'tests.security.manager', 'false'
+}
+testClusters.javaRestTest {
+    testDistribution = 'INTEG_TEST'
+}
+
+// As of ES 7.7 the sample-extension-plugin is being added to the list of plugins for the testCluster during build before
+// the job-scheduler plugin is causing build failures.
+// The job-scheduler zip is added explicitly above but the sample-extension-plugin is added implicitly at some time during evaluation.
+// Will need to do a deep dive to find out exactly what task adds the sample-extension-plugin and add job-scheduler there but a temporary hack is to
+// reorder the plugins list after evaluation but prior to task execution when the plugins are installed.
+afterEvaluate {
+    testClusters.javaRestTest.nodes.each { node ->
+        def plugins = node.plugins
+        def firstPlugin = plugins.get(0)
+        if (firstPlugin.provider == project.bundlePlugin.archiveFile) {
+            plugins.remove(0)
+            plugins.add(firstPlugin)
+        }
+    }
+}
