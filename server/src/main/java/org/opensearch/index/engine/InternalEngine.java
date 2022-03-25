@@ -2428,7 +2428,7 @@ public class InternalEngine extends Engine {
         }
 
         if (config().getIndexSettings().isMergeOnFlushEnabled()) {
-            final long maxFullFlushMergeWaitMillis = config().getIndexSettings().getMaxFullFlushMerge().millis();
+            final long maxFullFlushMergeWaitMillis = config().getIndexSettings().getMaxFullFlushMergeWaitTime().millis();
             if (maxFullFlushMergeWaitMillis > 0) {
                 iwc.setMaxFullFlushMergeWaitMillis(maxFullFlushMergeWaitMillis);
                 mergePolicy = new MergeOnFlushMergePolicy(mergePolicy);

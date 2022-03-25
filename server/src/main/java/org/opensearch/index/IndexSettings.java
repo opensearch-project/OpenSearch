@@ -511,7 +511,7 @@ public final class IndexSettings {
      */
     public static final Setting<TimeValue> INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME = Setting.timeSetting(
         "index.merge_on_flush.max_full_flush_merge_wait_time",
-        new TimeValue(0, TimeUnit.MILLISECONDS),
+        new TimeValue(10, TimeUnit.SECONDS),
         new TimeValue(0, TimeUnit.MILLISECONDS),
         Property.Dynamic,
         Property.IndexScope
@@ -608,7 +608,10 @@ public final class IndexSettings {
     /**
      * The max amount of time to wait for merges
      */
-    private volatile TimeValue maxFullFlushMerge;
+    private volatile TimeValue maxFullFlushMergeWaitTime;
+    /**
+     * Is merge of flush enabled or not
+     */
     private volatile boolean mergeOnFlushEnabled;
 
     /**
@@ -723,7 +726,7 @@ public final class IndexSettings {
         mappingTotalFieldsLimit = scopedSettings.get(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
         mappingDepthLimit = scopedSettings.get(INDEX_MAPPING_DEPTH_LIMIT_SETTING);
         mappingFieldNameLengthLimit = scopedSettings.get(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
-        maxFullFlushMerge = scopedSettings.get(INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME);
+        maxFullFlushMergeWaitTime = scopedSettings.get(INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME);
         mergeOnFlushEnabled = scopedSettings.get(INDEX_MERGE_ON_FLUSH_ENABLED);
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
@@ -794,7 +797,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING, this::setMappingTotalFieldsLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DEPTH_LIMIT_SETTING, this::setMappingDepthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING, this::setMappingFieldNameLengthLimit);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME, this::setMaxFullFlushMerge);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME, this::setMaxFullFlushMergeWaitTime);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_ENABLED, this::setMergeOnFlushEnabled);
     }
 
@@ -1360,16 +1363,16 @@ public final class IndexSettings {
         this.mappingFieldNameLengthLimit = value;
     }
 
-    private void setMaxFullFlushMerge(TimeValue timeValue) {
-        this.maxFullFlushMerge = timeValue;
+    private void setMaxFullFlushMergeWaitTime(TimeValue timeValue) {
+        this.maxFullFlushMergeWaitTime = timeValue;
     }
 
     private void setMergeOnFlushEnabled(boolean enabled) {
         this.mergeOnFlushEnabled = enabled;
     }
 
-    public TimeValue getMaxFullFlushMerge() {
-        return this.maxFullFlushMerge;
+    public TimeValue getMaxFullFlushMergeWaitTime() {
+        return this.maxFullFlushMergeWaitTime;
     }
 
     public boolean isMergeOnFlushEnabled() {
