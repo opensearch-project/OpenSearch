@@ -54,7 +54,7 @@ import java.util.Collections;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-// Todo: Remove TypeFieldMapper once we have nested field mapping name implementation in place
+// Todo: Remove TypeFieldMapper once we have NestedFieldMapper implementation
 public class TypeFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_type";
