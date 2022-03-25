@@ -321,7 +321,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             );
 
             logger.info(
-                "--> creating cluster of {} nodes (master-eligible nodes: {}) with initial configuration {}",
+                "--> creating cluster of {} nodes (cluster-manager-eligible nodes: {}) with initial configuration {}",
                 initialNodeCount,
                 masterEligibleNodeIds,
                 initialConfiguration

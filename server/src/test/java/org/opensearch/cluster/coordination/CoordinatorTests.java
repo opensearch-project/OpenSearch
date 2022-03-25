@@ -109,7 +109,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     /**
      * This test was added to verify that state recovery is properly reset on a node after it has become master and successfully
      * recovered a state (see {@link GatewayService}). The situation which triggers this with a decent likelihood is as follows:
-     * 3 master-eligible nodes (leader, follower1, follower2), the followers are shut down (leader remains), when followers come back
+     * 3 cluster-manager-eligible nodes (leader, follower1, follower2), the followers are shut down (leader remains), when followers come back
      * one of them becomes leader and publishes first state (with STATE_NOT_RECOVERED_BLOCK) to old leader, which accepts it.
      * Old leader is initiating an election at the same time, and wins election. It becomes leader again, but as it previously
      * successfully completed state recovery, is never reset to a state where state recovery can be retried.
@@ -1558,7 +1558,9 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                             final String message = event.getMessage().getFormattedMessage();
                             assertThat(
                                 message,
-                                startsWith("master not discovered or elected yet, an election requires at least 2 nodes with ids from [")
+                                startsWith(
+                                    "cluster-manager not discovered or elected yet, an election requires at least 2 nodes with ids from ["
+                                )
                             );
 
                             final List<ClusterNode> matchingNodes = cluster.clusterNodes.stream()
@@ -1729,7 +1731,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             if (cluster.clusterNodes.stream().filter(n -> n.getLocalNode().isMasterNode()).count() == 2) {
                 // in the 2-node case, auto-shrinking the voting configuration is required to reduce the voting configuration down to just
-                // the leader, otherwise restarting the other master-eligible node triggers an election
+                // the leader, otherwise restarting the other cluster-manager-eligible node triggers an election
                 leader.submitSetAutoShrinkVotingConfiguration(true);
                 cluster.stabilise(2 * DEFAULT_CLUSTER_STATE_UPDATE_DELAY); // 1st delay for the setting update, 2nd for the reconfiguration
             }
