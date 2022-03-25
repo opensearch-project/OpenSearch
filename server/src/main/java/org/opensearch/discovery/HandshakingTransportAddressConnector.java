@@ -137,7 +137,9 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                                         if (remoteNode.equals(transportService.getLocalNode())) {
                                             listener.onFailure(new ConnectTransportException(remoteNode, "local node found"));
                                         } else if (remoteNode.isMasterNode() == false) {
-                                            listener.onFailure(new ConnectTransportException(remoteNode, "non-master-eligible node found"));
+                                            listener.onFailure(
+                                                new ConnectTransportException(remoteNode, "non-cluster-manager-eligible node found")
+                                            );
                                         } else {
                                             transportService.connectToNode(remoteNode, new ActionListener<Void>() {
                                                 @Override
@@ -153,7 +155,8 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                                                 @Override
                                                 public void onFailure(Exception e) {
                                                     // we opened a connection and successfully performed a handshake, so we're definitely
-                                                    // talking to a master-eligible node with a matching cluster name and a good version,
+                                                    // talking to a cluster-manager-eligible node with a matching cluster name and a good
+                                                    // version,
                                                     // but the attempt to open a full connection to its publish address failed; a common
                                                     // reason is that the remote node is listening on 0.0.0.0 but has made an inappropriate
                                                     // choice for its publish address.
