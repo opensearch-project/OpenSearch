@@ -1,9 +1,12 @@
 /*
- * Copyright OpenSearch Contributors
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
  */
 
-package org.opensearch.jobscheduler.sampleextension;
+package org.opensearch.example.jobschedulersampleextension;
 
 import org.opensearch.jobscheduler.spi.schedule.IntervalSchedule;
 import org.opensearch.action.ActionListener;
@@ -31,11 +34,11 @@ import java.util.List;
  *
  * Users need to provide "id", "index", "job_name", and "interval" parameter to schedule
  * a job. e.g.
- * {@code 
+ * {@code
  * POST /_plugins/scheduler_sample/watch?id=dashboards-job-id&job_name=watch dashboards index&index=.opensearch_dashboards_1&interval=1
  * }
  *
- * creates a job with id "dashboards-job-id" and job name "watch dashboards index", 
+ * creates a job with id "dashboards-job-id" and job name "watch dashboards index",
  * which logs ".opensearch_dashboards_1" index's shards info every 1 minute
  *
  * Users can remove that job by calling

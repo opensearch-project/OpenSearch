@@ -37,3 +37,10 @@ configure(project('painless-whitelist')) {
   }
 }
 
+configure(project('job-scheduler-sample-extension')) {
+  configurations.all {
+    resolutionStrategy.dependencySubstitution {
+      substitute module('org.opensearch.plugin:opensearch-job-scheduler-spi') with project(':modules:job-scheduler:spi')
+    }
+  }
+}

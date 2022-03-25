@@ -3,4 +3,4 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-org.opensearch.jobscheduler.sampleextension.SampleExtensionPlugin
+org.opensearch.example.jobschedulersampleextension.SampleExtensionPlugin
