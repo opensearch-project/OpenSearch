@@ -420,6 +420,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
         from project.jdks."bundled_${platform}_${architecture}"
         exclude "demo/**"
+        exclude "man/ja/**"
         /*
          * The Contents/MacOS directory interferes with notarization, and is unused by our distribution, so we exclude
          * it from the build.
