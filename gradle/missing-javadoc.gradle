@@ -121,6 +121,8 @@ configure([
   project(":modules:ingest-common"),
   project(":modules:ingest-geoip"),
   project(":modules:ingest-user-agent"),
+  project(":modules:job-scheduler"),
+  project(":modules:job-scheduler:spi"),
   project(":modules:lang-expression"),
   project(":modules:lang-mustache"),
   project(":modules:lang-painless"),
