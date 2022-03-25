@@ -705,7 +705,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
                 IllegalArgumentException.class,
                 () -> new ClusterBootstrapService(settings.build(), transportService, () -> emptyList(), () -> false, vc -> fail())
             ).getMessage(),
-            containsString("node with [discovery.type] set to [single-node] must be master-eligible")
+            containsString("node with [discovery.type] set to [single-node] must be cluster-manager-eligible")
         );
     }
 }
