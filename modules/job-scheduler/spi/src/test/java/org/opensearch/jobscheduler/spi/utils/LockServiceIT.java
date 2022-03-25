@@ -245,7 +245,7 @@ public class LockServiceIT extends OpenSearchIntegTestCase {
 
     private static volatile AtomicInteger multiThreadCreateLockCounter = new AtomicInteger(0);
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/job-scheduler/issues/15")Ignore
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/job-scheduler/issues/15")
     public void testMultiThreadCreateLock() throws Exception {
         String uniqSuffix = "_multi_thread_create";
         CountDownLatch latch = new CountDownLatch(1);
