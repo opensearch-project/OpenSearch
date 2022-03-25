@@ -56,8 +56,8 @@ public class IntervalSchedule implements Schedule {
     public IntervalSchedule(Instant startTime, int interval, ChronoUnit unit) {
         if (!SUPPORTED_UNITS.contains(unit)) {
             throw new IllegalArgumentException(
-                    String.format(Locale.ROOT, "Interval unit %s is not supported, expects %s",
-                            unit, SUPPORTED_UNITS));
+                String.format(Locale.ROOT, "Interval unit %s is not supported, expects %s", unit, SUPPORTED_UNITS)
+            );
         }
         this.initialStartTime = startTime;
         this.startTimeWithDelay = startTime;
@@ -95,7 +95,9 @@ public class IntervalSchedule implements Schedule {
         return this.unit;
     }
 
-    public Long getDelay() { return this.scheduleDelay; }
+    public Long getDelay() {
+        return this.scheduleDelay;
+    }
 
     @Override
     public Instant getNextExecutionTime(Instant time) {
@@ -145,7 +147,7 @@ public class IntervalSchedule implements Schedule {
         long expectedLastExecutionTime = now.toEpochMilli() - expectedMillisSinceLastExecution;
         long expectedCurrentExecutionTime = expectedLastExecutionTime + this.intervalInMillis;
         return Math.abs(lastExecutionTime.toEpochMilli() - expectedLastExecutionTime) < 1000
-                || Math.abs(lastExecutionTime.toEpochMilli() - expectedCurrentExecutionTime) < 1000;
+            || Math.abs(lastExecutionTime.toEpochMilli() - expectedCurrentExecutionTime) < 1000;
     }
 
     @Override
@@ -155,24 +157,24 @@ public class IntervalSchedule implements Schedule {
 
     private XContentBuilder toXContentNoDelay(XContentBuilder builder) throws IOException {
         builder.startObject()
-                .startObject(INTERVAL_FIELD)
-                .field(START_TIME_FIELD, this.initialStartTime.toEpochMilli())
-                .field(PERIOD_FIELD, this.interval)
-                .field(UNIT_FIELD, this.unit)
-                .endObject()
-                .endObject();
+            .startObject(INTERVAL_FIELD)
+            .field(START_TIME_FIELD, this.initialStartTime.toEpochMilli())
+            .field(PERIOD_FIELD, this.interval)
+            .field(UNIT_FIELD, this.unit)
+            .endObject()
+            .endObject();
         return builder;
     }
 
     private XContentBuilder toXContentWithDelay(XContentBuilder builder) throws IOException {
         builder.startObject()
-                .startObject(INTERVAL_FIELD)
-                .field(START_TIME_FIELD, this.initialStartTime.toEpochMilli())
-                .field(PERIOD_FIELD, this.interval)
-                .field(UNIT_FIELD, this.unit)
-                .field(DELAY_FIELD, this.scheduleDelay)
-                .endObject()
-                .endObject();
+            .startObject(INTERVAL_FIELD)
+            .field(START_TIME_FIELD, this.initialStartTime.toEpochMilli())
+            .field(PERIOD_FIELD, this.interval)
+            .field(UNIT_FIELD, this.unit)
+            .field(DELAY_FIELD, this.scheduleDelay)
+            .endObject()
+            .endObject();
         return builder;
     }
 
@@ -191,17 +193,18 @@ public class IntervalSchedule implements Schedule {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         IntervalSchedule intervalSchedule = (IntervalSchedule) o;
-        return initialStartTime.equals(intervalSchedule.initialStartTime) &&
-                interval == intervalSchedule.interval &&
-                unit == intervalSchedule.unit &&
-                intervalInMillis == intervalSchedule.intervalInMillis &&
-                Objects.equals(scheduleDelay, intervalSchedule.scheduleDelay);
+        return initialStartTime.equals(intervalSchedule.initialStartTime)
+            && interval == intervalSchedule.interval
+            && unit == intervalSchedule.unit
+            && intervalInMillis == intervalSchedule.intervalInMillis
+            && Objects.equals(scheduleDelay, intervalSchedule.scheduleDelay);
     }
 
     @Override
     public int hashCode() {
-        return scheduleDelay == null ? Objects.hash(initialStartTime, interval, unit, intervalInMillis) :
-                Objects.hash(initialStartTime, interval, unit, intervalInMillis, scheduleDelay);
+        return scheduleDelay == null
+            ? Objects.hash(initialStartTime, interval, unit, intervalInMillis)
+            : Objects.hash(initialStartTime, interval, unit, intervalInMillis, scheduleDelay);
     }
 
     @Override

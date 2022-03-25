@@ -61,5 +61,7 @@ public interface ScheduledJobParameter extends ToXContentObject {
      *
      * @return job execution jitter
      */
-    default Double getJitter() {return null;}
+    default Double getJitter() {
+        return null;
+    }
 }

@@ -19,9 +19,9 @@ public class ScheduledJobInfo {
     }
 
     public Map<String, JobSchedulingInfo> getJobsByIndex(String indexName) {
-        if(!this.jobInfoMap.containsKey(indexName)) {
+        if (!this.jobInfoMap.containsKey(indexName)) {
             synchronized (this.jobInfoMap) {
-                if(!this.jobInfoMap.containsKey(indexName)) {
+                if (!this.jobInfoMap.containsKey(indexName)) {
                     this.jobInfoMap.put(indexName, new ConcurrentHashMap<>());
                 }
             }
@@ -34,9 +34,9 @@ public class ScheduledJobInfo {
     }
 
     public void addJob(String indexName, String jobId, JobSchedulingInfo jobInfo) {
-        if(!this.jobInfoMap.containsKey(indexName)) {
+        if (!this.jobInfoMap.containsKey(indexName)) {
             synchronized (this.jobInfoMap) {
-                if(!this.jobInfoMap.containsKey(indexName)) {
+                if (!this.jobInfoMap.containsKey(indexName)) {
                     jobInfoMap.put(indexName, new ConcurrentHashMap<>());
                 }
             }
@@ -46,7 +46,7 @@ public class ScheduledJobInfo {
     }
 
     public JobSchedulingInfo removeJob(String indexName, String jobId) {
-        if(this.jobInfoMap.containsKey(indexName)) {
+        if (this.jobInfoMap.containsKey(indexName)) {
             return this.jobInfoMap.get(indexName).remove(jobId);
         }
 

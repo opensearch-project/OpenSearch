@@ -54,10 +54,11 @@ public class CronScheduleTests extends OpenSearchTestCase {
         Assert.assertEquals(expected, duration);
         Assert.assertEquals(expectedDelay, durationDelay);
 
-        Assert.assertEquals(this.cronSchedule.nextTimeToExecute(),
-                Duration.between(now, this.cronSchedule.getNextExecutionTime(now)));
-        Assert.assertEquals(this.cronScheduleDelay.nextTimeToExecute(),
-                Duration.between(now, this.cronScheduleDelay.getNextExecutionTime(now)));
+        Assert.assertEquals(this.cronSchedule.nextTimeToExecute(), Duration.between(now, this.cronSchedule.getNextExecutionTime(now)));
+        Assert.assertEquals(
+            this.cronScheduleDelay.nextTimeToExecute(),
+            Duration.between(now, this.cronScheduleDelay.getNextExecutionTime(now))
+        );
     }
 
     public void testGetPeriodStartingAt() {
@@ -186,10 +187,9 @@ public class CronScheduleTests extends OpenSearchTestCase {
         this.cronSchedule.setExecutionTime(mockExecutionTime);
         this.cronScheduleDelay.setExecutionTime(mockExecutionTime);
 
-        Mockito.when(mockExecutionTime.lastExecution(ZonedDateTime.ofInstant(now, ZoneId.systemDefault())))
-                .thenReturn(Optional.empty());
+        Mockito.when(mockExecutionTime.lastExecution(ZonedDateTime.ofInstant(now, ZoneId.systemDefault()))).thenReturn(Optional.empty());
         Mockito.when(mockExecutionTime.lastExecution(ZonedDateTime.ofInstant(now.minusMillis(DELAY), ZoneId.systemDefault())))
-                .thenReturn(Optional.empty());
+            .thenReturn(Optional.empty());
 
         Assert.assertFalse(this.cronSchedule.runningOnTime(now));
         Assert.assertFalse(this.cronScheduleDelay.runningOnTime(now));
@@ -198,13 +198,11 @@ public class CronScheduleTests extends OpenSearchTestCase {
     public void testToXContent() throws IOException {
         CronSchedule schedule = new CronSchedule("* * * * *", ZoneId.of("PST8PDT"));
         String expectedJsonStr = "{\"cron\":{\"expression\":\"* * * * *\",\"timezone\":\"PST8PDT\"}}";
-        Assert.assertEquals(expectedJsonStr,
-                XContentHelper.toXContent(schedule, XContentType.JSON, false).utf8ToString());
+        Assert.assertEquals(expectedJsonStr, XContentHelper.toXContent(schedule, XContentType.JSON, false).utf8ToString());
 
         CronSchedule scheduleDelay = new CronSchedule("* * * * *", ZoneId.of("PST8PDT"), 1234);
         String expectedJsonStrDelay = "{\"cron\":{\"expression\":\"* * * * *\",\"timezone\":\"PST8PDT\",\"schedule_delay\":1234}}";
-        Assert.assertEquals(expectedJsonStrDelay,
-                XContentHelper.toXContent(scheduleDelay, XContentType.JSON, false).utf8ToString());
+        Assert.assertEquals(expectedJsonStrDelay, XContentHelper.toXContent(scheduleDelay, XContentType.JSON, false).utf8ToString());
     }
 
     public void testCronScheduleEqualsAndHashCode() {
@@ -218,7 +216,11 @@ public class CronScheduleTests extends OpenSearchTestCase {
         Assert.assertNotEquals("Different cron schedules were called equal", cronScheduleOne, cronScheduleThree);
         Assert.assertEquals("Identical cron schedules had different hash codes", cronScheduleOne.hashCode(), cronScheduleTwo.hashCode());
         Assert.assertNotEquals("Different cron schedules were called equal", cronScheduleThree, cronScheduleFour);
-        Assert.assertNotEquals("Different cron schedules had the same hash code", cronScheduleThree.hashCode(), cronScheduleFour.hashCode());
+        Assert.assertNotEquals(
+            "Different cron schedules had the same hash code",
+            cronScheduleThree.hashCode(),
+            cronScheduleFour.hashCode()
+        );
         Assert.assertEquals("Identical cron schedules were not equal", cronScheduleFour, cronScheduleFive);
         Assert.assertEquals("Identical cron schedules had different hash codes", cronScheduleFour.hashCode(), cronScheduleFive.hashCode());
     }
