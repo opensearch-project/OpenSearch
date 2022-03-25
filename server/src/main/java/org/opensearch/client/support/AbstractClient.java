@@ -368,8 +368,6 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.indices.replication.checkpoint.PublishCheckpointAction;
-import org.opensearch.indices.replication.checkpoint.PublishCheckpointRequest;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -1608,11 +1606,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public void refresh(final RefreshRequest request, final ActionListener<RefreshResponse> listener) {
             execute(RefreshAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public void publishCheckpoint(PublishCheckpointRequest request, ActionListener<RefreshResponse> listener) {
-            execute(PublishCheckpointAction.INSTANCE, request, listener);
         }
 
         @Override

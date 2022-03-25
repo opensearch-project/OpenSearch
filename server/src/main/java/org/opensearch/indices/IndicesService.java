@@ -138,7 +138,7 @@ import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.SegmentReplicationReplicaService;
-import org.opensearch.indices.replication.checkpoint.TransportCheckpointPublisher;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.copy.PrimaryShardReplicationSource;
 import org.opensearch.node.Node;
 import org.opensearch.plugins.IndexStorePlugin;
@@ -740,8 +740,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indicesFieldDataCache,
             namedWriteableRegistry,
             this::isIdFieldDataEnabled,
-            valuesSourceRegistry,
-            new TransportCheckpointPublisher(client)
+            valuesSourceRegistry
         );
     }
 
@@ -840,6 +839,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final SegmentReplicationReplicaService segmentReplicationReplicaService,
         final SegmentReplicationReplicaService.SegmentReplicationListener segRepListener,
         final PrimaryShardReplicationSource replicationSource,
+        final SegmentReplicationCheckpointPublisher checkpointPublisher,
         final PeerRecoveryTargetService recoveryTargetService,
         final PeerRecoveryTargetService.RecoveryListener recoveryListener,
         final RepositoriesService repositoriesService,
@@ -850,11 +850,12 @@ public class IndicesService extends AbstractLifecycleComponent
         final DiscoveryNode sourceNode
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
+        Objects.requireNonNull(checkpointPublisher);
         ensureChangesAllowed();
         IndexService indexService = indexService(shardRouting.index());
         assert indexService != null;
         RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
-        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
+        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer, checkpointPublisher);
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(
             recoveryState,

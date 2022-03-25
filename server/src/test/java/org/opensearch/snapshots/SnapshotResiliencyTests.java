@@ -183,6 +183,7 @@ import org.opensearch.indices.recovery.PeerRecoverySourceService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.SegmentReplicationReplicaService;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.copy.PrimaryShardReplicationSource;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.StatusInfo;
@@ -1869,7 +1870,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     ),
                     RetentionLeaseSyncer.EMPTY,
                     replicaService,
-                    new PrimaryShardReplicationSource(transportService, clusterService, indicesService, recoverySettings, replicaService)
+                    new PrimaryShardReplicationSource(transportService, clusterService, indicesService, recoverySettings, replicaService),
+                    SegmentReplicationCheckpointPublisher.EMPTY
                 );
                 Map<ActionType, TransportAction> actions = new HashMap<>();
                 final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);

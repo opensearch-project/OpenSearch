@@ -161,7 +161,7 @@ import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.replication.SegmentReplicationReplicaService;
 import org.opensearch.indices.replication.checkpoint.PublishCheckpointRequest;
-import org.opensearch.indices.replication.checkpoint.TransportCheckpointPublisher;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.copy.PrimaryShardReplicationSource;
 import org.opensearch.indices.replication.copy.ReplicationCheckpoint;
 import org.opensearch.indices.replication.copy.ReplicationFailedException;
@@ -327,7 +327,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Runnable globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final CircuitBreakerService circuitBreakerService,
-        final TransportCheckpointPublisher checkpointPublisher
+        final SegmentReplicationCheckpointPublisher checkpointPublisher
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();

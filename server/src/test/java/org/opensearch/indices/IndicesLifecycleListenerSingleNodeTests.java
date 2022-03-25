@@ -49,6 +49,7 @@ import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.util.Arrays;
@@ -148,7 +149,12 @@ public class IndicesLifecycleListenerSingleNodeTests extends OpenSearchSingleNod
             newRouting = newRouting.moveToUnassigned(unassignedInfo)
                 .updateUnassigned(unassignedInfo, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
             newRouting = ShardRoutingHelper.initialize(newRouting, nodeId);
-            IndexShard shard = index.createShard(newRouting, s -> {}, RetentionLeaseSyncer.EMPTY);
+            IndexShard shard = index.createShard(
+                newRouting,
+                s -> {},
+                RetentionLeaseSyncer.EMPTY,
+                SegmentReplicationCheckpointPublisher.EMPTY
+            );
             IndexShardTestCase.updateRoutingEntry(shard, newRouting);
             assertEquals(5, counter.get());
             final DiscoveryNode localNode = new DiscoveryNode(
