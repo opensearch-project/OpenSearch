@@ -2,6 +2,10 @@ pipeline {
     agent {
          docker {
             label 'AL2-X64'
+            /* See  
+            https://github.com/opensearch-project/opensearch-build/blob/main/docker/ci/dockerfiles/build.ubuntu18.opensearch.x64.dockerfile
+            for docker image
+            */
             image 'opensearchstaging/ci-runner:ci-runner-ubuntu1804-build-v1'
             alwaysPull true
         }
