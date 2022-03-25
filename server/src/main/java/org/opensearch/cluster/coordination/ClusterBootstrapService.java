@@ -135,7 +135,7 @@ public class ClusterBootstrapService {
                         + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey()
                         + "] set to ["
                         + DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE
-                        + "] must be master-eligible"
+                        + "] must be cluster-manager-eligible"
                 );
             }
             bootstrapRequirements = Collections.singleton(Node.NODE_NAME_SETTING.get(settings));
@@ -219,7 +219,7 @@ public class ClusterBootstrapService {
 
         logger.info(
             "no discovery configuration found, will perform best-effort cluster bootstrapping after [{}] "
-                + "unless existing master is discovered",
+                + "unless existing cluster-manager is discovered",
             unconfiguredBootstrapTimeout
         );
 

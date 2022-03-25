@@ -38,7 +38,7 @@
  * any {@code BlobStoreRepository} implementation must provide via its implementation of
  * {@link org.opensearch.repositories.blobstore.BlobStoreRepository#getBlobContainer()}.</p>
  *
- * <p>The blob store is written to and read from by master-eligible nodes and data nodes. All metadata related to a snapshot's
+ * <p>The blob store is written to and read from by cluster-manager-eligible nodes and data nodes. All metadata related to a snapshot's
  * scope and health is written by the master node.</p>
  * <p>The data-nodes on the other hand, write the data for each individual shard but do not write any blobs outside of shard directories for
  * shards that they hold the primary of. For each shard, the data-node holding the shard's primary writes the actual data in form of

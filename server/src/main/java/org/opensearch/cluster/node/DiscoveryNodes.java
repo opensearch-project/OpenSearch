@@ -574,7 +574,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         public String shortSummary() {
             final StringBuilder summary = new StringBuilder();
             if (masterNodeChanged()) {
-                summary.append("master node changed {previous [");
+                summary.append("cluster-manager node changed {previous [");
                 if (previousMasterNode() != null) {
                     summary.append(previousMasterNode());
                 }
@@ -799,7 +799,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     }
 
     /**
-     * Check if the given name of the node role is 'cluster_manger' or 'master'.
+     * Check if the given name of the node role is 'cluster_manager' or 'master'.
      * The method is added for {@link #resolveNodes} to keep the code clear, when support the both above roles.
      * @deprecated As of 2.0, because promoting inclusive language. MASTER_ROLE is deprecated.
      * @param matchAttrName a given String for a name of the node role.
