@@ -46,7 +46,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
-public class JobSchedulerPlugin extends Plugin implements ExtensiblePlugin {
+public final class JobSchedulerPlugin extends Plugin implements ExtensiblePlugin {
 
     public static final String OPEN_DISTRO_JOB_SCHEDULER_THREAD_POOL_NAME = "open_distro_job_scheduler";
 

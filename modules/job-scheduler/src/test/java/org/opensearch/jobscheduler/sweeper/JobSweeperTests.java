@@ -307,7 +307,7 @@ public class JobSweeperTests extends OpenSearchAllocationTestCase {
             "id_field",
             new BytesRef(docId.getBytes(Charset.defaultCharset()), 0, docId.getBytes(Charset.defaultCharset()).length)
         );
-        ParsedDocument parsedDocument = new ParsedDocument(null, null, docId, "_doc", null, docs, source, null, null);
+        ParsedDocument parsedDocument = new ParsedDocument(null, null, docId, null, docs, source, null, null);
 
         return new Engine.Index(uid, primaryTerm, parsedDocument);
     }
@@ -317,7 +317,7 @@ public class JobSweeperTests extends OpenSearchAllocationTestCase {
             "id_field",
             new BytesRef(docId.getBytes(Charset.defaultCharset()), 0, docId.getBytes(Charset.defaultCharset()).length)
         );
-        return new Engine.Delete("_doc", docId, uid, 1L);
+        return new Engine.Delete(docId, uid, 1L);
     }
 
     private BytesReference getTestJsonSource() {

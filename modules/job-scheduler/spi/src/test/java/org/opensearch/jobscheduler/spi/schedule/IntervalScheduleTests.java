@@ -13,7 +13,6 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -39,10 +38,12 @@ public class IntervalScheduleTests extends OpenSearchTestCase {
         this.intervalScheduleDelay = new IntervalSchedule(startTime, 3, ChronoUnit.MINUTES, DELAY);
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void testConstructor_notSupportedTimeUnit() throws ParseException {
-        Instant startTime = new SimpleDateFormat("MM/dd/yyyy").parse("01/01/2019").toInstant();
-        new IntervalSchedule(startTime, 1, ChronoUnit.MILLIS);
+    public void testConstructorNotSupportedTimeUnit() throws ParseException {
+        try {
+            Instant startTime = new SimpleDateFormat("MM/dd/yyyy", Locale.ROOT).parse("01/01/2019").toInstant();
+            new IntervalSchedule(startTime, 1, ChronoUnit.MILLIS);
+        } catch (IllegalArgumentException ignored) {
+        }
     }
 
     public void testNextTimeToExecution() {

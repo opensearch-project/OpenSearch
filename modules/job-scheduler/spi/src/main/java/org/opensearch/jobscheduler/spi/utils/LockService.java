@@ -41,11 +41,6 @@ import java.time.Instant;
 
 public final class LockService {
     private static final Logger logger = LogManager.getLogger(LockService.class);
-    /**
-     * This should go away starting ES 7. We use "_doc" for future compatibility as described here:
-     * https://www.elastic.co/guide/en/elasticsearch/reference/6.x/removal-of-types.html#_schedule_for_removal_of_mapping_types
-     */
-    private static final String MAPPING_TYPE = "_doc";
     private static final String LOCK_INDEX_NAME = ".opendistro-job-scheduler-lock";
 
     private final Client client;
@@ -82,11 +77,7 @@ public final class LockService {
         if (lockIndexExist()) {
             listener.onResponse(true);
         } else {
-            final CreateIndexRequest request = new CreateIndexRequest(LOCK_INDEX_NAME).mapping(
-                MAPPING_TYPE,
-                lockMapping(),
-                XContentType.JSON
-            );
+            final CreateIndexRequest request = new CreateIndexRequest(LOCK_INDEX_NAME).mapping(lockMapping());
             client.admin()
                 .indices()
                 .create(request, ActionListener.wrap(response -> listener.onResponse(response.isAcknowledged()), exception -> {

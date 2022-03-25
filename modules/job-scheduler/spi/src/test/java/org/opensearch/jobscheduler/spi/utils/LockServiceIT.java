@@ -15,7 +15,6 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -246,7 +245,7 @@ public class LockServiceIT extends OpenSearchIntegTestCase {
 
     private static volatile AtomicInteger multiThreadCreateLockCounter = new AtomicInteger(0);
 
-    @Ignore
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/job-scheduler/issues/15")Ignore
     public void testMultiThreadCreateLock() throws Exception {
         String uniqSuffix = "_multi_thread_create";
         CountDownLatch latch = new CountDownLatch(1);
@@ -308,7 +307,7 @@ public class LockServiceIT extends OpenSearchIntegTestCase {
 
     private static volatile AtomicInteger multiThreadAcquireLockCounter = new AtomicInteger(0);
 
-    @Ignore
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/job-scheduler/issues/15")
     public void testMultiThreadAcquireLock() throws Exception {
         String uniqSuffix = "_multi_thread_acquire";
         CountDownLatch latch = new CountDownLatch(1);
