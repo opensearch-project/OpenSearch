@@ -34,6 +34,7 @@ package org.opensearch.indices.replication.copy;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.support.ChannelActionListener;
@@ -56,12 +57,14 @@ import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.Transports;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 /**
  * Request handlers for the primary shard during segment copy.
@@ -130,7 +133,7 @@ public class SegmentReplicationPrimaryService {
             return checkpointCopyState.containsKey(checkpoint);
         }
 
-        public void removeCopyState(ReplicationCheckpoint checkpoint) {
+        public synchronized void removeCopyState(ReplicationCheckpoint checkpoint) {
             final Optional<CopyState> nrtCopyState = Optional.ofNullable(checkpointCopyState.get(checkpoint));
             nrtCopyState.ifPresent((state) -> {
                 if (state.decRef()) {
@@ -141,7 +144,7 @@ public class SegmentReplicationPrimaryService {
         }
     }
 
-    private CopyState getCopyState(ReplicationCheckpoint checkpoint) throws IOException {
+    private synchronized CopyState getCopyState(ReplicationCheckpoint checkpoint) throws IOException {
         if (commitCache.hasCheckpoint(checkpoint)) {
             final CopyState copyState = commitCache.getCopyStateForCheckpoint(checkpoint);
             copyState.incRef();
@@ -165,7 +168,12 @@ public class SegmentReplicationPrimaryService {
             logger.trace("Received request for checkpoint {}", checkpoint);
             final CopyState copyState = getCopyState(checkpoint);
             channel.sendResponse(
-                new TransportCheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataSnapshot(), copyState.getInfosBytes())
+                new TransportCheckpointInfoResponse(
+                    copyState.getCheckpoint(),
+                    copyState.getMetadataSnapshot(),
+                    copyState.getInfosBytes(),
+                    copyState.getPendingDeleteFiles()
+                )
             );
         }
     }
@@ -228,7 +236,23 @@ public class SegmentReplicationPrimaryService {
                 throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
             }
             final StepListener<ReplicationResponse> addRetentionLeaseStep = new StepListener<>();
-            final StepListener<ReplicationResponse> responseListener = new StepListener<>();
+            final Consumer<Exception> onFailure = e -> {
+                assert Transports.assertNotTransportThread(this + "[onFailure]");
+                logger.error(
+                    new ParameterizedMessage(
+                        "Error marking shard {} as tracked for allocation ID {}",
+                        shardId,
+                        request.getTargetAllocationId()
+                    ),
+                    e
+                );
+                try {
+                    channel.sendResponse(e);
+                } catch (Exception inner) {
+                    inner.addSuppressed(e);
+                    logger.warn("failed to send back failure on track shard request", inner);
+                }
+            };
             PrimaryShardReplicationHandler.runUnderPrimaryPermit(
                 () -> shard.cloneLocalPeerRecoveryRetentionLease(
                     request.getTargetNode().getId(),
@@ -247,7 +271,6 @@ public class SegmentReplicationPrimaryService {
                     new CancellableThreads(),
                     logger
                 );
-
                 PrimaryShardReplicationHandler.runUnderPrimaryPermit(
                     () -> shard.updateLocalCheckpointForShard(targetAllocationId, SequenceNumbers.NO_OPS_PERFORMED),
                     shardId + " marking " + targetAllocationId + " as in sync",
@@ -255,15 +278,8 @@ public class SegmentReplicationPrimaryService {
                     new CancellableThreads(),
                     logger
                 );
-                PrimaryShardReplicationHandler.runUnderPrimaryPermit(
-                    () -> shard.markAllocationIdAsInSync(targetAllocationId, SequenceNumbers.NO_OPS_PERFORMED),
-                    shardId + " marking " + targetAllocationId + " as in sync",
-                    shard,
-                    new CancellableThreads(),
-                    logger
-                );
                 channel.sendResponse(new TrackShardResponse());
-            }, responseListener::onFailure);
+            }, onFailure);
         }
     }
 }

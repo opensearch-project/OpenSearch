@@ -15,6 +15,7 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
+import org.opensearch.action.StepListener;
 import org.opensearch.action.support.RetryableAction;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -30,6 +31,7 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardRecoveryException;
+import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
@@ -149,7 +151,7 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
             );
             store.associateIndexWithNewTranslog(translogUUID);
             indexShard.persistRetentionLeases();
-            indexShard.openEngineAndRecoverFromTranslog();
+            indexShard.openEngineAndSkipTranslogRecovery();
         } catch (EngineException | IOException e) {
             throw new IndexShardRecoveryException(indexShard.shardId(), "failed to start replica shard", e);
         } finally {
@@ -163,6 +165,7 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
         PrimaryShardReplicationSource source,
         final SegmentReplicationListener listener
     ) {
+        indexShard.markAsReplicating();
         final long replicationId = onGoingReplications.startReplication(
             checkpoint,
             indexShard,
@@ -200,6 +203,31 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
             ReplicationResponseHandler listener = new ReplicationResponseHandler(replicationId, indexShard, timer);
             replicationTarget.startReplication(listener);
         }
+    }
+
+    /**
+     * Start the recovery of a shard using Segment Replication.  This method will first setup the shard and then start segment copy.
+     *
+     * @param indexShard          {@link IndexShard} The target IndexShard.
+     * @param targetNode          {@link DiscoveryNode} The IndexShard's DiscoveryNode
+     * @param sourceNode          {@link DiscoveryNode} The source node.
+     * @param replicationSource   {@link PrimaryShardReplicationSource} The source from where segments will be retrieved.
+     * @param replicationListener {@link ReplicationListener} listener.
+     */
+    public void startRecovery(
+        IndexShard indexShard,
+        DiscoveryNode targetNode,
+        DiscoveryNode sourceNode,
+        PrimaryShardReplicationSource replicationSource,
+        SegmentReplicationListener replicationListener
+    ) {
+        indexShard.markAsReplicating();
+        StepListener<TrackShardResponse> trackShardListener = new StepListener<>();
+        trackShardListener.whenComplete(
+            r -> { startReplication(indexShard.getLatestReplicationCheckpoint(), indexShard, replicationSource, replicationListener); },
+            e -> { replicationListener.onFailure(indexShard.getReplicationState(), new ReplicationFailedException(indexShard, e), true); }
+        );
+        prepareForReplication(indexShard, targetNode, sourceNode, trackShardListener);
     }
 
     class ReplicationRunner extends AbstractRunnable {
@@ -258,6 +286,12 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
         public void onResponse(ReplicationResponse replicationResponse) {
             // final TimeValue replicationTime = new TimeValue(timer.time());
             logger.trace("Replication complete {}", replicationId);
+            if (shard.state() != IndexShardState.STARTED) {
+                // The first time our shard is set up we need to mark its recovery complete.
+                shard.recoveryState().getIndex().setFileDetailsComplete();
+                shard.finalizeRecovery();
+                shard.postRecovery("Shard setup complete.");
+            }
             onGoingReplications.markReplicationAsDone(replicationId);
         }
 

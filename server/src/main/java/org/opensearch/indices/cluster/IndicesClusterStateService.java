@@ -774,7 +774,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         @Override
         public void onReplicationDone(final SegmentReplicationState state) {
-            logger.info("Shard setup complete, ready for segment copy.");
+            logger.trace("Shard setup complete, ready for segment copy.");
             shardStateAction.shardStarted(shardRouting, primaryTerm, "after replication", SHARD_STATE_ACTION_LISTENER);
         }
 

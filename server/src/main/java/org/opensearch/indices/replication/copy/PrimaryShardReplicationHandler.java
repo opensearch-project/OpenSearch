@@ -70,8 +70,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Deque;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -157,12 +158,10 @@ public class PrimaryShardReplicationHandler {
 
             final StepListener<Void> sendFileStep = new StepListener<>();
             try {
-                // TODO: Segrep - Need validation here.
-                final Store.MetadataSnapshot metadataSnapshot = copyState.getMetadataSnapshot();
-                final Map<String, StoreFileMetadata> metadataMap = metadataSnapshot.asMap();
+                Set<String> storeFiles = new HashSet<>(Arrays.asList(shard.store().directory().listAll()));
                 final StoreFileMetadata[] storeFileMetadata = request.getFilesToFetch()
                     .stream()
-                    .filter(file -> metadataMap.containsKey(file.name()))
+                    .filter(file -> storeFiles.contains(file.name()))
                     .toArray(StoreFileMetadata[]::new);
                 sendFiles(shard.store(), storeFileMetadata, sendFileStep);
             } catch (final Exception e) {

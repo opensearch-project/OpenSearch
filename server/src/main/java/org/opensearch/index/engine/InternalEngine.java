@@ -62,10 +62,6 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.BufferedChecksumIndexInput;
-import org.apache.lucene.store.ByteBuffersDataInput;
-import org.apache.lucene.store.ByteBuffersIndexInput;
-import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
@@ -119,7 +115,6 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -341,19 +336,11 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void updateCurrentInfos(byte[] infosBytes, long gen, long seqNo) throws IOException {
-        assert engineConfig.isReadOnly() == true : "Only read-only replicas should update Infos";
-        SegmentInfos infos = SegmentInfos.readCommit(this.store.directory(), toIndexInput(infosBytes), gen);
-        assert gen == infos.getGeneration();
+    public void updateCurrentInfos(SegmentInfos infos, long seqNo) throws IOException {
+        assert engineConfig.isReadOnly() : "Only replicas should update Infos";
         externalReaderManager.internalReaderManager.updateSegments(infos);
         externalReaderManager.maybeRefresh();
         localCheckpointTracker.markSeqNoAsProcessed(seqNo);
-    }
-
-    private ChecksumIndexInput toIndexInput(byte[] input) {
-        return new BufferedChecksumIndexInput(
-            new ByteBuffersIndexInput(new ByteBuffersDataInput(Arrays.asList(ByteBuffer.wrap(input))), "SegmentInfos")
-        );
     }
 
     private LocalCheckpointTracker createLocalCheckpointTracker(

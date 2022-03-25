@@ -11,31 +11,39 @@ package org.opensearch.indices.replication.checkpoint;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.copy.ReplicationCheckpoint;
 import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;
+import java.util.Set;
 
 public class TransportCheckpointInfoResponse extends TransportResponse {
 
     private final ReplicationCheckpoint checkpoint;
     private final Store.MetadataSnapshot snapshot;
     private final byte[] infosBytes;
+    // pendingDeleteFiles are segments that have been merged away in the latest in memory SegmentInfos
+    // but are still referenced by the latest commit point (Segments_N).
+    private final Set<StoreFileMetadata> pendingDeleteFiles;
 
     public TransportCheckpointInfoResponse(
         final ReplicationCheckpoint checkpoint,
         final Store.MetadataSnapshot snapshot,
-        final byte[] infosBytes
+        final byte[] infosBytes,
+        final Set<StoreFileMetadata> additionalFiles
     ) {
         this.checkpoint = checkpoint;
         this.snapshot = snapshot;
         this.infosBytes = infosBytes;
+        this.pendingDeleteFiles = additionalFiles;
     }
 
     public TransportCheckpointInfoResponse(StreamInput in) throws IOException {
         this.checkpoint = new ReplicationCheckpoint(in);
         this.snapshot = new Store.MetadataSnapshot(in);
         this.infosBytes = in.readByteArray();
+        this.pendingDeleteFiles = in.readSet(StoreFileMetadata::new);
     }
 
     @Override
@@ -43,6 +51,7 @@ public class TransportCheckpointInfoResponse extends TransportResponse {
         checkpoint.writeTo(out);
         snapshot.writeTo(out);
         out.writeByteArray(infosBytes);
+        out.writeCollection(pendingDeleteFiles);
     }
 
     public ReplicationCheckpoint getCheckpoint() {
@@ -57,4 +66,7 @@ public class TransportCheckpointInfoResponse extends TransportResponse {
         return infosBytes;
     }
 
+    public Set<StoreFileMetadata> getPendingDeleteFiles() {
+        return pendingDeleteFiles;
+    }
 }
