@@ -63,25 +63,25 @@ public class IndexingIT extends AbstractRollingTestCase {
 
     public void testIndexing() throws IOException {
         switch (CLUSTER_TYPE) {
-        case OLD:
-            break;
-        case MIXED:
-            Request waitForYellow = new Request("GET", "/_cluster/health");
-            waitForYellow.addParameter("wait_for_nodes", "3");
-            waitForYellow.addParameter("wait_for_status", "yellow");
-            client().performRequest(waitForYellow);
-            break;
-        case UPGRADED:
-            Request waitForGreen = new Request("GET", "/_cluster/health/test_index,index_with_replicas,empty_index");
-            waitForGreen.addParameter("wait_for_nodes", "3");
-            waitForGreen.addParameter("wait_for_status", "green");
-            // wait for long enough that we give delayed unassigned shards to stop being delayed
-            waitForGreen.addParameter("timeout", "70s");
-            waitForGreen.addParameter("level", "shards");
-            client().performRequest(waitForGreen);
-            break;
-        default:
-            throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+            case OLD:
+                break;
+            case MIXED:
+                Request waitForYellow = new Request("GET", "/_cluster/health");
+                waitForYellow.addParameter("wait_for_nodes", "3");
+                waitForYellow.addParameter("wait_for_status", "yellow");
+                client().performRequest(waitForYellow);
+                break;
+            case UPGRADED:
+                Request waitForGreen = new Request("GET", "/_cluster/health/test_index,index_with_replicas,empty_index");
+                waitForGreen.addParameter("wait_for_nodes", "3");
+                waitForGreen.addParameter("wait_for_status", "green");
+                // wait for long enough that we give delayed unassigned shards to stop being delayed
+                waitForGreen.addParameter("timeout", "70s");
+                waitForGreen.addParameter("level", "shards");
+                client().performRequest(waitForGreen);
+                break;
+            default:
+                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
 
         if (CLUSTER_TYPE == ClusterType.OLD) {
@@ -110,21 +110,21 @@ public class IndexingIT extends AbstractRollingTestCase {
 
         int expectedCount;
         switch (CLUSTER_TYPE) {
-        case OLD:
-            expectedCount = 5;
-            break;
-        case MIXED:
-            if (Booleans.parseBoolean(System.getProperty("tests.first_round"))) {
+            case OLD:
                 expectedCount = 5;
-            } else {
-                expectedCount = 10;
-            }
-            break;
-        case UPGRADED:
-            expectedCount = 15;
-            break;
-        default:
-            throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+                break;
+            case MIXED:
+                if (Booleans.parseBoolean(System.getProperty("tests.first_round"))) {
+                    expectedCount = 5;
+                } else {
+                    expectedCount = 10;
+                }
+                break;
+            case UPGRADED:
+                expectedCount = 15;
+                break;
+            default:
+                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
 
         assertCount("test_index", expectedCount);
@@ -168,19 +168,7 @@ public class IndexingIT extends AbstractRollingTestCase {
                 waitForGreen.addParameter("wait_for_nodes", "3");
                 client().performRequest(waitForGreen);
 
-                Version minNodeVersion = null;
-                Map<?, ?> response = entityAsMap(client().performRequest(new Request("GET", "_nodes")));
-                Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
-                for (Map.Entry<?, ?> node : nodes.entrySet()) {
-                    Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
-                    Version nodeVersion = Version.fromString(nodeInfo.get("version").toString());
-                    if (minNodeVersion == null) {
-                        minNodeVersion = nodeVersion;
-                    } else if (nodeVersion.before(minNodeVersion)) {
-                        minNodeVersion = nodeVersion;
-                    }
-                }
-
+                Version minNodeVersion = getMinNodeVersion();
                 if (minNodeVersion.before(LegacyESVersion.V_7_5_0)) {
                     ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(bulk));
                     assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
@@ -202,6 +190,72 @@ public class IndexingIT extends AbstractRollingTestCase {
         }
     }
 
+    public void testTypeRemovalIndexing() throws IOException {
+        final String indexName = "test_index_with_mapping";
+        final String indexWithoutTypeName = "test_index_without_mapping";
+        final String mapping = "\"properties\":{\"f1\":{\"type\":\"keyword\"},\"f2\":{\"type\":\"keyword\"}}";
+
+        switch (CLUSTER_TYPE) {
+            case OLD:
+                Settings.Builder settings = Settings.builder()
+                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
+                Version minNodeVersion = getMinNodeVersion();
+                if (minNodeVersion.before(Version.V_2_0_0)) {
+                    createIndex(indexName, settings.build(), mapping);
+                    assertIndexMapping(indexName, mapping);
+                } else {
+                    createIndex(indexName, settings.build());
+                }
+                bulk(indexName, CLUSTER_TYPE.name(), 1);
+
+                createIndex(indexWithoutTypeName, settings.build());
+                bulk(indexWithoutTypeName, CLUSTER_TYPE.name(), 1);
+                break;
+            case MIXED:
+                Request waitForGreen = new Request("GET", "/_cluster/health");
+                waitForGreen.addParameter("wait_for_nodes", "3");
+                client().performRequest(waitForGreen);
+                break;
+            case UPGRADED:
+                Version currentNodeVersion = getMinNodeVersion();
+                assertTrue(currentNodeVersion.onOrAfter(Version.V_2_0_0));
+
+                // Assert documents created with mapping prior to OS 2.0 are accessible.
+                assertCount(indexName, 1);
+
+                bulk(indexName, CLUSTER_TYPE.name(), 1);
+                // Assert the newly ingested documents are accesible
+                assertCount(indexName, 2);
+
+                // Assert documents created prior to OS 2.0 are accessible.
+                assertCount(indexWithoutTypeName, 1);
+                // Test ingestion of new documents created using < OS2.0
+                bulk(indexWithoutTypeName, CLUSTER_TYPE.name(), 1);
+                assertCount(indexWithoutTypeName, 2);
+                break;
+            default:
+                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+        }
+    }
+
+    private Version getMinNodeVersion() throws IOException {
+        Version minNodeVersion = null;
+        Map<?, ?> response = entityAsMap(client().performRequest(new Request("GET", "_nodes")));
+        Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
+        for (Map.Entry<?, ?> node : nodes.entrySet()) {
+            Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
+            Version nodeVersion = Version.fromString(nodeInfo.get("version").toString());
+            if (minNodeVersion == null) {
+                minNodeVersion = nodeVersion;
+            } else if (nodeVersion.before(minNodeVersion)) {
+                minNodeVersion = nodeVersion;
+            }
+        }
+        return minNodeVersion;
+    }
+
+
     private void bulk(String index, String valueSuffix, int count) throws IOException {
         StringBuilder b = new StringBuilder();
         for (int i = 0; i < count; i++) {
@@ -220,6 +274,13 @@ public class IndexingIT extends AbstractRollingTestCase {
         searchTestIndexRequest.addParameter("filter_path", "hits.total");
         Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
         assertEquals("{\"hits\":{\"total\":" + count + "}}",
-                EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8));
+            EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8));
+    }
+
+    private void assertIndexMapping(String index, String mappings) throws IOException {
+        Request testIndexMappingRequest = new Request("GET", "/" + index + "/_mapping");
+        Response testIndexMappingResponse = client().performRequest(testIndexMappingRequest);
+        assertEquals("{\""+index+"\":{\"mappings\":{"+mappings+"}}}",
+            EntityUtils.toString(testIndexMappingResponse.getEntity(), StandardCharsets.UTF_8));
     }
 }
