@@ -5,7 +5,6 @@
 
 apply plugin: 'opensearch.opensearchplugin'
 apply plugin: 'opensearch.testclusters'
-apply plugin: 'opensearch.java-rest-test'
 
 opensearchplugin {
   name 'opensearch-job-scheduler-sample-extension'
@@ -25,3 +24,7 @@ testClusters.all {
 }
 
 test.enabled = false
+
+tasks.register("integTest", Test) {
+  include "**/*IT.class"
+}
