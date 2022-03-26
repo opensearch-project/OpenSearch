@@ -42,8 +42,7 @@ public class IntervalScheduleTests extends OpenSearchTestCase {
         try {
             Instant startTime = new SimpleDateFormat("MM/dd/yyyy", Locale.ROOT).parse("01/01/2019").toInstant();
             new IntervalSchedule(startTime, 1, ChronoUnit.MILLIS);
-        } catch (IllegalArgumentException ignored) {
-        }
+        } catch (IllegalArgumentException ignored) {}
     }
 
     public void testNextTimeToExecution() {
