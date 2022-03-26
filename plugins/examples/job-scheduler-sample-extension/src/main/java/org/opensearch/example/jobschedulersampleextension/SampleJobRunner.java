@@ -43,11 +43,11 @@ public class SampleJobRunner implements ScheduledJobRunner {
     private static SampleJobRunner INSTANCE;
 
     public static SampleJobRunner getJobRunnerInstance() {
-        if(INSTANCE != null) {
+        if (INSTANCE != null) {
             return INSTANCE;
         }
         synchronized (SampleJobRunner.class) {
-            if(INSTANCE != null) {
+            if (INSTANCE != null) {
                 return INSTANCE;
             }
             INSTANCE = new SampleJobRunner();
@@ -65,18 +65,20 @@ public class SampleJobRunner implements ScheduledJobRunner {
     public void setClusterService(ClusterService clusterService) {
         this.clusterService = clusterService;
     }
+
     public void setThreadPool(ThreadPool threadPool) {
         this.threadPool = threadPool;
     }
 
     @Override
     public void runJob(ScheduledJobParameter jobParameter, JobExecutionContext context) {
-        if(!(jobParameter instanceof SampleJobParameter)) {
-            throw new IllegalStateException("Job parameter is not instance of SampleJobParameter, type: "
-                    + jobParameter.getClass().getCanonicalName());
+        if (!(jobParameter instanceof SampleJobParameter)) {
+            throw new IllegalStateException(
+                "Job parameter is not instance of SampleJobParameter, type: " + jobParameter.getClass().getCanonicalName()
+            );
         }
 
-        if(this.clusterService == null) {
+        if (this.clusterService == null) {
             throw new IllegalStateException("ClusterService is not initialized.");
         }
 
@@ -88,37 +90,34 @@ public class SampleJobRunner implements ScheduledJobRunner {
 
         Runnable runnable = () -> {
             if (jobParameter.getLockDurationSeconds() != null) {
-                lockService.acquireLock(jobParameter, context, ActionListener.wrap(
-                        lock -> {
-                            if (lock == null) {
-                                return;
-                            }
+                lockService.acquireLock(jobParameter, context, ActionListener.wrap(lock -> {
+                    if (lock == null) {
+                        return;
+                    }
 
-                            SampleJobParameter parameter = (SampleJobParameter) jobParameter;
-                            StringBuilder msg = new StringBuilder();
-                            msg.append("Watching index ").append(parameter.getIndexToWatch()).append("\n");
+                    SampleJobParameter parameter = (SampleJobParameter) jobParameter;
+                    StringBuilder msg = new StringBuilder();
+                    msg.append("Watching index ").append(parameter.getIndexToWatch()).append("\n");
 
-                            List<ShardRouting> shardRoutingList = this.clusterService.state()
-                                    .routingTable().allShards(parameter.getIndexToWatch());
-                            for(ShardRouting shardRouting : shardRoutingList) {
-                                msg.append(shardRouting.shardId().getId()).append("\t").append(shardRouting.currentNodeId()).append("\t")
-                                        .append(shardRouting.active() ? "active" : "inactive").append("\n");
-                            }
-                            log.info(msg.toString());
+                    List<ShardRouting> shardRoutingList = this.clusterService.state().routingTable().allShards(parameter.getIndexToWatch());
+                    for (ShardRouting shardRouting : shardRoutingList) {
+                        msg.append(shardRouting.shardId().getId())
+                            .append("\t")
+                            .append(shardRouting.currentNodeId())
+                            .append("\t")
+                            .append(shardRouting.active() ? "active" : "inactive")
+                            .append("\n");
+                    }
+                    log.info(msg.toString());
 
-                            lockService.release(lock, ActionListener.wrap(
-                                    released -> {
-                                        log.info("Released lock for job {}", jobParameter.getName());
-                                    },
-                                    exception -> {
-                                        throw new IllegalStateException("Failed to release lock.");
-                                    }
-                            ));
-                        },
-                        exception -> {
-                            throw new IllegalStateException("Failed to acquire lock.");
-                        }
-                ));
+                    lockService.release(
+                        lock,
+                        ActionListener.wrap(
+                            released -> { log.info("Released lock for job {}", jobParameter.getName()); },
+                            exception -> { throw new IllegalStateException("Failed to release lock."); }
+                        )
+                    );
+                }, exception -> { throw new IllegalStateException("Failed to acquire lock."); }));
             }
         };
 

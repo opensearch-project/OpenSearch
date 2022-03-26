@@ -29,12 +29,11 @@ public class SampleExtensionPluginIT extends OpenSearchIntegTestCase {
 
         NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
         nodesInfoRequest.addMetric(NodesInfoRequest.Metric.PLUGINS.metricName());
-        NodesInfoResponse nodesInfoResponse = OpenSearchIntegTestCase.client().admin().cluster().nodesInfo(nodesInfoRequest)
-                .actionGet();
+        NodesInfoResponse nodesInfoResponse = OpenSearchIntegTestCase.client().admin().cluster().nodesInfo(nodesInfoRequest).actionGet();
         List<PluginInfo> pluginInfos = nodesInfoResponse.getNodes().get(0).getInfo(PluginsAndModules.class).getPluginInfos();
-        Assert.assertTrue(pluginInfos.stream().anyMatch(pluginInfo -> pluginInfo.getName()
-                .equals("opensearch-job-scheduler")));
-        Assert.assertTrue(pluginInfos.stream().anyMatch(pluginInfo -> pluginInfo.getName()
-                .equals("opensearch-job-scheduler-sample-extension")));
+        Assert.assertTrue(pluginInfos.stream().anyMatch(pluginInfo -> pluginInfo.getName().equals("opensearch-job-scheduler")));
+        Assert.assertTrue(
+            pluginInfos.stream().anyMatch(pluginInfo -> pluginInfo.getName().equals("opensearch-job-scheduler-sample-extension"))
+        );
     }
 }

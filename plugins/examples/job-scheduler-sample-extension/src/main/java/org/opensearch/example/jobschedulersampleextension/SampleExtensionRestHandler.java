@@ -54,10 +54,9 @@ public class SampleExtensionRestHandler extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.unmodifiableList(Arrays.asList(
-                new Route(RestRequest.Method.POST, WATCH_INDEX_URI),
-                new Route(RestRequest.Method.DELETE, WATCH_INDEX_URI)
-        ));
+        return Collections.unmodifiableList(
+            Arrays.asList(new Route(RestRequest.Method.POST, WATCH_INDEX_URI), new Route(RestRequest.Method.DELETE, WATCH_INDEX_URI))
+        );
     }
 
     @Override
@@ -73,15 +72,20 @@ public class SampleExtensionRestHandler extends BaseRestHandler {
             String jitterString = request.param("jitter");
             Double jitter = jitterString != null ? Double.parseDouble(jitterString) : null;
 
-            if(id == null || indexName ==null) {
+            if (id == null || indexName == null) {
                 throw new IllegalArgumentException("Must specify id and index parameter");
             }
-            SampleJobParameter jobParameter = new SampleJobParameter(id, jobName, indexName,
-                    new IntervalSchedule(Instant.now(), Integer.parseInt(interval), ChronoUnit.MINUTES), lockDurationSeconds, jitter);
-            IndexRequest indexRequest = new IndexRequest()
-                    .index(SampleExtensionPlugin.JOB_INDEX_NAME)
-                    .id(id)
-                    .source(jobParameter.toXContent(JsonXContent.contentBuilder(), null));
+            SampleJobParameter jobParameter = new SampleJobParameter(
+                id,
+                jobName,
+                indexName,
+                new IntervalSchedule(Instant.now(), Integer.parseInt(interval), ChronoUnit.MINUTES),
+                lockDurationSeconds,
+                jitter
+            );
+            IndexRequest indexRequest = new IndexRequest().index(SampleExtensionPlugin.JOB_INDEX_NAME)
+                .id(id)
+                .source(jobParameter.toXContent(JsonXContent.contentBuilder(), null));
 
             return restChannel -> {
                 // index the job parameter
@@ -89,10 +93,12 @@ public class SampleExtensionRestHandler extends BaseRestHandler {
                     @Override
                     public void onResponse(IndexResponse indexResponse) {
                         try {
-                            RestResponse restResponse = new BytesRestResponse(RestStatus.OK,
-                                    indexResponse.toXContent(JsonXContent.contentBuilder(), null));
+                            RestResponse restResponse = new BytesRestResponse(
+                                RestStatus.OK,
+                                indexResponse.toXContent(JsonXContent.contentBuilder(), null)
+                            );
                             restChannel.sendResponse(restResponse);
-                        } catch(IOException e) {
+                        } catch (IOException e) {
                             restChannel.sendResponse(new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR, e.getMessage()));
                         }
                     }
@@ -106,9 +112,7 @@ public class SampleExtensionRestHandler extends BaseRestHandler {
         } else if (request.method().equals(RestRequest.Method.DELETE)) {
             // delete job parameter doc from index
             String id = request.param("id");
-            DeleteRequest deleteRequest = new DeleteRequest()
-                    .index(SampleExtensionPlugin.JOB_INDEX_NAME)
-                    .id(id);
+            DeleteRequest deleteRequest = new DeleteRequest().index(SampleExtensionPlugin.JOB_INDEX_NAME).id(id);
 
             return restChannel -> {
                 client.delete(deleteRequest, new ActionListener<DeleteResponse>() {

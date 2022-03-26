@@ -40,8 +40,7 @@ public class SampleJobParameter implements ScheduledJobParameter {
     private Long lockDurationSeconds;
     private Double jitter;
 
-    public SampleJobParameter() {
-    }
+    public SampleJobParameter() {}
 
     public SampleJobParameter(String id, String name, String indexToWatch, Schedule schedule, Long lockDurationSeconds, Double jitter) {
         this.jobName = name;
@@ -86,7 +85,8 @@ public class SampleJobParameter implements ScheduledJobParameter {
         return this.lockDurationSeconds;
     }
 
-    @Override public Double getJitter() {
+    @Override
+    public Double getJitter() {
         return jitter;
     }
 
