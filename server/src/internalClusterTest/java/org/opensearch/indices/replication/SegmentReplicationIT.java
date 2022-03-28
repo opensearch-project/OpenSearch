@@ -26,9 +26,9 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -60,11 +60,20 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         ensureGreen(INDEX_NAME);
 
         final int initialDocCount = scaledRandomIntBetween(0, 200);
-        try (BackgroundIndexer indexer = new BackgroundIndexer(INDEX_NAME, "_doc", client(), -1, RandomizedTest.scaledRandomIntBetween(2, 5), false, random())) {
+        try (
+            BackgroundIndexer indexer = new BackgroundIndexer(
+                INDEX_NAME,
+                "_doc",
+                client(),
+                -1,
+                RandomizedTest.scaledRandomIntBetween(2, 5),
+                false,
+                random()
+            )
+        ) {
             indexer.start(initialDocCount);
             waitForDocs(initialDocCount, indexer);
             refresh(INDEX_NAME);
-            ensureGreen(INDEX_NAME);
 
             // wait a short amount of time to give replication a chance to complete.
             Thread.sleep(1000);
@@ -75,69 +84,15 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
             final int expectedHitCount = initialDocCount + additionalDocCount;
             indexer.start(additionalDocCount);
             waitForDocs(expectedHitCount, indexer);
-            ensureGreen(INDEX_NAME);
 
-            flush(INDEX_NAME);
+            flushAndRefresh(INDEX_NAME);
             Thread.sleep(1000);
             assertHitCount(client(nodeA).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), expectedHitCount);
             assertHitCount(client(nodeB).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), expectedHitCount);
+
+            ensureGreen(INDEX_NAME);
+            assertSegmentStats(REPLICA_COUNT);
         }
-        assertSegmentStats(REPLICA_COUNT);
-    }
-
-    private void assertSegmentStats(int numberOfReplicas) {
-        client().admin().indices().segments(new IndicesSegmentsRequest(), new ActionListener<>() {
-            @Override
-            public void onResponse(IndicesSegmentResponse indicesSegmentResponse) {
-                final Map<String, IndexSegments> indices = indicesSegmentResponse.getIndices();
-                assertEquals("Test should only have a single index",1, indices.size());
-                for (Map.Entry<String, IndexSegments> entry : indices.entrySet()) {
-                    final IndexSegments value = entry.getValue();
-                    final Map<Integer, IndexShardSegments> shardGroup = value.getShards();
-                    assertEquals("There should only be one replicationGroup", 1, shardGroup.size());
-                    for (IndexShardSegments shardEntry : shardGroup.values()) {
-                        // get a list of segments across the whole group.
-                        final ShardSegments[] shardSegments = shardEntry.getShards();
-
-                        // get the primary shard's segment list.
-                        final ShardSegments primaryShardSegments = Arrays.stream(shardSegments).filter(s -> s.getShardRouting().primary()).findFirst().get();
-                        final Map<String, Segment> primarySegmentsMap = primaryShardSegments.getSegments().stream().collect(Collectors.toMap(Segment::getName, Function.identity()));
-
-                        // compare primary segments with replicas.
-                        assertEquals("There should be a ShardSegment entry for each replica in the replicationGroup", numberOfReplicas, shardSegments.length - 1);
-                        logger.info("Primary segments {}", primaryShardSegments.getSegments());
-                        for (ShardSegments shardSegment : shardSegments) {
-                            if (shardSegment.getShardRouting().primary()) {
-                                continue;
-                            }
-                            final List<Segment> segments = shardSegment.getSegments();
-                            logger.info("wAT {}", primarySegmentsMap.values().size());
-                            logger.info("{}", segments.size());
-                            logger.info("{}", segments.size());
-                            logger.info("Replica segments {}", segments);
-//                            assertEquals("ShardSegment should have the same segment count as the primary", segments.size(), primarySegmentsMap.size());
-                            for (Segment replicaSegment: segments) {
-                                final Segment primarySegment = primarySegmentsMap.get(replicaSegment.getName());
-                                assertNotNull(primarySegment);
-                                assertEqualSegments(replicaSegment, primarySegment);
-                            }
-                        }
-                    }
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                Assert.fail("Error fetching segment stats");
-            }
-        });
-    }
-
-    private void assertEqualSegments(Segment s1, Segment s2) {
-        assertEquals(s1.getGeneration(), s2.getGeneration());
-        assertEquals(s1.docCount, s2.docCount);
-        assertEquals(s1.delDocCount, s2.delDocCount);
-        assertEquals(s1.sizeInBytes, s2.sizeInBytes);
     }
 
     public void testReplicationAfterForceMerge() throws Exception {
@@ -147,10 +102,19 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         ensureGreen(INDEX_NAME);
 
         final int initialDocCount = scaledRandomIntBetween(0, 200);
-        try (BackgroundIndexer indexer = new BackgroundIndexer(INDEX_NAME, "_doc", client(), -1, RandomizedTest.scaledRandomIntBetween(2, 5), false, random())) {
+        try (
+            BackgroundIndexer indexer = new BackgroundIndexer(
+                INDEX_NAME,
+                "_doc",
+                client(),
+                -1,
+                RandomizedTest.scaledRandomIntBetween(2, 5),
+                false,
+                random()
+            )
+        ) {
             indexer.start(initialDocCount);
             waitForDocs(initialDocCount, indexer);
-            ensureGreen(INDEX_NAME);
 
             flush(INDEX_NAME);
             // wait a short amount of time to give replication a chance to complete.
@@ -164,16 +128,19 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
             // Index a second set of docs so we can merge into one segment.
             indexer.start(additionalDocCount);
             waitForDocs(expectedHitCount, indexer);
-            ensureGreen(INDEX_NAME);
 
             // Force a merge here so that the in memory SegmentInfos does not reference old segments on disk.
             // This case tests that replicas preserve these files so the local store is not corrupt.
             client().admin().indices().prepareForceMerge(INDEX_NAME).setMaxNumSegments(1).setFlush(false).get();
             Thread.sleep(1000);
+            refresh(INDEX_NAME);
+            Thread.sleep(1000);
             assertHitCount(client(nodeA).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), expectedHitCount);
             assertHitCount(client(nodeB).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), expectedHitCount);
+
+            ensureGreen(INDEX_NAME);
+            assertSegmentStats(REPLICA_COUNT);
         }
-        assertSegmentStats(REPLICA_COUNT);
     }
 
     public void testReplicaSetupAfterPrimaryIndexesDocs() {
@@ -206,5 +173,60 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         assertHitCount(client(nodeA).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 2);
         assertHitCount(client(nodeB).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 2);
         assertSegmentStats(REPLICA_COUNT);
+    }
+
+    private void assertSegmentStats(int numberOfReplicas) {
+        client().admin().indices().segments(new IndicesSegmentsRequest(), new ActionListener<>() {
+            @Override
+            public void onResponse(IndicesSegmentResponse indicesSegmentResponse) {
+                final Map<String, IndexSegments> indices = indicesSegmentResponse.getIndices();
+                for (Map.Entry<String, IndexSegments> indexSegmentsEntry : indices.entrySet()) {
+                    final IndexSegments value = indexSegmentsEntry.getValue();
+                    final Map<Integer, IndexShardSegments> shardGroup = value.getShards();
+                    for (IndexShardSegments shardEntry : shardGroup.values()) {
+                        // get a list of segments across the whole replication group.
+                        final ShardSegments[] shardSegments = shardEntry.getShards();
+
+                        // separate Primary & replica shards ShardSegments.
+                        final Map<Boolean, List<ShardSegments>> segmentListMap = Arrays.stream(shardSegments)
+                            .collect(Collectors.groupingBy(s -> s.getShardRouting().primary()));
+                        final Optional<ShardSegments> primaryOptional = segmentListMap.get(true).stream().findFirst();
+                        assertTrue("Primary segment list is present", primaryOptional.isPresent());
+                        final ShardSegments primaryShardSegments = primaryOptional.get();
+                        final List<ShardSegments> replicaShardSegments = segmentListMap.get(false);
+
+                        // create a map of the primary's segments keyed by segment name, allowing us to compare the same segment found on
+                        // replicas.
+                        final Map<String, Segment> primarySegmentsMap = primaryShardSegments.getSegments()
+                            .stream()
+                            .collect(Collectors.toMap(Segment::getName, Function.identity()));
+
+                        // For every replica, ensure that its segments are in the same state as on the primary.
+                        // It is possible the primary has not cleaned up old segments that are not required on replicas, so we can't do a
+                        // list comparison.
+                        // This equality check includes search/committed properties on the Segment. Combined with docCount checks,
+                        // this ensures are replica has correctly copied the latest segments and has all segments referenced by the latest
+                        // commit point, even if they are not searchable.
+                        assertEquals(
+                            "There should be a ShardSegment entry for each replica in the replicationGroup",
+                            numberOfReplicas,
+                            replicaShardSegments.size()
+                        );
+                        for (ShardSegments shardSegment : replicaShardSegments) {
+                            final List<Segment> segments = shardSegment.getSegments();
+                            for (Segment replicaSegment : segments) {
+                                final Segment primarySegment = primarySegmentsMap.get(replicaSegment.getName());
+                                assertEquals(replicaSegment, primarySegment);
+                            }
+                        }
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Assert.fail("Error fetching segment stats");
+            }
+        });
     }
 }

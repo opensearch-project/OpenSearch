@@ -691,12 +691,16 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @param localSnapshot  The local snapshot from in memory SegmentInfos.
      * @throws IllegalStateException if the latest snapshot in this store differs from the given one after the cleanup.
      */
-    public void cleanupAndVerify(String reason, MetadataSnapshot remoteSnapshot, MetadataSnapshot localSnapshot) throws IOException {
+    public void cleanupAndVerify(
+        String reason,
+        MetadataSnapshot remoteSnapshot,
+        MetadataSnapshot localSnapshot,
+        MetadataSnapshot latestCommitPointMetadata
+    ) throws IOException {
         // fetch a snapshot from the latest on disk Segments_N file. This can be behind
         // the passed in local in memory snapshot, so we want to ensure files it references are not removed.
         metadataLock.writeLock().lock();
         try (Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
-            final Store.MetadataSnapshot latestCommitPointMetadata = getMetadata((IndexCommit) null);
             cleanupFiles(reason, remoteSnapshot, latestCommitPointMetadata);
             verifyAfterCleanup(remoteSnapshot, localSnapshot);
         } finally {
