@@ -68,10 +68,10 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
 public class RestThreadPoolAction extends AbstractCatAction {
-    
+
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestThreadPoolAction.class);
     private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
-            "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
+        "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
 
     @Override
     public List<Route> routes() {

@@ -32,7 +32,6 @@
 
 package org.opensearch.rest.action.cat;
 
-import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.opensearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.opensearch.client.node.NodeClient;
@@ -52,7 +51,7 @@ public class RestPendingClusterTasksAction extends AbstractCatAction {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestPendingClusterTasksAction.class);
     private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
-            "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
+        "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
 
     @Override
     public List<Route> routes() {
@@ -72,7 +71,9 @@ public class RestPendingClusterTasksAction extends AbstractCatAction {
     @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         PendingClusterTasksRequest pendingClusterTasksRequest = new PendingClusterTasksRequest();
-        pendingClusterTasksRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", pendingClusterTasksRequest.masterNodeTimeout()));
+        pendingClusterTasksRequest.masterNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", pendingClusterTasksRequest.masterNodeTimeout())
+        );
         parseDeprecatedMasterTimeoutParameter(pendingClusterTasksRequest, request);
         pendingClusterTasksRequest.local(request.paramAsBoolean("local", pendingClusterTasksRequest.local()));
         return channel -> client.admin()
@@ -125,7 +126,9 @@ public class RestPendingClusterTasksAction extends AbstractCatAction {
         if (request.hasParam(deprecatedTimeoutParam)) {
             deprecationLogger.deprecate("cat_nodeattrs_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
             request.validateParamValuesAreEqual(deprecatedTimeoutParam, "cluster_manager_timeout");
-            pendingClusterTasksRequest.masterNodeTimeout(request.paramAsTime(deprecatedTimeoutParam, pendingClusterTasksRequest.masterNodeTimeout()));
+            pendingClusterTasksRequest.masterNodeTimeout(
+                request.paramAsTime(deprecatedTimeoutParam, pendingClusterTasksRequest.masterNodeTimeout())
+            );
         }
     }
 }

@@ -52,7 +52,7 @@ public class RestMasterAction extends AbstractCatAction {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestMasterAction.class);
     private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
-            "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
+        "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
 
     @Override
     public List<ReplacedRoute> replacedRoutes() {

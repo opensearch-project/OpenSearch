@@ -34,7 +34,6 @@ package org.opensearch.rest.action.cat;
 
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
-import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.Table;
@@ -55,7 +54,7 @@ public class RestRepositoriesAction extends AbstractCatAction {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestRepositoriesAction.class);
     private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
-            "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
+        "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
 
     @Override
     public List<Route> routes() {
@@ -66,7 +65,9 @@ public class RestRepositoriesAction extends AbstractCatAction {
     public RestChannelConsumer doCatRequest(RestRequest request, NodeClient client) {
         GetRepositoriesRequest getRepositoriesRequest = new GetRepositoriesRequest();
         getRepositoriesRequest.local(request.paramAsBoolean("local", getRepositoriesRequest.local()));
-        getRepositoriesRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", getRepositoriesRequest.masterNodeTimeout()));
+        getRepositoriesRequest.masterNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", getRepositoriesRequest.masterNodeTimeout())
+        );
         parseDeprecatedMasterTimeoutParameter(getRepositoriesRequest, request);
 
         return channel -> client.admin()
@@ -123,7 +124,9 @@ public class RestRepositoriesAction extends AbstractCatAction {
         if (request.hasParam(deprecatedTimeoutParam)) {
             deprecationLogger.deprecate("cat_repositories_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
             request.validateParamValuesAreEqual(deprecatedTimeoutParam, "cluster_manager_timeout");
-            getRepositoriesRequest.masterNodeTimeout(request.paramAsTime(deprecatedTimeoutParam, getRepositoriesRequest.masterNodeTimeout()));
+            getRepositoriesRequest.masterNodeTimeout(
+                request.paramAsTime(deprecatedTimeoutParam, getRepositoriesRequest.masterNodeTimeout())
+            );
         }
     }
 }

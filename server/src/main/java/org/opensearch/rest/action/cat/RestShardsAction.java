@@ -32,7 +32,6 @@
 
 package org.opensearch.rest.action.cat;
 
-import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.indices.stats.CommonStats;
@@ -79,7 +78,7 @@ public class RestShardsAction extends AbstractCatAction {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestShardsAction.class);
     private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
-            "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
+        "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
 
     @Override
     public List<Route> routes() {
