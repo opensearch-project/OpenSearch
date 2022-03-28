@@ -12,8 +12,7 @@ import org.junit.AfterClass;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.rest.action.cat.RestAllocationAction;
-import org.opensearch.rest.action.cat.RestIndicesAction;
+import org.opensearch.rest.action.cat.*;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.threadpool.TestThreadPool;
@@ -66,6 +65,18 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
         assertThat(e.getMessage(), containsString(PARAM_VALUE_ERROR_MESSAGE));
     }
 
+    public void testCatClusterManager() {
+        RestMasterAction action = new RestMasterAction();
+
+        action.doCatRequest(getRestRequestWithNewParam(), client);
+
+        action.doCatRequest(getRestRequestWithDeprecatedParam(), client);
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithWrongValues(), client));
+        assertThat(e.getMessage(), containsString(PARAM_VALUE_ERROR_MESSAGE));
+    }
+    
     private FakeRestRequest getRestRequestWithWrongValues() {
         FakeRestRequest request = new FakeRestRequest();
         request.params().put("cluster_manager_timeout", randomFrom("1h", "2m"));
