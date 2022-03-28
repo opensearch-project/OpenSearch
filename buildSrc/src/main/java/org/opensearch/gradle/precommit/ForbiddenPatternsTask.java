@@ -41,6 +41,8 @@ import org.gradle.api.tasks.IgnoreEmptyDirectories;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.util.PatternFilterable;
@@ -102,6 +104,7 @@ public class ForbiddenPatternsTask extends DefaultTask {
     @InputFiles
     @SkipWhenEmpty
     @IgnoreEmptyDirectories
+    @PathSensitive(PathSensitivity.RELATIVE)
     public FileCollection getFiles() {
         return getProject().getConvention()
             .getPlugin(JavaPluginConvention.class)
