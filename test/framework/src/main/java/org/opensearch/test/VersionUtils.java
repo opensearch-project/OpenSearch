@@ -108,9 +108,11 @@ public class VersionUtils {
             List<Version> lastMinorLine = stableVersions.get(stableVersions.size() - 1);
             if (lastMinorLine.get(lastMinorLine.size() - 1) instanceof LegacyESVersion == false) {
                 // if the last minor line is Legacy there are no more staged releases; do nothing
+                // otherwise the last minor line is (by definition) staged and unreleased
                 Version lastMinor = moveLastToUnreleased(stableVersions, unreleasedVersions);
+                // no more staged legacy bugfixes so skip;
                 if (lastMinor instanceof LegacyESVersion == false && lastMinor.revision == 0) {
-                    // no more staged legacy versions
+                    // this is not a legacy version; remove the staged bugfix
                     if (stableVersions.get(stableVersions.size() - 1).size() == 1) {
                         // a minor is being staged, which is also unreleased
                         moveLastToUnreleased(stableVersions, unreleasedVersions);
