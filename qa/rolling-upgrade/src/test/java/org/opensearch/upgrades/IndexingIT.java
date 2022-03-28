@@ -35,16 +35,18 @@ import org.apache.http.util.EntityUtils;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.client.Request;
+import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.rest.action.document.RestBulkAction;
+import org.opensearch.common.Strings;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import static org.opensearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 import static org.hamcrest.Matchers.containsString;
@@ -194,6 +196,7 @@ public class IndexingIT extends AbstractRollingTestCase {
         final String indexName = "test_index_with_mapping";
         final String indexWithoutTypeName = "test_index_without_mapping";
         final String mapping = "\"properties\":{\"f1\":{\"type\":\"keyword\"},\"f2\":{\"type\":\"keyword\"}}";
+        final String typeMapping = "\"_doc\":{" + mapping +"}";
 
         switch (CLUSTER_TYPE) {
             case OLD:
@@ -202,7 +205,7 @@ public class IndexingIT extends AbstractRollingTestCase {
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
                 Version minNodeVersion = getMinNodeVersion();
                 if (minNodeVersion.before(Version.V_2_0_0)) {
-                    createIndex(indexName, settings.build(), mapping);
+                    createIndexWithDocMappings(indexName, settings.build(), typeMapping);
                     assertIndexMapping(indexName, mapping);
                 } else {
                     createIndex(indexName, settings.build());
@@ -222,21 +225,36 @@ public class IndexingIT extends AbstractRollingTestCase {
                 assertTrue(currentNodeVersion.onOrAfter(Version.V_2_0_0));
 
                 // Assert documents created with mapping prior to OS 2.0 are accessible.
-                assertCount(indexName, 1);
-
+                assertCount(indexName, 1, 1);
                 bulk(indexName, CLUSTER_TYPE.name(), 1);
-                // Assert the newly ingested documents are accesible
-                assertCount(indexName, 2);
+                // Assert the newly ingested documents are accessible
+                assertCount(indexName, 2, 1);
 
                 // Assert documents created prior to OS 2.0 are accessible.
-                assertCount(indexWithoutTypeName, 1);
+                assertCount(indexWithoutTypeName, 1, 1);
                 // Test ingestion of new documents created using < OS2.0
                 bulk(indexWithoutTypeName, CLUSTER_TYPE.name(), 1);
-                assertCount(indexWithoutTypeName, 2);
+                assertCount(indexWithoutTypeName, 2, 1);
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
+    }
+
+    private void bulk(String index, String valueSuffix, int count) throws IOException {
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < count; i++) {
+            b.append("{\"index\": {\"_index\": \"").append(index).append("\"}}\n");
+            b.append("{\"f1\": \"v").append(i).append(valueSuffix).append("\", \"f2\": ").append(i).append("}\n");
+        }
+        Request bulk = new Request("POST", "/_bulk");
+        bulk.addParameter("refresh", "true");
+        bulk.setJsonEntity(b.toString());
+        client().performRequest(bulk);
+    }
+
+    private void assertCount(String index, int count) throws IOException {
+        assertCount(index, count, null);
     }
 
     private Version getMinNodeVersion() throws IOException {
@@ -255,26 +273,17 @@ public class IndexingIT extends AbstractRollingTestCase {
         return minNodeVersion;
     }
 
-
-    private void bulk(String index, String valueSuffix, int count) throws IOException {
-        StringBuilder b = new StringBuilder();
-        for (int i = 0; i < count; i++) {
-            b.append("{\"index\": {\"_index\": \"").append(index).append("\"}}\n");
-            b.append("{\"f1\": \"v").append(i).append(valueSuffix).append("\", \"f2\": ").append(i).append("}\n");
+    private void createIndexWithDocMappings(String indexName, Settings settings, String mapping) throws IOException {
+        Request request = new Request("PUT", "/" + indexName);
+        String entity = "{\"settings\": " + Strings.toString(settings);
+        if (mapping != null) {
+            entity += ",\"mappings\" : {" + mapping + "}";
         }
-        Request bulk = new Request("POST", "/_bulk");
-        bulk.addParameter("refresh", "true");
-        bulk.setJsonEntity(b.toString());
-        client().performRequest(bulk);
-    }
-
-    private void assertCount(String index, int count) throws IOException {
-        Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
-        searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
-        searchTestIndexRequest.addParameter("filter_path", "hits.total");
-        Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
-        assertEquals("{\"hits\":{\"total\":" + count + "}}",
-            EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8));
+        entity += "}";
+        request.addParameter("include_type_name", "true");
+        request.setJsonEntity(entity);
+        useIgnoreTypesRemovalWarningsHandler(request);
+        client().performRequest(request);
     }
 
     private void assertIndexMapping(String index, String mappings) throws IOException {
@@ -282,5 +291,45 @@ public class IndexingIT extends AbstractRollingTestCase {
         Response testIndexMappingResponse = client().performRequest(testIndexMappingRequest);
         assertEquals("{\""+index+"\":{\"mappings\":{"+mappings+"}}}",
             EntityUtils.toString(testIndexMappingResponse.getEntity(), StandardCharsets.UTF_8));
+    }
+
+    private void assertCount(String index, int count, Integer totalShards) throws IOException {
+        Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
+        searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
+        if (totalShards != null) {
+            searchTestIndexRequest.addParameter("filter_path", "hits.total,_shards");
+        } else {
+            searchTestIndexRequest.addParameter("filter_path", "hits.total");
+        }
+
+        Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
+        String expectedResponse;
+        if (totalShards != null) {
+            expectedResponse = "{\"_shards\":{\"total\":" + totalShards + ",\"successful\":" + totalShards + ",\"skipped\":0,\"failed\":0},\"hits\":{\"total\":" + count + "}}";
+        } else {
+            expectedResponse = "{\"hits\":{\"total\":" + count + "}}";
+        }
+        assertEquals(expectedResponse,
+            EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8));
+    }
+
+    static final Pattern CREATE_INDEX_TYPE_REMOVAL = Pattern.compile(
+        "^\\[types removal\\] Using include_type_name in create index requests is deprecated\\. The parameter will be removed in the next major version\\.$"
+    );
+
+    protected static void useIgnoreTypesRemovalWarningsHandler(Request request) throws IOException {
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.setWarningsHandler(warnings -> {
+            if (warnings.size() > 0) {
+                boolean matches = warnings.stream()
+                    .anyMatch(
+                        message -> CREATE_INDEX_TYPE_REMOVAL.matcher(message).matches()
+                    );
+                return matches == false;
+            } else {
+                return false;
+            }
+        });
+        request.setOptions(options);
     }
 }
