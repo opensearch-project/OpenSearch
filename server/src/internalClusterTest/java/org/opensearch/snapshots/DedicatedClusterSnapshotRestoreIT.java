@@ -482,8 +482,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         try {
             assertAcked(deleteSnapshotResponseFuture.actionGet());
         } catch (SnapshotMissingException ex) {
-            // When master node is closed during this test, it sometime manages to delete the snapshot files before
-            // completely stopping. In this case the retried delete snapshot operation on the new master can fail
+            // When cluster-manager node is closed during this test, it sometime manages to delete the snapshot files before
+            // completely stopping. In this case the retried delete snapshot operation on the new cluster-manager can fail
             // with SnapshotMissingException
         }
 
@@ -759,7 +759,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> start first node");
         internalCluster().startNode();
         logger.info("--> start second node");
-        // Make sure the first node is elected as master
+        // Make sure the first node is elected as cluster-manager
         internalCluster().startNode(nonMasterNode());
         // Register mock repositories
         for (int i = 0; i < 5; i++) {
@@ -836,7 +836,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     }
 
     public void testMasterShutdownDuringSnapshot() throws Exception {
-        logger.info("-->  starting two master nodes and two data nodes");
+        logger.info("-->  starting two cluster-manager nodes and two data nodes");
         internalCluster().startMasterOnlyNodes(2);
         internalCluster().startDataOnlyNodes(2);
 
@@ -859,7 +859,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             .setIndices("test-idx")
             .get();
 
-        logger.info("--> stopping master node");
+        logger.info("--> stopping cluster-manager node");
         internalCluster().stopCurrentMasterNode();
 
         logger.info("--> wait until the snapshot is done");
@@ -874,7 +874,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     }
 
     public void testMasterAndDataShutdownDuringSnapshot() throws Exception {
-        logger.info("-->  starting three master nodes and two data nodes");
+        logger.info("-->  starting three cluster-manager nodes and two data nodes");
         internalCluster().startMasterOnlyNodes(3);
         internalCluster().startDataOnlyNodes(2);
 
@@ -902,7 +902,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         logger.info("--> stopping data node {}", dataNode);
         stopNode(dataNode);
-        logger.info("--> stopping master node {} ", masterNode);
+        logger.info("--> stopping cluster-manager node {} ", masterNode);
         internalCluster().stopCurrentMasterNode();
 
         logger.info("--> wait until the snapshot is done");
@@ -925,7 +925,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
      * the cluster.
      */
     public void testRestoreShrinkIndex() throws Exception {
-        logger.info("-->  starting a master node and a data node");
+        logger.info("-->  starting a cluster-manager node and a data node");
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
 
@@ -1144,7 +1144,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     }
 
     public void testDataNodeRestartWithBusyMasterDuringSnapshot() throws Exception {
-        logger.info("-->  starting a master node and two data nodes");
+        logger.info("-->  starting a cluster-manager node and two data nodes");
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNodes(2);
         final Path repoPath = randomRepoPath();
@@ -1200,7 +1200,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     }
 
     public void testDataNodeRestartAfterShardSnapshotFailure() throws Exception {
-        logger.info("-->  starting a master node and two data nodes");
+        logger.info("-->  starting a cluster-manager node and two data nodes");
         internalCluster().startMasterOnlyNode();
         final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
         final Path repoPath = randomRepoPath();

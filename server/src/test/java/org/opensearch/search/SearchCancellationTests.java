@@ -108,7 +108,8 @@ public class SearchCancellationTests extends OpenSearchTestCase {
             IndexSearcher.getDefaultSimilarity(),
             IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(),
-            true
+            true,
+            null
         );
         NullPointerException npe = expectThrows(NullPointerException.class, () -> searcher.addQueryCancellation(null));
         assertEquals("cancellation runnable should not be null", npe.getMessage());
@@ -127,7 +128,8 @@ public class SearchCancellationTests extends OpenSearchTestCase {
             IndexSearcher.getDefaultSimilarity(),
             IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(),
-            true
+            true,
+            null
         );
 
         searcher.search(new MatchAllDocsQuery(), collector1);
@@ -154,7 +156,8 @@ public class SearchCancellationTests extends OpenSearchTestCase {
             IndexSearcher.getDefaultSimilarity(),
             IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(),
-            true
+            true,
+            null
         );
         searcher.addQueryCancellation(cancellation);
         CompiledAutomaton automaton = new CompiledAutomaton(new RegExp("a.*").toAutomaton());
