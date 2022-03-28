@@ -76,6 +76,30 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
         Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithWrongValues(), client));
         assertThat(e.getMessage(), containsString(PARAM_VALUE_ERROR_MESSAGE));
     }
+
+    public void testCatNodeattrs() {
+        RestNodeAttrsAction action = new RestNodeAttrsAction();
+
+        action.doCatRequest(getRestRequestWithNewParam(), client);
+
+        action.doCatRequest(getRestRequestWithDeprecatedParam(), client);
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithWrongValues(), client));
+        assertThat(e.getMessage(), containsString(PARAM_VALUE_ERROR_MESSAGE));
+    }
+
+    public void testCatPendingTasks() {
+        RestPendingClusterTasksAction action = new RestPendingClusterTasksAction();
+
+        action.doCatRequest(getRestRequestWithNewParam(), client);
+
+        action.doCatRequest(getRestRequestWithDeprecatedParam(), client);
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithWrongValues(), client));
+        assertThat(e.getMessage(), containsString(PARAM_VALUE_ERROR_MESSAGE));
+    }
     
     private FakeRestRequest getRestRequestWithWrongValues() {
         FakeRestRequest request = new FakeRestRequest();
