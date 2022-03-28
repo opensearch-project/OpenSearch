@@ -40,6 +40,7 @@ import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.Table;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
@@ -53,6 +54,10 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
 public class RestTemplatesAction extends AbstractCatAction {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestTemplatesAction.class);
+    private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
+            "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
 
     @Override
     public List<Route> routes() {
@@ -70,12 +75,13 @@ public class RestTemplatesAction extends AbstractCatAction {
     }
 
     @Override
-    protected RestChannelConsumer doCatRequest(final RestRequest request, NodeClient client) {
+    public RestChannelConsumer doCatRequest(final RestRequest request, NodeClient client) {
         final String matchPattern = request.hasParam("name") ? request.param("name") : null;
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().metadata(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
+        clusterStateRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", clusterStateRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(clusterStateRequest, request);
 
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestResponseListener<ClusterStateResponse>(channel) {
             @Override
@@ -128,5 +134,21 @@ public class RestTemplatesAction extends AbstractCatAction {
             }
         }
         return table;
+    }
+
+    /**
+     * Parse the deprecated request parameter 'master_timeout', and add deprecated log if the parameter is used.
+     * It also validates whether the value of 'master_timeout' is the same with 'cluster_manager_timeout'.
+     * Remove the method along with MASTER_ROLE.
+     * @deprecated As of 2.0, because promoting inclusive language.
+     */
+    @Deprecated
+    private void parseDeprecatedMasterTimeoutParameter(ClusterStateRequest clusterStateRequest, RestRequest request) {
+        final String deprecatedTimeoutParam = "master_timeout";
+        if (request.hasParam(deprecatedTimeoutParam)) {
+            deprecationLogger.deprecate("cat_templates_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+            request.validateParamValuesAreEqual(deprecatedTimeoutParam, "cluster_manager_timeout");
+            clusterStateRequest.masterNodeTimeout(request.paramAsTime(deprecatedTimeoutParam, clusterStateRequest.masterNodeTimeout()));
+        }
     }
 }

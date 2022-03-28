@@ -34,8 +34,10 @@ package org.opensearch.rest.action.cat;
 
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
+import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Table;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.rest.RestRequest;
@@ -58,6 +60,10 @@ import static org.opensearch.rest.RestRequest.Method.GET;
  */
 public class RestSnapshotAction extends AbstractCatAction {
 
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSnapshotAction.class);
+    private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
+            "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
+
     @Override
     public List<Route> routes() {
         return unmodifiableList(asList(new Route(GET, "/_cat/snapshots"), new Route(GET, "/_cat/snapshots/{repository}")));
@@ -69,13 +75,14 @@ public class RestSnapshotAction extends AbstractCatAction {
     }
 
     @Override
-    protected RestChannelConsumer doCatRequest(final RestRequest request, NodeClient client) {
+    public RestChannelConsumer doCatRequest(final RestRequest request, NodeClient client) {
         GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest().repository(request.param("repository"))
             .snapshots(new String[] { GetSnapshotsRequest.ALL_SNAPSHOTS });
 
         getSnapshotsRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", getSnapshotsRequest.ignoreUnavailable()));
 
-        getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));
+        getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", getSnapshotsRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(getSnapshotsRequest, request);
 
         return channel -> client.admin()
             .cluster()
@@ -140,5 +147,21 @@ public class RestSnapshotAction extends AbstractCatAction {
         }
 
         return table;
+    }
+
+    /**
+     * Parse the deprecated request parameter 'master_timeout', and add deprecated log if the parameter is used.
+     * It also validates whether the value of 'master_timeout' is the same with 'cluster_manager_timeout'.
+     * Remove the method along with MASTER_ROLE.
+     * @deprecated As of 2.0, because promoting inclusive language.
+     */
+    @Deprecated
+    private void parseDeprecatedMasterTimeoutParameter(GetSnapshotsRequest getSnapshotsRequest, RestRequest request) {
+        final String deprecatedTimeoutParam = "master_timeout";
+        if (request.hasParam(deprecatedTimeoutParam)) {
+            deprecationLogger.deprecate("cat_shards_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+            request.validateParamValuesAreEqual(deprecatedTimeoutParam, "cluster_manager_timeout");
+            getSnapshotsRequest.masterNodeTimeout(request.paramAsTime(deprecatedTimeoutParam, getSnapshotsRequest.masterNodeTimeout()));
+        }
     }
 }
