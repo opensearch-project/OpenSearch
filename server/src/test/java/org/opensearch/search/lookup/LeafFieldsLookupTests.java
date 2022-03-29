@@ -36,6 +36,7 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.test.OpenSearchTestCase;
@@ -79,6 +80,8 @@ public class LeafFieldsLookupTests extends OpenSearchTestCase {
             0,
             0,
             0,
+            0,
+            VectorSimilarityFunction.EUCLIDEAN,
             false
         );
 

@@ -32,8 +32,6 @@
 
 package org.opensearch.index.engine;
 
-import org.apache.lucene.index.IndexWriterMaxDocsChanger;
-
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -94,12 +92,12 @@ public class MaxDocsLimitIT extends OpenSearchIntegTestCase {
     @Before
     public void setMaxDocs() {
         maxDocs.set(randomIntBetween(10, 100)); // Do not set this too low as we can fail to write the cluster state
-        IndexWriterMaxDocsChanger.setMaxDocs(maxDocs.get());
+        setIndexWriterMaxDocs(maxDocs.get());
     }
 
     @After
     public void restoreMaxDocs() {
-        IndexWriterMaxDocsChanger.restoreMaxDocs();
+        restoreIndexWriterMaxDocs();
     }
 
     public void testMaxDocsLimit() throws Exception {

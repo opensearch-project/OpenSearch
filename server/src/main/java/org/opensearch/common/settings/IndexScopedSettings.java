@@ -187,6 +187,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.FINAL_PIPELINE,
                 MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING,
                 ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING,
+                IndexSettings.INDEX_MERGE_ON_FLUSH_ENABLED,
+                IndexSettings.INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME,
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {

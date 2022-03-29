@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -114,7 +113,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
@@ -451,7 +449,7 @@ public class MetadataCreateIndexService {
         final boolean silent,
         final IndexMetadata sourceMetadata,
         final IndexMetadata temporaryIndexMeta,
-        final List<Map<String, Map<String, Object>>> mappings,
+        final List<Map<String, Object>> mappings,
         final Function<IndexService, List<AliasMetadata>> aliasSupplier,
         final List<String> templatesApplied,
         final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
@@ -541,20 +539,10 @@ public class MetadataCreateIndexService {
             templates.stream().map(IndexTemplateMetadata::name).collect(Collectors.toList())
         );
 
-        final Map<String, Map<String, Object>> mappings = Collections.unmodifiableMap(
+        final Map<String, Object> mappings = Collections.unmodifiableMap(
             parseV1Mappings(
                 request.mappings(),
-                templates.stream()
-                    .map(IndexTemplateMetadata::getMappings)
-                    // Converts the ImmutableOpenMap into a non-terrible HashMap
-                    .map(iom -> {
-                        Map<String, CompressedXContent> converted = new HashMap<>(iom.size());
-                        for (ObjectObjectCursor<String, CompressedXContent> cursor : iom) {
-                            converted.put(cursor.key, cursor.value);
-                        }
-                        return converted;
-                    })
-                    .collect(toList()),
+                templates.stream().map(IndexTemplateMetadata::getMappings).collect(toList()),
                 xContentRegistry
             )
         );
@@ -616,7 +604,7 @@ public class MetadataCreateIndexService {
             );
         }
 
-        final List<Map<String, Map<String, Object>>> mappings = collectV2Mappings(
+        final List<Map<String, Object>> mappings = collectV2Mappings(
             request.mappings(),
             currentState,
             templateName,
@@ -659,29 +647,31 @@ public class MetadataCreateIndexService {
         );
     }
 
-    public static List<Map<String, Map<String, Object>>> collectV2Mappings(
-        final Map<String, String> requestMappings,
+    public static List<Map<String, Object>> collectV2Mappings(
+        final String requestMappings,
         final ClusterState currentState,
         final String templateName,
         final NamedXContentRegistry xContentRegistry,
         final String indexName
     ) throws Exception {
-        List<Map<String, Map<String, Object>>> result = new ArrayList<>();
-
         List<CompressedXContent> templateMappings = MetadataIndexTemplateService.collectMappings(currentState, templateName, indexName);
+        return collectV2Mappings(requestMappings, templateMappings, xContentRegistry);
+    }
+
+    public static List<Map<String, Object>> collectV2Mappings(
+        final String requestMappings,
+        final List<CompressedXContent> templateMappings,
+        final NamedXContentRegistry xContentRegistry
+    ) throws Exception {
+        List<Map<String, Object>> result = new ArrayList<>();
+
         for (CompressedXContent templateMapping : templateMappings) {
             Map<String, Object> parsedTemplateMapping = MapperService.parseMapping(xContentRegistry, templateMapping.string());
-            result.add(singletonMap(MapperService.SINGLE_MAPPING_NAME, parsedTemplateMapping));
+            result.add(parsedTemplateMapping);
         }
 
-        if (requestMappings.size() > 0) {
-            assert requestMappings.size() == 1 : "expected request metadata mappings to have 1 type but it had: " + requestMappings;
-            Map.Entry<String, String> entry = requestMappings.entrySet().iterator().next();
-
-            String type = entry.getKey();
-            Map<String, Object> parsedMappings = MapperService.parseMapping(xContentRegistry, entry.getValue());
-            result.add(singletonMap(type, parsedMappings));
-        }
+        Map<String, Object> parsedRequestMappings = MapperService.parseMapping(xContentRegistry, requestMappings);
+        result.add(parsedRequestMappings);
         return result;
     }
 
@@ -694,7 +684,8 @@ public class MetadataCreateIndexService {
     ) throws Exception {
         logger.info("applying create index request using existing index [{}] metadata", sourceMetadata.getIndex().getName());
 
-        if (request.mappings().size() > 0) {
+        final Map<String, Object> mappings = MapperService.parseMapping(xContentRegistry, request.mappings());
+        if (mappings.isEmpty() == false) {
             throw new IllegalArgumentException(
                 "mappings are not allowed when creating an index from a source index, " + "all mappings are copied from the source index"
             );
@@ -719,7 +710,7 @@ public class MetadataCreateIndexService {
             silent,
             sourceMetadata,
             tmpImd,
-            Collections.emptyList(),
+            Collections.singletonList(mappings),
             indexService -> resolveAndValidateAliases(
                 request.index(),
                 request.aliases(),
@@ -745,55 +736,28 @@ public class MetadataCreateIndexService {
      * {@link IndexTemplateMetadata#order()}). This merging makes no distinction between field
      * definitions, as may result in an invalid field definition
      */
-    static Map<String, Map<String, Object>> parseV1Mappings(
-        Map<String, String> requestMappings,
-        List<Map<String, CompressedXContent>> templateMappings,
+    static Map<String, Object> parseV1Mappings(
+        String requestMappings,
+        List<CompressedXContent> templateMappings,
         NamedXContentRegistry xContentRegistry
     ) throws Exception {
-        Map<String, Map<String, Object>> mappings = new HashMap<>();
-        for (Map.Entry<String, String> entry : requestMappings.entrySet()) {
-            Map<String, Object> mapping = MapperService.parseMapping(xContentRegistry, entry.getValue());
-            if (mapping.isEmpty()) {
-                // Someone provided an empty '{}' for mappings, which is okay, but to avoid
-                // tripping the below assertion, we can safely ignore it
-                continue;
-            }
-            assert mapping.size() == 1 : mapping;
-            assert entry.getKey().equals(mapping.keySet().iterator().next()) : entry.getKey() + " != " + mapping;
-            mappings.put(entry.getKey(), mapping);
-        }
-
+        Map<String, Object> mappings = MapperService.parseMapping(xContentRegistry, requestMappings);
         // apply templates, merging the mappings into the request mapping if exists
-        for (Map<String, CompressedXContent> tMapping : templateMappings) {
-            for (Map.Entry<String, CompressedXContent> cursor : tMapping.entrySet()) {
-                String mappingString = cursor.getValue().string();
-                String type = cursor.getKey();
-                if (mappings.containsKey(type)) {
-                    XContentHelper.mergeDefaults(mappings.get(type), MapperService.parseMapping(xContentRegistry, mappingString));
-                } else if (mappings.size() == 1 && type.equals(MapperService.SINGLE_MAPPING_NAME)) {
-                    // Typeless template with typed mapping
-                    Map<String, Object> templateMapping = MapperService.parseMapping(xContentRegistry, mappingString);
-                    assert templateMapping.size() == 1 : templateMapping;
-                    assert type.equals(templateMapping.keySet().iterator().next()) : type + " != " + templateMapping;
-                    Map.Entry<String, Map<String, Object>> mappingEntry = mappings.entrySet().iterator().next();
-                    templateMapping = singletonMap(
-                        mappingEntry.getKey(),                       // reuse type name from the mapping
-                        templateMapping.values().iterator().next()
-                    ); // but actual mappings from the template
-                    XContentHelper.mergeDefaults(mappingEntry.getValue(), templateMapping);
-                } else if (tMapping.size() == 1 && mappings.containsKey(MapperService.SINGLE_MAPPING_NAME)) {
-                    // Typed template with typeless mapping
-                    Map<String, Object> templateMapping = MapperService.parseMapping(xContentRegistry, mappingString);
-                    assert templateMapping.size() == 1 : templateMapping;
-                    assert type.equals(templateMapping.keySet().iterator().next()) : type + " != " + templateMapping;
-                    Map<String, Object> mapping = mappings.get(MapperService.SINGLE_MAPPING_NAME);
-                    templateMapping = singletonMap(
-                        MapperService.SINGLE_MAPPING_NAME,           // make template mapping typeless
-                        templateMapping.values().iterator().next()
-                    );
-                    XContentHelper.mergeDefaults(mapping, templateMapping);
+        for (CompressedXContent mapping : templateMappings) {
+            if (mapping != null) {
+                Map<String, Object> templateMapping = MapperService.parseMapping(xContentRegistry, mapping.string());
+                if (templateMapping.isEmpty()) {
+                    // Someone provided an empty '{}' for mappings, which is okay, but to avoid
+                    // tripping the below assertion, we can safely ignore it
+                    continue;
+                }
+                assert templateMapping.size() == 1 : "expected exactly one mapping value, got: " + templateMapping;
+                // pre-8x templates may have a wrapper type other than _doc, so we re-wrap things here
+                templateMapping = Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, templateMapping.values().iterator().next());
+                if (mappings.isEmpty()) {
+                    mappings = templateMapping;
                 } else {
-                    mappings.put(type, MapperService.parseMapping(xContentRegistry, mappingString));
+                    XContentHelper.mergeDefaults(mappings, templateMapping);
                 }
             }
         }
@@ -1170,15 +1134,13 @@ public class MetadataCreateIndexService {
     private static void updateIndexMappingsAndBuildSortOrder(
         IndexService indexService,
         CreateIndexClusterStateUpdateRequest request,
-        List<Map<String, Map<String, Object>>> mappings,
+        List<Map<String, Object>> mappings,
         @Nullable IndexMetadata sourceMetadata
     ) throws IOException {
         MapperService mapperService = indexService.mapperService();
-        for (Map<String, Map<String, Object>> mapping : mappings) {
-            if (!mapping.isEmpty()) {
-                assert mapping.size() == 1 : mapping;
-                Map.Entry<String, Map<String, Object>> entry = mapping.entrySet().iterator().next();
-                mapperService.merge(entry.getKey(), entry.getValue(), MergeReason.INDEX_TEMPLATE);
+        for (Map<String, Object> mapping : mappings) {
+            if (mapping.isEmpty() == false) {
+                mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
             }
         }
 

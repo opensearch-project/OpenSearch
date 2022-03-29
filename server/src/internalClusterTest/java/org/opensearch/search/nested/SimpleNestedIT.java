@@ -73,7 +73,7 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class SimpleNestedIT extends OpenSearchIntegTestCase {
     public void testSimpleNested() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "nested1", "type=nested"));
+        assertAcked(prepareCreate("test").setMapping("nested1", "type=nested"));
         ensureGreen();
 
         // check on no data, see it works
@@ -213,17 +213,14 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
 
     public void testMultiNested() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("nested1")
                     .field("type", "nested")
                     .startObject("properties")
                     .startObject("nested2")
                     .field("type", "nested")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -371,17 +368,14 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
     public void testDeleteNestedDocsWithAlias() throws Exception {
         assertAcked(
             prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).put("index.refresh_interval", -1).build())
-                .addMapping(
-                    "type1",
+                .setMapping(
                     jsonBuilder().startObject()
-                        .startObject("type1")
                         .startObject("properties")
                         .startObject("field1")
                         .field("type", "text")
                         .endObject()
                         .startObject("nested1")
                         .field("type", "nested")
-                        .endObject()
                         .endObject()
                         .endObject()
                         .endObject()
@@ -437,14 +431,11 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
 
     public void testExplain() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("nested1")
                     .field("type", "nested")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -485,10 +476,8 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
     public void testSimpleNestedSorting() throws Exception {
         assertAcked(
             prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).put("index.refresh_interval", -1))
-                .addMapping(
-                    "type1",
+                .setMapping(
                     jsonBuilder().startObject()
-                        .startObject("type1")
                         .startObject("properties")
                         .startObject("nested1")
                         .field("type", "nested")
@@ -496,7 +485,6 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
                         .startObject("field1")
                         .field("type", "long")
                         .field("store", true)
-                        .endObject()
                         .endObject()
                         .endObject()
                         .endObject()
@@ -586,10 +574,8 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
     public void testSimpleNestedSortingWithNestedFilterMissing() throws Exception {
         assertAcked(
             prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).put("index.refresh_interval", -1))
-                .addMapping(
-                    "type1",
+                .setMapping(
                     jsonBuilder().startObject()
-                        .startObject("type1")
                         .startObject("properties")
                         .startObject("nested1")
                         .field("type", "nested")
@@ -599,7 +585,6 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
                         .endObject()
                         .startObject("field2")
                         .field("type", "boolean")
-                        .endObject()
                         .endObject()
                         .endObject()
                         .endObject()
@@ -719,25 +704,22 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
 
     public void testNestedSortWithMultiLevelFiltering() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 "{\n"
-                    + "  \"type1\": {\n"
-                    + "    \"properties\": {\n"
-                    + "      \"acl\": {\n"
-                    + "        \"type\": \"nested\",\n"
-                    + "        \"properties\": {\n"
-                    + "          \"access_id\": {\"type\": \"keyword\"},\n"
-                    + "          \"operation\": {\n"
-                    + "            \"type\": \"nested\",\n"
-                    + "            \"properties\": {\n"
-                    + "              \"name\": {\"type\": \"keyword\"},\n"
-                    + "              \"user\": {\n"
-                    + "                \"type\": \"nested\",\n"
-                    + "                \"properties\": {\n"
-                    + "                  \"username\": {\"type\": \"keyword\"},\n"
-                    + "                  \"id\": {\"type\": \"integer\"}\n"
-                    + "                }\n"
+                    + "  \"properties\": {\n"
+                    + "    \"acl\": {\n"
+                    + "      \"type\": \"nested\",\n"
+                    + "      \"properties\": {\n"
+                    + "        \"access_id\": {\"type\": \"keyword\"},\n"
+                    + "        \"operation\": {\n"
+                    + "          \"type\": \"nested\",\n"
+                    + "          \"properties\": {\n"
+                    + "            \"name\": {\"type\": \"keyword\"},\n"
+                    + "            \"user\": {\n"
+                    + "              \"type\": \"nested\",\n"
+                    + "              \"properties\": {\n"
+                    + "                \"username\": {\"type\": \"keyword\"},\n"
+                    + "                \"id\": {\"type\": \"integer\"}\n"
                     + "              }\n"
                     + "            }\n"
                     + "          }\n"
@@ -745,8 +727,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
                     + "      }\n"
                     + "    }\n"
                     + "  }\n"
-                    + "}",
-                XContentType.JSON
+                    + "}"
             )
         );
         ensureGreen();
@@ -965,8 +946,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
     public void testLeakingSortValues() throws Exception {
         assertAcked(
             prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", 1))
-                .addMapping(
-                    "test-type",
+                .setMapping(
                     "{\n"
                         + "        \"dynamic\": \"strict\",\n"
                         + "        \"properties\": {\n"
@@ -987,8 +967,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
                         + "            }\n"
                         + "          }\n"
                         + "        }\n"
-                        + "      }\n",
-                    XContentType.JSON
+                        + "      }\n"
                 )
         );
         ensureGreen();
@@ -1054,11 +1033,9 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
 
     public void testSortNestedWithNestedFilter() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("grand_parent_values")
                     .field("type", "long")
@@ -1074,7 +1051,6 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
                     .startObject("properties")
                     .startObject("child_values")
                     .field("type", "long")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -1454,8 +1430,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
     // Issue #9305
     public void testNestedSortingWithNestedFilterAsFilter() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
                     .startObject("properties")
                     .startObject("officelocation")
@@ -1622,7 +1597,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
         if (loadFixedBitSeLazily) {
             settingsBuilder.put("index.load_fixed_bitset_filters_eagerly", false);
         }
-        assertAcked(prepareCreate("test").setSettings(settingsBuilder).addMapping("type"));
+        assertAcked(prepareCreate("test").setSettings(settingsBuilder));
 
         client().prepareIndex("test").setId("0").setSource("field", "value").get();
         client().prepareIndex("test").setId("1").setSource("field", "value").get();

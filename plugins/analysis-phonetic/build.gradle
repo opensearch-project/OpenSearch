@@ -35,7 +35,7 @@ opensearchplugin {
 }
 
 dependencies {
-  api "org.apache.lucene:lucene-analyzers-phonetic:${versions.lucene}"
+  api "org.apache.lucene:lucene-analysis-phonetic:${versions.lucene}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
 }
 

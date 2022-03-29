@@ -115,17 +115,14 @@ public class CombiIT extends OpenSearchIntegTestCase {
      */
     public void testSubAggregationForTopAggregationOnUnmappedField() throws Exception {
 
-        prepareCreate("idx").addMapping(
-            "type",
+        prepareCreate("idx").setMapping(
             jsonBuilder().startObject()
-                .startObject("type")
                 .startObject("properties")
                 .startObject("name")
                 .field("type", "keyword")
                 .endObject()
                 .startObject("value")
                 .field("type", "integer")
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()

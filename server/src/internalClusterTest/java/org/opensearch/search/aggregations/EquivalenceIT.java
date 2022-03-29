@@ -133,14 +133,11 @@ public class EquivalenceIT extends OpenSearchIntegTestCase {
             }
         }
 
-        prepareCreate("idx").addMapping(
-            "type",
+        prepareCreate("idx").setMapping(
             jsonBuilder().startObject()
-                .startObject("type")
                 .startObject("properties")
                 .startObject("values")
                 .field("type", "double")
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -235,10 +232,8 @@ public class EquivalenceIT extends OpenSearchIntegTestCase {
 
         final IntHashSet valuesSet = new IntHashSet();
         cluster().wipeIndices("idx");
-        prepareCreate("idx").addMapping(
-            "type",
+        prepareCreate("idx").setMapping(
             jsonBuilder().startObject()
-                .startObject("type")
                 .startObject("properties")
                 .startObject("num")
                 .field("type", "double")
@@ -257,7 +252,6 @@ public class EquivalenceIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .startObject("double_values")
                 .field("type", "double")
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -358,14 +352,11 @@ public class EquivalenceIT extends OpenSearchIntegTestCase {
 
     // Duel between histograms and scripted terms
     public void testDuelTermsHistogram() throws Exception {
-        prepareCreate("idx").addMapping(
-            "type",
+        prepareCreate("idx").setMapping(
             jsonBuilder().startObject()
-                .startObject("type")
                 .startObject("properties")
                 .startObject("num")
                 .field("type", "double")
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -422,14 +413,11 @@ public class EquivalenceIT extends OpenSearchIntegTestCase {
 
     public void testLargeNumbersOfPercentileBuckets() throws Exception {
         // test high numbers of percentile buckets to make sure paging and release work correctly
-        prepareCreate("idx").addMapping(
-            "type",
+        prepareCreate("idx").setMapping(
             jsonBuilder().startObject()
-                .startObject("type")
                 .startObject("properties")
                 .startObject("double_value")
                 .field("type", "double")
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()

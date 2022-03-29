@@ -168,8 +168,7 @@ public class RandomScoreFunctionIT extends OpenSearchIntegTestCase {
 
     public void testScoreAccessWithinScript() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type",
+            prepareCreate("test").setMapping(
                 "body",
                 "type=text",
                 "index",

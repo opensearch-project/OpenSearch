@@ -62,7 +62,7 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
             "_doc",
             new CompressedXContent(
                 Strings.toString(
-                    PutMappingRequest.buildFromSimplifiedDef(
+                    PutMappingRequest.simpleMapping(
                         "my_feature_field",
                         "type=rank_feature",
                         "my_negative_feature_field",

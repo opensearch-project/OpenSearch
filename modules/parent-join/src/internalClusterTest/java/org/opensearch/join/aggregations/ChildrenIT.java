@@ -174,8 +174,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
     public void testWithDeletes() throws Exception {
         String indexName = "xyz";
         assertAcked(
-            prepareCreate(indexName).addMapping(
-                "doc",
+            prepareCreate(indexName).setMapping(
                 addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"), "name", "keyword")
             )
         );
@@ -234,8 +233,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
             prepareCreate(indexName).setSettings(
                 Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             )
-                .addMapping(
-                    "doc",
+                .setMapping(
                     addFieldMappings(
                         buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, masterType, childType),
                         "brand",
@@ -309,8 +307,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         String parentType = "country";
         String childType = "city";
         assertAcked(
-            prepareCreate(indexName).addMapping(
-                "doc",
+            prepareCreate(indexName).setMapping(
                 addFieldMappings(
                     buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, grandParentType, parentType, parentType, childType),
                     "name",
@@ -352,8 +349,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         // Before we only evaluated segments that yielded matches in 'towns' and 'parent_names' aggs, which caused
         // us to miss to evaluate child docs in segments we didn't have parent matches for.
         assertAcked(
-            prepareCreate("index").addMapping(
-                "doc",
+            prepareCreate("index").setMapping(
                 addFieldMappings(
                     buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parentType", "childType"),
                     "name",

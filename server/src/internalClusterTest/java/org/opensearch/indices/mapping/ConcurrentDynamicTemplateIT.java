@@ -34,7 +34,6 @@ package org.opensearch.indices.mapping;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.index.IndexResponse;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -49,14 +48,10 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.emptyIterable;
 
 public class ConcurrentDynamicTemplateIT extends OpenSearchIntegTestCase {
-    private final String mappingType = "test-mapping";
-
     // see #3544
     public void testConcurrentDynamicMapping() throws Exception {
         final String fieldName = "field";
-        final String mapping = "{ \""
-            + mappingType
-            + "\": {"
+        final String mapping = "{ "
             + "\"dynamic_templates\": ["
             + "{ \""
             + fieldName
@@ -65,14 +60,14 @@ public class ConcurrentDynamicTemplateIT extends OpenSearchIntegTestCase {
             + "\"mapping\": {"
             + "\"type\": \"text\","
             + "\"store\": true,"
-            + "\"analyzer\": \"whitespace\" } } } ] } }";
+            + "\"analyzer\": \"whitespace\" } } } ] }";
         // The 'fieldNames' array is used to help with retrieval of index terms
         // after testing
 
         int iters = scaledRandomIntBetween(5, 15);
         for (int i = 0; i < iters; i++) {
             cluster().wipeIndices("test");
-            assertAcked(prepareCreate("test").addMapping(mappingType, mapping, XContentType.JSON));
+            assertAcked(prepareCreate("test").setMapping(mapping));
             int numDocs = scaledRandomIntBetween(10, 100);
             final CountDownLatch latch = new CountDownLatch(numDocs);
             final List<Throwable> throwable = new CopyOnWriteArrayList<>();

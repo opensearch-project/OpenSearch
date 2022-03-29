@@ -128,10 +128,8 @@ public class CardinalityIT extends OpenSearchIntegTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
 
-        prepareCreate("idx").addMapping(
-            "type",
+        prepareCreate("idx").setMapping(
             jsonBuilder().startObject()
-                .startObject("type")
                 .startObject("properties")
                 .startObject("str_value")
                 .field("type", "keyword")
@@ -150,7 +148,6 @@ public class CardinalityIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .startObject("d_values")
                 .field("type", "double")
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -494,7 +491,7 @@ public class CardinalityIT extends OpenSearchIntegTestCase {
      */
     public void testScriptCaching() throws Exception {
         assertAcked(
-            prepareCreate("cache_test_idx").addMapping("type", "d", "type=long")
+            prepareCreate("cache_test_idx").setMapping("d", "type=long")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get()
         );

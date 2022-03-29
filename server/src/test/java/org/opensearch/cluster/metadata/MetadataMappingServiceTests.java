@@ -57,8 +57,8 @@ public class MetadataMappingServiceTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testMappingClusterStateUpdateDoesntChangeExistingIndices() throws Exception {
-        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test").addMapping("type"));
-        final CompressedXContent currentMapping = indexService.mapperService().documentMapper("type").mappingSource();
+        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test").setMapping());
+        final CompressedXContent currentMapping = indexService.mapperService().documentMapper().mappingSource();
 
         final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
@@ -74,15 +74,15 @@ public class MetadataMappingServiceTests extends OpenSearchSingleNodeTestCase {
         assertTrue(result.executionResults.values().iterator().next().isSuccess());
         // the task really was a mapping update
         assertThat(
-            indexService.mapperService().documentMapper("type").mappingSource(),
-            not(equalTo(result.resultingState.metadata().index("test").getMappings().get("type").source()))
+            indexService.mapperService().documentMapper().mappingSource(),
+            not(equalTo(result.resultingState.metadata().index("test").mapping().source()))
         );
         // since we never committed the cluster state update, the in-memory state is unchanged
-        assertThat(indexService.mapperService().documentMapper("type").mappingSource(), equalTo(currentMapping));
+        assertThat(indexService.mapperService().documentMapper().mappingSource(), equalTo(currentMapping));
     }
 
     public void testClusterStateIsNotChangedWithIdenticalMappings() throws Exception {
-        createIndex("test", client().admin().indices().prepareCreate("test").addMapping("type"));
+        createIndex("test", client().admin().indices().prepareCreate("test"));
 
         final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
@@ -102,7 +102,7 @@ public class MetadataMappingServiceTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testMappingVersion() throws Exception {
-        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test").addMapping("type"));
+        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test"));
         final long previousVersion = indexService.getMetadata().getMappingVersion();
         final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
@@ -118,7 +118,7 @@ public class MetadataMappingServiceTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testMappingVersionUnchanged() throws Exception {
-        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test").addMapping("type"));
+        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test").setMapping());
         final long previousVersion = indexService.getMetadata().getMappingVersion();
         final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);

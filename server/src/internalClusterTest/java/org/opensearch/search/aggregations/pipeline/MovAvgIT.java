@@ -130,15 +130,12 @@ public class MovAvgIT extends OpenSearchIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        prepareCreate("idx").addMapping(
-            "type",
+        prepareCreate("idx").setMapping(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type")
                 .startObject("properties")
                 .startObject(VALUE_FIELD)
                 .field("type", "double")
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()

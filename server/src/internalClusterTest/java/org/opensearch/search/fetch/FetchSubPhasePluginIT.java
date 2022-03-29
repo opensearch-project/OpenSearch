@@ -79,15 +79,12 @@ public class FetchSubPhasePluginIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate("test")
-            .addMapping(
-                "type1",
+            .setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("test")
                     .field("type", "text")
                     .field("term_vector", "yes")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()

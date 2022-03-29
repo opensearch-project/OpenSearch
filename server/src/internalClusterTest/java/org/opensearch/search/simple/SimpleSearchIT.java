@@ -295,7 +295,7 @@ public class SimpleSearchIT extends OpenSearchIntegTestCase {
     public void testSimpleIndexSortEarlyTerminate() throws Exception {
         prepareCreate("test").setSettings(
             Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0).put("index.sort.field", "rank")
-        ).addMapping(MapperService.SINGLE_MAPPING_NAME, "rank", "type=integer").get();
+        ).setMapping("rank", "type=integer").get();
         ensureGreen();
         int max = randomIntBetween(3, 29);
         List<IndexRequestBuilder> docbuilders = new ArrayList<>(max);
@@ -498,7 +498,7 @@ public class SimpleSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testQueryNumericFieldWithRegex() throws Exception {
-        assertAcked(prepareCreate("idx").addMapping("type", "num", "type=integer"));
+        assertAcked(prepareCreate("idx").setMapping("num", "type=integer"));
         ensureGreen("idx");
 
         try {
@@ -510,7 +510,7 @@ public class SimpleSearchIT extends OpenSearchIntegTestCase {
     }
 
     public void testTermQueryBigInt() throws Exception {
-        prepareCreate("idx").addMapping("type", "field", "type=keyword").get();
+        prepareCreate("idx").setMapping("field", "type=keyword").get();
         ensureGreen("idx");
 
         client().prepareIndex("idx")

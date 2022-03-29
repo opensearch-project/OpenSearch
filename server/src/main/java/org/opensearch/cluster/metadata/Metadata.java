@@ -880,7 +880,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         if (indexMetadata != null) {
             MappingMetadata mappingMetadata = indexMetadata.mapping();
             if (mappingMetadata != null) {
-                return mappingMetadata.routing().required();
+                return mappingMetadata.routingRequired();
             }
         }
         return false;

@@ -35,7 +35,6 @@ import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.bucket.filter.InternalFilter;
@@ -73,7 +72,7 @@ public class TermsShardMinDocCountIT extends OpenSearchIntegTestCase {
         }
         assertAcked(
             prepareCreate(index).setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .addMapping(MapperService.SINGLE_MAPPING_NAME, "text", textMappings)
+                .setMapping("text", textMappings)
         );
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
 
@@ -142,7 +141,7 @@ public class TermsShardMinDocCountIT extends OpenSearchIntegTestCase {
         }
         assertAcked(
             prepareCreate(index).setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .addMapping(MapperService.SINGLE_MAPPING_NAME, "text", termMappings)
+                .setMapping("text", termMappings)
         );
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
 

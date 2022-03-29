@@ -422,7 +422,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
             @Override
             public Settings onNodeStopped(String nodeName) {
                 return Settings.builder()
-                    .put(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(), nodeName)
+                    .put(ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), nodeName)
                     /*
                      * the data node might join while the master is still not fully established as master just yet and bypasses the join
                      * validation that is done before adding the node to the cluster. Only the join validation when handling the publish

@@ -73,7 +73,7 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
             "_doc",
             new CompressedXContent(
                 Strings.toString(
-                    PutMappingRequest.buildFromSimplifiedDef(
+                    PutMappingRequest.simpleMapping(
                         INTEGER_RANGE_FIELD_NAME,
                         "type=integer_range",
                         LONG_RANGE_FIELD_NAME,

@@ -110,7 +110,6 @@ public class FieldNamesFieldMapperTests extends OpenSearchSingleNodeTestCase {
         ParsedDocument doc = defaultMapper.parse(
             new SourceToParse(
                 "test",
-                "type",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder().startObject().field("a", "100").startObject("b").field("c", 42).endObject().endObject()
@@ -148,7 +147,6 @@ public class FieldNamesFieldMapperTests extends OpenSearchSingleNodeTestCase {
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
                 "test",
-                "type",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject()),
                 XContentType.JSON
@@ -179,7 +177,6 @@ public class FieldNamesFieldMapperTests extends OpenSearchSingleNodeTestCase {
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
                 "test",
-                "type",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject()),
                 XContentType.JSON

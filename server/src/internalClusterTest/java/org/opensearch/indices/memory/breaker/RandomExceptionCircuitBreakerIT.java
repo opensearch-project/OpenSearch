@@ -50,7 +50,6 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.MockEngineFactoryPlugin;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.IndicesService;
@@ -104,7 +103,6 @@ public class RandomExceptionCircuitBreakerIT extends OpenSearchIntegTestCase {
             .toString(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type")
                     .startObject("properties")
                     .startObject("test-str")
                     .field("type", "keyword")
@@ -115,7 +113,6 @@ public class RandomExceptionCircuitBreakerIT extends OpenSearchIntegTestCase {
                     .field("type", randomFrom(Arrays.asList("float", "long", "double", "short", "integer")))
                     .endObject() // test-num
                     .endObject() // properties
-                    .endObject() // type
                     .endObject()
             );
         final double topLevelRate;
@@ -149,7 +146,7 @@ public class RandomExceptionCircuitBreakerIT extends OpenSearchIntegTestCase {
             .indices()
             .prepareCreate("test")
             .setSettings(settings)
-            .addMapping("type", mapping, XContentType.JSON)
+            .setMapping(mapping)
             .execute()
             .actionGet();
         final int numDocs;

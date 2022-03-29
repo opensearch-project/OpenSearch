@@ -64,14 +64,14 @@ if (!isEclipse) {
   }
 
   compileJava11Java {
-    sourceCompatibility = 11
-    targetCompatibility = 11
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
   }
 
   tasks.named('forbiddenApisJava11').configure {
     doFirst {
       if (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_11) {
-        targetCompatibility = JavaVersion.VERSION_11.getMajorVersion()
+        targetCompatibility = JavaVersion.VERSION_11
       }
     }
   }
@@ -97,7 +97,7 @@ dependencies {
 
   // lucene
   api "org.apache.lucene:lucene-core:${versions.lucene}"
-  api "org.apache.lucene:lucene-analyzers-common:${versions.lucene}"
+  api "org.apache.lucene:lucene-analysis-common:${versions.lucene}"
   api "org.apache.lucene:lucene-backward-codecs:${versions.lucene}"
   api "org.apache.lucene:lucene-grouping:${versions.lucene}"
   api "org.apache.lucene:lucene-highlighter:${versions.lucene}"
@@ -182,7 +182,7 @@ tasks.named("testingConventions").configure {
     naming.clear()
     naming {
         Tests {
-            baseClass "org.apache.lucene.util.LuceneTestCase"
+            baseClass "org.apache.lucene.tests.util.LuceneTestCase"
         }
         IT {
             baseClass "org.opensearch.test.OpenSearchIntegTestCase"

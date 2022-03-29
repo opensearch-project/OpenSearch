@@ -35,6 +35,7 @@ package org.opensearch.index.query.plugin;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.opensearch.plugins.Plugin;
@@ -73,6 +74,11 @@ public class DummyQueryParserPlugin extends Plugin implements SearchPlugin {
         @Override
         public int hashCode() {
             return classHash();
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
         }
     }
 }

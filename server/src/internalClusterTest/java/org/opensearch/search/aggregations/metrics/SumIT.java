@@ -79,8 +79,7 @@ public class SumIT extends AbstractNumericTestCase {
 
         // Create two indices and add the field 'route_length_miles' as an alias in
         // one, and a concrete field in the other.
-        prepareCreate("old_index").addMapping(
-            "_doc",
+        prepareCreate("old_index").setMapping(
             "transit_mode",
             "type=keyword",
             "distance",
@@ -88,7 +87,7 @@ public class SumIT extends AbstractNumericTestCase {
             "route_length_miles",
             "type=alias,path=distance"
         ).get();
-        prepareCreate("new_index").addMapping("_doc", "transit_mode", "type=keyword", "route_length_miles", "type=double").get();
+        prepareCreate("new_index").setMapping("transit_mode", "type=keyword", "route_length_miles", "type=double").get();
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         builders.add(client().prepareIndex("old_index").setSource("transit_mode", "train", "distance", 42.0));
@@ -236,7 +235,7 @@ public class SumIT extends AbstractNumericTestCase {
      */
     public void testScriptCaching() throws Exception {
         assertAcked(
-            prepareCreate("cache_test_idx").addMapping("type", "d", "type=long")
+            prepareCreate("cache_test_idx").setMapping("d", "type=long")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get()
         );

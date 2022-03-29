@@ -53,7 +53,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Objects;
 
 import static org.opensearch.index.mapper.FieldMapper.IGNORE_MALFORMED_SETTING;
 
@@ -71,8 +70,6 @@ final class DocumentParser {
     }
 
     ParsedDocument parseDocument(SourceToParse source, MetadataFieldMapper[] metadataFieldsMappers) throws MapperParsingException {
-        validateType(source);
-
         final Mapping mapping = docMapper.mapping();
         final ParseContext.InternalParseContext context;
         final XContentType xContentType = source.getXContentType();
@@ -140,17 +137,6 @@ final class DocumentParser {
         }
     }
 
-    private void validateType(SourceToParse source) {
-        if (Objects.equals(source.type(), docMapper.type()) == false && MapperService.SINGLE_MAPPING_NAME.equals(source.type()) == false) { // used
-                                                                                                                                            // by
-                                                                                                                                            // typeless
-                                                                                                                                            // APIs
-            throw new MapperParsingException(
-                "Type mismatch, provide type [" + source.type() + "] but mapper is of type [" + docMapper.type() + "]"
-            );
-        }
-    }
-
     private static void validateStart(XContentParser parser) throws IOException {
         // will result in START_OBJECT
         XContentParser.Token token = parser.nextToken();
@@ -189,7 +175,6 @@ final class DocumentParser {
             context.version(),
             context.seqID(),
             context.sourceToParse().id(),
-            context.sourceToParse().type(),
             source.routing(),
             context.docs(),
             context.sourceToParse().source(),

@@ -206,7 +206,7 @@ public class TransportResyncReplicationActionTests extends OpenSearchTestCase {
                     shardId,
                     42L,
                     100,
-                    new Translog.Operation[] { new Translog.Index("type", "id", 0, primaryTerm, 0L, bytes, null, -1) }
+                    new Translog.Operation[] { new Translog.Index("id", 0, primaryTerm, 0L, bytes, null, -1) }
                 );
 
                 final PlainActionFuture<ResyncReplicationResponse> listener = new PlainActionFuture<>();

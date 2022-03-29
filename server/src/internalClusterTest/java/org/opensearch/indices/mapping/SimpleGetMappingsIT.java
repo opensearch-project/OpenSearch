@@ -70,21 +70,19 @@ public class SimpleGetMappingsIT extends OpenSearchIntegTestCase {
         assertEquals(MappingMetadata.EMPTY_MAPPINGS, response.mappings().get("index"));
     }
 
-    private XContentBuilder getMappingForType(String type) throws IOException {
+    private XContentBuilder getMappingForType() throws IOException {
         return jsonBuilder().startObject()
-            .startObject(type)
             .startObject("properties")
             .startObject("field1")
             .field("type", "text")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();
     }
 
     public void testSimpleGetMappings() throws Exception {
-        client().admin().indices().prepareCreate("indexa").addMapping("typeA", getMappingForType("typeA")).execute().actionGet();
-        client().admin().indices().prepareCreate("indexb").addMapping("typeA", getMappingForType("typeA")).execute().actionGet();
+        client().admin().indices().prepareCreate("indexa").setMapping(getMappingForType()).execute().actionGet();
+        client().admin().indices().prepareCreate("indexb").setMapping(getMappingForType()).execute().actionGet();
 
         ClusterHealthResponse clusterHealth = client().admin()
             .cluster()
@@ -114,7 +112,7 @@ public class SimpleGetMappingsIT extends OpenSearchIntegTestCase {
     }
 
     public void testGetMappingsWithBlocks() throws IOException {
-        client().admin().indices().prepareCreate("test").addMapping("_doc", getMappingForType("_doc")).execute().actionGet();
+        client().admin().indices().prepareCreate("test").setMapping(getMappingForType()).execute().actionGet();
         ensureGreen();
 
         for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY)) {

@@ -70,10 +70,8 @@ public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
 
     public void testNgramHighlightingWithBrokenPositions() throws IOException {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "test",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("test")
                     .startObject("properties")
                     .startObject("name")
                     .field("type", "text")
@@ -83,7 +81,6 @@ public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
                     .field("analyzer", "autocomplete")
                     .field("search_analyzer", "search_autocomplete")
                     .field("term_vector", "with_positions_offsets")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -152,8 +149,7 @@ public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
          * query. We cut off and extract terms if there are more than 16 terms in the query
          */
         assertAcked(
-            prepareCreate("test").addMapping(
-                "test",
+            prepareCreate("test").setMapping(
                 "body",
                 "type=text,analyzer=custom_analyzer," + "search_analyzer=custom_analyzer,term_vector=with_positions_offsets"
             )
@@ -228,8 +224,7 @@ public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
 
         assertAcked(
             prepareCreate("test").setSettings(builder.build())
-                .addMapping(
-                    "type1",
+                .setMapping(
                     "field1",
                     "type=text,term_vector=with_positions_offsets,search_analyzer=synonym," + "analyzer=standard,index_options=offsets"
                 )
@@ -260,7 +255,7 @@ public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
             .put("index.analysis.filter.synonym.type", "synonym")
             .putList("index.analysis.filter.synonym.synonyms", "quick => fast");
 
-        assertAcked(prepareCreate("first_test_index").setSettings(builder.build()).addMapping("type1", type1TermVectorMapping()));
+        assertAcked(prepareCreate("first_test_index").setSettings(builder.build()).setMapping(type1TermVectorMapping()));
 
         ensureGreen();
 
@@ -338,8 +333,7 @@ public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
 
         assertAcked(
             prepareCreate("second_test_index").setSettings(builder.build())
-                .addMapping(
-                    "doc",
+                .setMapping(
                     "field4",
                     "type=text,term_vector=with_positions_offsets,analyzer=synonym",
                     "field3",
@@ -421,7 +415,6 @@ public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
     public static XContentBuilder type1TermVectorMapping() throws IOException {
         return XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("field1")
             .field("type", "text")
@@ -430,7 +423,6 @@ public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
             .startObject("field2")
             .field("type", "text")
             .field("term_vector", "with_positions_offsets")
-            .endObject()
             .endObject()
             .endObject()
             .endObject();

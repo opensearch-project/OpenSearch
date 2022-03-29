@@ -66,7 +66,6 @@ public class NestedHelperTests extends OpenSearchSingleNodeTestCase {
         super.setUp();
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type")
             .startObject("properties")
             .startObject("foo")
             .field("type", "keyword")
@@ -106,7 +105,6 @@ public class NestedHelperTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .startObject("foo2")
             .field("type", "long")
-            .endObject()
             .endObject()
             .endObject()
             .endObject()

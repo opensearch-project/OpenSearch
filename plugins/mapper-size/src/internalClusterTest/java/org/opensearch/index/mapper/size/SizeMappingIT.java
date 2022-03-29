@@ -36,7 +36,6 @@ import org.opensearch.action.get.GetResponse;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.plugin.mapper.MapperSizePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -63,10 +62,9 @@ public class SizeMappingIT extends OpenSearchIntegTestCase {
     // issue 5053
     public void testThatUpdatingMappingShouldNotRemoveSizeMappingConfiguration() throws Exception {
         String index = "foo";
-        String type = MapperService.SINGLE_MAPPING_NAME;
 
         XContentBuilder builder = jsonBuilder().startObject().startObject("_size").field("enabled", true).endObject().endObject();
-        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
 
         // check mapping again
         assertSizeMappingEnabled(index, true);
@@ -88,10 +86,9 @@ public class SizeMappingIT extends OpenSearchIntegTestCase {
 
     public void testThatSizeCanBeSwitchedOnAndOff() throws Exception {
         String index = "foo";
-        String type = MapperService.SINGLE_MAPPING_NAME;
 
         XContentBuilder builder = jsonBuilder().startObject().startObject("_size").field("enabled", true).endObject().endObject();
-        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
 
         // check mapping again
         assertSizeMappingEnabled(index, true);
@@ -124,7 +121,7 @@ public class SizeMappingIT extends OpenSearchIntegTestCase {
     }
 
     public void testBasic() throws Exception {
-        assertAcked(prepareCreate("test").addMapping(MapperService.SINGLE_MAPPING_NAME, "_size", "enabled=true"));
+        assertAcked(prepareCreate("test").setMapping("_size", "enabled=true"));
         final String source = "{\"f\":10}";
         indexRandom(true, client().prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
         GetResponse getResponse = client().prepareGet("test", "1").setStoredFields("_size").get();

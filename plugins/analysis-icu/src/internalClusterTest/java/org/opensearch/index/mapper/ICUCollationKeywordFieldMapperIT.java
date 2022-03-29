@@ -71,8 +71,6 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
     */
     public void testBasicUsage() throws Exception {
         String index = "foo";
-        String type = "mytype";
-
         String[] equivalent = { "I WİLL USE TURKİSH CASING", "ı will use turkish casıng" };
 
         XContentBuilder builder = jsonBuilder().startObject()
@@ -88,7 +86,7 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
 
         // both values should collate to same value
         indexRandom(
@@ -114,7 +112,6 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
 
     public void testMultipleValues() throws Exception {
         String index = "foo";
-        String type = "mytype";
 
         String[] equivalent = { "a", "C", "a", "B" };
 
@@ -130,7 +127,7 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
 
         // everything should be indexed fine, no exceptions
         indexRandom(
@@ -177,7 +174,6 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
     */
     public void testNormalization() throws Exception {
         String index = "foo";
-        String type = "mytype";
 
         String[] equivalent = { "I W\u0049\u0307LL USE TURKİSH CASING", "ı will use turkish casıng" };
 
@@ -195,7 +191,7 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
 
         indexRandom(
             true,
@@ -223,7 +219,6 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
     */
     public void testSecondaryStrength() throws Exception {
         String index = "foo";
-        String type = "mytype";
 
         String[] equivalent = { "TESTING", "testing" };
 
@@ -241,7 +236,7 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
 
         indexRandom(
             true,
@@ -269,7 +264,6 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
     */
     public void testIgnorePunctuation() throws Exception {
         String index = "foo";
-        String type = "mytype";
 
         String[] equivalent = { "foo-bar", "foo bar" };
 
@@ -287,7 +281,7 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
 
         indexRandom(
             true,
@@ -315,7 +309,6 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
     */
     public void testIgnoreWhitespace() throws Exception {
         String index = "foo";
-        String type = "mytype";
 
         XContentBuilder builder = jsonBuilder().startObject()
             .startObject("properties")
@@ -333,7 +326,7 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
 
         indexRandom(
             true,
@@ -363,7 +356,6 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
      */
     public void testNumerics() throws Exception {
         String index = "foo";
-        String type = "mytype";
 
         XContentBuilder builder = jsonBuilder().startObject()
             .startObject("properties")
@@ -376,7 +368,7 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
 
         indexRandom(
             true,
@@ -399,7 +391,6 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
     */
     public void testIgnoreAccentsButNotCase() throws Exception {
         String index = "foo";
-        String type = "mytype";
 
         XContentBuilder builder = jsonBuilder().startObject()
             .startObject("properties")
@@ -416,7 +407,7 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
 
         indexRandom(
             true,
@@ -441,7 +432,6 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
     */
     public void testUpperCaseFirst() throws Exception {
         String index = "foo";
-        String type = "mytype";
 
         XContentBuilder builder = jsonBuilder().startObject()
             .startObject("properties")
@@ -455,7 +445,7 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
 
         indexRandom(
             true,
@@ -481,7 +471,6 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
     */
     public void testCustomRules() throws Exception {
         String index = "foo";
-        String type = "mytype";
 
         RuleBasedCollator baseCollator = (RuleBasedCollator) Collator.getInstance(new ULocale("de_DE"));
         String DIN5007_2_tailorings = "& ae , a\u0308 & AE , A\u0308" + "& oe , o\u0308 & OE , O\u0308" + "& ue , u\u0308 & UE , u\u0308";
@@ -504,7 +493,7 @@ public class ICUCollationKeywordFieldMapperIT extends OpenSearchIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
 
         indexRandom(
             true,

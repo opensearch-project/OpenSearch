@@ -115,7 +115,7 @@ public class ExplainActionIT extends OpenSearchIntegTestCase {
 
     public void testExplainWithFields() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping("test", "obj1.field1", "type=keyword,store=true", "obj1.field2", "type=keyword,store=true")
+            prepareCreate("test").setMapping("obj1.field1", "type=keyword,store=true", "obj1.field2", "type=keyword,store=true")
                 .addAlias(new Alias("alias"))
         );
         ensureGreen("test");
@@ -212,7 +212,7 @@ public class ExplainActionIT extends OpenSearchIntegTestCase {
 
     public void testExplainWithFilteredAlias() {
         assertAcked(
-            prepareCreate("test").addMapping("test", "field2", "type=text")
+            prepareCreate("test").setMapping("field2", "type=text")
                 .addAlias(new Alias("alias1").filter(QueryBuilders.termQuery("field2", "value2")))
         );
         ensureGreen("test");
@@ -231,7 +231,7 @@ public class ExplainActionIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .addMapping("test", "field2", "type=text")
+                .setMapping("field2", "type=text")
                 .addAlias(new Alias("alias1").filter(QueryBuilders.termQuery("field2", "value2")))
         );
         ensureGreen("test");

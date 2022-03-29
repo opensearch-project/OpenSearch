@@ -1078,7 +1078,7 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             "node1",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         DiscoveryNode discoveryNode2 = new DiscoveryNode(
@@ -1227,7 +1227,7 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             "master",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         DiscoveryNode dataNode = new DiscoveryNode(

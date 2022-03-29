@@ -50,7 +50,7 @@ testClusters.all {
   module ':modules:parent-join'
   module ':modules:lang-painless'
   // Allowlist reindexing from the local node so we can test reindex-from-remote.
-  setting 'reindex.remote.whitelist', '127.0.0.1:*'
+  setting 'reindex.remote.allowlist', '127.0.0.1:*'
 }
 
 test {

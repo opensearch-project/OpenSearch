@@ -32,9 +32,6 @@
 
 package org.opensearch.index.query;
 
-import org.apache.lucene.document.LatLonDocValuesField;
-import org.apache.lucene.document.LatLonPoint;
-import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.ParseField;
@@ -43,12 +40,17 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.geo.GeoDistance;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
+import org.opensearch.common.geo.ShapeRelation;
+import org.opensearch.common.geo.SpatialStrategy;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.DistanceUnit;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
+import org.opensearch.geometry.Circle;
+import org.opensearch.index.mapper.GeoPointFieldMapper;
+import org.opensearch.index.mapper.GeoShapeFieldMapper;
+import org.opensearch.index.mapper.GeoShapeQueryable;
 import org.opensearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -245,12 +247,25 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             } else {
-                throw new QueryShardException(shardContext, "failed to find geo_point field [" + fieldName + "]");
+                throw new QueryShardException(shardContext, "failed to find geo field [" + fieldName + "]");
             }
         }
 
-        if (!(fieldType instanceof GeoPointFieldType)) {
-            throw new QueryShardException(shardContext, "field [" + fieldName + "] is not a geo_point field");
+        if (fieldType instanceof GeoShapeQueryable == false) {
+            throw new QueryShardException(
+                shardContext,
+                "type ["
+                    + fieldType
+                    + "] for field ["
+                    + fieldName
+                    + "] is not supported for ["
+                    + NAME
+                    + "] queries. Must be one of ["
+                    + GeoPointFieldMapper.CONTENT_TYPE
+                    + "] or ["
+                    + GeoShapeFieldMapper.CONTENT_TYPE
+                    + "]"
+            );
         }
 
         QueryValidationException exception = checkLatLon();
@@ -262,12 +277,9 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
             GeoUtils.normalizePoint(center, true, true);
         }
 
-        Query query = LatLonPoint.newDistanceQuery(fieldType.name(), center.lat(), center.lon(), this.distance);
-        if (fieldType.hasDocValues()) {
-            Query dvQuery = LatLonDocValuesField.newSlowDistanceQuery(fieldType.name(), center.lat(), center.lon(), this.distance);
-            query = new IndexOrDocValuesQuery(query, dvQuery);
-        }
-        return query;
+        final GeoShapeQueryable geoShapeQueryable = (GeoShapeQueryable) fieldType;
+        final Circle circle = new Circle(center.lon(), center.lat(), this.distance);
+        return geoShapeQueryable.geoShapeQuery(circle, fieldType.name(), SpatialStrategy.RECURSIVE, ShapeRelation.INTERSECTS, shardContext);
     }
 
     @Override

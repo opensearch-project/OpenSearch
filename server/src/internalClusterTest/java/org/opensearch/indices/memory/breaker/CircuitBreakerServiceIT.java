@@ -142,8 +142,7 @@ public class CircuitBreakerServiceIT extends OpenSearchIntegTestCase {
             return;
         }
         assertAcked(
-            prepareCreate("cb-test", 1, Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))).addMapping(
-                "type",
+            prepareCreate("cb-test", 1, Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))).setMapping(
                 "test",
                 "type=text,fielddata=true"
             )

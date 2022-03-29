@@ -252,8 +252,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         Map<String, AliasMetadata> aliasesByName = aliases.stream().collect(Collectors.toMap(AliasMetadata::getAlias, Function.identity()));
 
         // empty request mapping as the user can't specify any explicit mappings via the simulate api
-        List<Map<String, Map<String, Object>>> mappings = MetadataCreateIndexService.collectV2Mappings(
-            Collections.emptyMap(),
+        List<Map<String, Object>> mappings = MetadataCreateIndexService.collectV2Mappings(
+            "{}",
             simulatedState,
             matchingTemplate,
             xContentRegistry,
@@ -264,11 +264,9 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             indexMetadata,
             tempIndexService -> {
                 MapperService mapperService = tempIndexService.mapperService();
-                for (Map<String, Map<String, Object>> mapping : mappings) {
-                    if (!mapping.isEmpty()) {
-                        assert mapping.size() == 1 : mapping;
-                        Map.Entry<String, Map<String, Object>> entry = mapping.entrySet().iterator().next();
-                        mapperService.merge(entry.getKey(), entry.getValue(), MapperService.MergeReason.INDEX_TEMPLATE);
+                for (Map<String, Object> mapping : mappings) {
+                    if (mapping.isEmpty() == false) {
+                        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MapperService.MergeReason.INDEX_TEMPLATE);
                     }
                 }
 

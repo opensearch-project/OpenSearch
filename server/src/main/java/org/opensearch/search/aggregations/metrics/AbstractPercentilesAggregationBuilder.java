@@ -163,7 +163,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
         this.valuesField = clone.valuesField;
     }
 
-    AbstractPercentilesAggregationBuilder(StreamInput in) throws IOException {
+    AbstractPercentilesAggregationBuilder(StreamInput in, ParseField valuesField) throws IOException {
         super(in);
         values = in.readDoubleArray();
         keyed = in.readBoolean();
@@ -175,6 +175,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
             PercentilesMethod method = PercentilesMethod.readFromStream(in);
             percentilesConfig = PercentilesConfig.fromLegacy(method, compression, numberOfSignificantValueDigits);
         }
+        this.valuesField = valuesField;
     }
 
     @Override

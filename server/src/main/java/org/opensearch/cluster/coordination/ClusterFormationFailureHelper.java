@@ -56,7 +56,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
+import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
 
 public class ClusterFormationFailureHelper {
@@ -192,25 +192,25 @@ public class ClusterFormationFailureHelper {
             );
 
             if (clusterState.nodes().getLocalNode().isMasterNode() == false) {
-                return String.format(Locale.ROOT, "master not discovered yet: %s", discoveryStateIgnoringQuorum);
+                return String.format(Locale.ROOT, "cluster-manager not discovered yet: %s", discoveryStateIgnoringQuorum);
             }
 
             if (clusterState.getLastAcceptedConfiguration().isEmpty()) {
                 final String bootstrappingDescription;
 
-                if (INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY).equals(INITIAL_MASTER_NODES_SETTING.get(settings))) {
-                    bootstrappingDescription = "[" + INITIAL_MASTER_NODES_SETTING.getKey() + "] is empty on this node";
+                if (INITIAL_CLUSTER_MANAGER_NODES_SETTING.get(Settings.EMPTY).equals(INITIAL_CLUSTER_MANAGER_NODES_SETTING.get(settings))) {
+                    bootstrappingDescription = "[" + INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey() + "] is empty on this node";
                 } else {
                     bootstrappingDescription = String.format(
                         Locale.ROOT,
-                        "this node must discover master-eligible nodes %s to bootstrap a cluster",
-                        INITIAL_MASTER_NODES_SETTING.get(settings)
+                        "this node must discover cluster-manager-eligible nodes %s to bootstrap a cluster",
+                        INITIAL_CLUSTER_MANAGER_NODES_SETTING.get(settings)
                     );
                 }
 
                 return String.format(
                     Locale.ROOT,
-                    "master not discovered yet, this node has not previously joined a bootstrapped cluster, and %s: %s",
+                    "cluster-manager not discovered yet, this node has not previously joined a bootstrapped cluster, and %s: %s",
                     bootstrappingDescription,
                     discoveryStateIgnoringQuorum
                 );
@@ -221,7 +221,7 @@ public class ClusterFormationFailureHelper {
             if (clusterState.getLastCommittedConfiguration().equals(VotingConfiguration.MUST_JOIN_ELECTED_MASTER)) {
                 return String.format(
                     Locale.ROOT,
-                    "master not discovered yet and this node was detached from its previous cluster, have discovered %s; %s",
+                    "cluster-manager not discovered yet and this node was detached from its previous cluster, have discovered %s; %s",
                     foundPeers,
                     discoveryWillContinueDescription
                 );
@@ -250,7 +250,7 @@ public class ClusterFormationFailureHelper {
 
             return String.format(
                 Locale.ROOT,
-                "master not discovered or elected yet, an election requires %s, have discovered %s which %s; %s",
+                "cluster-manager not discovered or elected yet, an election requires %s, have discovered %s which %s; %s",
                 quorumDescription,
                 foundPeers,
                 isQuorumOrNot,
@@ -269,8 +269,8 @@ public class ClusterFormationFailureHelper {
 
             if (nodeIds.size() == 1) {
                 if (nodeIds.contains(GatewayMetaState.STALE_STATE_CONFIG_NODE_ID)) {
-                    return "one or more nodes that have already participated as master-eligible nodes in the cluster but this node was "
-                        + "not master-eligible the last time it joined the cluster";
+                    return "one or more nodes that have already participated as cluster-manager-eligible nodes in the cluster but this node was "
+                        + "not cluster-manager-eligible the last time it joined the cluster";
                 } else {
                     return "a node with id " + realNodeIds;
                 }

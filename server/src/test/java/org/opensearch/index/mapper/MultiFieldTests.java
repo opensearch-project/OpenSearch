@@ -76,9 +76,7 @@ public class MultiFieldTests extends OpenSearchSingleNodeTestCase {
             .merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/opensearch/index/mapper/multifield/test-data.json"));
-        Document doc = mapperService.documentMapper()
-            .parse(new SourceToParse("test", MapperService.SINGLE_MAPPING_NAME, "1", json, XContentType.JSON))
-            .rootDoc();
+        Document doc = mapperService.documentMapper().parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
 
         IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));
@@ -157,8 +155,7 @@ public class MultiFieldTests extends OpenSearchSingleNodeTestCase {
             .parse(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(builtMapping));
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/opensearch/index/mapper/multifield/test-data.json"));
-        Document doc = docMapper.parse(new SourceToParse("test", MapperService.SINGLE_MAPPING_NAME, "1", json, XContentType.JSON))
-            .rootDoc();
+        Document doc = docMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
 
         IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));

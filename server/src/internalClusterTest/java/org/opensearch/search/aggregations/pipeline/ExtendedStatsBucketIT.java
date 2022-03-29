@@ -74,7 +74,7 @@ public class ExtendedStatsBucketIT extends OpenSearchIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx").addMapping("type", "tag", "type=keyword").get());
+        assertAcked(client().admin().indices().prepareCreate("idx").setMapping("tag", "type=keyword").get());
         createIndex("idx_unmapped", "idx_gappy");
 
         numDocs = randomIntBetween(6, 20);
@@ -113,7 +113,7 @@ public class ExtendedStatsBucketIT extends OpenSearchIntegTestCase {
             );
         }
 
-        assertAcked(prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer"));
+        assertAcked(prepareCreate("empty_bucket_idx").setMapping(SINGLE_VALUED_FIELD_NAME, "type=integer"));
         for (int i = 0; i < 2; i++) {
             builders.add(
                 client().prepareIndex("empty_bucket_idx")

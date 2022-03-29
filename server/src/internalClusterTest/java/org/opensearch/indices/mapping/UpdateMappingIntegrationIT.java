@@ -145,7 +145,7 @@ public class UpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
             .indices()
             .prepareCreate("test")
             .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
-            .addMapping("_doc", "{\"_doc\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}", XContentType.JSON)
+            .setMapping("{\"properties\":{\"body\":{\"type\":\"text\"}}}")
             .execute()
             .actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -196,7 +196,7 @@ public class UpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
             .indices()
             .prepareCreate("test")
             .setSettings(Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0))
-            .addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}", XContentType.JSON)
+            .setMapping("{\"properties\":{\"body\":{\"type\":\"text\"}}}")
             .execute()
             .actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -205,7 +205,10 @@ public class UpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .preparePutMapping("test")
-                .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"integer\"}}}}", XContentType.JSON)
+                .setSource(
+                    "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"properties\":{\"body\":{\"type\":\"integer\"}}}}",
+                    XContentType.JSON
+                )
                 .execute()
                 .actionGet();
             fail("Expected MergeMappingException");
@@ -218,14 +221,17 @@ public class UpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate("test")
-            .addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": false }}}}", XContentType.JSON)
+            .setMapping("{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": false }}}")
             .execute()
             .actionGet();
         try {
             client().admin()
                 .indices()
                 .preparePutMapping("test")
-                .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": true }}}}", XContentType.JSON)
+                .setSource(
+                    "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": true }}}}",
+                    XContentType.JSON
+                )
                 .execute()
                 .actionGet();
             fail("Expected MergeMappingException");
@@ -242,7 +248,7 @@ public class UpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
             .indices()
             .prepareCreate("test")
             .setSettings(Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0))
-            .addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}", XContentType.JSON)
+            .setMapping("{\"properties\":{\"body\":{\"type\":\"text\"}}}")
             .execute()
             .actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -250,7 +256,7 @@ public class UpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
         AcknowledgedResponse putMappingResponse = client().admin()
             .indices()
             .preparePutMapping("test")
-            .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}", XContentType.JSON)
+            .setSource("{\"properties\":{\"body\":{\"type\":\"text\"}}}", XContentType.JSON)
             .execute()
             .actionGet();
 

@@ -32,13 +32,13 @@
 
 package org.opensearch.search.query;
 
-import org.apache.lucene.analysis.MockTokenizer;
+import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.analysis.pattern.PatternReplaceCharFilter;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.AttributeSource;
-import org.apache.lucene.util.English;
+import org.apache.lucene.tests.util.English;
 
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
@@ -211,7 +211,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     }
 
     public void testIndexOptions() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=text,index_options=docs"));
+        assertAcked(prepareCreate("test").setMapping("field1", "type=text,index_options=docs"));
         indexRandom(
             true,
             client().prepareIndex("test").setId("1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
@@ -337,7 +337,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate("test")
-            .addMapping("type1", "field1", "type=text,analyzer=whitespace")
+            .setMapping("field1", "type=text,analyzer=whitespace")
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1))
             .get();
         indexRandom(
@@ -479,7 +479,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     public void testDateRangeInQueryString() {
         // the mapping needs to be provided upfront otherwise we are not sure how many failures we get back
         // as with dynamic mappings some shards might be lacking behind and parse a different query
-        assertAcked(prepareCreate("test").addMapping("type", "past", "type=date", "future", "type=date"));
+        assertAcked(prepareCreate("test").setMapping("past", "type=date", "future", "type=date"));
 
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         String aMonthAgo = DateTimeFormatter.ISO_LOCAL_DATE.format(now.minusMonths(1));
@@ -505,7 +505,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     public void testDateRangeInQueryStringWithTimeZone_7880() {
         // the mapping needs to be provided upfront otherwise we are not sure how many failures we get back
         // as with dynamic mappings some shards might be lacking behind and parse a different query
-        assertAcked(prepareCreate("test").addMapping("type", "past", "type=date"));
+        assertAcked(prepareCreate("test").setMapping("past", "type=date"));
 
         ZoneId timeZone = randomZone();
         String now = DateFormatter.forPattern("strict_date_optional_time").format(Instant.now().atZone(timeZone));
@@ -523,7 +523,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     public void testDateRangeInQueryStringWithTimeZone_10477() {
         // the mapping needs to be provided upfront otherwise we are not sure how many failures we get back
         // as with dynamic mappings some shards might be lacking behind and parse a different query
-        assertAcked(prepareCreate("test").addMapping("type", "past", "type=date"));
+        assertAcked(prepareCreate("test").setMapping("past", "type=date"));
 
         client().prepareIndex("test").setId("1").setSource("past", "2015-04-05T23:00:00+0000").get();
         client().prepareIndex("test").setId("2").setSource("past", "2015-04-06T00:00:00+0000").get();
@@ -732,7 +732,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     }
 
     public void testMatchQueryNumeric() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "long", "type=long", "double", "type=double"));
+        assertAcked(prepareCreate("test").setMapping("long", "type=long", "double", "type=double"));
 
         indexRandom(
             true,
@@ -752,7 +752,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     }
 
     public void testMatchQueryFuzzy() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("_doc", "text", "type=text"));
+        assertAcked(prepareCreate("test").setMapping("text", "type=text"));
 
         indexRandom(
             true,
@@ -846,9 +846,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     }
 
     public void testMatchQueryZeroTermsQuery() {
-        assertAcked(
-            prepareCreate("test").addMapping("type1", "field1", "type=text,analyzer=classic", "field2", "type=text,analyzer=classic")
-        );
+        assertAcked(prepareCreate("test").setMapping("field1", "type=text,analyzer=classic", "field2", "type=text,analyzer=classic"));
         client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
         client().prepareIndex("test").setId("2").setSource("field1", "value2").get();
         refresh();
@@ -869,9 +867,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     }
 
     public void testMultiMatchQueryZeroTermsQuery() {
-        assertAcked(
-            prepareCreate("test").addMapping("type1", "field1", "type=text,analyzer=classic", "field2", "type=text,analyzer=classic")
-        );
+        assertAcked(prepareCreate("test").setMapping("field1", "type=text,analyzer=classic", "field2", "type=text,analyzer=classic"));
         client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2").get();
         client().prepareIndex("test").setId("2").setSource("field1", "value3", "field2", "value4").get();
         refresh();
@@ -1039,7 +1035,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     }
 
     public void testEmptytermsQuery() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "term", "type=text"));
+        assertAcked(prepareCreate("test").setMapping("term", "type=text"));
 
         indexRandom(
             true,
@@ -1059,7 +1055,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     }
 
     public void testTermsQuery() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "str", "type=text", "lng", "type=long", "dbl", "type=double"));
+        assertAcked(prepareCreate("test").setMapping("str", "type=text", "lng", "type=long", "dbl", "type=double"));
 
         indexRandom(
             true,
@@ -1117,12 +1113,10 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     }
 
     public void testTermsLookupFilter() throws Exception {
-        assertAcked(prepareCreate("lookup").addMapping("type", "terms", "type=text", "other", "type=text"));
+        assertAcked(prepareCreate("lookup").setMapping("terms", "type=text", "other", "type=text"));
         assertAcked(
-            prepareCreate("lookup2").addMapping(
-                "type",
+            prepareCreate("lookup2").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("type")
                     .startObject("properties")
                     .startObject("arr")
                     .startObject("properties")
@@ -1133,11 +1127,10 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
                     .endObject()
                     .endObject()
                     .endObject()
-                    .endObject()
             )
         );
-        assertAcked(prepareCreate("lookup3").addMapping("type", "_source", "enabled=false", "terms", "type=text"));
-        assertAcked(prepareCreate("test").addMapping("type", "term", "type=text"));
+        assertAcked(prepareCreate("lookup3").setMapping("_source", "enabled=false", "terms", "type=text"));
+        assertAcked(prepareCreate("test").setMapping("term", "type=text"));
 
         indexRandom(
             true,
@@ -1195,75 +1188,63 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
         );
 
         SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "type", "1", "terms")))
+            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "1", "terms")))
             .get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "3");
 
         // same as above, just on the _id...
-        searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("_id", new TermsLookup("lookup", "type", "1", "terms")))
-            .get();
+        searchResponse = client().prepareSearch("test").setQuery(termsLookupQuery("_id", new TermsLookup("lookup", "1", "terms"))).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "3");
 
         // another search with same parameters...
-        searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "type", "1", "terms")))
-            .get();
+        searchResponse = client().prepareSearch("test").setQuery(termsLookupQuery("term", new TermsLookup("lookup", "1", "terms"))).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "3");
 
-        searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "type", "2", "terms")))
-            .get();
+        searchResponse = client().prepareSearch("test").setQuery(termsLookupQuery("term", new TermsLookup("lookup", "2", "terms"))).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("2"));
 
-        searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "type", "3", "terms")))
-            .get();
+        searchResponse = client().prepareSearch("test").setQuery(termsLookupQuery("term", new TermsLookup("lookup", "3", "terms"))).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "2", "4");
 
-        searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "type", "4", "terms")))
-            .get();
+        searchResponse = client().prepareSearch("test").setQuery(termsLookupQuery("term", new TermsLookup("lookup", "4", "terms"))).get();
         assertHitCount(searchResponse, 0L);
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup2", "type", "1", "arr.term")))
+            .setQuery(termsLookupQuery("term", new TermsLookup("lookup2", "1", "arr.term")))
             .get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "3");
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup2", "type", "2", "arr.term")))
+            .setQuery(termsLookupQuery("term", new TermsLookup("lookup2", "2", "arr.term")))
             .get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("2"));
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup2", "type", "3", "arr.term")))
+            .setQuery(termsLookupQuery("term", new TermsLookup("lookup2", "3", "arr.term")))
             .get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "2", "4");
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("not_exists", new TermsLookup("lookup2", "type", "3", "arr.term")))
+            .setQuery(termsLookupQuery("not_exists", new TermsLookup("lookup2", "3", "arr.term")))
             .get();
         assertHitCount(searchResponse, 0L);
 
         // index "lookup" type "type" id "missing" document does not exist: ignore the lookup terms
         searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "type", "missing", "terms")))
+            .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "missing", "terms")))
             .get();
         assertHitCount(searchResponse, 0L);
 
         // index "lookup3" type "type" has the source disabled: ignore the lookup terms
-        searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term", new TermsLookup("lookup3", "type", "1", "terms")))
-            .get();
+        searchResponse = client().prepareSearch("test").setQuery(termsLookupQuery("term", new TermsLookup("lookup3", "1", "terms"))).get();
         assertHitCount(searchResponse, 0L);
     }
 
@@ -1298,8 +1279,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
 
     public void testNumericTermsAndRanges() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 "num_byte",
                 "type=byte",
                 "num_short",
@@ -1415,8 +1395,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
 
     public void testNumericRangeFilter_2826() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 "num_byte",
                 "type=byte",
                 "num_short",
@@ -1612,10 +1591,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
 
     public void testSimpleDFSQuery() throws IOException {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "_doc",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("_doc")
                     .startObject("_routing")
                     .field("required", true)
                     .endObject()
@@ -1630,7 +1607,6 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
                     .endObject()
                     .startObject("bs")
                     .field("type", "keyword")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -1798,7 +1774,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     }
 
     public void testRangeQueryWithTimeZone() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "date", "type=date", "num", "type=integer"));
+        assertAcked(prepareCreate("test").setMapping("date", "type=date", "num", "type=integer"));
 
         indexRandom(
             true,
@@ -1888,8 +1864,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
         assert ("SPI,COMPAT".equals(System.getProperty("java.locale.providers"))) : "`-Djava.locale.providers=SPI,COMPAT` needs to be set";
 
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
                     .startObject("properties")
                     .startObject("date_field")
@@ -1974,7 +1949,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     }
 
     public void testRangeQueryRangeFields_24744() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1", "int_range", "type=integer_range"));
+        assertAcked(prepareCreate("test").setMapping("int_range", "type=integer_range"));
 
         client().prepareIndex("test")
             .setId("1")
@@ -1987,45 +1962,9 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
         assertHitCount(searchResponse, 1);
     }
 
-    public void testRangeQueryTypeField_31476() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("foo", "field", "type=keyword"));
-
-        client().prepareIndex("test").setId("1").setSource("field", "value").get();
-        refresh();
-
-        RangeQueryBuilder range = new RangeQueryBuilder("_type").from("ape").to("zebra");
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 1);
-
-        range = new RangeQueryBuilder("_type").from("monkey").to("zebra");
-        searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 0);
-
-        range = new RangeQueryBuilder("_type").from("ape").to("donkey");
-        searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 0);
-
-        range = new RangeQueryBuilder("_type").from("ape").to("foo").includeUpper(false);
-        searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 0);
-
-        range = new RangeQueryBuilder("_type").from("ape").to("foo").includeUpper(true);
-        searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 1);
-
-        range = new RangeQueryBuilder("_type").from("foo").to("zebra").includeLower(false);
-        searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 0);
-
-        range = new RangeQueryBuilder("_type").from("foo").to("zebra").includeLower(true);
-        searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 1);
-    }
-
     public void testNestedQueryWithFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("_doc")
             .startObject("properties")
             .startObject("section")
             .field("type", "nested")
@@ -2040,9 +1979,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
             .endObject()
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(prepareCreate("index").addMapping("_doc", mapping));
+        assertAcked(prepareCreate("index").setMapping(mapping));
 
         XContentBuilder source = XContentFactory.jsonBuilder()
             .startObject()
@@ -2066,7 +2004,6 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
     public void testFieldAliasesForMetaFields() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type")
             .startObject("properties")
             .startObject("id-alias")
             .field("type", "alias")
@@ -2077,9 +2014,8 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
             .field("path", "_routing")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(prepareCreate("test").addMapping("type", mapping));
+        assertAcked(prepareCreate("test").setMapping(mapping));
 
         IndexRequestBuilder indexRequest = client().prepareIndex("test").setId("1").setRouting("custom").setSource("field", "value");
         indexRandom(true, false, indexRequest);
@@ -2122,7 +2058,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
                     .put("index.analysis.normalizer.lowercase_normalizer.type", "custom")
                     .putList("index.analysis.normalizer.lowercase_normalizer.filter", "lowercase")
                     .build()
-            ).addMapping("_doc", "field1", "type=keyword,normalizer=lowercase_normalizer")
+            ).setMapping("field1", "type=keyword,normalizer=lowercase_normalizer")
         );
         client().prepareIndex("test").setId("1").setSource("field1", "Bbb Aaa").get();
         refresh();
@@ -2149,7 +2085,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
                     .put("index.analysis.analyzer.lowercase_analyzer.tokenizer", "standard")
                     .putList("index.analysis.analyzer.lowercase_analyzer.filter", "lowercase")
                     .build()
-            ).addMapping("_doc", "field1", "type=text,analyzer=lowercase_analyzer")
+            ).setMapping("field1", "type=text,analyzer=lowercase_analyzer")
         );
         client().prepareIndex("test").setId("1").setSource("field1", "Bbb Aaa").get();
         refresh();
@@ -2177,7 +2113,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
                     .put("index.analysis.normalizer.no_wildcard.type", "custom")
                     .put("index.analysis.normalizer.no_wildcard.char_filter", "no_wildcard")
                     .build()
-            ).addMapping("_doc", "field", "type=keyword,normalizer=no_wildcard")
+            ).setMapping("field", "type=keyword,normalizer=no_wildcard")
         );
         client().prepareIndex("test").setId("1").setSource("field", "label-1").get();
         refresh();

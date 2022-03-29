@@ -70,7 +70,7 @@ public class IpRangeIT extends OpenSearchIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        assertAcked(prepareCreate("idx").addMapping("type", "ip", "type=ip", "ips", "type=ip"));
+        assertAcked(prepareCreate("idx").setMapping("ip", "type=ip", "ips", "type=ip"));
         waitForRelocation(ClusterHealthStatus.GREEN);
 
         indexRandom(

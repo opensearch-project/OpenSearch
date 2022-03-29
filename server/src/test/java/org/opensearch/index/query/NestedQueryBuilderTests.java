@@ -77,7 +77,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
             "_doc",
             new CompressedXContent(
                 Strings.toString(
-                    PutMappingRequest.buildFromSimplifiedDef(
+                    PutMappingRequest.simpleMapping(
                         TEXT_FIELD_NAME,
                         "type=text",
                         INT_FIELD_NAME,

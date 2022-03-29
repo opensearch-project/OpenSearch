@@ -128,7 +128,6 @@ public class TransportMultiTermVectorsActionTests extends OpenSearchTestCase {
                             .put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
                     )
                         .putMapping(
-                            "_doc",
                             XContentHelper.convertToJson(
                                 BytesReference.bytes(
                                     XContentFactory.jsonBuilder()
@@ -154,7 +153,6 @@ public class TransportMultiTermVectorsActionTests extends OpenSearchTestCase {
                                 .put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
                         )
                             .putMapping(
-                                "_doc",
                                 XContentHelper.convertToJson(
                                     BytesReference.bytes(
                                         XContentFactory.jsonBuilder()

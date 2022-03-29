@@ -157,15 +157,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("idx")
-                .addMapping(
-                    "type",
-                    SINGLE_VALUED_FIELD_NAME,
-                    "type=keyword",
-                    MULTI_VALUED_FIELD_NAME,
-                    "type=keyword",
-                    "tag",
-                    "type=keyword"
-                )
+                .setMapping(SINGLE_VALUED_FIELD_NAME, "type=keyword", MULTI_VALUED_FIELD_NAME, "type=keyword", "tag", "type=keyword")
                 .get()
         );
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -193,15 +185,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("high_card_idx")
-                .addMapping(
-                    "type",
-                    SINGLE_VALUED_FIELD_NAME,
-                    "type=keyword",
-                    MULTI_VALUED_FIELD_NAME,
-                    "type=keyword",
-                    "tag",
-                    "type=keyword"
-                )
+                .setMapping(SINGLE_VALUED_FIELD_NAME, "type=keyword", MULTI_VALUED_FIELD_NAME, "type=keyword", "tag", "type=keyword")
                 .get()
         );
         for (int i = 0; i < 100; i++) {
@@ -218,7 +202,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
                     )
             );
         }
-        prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer").get();
+        prepareCreate("empty_bucket_idx").setMapping(SINGLE_VALUED_FIELD_NAME, "type=integer").get();
 
         for (int i = 0; i < 2; i++) {
             builders.add(
@@ -281,15 +265,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("sort_idx")
-                .addMapping(
-                    "type",
-                    SINGLE_VALUED_FIELD_NAME,
-                    "type=keyword",
-                    MULTI_VALUED_FIELD_NAME,
-                    "type=keyword",
-                    "tag",
-                    "type=keyword"
-                )
+                .setMapping(SINGLE_VALUED_FIELD_NAME, "type=keyword", MULTI_VALUED_FIELD_NAME, "type=keyword", "tag", "type=keyword")
                 .get()
         );
         for (int i = 1; i <= 3; i++) {
@@ -1262,7 +1238,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
      */
     public void testScriptCaching() throws Exception {
         assertAcked(
-            prepareCreate("cache_test_idx").addMapping("type", "d", "type=keyword")
+            prepareCreate("cache_test_idx").setMapping("d", "type=keyword")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get()
         );

@@ -86,7 +86,6 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
                 "test",
-                "type",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").nullField("nested1").endObject()),
                 XContentType.JSON
@@ -98,7 +97,6 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
         doc = docMapper.parse(
             new SourceToParse(
                 "test",
-                "type",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder().startObject().field("field", "value").startArray("nested").endArray().endObject()
@@ -135,7 +133,6 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
                 "test",
-                "type",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -161,7 +158,6 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
         doc = docMapper.parse(
             new SourceToParse(
                 "test",
-                "type",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -230,7 +226,6 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
                 "test",
-                "type",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -325,7 +320,6 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
                 "test",
-                "type",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -421,7 +415,6 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
                 "test",
-                "type",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -516,7 +509,6 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
                 "test",
-                "type",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -611,7 +603,6 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
                 "test",
-                MapperService.SINGLE_MAPPING_NAME,
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -681,7 +672,6 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
                 "test",
-                MapperService.SINGLE_MAPPING_NAME,
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -766,7 +756,6 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
                 "test",
-                MapperService.SINGLE_MAPPING_NAME,
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -822,7 +811,6 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
                 "test",
-                "type",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -975,7 +963,7 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
             docBuilder.endArray();
         }
         docBuilder.endObject();
-        SourceToParse source1 = new SourceToParse("test1", "type", "1", BytesReference.bytes(docBuilder), XContentType.JSON);
+        SourceToParse source1 = new SourceToParse("test1", "1", BytesReference.bytes(docBuilder), XContentType.JSON);
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> docMapper.parse(source1));
         assertEquals(
             "The number of nested documents has exceeded the allowed limit of ["
@@ -1020,7 +1008,7 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
             docBuilder.endArray();
         }
         docBuilder.endObject();
-        SourceToParse source1 = new SourceToParse("test1", "type", "1", BytesReference.bytes(docBuilder), XContentType.JSON);
+        SourceToParse source1 = new SourceToParse("test1", "1", BytesReference.bytes(docBuilder), XContentType.JSON);
         ParsedDocument doc = docMapper.parse(source1);
         assertThat(doc.docs().size(), equalTo(3));
 
@@ -1037,7 +1025,7 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
             docBuilder2.endArray();
         }
         docBuilder2.endObject();
-        SourceToParse source2 = new SourceToParse("test1", "type", "2", BytesReference.bytes(docBuilder2), XContentType.JSON);
+        SourceToParse source2 = new SourceToParse("test1", "2", BytesReference.bytes(docBuilder2), XContentType.JSON);
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> docMapper.parse(source2));
         assertEquals(
             "The number of nested documents has exceeded the allowed limit of ["
@@ -1089,7 +1077,7 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
             docBuilder.endArray();
         }
         docBuilder.endObject();
-        SourceToParse source1 = new SourceToParse("test1", "type", "1", BytesReference.bytes(docBuilder), XContentType.JSON);
+        SourceToParse source1 = new SourceToParse("test1", "1", BytesReference.bytes(docBuilder), XContentType.JSON);
         ParsedDocument doc = docMapper.parse(source1);
         assertThat(doc.docs().size(), equalTo(3));
 
@@ -1111,7 +1099,7 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
 
         }
         docBuilder2.endObject();
-        SourceToParse source2 = new SourceToParse("test1", "type", "2", BytesReference.bytes(docBuilder2), XContentType.JSON);
+        SourceToParse source2 = new SourceToParse("test1", "2", BytesReference.bytes(docBuilder2), XContentType.JSON);
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> docMapper.parse(source2));
         assertEquals(
             "The number of nested documents has exceeded the allowed limit of ["

@@ -84,7 +84,7 @@ public class GetActionIT extends OpenSearchIntegTestCase {
 
     public void testSimpleGet() {
         assertAcked(
-            prepareCreate("test").addMapping("type1", "field1", "type=keyword,store=true", "field2", "type=keyword,store=true")
+            prepareCreate("test").setMapping("field1", "type=keyword,store=true", "field2", "type=keyword,store=true")
                 .setSettings(Settings.builder().put("index.refresh_interval", -1))
                 .addAlias(new Alias("alias").writeIndex(randomFrom(true, false, null)))
         );
@@ -234,7 +234,7 @@ public class GetActionIT extends OpenSearchIntegTestCase {
     public void testSimpleMultiGet() throws Exception {
         assertAcked(
             prepareCreate("test").addAlias(new Alias("alias").writeIndex(randomFrom(true, false, null)))
-                .addMapping("type1", "field", "type=keyword,store=true")
+                .setMapping("field", "type=keyword,store=true")
                 .setSettings(Settings.builder().put("index.refresh_interval", -1))
         );
         ensureGreen();
@@ -291,7 +291,6 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         String mapping1 = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type1")
                 .startObject("properties")
                 .startObject("field")
                 .field("type", "text")
@@ -299,9 +298,8 @@ public class GetActionIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
         );
-        assertAcked(prepareCreate("test").addMapping("type1", mapping1, XContentType.JSON));
+        assertAcked(prepareCreate("test").setMapping(mapping1));
         ensureGreen();
 
         GetResponse response = client().prepareGet("test", "1").get();
@@ -543,16 +541,13 @@ public class GetActionIT extends OpenSearchIntegTestCase {
     public void testGetFieldsNonLeafField() throws Exception {
         assertAcked(
             prepareCreate("test").addAlias(new Alias("alias"))
-                .addMapping(
-                    "my-type1",
+                .setMapping(
                     jsonBuilder().startObject()
-                        .startObject("my-type1")
                         .startObject("properties")
                         .startObject("field1")
                         .startObject("properties")
                         .startObject("field2")
                         .field("type", "text")
-                        .endObject()
                         .endObject()
                         .endObject()
                         .endObject()
@@ -584,10 +579,8 @@ public class GetActionIT extends OpenSearchIntegTestCase {
             prepareCreate("my-index")
                 // multi types in 5.6
                 .setSettings(Settings.builder().put("index.refresh_interval", -1))
-                .addMapping(
-                    "my-type",
+                .setMapping(
                     jsonBuilder().startObject()
-                        .startObject("my-type")
                         .startObject("properties")
                         .startObject("field1")
                         .field("type", "object")
@@ -601,7 +594,6 @@ public class GetActionIT extends OpenSearchIntegTestCase {
                         .startObject("field4")
                         .field("type", "text")
                         .field("store", true)
-                        .endObject()
                         .endObject()
                         .endObject()
                         .endObject()

@@ -136,7 +136,7 @@ public class RangeIT extends OpenSearchIntegTestCase {
             );
         }
         createIndex("idx_unmapped");
-        prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer").get();
+        prepareCreate("empty_bucket_idx").setMapping(SINGLE_VALUED_FIELD_NAME, "type=integer").get();
         for (int i = 0; i < 2; i++) {
             builders.add(
                 client().prepareIndex("empty_bucket_idx")
@@ -152,8 +152,8 @@ public class RangeIT extends OpenSearchIntegTestCase {
 
         // Create two indices and add the field 'route_length_miles' as an alias in
         // one, and a concrete field in the other.
-        prepareCreate("old_index").addMapping("_doc", "distance", "type=double", "route_length_miles", "type=alias,path=distance").get();
-        prepareCreate("new_index").addMapping("_doc", "route_length_miles", "type=double").get();
+        prepareCreate("old_index").setMapping("distance", "type=double", "route_length_miles", "type=alias,path=distance").get();
+        prepareCreate("new_index").setMapping("route_length_miles", "type=double").get();
 
         builders.add(client().prepareIndex("old_index").setSource("distance", 42.0));
         builders.add(client().prepareIndex("old_index").setSource("distance", 50.5));
@@ -931,7 +931,7 @@ public class RangeIT extends OpenSearchIntegTestCase {
      */
     public void testScriptCaching() throws Exception {
         assertAcked(
-            prepareCreate("cache_test_idx").addMapping("type", "i", "type=integer")
+            prepareCreate("cache_test_idx").setMapping("i", "type=integer")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get()
         );

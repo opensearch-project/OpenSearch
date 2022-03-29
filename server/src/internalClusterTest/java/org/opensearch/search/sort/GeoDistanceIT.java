@@ -72,12 +72,11 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("locations")
             .field("type", "geo_point");
-        xContentBuilder.field("ignore_malformed", true).endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
+        xContentBuilder.field("ignore_malformed", true).endObject().endObject().endObject();
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 
         client().prepareIndex("test")
@@ -268,12 +267,11 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("locations")
             .field("type", "geo_point");
-        xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
+        xContentBuilder.endObject().endObject().endObject();
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 
         client().prepareIndex("test")
@@ -333,7 +331,6 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("company")
             .startObject("properties")
             .startObject("name")
             .field("type", "text")
@@ -346,9 +343,9 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
             .endObject()
             .startObject("location")
             .field("type", "geo_point");
-        xContentBuilder.endObject().endObject().endObject().endObject().endObject().endObject();
+        xContentBuilder.endObject().endObject().endObject().endObject().endObject();
 
-        assertAcked(prepareCreate("companies").setSettings(settings).addMapping("company", xContentBuilder));
+        assertAcked(prepareCreate("companies").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 
         indexRandom(
@@ -590,15 +587,14 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
 
         XContentBuilder mapping = JsonXContent.contentBuilder()
             .startObject()
-            .startObject("location")
             .startObject("properties")
             .startObject("pin")
             .field("type", "geo_point");
-        mapping.endObject().endObject().endObject().endObject();
+        mapping.endObject().endObject().endObject();
 
         XContentBuilder source = JsonXContent.contentBuilder().startObject().field("pin", Geohash.stringEncode(lon, lat)).endObject();
 
-        assertAcked(prepareCreate("locations").setSettings(settings).addMapping("location", mapping));
+        assertAcked(prepareCreate("locations").setSettings(settings).setMapping(mapping));
         client().prepareIndex("locations").setId("1").setCreate(true).setSource(source).get();
         refresh();
         client().prepareGet("locations", "1").get();
@@ -614,12 +610,11 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
     public void testDistanceSortingWithUnmappedField() throws Exception {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("type1")
             .startObject("properties")
             .startObject("locations")
             .field("type", "geo_point");
-        xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test1").addMapping("type1", xContentBuilder));
+        xContentBuilder.endObject().endObject().endObject();
+        assertAcked(prepareCreate("test1").setMapping(xContentBuilder));
         assertAcked(prepareCreate("test2"));
         ensureGreen();
 

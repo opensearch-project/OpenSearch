@@ -33,42 +33,15 @@
 package org.opensearch.discovery.ec2;
 
 import com.amazonaws.services.ec2.AmazonEC2;
-
-import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.util.concurrent.AbstractRefCounted;
+import org.opensearch.common.concurrent.RefCountedReleasable;
 
 /**
  * Handles the shutdown of the wrapped {@link AmazonEC2} using reference
  * counting.
  */
-public class AmazonEc2Reference extends AbstractRefCounted implements Releasable {
-
-    private final AmazonEC2 client;
+public class AmazonEc2Reference extends RefCountedReleasable<AmazonEC2> {
 
     AmazonEc2Reference(AmazonEC2 client) {
-        super("AWS_EC2_CLIENT");
-        this.client = client;
+        super("AWS_EC2_CLIENT", client, client::shutdown);
     }
-
-    /**
-     * Call when the client is not needed anymore.
-     */
-    @Override
-    public void close() {
-        decRef();
-    }
-
-    /**
-     * Returns the underlying `AmazonEC2` client. All method calls are permitted BUT
-     * NOT shutdown. Shutdown is called when reference count reaches 0.
-     */
-    public AmazonEC2 client() {
-        return client;
-    }
-
-    @Override
-    protected void closeInternal() {
-        client.shutdown();
-    }
-
 }

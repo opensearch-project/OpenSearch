@@ -1,0 +1,46 @@
+setup:
+  - skip:
+      features: allowed_warnings
+
+---
+"Help":
+  - skip:
+      version: " - 1.4.99"
+      reason: "path _cat/cluster_manager is introduced in 2.0.0"
+
+  - do:
+      cat.cluster_manager:
+        help: true
+      allowed_warnings:
+        - '[GET /_cat/master] is deprecated! Use [GET /_cat/cluster_manager] instead.'
+
+  - match:
+      $body: |
+        /^  id       .+ \n
+            host     .+ \n
+            ip       .+ \n
+            node     .+ \n
+        
+        $/
+
+---
+"Test cat cluster_manager output":
+  - skip:
+      version: " - 1.4.99"
+      reason: "path _cat/cluster_manager is introduced in 2.0.0"
+
+  - do:
+      cat.cluster_manager: {}
+      allowed_warnings:
+        - '[GET /_cat/master] is deprecated! Use [GET /_cat/cluster_manager] instead.'
+
+  - match:
+      $body: |
+        /^
+          ( \S+                     \s+ # node id
+            [-\w.]+                 \s+ # host name
+            (\d{1,3}\.){3}\d{1,3}   \s+ # ip address
+            [-\w.]+                     # node name
+            \n
+          )
+        $/

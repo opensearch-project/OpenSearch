@@ -33,6 +33,7 @@
 package org.opensearch.index.cache.bitset;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
@@ -147,7 +148,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
     }
 
     private BitSet getAndLoadIfNotPresent(final Query query, final LeafReaderContext context) throws ExecutionException {
-        final IndexReader.CacheHelper cacheHelper = context.reader().getCoreCacheHelper();
+        final IndexReader.CacheHelper cacheHelper = FilterLeafReader.unwrap(context.reader()).getCoreCacheHelper();
         if (cacheHelper == null) {
             throw new IllegalArgumentException("Reader " + context.reader() + " does not support caching");
         }
@@ -273,7 +274,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
             }
 
             if (hasNested) {
-                warmUp.add(Queries.newNonNestedFilter(indexSettings.getIndexVersionCreated()));
+                warmUp.add(Queries.newNonNestedFilter());
             }
 
             final CountDownLatch latch = new CountDownLatch(reader.leaves().size() * warmUp.size());

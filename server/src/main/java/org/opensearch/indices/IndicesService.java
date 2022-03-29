@@ -1632,7 +1632,21 @@ public class IndicesService extends AbstractLifecycleComponent
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
-        return new QueryRewriteContext(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
+        return getRewriteContext(nowInMillis, false);
+    }
+
+    /**
+     * Returns a new {@link QueryRewriteContext} for query validation with the given {@code now} provider
+     */
+    public QueryRewriteContext getValidationRewriteContext(LongSupplier nowInMillis) {
+        return getRewriteContext(nowInMillis, true);
+    }
+
+    /**
+     * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
+     */
+    private QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, boolean validate) {
+        return new QueryRewriteContext(xContentRegistry, namedWriteableRegistry, client, nowInMillis, validate);
     }
 
     /**

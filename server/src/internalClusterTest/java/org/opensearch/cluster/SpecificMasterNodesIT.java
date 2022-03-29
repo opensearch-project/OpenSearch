@@ -36,7 +36,6 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.discovery.MasterNotDiscoveredException;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -321,11 +320,9 @@ public class SpecificMasterNodesIT extends OpenSearchIntegTestCase {
         internalCluster().startDataOnlyNode();
 
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
-                "{\"type1\" : {\"properties\" : {\"table_a\" : { \"type\" : \"nested\", "
-                    + "\"properties\" : {\"field_a\" : { \"type\" : \"keyword\" },\"field_b\" :{ \"type\" : \"keyword\" }}}}}}",
-                XContentType.JSON
+            prepareCreate("test").setMapping(
+                "{\"properties\" : {\"table_a\" : { \"type\" : \"nested\", "
+                    + "\"properties\" : {\"field_a\" : { \"type\" : \"keyword\" },\"field_b\" :{ \"type\" : \"keyword\" }}}}}"
             )
         );
         client().admin()

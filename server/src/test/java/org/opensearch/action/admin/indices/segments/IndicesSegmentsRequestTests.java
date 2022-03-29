@@ -34,7 +34,6 @@ package org.opensearch.action.admin.indices.segments;
 
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.engine.Segment;
 import org.opensearch.index.MergePolicyConfig;
 import org.opensearch.indices.IndexClosedException;
 import org.opensearch.plugins.Plugin;
@@ -43,7 +42,6 @@ import org.opensearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
 import java.util.Collection;
-import java.util.List;
 
 import static org.hamcrest.Matchers.is;
 
@@ -69,18 +67,6 @@ public class IndicesSegmentsRequestTests extends OpenSearchSingleNodeTestCase {
         }
         client().admin().indices().prepareFlush("test").get();
         client().admin().indices().prepareRefresh().get();
-    }
-
-    public void testBasic() {
-        IndicesSegmentResponse rsp = client().admin().indices().prepareSegments("test").get();
-        List<Segment> segments = rsp.getIndices().get("test").iterator().next().getShards()[0].getSegments();
-        assertNull(segments.get(0).toString(), segments.get(0).ramTree);
-    }
-
-    public void testVerbose() {
-        IndicesSegmentResponse rsp = client().admin().indices().prepareSegments("test").setVerbose(true).get();
-        List<Segment> segments = rsp.getIndices().get("test").iterator().next().getShards()[0].getSegments();
-        assertNotNull(segments.get(0).toString(), segments.get(0).ramTree);
     }
 
     /**

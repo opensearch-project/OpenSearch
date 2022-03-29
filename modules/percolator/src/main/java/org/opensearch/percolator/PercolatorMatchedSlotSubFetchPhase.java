@@ -44,7 +44,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
-import org.opensearch.Version;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.search.fetch.FetchContext;
@@ -127,7 +126,7 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
             this.percolateQuery = pq;
             this.singlePercolateQuery = singlePercolateQuery;
             IndexSearcher percolatorIndexSearcher = percolateQuery.getPercolatorIndexSearcher();
-            Query nonNestedFilter = percolatorIndexSearcher.rewrite(Queries.newNonNestedFilter(Version.CURRENT));
+            Query nonNestedFilter = percolatorIndexSearcher.rewrite(Queries.newNonNestedFilter());
             Weight weight = percolatorIndexSearcher.createWeight(nonNestedFilter, ScoreMode.COMPLETE_NO_SCORES, 1f);
             Scorer s = weight.scorer(percolatorIndexSearcher.getIndexReader().leaves().get(0));
             int memoryIndexMaxDoc = percolatorIndexSearcher.getIndexReader().maxDoc();
@@ -148,7 +147,7 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
             if (rootDocsBySlot != null) {
                 // Ensures that we filter out nested documents
                 return new BooleanQuery.Builder().add(in, BooleanClause.Occur.MUST)
-                    .add(Queries.newNonNestedFilter(Version.CURRENT), BooleanClause.Occur.FILTER)
+                    .add(Queries.newNonNestedFilter(), BooleanClause.Occur.FILTER)
                     .build();
             }
             return in;

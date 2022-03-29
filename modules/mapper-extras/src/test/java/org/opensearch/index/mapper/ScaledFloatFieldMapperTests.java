@@ -134,7 +134,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
                 "test",
-                "_doc",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", 123).endObject()),
                 XContentType.JSON
@@ -156,7 +155,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
                 "test",
-                "_doc",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", 123).endObject()),
                 XContentType.JSON
@@ -178,7 +176,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
                 "test",
-                "_doc",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", 123).endObject()),
                 XContentType.JSON
@@ -202,7 +199,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
                 "test",
-                "_doc",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "123").endObject()),
                 XContentType.JSON
@@ -222,7 +218,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         ThrowingRunnable runnable = () -> mapper2.parse(
             new SourceToParse(
                 "test",
-                "_doc",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "123").endObject()),
                 XContentType.JSON
@@ -246,7 +241,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         ThrowingRunnable runnable = () -> mapper.parse(
             new SourceToParse(
                 "test",
-                "_doc",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", value).endObject()),
                 XContentType.JSON
@@ -261,7 +255,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper2.parse(
             new SourceToParse(
                 "test",
-                "_doc",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", value).endObject()),
                 XContentType.JSON
@@ -277,7 +270,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
                 "test",
-                "_doc",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().nullField("field").endObject()),
                 XContentType.JSON
@@ -291,7 +283,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         doc = mapper.parse(
             new SourceToParse(
                 "test",
-                "_doc",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().nullField("field").endObject()),
                 XContentType.JSON

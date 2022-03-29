@@ -32,8 +32,8 @@
 
 package org.opensearch.recovery;
 
-import org.apache.lucene.util.English;
-import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.apache.lucene.tests.util.English;
+import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
@@ -108,7 +108,7 @@ public class TruncatedRecoveryIT extends OpenSearchIntegTestCase {
         // create the index and prevent allocation on any other nodes than the lucky one
         // we have no replicas so far and make sure that we allocate the primary on the lucky node
         assertAcked(
-            prepareCreate("test").addMapping("type1", "field1", "type=text", "the_id", "type=text")
+            prepareCreate("test").setMapping("field1", "type=text", "the_id", "type=text")
                 .setSettings(
                     Settings.builder()
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)

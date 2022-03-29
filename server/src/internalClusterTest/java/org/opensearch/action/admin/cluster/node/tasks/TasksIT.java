@@ -840,6 +840,11 @@ public class TasksIT extends OpenSearchIntegTestCase {
         GetTaskResponse getResponse = expectFinishedTask(taskId);
         assertEquals(result, getResponse.getTask().getResponseAsMap());
         assertNull(getResponse.getTask().getError());
+
+        // run it again to check that the tasks index has been successfully created and can be re-used
+        client().execute(TestTaskPlugin.TestTaskAction.INSTANCE, request).get();
+        events = findEvents(TestTaskPlugin.TestTaskAction.NAME, Tuple::v1);
+        assertEquals(2, events.size());
     }
 
     public void testTaskStoringFailureResult() throws Exception {
@@ -902,7 +907,8 @@ public class TasksIT extends OpenSearchIntegTestCase {
                     false,
                     false,
                     TaskId.EMPTY_TASK_ID,
-                    Collections.emptyMap()
+                    Collections.emptyMap(),
+                    null
                 ),
                 new RuntimeException("test")
             ),

@@ -57,7 +57,6 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.indices.IndexClosedException;
@@ -106,17 +105,7 @@ public class GatewayIndexStateIT extends OpenSearchIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate("test")
-            .addMapping(
-                "type1",
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .startObject("type1")
-                    .startObject("_routing")
-                    .field("required", true)
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            )
+            .setMapping(XContentFactory.jsonBuilder().startObject().startObject("_routing").field("required", true).endObject().endObject())
             .execute()
             .actionGet();
 
@@ -129,9 +118,8 @@ public class GatewayIndexStateIT extends OpenSearchIntegTestCase {
             .getState()
             .metadata()
             .index("test")
-            .getMappings()
-            .get("type1");
-        assertThat(mappingMd.routing().required(), equalTo(true));
+            .mapping();
+        assertThat(mappingMd.routingRequired(), equalTo(true));
 
         logger.info("--> restarting nodes...");
         internalCluster().fullRestart();
@@ -140,17 +128,8 @@ public class GatewayIndexStateIT extends OpenSearchIntegTestCase {
         ensureYellow();
 
         logger.info("--> verify meta _routing required exists");
-        mappingMd = client().admin()
-            .cluster()
-            .prepareState()
-            .execute()
-            .actionGet()
-            .getState()
-            .metadata()
-            .index("test")
-            .getMappings()
-            .get("type1");
-        assertThat(mappingMd.routing().required(), equalTo(true));
+        mappingMd = client().admin().cluster().prepareState().execute().actionGet().getState().metadata().index("test").mapping();
+        assertThat(mappingMd.routingRequired(), equalTo(true));
     }
 
     public void testSimpleOpenClose() throws Exception {
@@ -500,19 +479,15 @@ public class GatewayIndexStateIT extends OpenSearchIntegTestCase {
         prepareCreate("test").setSettings(
             Settings.builder().put("index.analysis.analyzer.test.tokenizer", "standard").put("index.number_of_shards", "1")
         )
-            .addMapping(
-                "type1",
+            .setMapping(
                 "{\n"
-                    + "    \"type1\": {\n"
-                    + "      \"properties\": {\n"
-                    + "        \"field1\": {\n"
-                    + "          \"type\": \"text\",\n"
-                    + "          \"analyzer\": \"test\"\n"
-                    + "        }\n"
+                    + "    \"properties\": {\n"
+                    + "      \"field1\": {\n"
+                    + "        \"type\": \"text\",\n"
+                    + "        \"analyzer\": \"test\"\n"
                     + "      }\n"
                     + "    }\n"
-                    + "  }}",
-                XContentType.JSON
+                    + "  }"
             )
             .get();
         logger.info("--> indexing a simple document");

@@ -32,6 +32,7 @@
 
 package org.opensearch.rest.action.cat;
 
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -51,6 +52,7 @@ import java.util.Collections;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -87,6 +89,22 @@ public class RestNodesActionTests extends OpenSearchTestCase {
         action.doCatRequest(request, client);
         assertWarnings(RestNodesAction.LOCAL_DEPRECATED_MESSAGE);
 
+        terminate(threadPool);
+    }
+
+    /**
+     * Validate both cluster_manager_timeout and its predecessor can be parsed correctly.
+     * Remove the test along with MASTER_ROLE. It's added in version 2.0.0.
+     */
+    public void testCatNodesWithClusterManagerTimeout() {
+        TestThreadPool threadPool = new TestThreadPool(RestNodesActionTests.class.getName());
+        NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
+        FakeRestRequest request = new FakeRestRequest();
+        request.params().put("cluster_manager_timeout", randomFrom("1h", "2m"));
+        request.params().put("master_timeout", "3s");
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(request, client));
+        assertThat(e.getMessage(), containsString("[master_timeout, cluster_manager_timeout] are required to be equal"));
+        assertWarnings(RestNodesAction.MASTER_TIMEOUT_DEPRECATED_MESSAGE);
         terminate(threadPool);
     }
 }

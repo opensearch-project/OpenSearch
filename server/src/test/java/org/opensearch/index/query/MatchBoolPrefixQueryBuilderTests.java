@@ -32,7 +32,7 @@
 
 package org.opensearch.index.query;
 
-import org.apache.lucene.analysis.MockSynonymAnalyzer;
+import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -277,7 +277,9 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
             query,
             asList(
                 new TermQuery(new Term(TEXT_FIELD_NAME, "fox")),
-                new SynonymQuery(new Term(TEXT_FIELD_NAME, "dogs"), new Term(TEXT_FIELD_NAME, "dog")),
+                new SynonymQuery.Builder(TEXT_FIELD_NAME).addTerm(new Term(TEXT_FIELD_NAME, "dogs"))
+                    .addTerm(new Term(TEXT_FIELD_NAME, "dog"))
+                    .build(),
                 new PrefixQuery(new Term(TEXT_FIELD_NAME, "red"))
             )
         );

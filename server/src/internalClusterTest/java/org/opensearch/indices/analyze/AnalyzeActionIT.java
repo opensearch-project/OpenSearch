@@ -99,7 +99,7 @@ public class AnalyzeActionIT extends OpenSearchIntegTestCase {
     }
 
     public void testAnalyzeNumericField() throws IOException {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("test", "long", "type=long", "double", "type=double"));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setMapping("long", "type=long", "double", "type=double"));
         ensureGreen("test");
 
         expectThrows(
@@ -413,7 +413,7 @@ public class AnalyzeActionIT extends OpenSearchIntegTestCase {
     }
 
     public void testAnalyzeKeywordField() throws IOException {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("test", "keyword", "type=keyword"));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setMapping("keyword", "type=keyword"));
         ensureGreen("test");
 
         AnalyzeAction.Response analyzeResponse = client().admin().indices().prepareAnalyze(indexOrAlias(), "ABC").setField("keyword").get();
@@ -435,7 +435,7 @@ public class AnalyzeActionIT extends OpenSearchIntegTestCase {
                         .put("index.analysis.normalizer.my_normalizer.type", "custom")
                         .putList("index.analysis.normalizer.my_normalizer.filter", "lowercase")
                 )
-                .addMapping("test", "keyword", "type=keyword,normalizer=my_normalizer")
+                .setMapping("keyword", "type=keyword,normalizer=my_normalizer")
         );
         ensureGreen("test");
 

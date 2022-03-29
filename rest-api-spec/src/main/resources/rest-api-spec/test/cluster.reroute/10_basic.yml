@@ -2,3 +2,18 @@
 "Basic sanity check":
   - do:
       cluster.reroute: {}
+
+---
+"Cluster reroute returns cluster_manager_node":
+  - skip:
+      version: " - 1.4.99"
+      reason: "The metric cluster_manager_node is added to cluster state in version 2.0.0"
+
+  - do:
+      cluster.reroute: {}
+
+  - set:
+      state.cluster_manager_node: node_id
+
+  - match: {state.master_node: $node_id}
+  - match: {state.cluster_manager_node: $node_id}

@@ -1138,7 +1138,7 @@ public final class NodeEnvironment implements Closeable {
                 Locale.ROOT,
                 "node does not have the %s and %s roles but has index metadata: %s. Use 'opensearch-node repurpose' tool to clean up",
                 DiscoveryNodeRole.DATA_ROLE.roleName(),
-                DiscoveryNodeRole.MASTER_ROLE.roleName(),
+                DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(),
                 indexMetadataPaths
             );
             throw new IllegalStateException(message);

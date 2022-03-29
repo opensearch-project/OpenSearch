@@ -57,7 +57,7 @@ public class AllFieldMapperTests extends OpenSearchSingleNodeTestCase {
         );
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc").endObject().endObject());
         indexService.mapperService().merge("_doc", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
-        assertEquals(mapping, indexService.mapperService().documentMapper("_doc").mapping().toString());
+        assertEquals(mapping, indexService.mapperService().documentMapper().mapping().toString());
     }
 
 }

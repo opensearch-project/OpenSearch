@@ -102,8 +102,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
     public void testMultiLevelChild() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "doc",
+            prepareCreate("test").setMapping(
                 buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child", "child", "grandchild")
             )
         );
@@ -166,9 +165,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
     // see #2744
     public void test2744() throws IOException {
-        assertAcked(
-            prepareCreate("test").addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "foo", "test"))
-        );
+        assertAcked(prepareCreate("test").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "foo", "test")));
         ensureGreen();
 
         // index simple data
@@ -185,9 +182,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
     }
 
     public void testSimpleChildQuery() throws Exception {
-        assertAcked(
-            prepareCreate("test").addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
-        );
+        assertAcked(prepareCreate("test").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         ensureGreen();
 
         // index simple data
@@ -251,9 +246,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
     // Issue #3290
     public void testCachingBugWithFqueryFilter() throws Exception {
-        assertAcked(
-            prepareCreate("test").addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
-        );
+        assertAcked(prepareCreate("test").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         ensureGreen();
         List<IndexRequestBuilder> builders = new ArrayList<>();
         // index simple data
@@ -290,9 +283,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
     }
 
     public void testHasParentFilter() throws Exception {
-        assertAcked(
-            prepareCreate("test").addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
-        );
+        assertAcked(prepareCreate("test").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         ensureGreen();
         Map<String, Set<String>> parentToChildren = new HashMap<>();
         // Childless parent
@@ -340,9 +331,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
     }
 
     public void testSimpleChildQueryWithFlush() throws Exception {
-        assertAcked(
-            prepareCreate("test").addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
-        );
+        assertAcked(prepareCreate("test").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         ensureGreen();
 
         // index simple data with flushes, so we have many segments
@@ -408,8 +397,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
     public void testScopedFacet() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "doc",
+            prepareCreate("test").setMapping(
                 addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"), "c_field", "keyword")
             )
         );
@@ -459,9 +447,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
     }
 
     public void testDeletedParent() throws Exception {
-        assertAcked(
-            prepareCreate("test").addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
-        );
+        assertAcked(prepareCreate("test").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         ensureGreen();
         // index simple data
         createIndexRequest("test", "parent", "p1", null, "p_field", "p_value1").get();
@@ -496,9 +482,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
     }
 
     public void testDfsSearchType() throws Exception {
-        assertAcked(
-            prepareCreate("test").addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
-        );
+        assertAcked(prepareCreate("test").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         ensureGreen();
 
         // index simple data
@@ -526,9 +510,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
     }
 
     public void testHasChildAndHasParentFailWhenSomeSegmentsDontContainAnyParentOrChildDocs() throws Exception {
-        assertAcked(
-            prepareCreate("test").addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
-        );
+        assertAcked(prepareCreate("test").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         ensureGreen();
 
         createIndexRequest("test", "parent", "1", null, "p_field", 1).get();
@@ -551,9 +533,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
     }
 
     public void testCountApiUsage() throws Exception {
-        assertAcked(
-            prepareCreate("test").addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
-        );
+        assertAcked(prepareCreate("test").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         ensureGreen();
 
         String parentId = "p1";
@@ -584,9 +564,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
     }
 
     public void testExplainUsage() throws Exception {
-        assertAcked(
-            prepareCreate("test").addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
-        );
+        assertAcked(prepareCreate("test").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         ensureGreen();
 
         String parentId = "p1";
@@ -650,16 +628,13 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
     public void testScoreForParentChildQueriesWithFunctionScore() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "doc",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("doc")
                     .startObject("properties")
                     .startObject("join_field")
                     .field("type", "join")
                     .startObject("relations")
                     .field("parent", new String[] { "child", "child1" })
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -758,9 +733,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
     // Issue #2536
     public void testParentChildQueriesCanHandleNoRelevantTypesInIndex() throws Exception {
-        assertAcked(
-            prepareCreate("test").addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
-        );
+        assertAcked(prepareCreate("test").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         ensureGreen();
 
         SearchResponse response = client().prepareSearch("test")
@@ -792,9 +765,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
     }
 
     public void testHasChildAndHasParentFilter_withFilter() throws Exception {
-        assertAcked(
-            prepareCreate("test").addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
-        );
+        assertAcked(prepareCreate("test").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         ensureGreen();
 
         createIndexRequest("test", "parent", "1", null, "p_field", 1).get();
@@ -820,9 +791,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
     }
 
     public void testHasChildInnerHitsHighlighting() throws Exception {
-        assertAcked(
-            prepareCreate("test").addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
-        );
+        assertAcked(prepareCreate("test").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         ensureGreen();
 
         createIndexRequest("test", "parent", "1", null, "p_field", 1).get();
@@ -848,9 +817,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
     }
 
     public void testHasChildAndHasParentWrappedInAQueryFilter() throws Exception {
-        assertAcked(
-            prepareCreate("test").addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
-        );
+        assertAcked(prepareCreate("test").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         ensureGreen();
 
         // query filter in case for p/c shouldn't execute per segment, but rather
@@ -884,8 +851,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
     public void testSimpleQueryRewrite() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "doc",
+            prepareCreate("test").setMapping(
                 addFieldMappings(
                     buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"),
                     "c_field",
@@ -945,9 +911,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
     // Issue #3144
     public void testReIndexingParentAndChildDocuments() throws Exception {
-        assertAcked(
-            prepareCreate("test").addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
-        );
+        assertAcked(prepareCreate("test").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         ensureGreen();
 
         // index simple data
@@ -1004,9 +968,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
     // Issue #3203
     public void testHasChildQueryWithMinimumScore() throws Exception {
-        assertAcked(
-            prepareCreate("test").addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
-        );
+        assertAcked(prepareCreate("test").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         ensureGreen();
 
         // index simple data
@@ -1031,7 +993,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
     public void testParentFieldQuery() throws Exception {
         assertAcked(
             prepareCreate("test").setSettings(Settings.builder().put("index.refresh_interval", -1))
-                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
+                .setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
         );
         ensureGreen();
 
@@ -1063,7 +1025,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
     public void testParentIdQuery() throws Exception {
         assertAcked(
             prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).put("index.refresh_interval", -1))
-                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
+                .setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
         );
         ensureGreen();
 
@@ -1083,9 +1045,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
     }
 
     public void testHasChildNotBeingCached() throws IOException {
-        assertAcked(
-            prepareCreate("test").addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
-        );
+        assertAcked(prepareCreate("test").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         ensureGreen();
 
         // index simple data
@@ -1146,17 +1106,14 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
     // Issue #3818
     public void testHasChildQueryOnlyReturnsSingleChildType() throws Exception {
         assertAcked(
-            prepareCreate("grandissue").addMapping(
-                "doc",
+            prepareCreate("grandissue").setMapping(
                 jsonBuilder().startObject()
-                    .startObject("doc")
                     .startObject("properties")
                     .startObject("join_field")
                     .field("type", "join")
                     .startObject("relations")
                     .field("grandparent", "parent")
                     .field("parent", new String[] { "child_type_one", "child_type_two" })
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -1203,8 +1160,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
     public void testHasChildQueryWithNestedInnerObjects() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "doc",
+            prepareCreate("test").setMapping(
                 addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"), "objects", "nested")
             )
         );
@@ -1282,9 +1238,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
     }
 
     public void testNamedFilters() throws Exception {
-        assertAcked(
-            prepareCreate("test").addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
-        );
+        assertAcked(prepareCreate("test").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         ensureGreen();
 
         String parentId = "p1";
@@ -1368,7 +1322,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
     public void testParentChildCaching() throws Exception {
         assertAcked(
             prepareCreate("test").setSettings(Settings.builder().put("index.refresh_interval", -1))
-                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
+                .setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
         );
         ensureGreen();
 
@@ -1413,9 +1367,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
     }
 
     public void testParentChildQueriesViaScrollApi() throws Exception {
-        assertAcked(
-            prepareCreate("test").addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
-        );
+        assertAcked(prepareCreate("test").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         ensureGreen();
         for (int i = 0; i < 10; i++) {
             createIndexRequest("test", "parent", "p" + i, null).get();
@@ -1496,9 +1448,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
     }
 
     public void testMinMaxChildren() throws Exception {
-        assertAcked(
-            prepareCreate("test").addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
-        );
+        assertAcked(prepareCreate("test").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         ensureGreen();
 
         indexRandom(true, createMinMaxDocBuilders().toArray(new IndexRequestBuilder[0]));
@@ -1811,10 +1761,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
     public void testHasParentInnerQueryType() {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "doc",
-                buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent-type", "child-type")
-            )
+            prepareCreate("test").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent-type", "child-type"))
         );
         createIndexRequest("test", "child-type", "child-id", "parent-id").get();
         createIndexRequest("test", "parent-type", "parent-id", null).get();
@@ -1834,8 +1781,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
     public void testHighlightersIgnoreParentChild() throws IOException {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "doc",
+            prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
                     .startObject("properties")
                     .startObject("join_field")
@@ -1888,7 +1834,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
     public void testAliasesFilterWithHasChildQuery() throws Exception {
         assertAcked(
-            prepareCreate("my-index").addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
+            prepareCreate("my-index").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
         );
         createIndexRequest("my-index", "parent", "1", null).get();
         createIndexRequest("my-index", "child", "2", "1").get();

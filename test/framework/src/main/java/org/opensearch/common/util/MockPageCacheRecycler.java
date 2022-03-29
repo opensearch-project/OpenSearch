@@ -32,7 +32,7 @@
 
 package org.opensearch.common.util;
 
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.common.recycler.Recycler.V;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;

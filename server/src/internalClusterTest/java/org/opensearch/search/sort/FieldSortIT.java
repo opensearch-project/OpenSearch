@@ -33,7 +33,7 @@
 package org.opensearch.search.sort;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.UnicodeUtil;
 
 import org.opensearch.OpenSearchException;
@@ -137,7 +137,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
         final boolean useMapping = randomBoolean();
         for (int i = 0; i < numIndices; i++) {
             if (useMapping) {
-                assertAcked(prepareCreate("test_" + i).addAlias(new Alias("test")).addMapping("foo", "entry", "type=long"));
+                assertAcked(prepareCreate("test_" + i).addAlias(new Alias("test")).setMapping("entry", "type=long"));
             } else {
                 assertAcked(prepareCreate("test_" + i).addAlias(new Alias("test")));
             }
@@ -243,7 +243,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
     }
 
     public void testTrackScores() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", "svalue", "type=keyword").get());
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping("svalue", "type=keyword").get());
         ensureGreen();
         index(
             "test",
@@ -276,18 +276,15 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
     public void testRandomSorting() throws IOException, InterruptedException, ExecutionException {
         Random random = random();
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type",
+            prepareCreate("test").setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type")
                     .startObject("properties")
                     .startObject("sparse_bytes")
                     .field("type", "keyword")
                     .endObject()
                     .startObject("dense_bytes")
                     .field("type", "keyword")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -357,7 +354,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
     }
 
     public void test3078() {
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type", "field", "type=keyword").get());
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping("field", "type=keyword").get());
         ensureGreen();
 
         for (int i = 1; i < 101; i++) {
@@ -495,7 +492,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
     }
 
     public void testIssue2986() {
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("post", "field1", "type=keyword").get());
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping("field1", "type=keyword").get());
 
         client().prepareIndex("test").setId("1").setSource("{\"field1\":\"value1\"}", XContentType.JSON).get();
         client().prepareIndex("test").setId("2").setSource("{\"field1\":\"value2\"}", XContentType.JSON).get();
@@ -519,7 +516,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             } catch (Exception e) {
                 // ignore
             }
-            assertAcked(client().admin().indices().prepareCreate("test").addMapping("type", "tag", "type=keyword").get());
+            assertAcked(client().admin().indices().prepareCreate("test").setMapping("tag", "type=keyword").get());
             ensureGreen();
             client().prepareIndex("test").setId("1").setSource("tag", "alpha").get();
             refresh();
@@ -558,11 +555,9 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
     public void testSimpleSorts() throws Exception {
         Random random = random();
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("str_value")
                     .field("type", "keyword")
@@ -587,7 +582,6 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
                     .endObject()
                     .startObject("double_value")
                     .field("type", "double")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -801,18 +795,15 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
 
     public void testSortMissingNumbers() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("i_value")
                     .field("type", "integer")
                     .endObject()
                     .startObject("d_value")
                     .field("type", "float")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -873,15 +864,12 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
 
     public void testSortMissingStrings() throws IOException {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("value")
                     .field("type", "keyword")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -1009,11 +997,9 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
 
     public void testSortMVField() throws Exception {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("long_values")
                     .field("type", "long")
@@ -1035,7 +1021,6 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
                     .endObject()
                     .startObject("string_values")
                     .field("type", "keyword")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -1345,15 +1330,12 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
 
     public void testSortOnRareField() throws IOException {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type1",
+            prepareCreate("test").setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("string_values")
                     .field("type", "keyword")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -1494,11 +1476,9 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
      */
     public void testNestedSort() throws IOException, InterruptedException, ExecutionException {
         assertAcked(
-            prepareCreate("test").addMapping(
-                "type",
+            prepareCreate("test").setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type")
                     .startObject("properties")
                     .startObject("nested")
                     .field("type", "nested")
@@ -1521,7 +1501,6 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
                     .startObject("fields")
                     .startObject("sub")
                     .field("type", "keyword")
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -1631,11 +1610,11 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
         assertAcked(
             prepareCreate("test1").setSettings(
                 Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(2, maximumNumberOfShards()))
-            ).addMapping("type", sortField, "type=long").get()
+            ).setMapping(sortField, "type=long").get()
         );
         assertAcked(
             prepareCreate("test2").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
-                .addMapping("type", sortField, "type=long")
+                .setMapping(sortField, "type=long")
                 .get()
         );
 
@@ -1671,7 +1650,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
         // Use an ip field, which uses different internal/external
         // representations of values, to make sure values are both correctly
         // rendered and parsed (search_after)
-        assertAcked(prepareCreate("test").addMapping("type", "ip", "type=ip"));
+        assertAcked(prepareCreate("test").setMapping("ip", "type=ip"));
         indexRandom(
             true,
             client().prepareIndex("test").setId("1").setSource("ip", "192.168.1.7"),
@@ -1692,7 +1671,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
     }
 
     public void testScriptFieldSort() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("t", "keyword", "type=keyword", "number", "type=integer"));
+        assertAcked(prepareCreate("test").setMapping("keyword", "type=keyword", "number", "type=integer"));
         ensureGreen();
         final int numDocs = randomIntBetween(10, 20);
         IndexRequestBuilder[] indexReqs = new IndexRequestBuilder[numDocs];
@@ -1742,10 +1721,8 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
     public void testFieldAlias() throws Exception {
         // Create two indices and add the field 'route_length_miles' as an alias in
         // one, and a concrete field in the other.
-        assertAcked(
-            prepareCreate("old_index").addMapping("_doc", "distance", "type=double", "route_length_miles", "type=alias,path=distance")
-        );
-        assertAcked(prepareCreate("new_index").addMapping("_doc", "route_length_miles", "type=double"));
+        assertAcked(prepareCreate("old_index").setMapping("distance", "type=double", "route_length_miles", "type=alias,path=distance"));
+        assertAcked(prepareCreate("new_index").setMapping("route_length_miles", "type=double"));
         ensureGreen("old_index", "new_index");
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -1770,10 +1747,8 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
     public void testFieldAliasesWithMissingValues() throws Exception {
         // Create two indices and add the field 'route_length_miles' as an alias in
         // one, and a concrete field in the other.
-        assertAcked(
-            prepareCreate("old_index").addMapping("_doc", "distance", "type=double", "route_length_miles", "type=alias,path=distance")
-        );
-        assertAcked(prepareCreate("new_index").addMapping("_doc", "route_length_miles", "type=double"));
+        assertAcked(prepareCreate("old_index").setMapping("distance", "type=double", "route_length_miles", "type=alias,path=distance"));
+        assertAcked(prepareCreate("new_index").setMapping("route_length_miles", "type=double"));
         ensureGreen("old_index", "new_index");
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -1796,9 +1771,9 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
     }
 
     public void testCastNumericType() throws Exception {
-        assertAcked(prepareCreate("index_double").addMapping("_doc", "field", "type=double"));
-        assertAcked(prepareCreate("index_long").addMapping("_doc", "field", "type=long"));
-        assertAcked(prepareCreate("index_float").addMapping("_doc", "field", "type=float"));
+        assertAcked(prepareCreate("index_double").setMapping("field", "type=double"));
+        assertAcked(prepareCreate("index_long").setMapping("field", "type=long"));
+        assertAcked(prepareCreate("index_float").setMapping("field", "type=float"));
         ensureGreen("index_double", "index_long", "index_float");
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -1842,8 +1817,8 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
     }
 
     public void testCastDate() throws Exception {
-        assertAcked(prepareCreate("index_date").addMapping("_doc", "field", "type=date"));
-        assertAcked(prepareCreate("index_date_nanos").addMapping("_doc", "field", "type=date_nanos"));
+        assertAcked(prepareCreate("index_date").setMapping("field", "type=date"));
+        assertAcked(prepareCreate("index_date_nanos").setMapping("field", "type=date_nanos"));
         ensureGreen("index_date", "index_date_nanos");
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -1958,7 +1933,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
     }
 
     public void testCastNumericTypeExceptions() throws Exception {
-        assertAcked(prepareCreate("index").addMapping("_doc", "keyword", "type=keyword", "ip", "type=ip"));
+        assertAcked(prepareCreate("index").setMapping("keyword", "type=keyword", "ip", "type=ip"));
         ensureGreen("index");
         for (String invalidField : new String[] { "keyword", "ip" }) {
             for (String numericType : new String[] { "long", "double", "date", "date_nanos" }) {
@@ -1978,7 +1953,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
     public void testLongSortOptimizationCorrectResults() {
         assertAcked(
             prepareCreate("test1").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2))
-                .addMapping("_doc", "long_field", "type=long")
+                .setMapping("long_field", "type=long")
                 .get()
         );
 

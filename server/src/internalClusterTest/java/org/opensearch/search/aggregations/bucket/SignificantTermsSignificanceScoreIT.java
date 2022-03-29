@@ -40,7 +40,6 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
@@ -215,7 +214,7 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
         String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
         assertAcked(
             prepareCreate(INDEX_NAME).setSettings(settings, XContentType.JSON)
-                .addMapping("_doc", "text", "type=keyword", CLASS_FIELD, "type=keyword")
+                .setMapping("text", "type=keyword", CLASS_FIELD, "type=keyword")
         );
         String[] cat1v1 = { "constant", "one" };
         String[] cat1v2 = { "constant", "uno" };
@@ -453,7 +452,7 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
     private void indexEqualTestData() throws ExecutionException, InterruptedException {
         assertAcked(
             prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .addMapping("_doc", "text", "type=text,fielddata=true", "class", "type=keyword")
+                .setMapping("text", "type=text,fielddata=true", "class", "type=keyword")
         );
         createIndex("idx_unmapped");
 
@@ -545,9 +544,7 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
         if (type.equals("text")) {
             textMappings += ",fielddata=true";
         }
-        assertAcked(
-            prepareCreate(INDEX_NAME).addMapping(MapperService.SINGLE_MAPPING_NAME, TEXT_FIELD, textMappings, CLASS_FIELD, "type=keyword")
-        );
+        assertAcked(prepareCreate(INDEX_NAME).setMapping(TEXT_FIELD, textMappings, CLASS_FIELD, "type=keyword"));
         String[] gb = { "0", "1" };
         List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
         for (int i = 0; i < randomInt(20); i++) {
@@ -575,7 +572,7 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
      */
     public void testScriptCaching() throws Exception {
         assertAcked(
-            prepareCreate("cache_test_idx").addMapping("type", "d", "type=long")
+            prepareCreate("cache_test_idx").setMapping("d", "type=long")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get()
         );

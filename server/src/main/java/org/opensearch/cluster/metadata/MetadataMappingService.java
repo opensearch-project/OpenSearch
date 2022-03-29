@@ -185,22 +185,11 @@ public class MetadataMappingService {
         boolean dirty = false;
         String index = indexService.index().getName();
         try {
-            List<String> updatedTypes = new ArrayList<>();
             MapperService mapperService = indexService.mapperService();
             DocumentMapper mapper = mapperService.documentMapper();
             if (mapper != null) {
-                final String type = mapper.type();
-                if (!mapper.mappingSource().equals(builder.mapping(type).source())) {
-                    updatedTypes.add(type);
-                }
-            }
-
-            // if a single type is not up-to-date, re-send everything
-            if (updatedTypes.isEmpty() == false) {
-                logger.warn("[{}] re-syncing mappings with cluster state because of types [{}]", index, updatedTypes);
-                dirty = true;
-                if (mapper != null) {
-                    builder.putMapping(new MappingMetadata(mapper));
+                if (mapper.mappingSource().equals(builder.mapping().source()) == false) {
+                    dirty = true;
                 }
             }
         } catch (Exception e) {

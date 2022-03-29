@@ -31,7 +31,7 @@
 
 package org.opensearch.versioning;
 
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.DocWriteResponse;

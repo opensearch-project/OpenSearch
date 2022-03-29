@@ -76,14 +76,24 @@ public class NoMasterBlockService {
         "write",
         NoMasterBlockService::parseNoMasterBlock,
         Property.Dynamic,
+        Property.NodeScope,
+        Property.Deprecated
+    );
+    // The setting below is going to replace the above.
+    // To keep backwards compatibility, the old usage is remained, and it's also used as the fallback for the new usage.
+    public static final Setting<ClusterBlock> NO_CLUSTER_MANAGER_BLOCK_SETTING = new Setting<>(
+        "cluster.no_cluster_manager_block",
+        NO_MASTER_BLOCK_SETTING,
+        NoMasterBlockService::parseNoMasterBlock,
+        Property.Dynamic,
         Property.NodeScope
     );
 
     private volatile ClusterBlock noMasterBlock;
 
     public NoMasterBlockService(Settings settings, ClusterSettings clusterSettings) {
-        this.noMasterBlock = NO_MASTER_BLOCK_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(NO_MASTER_BLOCK_SETTING, this::setNoMasterBlock);
+        this.noMasterBlock = NO_CLUSTER_MANAGER_BLOCK_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(NO_CLUSTER_MANAGER_BLOCK_SETTING, this::setNoMasterBlock);
     }
 
     private static ClusterBlock parseNoMasterBlock(String value) {

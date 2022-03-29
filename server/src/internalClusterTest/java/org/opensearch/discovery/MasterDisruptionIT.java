@@ -189,7 +189,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
      * Verify that the proper block is applied when nodes lose their master
      */
     public void testVerifyApiBlocksDuringPartition() throws Exception {
-        internalCluster().startNodes(3, Settings.builder().putNull(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey()).build());
+        internalCluster().startNodes(3, Settings.builder().putNull(NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey()).build());
 
         // Makes sure that the get request can be executed on each node locally:
         assertAcked(
@@ -247,11 +247,11 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         // Wait until the master node sees al 3 nodes again.
         ensureStableCluster(3, new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + networkDisruption.expectedTimeToHeal().millis()));
 
-        logger.info("Verify no master block with {} set to {}", NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), "all");
+        logger.info("Verify no master block with {} set to {}", NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), "all");
         client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), "all"))
+            .setTransientSettings(Settings.builder().put(NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), "all"))
             .get();
 
         networkDisruption.startDisrupting();

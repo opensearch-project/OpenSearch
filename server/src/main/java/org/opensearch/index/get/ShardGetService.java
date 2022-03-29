@@ -39,6 +39,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.bytes.BytesReference;
@@ -295,7 +296,6 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                     assert source != null : "original source in translog must exist";
                     SourceToParse sourceToParse = new SourceToParse(
                         shardId.getIndexName(),
-                        MapperService.SINGLE_MAPPING_NAME,
                         id,
                         source,
                         XContentHelper.xContentType(source),
@@ -325,6 +325,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                                 0,
                                 0,
                                 0,
+                                0,
+                                VectorSimilarityFunction.EUCLIDEAN,
                                 false
                             );
                             StoredFieldVisitor.Status status = fieldVisitor.needsField(fieldInfo);
@@ -348,7 +350,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
             // put stored fields into result objects
             if (!fieldVisitor.fields().isEmpty()) {
-                fieldVisitor.postProcess(mapperService);
+                fieldVisitor.postProcess(mapperService::fieldType);
                 documentFields = new HashMap<>();
                 metadataFields = new HashMap<>();
                 for (Map.Entry<String, List<Object>> entry : fieldVisitor.fields().entrySet()) {

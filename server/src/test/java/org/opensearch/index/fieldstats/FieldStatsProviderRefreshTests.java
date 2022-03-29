@@ -55,7 +55,7 @@ public class FieldStatsProviderRefreshTests extends OpenSearchSingleNodeTestCase
             client().admin()
                 .indices()
                 .prepareCreate("index")
-                .addMapping("type", "s", "type=text")
+                .setMapping("s", "type=text")
                 .setSettings(
                     Settings.builder()
                         .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)

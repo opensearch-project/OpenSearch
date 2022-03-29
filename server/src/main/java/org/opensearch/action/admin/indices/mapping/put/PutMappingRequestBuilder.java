@@ -102,7 +102,7 @@ public class PutMappingRequestBuilder extends AcknowledgedRequestBuilder<
      * A specialized simplified mapping source method, takes the form of simple properties definition:
      * ("field1", "type=string,store=true").
      */
-    public PutMappingRequestBuilder setSource(Object... source) {
+    public PutMappingRequestBuilder setSource(String... source) {
         request.source(source);
         return this;
     }

@@ -151,7 +151,6 @@ setup:
 "Get date_nanos field caps":
   - do:
         indices.create:
-          include_type_name: false
           index: test_nanos
           body:
               mappings:

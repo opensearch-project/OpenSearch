@@ -444,7 +444,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
     }
 
     public void testIdBasedScriptFields() throws Exception {
-        prepareCreate("test").addMapping("type1", "num1", "type=long").get();
+        prepareCreate("test").setMapping("num1", "type=long").get();
 
         int numDocs = randomIntBetween(1, 30);
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];
@@ -486,7 +486,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             assertThat(response.getHits().getAt(i).getId(), equalTo(Integer.toString(i)));
             Set<String> fields = new HashSet<>(response.getHits().getAt(i).getFields().keySet());
             assertThat(fields, equalTo(singleton("type")));
-            assertThat(response.getHits().getAt(i).getFields().get("type").getValue(), equalTo("type1"));
+            assertThat(response.getHits().getAt(i).getFields().get("type").getValue(), equalTo(MapperService.SINGLE_MAPPING_NAME));
         }
 
         response = client().prepareSearch()
@@ -504,7 +504,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             assertThat(response.getHits().getAt(i).getId(), equalTo(Integer.toString(i)));
             Set<String> fields = new HashSet<>(response.getHits().getAt(i).getFields().keySet());
             assertThat(fields, equalTo(newHashSet("type", "id")));
-            assertThat(response.getHits().getAt(i).getFields().get("type").getValue(), equalTo("type1"));
+            assertThat(response.getHits().getAt(i).getFields().get("type").getValue(), equalTo(MapperService.SINGLE_MAPPING_NAME));
             assertThat(response.getHits().getAt(i).getFields().get("id").getValue(), equalTo(Integer.toString(i)));
         }
     }
@@ -774,10 +774,8 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             .indices()
             .prepareCreate("my-index")
             .setSettings(Settings.builder().put("index.refresh_interval", -1))
-            .addMapping(
-                MapperService.SINGLE_MAPPING_NAME,
+            .setMapping(
                 jsonBuilder().startObject()
-                    .startObject(MapperService.SINGLE_MAPPING_NAME)
                     .startObject("properties")
                     .startObject("field1")
                     .field("type", "object")
@@ -791,7 +789,6 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
                     .startObject("field4")
                     .field("type", "text")
                     .field("store", true)
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()
@@ -842,7 +839,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
 
     // see #8203
     public void testSingleValueFieldDatatField() throws ExecutionException, InterruptedException {
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type", "test_field", "type=keyword").get());
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping("test_field", "type=keyword").get());
         indexRandom(true, client().prepareIndex("test").setId("1").setSource("test_field", "foobar"));
         refresh();
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -1117,8 +1114,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
 
     public void testScriptFields() throws Exception {
         assertAcked(
-            prepareCreate("index").addMapping(
-                "type",
+            prepareCreate("index").setMapping(
                 "s",
                 "type=keyword",
                 "l",
@@ -1181,7 +1177,6 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
     public void testDocValueFieldsWithFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject(MapperService.SINGLE_MAPPING_NAME)
             .startObject("_source")
             .field("enabled", false)
             .endObject()
@@ -1203,9 +1198,8 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             .field("path", "date_field")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(prepareCreate("test").addMapping(MapperService.SINGLE_MAPPING_NAME, mapping));
+        assertAcked(prepareCreate("test").setMapping(mapping));
         ensureGreen("test");
 
         DateTime date = new DateTime(1990, 12, 29, 0, 0, DateTimeZone.UTC);
@@ -1244,7 +1238,6 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
     public void testWildcardDocValueFieldsWithFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject(MapperService.SINGLE_MAPPING_NAME)
             .startObject("_source")
             .field("enabled", false)
             .endObject()
@@ -1266,9 +1259,8 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             .field("path", "date_field")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(prepareCreate("test").addMapping(MapperService.SINGLE_MAPPING_NAME, mapping));
+        assertAcked(prepareCreate("test").setMapping(mapping));
         ensureGreen("test");
 
         DateTime date = new DateTime(1990, 12, 29, 0, 0, DateTimeZone.UTC);
@@ -1306,7 +1298,6 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
     public void testStoredFieldsWithFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject(MapperService.SINGLE_MAPPING_NAME)
             .startObject("properties")
             .startObject("field1")
             .field("type", "text")
@@ -1325,9 +1316,8 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             .field("path", "field2")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(prepareCreate("test").addMapping(MapperService.SINGLE_MAPPING_NAME, mapping));
+        assertAcked(prepareCreate("test").setMapping(mapping));
 
         index("test", MapperService.SINGLE_MAPPING_NAME, "1", "field1", "value1", "field2", "value2");
         refresh("test");
@@ -1350,7 +1340,6 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
     public void testWildcardStoredFieldsWithFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject(MapperService.SINGLE_MAPPING_NAME)
             .startObject("properties")
             .startObject("field1")
             .field("type", "text")
@@ -1369,9 +1358,8 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             .field("path", "field2")
             .endObject()
             .endObject()
-            .endObject()
             .endObject();
-        assertAcked(prepareCreate("test").addMapping(MapperService.SINGLE_MAPPING_NAME, mapping));
+        assertAcked(prepareCreate("test").setMapping(mapping));
 
         index("test", MapperService.SINGLE_MAPPING_NAME, "1", "field1", "value1", "field2", "value2");
         refresh("test");

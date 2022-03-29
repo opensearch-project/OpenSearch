@@ -60,15 +60,15 @@ public class UnsafeBootstrapMasterCommand extends OpenSearchNodeCommand {
     static final String CONFIRMATION_MSG = DELIMITER
         + "\n"
         + "You should only run this tool if you have permanently lost half or more\n"
-        + "of the master-eligible nodes in this cluster, and you cannot restore the\n"
+        + "of the cluster-manager-eligible nodes in this cluster, and you cannot restore the\n"
         + "cluster from a snapshot. This tool can cause arbitrary data loss and its\n"
-        + "use should be your last resort. If you have multiple surviving master\n"
+        + "use should be your last resort. If you have multiple surviving cluster-manager\n"
         + "eligible nodes, you should run this tool on the node with the highest\n"
         + "cluster state (term, version) pair.\n"
         + "\n"
         + "Do you want to proceed?\n";
 
-    static final String NOT_MASTER_NODE_MSG = "unsafe-bootstrap tool can only be run on master eligible node";
+    static final String NOT_MASTER_NODE_MSG = "unsafe-bootstrap tool can only be run on cluster-manager eligible node";
 
     static final String EMPTY_LAST_COMMITTED_VOTING_CONFIG_MSG =
         "last committed voting voting configuration is empty, cluster has never been bootstrapped?";
@@ -81,7 +81,9 @@ public class UnsafeBootstrapMasterCommand extends OpenSearchNodeCommand {
     private OptionSpec<Boolean> applyClusterReadOnlyBlockOption;
 
     UnsafeBootstrapMasterCommand() {
-        super("Forces the successful election of the current node after the permanent loss of the half or more master-eligible nodes");
+        super(
+            "Forces the successful election of the current node after the permanent loss of the half or more cluster-manager-eligible nodes"
+        );
         applyClusterReadOnlyBlockOption = parser.accepts("apply-cluster-read-only-block", "Optional cluster.blocks.read_only setting")
             .withOptionalArg()
             .ofType(Boolean.class);

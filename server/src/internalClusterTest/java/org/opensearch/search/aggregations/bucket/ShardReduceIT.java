@@ -94,8 +94,7 @@ public class ShardReduceIT extends OpenSearchIntegTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(
-            prepareCreate("idx").addMapping(
-                "type",
+            prepareCreate("idx").setMapping(
                 "nested",
                 "type=nested",
                 "ip",
