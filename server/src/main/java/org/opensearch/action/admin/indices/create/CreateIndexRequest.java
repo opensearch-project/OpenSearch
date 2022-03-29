@@ -249,10 +249,18 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * Adds mapping that will be added when the index gets created.
      *
      * @param source The mapping source
-     * @param xContentType the content type of the mapping source
-     * @deprecated types are being removed
+     * @param xContentType The content type of the source
      */
-    @Deprecated
+    public CreateIndexRequest mapping(String source, XContentType xContentType) {
+        return mapping(new BytesArray(source), xContentType);
+    }
+
+    /**
+     * Adds mapping that will be added when the index gets created.
+     *
+     * @param source The mapping source
+     * @param xContentType the content type of the mapping source
+     */
     private CreateIndexRequest mapping(BytesReference source, XContentType xContentType) {
         Objects.requireNonNull(xContentType);
         Map<String, Object> mappingAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
