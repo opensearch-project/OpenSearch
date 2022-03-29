@@ -73,10 +73,12 @@ public class RestClusterStateAction extends BaseRestHandler {
     }
 
     // TODO: Remove the DeprecationLogger after removing MASTER_ROLE.
-    // It's used to log deprecation when request parameter 'metric' contains 'master_node'.
+    // It's used to log deprecation when request parameter 'metric' contains 'master_node', or request parameter 'master_timeout' is used.
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestClusterStateAction.class);
     private static final String DEPRECATED_MESSAGE_MASTER_NODE =
         "Deprecated value [master_node] used for parameter [metric]. To promote inclusive language, please use [cluster_manager_node] instead. It will be unsupported in a future major version.";
+    private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
+        "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
 
     @Override
     public String getName() {
@@ -104,7 +106,8 @@ public class RestClusterStateAction extends BaseRestHandler {
         final ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest();
         clusterStateRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterStateRequest.indicesOptions()));
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
+        clusterStateRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", clusterStateRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(clusterStateRequest, request);
         if (request.hasParam("wait_for_metadata_version")) {
             clusterStateRequest.waitForMetadataVersion(request.paramAsLong("wait_for_metadata_version", 0));
         }
@@ -186,4 +189,19 @@ public class RestClusterStateAction extends BaseRestHandler {
         static final String CLUSTER_NAME = "cluster_name";
     }
 
+    /**
+     * Parse the deprecated request parameter 'master_timeout', and add deprecated log if the parameter is used.
+     * It also validates whether the value of 'master_timeout' is the same with 'cluster_manager_timeout'.
+     * Remove the method along with MASTER_ROLE.
+     * @deprecated As of 2.0, because promoting inclusive language.
+     */
+    @Deprecated
+    private static void parseDeprecatedMasterTimeoutParameter(ClusterStateRequest clusterStateRequest, RestRequest request) {
+        final String deprecatedTimeoutParam = "master_timeout";
+        if (request.hasParam(deprecatedTimeoutParam)) {
+            deprecationLogger.deprecate("cluster_state_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+            request.validateParamValuesAreEqual(deprecatedTimeoutParam, "cluster_manager_timeout");
+            clusterStateRequest.masterNodeTimeout(request.paramAsTime(deprecatedTimeoutParam, clusterStateRequest.masterNodeTimeout()));
+        }
+    }
 }

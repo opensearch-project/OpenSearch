@@ -35,6 +35,7 @@ package org.opensearch.rest.action.admin.cluster;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.client.Requests;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.rest.BaseRestHandler;
@@ -50,6 +51,10 @@ import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
 public class RestClusterUpdateSettingsAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestClusterUpdateSettingsAction.class);
+    private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
+        "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
 
     private static final String PERSISTENT = "persistent";
     private static final String TRANSIENT = "transient";
@@ -69,8 +74,9 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
         final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = Requests.clusterUpdateSettingsRequest();
         clusterUpdateSettingsRequest.timeout(request.paramAsTime("timeout", clusterUpdateSettingsRequest.timeout()));
         clusterUpdateSettingsRequest.masterNodeTimeout(
-            request.paramAsTime("master_timeout", clusterUpdateSettingsRequest.masterNodeTimeout())
+            request.paramAsTime("cluster_manager_timeout", clusterUpdateSettingsRequest.masterNodeTimeout())
         );
+        parseDeprecatedMasterTimeoutParameter(clusterUpdateSettingsRequest, request);
         Map<String, Object> source;
         try (XContentParser parser = request.contentParser()) {
             source = parser.map();
@@ -93,5 +99,26 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
     @Override
     public boolean canTripCircuitBreaker() {
         return false;
+    }
+
+    /**
+     * Parse the deprecated request parameter 'master_timeout', and add deprecated log if the parameter is used.
+     * It also validates whether the value of 'master_timeout' is the same with 'cluster_manager_timeout'.
+     * Remove the method along with MASTER_ROLE.
+     * @deprecated As of 2.0, because promoting inclusive language.
+     */
+    @Deprecated
+    private static void parseDeprecatedMasterTimeoutParameter(
+        ClusterUpdateSettingsRequest clusterUpdateSettingsRequest,
+        RestRequest request
+    ) {
+        final String deprecatedTimeoutParam = "master_timeout";
+        if (request.hasParam(deprecatedTimeoutParam)) {
+            deprecationLogger.deprecate("cluster_update_setting_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+            request.validateParamValuesAreEqual(deprecatedTimeoutParam, "cluster_manager_timeout");
+            clusterUpdateSettingsRequest.masterNodeTimeout(
+                request.paramAsTime(deprecatedTimeoutParam, clusterUpdateSettingsRequest.masterNodeTimeout())
+            );
+        }
     }
 }

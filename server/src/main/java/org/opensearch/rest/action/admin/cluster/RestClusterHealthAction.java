@@ -59,7 +59,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestClusterHealthAction.class);
     private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
-            "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
+        "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
 
     @Override
     public List<Route> routes() {
@@ -138,7 +138,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
     private static void parseDeprecatedMasterTimeoutParameter(ClusterHealthRequest clusterHealthRequest, RestRequest request) {
         final String deprecatedTimeoutParam = "master_timeout";
         if (request.hasParam(deprecatedTimeoutParam)) {
-            deprecationLogger.deprecate("cat_allocation_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+            deprecationLogger.deprecate("cluster_health_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
             request.validateParamValuesAreEqual(deprecatedTimeoutParam, "cluster_manager_timeout");
             clusterHealthRequest.masterNodeTimeout(request.paramAsTime(deprecatedTimeoutParam, clusterHealthRequest.masterNodeTimeout()));
         }

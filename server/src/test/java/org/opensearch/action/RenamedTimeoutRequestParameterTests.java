@@ -12,10 +12,17 @@ import org.junit.AfterClass;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.rest.action.admin.cluster.RestClusterGetSettingsAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterHealthAction;
+import org.opensearch.rest.action.admin.cluster.RestClusterRerouteAction;
+import org.opensearch.rest.action.admin.cluster.RestClusterStateAction;
+import org.opensearch.rest.action.admin.cluster.RestClusterUpdateSettingsAction;
+import org.opensearch.rest.action.admin.cluster.RestPendingClusterTasksAction;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.threadpool.TestThreadPool;
+
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -31,7 +38,7 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
 
     private static final String PARAM_VALUE_ERROR_MESSAGE = "[master_timeout, cluster_manager_timeout] are required to be equal";
     private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
-            "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
+        "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
 
     @AfterClass
     public static void terminateThreadPool() {
@@ -50,6 +57,66 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
 
         Exception e = assertThrows(OpenSearchParseException.class, () -> action.fromRequest(getRestRequestWithWrongValues()));
+        assertThat(e.getMessage(), containsString(PARAM_VALUE_ERROR_MESSAGE));
+    }
+
+    public void testClusterReroute() throws IOException {
+        RestClusterRerouteAction action = new RestClusterRerouteAction(null);
+
+        action.prepareRequest(getRestRequestWithNewParam(), client);
+
+        action.prepareRequest(getRestRequestWithDeprecatedParam(), client);
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithWrongValues(), client));
+        assertThat(e.getMessage(), containsString(PARAM_VALUE_ERROR_MESSAGE));
+    }
+
+    public void testClusterState() throws IOException {
+        RestClusterStateAction action = new RestClusterStateAction(null);
+
+        action.prepareRequest(getRestRequestWithNewParam(), client);
+
+        action.prepareRequest(getRestRequestWithDeprecatedParam(), client);
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithWrongValues(), client));
+        assertThat(e.getMessage(), containsString(PARAM_VALUE_ERROR_MESSAGE));
+    }
+
+    public void testClusterGetSettings() throws IOException {
+        RestClusterGetSettingsAction action = new RestClusterGetSettingsAction(null, null, null);
+
+        action.prepareRequest(getRestRequestWithNewParam(), client);
+
+        action.prepareRequest(getRestRequestWithDeprecatedParam(), client);
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithWrongValues(), client));
+        assertThat(e.getMessage(), containsString(PARAM_VALUE_ERROR_MESSAGE));
+    }
+
+    public void testClusterUpdateSettings() throws IOException {
+        RestClusterUpdateSettingsAction action = new RestClusterUpdateSettingsAction();
+
+        action.prepareRequest(getRestRequestWithNewParam(), client);
+
+        action.prepareRequest(getRestRequestWithDeprecatedParam(), client);
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithWrongValues(), client));
+        assertThat(e.getMessage(), containsString(PARAM_VALUE_ERROR_MESSAGE));
+    }
+
+    public void testClusterPendingTasks() throws IOException {
+        RestPendingClusterTasksAction action = new RestPendingClusterTasksAction();
+
+        action.prepareRequest(getRestRequestWithNewParam(), client);
+
+        action.prepareRequest(getRestRequestWithDeprecatedParam(), client);
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithWrongValues(), client));
         assertThat(e.getMessage(), containsString(PARAM_VALUE_ERROR_MESSAGE));
     }
 
