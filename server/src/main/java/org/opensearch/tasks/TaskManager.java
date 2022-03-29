@@ -178,7 +178,6 @@ public class TaskManager implements ClusterStateApplier, RunnableTaskExecutionLi
         if (logger.isTraceEnabled()) {
             logger.trace("register {} [{}] [{}] [{}]", task.getId(), type, action, task.getDescription());
         }
-
         if (task.supportsResourceTracking() && isTaskResourceTrackingEnabled()) {
             resourceAwareTasks.put(task.getId(), task);
         }
@@ -237,7 +236,11 @@ public class TaskManager implements ClusterStateApplier, RunnableTaskExecutionLi
         logger.trace("unregister task for id: {}", task.getId());
 
         if (task.supportsResourceTracking()) {
-            resourceAwareTasks.remove(task.getId(), task);
+            try {
+                taskExecutionFinishedOnThread(task.getId(), Thread.currentThread().getId());
+            } catch (Exception ignored) {} finally {
+                resourceAwareTasks.remove(task.getId(), task);
+            }
         }
 
         if (task instanceof CancellableTask) {
