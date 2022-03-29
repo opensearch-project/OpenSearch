@@ -39,6 +39,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.Priority;
 import org.opensearch.common.Strings;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestStatusToXContentListener;
@@ -55,6 +56,10 @@ import static org.opensearch.client.Requests.clusterHealthRequest;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
 public class RestClusterHealthAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestClusterHealthAction.class);
+    private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
+            "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
 
     @Override
     public List<Route> routes() {
@@ -81,7 +86,8 @@ public class RestClusterHealthAction extends BaseRestHandler {
         final ClusterHealthRequest clusterHealthRequest = clusterHealthRequest(Strings.splitStringByCommaToArray(request.param("index")));
         clusterHealthRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterHealthRequest.indicesOptions()));
         clusterHealthRequest.local(request.paramAsBoolean("local", clusterHealthRequest.local()));
-        clusterHealthRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterHealthRequest.masterNodeTimeout()));
+        clusterHealthRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", clusterHealthRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(clusterHealthRequest, request);
         clusterHealthRequest.timeout(request.paramAsTime("timeout", clusterHealthRequest.timeout()));
         String waitForStatus = request.param("wait_for_status");
         if (waitForStatus != null) {
@@ -122,4 +128,19 @@ public class RestClusterHealthAction extends BaseRestHandler {
         return false;
     }
 
+    /**
+     * Parse the deprecated request parameter 'master_timeout', and add deprecated log if the parameter is used.
+     * It also validates whether the value of 'master_timeout' is the same with 'cluster_manager_timeout'.
+     * Remove the method along with MASTER_ROLE.
+     * @deprecated As of 2.0, because promoting inclusive language.
+     */
+    @Deprecated
+    private static void parseDeprecatedMasterTimeoutParameter(ClusterHealthRequest clusterHealthRequest, RestRequest request) {
+        final String deprecatedTimeoutParam = "master_timeout";
+        if (request.hasParam(deprecatedTimeoutParam)) {
+            deprecationLogger.deprecate("cat_allocation_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+            request.validateParamValuesAreEqual(deprecatedTimeoutParam, "cluster_manager_timeout");
+            clusterHealthRequest.masterNodeTimeout(request.paramAsTime(deprecatedTimeoutParam, clusterHealthRequest.masterNodeTimeout()));
+        }
+    }
 }
