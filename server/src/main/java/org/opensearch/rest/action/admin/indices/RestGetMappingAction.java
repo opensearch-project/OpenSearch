@@ -95,8 +95,13 @@ public class RestGetMappingAction extends BaseRestHandler {
         getMappingsRequest.indices(indices);
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
         TimeValue clusterManagerTimeout = request.paramAsTime("cluster_manager_timeout", getMappingsRequest.masterNodeTimeout());
-        TimeValue deprecatedMasterTimeout = parseDeprecatedMasterTimeoutParameter(getMappingsRequest, request);
-        final TimeValue timeout = deprecatedMasterTimeout == null ? clusterManagerTimeout : deprecatedMasterTimeout;
+        // TODO: Remove the if condition and statements inside after removing MASTER_ROLE.
+        if (request.hasParam("master_timeout")) {
+            deprecationLogger.deprecate("get_mapping_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+            request.validateParamValuesAreEqual("master_timeout", "cluster_manager_timeout");
+            clusterManagerTimeout = request.paramAsTime("master_timeout", getMappingsRequest.masterNodeTimeout());
+        }
+        final TimeValue timeout = clusterManagerTimeout;
         getMappingsRequest.masterNodeTimeout(timeout);
         getMappingsRequest.local(request.paramAsBoolean("local", getMappingsRequest.local()));
         return channel -> client.admin().indices().getMappings(getMappingsRequest, new RestActionListener<GetMappingsResponse>(channel) {
@@ -122,23 +127,5 @@ public class RestGetMappingAction extends BaseRestHandler {
                     }.onResponse(getMappingsResponse)));
             }
         });
-    }
-
-    /**
-     * Parse the deprecated request parameter 'master_timeout', and add deprecated log if the parameter is used.
-     * It also validates whether the value of 'master_timeout' is the same with 'cluster_manager_timeout'.
-     * Remove the method along with MASTER_ROLE.
-     * @deprecated As of 2.0, because promoting inclusive language.
-     */
-    @Deprecated
-    private TimeValue parseDeprecatedMasterTimeoutParameter(GetMappingsRequest getMappingsRequest, RestRequest request) {
-        final String deprecatedTimeoutParam = "master_timeout";
-        TimeValue deprecatedMasterTimeout = null;
-        if (request.hasParam(deprecatedTimeoutParam)) {
-            deprecationLogger.deprecate("get_mapping_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
-            request.validateParamValuesAreEqual(deprecatedTimeoutParam, "cluster_manager_timeout");
-            deprecatedMasterTimeout = request.paramAsTime(deprecatedTimeoutParam, getMappingsRequest.masterNodeTimeout());
-        }
-        return deprecatedMasterTimeout;
     }
 }

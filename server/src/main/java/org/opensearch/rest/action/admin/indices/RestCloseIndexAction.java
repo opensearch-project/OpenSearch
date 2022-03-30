@@ -52,8 +52,6 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 public class RestCloseIndexAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestCloseIndexAction.class);
-    private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
-        "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
 
     @Override
     public List<Route> routes() {

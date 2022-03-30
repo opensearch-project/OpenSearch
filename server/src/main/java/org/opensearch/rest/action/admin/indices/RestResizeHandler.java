@@ -56,8 +56,6 @@ import static org.opensearch.rest.RestRequest.Method.PUT;
 public abstract class RestResizeHandler extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestResizeHandler.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
-    private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
-        "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
 
     RestResizeHandler() {}
 
@@ -94,7 +92,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
         request.applyContentParser(resizeRequest::fromXContent);
         resizeRequest.timeout(request.paramAsTime("timeout", resizeRequest.timeout()));
         resizeRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", resizeRequest.masterNodeTimeout()));
-        parseDeprecatedMasterTimeoutParameter(resizeRequest, request);
+        parseDeprecatedMasterTimeoutParameter(resizeRequest, request, deprecationLogger, getName());
         resizeRequest.setWaitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
         return channel -> client.admin().indices().resizeIndex(resizeRequest, new RestToXContentListener<>(channel));
     }
@@ -156,19 +154,4 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
     }
 
-    /**
-     * Parse the deprecated request parameter 'master_timeout', and add deprecated log if the parameter is used.
-     * It also validates whether the value of 'master_timeout' is the same with 'cluster_manager_timeout'.
-     * Remove the method along with MASTER_ROLE.
-     * @deprecated As of 2.0, because promoting inclusive language.
-     */
-    @Deprecated
-    private void parseDeprecatedMasterTimeoutParameter(ResizeRequest resizeRequest, RestRequest request) {
-        final String deprecatedTimeoutParam = "master_timeout";
-        if (request.hasParam(deprecatedTimeoutParam)) {
-            deprecationLogger.deprecate("resize_index_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
-            request.validateParamValuesAreEqual(deprecatedTimeoutParam, "cluster_manager_timeout");
-            resizeRequest.masterNodeTimeout(request.paramAsTime(deprecatedTimeoutParam, resizeRequest.masterNodeTimeout()));
-        }
-    }
 }

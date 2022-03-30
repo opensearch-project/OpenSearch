@@ -52,8 +52,6 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 public class RestOpenIndexAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestOpenIndexAction.class);
-    private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
-        "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
 
     @Override
     public List<Route> routes() {
@@ -70,28 +68,12 @@ public class RestOpenIndexAction extends BaseRestHandler {
         OpenIndexRequest openIndexRequest = new OpenIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
         openIndexRequest.timeout(request.paramAsTime("timeout", openIndexRequest.timeout()));
         openIndexRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", openIndexRequest.masterNodeTimeout()));
-        parseDeprecatedMasterTimeoutParameter(openIndexRequest, request);
+        parseDeprecatedMasterTimeoutParameter(openIndexRequest, request, deprecationLogger, getName());
         openIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, openIndexRequest.indicesOptions()));
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {
             openIndexRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
         }
         return channel -> client.admin().indices().open(openIndexRequest, new RestToXContentListener<>(channel));
-    }
-
-    /**
-     * Parse the deprecated request parameter 'master_timeout', and add deprecated log if the parameter is used.
-     * It also validates whether the value of 'master_timeout' is the same with 'cluster_manager_timeout'.
-     * Remove the method along with MASTER_ROLE.
-     * @deprecated As of 2.0, because promoting inclusive language.
-     */
-    @Deprecated
-    private void parseDeprecatedMasterTimeoutParameter(OpenIndexRequest openIndexRequest, RestRequest request) {
-        final String deprecatedTimeoutParam = "master_timeout";
-        if (request.hasParam(deprecatedTimeoutParam)) {
-            deprecationLogger.deprecate("open_index_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
-            request.validateParamValuesAreEqual(deprecatedTimeoutParam, "cluster_manager_timeout");
-            openIndexRequest.masterNodeTimeout(request.paramAsTime(deprecatedTimeoutParam, openIndexRequest.masterNodeTimeout()));
-        }
     }
 }
