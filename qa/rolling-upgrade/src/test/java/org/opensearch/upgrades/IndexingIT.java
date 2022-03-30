@@ -302,7 +302,7 @@ public class IndexingIT extends AbstractRollingTestCase {
 
                 reindex(indexName, reindexName);
                 assertCount(reindexName, 2, 1);
-                assertIndexMapping(indexName, new_mapping);
+                assertIndexMapping(reindexName, new_mapping);
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
@@ -356,7 +356,7 @@ public class IndexingIT extends AbstractRollingTestCase {
 
     private void createTemplate(String templateName, String indexNamePattern, String mapping) throws IOException {
         Request request = new Request("PUT", "/_template/" + templateName);
-        String entity = "{\"template\": \"" + indexNamePattern + "\"";
+        String entity = "{\"index_patterns\": \"" + indexNamePattern + "\"";
         if (mapping != null) {
             entity += ",\"mappings\" : {" + mapping + "}";
         }
@@ -371,6 +371,7 @@ public class IndexingIT extends AbstractRollingTestCase {
         Request request = new Request("POST", "/_reindex/");
         String entity = "{ \"source\": { \"index\": \"" + originalIndex + "\" }, \"dest\": { \"index\": \"" + newIndex + "\" } }";
         request.setJsonEntity(entity);
+        request.addParameter("refresh", "true");
         client().performRequest(request);
     }
 
@@ -402,7 +403,7 @@ public class IndexingIT extends AbstractRollingTestCase {
     }
 
     static final Pattern TYPE_REMOVAL_WARNING = Pattern.compile(
-        "^\\[types removal\\] Using include_type_name (.+) is deprecated\\. The parameter will be removed in the next major version\\.$"
+        "^\\[types removal\\] (.+) include_type_name (.+) is deprecated\\. The parameter will be removed in the next major version\\.$"
     );
 
     protected static void useIgnoreTypesRemovalWarningsHandler(Request request) throws IOException {
