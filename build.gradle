@@ -49,6 +49,7 @@ plugins {
   id 'opensearch.docker-support'
   id 'opensearch.global-build-info'
   id "com.diffplug.spotless" version "6.3.0" apply false
+  id "org.gradle.test-retry" version "1.3.1" apply false
 }
 
 apply from: 'gradle/build-complete.gradle'
@@ -232,7 +233,7 @@ allprojects {
   tasks.withType(JavaCompile).configureEach { JavaCompile compile ->
     // See please https://bugs.openjdk.java.net/browse/JDK-8209058
     if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_11) {
-        compile.options.compilerArgs << '-Werror'
+      compile.options.compilerArgs << '-Werror'
     }
     compile.options.compilerArgs << '-Xlint:auxiliaryclass'
     compile.options.compilerArgs << '-Xlint:cast'
@@ -386,6 +387,18 @@ gradle.projectsEvaluated {
   }
 }
 
+// test retry configuration
+subprojects {
+  apply plugin: "org.gradle.test-retry"
+  tasks.withType(Test).configureEach {
+    retry {
+      failOnPassedAfterRetry = false
+      maxRetries = 3
+      maxFailures = 10
+    }
+  }
+}
+
 // eclipse configuration
 allprojects {
   apply plugin: 'eclipse'
@@ -445,9 +458,9 @@ allprojects {
   tasks.named('eclipse') { dependsOn 'cleanEclipse', 'copyEclipseSettings' }
 
   afterEvaluate {
-     tasks.findByName("eclipseJdt")?.configure {
-         dependsOn 'copyEclipseSettings'
-     }
+    tasks.findByName("eclipseJdt")?.configure {
+      dependsOn 'copyEclipseSettings'
+    }
   }
 }
 
