@@ -54,7 +54,7 @@ import static org.opensearch.rest.RestStatus.OK;
 public class RestGetComposableIndexTemplateAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetComposableIndexTemplateAction.class);
-    
+
     @Override
     public List<Route> routes() {
         return Arrays.asList(
