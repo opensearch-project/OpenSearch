@@ -77,9 +77,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "Deprecated parameter [master_timeout] used. 
-        To promote inclusive language, please use [cluster_manager_timeout] instead. 
-        It will be unsupported in a future major version."
+        - "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version."
       indices.get_template:
         name: test
         flat_settings: true
