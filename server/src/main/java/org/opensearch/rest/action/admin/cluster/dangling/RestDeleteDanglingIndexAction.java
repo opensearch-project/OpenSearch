@@ -35,10 +35,12 @@ package org.opensearch.rest.action.admin.cluster.dangling;
 import org.opensearch.action.admin.indices.dangling.delete.DeleteDanglingIndexRequest;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.action.RestToXContentListener;
+import org.opensearch.rest.action.admin.indices.RestAddIndexBlockAction;
 
 import java.io.IOException;
 import java.util.List;
@@ -49,6 +51,8 @@ import static org.opensearch.rest.RestStatus.ACCEPTED;
 
 public class RestDeleteDanglingIndexAction extends BaseRestHandler {
 
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestDeleteDanglingIndexAction.class);
+    
     @Override
     public List<Route> routes() {
         return singletonList(new Route(DELETE, "/_dangling/{index_uuid}"));
@@ -67,7 +71,8 @@ public class RestDeleteDanglingIndexAction extends BaseRestHandler {
         );
 
         deleteRequest.timeout(request.paramAsTime("timeout", deleteRequest.timeout()));
-        deleteRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteRequest.masterNodeTimeout()));
+        deleteRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", deleteRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(deleteRequest, request, deprecationLogger, getName());
 
         return channel -> client.admin()
             .cluster()
