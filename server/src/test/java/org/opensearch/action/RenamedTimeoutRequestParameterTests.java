@@ -11,7 +11,11 @@ package org.opensearch.action;
 import org.junit.AfterClass;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.action.admin.cluster.RestClusterGetSettingsAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterHealthAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterRerouteAction;
@@ -23,6 +27,7 @@ import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.threadpool.TestThreadPool;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -35,6 +40,7 @@ import static org.hamcrest.Matchers.containsString;
 public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     private static final TestThreadPool threadPool = new TestThreadPool(RenamedTimeoutRequestParameterTests.class.getName());
     private final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
+    private final SettingsFilter filter = new SettingsFilter(Collections.singleton("foo.filtered"));
 
     private static final String PARAM_VALUE_ERROR_MESSAGE = "[master_timeout, cluster_manager_timeout] are required to be equal";
     private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
@@ -62,7 +68,7 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     }
 
     public void testClusterReroute() throws IOException {
-        RestClusterRerouteAction action = new RestClusterRerouteAction(null);
+        RestClusterRerouteAction action = new RestClusterRerouteAction(filter);
 
         action.prepareRequest(getRestRequestWithNewParam(), client);
 
@@ -74,7 +80,7 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     }
 
     public void testClusterState() throws IOException {
-        RestClusterStateAction action = new RestClusterStateAction(null);
+        RestClusterStateAction action = new RestClusterStateAction(filter);
 
         action.prepareRequest(getRestRequestWithNewParam(), client);
 
@@ -86,7 +92,7 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     }
 
     public void testClusterGetSettings() throws IOException {
-        RestClusterGetSettingsAction action = new RestClusterGetSettingsAction(null, null, null);
+        RestClusterGetSettingsAction action = new RestClusterGetSettingsAction(null, null, filter);
 
         action.prepareRequest(getRestRequestWithNewParam(), client);
 
@@ -100,12 +106,15 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     public void testClusterUpdateSettings() throws IOException {
         RestClusterUpdateSettingsAction action = new RestClusterUpdateSettingsAction();
 
-        action.prepareRequest(getRestRequestWithNewParam(), client);
+        action.prepareRequest(getRestRequestWithBodyWithNewParam(), client);
 
-        action.prepareRequest(getRestRequestWithDeprecatedParam(), client);
+        action.prepareRequest(getRestRequestWithBodyWithDeprecatedParam(), client);
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
 
-        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithWrongValues(), client));
+        Exception e = assertThrows(
+            OpenSearchParseException.class,
+            () -> action.prepareRequest(getRestRequestWithBodyWithWrongValues(), client)
+        );
         assertThat(e.getMessage(), containsString(PARAM_VALUE_ERROR_MESSAGE));
     }
 
@@ -138,5 +147,28 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
         FakeRestRequest request = new FakeRestRequest();
         request.params().put("cluster_manager_timeout", "2m");
         return request;
+    }
+
+    private FakeRestRequest getRestRequestWithBodyWithWrongValues() {
+        FakeRestRequest request = getFakeRestReqeustWithBody();
+        request.params().put("cluster_manager_timeout", randomFrom("1h", "2m"));
+        request.params().put("master_timeout", "3s");
+        return request;
+    }
+
+    private FakeRestRequest getRestRequestWithBodyWithDeprecatedParam() {
+        FakeRestRequest request = getFakeRestReqeustWithBody();
+        request.params().put("master_timeout", "3s");
+        return request;
+    }
+
+    private FakeRestRequest getRestRequestWithBodyWithNewParam() {
+        FakeRestRequest request = getFakeRestReqeustWithBody();
+        request.params().put("cluster_manager_timeout", "2m");
+        return request;
+    }
+
+    private FakeRestRequest getFakeRestReqeustWithBody() {
+        return new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(new BytesArray("{}"), XContentType.JSON).build();
     }
 }
