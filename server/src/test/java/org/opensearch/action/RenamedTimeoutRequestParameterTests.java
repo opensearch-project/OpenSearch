@@ -43,12 +43,13 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
      */
     public void testCatAllocation() {
         RestNodesAction action = new RestNodesAction();
-
+        // Request with only new parameter will be parsed without warning and exception.
         action.doCatRequest(getRestRequestWithNewParam(), client);
-
+        // Request with only deprecated parameter will result deprecation warning.
         action.doCatRequest(getRestRequestWithDeprecatedParam(), client);
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
-
+        // Request with both new and deprecated parameters and different values will result exception.
+        // It should have warning, but the same deprecation warning won't be logged again.
         Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithWrongValues(), client));
         assertThat(e.getMessage(), containsString(PARAM_VALUE_ERROR_MESSAGE));
     }
