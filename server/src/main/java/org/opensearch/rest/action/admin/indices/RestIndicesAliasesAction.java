@@ -47,6 +47,7 @@ import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
 public class RestIndicesAliasesAction extends BaseRestHandler {
+
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestIndicesAliasesAction.class);
 
     @Override
