@@ -24,9 +24,44 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class PITRequest extends ActionRequest implements IndicesRequest.Replaceable {
-    public PITRequest(TimeValue keepAlive) {
+import static org.opensearch.action.ValidateActions.addValidationError;
+
+public class CreatePITRequest extends ActionRequest implements IndicesRequest.Replaceable {
+
+    private TimeValue keepAlive;
+    private final boolean allowPartialPitCreation;
+    @Nullable
+    private String routing = null;
+    @Nullable
+    private String preference = null;
+    private String[] indices = Strings.EMPTY_ARRAY;
+    private IndicesOptions indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
+
+    public CreatePITRequest(TimeValue keepAlive, boolean allowPartialPitCreation) {
         this.keepAlive = keepAlive;
+        this.allowPartialPitCreation = allowPartialPitCreation;
+    }
+
+    public CreatePITRequest(StreamInput in) throws IOException {
+        super(in);
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        routing = in.readOptionalString();
+        preference = in.readOptionalString();
+        keepAlive = in.readTimeValue();
+        routing = in.readOptionalString();
+        allowPartialPitCreation = in.readBoolean();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeStringArray(indices);
+        indicesOptions.writeIndicesOptions(out);
+        out.writeOptionalString(preference);
+        out.writeTimeValue(keepAlive);
+        out.writeOptionalString(routing);
+        out.writeBoolean(allowPartialPitCreation);
     }
 
     public String getRouting() {
@@ -49,58 +84,33 @@ public class PITRequest extends ActionRequest implements IndicesRequest.Replacea
         return keepAlive;
     }
 
-    private TimeValue keepAlive;
-
-    public PITRequest(StreamInput in) throws IOException {
-        super(in);
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        routing = in.readOptionalString();
-        preference = in.readOptionalString();
-        keepAlive = in.readTimeValue();
-        routing = in.readOptionalString();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringArray(indices);
-        indicesOptions.writeIndicesOptions(out);
-        out.writeOptionalString(preference);
-        out.writeTimeValue(keepAlive);
-        out.writeOptionalString(routing);
+    public boolean isAllowPartialPitCreation() {
+        return allowPartialPitCreation;
     }
 
     public void setRouting(String routing) {
         this.routing = routing;
     }
 
-    @Nullable
-    private String routing = null;
-
     public void setPreference(String preference) {
         this.preference = preference;
     }
-
-    @Nullable
-    private String preference = null;
 
     public void setIndices(String[] indices) {
         this.indices = indices;
     }
 
-    private String[] indices = Strings.EMPTY_ARRAY;
-
     public void setIndicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = Objects.requireNonNull(indicesOptions, "indicesOptions must not be null");
     }
 
-    private IndicesOptions indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
-
-
     @Override
     public ActionRequestValidationException validate() {
-        return null;
+        ActionRequestValidationException validationException = null;
+        if (keepAlive == null) {
+            validationException = addValidationError("Keep alive is missing", validationException);
+        }
+        return validationException;
     }
 
     @Override
@@ -112,8 +122,6 @@ public class PITRequest extends ActionRequest implements IndicesRequest.Replacea
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }
-
-
 
     public void setKeepAlive(TimeValue keepAlive) {
         this.keepAlive = keepAlive;
@@ -128,7 +136,7 @@ public class PITRequest extends ActionRequest implements IndicesRequest.Replacea
      * Sets the indices the search will be executed on.
      */
     @Override
-    public PITRequest indices(String... indices) {
+    public CreatePITRequest indices(String... indices) {
         SearchRequest.validateIndices(indices);
         this.indices = indices;
         return this;

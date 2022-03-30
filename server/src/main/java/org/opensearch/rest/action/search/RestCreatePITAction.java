@@ -9,7 +9,7 @@
 package org.opensearch.rest.action.search;
 
 import org.opensearch.action.search.CreatePITAction;
-import org.opensearch.action.search.PITRequest;
+import org.opensearch.action.search.CreatePITRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
@@ -33,21 +33,22 @@ public class RestCreatePITAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        PITRequest pitRequest = new PITRequest(request.paramAsTime("keep_alive", null));
-        pitRequest.setIndicesOptions(IndicesOptions.fromRequest(request, pitRequest.indicesOptions()));
-        pitRequest.setPreference(request.param("preference"));
-        pitRequest.setRouting(request.param("routing"));
-        pitRequest.setIndices(Strings.splitStringByCommaToArray(request.param("index")));
+        boolean allowPartialPitCreation = request.paramAsBoolean("allow_partial_pit_creation", false);
+
+        CreatePITRequest createPitRequest = new CreatePITRequest(request.paramAsTime("keep_alive", null), allowPartialPitCreation);
+        createPitRequest.setIndicesOptions(IndicesOptions.fromRequest(request, createPitRequest.indicesOptions()));
+        createPitRequest.setPreference(request.param("preference"));
+        createPitRequest.setRouting(request.param("routing"));
+        createPitRequest.setIndices(Strings.splitStringByCommaToArray(request.param("index")));
         return channel -> {
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancelClient.execute(CreatePITAction.INSTANCE, pitRequest, new RestStatusToXContentListener<>(channel));
+            cancelClient.execute(CreatePITAction.INSTANCE, createPitRequest, new RestStatusToXContentListener<>(channel));
         };
     }
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(Collections.singletonList(
-            new Route(POST, "/{index}/_pit")));
+        return unmodifiableList(Collections.singletonList(new Route(POST, "/{index}/_pit")));
     }
 
 }

@@ -292,7 +292,7 @@ public interface SearchOperationListener {
         public void onFreePitContext(ReaderContext readerContext) {
             for (SearchOperationListener listener : listeners) {
                 try {
-                    listener.onNewPitContext(readerContext);
+                    listener.onFreePitContext(readerContext);
                 } catch (Exception e) {
                     logger.warn(() -> new ParameterizedMessage("onFreePitContext listener [{}] failed", listener), e);
                 }

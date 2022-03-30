@@ -41,9 +41,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.OriginalIndices;
-import org.opensearch.action.search.SearchRequest;
-import org.opensearch.action.search.SearchShardTask;
-import org.opensearch.action.search.SearchType;
+import org.opensearch.action.search.*;
 import org.opensearch.action.support.TransportActions;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.service.ClusterService;
@@ -208,9 +206,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
-  public static final Setting<Integer> MAX_OPEN_PIT_CONTEXT =
-      Setting.intSetting(
-          "search.max_open_pit_context", 500, 0, Property.Dynamic, Property.NodeScope);
+    public static final Setting<Integer> MAX_OPEN_PIT_CONTEXT = Setting.intSetting(
+        "search.max_open_pit_context",
+        500,
+        0,
+        Property.Dynamic,
+        Property.NodeScope
+    );
 
     public static final int DEFAULT_SIZE = 10;
     public static final int DEFAULT_FROM = 0;
@@ -464,7 +466,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         assert request.canReturnNullResponseIfMatchNoDocs() == false || request.numberOfShards() > 1
             : "empty responses require more than one shard";
         final IndexShard shard = getShard(request);
-        rewriteAndFetchShardRequest(shard, request, new ActionListener<ShardSearchRequest>() {
+        rewriteAndFetchShardRequest(shard, request, new ActionListener<>() {
             @Override
             public void onResponse(ShardSearchRequest orig) {
                 // check if we can shortcut the query phase entirely.
@@ -806,26 +808,36 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             Releasable decreasePitContexts = null;
             Engine.SearcherSupplier searcherSupplier = null;
             ReaderContext readerContext = null;
+            boolean success = false;
             try {
                 decreasePitContexts = openPitContexts::decrementAndGet;
                 if (openPitContexts.incrementAndGet() > maxOpenPitContext) {
                     throw new OpenSearchRejectedExecutionException(
-                        "Trying to create too many Point In Time contexts. Must be less than or equal to: [" +
-                            maxOpenPitContext + "]. " + "This limit can be set by changing the ["
-                            + MAX_OPEN_PIT_CONTEXT.getKey() + "] setting.");
+                        "Trying to create too many Point In Time contexts. Must be less than or equal to: ["
+                            + maxOpenPitContext
+                            + "]. "
+                            + "This limit can be set by changing the ["
+                            + MAX_OPEN_PIT_CONTEXT.getKey()
+                            + "] setting."
+                    );
                 }
                 searcherSupplier = shard.acquireSearcherSupplier();
                 List<Segment> nonVerboseSegments = shard.segments(false);
-                shard.routingEntry();
                 final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());
-                readerContext = new PitReaderContext(id, indexService, shard, searcherSupplier, keepAlive.millis(), false,
-                    shard.routingEntry(),nonVerboseSegments);
-                readerContext = new ReaderContext(id, indexService, shard, searcherSupplier, keepAlive.millis(), false);
+                readerContext = new PitReaderContext(
+                    id,
+                    indexService,
+                    shard,
+                    searcherSupplier,
+                    keepAlive.millis(),
+                    false,
+                    shard.routingEntry(),
+                    nonVerboseSegments
+                );
                 final ReaderContext finalReaderContext = readerContext;
                 searcherSupplier = null; // transfer ownership to reader context
 
                 searchOperationListener.onNewReaderContext(readerContext);
-
                 searchOperationListener.onNewPitContext(finalReaderContext);
                 readerContext.addOnClose(decreasePitContexts);
                 decreasePitContexts = null;
@@ -834,15 +846,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     searchOperationListener.onFreeReaderContext(finalReaderContext);
                     searchOperationListener.onFreePitContext(finalReaderContext);
                 });
-                readerContext.addOnClose(() -> searchOperationListener.onFreeReaderContext(finalReaderContext));
                 putReaderContext(readerContext);
                 readerContext = null;
                 listener.onResponse(finalReaderContext.id());
+                success = true;
             } catch (Exception exc) {
-                Releasables.closeWhileHandlingException(searcherSupplier, readerContext);
                 listener.onFailure(exc);
-            } finally{
-                Releasables.close(decreasePitContexts);
+            } finally {
+                if (success) {
+                    Releasables.close(readerContext, searcherSupplier, decreasePitContexts);
+                } else {
+                    Releasables.closeWhileHandlingException(searcherSupplier, readerContext, decreasePitContexts);
+                }
             }
         });
     }
@@ -958,6 +973,24 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         return false;
+    }
+
+    public void updatePitIdAndKeepAlive(
+        TransportCreatePITAction.UpdatePITContextRequest request,
+        ActionListener<TransportCreatePITAction.UpdatePitContextResponse> listener
+    ) {
+        try {
+            PitReaderContext readerContext = getPitReaderContext(request.getSearchContextId());
+            if (readerContext == null) {
+                throw new SearchContextMissingException(request.getSearchContextId());
+            }
+            readerContext.setPitId(request.getPitId());
+            readerContext.tryUpdateKeepAlive(maxKeepAlive);
+            readerContext.setCreateTimestamp(request.getCreateTime());
+            listener.onResponse(new TransportCreatePITAction.UpdatePitContextResponse(request.getPitId()));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     public void freeAllScrollContexts() {
@@ -1290,8 +1323,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public PitReaderContext getPitReaderContext(ShardSearchContextId id) {
-        ReaderContext readerContext = getReaderContext(id);
-        return (PitReaderContext) readerContext;
+        for (Map.Entry<Long, ReaderContext> context : activeReaders.entrySet()) {
+            if (context.getValue() instanceof PitReaderContext) {
+                if (context.getKey() == id.getId()) return (PitReaderContext) context.getValue();
+            }
+        }
+        return null;
     }
 
     class Reaper implements Runnable {
