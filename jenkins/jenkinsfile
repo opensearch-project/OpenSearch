@@ -1,0 +1,32 @@
+pipeline {
+    agent {
+         docker {
+            label 'AL2-X64'
+            /* See  
+            https://hub.docker.com/layers/ci-runner/opensearchstaging/ci-runner/ci-runner-ubuntu1804-build-v1/images/sha256-2c7bb2780bc08cd4e7e3c382ac53db414754dabd52f9b70e1c7e344dfb9a0e5e?context=explore
+            for docker image
+            */
+            image 'opensearchstaging/ci-runner:ci-runner-ubuntu1804-build-v1'
+            alwaysPull true
+        }
+    }
+
+    environment {
+        JAVA11_HOME="/opt/java/openjdk-11"
+        JAVA14_HOME="/opt/java/openjdk-14"
+        JAVA17_HOME="/opt/java/openjdk-17"
+        JAVA8_HOME="/opt/java/openjdk-8"
+        JAVA_HOME="/opt/java/openjdk-11"
+    }
+
+    stages {
+        stage('gradle-check') {
+            steps {
+                script {
+                    sh 'echo gradle check'
+                    sh './gradlew check --no-daemon --no-scan'
+                }
+            } 
+        }
+    }
+}
