@@ -125,4 +125,5 @@ public class RestClusterHealthAction extends BaseRestHandler {
     public boolean canTripCircuitBreaker() {
         return false;
     }
+
 }

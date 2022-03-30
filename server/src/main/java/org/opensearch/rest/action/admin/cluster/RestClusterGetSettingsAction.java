@@ -125,4 +125,5 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
             renderDefaults ? settingsFilter.filter(clusterSettings.diff(state.metadata().settings(), settings)) : Settings.EMPTY
         );
     }
+
 }
