@@ -211,7 +211,7 @@ public abstract class BaseRestHandler implements RestHandler {
     @Deprecated
     protected static void parseDeprecatedMasterTimeoutParameter(DeprecationLogger logger, MasterNodeRequest mnr, RestRequest request) {
         final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
-                "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
+            "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
         if (request.hasParam("master_timeout")) {
             logger.deprecate("master_timeout_request_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
             request.validateParamValuesAreEqual("master_timeout", "cluster_manager_timeout");
