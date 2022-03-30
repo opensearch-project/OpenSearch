@@ -36,7 +36,6 @@ import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.rest.BaseRestHandler;
@@ -54,8 +53,6 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
 public class RestPutMappingAction extends BaseRestHandler {
-
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestPutMappingAction.class);
 
     @Override
     public List<Route> routes() {
@@ -86,8 +83,7 @@ public class RestPutMappingAction extends BaseRestHandler {
 
         putMappingRequest.source(sourceAsMap);
         putMappingRequest.timeout(request.paramAsTime("timeout", putMappingRequest.timeout()));
-        putMappingRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", putMappingRequest.masterNodeTimeout()));
-        parseDeprecatedMasterTimeoutParameter(putMappingRequest, request, deprecationLogger, getName());
+        putMappingRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putMappingRequest.masterNodeTimeout()));
         putMappingRequest.indicesOptions(IndicesOptions.fromRequest(request, putMappingRequest.indicesOptions()));
         putMappingRequest.writeIndexOnly(request.paramAsBoolean("write_index_only", false));
         return channel -> client.admin().indices().putMapping(putMappingRequest, new RestToXContentListener<>(channel));

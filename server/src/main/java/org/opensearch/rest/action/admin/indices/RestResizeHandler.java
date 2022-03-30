@@ -91,8 +91,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
         resizeRequest.setCopySettings(copySettings);
         request.applyContentParser(resizeRequest::fromXContent);
         resizeRequest.timeout(request.paramAsTime("timeout", resizeRequest.timeout()));
-        resizeRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", resizeRequest.masterNodeTimeout()));
-        parseDeprecatedMasterTimeoutParameter(resizeRequest, request, deprecationLogger, getName());
+        resizeRequest.masterNodeTimeout(request.paramAsTime("master_timeout", resizeRequest.masterNodeTimeout()));
         resizeRequest.setWaitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
         return channel -> client.admin().indices().resizeIndex(resizeRequest, new RestToXContentListener<>(channel));
     }
