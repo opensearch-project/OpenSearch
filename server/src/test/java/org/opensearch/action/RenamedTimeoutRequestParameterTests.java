@@ -49,14 +49,15 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
      * Validate both cluster_manager_timeout and its predecessor can be parsed correctly.
      */
     public void testClusterHealth() {
-        RestClusterHealthAction action = new RestClusterHealthAction();
+        RestClusterHealthAction.fromRequest(getRestRequestWithNewParam());
 
-        action.fromRequest(getRestRequestWithNewParam());
-
-        action.fromRequest(getRestRequestWithDeprecatedParam());
+        RestClusterHealthAction.fromRequest(getRestRequestWithDeprecatedParam());
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
 
-        Exception e = assertThrows(OpenSearchParseException.class, () -> action.fromRequest(getRestRequestWithWrongValues()));
+        Exception e = assertThrows(
+            OpenSearchParseException.class,
+            () -> RestClusterHealthAction.fromRequest(getRestRequestWithWrongValues())
+        );
         assertThat(e.getMessage(), containsString(PARAM_VALUE_ERROR_MESSAGE));
     }
 
