@@ -61,7 +61,6 @@ public class RestDeleteComposableIndexTemplateAction extends BaseRestHandler {
 
         DeleteComposableIndexTemplateAction.Request deleteReq = new DeleteComposableIndexTemplateAction.Request(request.param("name"));
         deleteReq.masterNodeTimeout(request.paramAsTime("master_timeout", deleteReq.masterNodeTimeout()));
-        parseDeprecatedMasterTimeoutParameter(deleteReq, request, deprecationLogger, getName());
 
         return channel -> client.execute(DeleteComposableIndexTemplateAction.INSTANCE, deleteReq, new RestToXContentListener<>(channel));
     }

@@ -72,6 +72,7 @@ public class RestGetComposableIndexTemplateAction extends BaseRestHandler {
 
         getRequest.local(request.paramAsBoolean("local", getRequest.local()));
         getRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRequest.masterNodeTimeout()));
+
         final boolean implicitAll = getRequest.name() == null;
 
         return channel -> client.execute(

@@ -51,8 +51,6 @@ import static org.opensearch.rest.RestRequest.Method.DELETE;
 public class RestDeleteIndexAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestDeleteIndexAction.class);
-    private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
-        "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
 
     @Override
     public List<Route> routes() {
@@ -69,24 +67,8 @@ public class RestDeleteIndexAction extends BaseRestHandler {
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
         deleteIndexRequest.timeout(request.paramAsTime("timeout", deleteIndexRequest.timeout()));
         deleteIndexRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", deleteIndexRequest.masterNodeTimeout()));
-        parseDeprecatedMasterTimeoutParameter(deleteIndexRequest, request);
+        parseDeprecatedMasterTimeoutParameter(deleteIndexRequest, request, deprecationLogger, getName());
         deleteIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, deleteIndexRequest.indicesOptions()));
         return channel -> client.admin().indices().delete(deleteIndexRequest, new RestToXContentListener<>(channel));
-    }
-
-    /**
-     * Parse the deprecated request parameter 'master_timeout', and add deprecated log if the parameter is used.
-     * It also validates whether the value of 'master_timeout' is the same with 'cluster_manager_timeout'.
-     * Remove the method along with MASTER_ROLE.
-     * @deprecated As of 2.0, because promoting inclusive language.
-     */
-    @Deprecated
-    private void parseDeprecatedMasterTimeoutParameter(DeleteIndexRequest deleteIndexRequest, RestRequest request) {
-        final String deprecatedTimeoutParam = "master_timeout";
-        if (request.hasParam(deprecatedTimeoutParam)) {
-            deprecationLogger.deprecate("delete_index_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
-            request.validateParamValuesAreEqual(deprecatedTimeoutParam, "cluster_manager_timeout");
-            deleteIndexRequest.masterNodeTimeout(request.paramAsTime(deprecatedTimeoutParam, deleteIndexRequest.masterNodeTimeout()));
-        }
     }
 }

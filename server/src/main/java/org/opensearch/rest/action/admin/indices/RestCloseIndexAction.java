@@ -67,7 +67,7 @@ public class RestCloseIndexAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
         closeIndexRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", closeIndexRequest.masterNodeTimeout()));
-        parseDeprecatedMasterTimeoutParameter(closeIndexRequest, request);
+        parseDeprecatedMasterTimeoutParameter(closeIndexRequest, request, deprecationLogger, getName());
         closeIndexRequest.timeout(request.paramAsTime("timeout", closeIndexRequest.timeout()));
         closeIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, closeIndexRequest.indicesOptions()));
         String waitForActiveShards = request.param("wait_for_active_shards");
@@ -77,19 +77,4 @@ public class RestCloseIndexAction extends BaseRestHandler {
         return channel -> client.admin().indices().close(closeIndexRequest, new RestToXContentListener<>(channel));
     }
 
-    /**
-     * Parse the deprecated request parameter 'master_timeout', and add deprecated log if the parameter is used.
-     * It also validates whether the value of 'master_timeout' is the same with 'cluster_manager_timeout'.
-     * Remove the method along with MASTER_ROLE.
-     * @deprecated As of 2.0, because promoting inclusive language.
-     */
-    @Deprecated
-    private void parseDeprecatedMasterTimeoutParameter(CloseIndexRequest closeIndexRequest, RestRequest request) {
-        final String deprecatedTimeoutParam = "master_timeout";
-        if (request.hasParam(deprecatedTimeoutParam)) {
-            deprecationLogger.deprecate("close_index_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
-            request.validateParamValuesAreEqual(deprecatedTimeoutParam, "cluster_manager_timeout");
-            closeIndexRequest.masterNodeTimeout(request.paramAsTime(deprecatedTimeoutParam, closeIndexRequest.masterNodeTimeout()));
-        }
-    }
 }
