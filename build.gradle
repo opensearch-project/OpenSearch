@@ -393,7 +393,7 @@ subprojects {
   tasks.withType(Test).configureEach {
     retry {
       failOnPassedAfterRetry = false
-      maxRetries = 1
+      maxRetries = 3
       maxFailures = 10
     }
   }
