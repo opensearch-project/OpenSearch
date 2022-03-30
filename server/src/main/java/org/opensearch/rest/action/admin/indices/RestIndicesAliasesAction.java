@@ -48,7 +48,7 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 
 public class RestIndicesAliasesAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestIndicesAliasesAction.class);
-    
+
     @Override
     public String getName() {
         return "indices_aliases_action";

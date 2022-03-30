@@ -40,7 +40,6 @@ import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.action.RestToXContentListener;
-import org.opensearch.rest.action.admin.indices.RestAddIndexBlockAction;
 
 import java.io.IOException;
 import java.util.List;
@@ -52,7 +51,7 @@ import static org.opensearch.rest.RestStatus.ACCEPTED;
 public class RestDeleteDanglingIndexAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestDeleteDanglingIndexAction.class);
-    
+
     @Override
     public List<Route> routes() {
         return singletonList(new Route(DELETE, "/_dangling/{index_uuid}"));
