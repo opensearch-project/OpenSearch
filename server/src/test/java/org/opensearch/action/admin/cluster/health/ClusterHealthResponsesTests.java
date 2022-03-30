@@ -228,7 +228,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                 "{\"cluster_name\":\"535799904437:7-1-3-node\",\"status\":\"green\","
-                    + "\"timed_out\":false,\"number_of_nodes\":6,\"number_of_data_nodes\":3,\"discovered_master\":false,"
+                    + "\"timed_out\":false,\"number_of_nodes\":6,\"number_of_data_nodes\":3,\"discovered_master\":true,"
                     + "\"active_primary_shards\":4,\"active_shards\":5,\"relocating_shards\":0,\"initializing_shards\":0,"
                     + "\"unassigned_shards\":0,\"delayed_unassigned_shards\":0,\"number_of_pending_tasks\":0,"
                     + "\"number_of_in_flight_fetch\":0,\"task_max_waiting_in_queue_millis\":0,"
@@ -236,6 +236,27 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
             )
         ) {
 
+            ClusterHealthResponse clusterHealth = ClusterHealthResponse.fromXContent(parser);
+            assertNotNull(clusterHealth);
+            assertThat(clusterHealth.getClusterName(), Matchers.equalTo("535799904437:7-1-3-node"));
+            assertThat(clusterHealth.getNumberOfNodes(), Matchers.equalTo(6));
+            assertThat(clusterHealth.hasDiscoveredMaster(), Matchers.equalTo(true));
+        }
+    }
+
+    public void testParseFromXContentWithoutDiscoveredMasterField() throws IOException {
+        try (
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                "{\"cluster_name\":\"535799904437:7-1-3-node\",\"status\":\"green\","
+                    + "\"timed_out\":false,\"number_of_nodes\":6,\"number_of_data_nodes\":3,"
+                    + "\"active_primary_shards\":4,\"active_shards\":5,\"relocating_shards\":0,\"initializing_shards\":0,"
+                    + "\"unassigned_shards\":0,\"delayed_unassigned_shards\":0,\"number_of_pending_tasks\":0,"
+                    + "\"number_of_in_flight_fetch\":0,\"task_max_waiting_in_queue_millis\":0,"
+                    + "\"active_shards_percent_as_number\":100}"
+            )
+        ) {
             ClusterHealthResponse clusterHealth = ClusterHealthResponse.fromXContent(parser);
             assertNotNull(clusterHealth);
             assertThat(clusterHealth.getClusterName(), Matchers.equalTo("535799904437:7-1-3-node"));

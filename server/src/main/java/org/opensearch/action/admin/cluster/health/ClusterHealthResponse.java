@@ -90,7 +90,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
             // ClusterStateHealth fields
             int numberOfNodes = (int) parsedObjects[i++];
             int numberOfDataNodes = (int) parsedObjects[i++];
-            boolean hasDiscoveredMaster = (boolean) parsedObjects[i++];
+            boolean hasDiscoveredMaster = Boolean.TRUE.equals(parsedObjects[i++]);
             int activeShards = (int) parsedObjects[i++];
             int relocatingShards = (int) parsedObjects[i++];
             int activePrimaryShards = (int) parsedObjects[i++];
@@ -151,7 +151,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         // ClusterStateHealth fields
         PARSER.declareInt(constructorArg(), new ParseField(NUMBER_OF_NODES));
         PARSER.declareInt(constructorArg(), new ParseField(NUMBER_OF_DATA_NODES));
-        PARSER.declareBoolean(constructorArg(), new ParseField(DISCOVERED_MASTER));
+        PARSER.declareBoolean(optionalConstructorArg(), new ParseField(DISCOVERED_MASTER));
         PARSER.declareInt(constructorArg(), new ParseField(ACTIVE_SHARDS));
         PARSER.declareInt(constructorArg(), new ParseField(RELOCATING_SHARDS));
         PARSER.declareInt(constructorArg(), new ParseField(ACTIVE_PRIMARY_SHARDS));
