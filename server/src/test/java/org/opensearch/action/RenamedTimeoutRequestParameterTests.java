@@ -150,25 +150,25 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     }
 
     private FakeRestRequest getRestRequestWithBodyWithWrongValues() {
-        FakeRestRequest request = getFakeRestReqeustWithBody();
+        FakeRestRequest request = getFakeRestRequestWithBody();
         request.params().put("cluster_manager_timeout", randomFrom("1h", "2m"));
         request.params().put("master_timeout", "3s");
         return request;
     }
 
     private FakeRestRequest getRestRequestWithBodyWithDeprecatedParam() {
-        FakeRestRequest request = getFakeRestReqeustWithBody();
+        FakeRestRequest request = getFakeRestRequestWithBody();
         request.params().put("master_timeout", "3s");
         return request;
     }
 
     private FakeRestRequest getRestRequestWithBodyWithNewParam() {
-        FakeRestRequest request = getFakeRestReqeustWithBody();
+        FakeRestRequest request = getFakeRestRequestWithBody();
         request.params().put("cluster_manager_timeout", "2m");
         return request;
     }
 
-    private FakeRestRequest getFakeRestReqeustWithBody() {
+    private FakeRestRequest getFakeRestRequestWithBody() {
         return new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(new BytesArray("{}"), XContentType.JSON).build();
     }
 }
