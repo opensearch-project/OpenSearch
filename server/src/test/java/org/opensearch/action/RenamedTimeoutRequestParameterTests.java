@@ -40,7 +40,6 @@ import static org.hamcrest.Matchers.containsString;
 public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     private static final TestThreadPool threadPool = new TestThreadPool(RenamedTimeoutRequestParameterTests.class.getName());
     private final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
-    private final SettingsFilter filter = new SettingsFilter(Collections.singleton("foo.filtered"));
 
     private static final String PARAM_VALUE_ERROR_MESSAGE = "[master_timeout, cluster_manager_timeout] are required to be equal";
     private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
@@ -68,6 +67,7 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     }
 
     public void testClusterReroute() throws IOException {
+        final SettingsFilter filter = new SettingsFilter(Collections.singleton("foo.filtered"));
         RestClusterRerouteAction action = new RestClusterRerouteAction(filter);
 
         action.prepareRequest(getRestRequestWithNewParam(), client);
@@ -80,6 +80,7 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     }
 
     public void testClusterState() throws IOException {
+        final SettingsFilter filter = new SettingsFilter(Collections.singleton("foo.filtered"));
         RestClusterStateAction action = new RestClusterStateAction(filter);
 
         action.prepareRequest(getRestRequestWithNewParam(), client);
@@ -92,6 +93,7 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     }
 
     public void testClusterGetSettings() throws IOException {
+        final SettingsFilter filter = new SettingsFilter(Collections.singleton("foo.filtered"));
         RestClusterGetSettingsAction action = new RestClusterGetSettingsAction(null, null, filter);
 
         action.prepareRequest(getRestRequestWithNewParam(), client);
