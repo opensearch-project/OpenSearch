@@ -36,6 +36,7 @@ import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.rest.BaseRestHandler;
@@ -53,6 +54,10 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
 public class RestPutMappingAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestPutMappingAction.class);
+    private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
+        "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
 
     @Override
     public List<Route> routes() {
@@ -83,9 +88,26 @@ public class RestPutMappingAction extends BaseRestHandler {
 
         putMappingRequest.source(sourceAsMap);
         putMappingRequest.timeout(request.paramAsTime("timeout", putMappingRequest.timeout()));
-        putMappingRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putMappingRequest.masterNodeTimeout()));
+        putMappingRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", putMappingRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(putMappingRequest, request);
         putMappingRequest.indicesOptions(IndicesOptions.fromRequest(request, putMappingRequest.indicesOptions()));
         putMappingRequest.writeIndexOnly(request.paramAsBoolean("write_index_only", false));
         return channel -> client.admin().indices().putMapping(putMappingRequest, new RestToXContentListener<>(channel));
+    }
+
+    /**
+     * Parse the deprecated request parameter 'master_timeout', and add deprecated log if the parameter is used.
+     * It also validates whether the value of 'master_timeout' is the same with 'cluster_manager_timeout'.
+     * Remove the method along with MASTER_ROLE.
+     * @deprecated As of 2.0, because promoting inclusive language.
+     */
+    @Deprecated
+    private void parseDeprecatedMasterTimeoutParameter(PutMappingRequest putMappingRequest, RestRequest request) {
+        final String deprecatedTimeoutParam = "master_timeout";
+        if (request.hasParam(deprecatedTimeoutParam)) {
+            deprecationLogger.deprecate("put_mapping_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+            request.validateParamValuesAreEqual(deprecatedTimeoutParam, "cluster_manager_timeout");
+            putMappingRequest.masterNodeTimeout(request.paramAsTime(deprecatedTimeoutParam, putMappingRequest.masterNodeTimeout()));
+        }
     }
 }

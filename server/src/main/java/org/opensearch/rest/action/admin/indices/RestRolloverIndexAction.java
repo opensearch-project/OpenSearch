@@ -52,6 +52,8 @@ public class RestRolloverIndexAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestRolloverIndexAction.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in rollover "
         + "index requests is deprecated. The parameter will be removed in the next major version.";
+    private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
+        "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
 
     @Override
     public List<Route> routes() {
@@ -72,9 +74,26 @@ public class RestRolloverIndexAction extends BaseRestHandler {
         request.applyContentParser(parser -> rolloverIndexRequest.fromXContent(parser));
         rolloverIndexRequest.dryRun(request.paramAsBoolean("dry_run", false));
         rolloverIndexRequest.timeout(request.paramAsTime("timeout", rolloverIndexRequest.timeout()));
-        rolloverIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", rolloverIndexRequest.masterNodeTimeout()));
+        rolloverIndexRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", rolloverIndexRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(rolloverIndexRequest, request);
         rolloverIndexRequest.getCreateIndexRequest()
             .waitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
         return channel -> client.admin().indices().rolloverIndex(rolloverIndexRequest, new RestToXContentListener<>(channel));
+    }
+
+    /**
+     * Parse the deprecated request parameter 'master_timeout', and add deprecated log if the parameter is used.
+     * It also validates whether the value of 'master_timeout' is the same with 'cluster_manager_timeout'.
+     * Remove the method along with MASTER_ROLE.
+     * @deprecated As of 2.0, because promoting inclusive language.
+     */
+    @Deprecated
+    private void parseDeprecatedMasterTimeoutParameter(RolloverRequest rolloverIndexRequest, RestRequest request) {
+        final String deprecatedTimeoutParam = "master_timeout";
+        if (request.hasParam(deprecatedTimeoutParam)) {
+            deprecationLogger.deprecate("rollover_index_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+            request.validateParamValuesAreEqual(deprecatedTimeoutParam, "cluster_manager_timeout");
+            rolloverIndexRequest.masterNodeTimeout(request.paramAsTime(deprecatedTimeoutParam, rolloverIndexRequest.masterNodeTimeout()));
+        }
     }
 }

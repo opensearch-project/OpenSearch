@@ -39,6 +39,7 @@ import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.rest.BaseRestHandler;
@@ -58,6 +59,10 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
 public class RestGetMappingAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetMappingAction.class);
+    private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
+        "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
 
     private final ThreadPool threadPool;
 
@@ -89,7 +94,9 @@ public class RestGetMappingAction extends BaseRestHandler {
         final GetMappingsRequest getMappingsRequest = new GetMappingsRequest();
         getMappingsRequest.indices(indices);
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
-        final TimeValue timeout = request.paramAsTime("master_timeout", getMappingsRequest.masterNodeTimeout());
+        TimeValue clusterManagerTimeout = request.paramAsTime("cluster_manager_timeout", getMappingsRequest.masterNodeTimeout());
+        TimeValue deprecatedMasterTimeout = parseDeprecatedMasterTimeoutParameter(getMappingsRequest, request);
+        final TimeValue timeout = deprecatedMasterTimeout == null ? clusterManagerTimeout : deprecatedMasterTimeout;
         getMappingsRequest.masterNodeTimeout(timeout);
         getMappingsRequest.local(request.paramAsBoolean("local", getMappingsRequest.local()));
         return channel -> client.admin().indices().getMappings(getMappingsRequest, new RestActionListener<GetMappingsResponse>(channel) {
@@ -115,5 +122,23 @@ public class RestGetMappingAction extends BaseRestHandler {
                     }.onResponse(getMappingsResponse)));
             }
         });
+    }
+
+    /**
+     * Parse the deprecated request parameter 'master_timeout', and add deprecated log if the parameter is used.
+     * It also validates whether the value of 'master_timeout' is the same with 'cluster_manager_timeout'.
+     * Remove the method along with MASTER_ROLE.
+     * @deprecated As of 2.0, because promoting inclusive language.
+     */
+    @Deprecated
+    private TimeValue parseDeprecatedMasterTimeoutParameter(GetMappingsRequest getMappingsRequest, RestRequest request) {
+        final String deprecatedTimeoutParam = "master_timeout";
+        TimeValue deprecatedMasterTimeout = null;
+        if (request.hasParam(deprecatedTimeoutParam)) {
+            deprecationLogger.deprecate("get_mapping_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+            request.validateParamValuesAreEqual(deprecatedTimeoutParam, "cluster_manager_timeout");
+            deprecatedMasterTimeout = request.paramAsTime(deprecatedTimeoutParam, getMappingsRequest.masterNodeTimeout());
+        }
+        return deprecatedMasterTimeout;
     }
 }
