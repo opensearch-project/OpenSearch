@@ -6,6 +6,8 @@ setup:
         ignore: [404]
 ---
 "Test indices.exists_template":
+  - skip:
+      features: allowed_warnings
 
   - do:
       indices.exists_template:
@@ -23,6 +25,10 @@ setup:
             number_of_replicas: 0
 
   - do:
+      allowed_warnings:
+        - "Deprecated parameter [master_timeout] used. 
+        To promote inclusive language, please use [cluster_manager_timeout] instead. 
+        It will be unsupported in a future major version."
       indices.exists_template:
         name: test
         master_timeout: 1m
