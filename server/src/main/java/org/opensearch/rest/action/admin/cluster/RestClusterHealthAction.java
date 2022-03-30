@@ -58,8 +58,6 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 public class RestClusterHealthAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestClusterHealthAction.class);
-    private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
-        "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
 
     @Override
     public List<Route> routes() {
@@ -87,7 +85,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
         clusterHealthRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterHealthRequest.indicesOptions()));
         clusterHealthRequest.local(request.paramAsBoolean("local", clusterHealthRequest.local()));
         clusterHealthRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", clusterHealthRequest.masterNodeTimeout()));
-        parseDeprecatedMasterTimeoutParameter(clusterHealthRequest, request);
+        parseDeprecatedMasterTimeoutParameter(deprecationLogger, clusterHealthRequest, request);
         clusterHealthRequest.timeout(request.paramAsTime("timeout", clusterHealthRequest.timeout()));
         String waitForStatus = request.param("wait_for_status");
         if (waitForStatus != null) {
@@ -126,21 +124,5 @@ public class RestClusterHealthAction extends BaseRestHandler {
     @Override
     public boolean canTripCircuitBreaker() {
         return false;
-    }
-
-    /**
-     * Parse the deprecated request parameter 'master_timeout', and add deprecated log if the parameter is used.
-     * It also validates whether the value of 'master_timeout' is the same with 'cluster_manager_timeout'.
-     * Remove the method along with MASTER_ROLE.
-     * @deprecated As of 2.0, because promoting inclusive language.
-     */
-    @Deprecated
-    private static void parseDeprecatedMasterTimeoutParameter(ClusterHealthRequest clusterHealthRequest, RestRequest request) {
-        final String deprecatedTimeoutParam = "master_timeout";
-        if (request.hasParam(deprecatedTimeoutParam)) {
-            deprecationLogger.deprecate("cluster_health_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
-            request.validateParamValuesAreEqual(deprecatedTimeoutParam, "cluster_manager_timeout");
-            clusterHealthRequest.masterNodeTimeout(request.paramAsTime(deprecatedTimeoutParam, clusterHealthRequest.masterNodeTimeout()));
-        }
     }
 }
