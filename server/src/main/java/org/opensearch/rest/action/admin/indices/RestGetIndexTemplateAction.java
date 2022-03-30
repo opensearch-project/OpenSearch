@@ -36,7 +36,6 @@ import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesRequest
 import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
@@ -59,8 +58,6 @@ import static org.opensearch.rest.RestStatus.OK;
  */
 public class RestGetIndexTemplateAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetIndexTemplateAction.class);
-
     @Override
     public List<Route> routes() {
         return unmodifiableList(
@@ -79,10 +76,7 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
 
         final GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(names);
         getIndexTemplatesRequest.local(request.paramAsBoolean("local", getIndexTemplatesRequest.local()));
-        getIndexTemplatesRequest.masterNodeTimeout(
-            request.paramAsTime("cluster_manager_timeout", getIndexTemplatesRequest.masterNodeTimeout())
-        );
-        parseDeprecatedMasterTimeoutParameter(getIndexTemplatesRequest, request, deprecationLogger, getName());
+        getIndexTemplatesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexTemplatesRequest.masterNodeTimeout()));
 
         final boolean implicitAll = getIndexTemplatesRequest.names().length == 0;
 

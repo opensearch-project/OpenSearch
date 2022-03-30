@@ -35,7 +35,6 @@ package org.opensearch.rest.action.admin.indices;
 import org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
@@ -53,8 +52,6 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
 public class RestPutIndexTemplateAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestPutIndexTemplateAction.class);
-
     @Override
     public List<Route> routes() {
         return unmodifiableList(asList(new Route(POST, "/_template/{name}"), new Route(PUT, "/_template/{name}")));
@@ -78,8 +75,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
             putRequest.patterns(Arrays.asList(request.paramAsStringArray("index_patterns", Strings.EMPTY_ARRAY)));
         }
         putRequest.order(request.paramAsInt("order", putRequest.order()));
-        putRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", putRequest.masterNodeTimeout()));
-        parseDeprecatedMasterTimeoutParameter(putRequest, request, deprecationLogger, getName());
+        putRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRequest.masterNodeTimeout()));
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", ""));
 

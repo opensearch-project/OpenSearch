@@ -35,7 +35,6 @@ package org.opensearch.rest.action.admin.indices;
 import org.opensearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.ComponentTemplate;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -48,8 +47,6 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
 public class RestPutComponentTemplateAction extends BaseRestHandler {
-
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestPutComponentTemplateAction.class);
 
     @Override
     public List<Route> routes() {
@@ -65,8 +62,7 @@ public class RestPutComponentTemplateAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
 
         PutComponentTemplateAction.Request putRequest = new PutComponentTemplateAction.Request(request.param("name"));
-        putRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", putRequest.masterNodeTimeout()));
-        parseDeprecatedMasterTimeoutParameter(putRequest, request, deprecationLogger, getName());
+        putRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRequest.masterNodeTimeout()));
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", "api"));
         putRequest.componentTemplate(ComponentTemplate.parse(request.contentParser()));
