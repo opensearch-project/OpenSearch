@@ -105,7 +105,7 @@ public class RestClusterStateAction extends BaseRestHandler {
         clusterStateRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterStateRequest.indicesOptions()));
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", clusterStateRequest.masterNodeTimeout()));
-        parseDeprecatedMasterTimeoutParameter(deprecationLogger, clusterStateRequest, request);
+        parseDeprecatedMasterTimeoutParameter(clusterStateRequest, request, deprecationLogger, getName());
         if (request.hasParam("wait_for_metadata_version")) {
             clusterStateRequest.waitForMetadataVersion(request.paramAsLong("wait_for_metadata_version", 0));
         }

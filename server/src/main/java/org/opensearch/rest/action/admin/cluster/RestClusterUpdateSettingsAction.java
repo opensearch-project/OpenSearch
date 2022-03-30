@@ -74,7 +74,7 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
         clusterUpdateSettingsRequest.masterNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", clusterUpdateSettingsRequest.masterNodeTimeout())
         );
-        parseDeprecatedMasterTimeoutParameter(deprecationLogger, clusterUpdateSettingsRequest, request);
+        parseDeprecatedMasterTimeoutParameter(clusterUpdateSettingsRequest, request, deprecationLogger, getName());
         Map<String, Object> source;
         try (XContentParser parser = request.contentParser()) {
             source = parser.map();
