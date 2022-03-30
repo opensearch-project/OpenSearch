@@ -41,6 +41,6 @@ dependencies {
   api 'com.google.code.gson:gson:2.9.0'
   api "org.bouncycastle:bcpkix-jdk15on:${versions.bouncycastle}"
   api "com.fasterxml.jackson.jaxrs:jackson-jaxrs-json-provider:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
   api 'net.minidev:json-smart:2.4.8'
 }
