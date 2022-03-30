@@ -53,8 +53,6 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 public class RestRepositoriesAction extends AbstractCatAction {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestRepositoriesAction.class);
-    private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
-        "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
 
     @Override
     public List<Route> routes() {
@@ -68,7 +66,7 @@ public class RestRepositoriesAction extends AbstractCatAction {
         getRepositoriesRequest.masterNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", getRepositoriesRequest.masterNodeTimeout())
         );
-        parseDeprecatedMasterTimeoutParameter(getRepositoriesRequest, request);
+        parseDeprecatedMasterTimeoutParameter(deprecationLogger, getRepositoriesRequest, request);
 
         return channel -> client.admin()
             .cluster()
@@ -110,23 +108,5 @@ public class RestRepositoriesAction extends AbstractCatAction {
         }
 
         return table;
-    }
-
-    /**
-     * Parse the deprecated request parameter 'master_timeout', and add deprecated log if the parameter is used.
-     * It also validates whether the value of 'master_timeout' is the same with 'cluster_manager_timeout'.
-     * Remove the method along with MASTER_ROLE.
-     * @deprecated As of 2.0, because promoting inclusive language.
-     */
-    @Deprecated
-    private void parseDeprecatedMasterTimeoutParameter(GetRepositoriesRequest getRepositoriesRequest, RestRequest request) {
-        final String deprecatedTimeoutParam = "master_timeout";
-        if (request.hasParam(deprecatedTimeoutParam)) {
-            deprecationLogger.deprecate("cat_repositories_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
-            request.validateParamValuesAreEqual(deprecatedTimeoutParam, "cluster_manager_timeout");
-            getRepositoriesRequest.masterNodeTimeout(
-                request.paramAsTime(deprecatedTimeoutParam, getRepositoriesRequest.masterNodeTimeout())
-            );
-        }
     }
 }

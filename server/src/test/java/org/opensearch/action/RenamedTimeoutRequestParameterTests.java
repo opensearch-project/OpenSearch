@@ -19,6 +19,7 @@ import org.opensearch.rest.action.cat.RestMasterAction;
 import org.opensearch.rest.action.cat.RestShardsAction;
 import org.opensearch.rest.action.cat.RestPluginsAction;
 import org.opensearch.rest.action.cat.RestNodeAttrsAction;
+import org.opensearch.rest.action.cat.RestNodesAction;
 import org.opensearch.rest.action.cat.RestIndicesAction;
 import org.opensearch.rest.action.cat.RestTemplatesAction;
 import org.opensearch.rest.action.cat.RestPendingClusterTasksAction;
@@ -90,6 +91,18 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
 
     public void testCatNodeattrs() {
         RestNodeAttrsAction action = new RestNodeAttrsAction();
+
+        action.doCatRequest(getRestRequestWithNewParam(), client);
+
+        action.doCatRequest(getRestRequestWithDeprecatedParam(), client);
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithWrongValues(), client));
+        assertThat(e.getMessage(), containsString(PARAM_VALUE_ERROR_MESSAGE));
+    }
+
+    public void testCatNodes() {
+        RestNodesAction action = new RestNodesAction();
 
         action.doCatRequest(getRestRequestWithNewParam(), client);
 

@@ -114,8 +114,13 @@ public class RestIndicesAction extends AbstractCatAction {
         final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, IndicesOptions.strictExpand());
         final boolean local = request.paramAsBoolean("local", false);
         TimeValue clusterManagerTimeout = request.paramAsTime("cluster_manager_timeout", DEFAULT_MASTER_NODE_TIMEOUT);
-        TimeValue deprecatedMasterTimeout = parseDeprecatedMasterTimeoutParameter(request);
-        final TimeValue clusterManagerNodeTimeout = deprecatedMasterTimeout == null ? clusterManagerTimeout : deprecatedMasterTimeout;
+        // Remove the if condition and statements inside after removing MASTER_ROLE.
+        if (request.hasParam("master_timeout")) {
+            deprecationLogger.deprecate("cat_indices_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+            request.validateParamValuesAreEqual("master_timeout", "cluster_manager_timeout");
+            clusterManagerTimeout = request.paramAsTime("master_timeout", DEFAULT_MASTER_NODE_TIMEOUT);
+        }
+        final TimeValue clusterManagerNodeTimeout = clusterManagerTimeout;
         final boolean includeUnloadedSegments = request.paramAsBoolean("include_unloaded_segments", false);
 
         return channel -> {
@@ -910,23 +915,5 @@ public class RestIndicesAction extends AbstractCatAction {
     @SuppressWarnings("unchecked")
     private static <A extends ActionResponse> A extractResponse(final Collection<? extends ActionResponse> responses, Class<A> c) {
         return (A) responses.stream().filter(c::isInstance).findFirst().get();
-    }
-
-    /**
-     * Parse the deprecated request parameter 'master_timeout', and add deprecated log if the parameter is used.
-     * It also validates whether the value of 'master_timeout' is the same with 'cluster_manager_timeout'.
-     * Remove the method along with MASTER_ROLE.
-     * @deprecated As of 2.0, because promoting inclusive language.
-     */
-    @Deprecated
-    private TimeValue parseDeprecatedMasterTimeoutParameter(RestRequest request) {
-        final String deprecatedTimeoutParam = "master_timeout";
-        TimeValue clusterManagerTimeout = null;
-        if (request.hasParam(deprecatedTimeoutParam)) {
-            deprecationLogger.deprecate("cat_indices_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
-            request.validateParamValuesAreEqual(deprecatedTimeoutParam, "cluster_manager_timeout");
-            clusterManagerTimeout = request.paramAsTime(deprecatedTimeoutParam, DEFAULT_MASTER_NODE_TIMEOUT);
-        }
-        return clusterManagerTimeout;
     }
 }
