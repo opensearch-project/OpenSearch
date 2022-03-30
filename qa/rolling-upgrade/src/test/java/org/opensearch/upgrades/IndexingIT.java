@@ -195,6 +195,10 @@ public class IndexingIT extends AbstractRollingTestCase {
     public void testTypeRemovalIndexing() throws IOException {
         final String indexName = "test_index_with_mapping";
         final String indexWithoutTypeName = "test_index_without_mapping";
+        final String templateIndexName = "template_test_index";
+        final String templateName = "test_template";
+        final String indexNamePattern = "template_test*";
+
         final String mapping = "\"properties\":{\"f1\":{\"type\":\"keyword\"},\"f2\":{\"type\":\"keyword\"}}";
         final String typeMapping = "\"_doc\":{" + mapping +"}";
 
@@ -207,10 +211,16 @@ public class IndexingIT extends AbstractRollingTestCase {
                 if (minNodeVersion.before(Version.V_2_0_0)) {
                     createIndexWithDocMappings(indexName, settings.build(), typeMapping);
                     assertIndexMapping(indexName, mapping);
+
+                    createTemplate(templateName, indexNamePattern, typeMapping);
+                    createIndex(templateIndexName, settings.build());
+                    assertIndexMapping(templateIndexName, mapping);
                 } else {
                     createIndex(indexName, settings.build());
+                    createIndex(templateIndexName, settings.build());
                 }
                 bulk(indexName, CLUSTER_TYPE.name(), 1);
+                bulk(templateIndexName, CLUSTER_TYPE.name(), 1);
 
                 createIndex(indexWithoutTypeName, settings.build());
                 bulk(indexWithoutTypeName, CLUSTER_TYPE.name(), 1);
@@ -230,11 +240,69 @@ public class IndexingIT extends AbstractRollingTestCase {
                 // Assert the newly ingested documents are accessible
                 assertCount(indexName, 2, 1);
 
+                // Assert documents created with mapping on index with template prior to OS 2.0 are accessible.
+                assertCount(templateIndexName, 1, 1);
+                bulk(templateIndexName, CLUSTER_TYPE.name(), 1);
+                // Assert the newly ingested documents with template are accessible
+                assertCount(templateIndexName, 2, 1);
+
                 // Assert documents created prior to OS 2.0 are accessible.
                 assertCount(indexWithoutTypeName, 1, 1);
                 // Test ingestion of new documents created using < OS2.0
                 bulk(indexWithoutTypeName, CLUSTER_TYPE.name(), 1);
                 assertCount(indexWithoutTypeName, 2, 1);
+                break;
+            default:
+                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+        }
+    }
+
+    public void testTypeRemovalReindexing() throws IOException {
+        final String indexName = "test_reindex_with_mapping";
+        final String reindexName = "test_reindex_with_mapping_v2";
+
+        final String original_mapping = "\"properties\":{\"f1\":{\"type\":\"keyword\"},\"f2\":{\"type\":\"keyword\"}}";
+        final String original_typeMapping = "\"_doc\":{" + original_mapping +"}";
+
+        final String new_mapping = "\"properties\":{\"f1\":{\"type\":\"text\"},\"f2\":{\"type\":\"text\"}}";
+        final String new_typeMapping = "\"_doc\":{" + new_mapping +"}";
+
+        switch (CLUSTER_TYPE) {
+            case OLD:
+                Settings.Builder settings = Settings.builder()
+                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
+                Version minNodeVersion = getMinNodeVersion();
+                if (minNodeVersion.before(Version.V_2_0_0)) {
+                    createIndexWithDocMappings(indexName, settings.build(), original_typeMapping);
+                    assertIndexMapping(indexName, original_mapping);
+
+                    createIndexWithDocMappings(reindexName, settings.build(), new_typeMapping);
+                    assertIndexMapping(reindexName, new_mapping);
+                } else {
+                    createIndex(indexName, settings.build());
+                    createIndex(reindexName, settings.build());
+                }
+                bulk(indexName, CLUSTER_TYPE.name(), 1);
+                break;
+            case MIXED:
+                Request waitForGreen = new Request("GET", "/_cluster/health");
+                waitForGreen.addParameter("wait_for_nodes", "3");
+                client().performRequest(waitForGreen);
+                break;
+            case UPGRADED:
+                Version currentNodeVersion = getMinNodeVersion();
+                assertTrue(currentNodeVersion.onOrAfter(Version.V_2_0_0));
+
+                // Assert documents created with mapping prior to OS 2.0 are accessible.
+                assertCount(indexName, 1, 1);
+                bulk(indexName, CLUSTER_TYPE.name(), 1);
+                // Assert the newly ingested documents are accessible
+                assertCount(indexName, 2, 1);
+
+                reindex(indexName, reindexName);
+                assertCount(reindexName, 2, 1);
+                assertIndexMapping(indexName, new_mapping);
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
@@ -286,6 +354,26 @@ public class IndexingIT extends AbstractRollingTestCase {
         client().performRequest(request);
     }
 
+    private void createTemplate(String templateName, String indexNamePattern, String mapping) throws IOException {
+        Request request = new Request("PUT", "/_template/" + templateName);
+        String entity = "{\"template\": \"" + indexNamePattern + "\"";
+        if (mapping != null) {
+            entity += ",\"mappings\" : {" + mapping + "}";
+        }
+        entity += "}";
+        request.addParameter("include_type_name", "true");
+        request.setJsonEntity(entity);
+        useIgnoreTypesRemovalWarningsHandler(request);
+        client().performRequest(request);
+    }
+
+    private void reindex(String originalIndex, String newIndex) throws IOException {
+        Request request = new Request("POST", "/_reindex/");
+        String entity = "{ \"source\": { \"index\": \"" + originalIndex + "\" }, \"dest\": { \"index\": \"" + newIndex + "\" } }";
+        request.setJsonEntity(entity);
+        client().performRequest(request);
+    }
+
     private void assertIndexMapping(String index, String mappings) throws IOException {
         Request testIndexMappingRequest = new Request("GET", "/" + index + "/_mapping");
         Response testIndexMappingResponse = client().performRequest(testIndexMappingRequest);
@@ -313,8 +401,8 @@ public class IndexingIT extends AbstractRollingTestCase {
             EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8));
     }
 
-    static final Pattern CREATE_INDEX_TYPE_REMOVAL = Pattern.compile(
-        "^\\[types removal\\] Using include_type_name in create index requests is deprecated\\. The parameter will be removed in the next major version\\.$"
+    static final Pattern TYPE_REMOVAL_WARNING = Pattern.compile(
+        "^\\[types removal\\] Using include_type_name (.+) is deprecated\\. The parameter will be removed in the next major version\\.$"
     );
 
     protected static void useIgnoreTypesRemovalWarningsHandler(Request request) throws IOException {
@@ -323,7 +411,7 @@ public class IndexingIT extends AbstractRollingTestCase {
             if (warnings.size() > 0) {
                 boolean matches = warnings.stream()
                     .anyMatch(
-                        message -> CREATE_INDEX_TYPE_REMOVAL.matcher(message).matches()
+                        message -> TYPE_REMOVAL_WARNING.matcher(message).matches()
                     );
                 return matches == false;
             } else {
