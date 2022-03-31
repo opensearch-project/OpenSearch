@@ -102,11 +102,7 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
                 taskManager.waitForTaskCompletion(task, timeoutNanos);
             });
         } else {
-            operation = operation.andThen(task -> {
-                if (task.supportsResourceTracking()) {
-                    taskManager.refreshResourceStats(task);
-                }
-            });
+            operation = operation.andThen(taskManager::refreshTasksInfo);
         }
         super.processTasks(request, operation);
     }

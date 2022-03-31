@@ -218,10 +218,6 @@ public class TransportService extends AbstractLifecycleComponent
                 remoteClusterService.listenForUpdates(clusterSettings);
             }
             clusterSettings.addSettingsUpdateConsumer(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING, transport::setSlowLogThreshold);
-            clusterSettings.addSettingsUpdateConsumer(
-                TaskManager.TASK_RESOURCE_TRACKING_ENABLED,
-                taskManager::setTaskResourceTrackingEnabled
-            );
         }
         registerRequestHandler(
             HANDSHAKE_ACTION_NAME,

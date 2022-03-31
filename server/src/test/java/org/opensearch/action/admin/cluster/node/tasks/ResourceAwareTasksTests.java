@@ -26,7 +26,6 @@ import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancelledException;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
-import org.opensearch.tasks.TaskManager;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -249,7 +248,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
         final AtomicReference<NodesResponse> responseReference = new AtomicReference<>();
         TaskTestContext taskTestContext = new TaskTestContext();
 
-        Map<Long, Task> resourceTasks = testNodes[0].transportService.getTaskManager().getResourceAwareTasks();
+        Map<Long, Task> resourceTasks = testNodes[0].taskResourceTrackingService.getResourceAwareTasks();
 
         taskTestContext.operationStartValidator = threadId -> {
             Task task = resourceTasks.values().stream().findAny().get();
@@ -305,7 +304,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
         final AtomicReference<NodesResponse> responseReference = new AtomicReference<>();
         TaskTestContext taskTestContext = new TaskTestContext();
 
-        Map<Long, Task> resourceTasks = testNodes[0].transportService.getTaskManager().getResourceAwareTasks();
+        Map<Long, Task> resourceTasks = testNodes[0].taskResourceTrackingService.getResourceAwareTasks();
 
         taskTestContext.operationStartValidator = threadId -> {
             Task task = resourceTasks.values().stream().findAny().get();
@@ -373,7 +372,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
         final AtomicReference<NodesResponse> responseReference = new AtomicReference<>();
         TaskTestContext taskTestContext = new TaskTestContext();
 
-        Map<Long, Task> resourceTasks = testNodes[0].transportService.getTaskManager().getResourceAwareTasks();
+        Map<Long, Task> resourceTasks = testNodes[0].taskResourceTrackingService.getResourceAwareTasks();
 
         taskTestContext.operationStartValidator = threadId -> { assertEquals(0, resourceTasks.size()); };
 
@@ -406,8 +405,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
         final AtomicReference<NodesResponse> responseReference = new AtomicReference<>();
         TaskTestContext taskTestContext = new TaskTestContext();
 
-        TaskManager taskManager = testNodes[0].transportService.getTaskManager();
-        Map<Long, Task> resourceTasks = taskManager.getResourceAwareTasks();
+        Map<Long, Task> resourceTasks = testNodes[0].taskResourceTrackingService.getResourceAwareTasks();
 
         taskTestContext.operationStartValidator = threadId -> {
             Task task = resourceTasks.values().stream().findAny().get();
@@ -419,7 +417,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
             assertEquals(0, task.getTotalResourceStats().getCpuTimeInNanos());
             assertEquals(0, task.getTotalResourceStats().getMemoryInBytes());
 
-            taskManager.setTaskResourceTrackingEnabled(false);
+            testNodes[0].taskResourceTrackingService.setTaskResourceTrackingEnabled(false);
         };
 
         taskTestContext.operationFinishedValidator = threadId -> {
@@ -463,13 +461,12 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
         final AtomicReference<NodesResponse> responseReference = new AtomicReference<>();
         TaskTestContext taskTestContext = new TaskTestContext();
 
-        TaskManager taskManager = testNodes[0].transportService.getTaskManager();
-        Map<Long, Task> resourceTasks = taskManager.getResourceAwareTasks();
+        Map<Long, Task> resourceTasks = testNodes[0].taskResourceTrackingService.getResourceAwareTasks();
 
         taskTestContext.operationStartValidator = threadId -> {
             assertEquals(0, resourceTasks.size());
 
-            taskManager.setTaskResourceTrackingEnabled(true);
+            testNodes[0].taskResourceTrackingService.setTaskResourceTrackingEnabled(true);
         };
 
         taskTestContext.operationFinishedValidator = threadId -> { assertEquals(0, resourceTasks.size()); };
@@ -502,7 +499,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
 
         TaskTestContext taskTestContext = new TaskTestContext();
 
-        Map<Long, Task> resourceTasks = testNodes[0].transportService.getTaskManager().getResourceAwareTasks();
+        Map<Long, Task> resourceTasks = testNodes[0].taskResourceTrackingService.getResourceAwareTasks();
 
         taskTestContext.operationStartValidator = threadId -> {
             ListTasksResponse listTasksResponse = ActionTestUtils.executeBlocking(
@@ -543,7 +540,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
         setupTestNodes(settings);
         connectNodes(testNodes[0]);
 
-        runnableTaskListener.apply(testNodes[0].transportService.getTaskManager());
+        runnableTaskListener.apply(testNodes[0].taskResourceTrackingService);
     }
 
     private Throwable findActualException(Exception e) {

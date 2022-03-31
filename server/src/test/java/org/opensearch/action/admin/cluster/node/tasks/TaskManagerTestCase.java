@@ -59,6 +59,7 @@ import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.tasks.TaskCancellationService;
 import org.opensearch.tasks.TaskManager;
+import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.tasks.MockTaskManager;
 import org.opensearch.threadpool.RunnableTaskListenerFactory;
@@ -228,6 +229,8 @@ public abstract class TaskManagerTestCase extends OpenSearchTestCase {
             transportService.start();
             clusterService = createClusterService(threadPool, discoveryNode.get());
             clusterService.addStateApplier(transportService.getTaskManager());
+            taskResourceTrackingService = new TaskResourceTrackingService(settings, clusterService.getClusterSettings());
+            transportService.getTaskManager().setTaskResourceTrackingService(taskResourceTrackingService);
             ActionFilters actionFilters = new ActionFilters(emptySet());
             transportListTasksAction = new TransportListTasksAction(clusterService, transportService, actionFilters);
             transportCancelTasksAction = new TransportCancelTasksAction(clusterService, transportService, actionFilters);
@@ -236,6 +239,7 @@ public abstract class TaskManagerTestCase extends OpenSearchTestCase {
 
         public final ClusterService clusterService;
         public final TransportService transportService;
+        public final TaskResourceTrackingService taskResourceTrackingService;
         private final SetOnce<DiscoveryNode> discoveryNode = new SetOnce<>();
         public final TransportListTasksAction transportListTasksAction;
         public final TransportCancelTasksAction transportCancelTasksAction;
