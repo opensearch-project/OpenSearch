@@ -96,23 +96,23 @@ public class ClusterRequestConvertersTests extends OpenSearchTestCase {
             case "timeout":
                 healthRequest.timeout(timeout);
                 expectedParams.put("timeout", timeout);
-                // If Master Timeout wasn't set it uses the same value as Timeout
-                expectedParams.put("master_timeout", timeout);
+                // If Cluster Manager Timeout wasn't set it uses the same value as Timeout
+                expectedParams.put("cluster_manager_timeout", timeout);
                 break;
             case "masterTimeout":
                 expectedParams.put("timeout", "30s");
                 healthRequest.masterNodeTimeout(masterTimeout);
-                expectedParams.put("master_timeout", masterTimeout);
+                expectedParams.put("cluster_manager_timeout", masterTimeout);
                 break;
             case "both":
                 healthRequest.timeout(timeout);
                 expectedParams.put("timeout", timeout);
                 healthRequest.masterNodeTimeout(timeout);
-                expectedParams.put("master_timeout", timeout);
+                expectedParams.put("cluster_manager_timeout", timeout);
                 break;
             case "none":
                 expectedParams.put("timeout", "30s");
-                expectedParams.put("master_timeout", "30s");
+                expectedParams.put("cluster_manager_timeout", "30s");
                 break;
             default:
                 throw new UnsupportedOperationException();

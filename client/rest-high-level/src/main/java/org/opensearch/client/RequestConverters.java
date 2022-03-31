@@ -892,7 +892,7 @@ final class RequestConverters {
         }
 
         Params withMasterTimeout(TimeValue masterTimeout) {
-            return putParam("master_timeout", masterTimeout);
+            return putParam("cluster_manager_timeout", masterTimeout);
         }
 
         Params withPipeline(String pipeline) {

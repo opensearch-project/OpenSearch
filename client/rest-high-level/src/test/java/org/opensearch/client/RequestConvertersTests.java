@@ -2120,9 +2120,9 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         if (randomBoolean()) {
             String masterTimeout = randomTimeValue();
             setter.accept(masterTimeout);
-            expectedParams.put("master_timeout", masterTimeout);
+            expectedParams.put("cluster_manager_timeout", masterTimeout);
         } else {
-            expectedParams.put("master_timeout", MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT.getStringRep());
+            expectedParams.put("cluster_manager_timeout", MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT.getStringRep());
         }
     }
 
@@ -2130,9 +2130,9 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         if (randomBoolean()) {
             TimeValue masterTimeout = TimeValue.parseTimeValue(randomTimeValue(), "random_master_timeout");
             setter.accept(masterTimeout);
-            expectedParams.put("master_timeout", masterTimeout.getStringRep());
+            expectedParams.put("cluster_manager_timeout", masterTimeout.getStringRep());
         } else {
-            expectedParams.put("master_timeout", defaultTimeout.getStringRep());
+            expectedParams.put("cluster_manager_timeout", defaultTimeout.getStringRep());
         }
     }
 
