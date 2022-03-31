@@ -26,18 +26,14 @@ import static org.opensearch.tasks.TaskManager.TASK_ID;
  */
 public class TaskAwareRunnable extends AbstractRunnable implements WrappedRunnable {
 
-    private static RunnableTaskExecutionListener listener;
-
     private final Runnable original;
     private final ThreadContext threadContext;
+    private final RunnableTaskListenerFactory runnableTaskListener;
 
-    public TaskAwareRunnable(ThreadContext threadContext, final Runnable original) {
+    public TaskAwareRunnable(ThreadContext threadContext, final Runnable original, final RunnableTaskListenerFactory runnableTaskListener) {
         this.original = original;
         this.threadContext = threadContext;
-    }
-
-    public static void setListener(RunnableTaskExecutionListener l) {
-        listener = l;
+        this.runnableTaskListener = runnableTaskListener;
     }
 
     @Override
@@ -61,18 +57,18 @@ public class TaskAwareRunnable extends AbstractRunnable implements WrappedRunnab
 
     @Override
     protected void doRun() throws Exception {
-        assert listener != null : "Listener should be attached";
+        assert runnableTaskListener.get() != null : "Listener should be attached";
 
         Long taskId = threadContext.getTransient(TASK_ID);
 
         if (Objects.nonNull(taskId)) {
-            listener.taskExecutionStartedOnThread(taskId, currentThread().getId());
+            runnableTaskListener.get().taskExecutionStartedOnThread(taskId, currentThread().getId());
         }
         try {
             original.run();
         } finally {
             if (Objects.nonNull(taskId)) {
-                listener.taskExecutionFinishedOnThread(taskId, currentThread().getId());
+                runnableTaskListener.get().taskExecutionFinishedOnThread(taskId, currentThread().getId());
             }
         }
 

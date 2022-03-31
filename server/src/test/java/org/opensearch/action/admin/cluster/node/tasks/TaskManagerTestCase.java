@@ -61,6 +61,7 @@ import org.opensearch.tasks.TaskCancellationService;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.tasks.MockTaskManager;
+import org.opensearch.threadpool.RunnableTaskListenerFactory;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -89,10 +90,12 @@ public abstract class TaskManagerTestCase extends OpenSearchTestCase {
     protected ThreadPool threadPool;
     protected TestNode[] testNodes;
     protected int nodesCount;
+    protected RunnableTaskListenerFactory runnableTaskListener;
 
     @Before
     public void setupThreadPool() {
-        threadPool = new TestThreadPool(TransportTasksActionTests.class.getSimpleName());
+        runnableTaskListener = new RunnableTaskListenerFactory();
+        threadPool = new TestThreadPool(TransportTasksActionTests.class.getSimpleName(), runnableTaskListener);
     }
 
     public void setupTestNodes(Settings settings) {

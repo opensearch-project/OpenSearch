@@ -27,7 +27,6 @@ import org.opensearch.tasks.TaskCancelledException;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
 import org.opensearch.tasks.TaskManager;
-import org.opensearch.threadpool.TaskAwareRunnable;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -543,7 +542,8 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
         Settings settings = Settings.builder().put("task_resource_tracking.enabled", resourceTrackingEnabled).build();
         setupTestNodes(settings);
         connectNodes(testNodes[0]);
-        TaskAwareRunnable.setListener(testNodes[0].transportService.getTaskManager());
+
+        runnableTaskListener.apply(testNodes[0].transportService.getTaskManager());
     }
 
     private Throwable findActualException(Exception e) {

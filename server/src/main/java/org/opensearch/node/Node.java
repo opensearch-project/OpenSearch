@@ -37,7 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.index.IndexingPressureService;
-import org.opensearch.threadpool.TaskAwareRunnable;
+import org.opensearch.threadpool.RunnableTaskListenerFactory;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.Assertions;
 import org.opensearch.Build;
@@ -434,7 +434,8 @@ public class Node implements Closeable {
 
             final List<ExecutorBuilder<?>> executorBuilders = pluginsService.getExecutorBuilders(settings);
 
-            final ThreadPool threadPool = new ThreadPool(settings, executorBuilders.toArray(new ExecutorBuilder[0]));
+            RunnableTaskListenerFactory runnableTaskListener = new RunnableTaskListenerFactory();
+            final ThreadPool threadPool = new ThreadPool(settings, runnableTaskListener, executorBuilders.toArray(new ExecutorBuilder[0]));
             resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
             final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
             resourcesToClose.add(resourceWatcherService);
@@ -941,6 +942,7 @@ public class Node implements Closeable {
                 b.bind(ShardLimitValidator.class).toInstance(shardLimitValidator);
                 b.bind(FsHealthService.class).toInstance(fsHealthService);
                 b.bind(SystemIndices.class).toInstance(systemIndices);
+                b.bind(RunnableTaskListenerFactory.class).toInstance(runnableTaskListener);
             });
             injector = modules.createInjector();
 
@@ -1059,7 +1061,8 @@ public class Node implements Closeable {
         transportService.getTaskManager().setTaskResultsService(injector.getInstance(TaskResultsService.class));
         transportService.getTaskManager().setTaskCancellationService(new TaskCancellationService(transportService));
 
-        TaskAwareRunnable.setListener(transportService.getTaskManager());
+        RunnableTaskListenerFactory runnableTaskListener = injector.getInstance(RunnableTaskListenerFactory.class);
+        runnableTaskListener.apply(transportService.getTaskManager());
 
         transportService.start();
         assert localNodeFactory.getNode() != null;
@@ -1494,4 +1497,5 @@ public class Node implements Closeable {
             return localNode.get();
         }
     }
+
 }

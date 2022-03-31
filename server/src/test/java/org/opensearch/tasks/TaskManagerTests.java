@@ -43,7 +43,7 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.threadpool.TaskAwareRunnable;
+import org.opensearch.threadpool.RunnableTaskListenerFactory;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.FakeTcpChannel;
@@ -73,10 +73,12 @@ import static org.opensearch.tasks.TaskManager.TASK_ID;
 
 public class TaskManagerTests extends OpenSearchTestCase {
     private ThreadPool threadPool;
+    private RunnableTaskListenerFactory runnableTaskListener;
 
     @Before
     public void setupThreadPool() {
-        threadPool = new TestThreadPool(TransportTasksActionTests.class.getSimpleName());
+        runnableTaskListener = new RunnableTaskListenerFactory();
+        threadPool = new TestThreadPool(TransportTasksActionTests.class.getSimpleName(), runnableTaskListener);
     }
 
     @After
@@ -127,7 +129,7 @@ public class TaskManagerTests extends OpenSearchTestCase {
         final TaskManager taskManager = new TaskManager(settings, threadPool, Collections.emptySet());
         final Task task = taskManager.register("transport", "test", new SearchRequest());
 
-        TaskAwareRunnable.setListener(taskManager);
+        runnableTaskListener.apply(taskManager);
         threadPool.getThreadContext().putTransient(TASK_ID, task.getId());
         CountDownLatch latch = new CountDownLatch(1);
 

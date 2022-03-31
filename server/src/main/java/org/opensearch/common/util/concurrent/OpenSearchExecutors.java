@@ -40,6 +40,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.node.Node;
+import org.opensearch.threadpool.RunnableTaskListenerFactory;
 import org.opensearch.threadpool.TaskAwareRunnable;
 
 import java.util.List;
@@ -191,7 +192,8 @@ public class OpenSearchExecutors {
         int frameSize,
         TimeValue targetedResponseTime,
         ThreadFactory threadFactory,
-        ThreadContext contextHolder
+        ThreadContext contextHolder,
+        RunnableTaskListenerFactory runnableTaskListener
     ) {
         if (initialQueueCapacity <= 0) {
             throw new IllegalArgumentException(
@@ -203,10 +205,15 @@ public class OpenSearchExecutors {
             initialQueueCapacity
         );
 
-        Function<Runnable, WrappedRunnable> runnableWrapper = (runnable) -> {
-            TaskAwareRunnable taskAwareRunnable = new TaskAwareRunnable(contextHolder, runnable);
-            return new TimedRunnable(taskAwareRunnable);
-        };
+        Function<Runnable, WrappedRunnable> runnableWrapper;
+        if (runnableTaskListener != null) {
+            runnableWrapper = (runnable) -> {
+                TaskAwareRunnable taskAwareRunnable = new TaskAwareRunnable(contextHolder, runnable, runnableTaskListener);
+                return new TimedRunnable(taskAwareRunnable);
+            };
+        } else {
+            runnableWrapper = TimedRunnable::new;
+        }
 
         return new QueueResizingOpenSearchThreadPoolExecutor(
             name,

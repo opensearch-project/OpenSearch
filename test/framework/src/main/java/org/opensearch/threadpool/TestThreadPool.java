@@ -47,12 +47,25 @@ public class TestThreadPool extends ThreadPool {
     private volatile boolean returnRejectingExecutor = false;
     private volatile ThreadPoolExecutor rejectingExecutor;
 
+    public TestThreadPool(String name, RunnableTaskListenerFactory runnableTaskListener, ExecutorBuilder<?>... customBuilders) {
+        this(name, Settings.EMPTY, runnableTaskListener, customBuilders);
+    }
+
     public TestThreadPool(String name, ExecutorBuilder<?>... customBuilders) {
         this(name, Settings.EMPTY, customBuilders);
     }
 
     public TestThreadPool(String name, Settings settings, ExecutorBuilder<?>... customBuilders) {
-        super(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), name).put(settings).build(), customBuilders);
+        this(name, settings, null, customBuilders);
+    }
+
+    public TestThreadPool(
+        String name,
+        Settings settings,
+        RunnableTaskListenerFactory runnableTaskListener,
+        ExecutorBuilder<?>... customBuilders
+    ) {
+        super(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), name).put(settings).build(), runnableTaskListener, customBuilders);
     }
 
     @Override
