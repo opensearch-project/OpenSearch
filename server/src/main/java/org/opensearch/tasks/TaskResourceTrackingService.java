@@ -18,6 +18,7 @@ import org.opensearch.threadpool.RunnableTaskExecutionListener;
 
 import java.lang.management.ManagementFactory;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.opensearch.tasks.ResourceStatsType.WORKER_STATS;
@@ -56,12 +57,25 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
         }
     }
 
+    /**
+     * unregisters tasks registered earlier.
+     *
+     * It doesn't have feature enabled check to avoid any issues if setting was disable while the task was in progress.
+     *
+     * It's also responsible to stop tracking the current thread's resources against this task if not already done.
+     * This happens when the thread handling the request itself calls the unregister method. So in this case unregister
+     * happens before runnable finishes.
+     *
+     * @param task
+     */
     public void unregisterTask(Task task) {
-        try {
-            taskExecutionFinishedOnThread(task.getId(), Thread.currentThread().getId());
-        } catch (Exception ignored) {} finally {
-            resourceAwareTasks.remove(task.getId(), task);
+        if (!resourceAwareTasks.containsKey(task.getId())) {
+            return;
         }
+        if (isThreadWorkingOnTask(task, Thread.currentThread().getId())) {
+            taskExecutionFinishedOnThread(task.getId(), Thread.currentThread().getId());
+        }
+        resourceAwareTasks.remove(task.getId(), task);
     }
 
     public void refreshResourceStats(Task... tasks) {
@@ -128,5 +142,16 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
         );
         ResourceUsageMetric currentCPUUsage = new ResourceUsageMetric(ResourceStats.CPU, threadMXBean.getThreadCpuTime(threadId));
         return new ResourceUsageMetric[] { currentMemoryUsage, currentCPUUsage };
+    }
+
+    private boolean isThreadWorkingOnTask(Task task, long threadId) {
+        List<ThreadResourceInfo> threadResourceInfos = task.getResourceStats().getOrDefault(threadId, Collections.emptyList());
+
+        for (ThreadResourceInfo threadResourceInfo : threadResourceInfos) {
+            if (threadResourceInfo.isActive()) {
+                return true;
+            }
+        }
+        return false;
     }
 }
