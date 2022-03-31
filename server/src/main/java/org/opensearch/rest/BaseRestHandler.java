@@ -212,7 +212,7 @@ public abstract class BaseRestHandler implements RestHandler {
      * @param logger the logger that logs deprecation notices
      * @param logMsgKeyPrefix the key prefix of a deprecation message to avoid duplicate messages.
      */
-    protected static void parseDeprecatedMasterTimeoutParameter(
+    public static void parseDeprecatedMasterTimeoutParameter(
         MasterNodeRequest mnr,
         RestRequest request,
         DeprecationLogger logger,
