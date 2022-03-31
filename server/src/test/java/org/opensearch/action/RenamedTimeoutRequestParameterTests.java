@@ -29,7 +29,8 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     private static final TestThreadPool threadPool = new TestThreadPool(RenamedTimeoutRequestParameterTests.class.getName());
     private final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
 
-    private static final String PARAM_VALUE_ERROR_MESSAGE = "[master_timeout, cluster_manager_timeout] are required to be equal";
+    private static final String DUPLICATE_PARAMETER_ERROR_MESSAGE =
+        "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
     private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
         "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
 
@@ -51,12 +52,12 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
         // Request with both new and deprecated parameters and different values will result exception.
         // It should have warning, but the same deprecation warning won't be logged again.
         Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithWrongValues(), client));
-        assertThat(e.getMessage(), containsString(PARAM_VALUE_ERROR_MESSAGE));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
     }
 
     private FakeRestRequest getRestRequestWithWrongValues() {
         FakeRestRequest request = new FakeRestRequest();
-        request.params().put("cluster_manager_timeout", randomFrom("1h", "2m"));
+        request.params().put("cluster_manager_timeout", "1h");
         request.params().put("master_timeout", "3s");
         return request;
     }
