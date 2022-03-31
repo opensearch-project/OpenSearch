@@ -262,6 +262,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         this.revision = (byte) ((id / 100) % 100);
         this.build = (byte) (id % 100);
         this.luceneVersion = Objects.requireNonNull(luceneVersion);
+        this.minCompatVersion = null;
+        this.minIndexCompatVersion = null;
     }
 
     public boolean after(Version version) {
@@ -314,11 +316,11 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
     // lazy initialized because we don't yet have the declared versions ready when instantiating the cached Version
     // instances
-    private Version minCompatVersion;
+    protected Version minCompatVersion = null;
 
     // lazy initialized because we don't yet have the declared versions ready when instantiating the cached Version
     // instances
-    private Version minIndexCompatVersion;
+    protected Version minIndexCompatVersion = null;
 
     /**
      * Returns the minimum compatible version based on the current

@@ -116,7 +116,7 @@ public class IndexShardConstraintDeciderOverlapTests extends OpenSearchAllocatio
 
         // Add an old version node and exclude a new version node
         DiscoveryNodes.Builder nb = DiscoveryNodes.builder(clusterState.nodes())
-            .add(newNode("old_node", VersionUtils.getPreviousVersion()));
+            .add(newNode("old_node", VersionUtils.getPreviousReleasedVersion()));
         clusterState = ClusterState.builder(clusterState).nodes(nb.build()).build();
         buildAllocationService("node_0");
 
