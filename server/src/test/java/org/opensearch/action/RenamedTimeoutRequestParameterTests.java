@@ -8,12 +8,17 @@
 
 package org.opensearch.action;
 
+import org.junit.After;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.support.master.MasterNodeRequest;
+import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.rest.BaseRestHandler;
+import org.opensearch.rest.action.cat.RestNodesAction;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
+import org.opensearch.threadpool.TestThreadPool;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -24,12 +29,19 @@ import static org.hamcrest.Matchers.containsString;
  * Remove the test after removing MASTER_ROLE and 'master_timeout'.
  */
 public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
+    private final TestThreadPool threadPool = new TestThreadPool(RenamedTimeoutRequestParameterTests.class.getName());
+    private final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
     private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RenamedTimeoutRequestParameterTests.class);
 
     private static final String DUPLICATE_PARAMETER_ERROR_MESSAGE =
         "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
     private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
         "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
+
+    @After
+    public void terminateThreadPool() {
+        terminate(threadPool);
+    }
 
     public void testNoWarningsForNewParam() {
         BaseRestHandler.parseDeprecatedMasterTimeoutParameter(
@@ -63,6 +75,13 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
     }
 
+    public void testCatAllocation() {
+        RestNodesAction action = new RestNodesAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+    
     private MasterNodeRequest getMasterNodeRequest() {
         return new MasterNodeRequest() {
             @Override
