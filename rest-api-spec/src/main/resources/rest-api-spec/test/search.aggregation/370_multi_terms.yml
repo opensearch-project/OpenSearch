@@ -29,6 +29,10 @@ setup:
 
 ---
 "Basic test":
+  - skip:
+      version: "- 2.0.0"
+      reason:  multi_terms aggregation is introduced in 2.0.0
+
   - do:
       bulk:
         index: test_1
@@ -75,6 +79,10 @@ setup:
 
 ---
 "IP test":
+  - skip:
+      version: "- 2.0.0"
+      reason:  multi_terms aggregation is introduced in 2.0.0
+
   - do:
       bulk:
         index: test_1
@@ -121,6 +129,10 @@ setup:
 
 ---
 "Boolean test":
+  - skip:
+      version: "- 2.0.0"
+      reason:  multi_terms aggregation is introduced in 2.0.0
+
   - do:
       bulk:
         index: test_1
@@ -167,6 +179,10 @@ setup:
 
 ---
 "Double test":
+  - skip:
+      version: "- 2.0.0"
+      reason:  multi_terms aggregation is introduced in 2.0.0
+
   - do:
       bulk:
         index: test_1
@@ -206,6 +222,10 @@ setup:
 
 ---
 "Date test":
+  - skip:
+      version: "- 2.0.0"
+      reason:  multi_terms aggregation is introduced in 2.0.0
+
   - do:
       bulk:
         index: test_1
@@ -245,6 +265,10 @@ setup:
 
 ---
 "Unmapped keywords":
+  - skip:
+      version: "- 2.0.0"
+      reason:  multi_terms aggregation is introduced in 2.0.0
+
   - do:
       bulk:
         index: test_1
@@ -281,6 +305,10 @@ setup:
 
 ---
 "Null value":
+  - skip:
+      version: "- 2.0.0"
+      reason:  multi_terms aggregation is introduced in 2.0.0
+
   - do:
       bulk:
         index: test_1
@@ -312,6 +340,10 @@ setup:
 
 ---
 "multiple multi_terms bucket":
+  - skip:
+      version: "- 2.0.0"
+      reason:  multi_terms aggregation is introduced in 2.0.0
+
   - do:
       bulk:
         index: test_1
@@ -360,6 +392,10 @@ setup:
 
 ---
 "ordered by metrics":
+  - skip:
+      version: "- 2.0.0"
+      reason:  multi_terms aggregation is introduced in 2.0.0
+
   - do:
       bulk:
         index: test_1
@@ -404,6 +440,10 @@ setup:
 
 ---
 "top 1 ordered by metrics ":
+  - skip:
+      version: "- 2.0.0"
+      reason:  multi_terms aggregation is introduced in 2.0.0
+
   - do:
       bulk:
         index: test_1
@@ -445,6 +485,10 @@ setup:
 
 ---
 "min_doc_count":
+  - skip:
+      version: "- 2.0.0"
+      reason:  multi_terms aggregation is introduced in 2.0.0
+
   - do:
       bulk:
         index: test_1

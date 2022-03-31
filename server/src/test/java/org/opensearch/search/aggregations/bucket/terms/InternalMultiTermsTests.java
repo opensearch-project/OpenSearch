@@ -30,8 +30,7 @@ public class InternalMultiTermsTests extends InternalTermsTestCase {
     /**
      * terms count and type should consistent across entire test.
      */
-    private final int numTerms = randomIntBetween(2, 10);
-    private final List<ValuesSourceType> types = randomList(numTerms, numTerms, () -> randomFrom(getSupportedValuesSourceTypes()));
+    private final List<ValuesSourceType> types = getSupportedValuesSourceTypes();
 
     @Override
     protected InternalTerms<?, ?> createTestInstance(
@@ -88,7 +87,7 @@ public class InternalMultiTermsTests extends InternalTermsTestCase {
         return ParsedMultiTerms.class;
     }
 
-    private List<ValuesSourceType> getSupportedValuesSourceTypes() {
+    private static List<ValuesSourceType> getSupportedValuesSourceTypes() {
         return Collections.unmodifiableList(
             asList(
                 CoreValuesSourceType.NUMERIC,
