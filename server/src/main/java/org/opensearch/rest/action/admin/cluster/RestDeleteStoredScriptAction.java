@@ -33,6 +33,7 @@ package org.opensearch.rest.action.admin.cluster;
 
 import org.opensearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -44,6 +45,8 @@ import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteStoredScriptAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestDeleteStoredScriptAction.class);
 
     @Override
     public List<Route> routes() {
@@ -60,7 +63,10 @@ public class RestDeleteStoredScriptAction extends BaseRestHandler {
         String id = request.param("id");
         DeleteStoredScriptRequest deleteStoredScriptRequest = new DeleteStoredScriptRequest(id);
         deleteStoredScriptRequest.timeout(request.paramAsTime("timeout", deleteStoredScriptRequest.timeout()));
-        deleteStoredScriptRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteStoredScriptRequest.masterNodeTimeout()));
+        deleteStoredScriptRequest.masterNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", deleteStoredScriptRequest.masterNodeTimeout())
+        );
+        parseDeprecatedMasterTimeoutParameter(deleteStoredScriptRequest, request, deprecationLogger, getName());
 
         return channel -> client.admin().cluster().deleteStoredScript(deleteStoredScriptRequest, new RestToXContentListener<>(channel));
     }
