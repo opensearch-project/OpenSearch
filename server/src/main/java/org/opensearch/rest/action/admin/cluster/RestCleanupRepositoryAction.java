@@ -34,6 +34,7 @@ package org.opensearch.rest.action.admin.cluster;
 
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -50,6 +51,8 @@ import static org.opensearch.rest.RestRequest.Method.POST;
  */
 public class RestCleanupRepositoryAction extends BaseRestHandler {
 
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestCleanupRepositoryAction.class);
+
     @Override
     public List<Route> routes() {
         return singletonList(new Route(POST, "/_snapshot/{repository}/_cleanup"));
@@ -64,7 +67,10 @@ public class RestCleanupRepositoryAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         CleanupRepositoryRequest cleanupRepositoryRequest = cleanupRepositoryRequest(request.param("repository"));
         cleanupRepositoryRequest.timeout(request.paramAsTime("timeout", cleanupRepositoryRequest.timeout()));
-        cleanupRepositoryRequest.masterNodeTimeout(request.paramAsTime("master_timeout", cleanupRepositoryRequest.masterNodeTimeout()));
+        cleanupRepositoryRequest.masterNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", cleanupRepositoryRequest.masterNodeTimeout())
+        );
+        parseDeprecatedMasterTimeoutParameter(cleanupRepositoryRequest, request, deprecationLogger, getName());
         return channel -> client.admin().cluster().cleanupRepository(cleanupRepositoryRequest, new RestToXContentListener<>(channel));
     }
 }
