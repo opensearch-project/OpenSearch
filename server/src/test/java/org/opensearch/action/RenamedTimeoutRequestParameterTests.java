@@ -73,6 +73,7 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
             )
         );
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
     }
 
     public void testCatAllocation() {
