@@ -109,7 +109,10 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
 
     public void testCloneSnapshot() {
         RestCloneSnapshotAction action = new RestCloneSnapshotAction();
-        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBodyWithBothParams(), client));
+        Exception e = assertThrows(
+            OpenSearchParseException.class,
+            () -> action.prepareRequest(getRestRequestWithBodyWithBothParams(), client)
+        );
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
     }
@@ -152,7 +155,10 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
 
     public void testPutRepository() {
         RestPutRepositoryAction action = new RestPutRepositoryAction();
-        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBodyWithBothParams(), client));
+        Exception e = assertThrows(
+            OpenSearchParseException.class,
+            () -> action.prepareRequest(getRestRequestWithBodyWithBothParams(), client)
+        );
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
     }
@@ -205,7 +211,6 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
         request.params().put("cluster_manager_timeout", "2m");
         return request;
     }
-
 
     private FakeRestRequest getRestRequestWithBodyWithBothParams() {
         FakeRestRequest request = getFakeRestRequestWithBody();
