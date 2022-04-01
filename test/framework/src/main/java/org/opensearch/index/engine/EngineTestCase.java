@@ -875,7 +875,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             retentionLeasesSupplier,
             primaryTerm,
             tombstoneDocSupplier(),
-            true // defaulting isPrimary to true
+            false // defaulting isReadOnly to false
         );
     }
 

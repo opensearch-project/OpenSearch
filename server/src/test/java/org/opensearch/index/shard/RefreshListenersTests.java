@@ -171,7 +171,7 @@ public class RefreshListenersTests extends OpenSearchTestCase {
             () -> RetentionLeases.EMPTY,
             () -> primaryTerm,
             EngineTestCase.tombstoneDocSupplier(),
-            true // hard coding to true since primaries drive refreshes
+            false // hard coding to false
         );
         engine = new InternalEngine(config);
         engine.recoverFromTranslog((e, s) -> 0, Long.MAX_VALUE);
