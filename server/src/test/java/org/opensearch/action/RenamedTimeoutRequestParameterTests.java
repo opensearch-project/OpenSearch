@@ -12,8 +12,11 @@ import org.junit.After;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.support.master.MasterNodeRequest;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.action.admin.cluster.dangling.RestDeleteDanglingIndexAction;
 import org.opensearch.rest.action.admin.cluster.dangling.RestImportDanglingIndexAction;
@@ -38,6 +41,7 @@ import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.threadpool.TestThreadPool;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_SETTING;
 
 /**
  * As of 2.0, the request parameter 'master_timeout' in all applicable REST APIs is deprecated,
@@ -101,8 +105,13 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     }
 
     public void testAddIndexBlock() {
+        FakeRestRequest request = new FakeRestRequest();
+        request.params().put("cluster_manager_timeout", "1h");
+        request.params().put("master_timeout", "3s");
+        request.params().put("block", "metadata");
+        NodeClient client = new NodeClient(Settings.builder().put(INDEX_READ_ONLY_SETTING.getKey(), Boolean.FALSE).build(), threadPool);
         RestAddIndexBlockAction action = new RestAddIndexBlockAction();
-        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBothParams(), client));
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(request, client));
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
     }
@@ -150,8 +159,13 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     }
 
     public void testIndexDeleteAliases() {
+        FakeRestRequest request = new FakeRestRequest();
+        request.params().put("cluster_manager_timeout", "1h");
+        request.params().put("master_timeout", "3s");
+        request.params().put("name", "*");
+        request.params().put("index", "test");
         RestIndexDeleteAliasesAction action = new RestIndexDeleteAliasesAction();
-        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBothParams(), client));
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(request, client));
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
     }
@@ -179,7 +193,10 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
 
     public void testPutMapping() {
         RestPutMappingAction action = new RestPutMappingAction();
-        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBothParams(), client));
+        Exception e = assertThrows(
+            OpenSearchParseException.class,
+            () -> action.prepareRequest(getRestRequestWithBodyWithBothParams(), client)
+        );
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
     }
@@ -220,15 +237,23 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     }
 
     public void testDeleteDanglingIndex() {
+        FakeRestRequest request = new FakeRestRequest();
+        request.params().put("cluster_manager_timeout", "1h");
+        request.params().put("master_timeout", "3s");
+        request.params().put("index_uuid", "test");
         RestDeleteDanglingIndexAction action = new RestDeleteDanglingIndexAction();
-        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBothParams(), client));
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(request, client));
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
     }
 
     public void testImportDanglingIndex() {
+        FakeRestRequest request = new FakeRestRequest();
+        request.params().put("cluster_manager_timeout", "1h");
+        request.params().put("master_timeout", "3s");
+        request.params().put("index_uuid", "test");
         RestImportDanglingIndexAction action = new RestImportDanglingIndexAction();
-        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBothParams(), client));
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(request, client));
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
     }
@@ -259,5 +284,16 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
         FakeRestRequest request = new FakeRestRequest();
         request.params().put("cluster_manager_timeout", "2m");
         return request;
+    }
+
+    private FakeRestRequest getRestRequestWithBodyWithBothParams() {
+        FakeRestRequest request = getFakeRestRequestWithBody();
+        request.params().put("cluster_manager_timeout", randomFrom("1h", "2m"));
+        request.params().put("master_timeout", "3s");
+        return request;
+    }
+
+    private FakeRestRequest getFakeRestRequestWithBody() {
+        return new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(new BytesArray("{}"), XContentType.JSON).build();
     }
 }

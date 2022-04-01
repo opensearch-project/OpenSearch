@@ -32,6 +32,7 @@
 
 package org.opensearch.rest.action.admin.indices;
 
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.admin.indices.mapping.get.GetMappingsRequest;
@@ -63,6 +64,8 @@ public class RestGetMappingAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetMappingAction.class);
     private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
         "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
+    private static final String DUPLICATE_PARAMETER_ERROR_MESSAGE =
+        "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
 
     private final ThreadPool threadPool;
 
@@ -98,7 +101,9 @@ public class RestGetMappingAction extends BaseRestHandler {
         // TODO: Remove the if condition and statements inside after removing MASTER_ROLE.
         if (request.hasParam("master_timeout")) {
             deprecationLogger.deprecate("get_mapping_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
-            request.validateParamValuesAreEqual("master_timeout", "cluster_manager_timeout");
+            if (request.hasParam("cluster_manager_timeout")) {
+                throw new OpenSearchParseException(DUPLICATE_PARAMETER_ERROR_MESSAGE);
+            }
             clusterManagerTimeout = request.paramAsTime("master_timeout", getMappingsRequest.masterNodeTimeout());
         }
         final TimeValue timeout = clusterManagerTimeout;
