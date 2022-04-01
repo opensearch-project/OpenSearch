@@ -32,6 +32,7 @@
 
 package org.opensearch.rest.action.cat;
 
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -86,6 +87,8 @@ public class RestIndicesAction extends AbstractCatAction {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestIndicesAction.class);
     private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
         "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
+    private static final String DUPLICATE_PARAMETER_ERROR_MESSAGE =
+        "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
 
     @Override
     public List<Route> routes() {
@@ -117,7 +120,9 @@ public class RestIndicesAction extends AbstractCatAction {
         // Remove the if condition and statements inside after removing MASTER_ROLE.
         if (request.hasParam("master_timeout")) {
             deprecationLogger.deprecate("cat_indices_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
-            request.validateParamValuesAreEqual("master_timeout", "cluster_manager_timeout");
+            if (request.hasParam("cluster_manager_timeout")) {
+                throw new OpenSearchParseException(DUPLICATE_PARAMETER_ERROR_MESSAGE);
+            }
             clusterManagerTimeout = request.paramAsTime("master_timeout", DEFAULT_MASTER_NODE_TIMEOUT);
         }
         final TimeValue clusterManagerNodeTimeout = clusterManagerTimeout;

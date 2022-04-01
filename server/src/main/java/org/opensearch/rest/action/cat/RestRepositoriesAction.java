@@ -66,7 +66,7 @@ public class RestRepositoriesAction extends AbstractCatAction {
         getRepositoriesRequest.masterNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", getRepositoriesRequest.masterNodeTimeout())
         );
-        parseDeprecatedMasterTimeoutParameter(deprecationLogger, getRepositoriesRequest, request);
+        parseDeprecatedMasterTimeoutParameter(getRepositoriesRequest, request, deprecationLogger, getName());
 
         return channel -> client.admin()
             .cluster()

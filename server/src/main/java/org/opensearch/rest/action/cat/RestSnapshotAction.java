@@ -79,7 +79,7 @@ public class RestSnapshotAction extends AbstractCatAction {
         getSnapshotsRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", getSnapshotsRequest.ignoreUnavailable()));
 
         getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", getSnapshotsRequest.masterNodeTimeout()));
-        parseDeprecatedMasterTimeoutParameter(deprecationLogger, getSnapshotsRequest, request);
+        parseDeprecatedMasterTimeoutParameter(getSnapshotsRequest, request, deprecationLogger, getName());
 
         return channel -> client.admin()
             .cluster()
