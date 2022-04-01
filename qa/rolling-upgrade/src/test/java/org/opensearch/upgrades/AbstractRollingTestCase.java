@@ -49,13 +49,14 @@ public abstract class AbstractRollingTestCase extends OpenSearchRestTestCase {
                     return MIXED;
                 case "upgraded_cluster":
                     return UPGRADED;
-                    default:
-                        throw new AssertionError("unknown cluster type: " + value);
+                default:
+                    throw new AssertionError("unknown cluster type: " + value);
             }
         }
     }
 
     protected static final ClusterType CLUSTER_TYPE = ClusterType.parse(System.getProperty("tests.rest.suite"));
+    protected static final String REPOSITORY_LOCATION = System.getProperty("tests.repo_location");
     protected static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
     protected static final boolean firstMixedRound = Boolean.parseBoolean(System.getProperty("tests.first_round", "false"));
 

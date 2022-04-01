@@ -31,6 +31,7 @@
 
 package org.opensearch.upgrades;
 
+import org.apache.http.client.methods.HttpPut;
 import org.apache.http.util.EntityUtils;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
@@ -42,15 +43,16 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.Strings;
+import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-import static org.opensearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
+import static org.opensearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 
 /**
  * Basic test that indexed documents survive the rolling restart. See
@@ -261,11 +263,11 @@ public class IndexingIT extends AbstractRollingTestCase {
         final String indexName = "test_reindex_with_mapping";
         final String reindexName = "test_reindex_with_mapping_v2";
 
-        final String original_mapping = "\"properties\":{\"f1\":{\"type\":\"keyword\"},\"f2\":{\"type\":\"keyword\"}}";
-        final String original_typeMapping = "\"_doc\":{" + original_mapping +"}";
+        final String originalMapping = "\"properties\":{\"f1\":{\"type\":\"keyword\"},\"f2\":{\"type\":\"keyword\"}}";
+        final String originalTypeMapping = "\"_doc\":{" + originalMapping +"}";
 
-        final String new_mapping = "\"properties\":{\"f1\":{\"type\":\"text\"},\"f2\":{\"type\":\"text\"}}";
-        final String new_typeMapping = "\"_doc\":{" + new_mapping +"}";
+        final String newMapping = "\"properties\":{\"f1\":{\"type\":\"text\"},\"f2\":{\"type\":\"text\"}}";
+        final String newTypeMapping = "\"_doc\":{" + newMapping +"}";
 
         switch (CLUSTER_TYPE) {
             case OLD:
@@ -274,11 +276,11 @@ public class IndexingIT extends AbstractRollingTestCase {
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
                 Version minNodeVersion = getMinNodeVersion();
                 if (minNodeVersion.before(Version.V_2_0_0)) {
-                    createIndexWithDocMappings(indexName, settings.build(), original_typeMapping);
-                    assertIndexMapping(indexName, original_mapping);
+                    createIndexWithDocMappings(indexName, settings.build(), originalTypeMapping);
+                    assertIndexMapping(indexName, originalMapping);
 
-                    createIndexWithDocMappings(reindexName, settings.build(), new_typeMapping);
-                    assertIndexMapping(reindexName, new_mapping);
+                    createIndexWithDocMappings(reindexName, settings.build(), newTypeMapping);
+                    assertIndexMapping(reindexName, newMapping);
                 } else {
                     createIndex(indexName, settings.build());
                     createIndex(reindexName, settings.build());
@@ -302,7 +304,54 @@ public class IndexingIT extends AbstractRollingTestCase {
 
                 reindex(indexName, reindexName);
                 assertCount(reindexName, 2, 1);
-                assertIndexMapping(reindexName, new_mapping);
+                assertIndexMapping(reindexName, newMapping);
+                break;
+            default:
+                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+        }
+    }
+
+    public void testTypeRemovalSnapshots() throws IOException {
+        final String indexName = "test_snapshot_index";
+        final String repositoryName = "test_repository";
+        final String snapshotName = "test_snapshot";
+
+        final String mapping = "\"properties\":{\"f1\":{\"type\":\"keyword\"},\"f2\":{\"type\":\"keyword\"}}";
+        final String typeMapping = "\"_doc\":{" + mapping +"}";
+
+        switch (CLUSTER_TYPE) {
+            case OLD:
+                Settings.Builder settings = Settings.builder()
+                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
+                Version minNodeVersion = getMinNodeVersion();
+                if (minNodeVersion.before(Version.V_2_0_0)) {
+                    createIndexWithDocMappings(indexName, settings.build(), typeMapping);
+                    assertIndexMapping(indexName, mapping);
+                } else {
+                    createIndex(indexName, settings.build());
+                }
+                bulk(indexName, CLUSTER_TYPE.name(), 1);
+
+                registerRepository(repositoryName,"fs", true, Settings.builder()
+                    .put("compress", true)
+                    .put("location", REPOSITORY_LOCATION)
+                    .build());
+                createSnapshot(repositoryName, snapshotName, true, indexName);
+                deleteIndex(indexName);
+                break;
+            case MIXED:
+                Request waitForGreen = new Request("GET", "/_cluster/health");
+                waitForGreen.addParameter("wait_for_nodes", "3");
+                client().performRequest(waitForGreen);
+                break;
+            case UPGRADED:
+                Version currentNodeVersion = getMinNodeVersion();
+                assertTrue(currentNodeVersion.onOrAfter(Version.V_2_0_0));
+
+                assertFalse(indexExists(indexName));;
+                restoreSnapshot(repositoryName, snapshotName, true);
+                assertCount(indexName, 1);
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
@@ -341,38 +390,38 @@ public class IndexingIT extends AbstractRollingTestCase {
         return minNodeVersion;
     }
 
-    private void createIndexWithDocMappings(String indexName, Settings settings, String mapping) throws IOException {
-        Request request = new Request("PUT", "/" + indexName);
+    private void createIndexWithDocMappings(String index, Settings settings, String mapping) throws IOException {
+        Request createIndexWithMappingsRequest = new Request("PUT", "/" + index);
         String entity = "{\"settings\": " + Strings.toString(settings);
         if (mapping != null) {
             entity += ",\"mappings\" : {" + mapping + "}";
         }
         entity += "}";
-        request.addParameter("include_type_name", "true");
-        request.setJsonEntity(entity);
-        useIgnoreTypesRemovalWarningsHandler(request);
-        client().performRequest(request);
+        createIndexWithMappingsRequest.addParameter("include_type_name", "true");
+        createIndexWithMappingsRequest.setJsonEntity(entity);
+        useIgnoreTypesRemovalWarningsHandler(createIndexWithMappingsRequest);
+        client().performRequest(createIndexWithMappingsRequest);
     }
 
-    private void createTemplate(String templateName, String indexNamePattern, String mapping) throws IOException {
-        Request request = new Request("PUT", "/_template/" + templateName);
-        String entity = "{\"index_patterns\": \"" + indexNamePattern + "\"";
+    private void createTemplate(String templateName, String indexPattern, String mapping) throws IOException {
+        Request templateRequest = new Request("PUT", "/_template/" + templateName);
+        String entity = "{\"index_patterns\": \"" + indexPattern + "\"";
         if (mapping != null) {
             entity += ",\"mappings\" : {" + mapping + "}";
         }
         entity += "}";
-        request.addParameter("include_type_name", "true");
-        request.setJsonEntity(entity);
-        useIgnoreTypesRemovalWarningsHandler(request);
-        client().performRequest(request);
+        templateRequest.addParameter("include_type_name", "true");
+        templateRequest.setJsonEntity(entity);
+        useIgnoreTypesRemovalWarningsHandler(templateRequest);
+        client().performRequest(templateRequest);
     }
 
     private void reindex(String originalIndex, String newIndex) throws IOException {
-        Request request = new Request("POST", "/_reindex/");
+        Request reIndexRequest = new Request("POST", "/_reindex/");
         String entity = "{ \"source\": { \"index\": \"" + originalIndex + "\" }, \"dest\": { \"index\": \"" + newIndex + "\" } }";
-        request.setJsonEntity(entity);
-        request.addParameter("refresh", "true");
-        client().performRequest(request);
+        reIndexRequest.setJsonEntity(entity);
+        reIndexRequest.addParameter("refresh", "true");
+        client().performRequest(reIndexRequest);
     }
 
     private void assertIndexMapping(String index, String mappings) throws IOException {
@@ -406,7 +455,7 @@ public class IndexingIT extends AbstractRollingTestCase {
         "^\\[types removal\\] (.+) include_type_name (.+) is deprecated\\. The parameter will be removed in the next major version\\.$"
     );
 
-    protected static void useIgnoreTypesRemovalWarningsHandler(Request request) throws IOException {
+    private void useIgnoreTypesRemovalWarningsHandler(Request request) throws IOException {
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.setWarningsHandler(warnings -> {
             if (warnings.size() > 0) {
@@ -420,5 +469,25 @@ public class IndexingIT extends AbstractRollingTestCase {
             }
         });
         request.setOptions(options);
+    }
+
+    protected static void createSnapshot(String repository, String snapshot, boolean waitForCompletion, String indexName) throws IOException {
+        final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot);
+        request.addParameter("wait_for_completion", Boolean.toString(waitForCompletion));
+        if (indexName != null) {
+            String entity = "{\"indices\" : \"" + indexName + "\"}";
+            request.setJsonEntity(entity);
+        }
+
+        final Response response = client().performRequest(request);
+        assertEquals(
+            "Failed to create snapshot [" + snapshot + "] in repository [" + repository + "]: " + response,
+            response.getStatusLine().getStatusCode(), RestStatus.OK.getStatus()
+        );
+    }
+
+    @Override
+    protected boolean preserveSnapshotsUponCompletion() {
+        return true;
     }
 }
