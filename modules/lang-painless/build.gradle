@@ -63,7 +63,6 @@ test {
     test.classpath -= project.configurations.getByName(ShadowBasePlugin.CONFIGURATION_NAME)
     test.classpath += project.extensions.getByType(SourceSetContainer).getByName(SourceSet.MAIN_SOURCE_SET_NAME).runtimeClasspath
   }
-  systemProperty 'tests.security.manager', 'false'
 }
 
 shadowJar {
@@ -75,7 +74,6 @@ shadowJar {
     include(dependency('org.ow2.asm:asm-tree:9.2'))
     include(dependency('org.ow2.asm:asm-commons:9.2'))
     include(dependency('org.ow2.asm:asm-analysis:9.2'))
-    include(dependency('org.ow2.asm:asm:9.2'))
   }
 }
 
