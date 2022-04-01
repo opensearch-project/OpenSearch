@@ -79,6 +79,8 @@ shadowJar {
 
 tasks.validateNebulaPom.dependsOn tasks.generatePomFileForShadowPublication
 tasks.validateShadowPom.dependsOn tasks.generatePomFileForNebulaPublication
+tasks.publishNebulaPublicationToMavenLocal.dependsOn tasks.generatePomFileForShadowPublication
+tasks.publishShadowPublicationToMavenLocal.dependsOn tasks.generatePomFileForNebulaPublication
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /asm-.*/, to: 'asm'
