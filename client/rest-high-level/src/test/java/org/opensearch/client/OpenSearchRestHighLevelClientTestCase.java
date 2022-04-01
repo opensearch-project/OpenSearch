@@ -33,6 +33,7 @@
 package org.opensearch.client;
 
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -84,6 +85,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/2683")
 public abstract class OpenSearchRestHighLevelClientTestCase extends OpenSearchRestTestCase {
 
     protected static final String CONFLICT_PIPELINE_ID = "conflict_pipeline";

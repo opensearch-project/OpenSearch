@@ -35,6 +35,7 @@ package org.opensearch.search;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
@@ -132,6 +133,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * <code>minimizeRoundTrips</code> is set to either <code>true</code> or <code>false</code>. In fact the execution differs depending on
  * such parameter, hence we want to verify that results are the same in both scenarios.
  */
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/2683")
 @TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
 public class CCSDuelIT extends OpenSearchRestTestCase {
 
