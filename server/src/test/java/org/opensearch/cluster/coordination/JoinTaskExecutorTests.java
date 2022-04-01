@@ -50,8 +50,10 @@ import org.opensearch.test.VersionUtils;
 
 import java.util.HashSet;
 
+import static org.opensearch.test.VersionUtils.allVersions;
 import static org.opensearch.test.VersionUtils.maxCompatibleVersion;
 import static org.opensearch.test.VersionUtils.randomCompatibleVersion;
+import static org.opensearch.test.VersionUtils.randomOpenSearchVersion;
 import static org.opensearch.test.VersionUtils.randomVersion;
 import static org.opensearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.equalTo;
@@ -95,7 +97,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
 
     public void testPreventJoinClusterWithUnsupportedNodeVersions() {
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
-        final Version version = randomVersion(random());
+        final Version version = randomOpenSearchVersion(random());
         builder.add(new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), version));
         builder.add(new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), randomCompatibleVersion(random(), version)));
         DiscoveryNodes nodes = builder.build();
@@ -118,9 +120,14 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             expectThrows(IllegalStateException.class, () -> JoinTaskExecutor.ensureMajorVersionBarrier(oldMajor, minNodeVersion));
         }
 
-        final Version minGoodVersion = maxNodeVersion.compareMajor(minNodeVersion) == 0 ?
-        // we have to stick with the same major
-            minNodeVersion : maxNodeVersion.minimumCompatibilityVersion();
+        final Version minGoodVersion;
+        if (maxNodeVersion.compareMajor(minNodeVersion) == 0) {
+            // we have to stick with the same major
+            minGoodVersion = minNodeVersion;
+        } else {
+            Version minCompatVersion = maxNodeVersion.minimumCompatibilityVersion();
+            minGoodVersion = minCompatVersion.before(allVersions().get(0)) ? allVersions().get(0) : minCompatVersion;
+        }
         final Version justGood = randomVersionBetween(random(), minGoodVersion, maxCompatibleVersion(minNodeVersion));
 
         if (randomBoolean()) {
