@@ -40,7 +40,7 @@ testFixtures.useFixture()
 
 dependencies {
   providedCompile 'javax.enterprise:cdi-api:1.2'
-  providedCompile 'org.jboss.spec.javax.annotation:jboss-annotations-api_1.2_spec:1.0.0.Final'
+  providedCompile 'org.jboss.spec.javax.annotation:jboss-annotations-api_1.2_spec:1.0.2.Final'
   providedCompile 'org.jboss.spec.javax.ws.rs:jboss-jaxrs-api_2.0_spec:1.0.0.Final'
   api('org.jboss.resteasy:resteasy-jackson2-provider:3.0.19.Final') {
     exclude module: 'jackson-annotations'
