@@ -502,7 +502,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                 if (bucket.showDocCountError() == false || bucket.getDocCountError() == -1) {
                     docCountError = -1;
                 } else {
-                    docCountError += bucket.getDocCount();
+                    docCountError += bucket.getDocCountError();
                 }
             }
             aggregationsList.add((InternalAggregations) bucket.getAggregations());

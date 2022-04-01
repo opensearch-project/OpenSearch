@@ -84,7 +84,7 @@ public class InternalMultiTerms extends InternalTerms<InternalMultiTerms, Intern
             if (showDocCountError) {
                 this.docCountError = in.readVLong();
             } else {
-                this.docCountError = 0;
+                this.docCountError = -1;
             }
             this.termFormats = formats;
         }
