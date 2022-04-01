@@ -1592,6 +1592,12 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             org.opensearch.transport.NoSeedNodeLeftException::new,
             160,
             LegacyESVersion.V_7_10_0
+        ),
+        REPLICATION_FAILED_EXCEPTION(
+            org.opensearch.indices.replication.copy.ReplicationFailedException.class,
+            org.opensearch.indices.replication.copy.ReplicationFailedException::new,
+            161,
+            UNKNOWN_VERSION_ADDED
         );
 
         final Class<? extends OpenSearchException> exceptionClass;
