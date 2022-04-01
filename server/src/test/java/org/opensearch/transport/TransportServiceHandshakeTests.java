@@ -175,7 +175,7 @@ public class TransportServiceHandshakeTests extends OpenSearchTestCase {
         NetworkHandle handleB = startServices(
             "TS_B",
             settings,
-            VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion())
+            VersionUtils.getPreviousReleasedVersion(Version.CURRENT.minimumCompatibilityVersion())
         );
         DiscoveryNode discoveryNode = new DiscoveryNode(
             "",

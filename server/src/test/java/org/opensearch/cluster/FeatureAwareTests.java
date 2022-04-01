@@ -134,7 +134,7 @@ public class FeatureAwareTests extends OpenSearchTestCase {
                 final Version beforeVersion = randomVersionBetween(
                     random(),
                     VersionUtils.getFirstVersion(),
-                    VersionUtils.getPreviousVersion(version)
+                    VersionUtils.getPreviousReleasedVersion(version)
                 );
                 out.setVersion(beforeVersion);
                 if (custom.getRequiredFeature().isPresent() && randomBoolean()) {

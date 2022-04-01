@@ -281,8 +281,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
     // LegacyESVersion major 7 is equivalent to Version major 1
     public int compareMajor(Version other) {
-        int m = major == 1 ? 7 : major == 2 ? 8 : major;
-        int om = other.major == 1 ? 7 : other.major == 2 ? 8 : other.major;
+        int m = major == 1 ? 7 : major == 2 ? 8 : major == 3 ? 9 : major;
+        int om = other.major == 1 ? 7 : other.major == 2 ? 8 : major == 3 ? 9 : other.major;
         return Integer.compare(m, om);
     }
 
@@ -396,6 +396,10 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             bwcMajor = major - 1;
         }
         final int bwcMinor = 0;
+        // todo remove when LegacyESVersion is removed
+        if (major == 3) {
+            return Version.min(this, fromId((bwcMajor * 1000000 + bwcMinor * 10000 + 99) ^ MASK));
+        }
         return Version.min(this, fromId((bwcMajor * 1000000 + bwcMinor * 10000 + 99)));
     }
 
@@ -409,16 +413,12 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         // OpenSearch version 2 is the functional equivalent of predecessor unreleased version "8"
         // todo refactor this logic after removing deprecated features
         int a = major;
-        if (major == 1) {
-            a = 7;
-        } else if (major == 2) {
-            a = 8;
+        if (major <= 3) {
+            a += 6; // for legacy compatibility up to version 3.0 (to compare minCompat)
         }
         int b = version.major;
-        if (version.major == 1) {
-            b = 7;
-        } else if (version.major == 2) {
-            b = 8;
+        if (version.major <= 3) {
+            b += 6;
         }
 
         assert compatible == false || Math.max(a, b) - Math.min(a, b) <= 1;

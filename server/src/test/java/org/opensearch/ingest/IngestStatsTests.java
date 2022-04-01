@@ -66,11 +66,11 @@ public class IngestStatsTests extends OpenSearchTestCase {
 
         // legacy output logic
         BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(VersionUtils.getPreviousVersion(LegacyESVersion.V_7_6_0));
+        out.setVersion(VersionUtils.getPreviousReleasedVersion(LegacyESVersion.V_7_6_0));
         expectedIngestStats.writeTo(out);
 
         StreamInput in = out.bytes().streamInput();
-        in.setVersion(VersionUtils.getPreviousVersion(LegacyESVersion.V_7_6_0));
+        in.setVersion(VersionUtils.getPreviousReleasedVersion(LegacyESVersion.V_7_6_0));
         IngestStats serializedStats = new IngestStats(in);
         assertIngestStats(expectedIngestStats, serializedStats, true, false);
     }

@@ -68,7 +68,10 @@ public class LegacyESVersionTests extends OpenSearchTestCase {
     }
 
     public void testMin() {
-        assertEquals(VersionUtils.getPreviousVersion(), LegacyESVersion.min(Version.CURRENT, VersionUtils.getPreviousVersion()));
+        assertEquals(
+            VersionUtils.getPreviousReleasedVersion(),
+            LegacyESVersion.min(Version.CURRENT, VersionUtils.getPreviousReleasedVersion())
+        );
         assertEquals(LegacyESVersion.fromString("7.0.1"), LegacyESVersion.min(LegacyESVersion.fromString("7.0.1"), Version.CURRENT));
         Version legacyVersion = VersionUtils.randomLegacyVersion(random());
         Version opensearchVersion = VersionUtils.randomOpenSearchVersion(random());

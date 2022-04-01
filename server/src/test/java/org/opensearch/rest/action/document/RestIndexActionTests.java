@@ -98,7 +98,7 @@ public class RestIndexActionTests extends RestActionTestCase {
 
     public void testAutoIdDefaultsToOptypeIndexForOlderVersions() {
         checkAutoIdOpType(
-            VersionUtils.randomVersionBetween(random(), null, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_5_0)),
+            VersionUtils.randomVersionBetween(random(), null, VersionUtils.getPreviousReleasedVersion(LegacyESVersion.V_7_5_0)),
             DocWriteRequest.OpType.INDEX
         );
     }

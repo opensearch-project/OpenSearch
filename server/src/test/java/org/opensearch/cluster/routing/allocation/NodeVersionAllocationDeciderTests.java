@@ -164,7 +164,7 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
         }
 
         clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3", VersionUtils.getPreviousVersion())))
+            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3", VersionUtils.getPreviousReleasedVersion())))
             .build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
@@ -240,7 +240,9 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
             } else {
                 for (int j = nodes.size(); j < numNodes; j++) {
                     if (frequently()) {
-                        nodes.add(newNode("node" + (nodeIdx++), randomBoolean() ? VersionUtils.getPreviousVersion() : Version.CURRENT));
+                        nodes.add(
+                            newNode("node" + (nodeIdx++), randomBoolean() ? VersionUtils.getPreviousReleasedVersion() : Version.CURRENT)
+                        );
                     } else {
                         nodes.add(newNode("node" + (nodeIdx++), randomVersion(random())));
                     }
@@ -289,9 +291,9 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
         clusterState = ClusterState.builder(clusterState)
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(newNode("old0", VersionUtils.getPreviousVersion()))
-                    .add(newNode("old1", VersionUtils.getPreviousVersion()))
-                    .add(newNode("old2", VersionUtils.getPreviousVersion()))
+                    .add(newNode("old0", VersionUtils.getPreviousReleasedVersion()))
+                    .add(newNode("old1", VersionUtils.getPreviousReleasedVersion()))
+                    .add(newNode("old2", VersionUtils.getPreviousReleasedVersion()))
             )
             .build();
         clusterState = stabilize(clusterState, service);
@@ -299,8 +301,8 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
         clusterState = ClusterState.builder(clusterState)
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(newNode("old0", VersionUtils.getPreviousVersion()))
-                    .add(newNode("old1", VersionUtils.getPreviousVersion()))
+                    .add(newNode("old0", VersionUtils.getPreviousReleasedVersion()))
+                    .add(newNode("old1", VersionUtils.getPreviousReleasedVersion()))
                     .add(newNode("new0"))
             )
             .build();
@@ -309,7 +311,10 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
 
         clusterState = ClusterState.builder(clusterState)
             .nodes(
-                DiscoveryNodes.builder().add(newNode("node0", VersionUtils.getPreviousVersion())).add(newNode("new1")).add(newNode("new0"))
+                DiscoveryNodes.builder()
+                    .add(newNode("node0", VersionUtils.getPreviousReleasedVersion()))
+                    .add(newNode("new1"))
+                    .add(newNode("new0"))
             )
             .build();
 
@@ -346,14 +351,14 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
             buildNewFakeTransportAddress(),
             emptyMap(),
             MASTER_DATA_ROLES,
-            VersionUtils.getPreviousVersion()
+            VersionUtils.getPreviousReleasedVersion()
         );
         final DiscoveryNode oldNode2 = new DiscoveryNode(
             "oldNode2",
             buildNewFakeTransportAddress(),
             emptyMap(),
             MASTER_DATA_ROLES,
-            VersionUtils.getPreviousVersion()
+            VersionUtils.getPreviousReleasedVersion()
         );
         AllocationId allocationId1P = AllocationId.newInitializing();
         AllocationId allocationId1R = AllocationId.newInitializing();
@@ -465,14 +470,14 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
             buildNewFakeTransportAddress(),
             emptyMap(),
             MASTER_DATA_ROLES,
-            VersionUtils.getPreviousVersion()
+            VersionUtils.getPreviousReleasedVersion()
         );
         final DiscoveryNode oldNode2 = new DiscoveryNode(
             "oldNode2",
             buildNewFakeTransportAddress(),
             emptyMap(),
             MASTER_DATA_ROLES,
-            VersionUtils.getPreviousVersion()
+            VersionUtils.getPreviousReleasedVersion()
         );
 
         final Snapshot snapshot = new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID()));
@@ -609,7 +614,7 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
         RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
 
         RoutingNode newNode = new RoutingNode("newNode", newNode("newNode", Version.CURRENT));
-        RoutingNode oldNode = new RoutingNode("oldNode", newNode("oldNode", VersionUtils.getPreviousVersion()));
+        RoutingNode oldNode = new RoutingNode("oldNode", newNode("oldNode", VersionUtils.getPreviousReleasedVersion()));
 
         final org.opensearch.cluster.ClusterName clusterName = org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(
             Settings.EMPTY

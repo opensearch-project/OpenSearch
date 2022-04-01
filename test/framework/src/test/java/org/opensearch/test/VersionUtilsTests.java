@@ -92,8 +92,8 @@ public class VersionUtilsTests extends OpenSearchTestCase {
         got = VersionUtils.randomVersionBetween(random(), LegacyESVersion.fromId(7000099), null);
         assertTrue(got.onOrAfter(LegacyESVersion.fromId(7000099)));
         assertTrue(got.onOrBefore(Version.CURRENT));
-        got = VersionUtils.randomVersionBetween(random(), VersionUtils.getPreviousVersion(), null);
-        assertTrue(got.onOrAfter(VersionUtils.getPreviousVersion()));
+        got = VersionUtils.randomVersionBetween(random(), VersionUtils.getPreviousReleasedVersion(), null);
+        assertTrue(got.onOrAfter(VersionUtils.getPreviousReleasedVersion()));
         assertTrue(got.onOrBefore(Version.CURRENT));
 
         // range of one

@@ -173,7 +173,7 @@ public class RemovePluginCommandTests extends OpenSearchTestCase {
             VersionUtils.randomVersionBetween(
                 random(),
                 Version.CURRENT.minimumIndexCompatibilityVersion(),
-                VersionUtils.getPreviousVersion()
+                VersionUtils.getPreviousReleasedVersion()
             )
         );
         removePlugin("fake", home, randomBoolean());

@@ -44,7 +44,6 @@ import org.opensearch.test.VersionUtils;
 
 import java.util.Locale;
 
-import static org.opensearch.test.VersionUtils.getPreviousVersion;
 import static org.opensearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.core.IsEqual.equalTo;
 
@@ -78,7 +77,13 @@ public class ClusterHealthRequestTests extends OpenSearchTestCase {
         for (int runs = 0; runs < randomIntBetween(5, 20); runs++) {
             // Generate a random cluster health request in version < 7.2.0 and serializes it
             final BytesStreamOutput out = new BytesStreamOutput();
-            out.setVersion(randomVersionBetween(random(), VersionUtils.getFirstVersion(), getPreviousVersion(LegacyESVersion.V_7_2_0)));
+            out.setVersion(
+                randomVersionBetween(
+                    random(),
+                    VersionUtils.getFirstVersion(),
+                    VersionUtils.getPreviousReleasedVersion(LegacyESVersion.V_7_2_0)
+                )
+            );
 
             final ClusterHealthRequest expected = randomRequest();
             {
@@ -133,7 +138,13 @@ public class ClusterHealthRequestTests extends OpenSearchTestCase {
 
             // Serialize to node in version < 7.2.0
             final BytesStreamOutput out = new BytesStreamOutput();
-            out.setVersion(randomVersionBetween(random(), VersionUtils.getFirstVersion(), getPreviousVersion(LegacyESVersion.V_7_2_0)));
+            out.setVersion(
+                randomVersionBetween(
+                    random(),
+                    VersionUtils.getFirstVersion(),
+                    VersionUtils.getPreviousReleasedVersion(LegacyESVersion.V_7_2_0)
+                )
+            );
             expected.writeTo(out);
 
             // Deserialize and check the cluster health request
