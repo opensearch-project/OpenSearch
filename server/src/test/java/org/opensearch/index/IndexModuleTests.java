@@ -103,7 +103,6 @@ import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
-import org.opensearch.test.client.NoOpClient;
 import org.opensearch.test.engine.MockEngineFactory;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -194,7 +193,6 @@ public class IndexModuleTests extends OpenSearchTestCase {
     }
 
     private IndexService newIndexService(IndexModule module) throws IOException {
-        NoOpClient noOpClient = new NoOpClient(this.getTestName());
         return module.newIndexService(
             CREATE_INDEX,
             nodeEnvironment,

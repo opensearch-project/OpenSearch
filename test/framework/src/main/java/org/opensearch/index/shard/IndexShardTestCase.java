@@ -100,7 +100,6 @@ import org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositoryIntegT
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.test.client.NoOpClient;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -459,8 +458,6 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 Collections.emptyList(),
                 clusterSettings
             );
-            // No-op checkpoint publisher for backwards compatibliity
-            NoOpClient noOpClient = new NoOpClient(this.getTestName());
             indexShard = new IndexShard(
                 routing,
                 indexSettings,
