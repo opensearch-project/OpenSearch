@@ -61,7 +61,7 @@ public class RestSimulateTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         SimulateTemplateAction.Request simulateRequest = new SimulateTemplateAction.Request();
         simulateRequest.templateName(request.param("name"));
         if (request.hasContent()) {
