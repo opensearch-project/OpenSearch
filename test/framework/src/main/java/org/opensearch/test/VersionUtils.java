@@ -225,6 +225,15 @@ public class VersionUtils {
     }
 
     /**
+     * Get the released version before {@link Version#CURRENT}.
+     */
+    public static Version getPreviousVersion() {
+        Version version = getPreviousVersion(Version.CURRENT);
+        assert version.before(Version.CURRENT);
+        return version;
+    }
+
+    /**
      * Get the released version before {@code version}.
      */
     public static Version getPreviousReleasedVersion(Version version) {
