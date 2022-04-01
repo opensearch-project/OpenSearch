@@ -29,8 +29,11 @@
  */
 
 import org.opensearch.gradle.testclusters.DefaultTestClustersTask;
+import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin
+
 apply plugin: 'opensearch.validate-rest-spec'
 apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'com.github.johnrengelman.shadow'
 
 opensearchplugin {
   description 'An easy, safe and fast scripting language for OpenSearch'
@@ -49,10 +52,35 @@ dependencies {
   api 'org.ow2.asm:asm-util:9.2'
   api 'org.ow2.asm:asm-tree:7.2'
   api 'org.ow2.asm:asm-commons:9.2'
-  api 'org.ow2.asm:asm-analysis:7.2'
+  api 'org.ow2.asm:asm-analysis:9.2'
   api 'org.ow2.asm:asm:9.2'
   api project('spi')
 }
+
+test {
+  doFirst {
+    test.classpath -= project.files(project.tasks.named('shadowJar'))
+    test.classpath -= project.configurations.getByName(ShadowBasePlugin.CONFIGURATION_NAME)
+    test.classpath += project.extensions.getByType(SourceSetContainer).getByName(SourceSet.MAIN_SOURCE_SET_NAME).runtimeClasspath
+  }
+}
+
+shadowJar {
+  classifier = null
+  relocate 'org.objectweb', 'org.opensearch.repackage.org.objectweb'
+  dependencies {
+    include(dependency('org.ow2.asm:asm:9.2'))
+    include(dependency('org.ow2.asm:asm-util:9.2'))
+    include(dependency('org.ow2.asm:asm-tree:9.2'))
+    include(dependency('org.ow2.asm:asm-commons:9.2'))
+    include(dependency('org.ow2.asm:asm-analysis:9.2'))
+  }
+}
+
+tasks.validateNebulaPom.dependsOn tasks.generatePomFileForShadowPublication
+tasks.validateShadowPom.dependsOn tasks.generatePomFileForNebulaPublication
+tasks.publishNebulaPublicationToMavenLocal.dependsOn tasks.generatePomFileForShadowPublication
+tasks.publishShadowPublicationToMavenLocal.dependsOn tasks.generatePomFileForNebulaPublication
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /asm-.*/, to: 'asm'
