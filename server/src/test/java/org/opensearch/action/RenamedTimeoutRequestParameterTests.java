@@ -283,7 +283,7 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
 
     private FakeRestRequest getRestRequestWithBodyWithBothParams() {
         FakeRestRequest request = getFakeRestRequestWithBody();
-        request.params().put("cluster_manager_timeout", randomFrom("1h", "2m"));
+        request.params().put("cluster_manager_timeout", "2m");
         request.params().put("master_timeout", "3s");
         return request;
     }
