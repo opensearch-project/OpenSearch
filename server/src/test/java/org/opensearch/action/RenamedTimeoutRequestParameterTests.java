@@ -193,8 +193,8 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
 
     public void testClusterHealth() {
         Exception e = assertThrows(
-                OpenSearchParseException.class,
-                () -> RestClusterHealthAction.fromRequest(getRestRequestWithBodyWithBothParams())
+            OpenSearchParseException.class,
+            () -> RestClusterHealthAction.fromRequest(getRestRequestWithBodyWithBothParams())
         );
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
@@ -204,8 +204,8 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
         final SettingsFilter filter = new SettingsFilter(Collections.singleton("foo.filtered"));
         RestClusterRerouteAction action = new RestClusterRerouteAction(filter);
         Exception e = assertThrows(
-                OpenSearchParseException.class,
-                () -> action.prepareRequest(getRestRequestWithBodyWithBothParams(), client)
+            OpenSearchParseException.class,
+            () -> action.prepareRequest(getRestRequestWithBodyWithBothParams(), client)
         );
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
@@ -215,8 +215,8 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
         final SettingsFilter filter = new SettingsFilter(Collections.singleton("foo.filtered"));
         RestClusterStateAction action = new RestClusterStateAction(filter);
         Exception e = assertThrows(
-                OpenSearchParseException.class,
-                () -> action.prepareRequest(getRestRequestWithBodyWithBothParams(), client)
+            OpenSearchParseException.class,
+            () -> action.prepareRequest(getRestRequestWithBodyWithBothParams(), client)
         );
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
@@ -226,8 +226,8 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
         final SettingsFilter filter = new SettingsFilter(Collections.singleton("foo.filtered"));
         RestClusterGetSettingsAction action = new RestClusterGetSettingsAction(null, null, filter);
         Exception e = assertThrows(
-                OpenSearchParseException.class,
-                () -> action.prepareRequest(getRestRequestWithBodyWithBothParams(), client)
+            OpenSearchParseException.class,
+            () -> action.prepareRequest(getRestRequestWithBodyWithBothParams(), client)
         );
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
@@ -236,23 +236,23 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     public void testClusterUpdateSettings() throws IOException {
         RestClusterUpdateSettingsAction action = new RestClusterUpdateSettingsAction();
         Exception e = assertThrows(
-                OpenSearchParseException.class,
-                () -> action.prepareRequest(getRestRequestWithBodyWithBothParams(), client)
+            OpenSearchParseException.class,
+            () -> action.prepareRequest(getRestRequestWithBodyWithBothParams(), client)
         );
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
     }
 
     public void testClusterPendingTasks() {
-        org.opensearch.rest.action.admin.cluster.RestPendingClusterTasksAction action = new org.opensearch.rest.action.admin.cluster.RestPendingClusterTasksAction();
+        RestPendingClusterTasksAction action = new RestPendingClusterTasksAction();
         Exception e = assertThrows(
-                OpenSearchParseException.class,
-                () -> action.prepareRequest(getRestRequestWithBodyWithBothParams(), client)
+            OpenSearchParseException.class,
+            () -> action.prepareRequest(getRestRequestWithBodyWithBothParams(), client)
         );
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
     }
-    
+
     private MasterNodeRequest getMasterNodeRequest() {
         return new MasterNodeRequest() {
             @Override
