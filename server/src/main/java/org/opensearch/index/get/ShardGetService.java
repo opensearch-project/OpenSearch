@@ -217,13 +217,15 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
         Term uidTerm = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
 
-        try (Engine.GetResult get = indexShard.get(
-            new Engine.Get(realtime, true, id, uidTerm).version(version)
-                .versionType(versionType)
-                .setIfSeqNo(ifSeqNo)
-                .setIfPrimaryTerm(ifPrimaryTerm)
-        )) {
-            if (get.exists() == false) {
+        try (
+            Engine.GetResult get = indexShard.get(
+                new Engine.Get(realtime, true, id, uidTerm).version(version)
+                    .versionType(versionType)
+                    .setIfSeqNo(ifSeqNo)
+                    .setIfPrimaryTerm(ifPrimaryTerm)
+            )
+        ) {
+            if (get == null || get.exists() == false) {
                 return new GetResult(shardId.getIndexName(), id, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1, false, null, null, null);
             }
             // break between having loaded it from translog (so we only have _source), and having a document to load
