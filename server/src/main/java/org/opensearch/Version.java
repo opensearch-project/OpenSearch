@@ -339,11 +339,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         } else if (major == 6) {
             // force the minimum compatibility for version 6 to 5.6 since we don't reference version 5 anymore
             return LegacyESVersion.fromId(5060099);
-        }
-        /*
-         * TODO - uncomment this logic from OpenSearch version 3 onwards
-         *
-        else if (major >= 3) {
+        } else if (major >= 3) {
             // all major versions from 3 onwards are compatible with last minor series of the previous major
             Version bwcVersion = null;
 
@@ -358,7 +354,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             }
             return bwcVersion == null ? this : bwcVersion;
         }
-         */
 
         return Version.min(this, fromId(maskId((int) major * 1000000 + 0 * 10000 + 99)));
     }
