@@ -46,9 +46,9 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RenamedTimeoutRequestParameterTests.class);
 
     private static final String DUPLICATE_PARAMETER_ERROR_MESSAGE =
-            "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
+        "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
     private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
-            "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
+        "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
 
     @After
     public void terminateThreadPool() {
@@ -57,32 +57,32 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
 
     public void testNoWarningsForNewParam() {
         BaseRestHandler.parseDeprecatedMasterTimeoutParameter(
-                getMasterNodeRequest(),
-                getRestRequestWithNewParam(),
-                deprecationLogger,
-                "test"
+            getMasterNodeRequest(),
+            getRestRequestWithNewParam(),
+            deprecationLogger,
+            "test"
         );
     }
 
     public void testDeprecationWarningForOldParam() {
         BaseRestHandler.parseDeprecatedMasterTimeoutParameter(
-                getMasterNodeRequest(),
-                getRestRequestWithDeprecatedParam(),
-                deprecationLogger,
-                "test"
+            getMasterNodeRequest(),
+            getRestRequestWithDeprecatedParam(),
+            deprecationLogger,
+            "test"
         );
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
     }
 
     public void testBothParamsNotValid() {
         Exception e = assertThrows(
-                OpenSearchParseException.class,
-                () -> BaseRestHandler.parseDeprecatedMasterTimeoutParameter(
-                        getMasterNodeRequest(),
-                        getRestRequestWithBothParams(),
-                        deprecationLogger,
-                        "test"
-                )
+            OpenSearchParseException.class,
+            () -> BaseRestHandler.parseDeprecatedMasterTimeoutParameter(
+                getMasterNodeRequest(),
+                getRestRequestWithBothParams(),
+                deprecationLogger,
+                "test"
+            )
         );
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
