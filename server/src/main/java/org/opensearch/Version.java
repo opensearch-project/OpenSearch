@@ -247,7 +247,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public final byte build;
     public final org.apache.lucene.util.Version luceneVersion;
 
-    Version(int id, org.apache.lucene.util.Version luceneVersion) {
+    protected Version(int id, org.apache.lucene.util.Version luceneVersion) {
         // flip the 28th bit of the ID; identify as an opensearch vs legacy system:
         // we start from version 1 for opensearch, so ignore the 0 (empty) version
         if (id != 0) {
@@ -261,6 +261,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         this.revision = (byte) ((id / 100) % 100);
         this.build = (byte) (id % 100);
         this.luceneVersion = Objects.requireNonNull(luceneVersion);
+        this.minCompatVersion = null;
+        this.minIndexCompatVersion = null;
     }
 
     public boolean after(Version version) {
@@ -308,11 +310,11 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
     // lazy initialized because we don't yet have the declared versions ready when instantiating the cached Version
     // instances
-    private Version minCompatVersion;
+    protected Version minCompatVersion;
 
     // lazy initialized because we don't yet have the declared versions ready when instantiating the cached Version
     // instances
-    private Version minIndexCompatVersion;
+    protected Version minIndexCompatVersion;
 
     /**
      * Returns the minimum compatible version based on the current
@@ -339,8 +341,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         } else if (major == 6) {
             // force the minimum compatibility for version 6 to 5.6 since we don't reference version 5 anymore
             return LegacyESVersion.fromId(5060099);
-        } else if (major >= 3) {
+        } else if (major >= 3 && major < 5) {
             // all major versions from 3 onwards are compatible with last minor series of the previous major
+            // todo: remove 5 check when removing LegacyESVersionTests
             Version bwcVersion = null;
 
             for (int i = DeclaredVersionsHolder.DECLARED_VERSIONS.size() - 1; i >= 0; i--) {
