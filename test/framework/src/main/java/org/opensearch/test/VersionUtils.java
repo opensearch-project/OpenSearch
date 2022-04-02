@@ -89,7 +89,7 @@ public class VersionUtils {
             stableVersions = previousMajor;
             // remove current
             moveLastToUnreleased(currentMajor, unreleasedVersions);
-        } else if (current.major != 1 && current.major != 2) {
+        } else if (current.major != 1) {
             // on a stable or release branch, ie N.x
             stableVersions = currentMajor;
             // remove the next maintenance bugfix
