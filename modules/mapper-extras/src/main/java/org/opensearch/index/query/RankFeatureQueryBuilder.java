@@ -274,8 +274,7 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
 
             private static final ObjectParser<Linear, Void> PARSER = new ObjectParser<>("linear", Linear::new);
 
-            public Linear() {
-            }
+            public Linear() {}
 
             private Linear(StreamInput in) {
                 this();

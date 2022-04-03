@@ -5,17 +5,17 @@ setup:
 
   - do:
       indices.create:
-          index: test
-          body:
-            settings:
-              number_of_replicas: 0
-            mappings:
-              properties:
-                tags:
-                   type: rank_features
-                negative_reviews:
-                   type: rank_features
-                   positive_score_impact: false
+        index: test
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              tags:
+                type: rank_features
+              negative_reviews:
+                type: rank_features
+                positive_score_impact: false
 
   - do:
       index:
@@ -25,6 +25,9 @@ setup:
           tags:
             foo: 3
             bar: 5
+          negative_reviews:
+            1star: 10
+            2star: 1
 
   - do:
       index:
@@ -34,6 +37,9 @@ setup:
           tags:
             bar: 6
             quux: 10
+          negative_reviews:
+            1star: 1
+            2star: 10
 
   - do:
       indices.refresh: {}

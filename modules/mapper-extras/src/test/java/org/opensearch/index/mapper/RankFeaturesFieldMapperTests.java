@@ -108,9 +108,9 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
         FeatureField featureField1 = null;
         FeatureField featureField2 = null;
         for (IndexableField field : fields) {
-            if (field.stringValue().equals("ten")) {
+            if (field.stringValue().equals("foo")) {
                 featureField1 = (FeatureField) field;
-            } else if (field.stringValue().equals("twenty")) {
+            } else if (field.stringValue().equals("bar")) {
                 featureField2 = (FeatureField) field;
             } else {
                 throw new UnsupportedOperationException();

@@ -487,10 +487,4 @@ public class QueryDSLDocumentationTests extends OpenSearchTestCase {
     public void testRankFeatureLinear() {
         RankFeatureQueryBuilders.linear("pagerank");
     }
-
-    public void testRankFeatureLinear() {
-        RankFeatureQueryBuilders.linear(
-            "pagerank"
-        );
-    }
 }
