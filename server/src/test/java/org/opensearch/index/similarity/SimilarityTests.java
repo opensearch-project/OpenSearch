@@ -76,10 +76,12 @@ public class SimilarityTests extends OpenSearchSingleNodeTestCase {
         assertThat(similarityService.getSimilarity("BM25").get(), instanceOf(LegacyBM25Similarity.class));
         assertThat(similarityService.getSimilarity("boolean").get(), instanceOf(BooleanSimilarity.class));
         assertThat(similarityService.getSimilarity("default"), equalTo(null));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> similarityService.getSimilarity("classic"));
-        assertEquals("The [classic] similarity may not be used anymore. Please use the [BM25] similarity or build a custom [scripted] "
-                + "similarity instead.", e.getMessage());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> similarityService.getSimilarity("classic"));
+        assertEquals(
+            "The [classic] similarity may not be used anymore. Please use the [BM25] similarity or build a custom [scripted] "
+                + "similarity instead.",
+            e.getMessage()
+        );
     }
 
     public void testResolveSimilaritiesFromMapping_classicIsForbidden() throws IOException {
@@ -87,18 +89,26 @@ public class SimilarityTests extends OpenSearchSingleNodeTestCase {
             .put("index.similarity.my_similarity.type", "classic")
             .put("index.similarity.my_similarity.discount_overlaps", false)
             .build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> createIndex("foo", indexSettings));
-        assertEquals("The [classic] similarity may not be used anymore. Please use the [BM25] similarity or build a custom [scripted] "
-                + "similarity instead.", e.getMessage());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createIndex("foo", indexSettings));
+        assertEquals(
+            "The [classic] similarity may not be used anymore. Please use the [BM25] similarity or build a custom [scripted] "
+                + "similarity instead.",
+            e.getMessage()
+        );
     }
 
     public void testResolveSimilaritiesFromMapping_bm25() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
             .startObject("properties")
-            .startObject("field1").field("type", "text").field("similarity", "my_similarity").endObject()
+            .startObject("field1")
+            .field("type", "text")
+            .field("similarity", "my_similarity")
             .endObject()
-            .endObject().endObject();
+            .endObject()
+            .endObject()
+            .endObject();
 
         Settings indexSettings = Settings.builder()
             .put("index.similarity.my_similarity.type", "BM25")
@@ -109,30 +119,44 @@ public class SimilarityTests extends OpenSearchSingleNodeTestCase {
         MapperService mapperService = createIndex("foo", indexSettings, "type", mapping).mapperService();
         assertThat(mapperService.fieldType("field1").getTextSearchInfo().getSimilarity().get(), instanceOf(LegacyBM25Similarity.class));
 
-        LegacyBM25Similarity similarity
-            = (LegacyBM25Similarity) mapperService.fieldType("field1").getTextSearchInfo().getSimilarity().get();
+        LegacyBM25Similarity similarity = (LegacyBM25Similarity) mapperService.fieldType("field1")
+            .getTextSearchInfo()
+            .getSimilarity()
+            .get();
         assertThat(similarity.getK1(), equalTo(2.0f));
         assertThat(similarity.getB(), equalTo(0.5f));
         assertThat(similarity.getDiscountOverlaps(), equalTo(false));
     }
 
     public void testResolveSimilaritiesFromMapping_boolean() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
             .startObject("properties")
-            .startObject("field1").field("type", "text").field("similarity", "boolean").endObject()
+            .startObject("field1")
+            .field("type", "text")
+            .field("similarity", "boolean")
             .endObject()
-            .endObject().endObject();
+            .endObject()
+            .endObject()
+            .endObject();
 
         MapperService mapperService = createIndex("foo", Settings.EMPTY, "type", mapping).mapperService();
         assertThat(mapperService.fieldType("field1").getTextSearchInfo().getSimilarity().get(), instanceOf(BooleanSimilarity.class));
     }
 
     public void testResolveSimilaritiesFromMapping_DFR() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
             .startObject("properties")
-            .startObject("field1").field("type", "text").field("similarity", "my_similarity").endObject()
+            .startObject("field1")
+            .field("type", "text")
+            .field("similarity", "my_similarity")
             .endObject()
-            .endObject().endObject();
+            .endObject()
+            .endObject()
+            .endObject();
 
         Settings indexSettings = Settings.builder()
             .put("index.similarity.my_similarity.type", "DFR")
@@ -152,11 +176,17 @@ public class SimilarityTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testResolveSimilaritiesFromMapping_IB() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
             .startObject("properties")
-            .startObject("field1").field("type", "text").field("similarity", "my_similarity").endObject()
+            .startObject("field1")
+            .field("type", "text")
+            .field("similarity", "my_similarity")
             .endObject()
-            .endObject().endObject();
+            .endObject()
+            .endObject()
+            .endObject();
 
         Settings indexSettings = Settings.builder()
             .put("index.similarity.my_similarity.type", "IB")
@@ -176,11 +206,17 @@ public class SimilarityTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testResolveSimilaritiesFromMapping_DFI() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
             .startObject("properties")
-            .startObject("field1").field("type", "text").field("similarity", "my_similarity").endObject()
+            .startObject("field1")
+            .field("type", "text")
+            .field("similarity", "my_similarity")
             .endObject()
-            .endObject().endObject();
+            .endObject()
+            .endObject()
+            .endObject();
 
         Settings indexSettings = Settings.builder()
             .put("index.similarity.my_similarity.type", "DFI")
@@ -195,11 +231,17 @@ public class SimilarityTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testResolveSimilaritiesFromMapping_LMDirichlet() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
             .startObject("properties")
-            .startObject("field1").field("type", "text").field("similarity", "my_similarity").endObject()
+            .startObject("field1")
+            .field("type", "text")
+            .field("similarity", "my_similarity")
             .endObject()
-            .endObject().endObject();
+            .endObject()
+            .endObject()
+            .endObject();
 
         Settings indexSettings = Settings.builder()
             .put("index.similarity.my_similarity.type", "LMDirichlet")
@@ -209,37 +251,57 @@ public class SimilarityTests extends OpenSearchSingleNodeTestCase {
         MapperService mapperService = createIndex("foo", indexSettings, "type", mapping).mapperService();
         assertThat(mapperService.fieldType("field1").getTextSearchInfo().getSimilarity().get(), instanceOf(LMDirichletSimilarity.class));
 
-        LMDirichletSimilarity similarity
-            = (LMDirichletSimilarity) mapperService.fieldType("field1").getTextSearchInfo().getSimilarity().get();
+        LMDirichletSimilarity similarity = (LMDirichletSimilarity) mapperService.fieldType("field1")
+            .getTextSearchInfo()
+            .getSimilarity()
+            .get();
         assertThat(similarity.getMu(), equalTo(3000f));
     }
 
     public void testResolveSimilaritiesFromMapping_LMJelinekMercer() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
             .startObject("properties")
-            .startObject("field1").field("type", "text").field("similarity", "my_similarity").endObject()
+            .startObject("field1")
+            .field("type", "text")
+            .field("similarity", "my_similarity")
             .endObject()
-            .endObject().endObject();
+            .endObject()
+            .endObject()
+            .endObject();
 
         Settings indexSettings = Settings.builder()
             .put("index.similarity.my_similarity.type", "LMJelinekMercer")
             .put("index.similarity.my_similarity.lambda", 0.7f)
             .build();
         MapperService mapperService = createIndex("foo", indexSettings, "type", mapping).mapperService();
-        assertThat(mapperService.fieldType("field1").getTextSearchInfo().getSimilarity().get(),
-            instanceOf(LMJelinekMercerSimilarity.class));
+        assertThat(
+            mapperService.fieldType("field1").getTextSearchInfo().getSimilarity().get(),
+            instanceOf(LMJelinekMercerSimilarity.class)
+        );
 
-        LMJelinekMercerSimilarity similarity
-            = (LMJelinekMercerSimilarity) mapperService.fieldType("field1").getTextSearchInfo().getSimilarity().get();
+        LMJelinekMercerSimilarity similarity = (LMJelinekMercerSimilarity) mapperService.fieldType("field1")
+            .getTextSearchInfo()
+            .getSimilarity()
+            .get();
         assertThat(similarity.getLambda(), equalTo(0.7f));
     }
 
     public void testResolveSimilaritiesFromMapping_Unknown() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties")
-            .startObject("field1").field("type", "text").field("similarity", "unknown_similarity").endObject()
-            .endObject()
-            .endObject().endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("type")
+                .startObject("properties")
+                .startObject("field1")
+                .field("type", "text")
+                .field("similarity", "unknown_similarity")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
         IndexService indexService = createIndex("foo");
         try {
@@ -255,8 +317,7 @@ public class SimilarityTests extends OpenSearchSingleNodeTestCase {
             .put("index.similarity.my_similarity.type", "BM25")
             .put("index.similarity.my_similarity.z", 2.0f)
             .build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> createIndex("foo", indexSettings));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createIndex("foo", indexSettings));
         assertEquals("Unknown settings for similarity of type [BM25]: [z]", e.getMessage());
     }
 }

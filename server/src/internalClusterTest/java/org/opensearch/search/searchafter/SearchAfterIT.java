@@ -63,19 +63,21 @@ public class SearchAfterIT extends OpenSearchIntegTestCase {
     private static final int NUM_DOCS = 100;
 
     public void testsShouldFail() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test")
-            .addMapping("type1", "field1", "type=long", "field2", "type=keyword")
-            .get()
+        assertAcked(
+            client().admin().indices().prepareCreate("test").addMapping("type1", "field1", "type=long", "field2", "type=keyword").get()
         );
         ensureGreen();
         indexRandom(true, client().prepareIndex("test", "type1", "0").setSource("field1", 0, "field2", "toto"));
         {
-            SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch("test")
-                .addSort("field1", SortOrder.ASC)
-                .setQuery(matchAllQuery())
-                .searchAfter(new Object[]{0})
-                .setScroll("1m")
-                .get());
+            SearchPhaseExecutionException e = expectThrows(
+                SearchPhaseExecutionException.class,
+                () -> client().prepareSearch("test")
+                    .addSort("field1", SortOrder.ASC)
+                    .setQuery(matchAllQuery())
+                    .searchAfter(new Object[] { 0 })
+                    .setScroll("1m")
+                    .get()
+            );
             assertTrue(e.shardFailures().length > 0);
             for (ShardSearchFailure failure : e.shardFailures()) {
                 assertThat(failure.toString(), containsString("`search_after` cannot be used in a scroll context."));
@@ -83,12 +85,15 @@ public class SearchAfterIT extends OpenSearchIntegTestCase {
         }
 
         {
-            SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch("test")
-                .addSort("field1", SortOrder.ASC)
-                .setQuery(matchAllQuery())
-                .searchAfter(new Object[]{0})
-                .setFrom(10)
-                .get());
+            SearchPhaseExecutionException e = expectThrows(
+                SearchPhaseExecutionException.class,
+                () -> client().prepareSearch("test")
+                    .addSort("field1", SortOrder.ASC)
+                    .setQuery(matchAllQuery())
+                    .searchAfter(new Object[] { 0 })
+                    .setFrom(10)
+                    .get()
+            );
             assertTrue(e.shardFailures().length > 0);
             for (ShardSearchFailure failure : e.shardFailures()) {
                 assertThat(failure.toString(), containsString("`from` parameter must be set to 0 when `search_after` is used."));
@@ -96,10 +101,10 @@ public class SearchAfterIT extends OpenSearchIntegTestCase {
         }
 
         {
-            SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch("test")
-                .setQuery(matchAllQuery())
-                .searchAfter(new Object[]{0.75f})
-                .get());
+            SearchPhaseExecutionException e = expectThrows(
+                SearchPhaseExecutionException.class,
+                () -> client().prepareSearch("test").setQuery(matchAllQuery()).searchAfter(new Object[] { 0.75f }).get()
+            );
             assertTrue(e.shardFailures().length > 0);
             for (ShardSearchFailure failure : e.shardFailures()) {
                 assertThat(failure.toString(), containsString("Sort must contain at least one field."));
@@ -107,12 +112,15 @@ public class SearchAfterIT extends OpenSearchIntegTestCase {
         }
 
         {
-            SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch("test")
-                .addSort("field2", SortOrder.DESC)
-                .addSort("field1", SortOrder.ASC)
-                .setQuery(matchAllQuery())
-                .searchAfter(new Object[]{1})
-                .get());
+            SearchPhaseExecutionException e = expectThrows(
+                SearchPhaseExecutionException.class,
+                () -> client().prepareSearch("test")
+                    .addSort("field2", SortOrder.DESC)
+                    .addSort("field1", SortOrder.ASC)
+                    .setQuery(matchAllQuery())
+                    .searchAfter(new Object[] { 1 })
+                    .get()
+            );
             assertTrue(e.shardFailures().length > 0);
             for (ShardSearchFailure failure : e.shardFailures()) {
                 assertThat(failure.toString(), containsString("search_after has 1 value(s) but sort has 2."));
@@ -120,11 +128,14 @@ public class SearchAfterIT extends OpenSearchIntegTestCase {
         }
 
         {
-            SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch("test")
-                .setQuery(matchAllQuery())
-                .addSort("field1", SortOrder.ASC)
-                .searchAfter(new Object[]{1, 2})
-                .get());
+            SearchPhaseExecutionException e = expectThrows(
+                SearchPhaseExecutionException.class,
+                () -> client().prepareSearch("test")
+                    .setQuery(matchAllQuery())
+                    .addSort("field1", SortOrder.ASC)
+                    .searchAfter(new Object[] { 1, 2 })
+                    .get()
+            );
             for (ShardSearchFailure failure : e.shardFailures()) {
                 assertTrue(e.shardFailures().length > 0);
                 assertThat(failure.toString(), containsString("search_after has 2 value(s) but sort has 1."));
@@ -132,11 +143,14 @@ public class SearchAfterIT extends OpenSearchIntegTestCase {
         }
 
         {
-            SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch("test")
-                .setQuery(matchAllQuery())
-                .addSort("field1", SortOrder.ASC)
-                .searchAfter(new Object[]{"toto"})
-                .get());
+            SearchPhaseExecutionException e = expectThrows(
+                SearchPhaseExecutionException.class,
+                () -> client().prepareSearch("test")
+                    .setQuery(matchAllQuery())
+                    .addSort("field1", SortOrder.ASC)
+                    .searchAfter(new Object[] { "toto" })
+                    .get()
+            );
             assertTrue(e.shardFailures().length > 0);
             for (ShardSearchFailure failure : e.shardFailures()) {
                 assertThat(failure.toString(), containsString("Failed to parse search_after value for field [field1]."));
@@ -145,18 +159,19 @@ public class SearchAfterIT extends OpenSearchIntegTestCase {
     }
 
     public void testWithNullStrings() throws InterruptedException {
-        assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("type1", "field2", "type=keyword").get());
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", "field2", "type=keyword").get());
         ensureGreen();
-        indexRandom(true,
-                client().prepareIndex("test", "type1", "0").setSource("field1", 0),
-                client().prepareIndex("test", "type1", "1").setSource("field1", 100, "field2", "toto"));
+        indexRandom(
+            true,
+            client().prepareIndex("test", "type1", "0").setSource("field1", 0),
+            client().prepareIndex("test", "type1", "1").setSource("field1", 100, "field2", "toto")
+        );
         SearchResponse searchResponse = client().prepareSearch("test")
-                .addSort("field1", SortOrder.ASC)
-                .addSort("field2", SortOrder.ASC)
-                .setQuery(matchAllQuery())
-                .searchAfter(new Object[]{0, null})
-                .get();
+            .addSort("field1", SortOrder.ASC)
+            .addSort("field2", SortOrder.ASC)
+            .setQuery(matchAllQuery())
+            .searchAfter(new Object[] { 0, null })
+            .get();
         assertThat(searchResponse.getHits().getTotalHits().value, Matchers.equalTo(2L));
         assertThat(searchResponse.getHits().getHits().length, Matchers.equalTo(1));
         assertThat(searchResponse.getHits().getHits()[0].getSourceAsMap().get("field1"), Matchers.equalTo(100));
@@ -165,8 +180,8 @@ public class SearchAfterIT extends OpenSearchIntegTestCase {
 
     public void testWithSimpleTypes() throws Exception {
         int numFields = randomInt(20) + 1;
-        int[] types = new int[numFields-1];
-        for (int i = 0; i < numFields-1; i++) {
+        int[] types = new int[numFields - 1];
+        for (int i = 0; i < numFields - 1; i++) {
             types[i] = randomInt(6);
         }
         List<List> documents = new ArrayList<>();
@@ -200,7 +215,7 @@ public class SearchAfterIT extends OpenSearchIntegTestCase {
             values.add(UUIDs.randomBase64UUID());
             documents.add(values);
         }
-        int reqSize = randomInt(NUM_DOCS-1);
+        int reqSize = randomInt(NUM_DOCS - 1);
         if (reqSize == 0) {
             reqSize = 1;
         }
@@ -224,7 +239,7 @@ public class SearchAfterIT extends OpenSearchIntegTestCase {
                 }
                 Object cmp1 = o1.get(i);
                 Object cmp2 = o2.get(i);
-                int cmp = ((Comparable)cmp1).compareTo(cmp2);
+                int cmp = ((Comparable) cmp1).compareTo(cmp2);
                 if (cmp != 0) {
                     return cmp;
                 }
@@ -232,6 +247,7 @@ public class SearchAfterIT extends OpenSearchIntegTestCase {
             return 0;
         }
     }
+
     private ListComparator LST_COMPARATOR = new ListComparator();
 
     private void assertSearchFromWithSortValues(String indexName, String typeName, List<List> documents, int reqSize) throws Exception {
@@ -269,13 +285,13 @@ public class SearchAfterIT extends OpenSearchIntegTestCase {
                 List toCompare = convertSortValues(documents.get(offset++));
                 assertThat(LST_COMPARATOR.compare(toCompare, Arrays.asList(hit.getSortValues())), equalTo(0));
             }
-            sortValues = searchResponse.getHits().getHits()[searchResponse.getHits().getHits().length-1].getSortValues();
+            sortValues = searchResponse.getHits().getHits()[searchResponse.getHits().getHits().length - 1].getSortValues();
         }
     }
 
     private void createIndexMappingsFromObjectType(String indexName, String typeName, List<Object> types) {
         CreateIndexRequestBuilder indexRequestBuilder = client().admin().indices().prepareCreate(indexName);
-        List<String> mappings = new ArrayList<> ();
+        List<String> mappings = new ArrayList<>();
         int numFields = types.size();
         for (int i = 0; i < numFields; i++) {
             Class type = types.get(i).getClass();
@@ -314,7 +330,7 @@ public class SearchAfterIT extends OpenSearchIntegTestCase {
     // Convert Integer, Short, Byte and Boolean to Long in order to match the conversion done
     // by the internal hits when populating the sort values.
     private List<Object> convertSortValues(List<Object> sortValues) {
-        List<Object> converted = new ArrayList<> ();
+        List<Object> converted = new ArrayList<>();
         for (int i = 0; i < sortValues.size(); i++) {
             Object from = sortValues.get(i);
             if (from instanceof Integer) {

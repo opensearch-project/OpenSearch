@@ -47,10 +47,7 @@ public class TaskGroup {
 
     @Override
     public String toString() {
-        return "TaskGroup{" +
-            "task=" + task +
-            ", childTasks=" + childTasks +
-            '}';
+        return "TaskGroup{" + "task=" + task + ", childTasks=" + childTasks + '}';
     }
 
     private final List<TaskGroup> childTasks = new ArrayList<>();
@@ -69,8 +66,7 @@ public class TaskGroup {
         if (this == o) return true;
         if (!(o instanceof TaskGroup)) return false;
         TaskGroup taskGroup = (TaskGroup) o;
-        return Objects.equals(task, taskGroup.task) &&
-            Objects.equals(getChildTasks(), taskGroup.getChildTasks());
+        return Objects.equals(task, taskGroup.task) && Objects.equals(getChildTasks(), taskGroup.getChildTasks());
     }
 
     @Override
@@ -96,10 +92,7 @@ public class TaskGroup {
         }
 
         public TaskGroup build() {
-            return new TaskGroup(
-                taskInfo,
-                childTasks.stream().map(TaskGroup.Builder::build).collect(Collectors.toList())
-            );
+            return new TaskGroup(taskInfo, childTasks.stream().map(TaskGroup.Builder::build).collect(Collectors.toList()));
         }
     }
 
@@ -111,4 +104,3 @@ public class TaskGroup {
         return childTasks;
     }
 }
-

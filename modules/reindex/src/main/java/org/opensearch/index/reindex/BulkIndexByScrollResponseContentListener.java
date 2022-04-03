@@ -78,7 +78,7 @@ public class BulkIndexByScrollResponseContentListener extends RestBuilderListene
                 status = failure.getStatus();
             }
         }
-        for (SearchFailure failure: response.getSearchFailures()) {
+        for (SearchFailure failure : response.getSearchFailures()) {
             RestStatus failureStatus = failure.getStatus();
             if (failureStatus.getStatus() > status.getStatus()) {
                 status = failureStatus;

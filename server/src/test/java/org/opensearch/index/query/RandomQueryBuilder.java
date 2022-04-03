@@ -81,7 +81,7 @@ public class RandomQueryBuilder {
         // see issue #12123 for discussion
         MultiTermQueryBuilder multiTermQueryBuilder;
         String fieldName = randomFrom(TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME);
-        switch(RandomNumbers.randomIntBetween(r, 0, 3)) {
+        switch (RandomNumbers.randomIntBetween(r, 0, 3)) {
             case 0:
                 RangeQueryBuilder stringRangeQuery = new RangeQueryBuilder(fieldName);
                 stringRangeQuery.from("a" + RandomStrings.randomAsciiOfLengthBetween(r, 1, 10));
@@ -95,8 +95,7 @@ public class RandomQueryBuilder {
                 multiTermQueryBuilder = new WildcardQueryBuilderTests().createTestQueryBuilder();
                 break;
             case 3:
-                multiTermQueryBuilder = new FuzzyQueryBuilder(fieldName,
-                        RandomStrings.randomAsciiOfLengthBetween(r, 1, 10));
+                multiTermQueryBuilder = new FuzzyQueryBuilder(fieldName, RandomStrings.randomAsciiOfLengthBetween(r, 1, 10));
                 break;
             default:
                 throw new UnsupportedOperationException();

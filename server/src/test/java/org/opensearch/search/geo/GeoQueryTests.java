@@ -85,11 +85,12 @@ public abstract class GeoQueryTests extends OpenSearchSingleNodeTestCase {
         client().admin().indices().prepareCreate(defaultIndexName).addMapping("_doc", xcb).get();
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName,"_doc")
+        client().prepareIndex(defaultIndexName, "_doc")
             .setId("aNullshape")
             .setSource("{\"geo\": null}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE).get();
-        GetResponse result = client().prepareGet(defaultIndexName,"_doc","aNullshape").get();
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+        GetResponse result = client().prepareGet(defaultIndexName, "_doc", "aNullshape").get();
         assertThat(result.getField("location"), nullValue());
     }
 
@@ -98,24 +99,23 @@ public abstract class GeoQueryTests extends OpenSearchSingleNodeTestCase {
         client().admin().indices().prepareCreate(defaultIndexName).addMapping("_doc", xcb).get();
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName,"_doc").setId("1").setSource(jsonBuilder()
-            .startObject()
-              .field("name", "Document 1")
-              .field(defaultGeoFieldName, "POINT(-30 -30)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName, "_doc")
+            .setId("1")
+            .setSource(jsonBuilder().startObject().field("name", "Document 1").field(defaultGeoFieldName, "POINT(-30 -30)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        client().prepareIndex(defaultIndexName,"_doc").setId("2").setSource(jsonBuilder()
-            .startObject()
-              .field("name", "Document 2")
-              .field(defaultGeoFieldName, "POINT(-45 -50)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName, "_doc")
+            .setId("2")
+            .setSource(jsonBuilder().startObject().field("name", "Document 2").field(defaultGeoFieldName, "POINT(-45 -50)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
         EnvelopeBuilder shape = new EnvelopeBuilder(new Coordinate(-45, 45), new Coordinate(45, -45));
         GeometryCollectionBuilder builder = new GeometryCollectionBuilder().shape(shape);
         Geometry geometry = builder.buildGeometry().get(0);
         SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-            .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, geometry)
-                .relation(ShapeRelation.INTERSECTS))
+            .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, geometry).relation(ShapeRelation.INTERSECTS))
             .get();
 
         assertSearchResponse(searchResponse);
@@ -137,17 +137,17 @@ public abstract class GeoQueryTests extends OpenSearchSingleNodeTestCase {
         client().admin().indices().prepareCreate(defaultIndexName).addMapping("_doc", xcb).get();
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName,"_doc").setId("1").setSource(jsonBuilder()
-            .startObject()
-            .field("name", "Document 1")
-            .field(defaultGeoFieldName, "POINT(-30 -30)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName, "_doc")
+            .setId("1")
+            .setSource(jsonBuilder().startObject().field("name", "Document 1").field(defaultGeoFieldName, "POINT(-30 -30)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        client().prepareIndex(defaultIndexName,"_doc").setId("2").setSource(jsonBuilder()
-            .startObject()
-            .field("name", "Document 2")
-            .field(defaultGeoFieldName, "POINT(-45 -50)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName, "_doc")
+            .setId("2")
+            .setSource(jsonBuilder().startObject().field("name", "Document 2").field(defaultGeoFieldName, "POINT(-45 -50)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
         CircleBuilder shape = new CircleBuilder().center(new Coordinate(-30, -30)).radius("100m");
         GeometryCollectionBuilder builder = new GeometryCollectionBuilder().shape(shape);
@@ -155,14 +155,13 @@ public abstract class GeoQueryTests extends OpenSearchSingleNodeTestCase {
 
         try {
             client().prepareSearch(defaultIndexName)
-                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, geometry)
-                    .relation(ShapeRelation.INTERSECTS))
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, geometry).relation(ShapeRelation.INTERSECTS))
                 .get();
-        } catch (
-            Exception e) {
-            assertThat(e.getCause().getMessage(),
-                containsString("failed to create query: "
-                    + GeoShapeType.CIRCLE + " geometry is not supported"));
+        } catch (Exception e) {
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("failed to create query: " + GeoShapeType.CIRCLE + " geometry is not supported")
+            );
         }
     }
 
@@ -171,15 +170,17 @@ public abstract class GeoQueryTests extends OpenSearchSingleNodeTestCase {
         client().admin().indices().prepareCreate(defaultIndexName).addMapping("_doc", xcb).get();
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName,"_doc").setId("1").setSource(jsonBuilder()
-            .startObject()
-            .field(defaultGeoFieldName, "POINT(-30 -30)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName, "_doc")
+            .setId("1")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, "POINT(-30 -30)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        client().prepareIndex(defaultIndexName,"_doc").setId("2").setSource(jsonBuilder()
-            .startObject()
-            .field(defaultGeoFieldName, "POINT(-45 -50)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName, "_doc")
+            .setId("2")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, "POINT(-45 -50)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
         CoordinatesBuilder cb = new CoordinatesBuilder();
         cb.coordinate(new Coordinate(-35, -35))
@@ -191,8 +192,7 @@ public abstract class GeoQueryTests extends OpenSearchSingleNodeTestCase {
         GeometryCollectionBuilder builder = new GeometryCollectionBuilder().shape(shape);
         Geometry geometry = builder.buildGeometry();
         SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-            .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, geometry)
-                .relation(ShapeRelation.INTERSECTS))
+            .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, geometry).relation(ShapeRelation.INTERSECTS))
             .get();
 
         assertSearchResponse(searchResponse);
@@ -206,23 +206,23 @@ public abstract class GeoQueryTests extends OpenSearchSingleNodeTestCase {
         client().admin().indices().prepareCreate(defaultIndexName).addMapping("_doc", xcb).get();
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName,"_doc").setId("1").setSource(jsonBuilder()
-            .startObject()
-            .field("name", "Document 1")
-            .field(defaultGeoFieldName, "POINT(-30 -30)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName, "_doc")
+            .setId("1")
+            .setSource(jsonBuilder().startObject().field("name", "Document 1").field(defaultGeoFieldName, "POINT(-30 -30)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        client().prepareIndex(defaultIndexName,"_doc").setId("2").setSource(jsonBuilder()
-            .startObject()
-            .field("name", "Document 2")
-            .field(defaultGeoFieldName, "POINT(-40 -40)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName, "_doc")
+            .setId("2")
+            .setSource(jsonBuilder().startObject().field("name", "Document 2").field(defaultGeoFieldName, "POINT(-40 -40)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        client().prepareIndex(defaultIndexName,"_doc").setId("3").setSource(jsonBuilder()
-            .startObject()
-            .field("name", "Document 3")
-            .field(defaultGeoFieldName, "POINT(-50 -50)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName, "_doc")
+            .setId("3")
+            .setSource(jsonBuilder().startObject().field("name", "Document 3").field(defaultGeoFieldName, "POINT(-50 -50)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
         CoordinatesBuilder encloseDocument1Cb = new CoordinatesBuilder();
         encloseDocument1Cb.coordinate(new Coordinate(-35, -35))
@@ -246,8 +246,7 @@ public abstract class GeoQueryTests extends OpenSearchSingleNodeTestCase {
         GeometryCollectionBuilder builder = new GeometryCollectionBuilder().shape(mp);
         Geometry geometry = builder.buildGeometry();
         SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-            .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, geometry)
-                .relation(ShapeRelation.INTERSECTS))
+            .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, geometry).relation(ShapeRelation.INTERSECTS))
             .get();
 
         assertSearchResponse(searchResponse);
@@ -261,23 +260,22 @@ public abstract class GeoQueryTests extends OpenSearchSingleNodeTestCase {
         client().admin().indices().prepareCreate(defaultIndexName).addMapping("_doc", xcb).get();
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName,"_doc").setId("1").setSource(jsonBuilder()
-            .startObject()
-            .field("name", "Document 1")
-            .field(defaultGeoFieldName, "POINT(-30 -30)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName, "_doc")
+            .setId("1")
+            .setSource(jsonBuilder().startObject().field("name", "Document 1").field(defaultGeoFieldName, "POINT(-30 -30)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        client().prepareIndex(defaultIndexName,"_doc").setId("2").setSource(jsonBuilder()
-            .startObject()
-            .field("name", "Document 2")
-            .field(defaultGeoFieldName, "POINT(-45 -50)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName, "_doc")
+            .setId("2")
+            .setSource(jsonBuilder().startObject().field("name", "Document 2").field(defaultGeoFieldName, "POINT(-45 -50)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
         Rectangle rectangle = new Rectangle(-50, -40, -45, -55);
 
         SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-            .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, rectangle)
-                .relation(ShapeRelation.INTERSECTS))
+            .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, rectangle).relation(ShapeRelation.INTERSECTS))
             .get();
 
         assertSearchResponse(searchResponse);
@@ -290,20 +288,24 @@ public abstract class GeoQueryTests extends OpenSearchSingleNodeTestCase {
         client().admin().indices().prepareCreate(defaultIndexName).addMapping(defaultIndexName, xcb).get();
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName,"_doc").setId("point1").setSource(jsonBuilder()
-            .startObject()
-            .field(defaultGeoFieldName, "POINT(-30 -30)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName, "_doc")
+            .setId("point1")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, "POINT(-30 -30)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        client().prepareIndex(defaultIndexName,"_doc").setId("point2").setSource(jsonBuilder()
-            .startObject()
-            .field(defaultGeoFieldName, "POINT(-45 -50)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName, "_doc")
+            .setId("point2")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, "POINT(-45 -50)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
         String indexedShapeIndex = "indexed_query_shapes";
         String indexedShapePath = "shape";
-        xcb = XContentFactory.jsonBuilder().startObject()
-            .startObject("properties").startObject(indexedShapePath)
+        xcb = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject(indexedShapePath)
             .field("type", "geo_shape")
             .endObject()
             .endObject()
@@ -311,21 +313,25 @@ public abstract class GeoQueryTests extends OpenSearchSingleNodeTestCase {
         client().admin().indices().prepareCreate(indexedShapeIndex).addMapping(defaultIndexName, xcb).get();
         ensureGreen();
 
-        client().prepareIndex(indexedShapeIndex,"_doc").setId("shape1").setSource(jsonBuilder()
-            .startObject()
-            .field(indexedShapePath, "BBOX(-50, -40, -45, -55)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(indexedShapeIndex, "_doc")
+            .setId("shape1")
+            .setSource(jsonBuilder().startObject().field(indexedShapePath, "BBOX(-50, -40, -45, -55)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        client().prepareIndex(indexedShapeIndex,"_doc").setId("shape2").setSource(jsonBuilder()
-            .startObject()
-            .field(indexedShapePath, "BBOX(-60, -50, -50, -60)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(indexedShapeIndex, "_doc")
+            .setId("shape2")
+            .setSource(jsonBuilder().startObject().field(indexedShapePath, "BBOX(-60, -50, -50, -60)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
         SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-            .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, "shape1")
-                .relation(ShapeRelation.INTERSECTS)
-                .indexedShapeIndex(indexedShapeIndex)
-                .indexedShapePath(indexedShapePath))
+            .setQuery(
+                QueryBuilders.geoShapeQuery(defaultGeoFieldName, "shape1")
+                    .relation(ShapeRelation.INTERSECTS)
+                    .indexedShapeIndex(indexedShapeIndex)
+                    .indexedShapePath(indexedShapePath)
+            )
             .get();
 
         assertSearchResponse(searchResponse);
@@ -333,10 +339,12 @@ public abstract class GeoQueryTests extends OpenSearchSingleNodeTestCase {
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("point2"));
 
         searchResponse = client().prepareSearch(defaultIndexName)
-            .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, "shape2")
-                .relation(ShapeRelation.INTERSECTS)
-                .indexedShapeIndex(indexedShapeIndex)
-                .indexedShapePath(indexedShapePath))
+            .setQuery(
+                QueryBuilders.geoShapeQuery(defaultGeoFieldName, "shape2")
+                    .relation(ShapeRelation.INTERSECTS)
+                    .indexedShapeIndex(indexedShapeIndex)
+                    .indexedShapePath(indexedShapePath)
+            )
             .get();
         assertSearchResponse(searchResponse);
         assertHitCount(searchResponse, 0);
@@ -347,30 +355,32 @@ public abstract class GeoQueryTests extends OpenSearchSingleNodeTestCase {
         client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName,"_doc").setId("1").setSource(jsonBuilder()
-            .startObject()
-            .field(defaultGeoFieldName, "POINT(-169 0)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName, "_doc")
+            .setId("1")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, "POINT(-169 0)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        client().prepareIndex(defaultIndexName,"_doc").setId("2").setSource(jsonBuilder()
-            .startObject()
-            .field(defaultGeoFieldName, "POINT(-179 0)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName, "_doc")
+            .setId("2")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, "POINT(-179 0)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        client().prepareIndex(defaultIndexName,"_doc").setId("3").setSource(jsonBuilder()
-            .startObject()
-            .field(defaultGeoFieldName, "POINT(171 0)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName, "_doc")
+            .setId("3")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, "POINT(171 0)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        Rectangle rectangle = new Rectangle(
-            169, -178, 1, -1);
+        Rectangle rectangle = new Rectangle(169, -178, 1, -1);
 
         GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("geo", rectangle);
         SearchResponse response = client().prepareSearch("test").setQuery(geoShapeQueryBuilder).get();
         assertHitCount(response, 2);
         SearchHits searchHits = response.getHits();
-        assertThat(searchHits.getAt(0).getId(),not(equalTo("1")));
-        assertThat(searchHits.getAt(1).getId(),not(equalTo("1")));
+        assertThat(searchHits.getAt(0).getId(), not(equalTo("1")));
+        assertThat(searchHits.getAt(1).getId(), not(equalTo("1")));
     }
 
     public void testPolygonSpanningDateline() throws Exception {
@@ -378,42 +388,43 @@ public abstract class GeoQueryTests extends OpenSearchSingleNodeTestCase {
         client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName,"_doc").setId("1").setSource(jsonBuilder()
-            .startObject()
-            .field(defaultGeoFieldName, "POINT(-169 7)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName, "_doc")
+            .setId("1")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, "POINT(-169 7)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        client().prepareIndex(defaultIndexName,"_doc").setId("2").setSource(jsonBuilder()
-            .startObject()
-            .field(defaultGeoFieldName, "POINT(-179 7)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName, "_doc")
+            .setId("2")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, "POINT(-179 7)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        client().prepareIndex(defaultIndexName,"_doc").setId("3").setSource(jsonBuilder()
-            .startObject()
-            .field(defaultGeoFieldName, "POINT(179 7)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName, "_doc")
+            .setId("3")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, "POINT(179 7)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        client().prepareIndex(defaultIndexName,"_doc").setId("4").setSource(jsonBuilder()
-            .startObject()
-            .field(defaultGeoFieldName, "POINT(171 7)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName, "_doc")
+            .setId("4")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, "POINT(171 7)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        PolygonBuilder polygon = new PolygonBuilder(new CoordinatesBuilder()
-                    .coordinate(-177, 10)
-                    .coordinate(177, 10)
-                    .coordinate(177, 5)
-                    .coordinate(-177, 5)
-                    .coordinate(-177, 10));
+        PolygonBuilder polygon = new PolygonBuilder(
+            new CoordinatesBuilder().coordinate(-177, 10).coordinate(177, 10).coordinate(177, 5).coordinate(-177, 5).coordinate(-177, 10)
+        );
 
         GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("geo", polygon.buildGeometry());
         geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
         SearchResponse response = client().prepareSearch("test").setQuery(geoShapeQueryBuilder).get();
         assertHitCount(response, 2);
         SearchHits searchHits = response.getHits();
-        assertThat(searchHits.getAt(0).getId(),not(equalTo("1")));
-        assertThat(searchHits.getAt(1).getId(),not(equalTo("1")));
-        assertThat(searchHits.getAt(0).getId(),not(equalTo("4")));
-        assertThat(searchHits.getAt(1).getId(),not(equalTo("4")));
+        assertThat(searchHits.getAt(0).getId(), not(equalTo("1")));
+        assertThat(searchHits.getAt(1).getId(), not(equalTo("1")));
+        assertThat(searchHits.getAt(0).getId(), not(equalTo("4")));
+        assertThat(searchHits.getAt(1).getId(), not(equalTo("4")));
     }
 
     public void testMultiPolygonSpanningDateline() throws Exception {
@@ -421,43 +432,49 @@ public abstract class GeoQueryTests extends OpenSearchSingleNodeTestCase {
         client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName,"_doc").setId("1").setSource(jsonBuilder()
-            .startObject()
-            .field(defaultGeoFieldName, "POINT(-169 7)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName, "_doc")
+            .setId("1")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, "POINT(-169 7)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        client().prepareIndex(defaultIndexName,"_doc").setId("2").setSource(jsonBuilder()
-            .startObject()
-            .field(defaultGeoFieldName, "POINT(-179 7)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName, "_doc")
+            .setId("2")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, "POINT(-179 7)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        client().prepareIndex(defaultIndexName,"_doc").setId("3").setSource(jsonBuilder()
-            .startObject()
-            .field(defaultGeoFieldName, "POINT(171 7)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName, "_doc")
+            .setId("3")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, "POINT(171 7)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        MultiPolygonBuilder multiPolygon = new MultiPolygonBuilder()
-            .polygon(new PolygonBuilder(new CoordinatesBuilder()
-                .coordinate(-167, 10)
-                .coordinate(-171, 10)
-                .coordinate(171, 5)
-                .coordinate(-167, 5)
-                .coordinate(-167, 10)))
-            .polygon(new PolygonBuilder(new CoordinatesBuilder()
-                .coordinate(-177, 10)
-                .coordinate(177, 10)
-                .coordinate(177, 5)
-                .coordinate(-177, 5)
-                .coordinate(-177, 10)));
+        MultiPolygonBuilder multiPolygon = new MultiPolygonBuilder().polygon(
+            new PolygonBuilder(
+                new CoordinatesBuilder().coordinate(-167, 10)
+                    .coordinate(-171, 10)
+                    .coordinate(171, 5)
+                    .coordinate(-167, 5)
+                    .coordinate(-167, 10)
+            )
+        )
+            .polygon(
+                new PolygonBuilder(
+                    new CoordinatesBuilder().coordinate(-177, 10)
+                        .coordinate(177, 10)
+                        .coordinate(177, 5)
+                        .coordinate(-177, 5)
+                        .coordinate(-177, 10)
+                )
+            );
 
-        GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery(
-            "geo",
-            multiPolygon.buildGeometry());
+        GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("geo", multiPolygon.buildGeometry());
         geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
         SearchResponse response = client().prepareSearch("test").setQuery(geoShapeQueryBuilder).get();
         assertHitCount(response, 2);
         SearchHits searchHits = response.getHits();
-        assertThat(searchHits.getAt(0).getId(),not(equalTo("3")));
-        assertThat(searchHits.getAt(1).getId(),not(equalTo("3")));
+        assertThat(searchHits.getAt(0).getId(), not(equalTo("3")));
+        assertThat(searchHits.getAt(1).getId(), not(equalTo("3")));
     }
 }

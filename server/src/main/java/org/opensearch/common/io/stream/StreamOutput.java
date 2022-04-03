@@ -313,7 +313,7 @@ public abstract class StreamOutput extends OutputStream {
         writeVLongNoCheck(i);
     }
 
-    public void writeOptionalVLong(@Nullable  Long l) throws IOException {
+    public void writeOptionalVLong(@Nullable Long l) throws IOException {
         if (l == null) {
             writeBoolean(false);
         } else {
@@ -581,8 +581,7 @@ public abstract class StreamOutput extends OutputStream {
      * This method is compatible with {@code StreamInput.readMap} and {@code StreamInput.readGenericValue}
      * This method only will handle the map keys order, not maps contained within the map
      */
-    public void writeMapWithConsistentOrder(@Nullable Map<String, ? extends Object> map)
-        throws IOException {
+    public void writeMapWithConsistentOrder(@Nullable Map<String, ? extends Object> map) throws IOException {
         if (map == null) {
             writeByte((byte) -1);
             return;
@@ -590,8 +589,10 @@ public abstract class StreamOutput extends OutputStream {
         assert false == (map instanceof LinkedHashMap);
         this.writeByte((byte) 10);
         this.writeVInt(map.size());
-        Iterator<? extends Map.Entry<String, ?>> iterator =
-            map.entrySet().stream().sorted((a, b) -> a.getKey().compareTo(b.getKey())).iterator();
+        Iterator<? extends Map.Entry<String, ?>> iterator = map.entrySet()
+            .stream()
+            .sorted((a, b) -> a.getKey().compareTo(b.getKey()))
+            .iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, ?> next = iterator.next();
             this.writeString(next.getKey());
@@ -610,7 +611,7 @@ public abstract class StreamOutput extends OutputStream {
      * @param valueWriter The value writer
      */
     public final <K, V> void writeMapOfLists(final Map<K, List<V>> map, final Writer<K> keyWriter, final Writer<V> valueWriter)
-            throws IOException {
+        throws IOException {
         writeMap(map, keyWriter, (stream, list) -> {
             writeVInt(list.size());
             for (final V value : list) {
@@ -629,8 +630,7 @@ public abstract class StreamOutput extends OutputStream {
      * @param keyWriter The key writer
      * @param valueWriter The value writer
      */
-    public final <K, V> void writeMap(final Map<K, V> map, final Writer<K> keyWriter, final Writer<V> valueWriter)
-        throws IOException {
+    public final <K, V> void writeMap(final Map<K, V> map, final Writer<K> keyWriter, final Writer<V> valueWriter) throws IOException {
         writeVInt(map.size());
         for (final Map.Entry<K, V> entry : map.entrySet()) {
             keyWriter.write(this, entry.getKey());
@@ -645,7 +645,7 @@ public abstract class StreamOutput extends OutputStream {
      * @param valueWriter The value writer
      */
     public final <K, V> void writeMap(final ImmutableOpenMap<K, V> map, final Writer<K> keyWriter, final Writer<V> valueWriter)
-            throws IOException {
+        throws IOException {
         writeVInt(map.size());
         for (final ObjectObjectCursor<K, V> entry : map) {
             keyWriter.write(this, entry.key);
@@ -842,6 +842,7 @@ public abstract class StreamOutput extends OutputStream {
             return value.getClass();
         }
     }
+
     /**
      * Notice: when serialization a map, the stream out map with the stream in map maybe have the
      * different key-value orders, they will maybe have different stream order.
@@ -869,7 +870,8 @@ public abstract class StreamOutput extends OutputStream {
         final Class<?> type = getGenericType(value);
 
         if (type == List.class) {
-            @SuppressWarnings("unchecked") List<Object> list = (List<Object>) value;
+            @SuppressWarnings("unchecked")
+            List<Object> list = (List<Object>) value;
             for (Object v : list) {
                 checkWriteable(v);
             }
@@ -879,13 +881,15 @@ public abstract class StreamOutput extends OutputStream {
                 checkWriteable(v);
             }
         } else if (type == Map.class) {
-            @SuppressWarnings("unchecked") Map<String, Object> map = (Map<String, Object>) value;
+            @SuppressWarnings("unchecked")
+            Map<String, Object> map = (Map<String, Object>) value;
             for (Map.Entry<String, Object> entry : map.entrySet()) {
                 checkWriteable(entry.getKey());
                 checkWriteable(entry.getValue());
             }
         } else if (type == Set.class) {
-            @SuppressWarnings("unchecked") Set<Object> set = (Set<Object>) value;
+            @SuppressWarnings("unchecked")
+            Set<Object> set = (Set<Object>) value;
             for (Object v : set) {
                 checkWriteable(v);
             }
@@ -1008,15 +1012,15 @@ public abstract class StreamOutput extends OutputStream {
             boolean writeMessage = true;
             if (throwable instanceof CorruptIndexException) {
                 writeVInt(1);
-                writeOptionalString(((CorruptIndexException)throwable).getOriginalMessage());
-                writeOptionalString(((CorruptIndexException)throwable).getResourceDescription());
+                writeOptionalString(((CorruptIndexException) throwable).getOriginalMessage());
+                writeOptionalString(((CorruptIndexException) throwable).getResourceDescription());
                 writeMessage = false;
             } else if (throwable instanceof IndexFormatTooNewException) {
                 writeVInt(2);
-                writeOptionalString(((IndexFormatTooNewException)throwable).getResourceDescription());
-                writeInt(((IndexFormatTooNewException)throwable).getVersion());
-                writeInt(((IndexFormatTooNewException)throwable).getMinVersion());
-                writeInt(((IndexFormatTooNewException)throwable).getMaxVersion());
+                writeOptionalString(((IndexFormatTooNewException) throwable).getResourceDescription());
+                writeInt(((IndexFormatTooNewException) throwable).getVersion());
+                writeInt(((IndexFormatTooNewException) throwable).getMinVersion());
+                writeInt(((IndexFormatTooNewException) throwable).getMaxVersion());
                 writeMessage = false;
                 writeCause = false;
             } else if (throwable instanceof IndexFormatTooOldException) {
@@ -1212,7 +1216,7 @@ public abstract class StreamOutput extends OutputStream {
      */
     public <T> void writeCollection(final Collection<T> collection, final Writer<T> writer) throws IOException {
         writeVInt(collection.size());
-        for (final T val: collection) {
+        for (final T val : collection) {
             writer.write(this, val);
         }
     }
@@ -1249,7 +1253,7 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeNamedWriteableList(List<? extends NamedWriteable> list) throws IOException {
         writeVInt(list.size());
-        for (NamedWriteable obj: list) {
+        for (NamedWriteable obj : list) {
             writeNamedWriteable(obj);
         }
     }

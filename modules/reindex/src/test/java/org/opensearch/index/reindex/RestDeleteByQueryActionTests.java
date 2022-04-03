@@ -53,8 +53,7 @@ public class RestDeleteByQueryActionTests extends RestActionTestCase {
     }
 
     public void testTypeInPath() throws IOException {
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.POST)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/some_index/some_type/_delete_by_query")
             .build();
 
@@ -66,7 +65,7 @@ public class RestDeleteByQueryActionTests extends RestActionTestCase {
         // checks the type in the URL is propagated correctly to the request object
         // only works after the request is dispatched, so its params are filled from url.
         DeleteByQueryRequest dbqRequest = action.buildRequest(request, DEFAULT_NAMED_WRITABLE_REGISTRY);
-        assertArrayEquals(new String[]{"some_type"}, dbqRequest.getDocTypes());
+        assertArrayEquals(new String[] { "some_type" }, dbqRequest.getDocTypes());
 
         // RestDeleteByQueryAction itself doesn't check for a deprecated type usage
         // checking here for a deprecation from its internal search request

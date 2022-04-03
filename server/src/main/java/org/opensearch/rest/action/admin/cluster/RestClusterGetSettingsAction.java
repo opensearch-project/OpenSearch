@@ -73,6 +73,7 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
     public List<Route> routes() {
         return singletonList(new Route(GET, "/_cluster/settings"));
     }
+
     @Override
     public String getName() {
         return "cluster_get_settings_action";
@@ -80,9 +81,7 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest()
-                .routingTable(false)
-                .nodes(false);
+        ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest().routingTable(false).nodes(false);
         final boolean renderDefaults = request.paramAsBoolean("include_defaults", false);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
@@ -105,20 +104,22 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
     }
 
     private XContentBuilder renderResponse(ClusterState state, boolean renderDefaults, XContentBuilder builder, ToXContent.Params params)
-            throws IOException {
+        throws IOException {
         return response(state, renderDefaults, settingsFilter, clusterSettings, settings).toXContent(builder, params);
     }
 
     static ClusterGetSettingsResponse response(
-            final ClusterState state,
-            final boolean renderDefaults,
-            final SettingsFilter settingsFilter,
-            final ClusterSettings clusterSettings,
-            final Settings settings) {
+        final ClusterState state,
+        final boolean renderDefaults,
+        final SettingsFilter settingsFilter,
+        final ClusterSettings clusterSettings,
+        final Settings settings
+    ) {
         return new ClusterGetSettingsResponse(
-                settingsFilter.filter(state.metadata().persistentSettings()),
-                settingsFilter.filter(state.metadata().transientSettings()),
-                renderDefaults ? settingsFilter.filter(clusterSettings.diff(state.metadata().settings(), settings)) : Settings.EMPTY);
+            settingsFilter.filter(state.metadata().persistentSettings()),
+            settingsFilter.filter(state.metadata().transientSettings()),
+            renderDefaults ? settingsFilter.filter(clusterSettings.diff(state.metadata().settings(), settings)) : Settings.EMPTY
+        );
     }
 
 }

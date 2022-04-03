@@ -43,9 +43,15 @@ public abstract class ElectionStrategy {
 
     public static final ElectionStrategy DEFAULT_INSTANCE = new ElectionStrategy() {
         @Override
-        protected boolean satisfiesAdditionalQuorumConstraints(DiscoveryNode localNode, long localCurrentTerm, long localAcceptedTerm,
-                                                               long localAcceptedVersion, VotingConfiguration lastCommittedConfiguration,
-                                                               VotingConfiguration lastAcceptedConfiguration, VoteCollection joinVotes) {
+        protected boolean satisfiesAdditionalQuorumConstraints(
+            DiscoveryNode localNode,
+            long localCurrentTerm,
+            long localAcceptedTerm,
+            long localAcceptedVersion,
+            VotingConfiguration lastCommittedConfiguration,
+            VotingConfiguration lastAcceptedConfiguration,
+            VoteCollection joinVotes
+        ) {
             return true;
         }
     };
@@ -57,13 +63,26 @@ public abstract class ElectionStrategy {
     /**
      * Whether there is an election quorum from the point of view of the given local node under the provided voting configurations
      */
-    public final boolean isElectionQuorum(DiscoveryNode localNode, long localCurrentTerm, long localAcceptedTerm, long localAcceptedVersion,
-                                          VotingConfiguration lastCommittedConfiguration, VotingConfiguration lastAcceptedConfiguration,
-                                          VoteCollection joinVotes) {
-        return joinVotes.isQuorum(lastCommittedConfiguration) &&
-            joinVotes.isQuorum(lastAcceptedConfiguration) &&
-            satisfiesAdditionalQuorumConstraints(localNode, localCurrentTerm, localAcceptedTerm, localAcceptedVersion,
-                lastCommittedConfiguration, lastAcceptedConfiguration, joinVotes);
+    public final boolean isElectionQuorum(
+        DiscoveryNode localNode,
+        long localCurrentTerm,
+        long localAcceptedTerm,
+        long localAcceptedVersion,
+        VotingConfiguration lastCommittedConfiguration,
+        VotingConfiguration lastAcceptedConfiguration,
+        VoteCollection joinVotes
+    ) {
+        return joinVotes.isQuorum(lastCommittedConfiguration)
+            && joinVotes.isQuorum(lastAcceptedConfiguration)
+            && satisfiesAdditionalQuorumConstraints(
+                localNode,
+                localCurrentTerm,
+                localAcceptedTerm,
+                localAcceptedVersion,
+                lastCommittedConfiguration,
+                lastAcceptedConfiguration,
+                joinVotes
+            );
     }
 
     /**
@@ -77,11 +96,13 @@ public abstract class ElectionStrategy {
      * @param joinVotes                  the votes that were provided so far
      * @return true iff the additional quorum constraints are satisfied
      */
-    protected abstract boolean satisfiesAdditionalQuorumConstraints(DiscoveryNode localNode,
-                                                                    long localCurrentTerm,
-                                                                    long localAcceptedTerm,
-                                                                    long localAcceptedVersion,
-                                                                    VotingConfiguration lastCommittedConfiguration,
-                                                                    VotingConfiguration lastAcceptedConfiguration,
-                                                                    VoteCollection joinVotes);
+    protected abstract boolean satisfiesAdditionalQuorumConstraints(
+        DiscoveryNode localNode,
+        long localCurrentTerm,
+        long localAcceptedTerm,
+        long localAcceptedVersion,
+        VotingConfiguration lastCommittedConfiguration,
+        VotingConfiguration lastAcceptedConfiguration,
+        VoteCollection joinVotes
+    );
 }

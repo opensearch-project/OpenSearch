@@ -46,6 +46,7 @@ abstract class SearchPhaseResults<Result extends SearchPhaseResult> {
     SearchPhaseResults(int numShards) {
         this.numShards = numShards;
     }
+
     /**
      * Returns the number of expected results this class should collect
      */

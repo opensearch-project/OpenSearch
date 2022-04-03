@@ -41,8 +41,8 @@ import org.opensearch.tasks.TaskId;
 
 import java.io.IOException;
 
-public abstract class AbstractBulkIndexByScrollRequest<Self extends AbstractBulkIndexByScrollRequest<Self>>
-        extends AbstractBulkByScrollRequest<Self> {
+public abstract class AbstractBulkIndexByScrollRequest<Self extends AbstractBulkIndexByScrollRequest<Self>> extends
+    AbstractBulkByScrollRequest<Self> {
     /**
      * Script to modify the documents before they are processed.
      */

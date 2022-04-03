@@ -48,4 +48,3 @@ public class ExampleRescoreClientYamlTestSuiteIT extends OpenSearchClientYamlSui
         return OpenSearchClientYamlSuiteTestCase.createParameters();
     }
 }
-

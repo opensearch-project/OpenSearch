@@ -40,8 +40,7 @@ import org.opensearch.common.xcontent.json.JsonXContentParser;
 
 public class SmileXContentParser extends JsonXContentParser {
 
-    public SmileXContentParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, JsonParser parser) {
+    public SmileXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, JsonParser parser) {
         super(xContentRegistry, deprecationHandler, parser);
     }
 

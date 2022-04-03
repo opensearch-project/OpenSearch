@@ -31,9 +31,7 @@
 
 package org.opensearch.test.rest.yaml;
 
-
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.test.rest.yaml.BlacklistedPathPatternMatcher;
 
 public class BlacklistedPathPatternMatcherTests extends OpenSearchTestCase {
 
@@ -71,8 +69,6 @@ public class BlacklistedPathPatternMatcherTests extends OpenSearchTestCase {
         assertMatch("indices.get/*/10_basic\\,20_advanced/*foo*", "/suite/indices.get/all/10_basic,20_advanced/my_foo");
         assertMatch("indices.get/*/10_basic\\,20_advanced/*foo*", "/suite/indices.get/all/10_basic,20_advanced/foo_bar");
     }
-
-
 
     private void assertMatch(String pattern, String path) {
         BlacklistedPathPatternMatcher matcher = new BlacklistedPathPatternMatcher(pattern);

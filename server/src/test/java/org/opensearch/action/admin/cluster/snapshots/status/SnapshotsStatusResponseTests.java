@@ -39,8 +39,6 @@ import java.util.function.Predicate;
 
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.test.AbstractXContentTestCase;
-import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStatus;
-import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 
 public class SnapshotsStatusResponseTests extends AbstractXContentTestCase<SnapshotsStatusResponse> {
 

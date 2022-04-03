@@ -52,7 +52,6 @@ import java.util.stream.Stream;
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.ExceptionsHelper.rethrowAndSuppress;
 
-
 /**
  * Base class for responses of task-related operations
  */
@@ -114,17 +113,26 @@ public class BaseTasksResponse extends ActionResponse {
      * Rethrow task failures if there are any.
      */
     public void rethrowFailures(String operationName) {
-        rethrowAndSuppress(Stream.concat(
-                    getNodeFailures().stream(),
-                    getTaskFailures().stream().map(f -> new OpenSearchException(
-                            "{} of [{}] failed", f.getCause(), operationName, new TaskId(f.getNodeId(), f.getTaskId()))))
-                .collect(toList()));
+        rethrowAndSuppress(
+            Stream.concat(
+                getNodeFailures().stream(),
+                getTaskFailures().stream()
+                    .map(
+                        f -> new OpenSearchException(
+                            "{} of [{}] failed",
+                            f.getCause(),
+                            operationName,
+                            new TaskId(f.getNodeId(), f.getTaskId())
+                        )
+                    )
+            ).collect(toList())
+        );
     }
 
     protected void toXContentCommon(XContentBuilder builder, ToXContent.Params params) throws IOException {
         if (getTaskFailures() != null && getTaskFailures().size() > 0) {
             builder.startArray(TASK_FAILURES);
-            for (TaskOperationFailure ex : getTaskFailures()){
+            for (TaskOperationFailure ex : getTaskFailures()) {
                 builder.startObject();
                 builder.value(ex);
                 builder.endObject();
@@ -152,8 +160,7 @@ public class BaseTasksResponse extends ActionResponse {
             return false;
         }
         BaseTasksResponse response = (BaseTasksResponse) o;
-        return taskFailures.equals(response.taskFailures)
-            && nodeFailures.equals(response.nodeFailures);
+        return taskFailures.equals(response.taskFailures) && nodeFailures.equals(response.nodeFailures);
     }
 
     @Override

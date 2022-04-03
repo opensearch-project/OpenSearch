@@ -85,18 +85,26 @@ public class IndexShardOperationPermitsTests extends OpenSearchTestCase {
     public static void setupThreadPool() {
         int writeThreadPoolSize = randomIntBetween(1, 2);
         int writeThreadPoolQueueSize = randomIntBetween(1, 2);
-        threadPool = new TestThreadPool("IndexShardOperationPermitsTests",
+        threadPool = new TestThreadPool(
+            "IndexShardOperationPermitsTests",
             Settings.builder()
                 .put("thread_pool." + ThreadPool.Names.WRITE + ".size", writeThreadPoolSize)
                 .put("thread_pool." + ThreadPool.Names.WRITE + ".queue_size", writeThreadPoolQueueSize)
-                .build());
+                .build()
+        );
         assertThat(threadPool.executor(ThreadPool.Names.WRITE), instanceOf(OpenSearchThreadPoolExecutor.class));
-        assertThat(((OpenSearchThreadPoolExecutor) threadPool.executor(ThreadPool.Names.WRITE)).getCorePoolSize(),
-            equalTo(writeThreadPoolSize));
-        assertThat(((OpenSearchThreadPoolExecutor) threadPool.executor(ThreadPool.Names.WRITE)).getMaximumPoolSize(),
-            equalTo(writeThreadPoolSize));
-        assertThat(((OpenSearchThreadPoolExecutor) threadPool.executor(ThreadPool.Names.WRITE)).getQueue().remainingCapacity(),
-            equalTo(writeThreadPoolQueueSize));
+        assertThat(
+            ((OpenSearchThreadPoolExecutor) threadPool.executor(ThreadPool.Names.WRITE)).getCorePoolSize(),
+            equalTo(writeThreadPoolSize)
+        );
+        assertThat(
+            ((OpenSearchThreadPoolExecutor) threadPool.executor(ThreadPool.Names.WRITE)).getMaximumPoolSize(),
+            equalTo(writeThreadPoolSize)
+        );
+        assertThat(
+            ((OpenSearchThreadPoolExecutor) threadPool.executor(ThreadPool.Names.WRITE)).getQueue().remainingCapacity(),
+            equalTo(writeThreadPoolQueueSize)
+        );
     }
 
     @AfterClass
@@ -180,12 +188,16 @@ public class IndexShardOperationPermitsTests extends OpenSearchTestCase {
                 assertNotNull(future.get(1, TimeUnit.MINUTES));
             } catch (ExecutionException e) {
                 if (closeAfterBlocking) {
-                    assertThat(e.getCause(), either(instanceOf(DummyException.class))
-                        .or(instanceOf(OpenSearchRejectedExecutionException.class))
-                        .or(instanceOf(IndexShardClosedException.class)));
+                    assertThat(
+                        e.getCause(),
+                        either(instanceOf(DummyException.class)).or(instanceOf(OpenSearchRejectedExecutionException.class))
+                            .or(instanceOf(IndexShardClosedException.class))
+                    );
                 } else {
-                    assertThat(e.getCause(), either(instanceOf(DummyException.class))
-                        .or(instanceOf(OpenSearchRejectedExecutionException.class)));
+                    assertThat(
+                        e.getCause(),
+                        either(instanceOf(DummyException.class)).or(instanceOf(OpenSearchRejectedExecutionException.class))
+                    );
                 }
             }
         }
@@ -196,7 +208,6 @@ public class IndexShardOperationPermitsTests extends OpenSearchTestCase {
 
         blockFinished.await();
     }
-
 
     public void testOperationsInvokedImmediatelyIfNoBlock() throws ExecutionException, InterruptedException {
         PlainActionFuture<Releasable> future = new PlainActionFuture<>();
@@ -215,11 +226,18 @@ public class IndexShardOperationPermitsTests extends OpenSearchTestCase {
 
     public void testBlockIfClosed() {
         permits.close();
-        expectThrows(IndexShardClosedException.class, () -> permits.blockOperations(randomInt(10), TimeUnit.MINUTES,
-            () -> { throw new IllegalArgumentException("fake error"); }));
-        expectThrows(IndexShardClosedException.class,
-            () -> permits.asyncBlockOperations(wrap(() -> { throw new IllegalArgumentException("fake error");}),
-                randomInt(10), TimeUnit.MINUTES));
+        expectThrows(
+            IndexShardClosedException.class,
+            () -> permits.blockOperations(randomInt(10), TimeUnit.MINUTES, () -> { throw new IllegalArgumentException("fake error"); })
+        );
+        expectThrows(
+            IndexShardClosedException.class,
+            () -> permits.asyncBlockOperations(
+                wrap(() -> { throw new IllegalArgumentException("fake error"); }),
+                randomInt(10),
+                TimeUnit.MINUTES
+            )
+        );
     }
 
     public void testOperationsDelayedIfBlock() throws ExecutionException, InterruptedException, TimeoutException {
@@ -262,11 +280,17 @@ public class IndexShardOperationPermitsTests extends OpenSearchTestCase {
         final ThreadContext context = threadPool.getThreadContext();
         final Function<ActionListener<Releasable>, Boolean> contextChecker = (listener) -> {
             if ("bar".equals(context.getHeader("foo")) == false) {
-                listener.onFailure(new IllegalStateException("context did not have value [bar] for header [foo]. Actual value [" +
-                    context.getHeader("foo") + "]"));
+                listener.onFailure(
+                    new IllegalStateException(
+                        "context did not have value [bar] for header [foo]. Actual value [" + context.getHeader("foo") + "]"
+                    )
+                );
             } else if ("baz".equals(context.getTransient("bar")) == false) {
-                listener.onFailure(new IllegalStateException("context did not have value [baz] for transient [bar]. Actual value [" +
-                    context.getTransient("bar") + "]"));
+                listener.onFailure(
+                    new IllegalStateException(
+                        "context did not have value [baz] for transient [bar]. Actual value [" + context.getTransient("bar") + "]"
+                    )
+                );
             } else {
                 return true;
             }
@@ -312,26 +336,26 @@ public class IndexShardOperationPermitsTests extends OpenSearchTestCase {
         boolean throwsException = randomBoolean();
         IndexShardClosedException exception = new IndexShardClosedException(new ShardId("blubb", "id", 0));
         threadPool.generic().execute(() -> {
-                try {
-                    permits.blockOperations(1, TimeUnit.MINUTES, () -> {
-                        try {
-                            blockAcquired.countDown();
-                            releaseBlock.await();
-                            if (throwsException) {
-                                throw exception;
-                            }
-                        } catch (InterruptedException e) {
-                            throw new RuntimeException();
+            try {
+                permits.blockOperations(1, TimeUnit.MINUTES, () -> {
+                    try {
+                        blockAcquired.countDown();
+                        releaseBlock.await();
+                        if (throwsException) {
+                            throw exception;
                         }
-                    });
-                } catch (Exception e) {
-                    if (e != exception) {
-                        throw new RuntimeException(e);
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException();
                     }
-                } finally {
-                    blockReleased.countDown();
+                });
+            } catch (Exception e) {
+                if (e != exception) {
+                    throw new RuntimeException(e);
                 }
-            });
+            } finally {
+                blockReleased.countDown();
+            }
+        });
         blockAcquired.await();
         return () -> {
             releaseBlock.countDown();
@@ -348,33 +372,29 @@ public class IndexShardOperationPermitsTests extends OpenSearchTestCase {
         final CountDownLatch releaseBlock = new CountDownLatch(1);
         final AtomicBoolean blocked = new AtomicBoolean();
         permits.asyncBlockOperations(wrap(() -> {
-                blocked.set(true);
-                blockAcquired.countDown();
-                releaseBlock.await();
-            }), 30, TimeUnit.MINUTES);
+            blocked.set(true);
+            blockAcquired.countDown();
+            releaseBlock.await();
+        }), 30, TimeUnit.MINUTES);
         blockAcquired.await();
         assertTrue(blocked.get());
 
         // an operation that is submitted while there is a delay in place should be delayed
         final CountDownLatch delayedOperation = new CountDownLatch(1);
         final AtomicBoolean delayed = new AtomicBoolean();
-        final Thread thread = new Thread(() ->
-                permits.acquire(
-                        new ActionListener<Releasable>() {
-                            @Override
-                            public void onResponse(Releasable releasable) {
-                                delayed.set(true);
-                                releasable.close();
-                                delayedOperation.countDown();
-                            }
+        final Thread thread = new Thread(() -> permits.acquire(new ActionListener<Releasable>() {
+            @Override
+            public void onResponse(Releasable releasable) {
+                delayed.set(true);
+                releasable.close();
+                delayedOperation.countDown();
+            }
 
-                            @Override
-                            public void onFailure(Exception e) {
+            @Override
+            public void onFailure(Exception e) {
 
-                            }
-                        },
-                        ThreadPool.Names.GENERIC,
-                        false, ""));
+            }
+        }, ThreadPool.Names.GENERIC, false, ""));
         thread.start();
         assertFalse(delayed.get());
         releaseBlock.countDown();
@@ -388,8 +408,9 @@ public class IndexShardOperationPermitsTests extends OpenSearchTestCase {
         final CountDownLatch operationExecutingLatch = new CountDownLatch(1);
         final CountDownLatch firstOperationLatch = new CountDownLatch(1);
         final CountDownLatch firstOperationCompleteLatch = new CountDownLatch(1);
-        final Thread firstOperationThread =
-                new Thread(controlledAcquire(barrier, operationExecutingLatch, firstOperationLatch, firstOperationCompleteLatch));
+        final Thread firstOperationThread = new Thread(
+            controlledAcquire(barrier, operationExecutingLatch, firstOperationLatch, firstOperationCompleteLatch)
+        );
         firstOperationThread.start();
 
         barrier.await();
@@ -410,23 +431,20 @@ public class IndexShardOperationPermitsTests extends OpenSearchTestCase {
         final CountDownLatch secondOperationComplete = new CountDownLatch(1);
         final AtomicBoolean secondOperation = new AtomicBoolean();
         final Thread secondOperationThread = new Thread(() -> {
-                secondOperationExecuting.countDown();
-                permits.acquire(
-                        new ActionListener<Releasable>() {
-                            @Override
-                            public void onResponse(Releasable releasable) {
-                                secondOperation.set(true);
-                                releasable.close();
-                                secondOperationComplete.countDown();
-                            }
+            secondOperationExecuting.countDown();
+            permits.acquire(new ActionListener<Releasable>() {
+                @Override
+                public void onResponse(Releasable releasable) {
+                    secondOperation.set(true);
+                    releasable.close();
+                    secondOperationComplete.countDown();
+                }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                throw new RuntimeException(e);
-                            }
-                        },
-                        ThreadPool.Names.GENERIC,
-                        false, "");
+                @Override
+                public void onFailure(Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }, ThreadPool.Names.GENERIC, false, "");
         });
         secondOperationThread.start();
 
@@ -460,22 +478,19 @@ public class IndexShardOperationPermitsTests extends OpenSearchTestCase {
                 } catch (final BrokenBarrierException | InterruptedException e) {
                     throw new RuntimeException(e);
                 }
-                permits.acquire(
-                        new ActionListener<Releasable>() {
-                            @Override
-                            public void onResponse(Releasable releasable) {
-                                values.add(value);
-                                releasable.close();
-                                operationLatch.countDown();
-                            }
+                permits.acquire(new ActionListener<Releasable>() {
+                    @Override
+                    public void onResponse(Releasable releasable) {
+                        values.add(value);
+                        releasable.close();
+                        operationLatch.countDown();
+                    }
 
-                            @Override
-                            public void onFailure(Exception e) {
+                    @Override
+                    public void onFailure(Exception e) {
 
-                            }
-                        },
-                        ThreadPool.Names.GENERIC,
-                        false, "");
+                    }
+                }, ThreadPool.Names.GENERIC, false, "");
             });
             thread.start();
             threads.add(thread);
@@ -589,8 +604,10 @@ public class IndexShardOperationPermitsTests extends OpenSearchTestCase {
         operationExecutingLatch.await();
 
         {
-            final TimeoutException e =
-                    expectThrows(TimeoutException.class, () -> permits.blockOperations(1, TimeUnit.MILLISECONDS, () -> {}));
+            final TimeoutException e = expectThrows(
+                TimeoutException.class,
+                () -> permits.blockOperations(1, TimeUnit.MILLISECONDS, () -> {})
+            );
             assertThat(e, hasToString(containsString("timeout while blocking operations")));
         }
 
@@ -623,21 +640,19 @@ public class IndexShardOperationPermitsTests extends OpenSearchTestCase {
     public void testNoPermitsRemaining() throws InterruptedException {
         permits.semaphore.tryAcquire(IndexShardOperationPermits.TOTAL_PERMITS, 1, TimeUnit.SECONDS);
         final IllegalStateException e = expectThrows(
-                IllegalStateException.class,
-                () -> this.permits.acquire(
-                        new ActionListener<Releasable>() {
-                            @Override
-                            public void onResponse(Releasable releasable) {
-                                assert false;
-                            }
+            IllegalStateException.class,
+            () -> this.permits.acquire(new ActionListener<Releasable>() {
+                @Override
+                public void onResponse(Releasable releasable) {
+                    assert false;
+                }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                assert false;
-                            }
-                        },
-                        ThreadPool.Names.GENERIC,
-                        false, ""));
+                @Override
+                public void onFailure(Exception e) {
+                    assert false;
+                }
+            }, ThreadPool.Names.GENERIC, false, "")
+        );
         assertThat(e, hasToString(containsString("failed to obtain permit but operations are not delayed")));
         permits.semaphore.release(IndexShardOperationPermits.TOTAL_PERMITS);
     }
@@ -658,37 +673,35 @@ public class IndexShardOperationPermitsTests extends OpenSearchTestCase {
      * @return a controllable runnable that acquires a permit
      */
     private Runnable controlledAcquire(
-            final CyclicBarrier barrier,
-            final CountDownLatch operationExecutingLatch,
-            final CountDownLatch operationLatch,
-            final CountDownLatch operationCompleteLatch) {
+        final CyclicBarrier barrier,
+        final CountDownLatch operationExecutingLatch,
+        final CountDownLatch operationLatch,
+        final CountDownLatch operationCompleteLatch
+    ) {
         return () -> {
             try {
                 barrier.await();
             } catch (final BrokenBarrierException | InterruptedException e) {
                 throw new RuntimeException(e);
             }
-            permits.acquire(
-                    new ActionListener<Releasable>() {
-                        @Override
-                        public void onResponse(Releasable releasable) {
-                            operationExecutingLatch.countDown();
-                            try {
-                                operationLatch.await();
-                            } catch (final InterruptedException e) {
-                                throw new RuntimeException(e);
-                            }
-                            releasable.close();
-                            operationCompleteLatch.countDown();
-                        }
+            permits.acquire(new ActionListener<Releasable>() {
+                @Override
+                public void onResponse(Releasable releasable) {
+                    operationExecutingLatch.countDown();
+                    try {
+                        operationLatch.await();
+                    } catch (final InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                    releasable.close();
+                    operationCompleteLatch.countDown();
+                }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            throw new RuntimeException(e);
-                        }
-                    },
-                    ThreadPool.Names.GENERIC,
-                    false, "");
+                @Override
+                public void onFailure(Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }, ThreadPool.Names.GENERIC, false, "");
         };
     }
 

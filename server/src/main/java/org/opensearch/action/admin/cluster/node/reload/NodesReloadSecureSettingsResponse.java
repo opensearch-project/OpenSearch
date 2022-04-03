@@ -51,7 +51,8 @@ import java.util.List;
  * The response for the reload secure settings action
  */
 public class NodesReloadSecureSettingsResponse extends BaseNodesResponse<NodesReloadSecureSettingsResponse.NodeResponse>
-        implements ToXContentFragment {
+    implements
+        ToXContentFragment {
 
     public NodesReloadSecureSettingsResponse(StreamInput in) throws IOException {
         super(in);

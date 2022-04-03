@@ -50,7 +50,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
-public abstract class ParseContext implements Iterable<ParseContext.Document>{
+public abstract class ParseContext implements Iterable<ParseContext.Document> {
 
     /** Fork of {@link org.apache.lucene.document.Document} with additional functionality. */
     public static class Document implements Iterable<IndexableField> {
@@ -333,8 +333,13 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
 
         private final Set<String> ignoredFields = new HashSet<>();
 
-        public InternalParseContext(IndexSettings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper,
-                                    SourceToParse source, XContentParser parser) {
+        public InternalParseContext(
+            IndexSettings indexSettings,
+            DocumentMapperParser docMapperParser,
+            DocumentMapper docMapper,
+            SourceToParse source,
+            XContentParser parser
+        ) {
             this.indexSettings = indexSettings;
             this.docMapper = docMapper;
             this.docMapperParser = docMapperParser;
@@ -391,12 +396,16 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
 
         @Override
         protected void addDoc(Document doc) {
-            numNestedDocs ++;
+            numNestedDocs++;
             if (numNestedDocs > maxAllowedNumNestedDocs) {
                 throw new MapperParsingException(
-                    "The number of nested documents has exceeded the allowed limit of [" + maxAllowedNumNestedDocs + "]."
-                        + " This limit can be set by changing the [" + MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.getKey()
-                        + "] index level setting.");
+                    "The number of nested documents has exceeded the allowed limit of ["
+                        + maxAllowedNumNestedDocs
+                        + "]."
+                        + " This limit can be set by changing the ["
+                        + MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.getKey()
+                        + "] index level setting."
+                );
             }
             this.documents.add(doc);
         }
@@ -480,7 +489,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
             List<Document> newDocs = new ArrayList<>(docs.size());
             LinkedList<Document> parents = new LinkedList<>();
             for (Document doc : docs) {
-                while (parents.peek() != doc.getParent()){
+                while (parents.peek() != doc.getParent()) {
                     newDocs.add(parents.poll());
                 }
                 parents.add(0, doc);
@@ -493,7 +502,6 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         public Iterator<Document> iterator() {
             return documents.iterator();
         }
-
 
         @Override
         public void addIgnoredField(String field) {
@@ -511,7 +519,6 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
      * the iterable will return an empty iterator.
      */
     public abstract Iterable<Document> nonRootDocuments();
-
 
     /**
      * Add the given {@code field} to the set of ignored fields.
@@ -627,6 +634,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
             public boolean externalValueSet() {
                 return true;
             }
+
             @Override
             public Object externalValue() {
                 return externalValue;
@@ -653,8 +661,9 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         }
 
         if (!clazz.isInstance(externalValue())) {
-            throw new IllegalArgumentException("illegal external value class ["
-                    + externalValue().getClass().getName() + "]. Should be " + clazz.getName());
+            throw new IllegalArgumentException(
+                "illegal external value class [" + externalValue().getClass().getName() + "]. Should be " + clazz.getName()
+            );
         }
         return clazz.cast(externalValue());
     }

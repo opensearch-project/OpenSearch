@@ -229,8 +229,8 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
     }
 
     public FuzzyQueryBuilder transpositions(boolean transpositions) {
-      this.transpositions = transpositions;
-      return this;
+        this.transpositions = transpositions;
+        return this;
     }
 
     public boolean transpositions() {
@@ -304,12 +304,16 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(),
-                                    "[fuzzy] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "[fuzzy] query does not support [" + currentFieldName + "]"
+                            );
                         }
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(),
-                                "[" + NAME + "] unexpected token [" + token + "] after [" + currentFieldName + "]");
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "[" + NAME + "] unexpected token [" + token + "] after [" + currentFieldName + "]"
+                        );
                     }
                 }
             } else {
@@ -318,14 +322,13 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
                 value = maybeConvertToBytesRef(parser.objectBytes());
             }
         }
-        return new FuzzyQueryBuilder(fieldName, value)
-                .fuzziness(fuzziness)
-                .prefixLength(prefixLength)
-                .maxExpansions(maxExpansions)
-                .transpositions(transpositions)
-                .rewrite(rewrite)
-                .boost(boost)
-                .queryName(queryName);
+        return new FuzzyQueryBuilder(fieldName, value).fuzziness(fuzziness)
+            .prefixLength(prefixLength)
+            .maxExpansions(maxExpansions)
+            .transpositions(transpositions)
+            .rewrite(rewrite)
+            .boost(boost)
+            .queryName(queryName);
     }
 
     @Override
@@ -354,8 +357,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
         String rewrite = this.rewrite;
         Query query = fieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context);
         if (query instanceof MultiTermQuery) {
-            MultiTermQuery.RewriteMethod rewriteMethod = QueryParsers.parseRewriteMethod(rewrite, null,
-                LoggingDeprecationHandler.INSTANCE);
+            MultiTermQuery.RewriteMethod rewriteMethod = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
             QueryParsers.setRewriteMethod((MultiTermQuery) query, rewriteMethod);
         }
         return query;
@@ -368,12 +370,12 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
 
     @Override
     protected boolean doEquals(FuzzyQueryBuilder other) {
-        return Objects.equals(fieldName, other.fieldName) &&
-                Objects.equals(value, other.value) &&
-                Objects.equals(fuzziness, other.fuzziness) &&
-                Objects.equals(prefixLength, other.prefixLength) &&
-                Objects.equals(maxExpansions, other.maxExpansions) &&
-                Objects.equals(transpositions, other.transpositions) &&
-                Objects.equals(rewrite, other.rewrite);
+        return Objects.equals(fieldName, other.fieldName)
+            && Objects.equals(value, other.value)
+            && Objects.equals(fuzziness, other.fuzziness)
+            && Objects.equals(prefixLength, other.prefixLength)
+            && Objects.equals(maxExpansions, other.maxExpansions)
+            && Objects.equals(transpositions, other.transpositions)
+            && Objects.equals(rewrite, other.rewrite);
     }
 }

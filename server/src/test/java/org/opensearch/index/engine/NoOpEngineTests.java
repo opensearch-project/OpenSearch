@@ -53,7 +53,6 @@ import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.test.IndexSettingsModule;
-import org.opensearch.index.engine.EngineTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -88,8 +87,15 @@ public class NoOpEngineTests extends EngineTestCase {
     public void testNoopAfterRegularEngine() throws IOException {
         int docs = randomIntBetween(1, 10);
         ReplicationTracker tracker = (ReplicationTracker) engine.config().getGlobalCheckpointSupplier();
-        ShardRouting routing = TestShardRouting.newShardRouting("test", shardId.id(), "node",
-            null, true, ShardRoutingState.STARTED, allocationId);
+        ShardRouting routing = TestShardRouting.newShardRouting(
+            "test",
+            shardId.id(),
+            "node",
+            null,
+            true,
+            ShardRoutingState.STARTED,
+            allocationId
+        );
         IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(shardId).addShard(routing).build();
         tracker.updateFromMaster(1L, Collections.singleton(allocationId.getId()), table);
         tracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
@@ -122,7 +128,8 @@ public class NoOpEngineTests extends EngineTestCase {
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0);
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
-            IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build());
+            IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build()
+        );
 
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
@@ -169,8 +176,10 @@ public class NoOpEngineTests extends EngineTestCase {
                 assertEquals(expectedDocStats.getAverageSizeInBytes(), noOpEngine.docStats().getAverageSizeInBytes());
                 assertEquals(expectedSegmentStats.getCount(), noOpEngine.segmentsStats(includeFileSize, true).getCount());
                 // don't compare memory in bytes since we load the index with term-dict off-heap
-                assertEquals(expectedSegmentStats.getFileSizes().size(),
-                    noOpEngine.segmentsStats(includeFileSize, true).getFileSizes().size());
+                assertEquals(
+                    expectedSegmentStats.getFileSizes().size(),
+                    noOpEngine.segmentsStats(includeFileSize, true).getFileSizes().size()
+                );
 
                 assertEquals(0, noOpEngine.segmentsStats(includeFileSize, false).getFileSizes().size());
                 assertEquals(0, noOpEngine.segmentsStats(includeFileSize, false).getMemoryInBytes());
@@ -183,8 +192,15 @@ public class NoOpEngineTests extends EngineTestCase {
 
     public void testTrimUnreferencedTranslogFiles() throws Exception {
         final ReplicationTracker tracker = (ReplicationTracker) engine.config().getGlobalCheckpointSupplier();
-        ShardRouting routing = TestShardRouting.newShardRouting("test", shardId.id(), "node",
-            null, true, ShardRoutingState.STARTED, allocationId);
+        ShardRouting routing = TestShardRouting.newShardRouting(
+            "test",
+            shardId.id(),
+            "node",
+            null,
+            true,
+            ShardRoutingState.STARTED,
+            allocationId
+        );
         IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(shardId).addShard(routing).build();
         tracker.updateFromMaster(1L, Collections.singleton(allocationId.getId()), table);
         tracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
@@ -213,7 +229,7 @@ public class NoOpEngineTests extends EngineTestCase {
         noOpEngine.trimUnreferencedTranslogFiles();
         assertThat(noOpEngine.getTranslogStats().estimatedNumberOfOperations(), equalTo(0));
         assertThat(noOpEngine.getTranslogStats().getUncommittedOperations(), equalTo(0));
-        assertThat(noOpEngine.getTranslogStats().getTranslogSizeInBytes(), equalTo((long)Translog.DEFAULT_HEADER_SIZE_IN_BYTES));
+        assertThat(noOpEngine.getTranslogStats().getTranslogSizeInBytes(), equalTo((long) Translog.DEFAULT_HEADER_SIZE_IN_BYTES));
         snapshot.close();
         noOpEngine.close();
     }

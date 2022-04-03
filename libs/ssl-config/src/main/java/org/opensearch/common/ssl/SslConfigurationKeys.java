@@ -162,10 +162,20 @@ public class SslConfigurationKeys {
      */
     public static List<String> getStringKeys() {
         return Arrays.asList(
-            VERIFICATION_MODE, CLIENT_AUTH,
-            TRUSTSTORE_PATH, TRUSTSTORE_LEGACY_PASSWORD, TRUSTSTORE_TYPE, TRUSTSTORE_TYPE,
-            KEYSTORE_PATH, KEYSTORE_LEGACY_PASSWORD, KEYSTORE_LEGACY_KEY_PASSWORD, KEYSTORE_TYPE, KEYSTORE_ALGORITHM,
-            CERTIFICATE, KEY, KEY_LEGACY_PASSPHRASE
+            VERIFICATION_MODE,
+            CLIENT_AUTH,
+            TRUSTSTORE_PATH,
+            TRUSTSTORE_LEGACY_PASSWORD,
+            TRUSTSTORE_TYPE,
+            TRUSTSTORE_TYPE,
+            KEYSTORE_PATH,
+            KEYSTORE_LEGACY_PASSWORD,
+            KEYSTORE_LEGACY_KEY_PASSWORD,
+            KEYSTORE_TYPE,
+            KEYSTORE_ALGORITHM,
+            CERTIFICATE,
+            KEY,
+            KEY_LEGACY_PASSPHRASE
         );
     }
 

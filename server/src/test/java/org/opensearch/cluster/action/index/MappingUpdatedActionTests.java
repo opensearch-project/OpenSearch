@@ -117,9 +117,11 @@ public class MappingUpdatedActionTests extends OpenSearchTestCase {
 
     public void testMappingUpdatedActionBlocks() throws Exception {
         List<ActionListener<Void>> inFlightListeners = new CopyOnWriteArrayList<>();
-        final MappingUpdatedAction mua = new MappingUpdatedAction(Settings.builder()
-            .put(MappingUpdatedAction.INDICES_MAX_IN_FLIGHT_UPDATES_SETTING.getKey(), 1).build(),
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null) {
+        final MappingUpdatedAction mua = new MappingUpdatedAction(
+            Settings.builder().put(MappingUpdatedAction.INDICES_MAX_IN_FLIGHT_UPDATES_SETTING.getKey(), 1).build(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            null
+        ) {
 
             @Override
             protected void sendUpdateMapping(Index index, String type, Mapping mappingUpdate, ActionListener<Void> listener) {
@@ -166,8 +168,11 @@ public class MappingUpdatedActionTests extends OpenSearchTestCase {
         Client client = mock(Client.class);
         when(client.admin()).thenReturn(adminClient);
 
-        MappingUpdatedAction mua = new MappingUpdatedAction(Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), clusterService);
+        MappingUpdatedAction mua = new MappingUpdatedAction(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            clusterService
+        );
         mua.setClient(client);
 
         Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build();
@@ -193,8 +198,11 @@ public class MappingUpdatedActionTests extends OpenSearchTestCase {
         Client client = mock(Client.class);
         when(client.admin()).thenReturn(adminClient);
 
-        MappingUpdatedAction mua = new MappingUpdatedAction(Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), clusterService);
+        MappingUpdatedAction mua = new MappingUpdatedAction(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            clusterService
+        );
         mua.setClient(client);
 
         Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build();

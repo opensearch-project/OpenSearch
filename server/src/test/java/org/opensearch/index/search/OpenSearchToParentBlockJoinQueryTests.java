@@ -47,56 +47,72 @@ public class OpenSearchToParentBlockJoinQueryTests extends OpenSearchTestCase {
 
     public void testEquals() {
         Query q1 = new OpenSearchToParentBlockJoinQuery(
-                new TermQuery(new Term("is", "child")),
-                new QueryBitSetProducer(new TermQuery(new Term("is", "parent"))),
-                ScoreMode.Avg, "nested");
+            new TermQuery(new Term("is", "child")),
+            new QueryBitSetProducer(new TermQuery(new Term("is", "parent"))),
+            ScoreMode.Avg,
+            "nested"
+        );
 
         Query q2 = new OpenSearchToParentBlockJoinQuery(
-                new TermQuery(new Term("is", "child")),
-                new QueryBitSetProducer(new TermQuery(new Term("is", "parent"))),
-                ScoreMode.Avg, "nested");
+            new TermQuery(new Term("is", "child")),
+            new QueryBitSetProducer(new TermQuery(new Term("is", "parent"))),
+            ScoreMode.Avg,
+            "nested"
+        );
         assertEquals(q1, q2);
         assertEquals(q1.hashCode(), q2.hashCode());
 
         Query q3 = new OpenSearchToParentBlockJoinQuery(
-                new TermQuery(new Term("is", "not_child")),
-                new QueryBitSetProducer(new TermQuery(new Term("is", "parent"))),
-                ScoreMode.Avg, "nested");
+            new TermQuery(new Term("is", "not_child")),
+            new QueryBitSetProducer(new TermQuery(new Term("is", "parent"))),
+            ScoreMode.Avg,
+            "nested"
+        );
         assertFalse(q1.equals(q3));
         assertFalse(q1.hashCode() == q3.hashCode());
 
         Query q4 = new OpenSearchToParentBlockJoinQuery(
-                new TermQuery(new Term("is", "child")),
-                new QueryBitSetProducer(new TermQuery(new Term("is", "other_parent"))),
-                ScoreMode.Avg, "nested");
+            new TermQuery(new Term("is", "child")),
+            new QueryBitSetProducer(new TermQuery(new Term("is", "other_parent"))),
+            ScoreMode.Avg,
+            "nested"
+        );
         assertFalse(q1.equals(q4));
         assertFalse(q1.hashCode() == q4.hashCode());
 
         Query q5 = new OpenSearchToParentBlockJoinQuery(
-                new TermQuery(new Term("is", "child")),
-                new QueryBitSetProducer(new TermQuery(new Term("is", "parent"))),
-                ScoreMode.Total, "nested");
+            new TermQuery(new Term("is", "child")),
+            new QueryBitSetProducer(new TermQuery(new Term("is", "parent"))),
+            ScoreMode.Total,
+            "nested"
+        );
         assertFalse(q1.equals(q5));
         assertFalse(q1.hashCode() == q5.hashCode());
 
         Query q6 = new OpenSearchToParentBlockJoinQuery(
-                new TermQuery(new Term("is", "child")),
-                new QueryBitSetProducer(new TermQuery(new Term("is", "parent"))),
-                ScoreMode.Avg, "nested2");
+            new TermQuery(new Term("is", "child")),
+            new QueryBitSetProducer(new TermQuery(new Term("is", "parent"))),
+            ScoreMode.Avg,
+            "nested2"
+        );
         assertFalse(q1.equals(q6));
         assertFalse(q1.hashCode() == q6.hashCode());
     }
 
     public void testRewrite() throws IOException {
         Query q = new OpenSearchToParentBlockJoinQuery(
-                new PhraseQuery("body", "term"), // rewrites to a TermQuery
-                new QueryBitSetProducer(new TermQuery(new Term("is", "parent"))),
-                ScoreMode.Avg, "nested");
+            new PhraseQuery("body", "term"), // rewrites to a TermQuery
+            new QueryBitSetProducer(new TermQuery(new Term("is", "parent"))),
+            ScoreMode.Avg,
+            "nested"
+        );
         Query expected = new OpenSearchToParentBlockJoinQuery(
-                 new TermQuery(new Term("body", "term")),
-                 new QueryBitSetProducer(new TermQuery(new Term("is", "parent"))),
-                 ScoreMode.Avg, "nested");
-         Query rewritten = q.rewrite(new MultiReader());
-         assertEquals(expected, rewritten);
+            new TermQuery(new Term("body", "term")),
+            new QueryBitSetProducer(new TermQuery(new Term("is", "parent"))),
+            ScoreMode.Avg,
+            "nested"
+        );
+        Query rewritten = q.rewrite(new MultiReader());
+        assertEquals(expected, rewritten);
     }
 }

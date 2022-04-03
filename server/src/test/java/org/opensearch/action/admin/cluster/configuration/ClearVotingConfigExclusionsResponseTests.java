@@ -32,7 +32,6 @@
 package org.opensearch.action.admin.cluster.configuration;
 
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsResponse;
 
 import java.io.IOException;
 

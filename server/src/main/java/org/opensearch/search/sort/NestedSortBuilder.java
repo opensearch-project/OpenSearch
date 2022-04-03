@@ -82,7 +82,9 @@ public class NestedSortBuilder implements Writeable, ToXContentObject {
         return filter;
     }
 
-    public int getMaxChildren() { return maxChildren; }
+    public int getMaxChildren() {
+        return maxChildren;
+    }
 
     public NestedSortBuilder setFilter(final QueryBuilder filter) {
         this.filter = filter;

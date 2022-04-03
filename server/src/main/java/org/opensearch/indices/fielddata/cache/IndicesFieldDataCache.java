@@ -64,20 +64,22 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.ToLongBiFunction;
 
-public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCache.Key, Accountable>, Releasable{
+public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCache.Key, Accountable>, Releasable {
 
     private static final Logger logger = LogManager.getLogger(IndicesFieldDataCache.class);
 
-    public static final Setting<ByteSizeValue> INDICES_FIELDDATA_CACHE_SIZE_KEY =
-        Setting.memorySizeSetting("indices.fielddata.cache.size", new ByteSizeValue(-1), Property.NodeScope);
+    public static final Setting<ByteSizeValue> INDICES_FIELDDATA_CACHE_SIZE_KEY = Setting.memorySizeSetting(
+        "indices.fielddata.cache.size",
+        new ByteSizeValue(-1),
+        Property.NodeScope
+    );
     private final IndexFieldDataCache.Listener indicesFieldDataCacheListener;
     private final Cache<Key, Accountable> cache;
 
     public IndicesFieldDataCache(Settings settings, IndexFieldDataCache.Listener indicesFieldDataCacheListener) {
         this.indicesFieldDataCacheListener = indicesFieldDataCacheListener;
         final long sizeInBytes = INDICES_FIELDDATA_CACHE_SIZE_KEY.get(settings).getBytes();
-        CacheBuilder<Key, Accountable> cacheBuilder = CacheBuilder.<Key, Accountable>builder()
-                .removalListener(this);
+        CacheBuilder<Key, Accountable> cacheBuilder = CacheBuilder.<Key, Accountable>builder().removalListener(this);
         if (sizeInBytes > 0) {
             cacheBuilder.setMaximumWeight(sizeInBytes).weigher(new FieldDataWeigher());
         }
@@ -106,8 +108,10 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         for (IndexFieldDataCache.Listener listener : key.listeners) {
             try {
                 listener.onRemoval(
-                    key.shardId, indexCache.fieldName,
-                    notification.getRemovalReason() == RemovalNotification.RemovalReason.EVICTED, value.ramBytesUsed()
+                    key.shardId,
+                    indexCache.fieldName,
+                    notification.getRemovalReason() == RemovalNotification.RemovalReason.EVICTED,
+                    value.ramBytesUsed()
                 );
             } catch (Exception e) {
                 // load anyway since listeners should not throw exceptions
@@ -134,7 +138,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         private final Cache<Key, Accountable> cache;
         private final Listener[] listeners;
 
-        IndexFieldCache(Logger logger,final Cache<Key, Accountable> cache, Index index, String fieldName, Listener... listeners) {
+        IndexFieldCache(Logger logger, final Cache<Key, Accountable> cache, Index index, String fieldName, Listener... listeners) {
             this.logger = logger;
             this.listeners = listeners;
             this.index = index;
@@ -144,15 +148,15 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
 
         @Override
         @SuppressWarnings("unchecked")
-        public <FD extends LeafFieldData, IFD extends IndexFieldData<FD>> FD load(final LeafReaderContext context,
-                                                                                  final IFD indexFieldData) throws Exception {
+        public <FD extends LeafFieldData, IFD extends IndexFieldData<FD>> FD load(final LeafReaderContext context, final IFD indexFieldData)
+            throws Exception {
             final ShardId shardId = ShardUtils.extractShardId(context.reader());
             final IndexReader.CacheHelper cacheHelper = context.reader().getCoreCacheHelper();
             if (cacheHelper == null) {
                 throw new IllegalArgumentException("Reader " + context.reader() + " does not support caching");
             }
             final Key key = new Key(this, cacheHelper.getKey(), shardId);
-            //noinspection unchecked
+            // noinspection unchecked
             final Accountable accountable = cache.computeIfAbsent(key, k -> {
                 cacheHelper.addClosedListener(IndexFieldCache.this);
                 Collections.addAll(k.listeners, this.listeners);
@@ -172,15 +176,17 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
 
         @Override
         @SuppressWarnings("unchecked")
-        public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(final DirectoryReader indexReader,
-                                                                                          final IFD indexFieldData) throws Exception {
+        public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(
+            final DirectoryReader indexReader,
+            final IFD indexFieldData
+        ) throws Exception {
             final ShardId shardId = ShardUtils.extractShardId(indexReader);
             final IndexReader.CacheHelper cacheHelper = indexReader.getReaderCacheHelper();
             if (cacheHelper == null) {
                 throw new IllegalArgumentException("Reader " + indexReader + " does not support caching");
             }
             final Key key = new Key(this, cacheHelper.getKey(), shardId);
-            //noinspection unchecked
+            // noinspection unchecked
             final Accountable accountable = cache.computeIfAbsent(key, k -> {
                 OpenSearchDirectoryReader.addReaderCloseListener(indexReader, IndexFieldCache.this);
                 Collections.addAll(k.listeners, this.listeners);
@@ -261,6 +267,5 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             return result;
         }
     }
-
 
 }

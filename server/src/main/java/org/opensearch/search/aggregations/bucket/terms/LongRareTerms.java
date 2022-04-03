@@ -31,7 +31,6 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
-
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.util.SetBackedScalingCuckooFilter;
@@ -112,8 +111,15 @@ public class LongRareTerms extends InternalMappedRareTerms<LongRareTerms, LongRa
         }
     }
 
-    LongRareTerms(String name, BucketOrder order, Map<String, Object> metadata, DocValueFormat format,
-                  List<LongRareTerms.Bucket> buckets, long maxDocCount, SetBackedScalingCuckooFilter filter) {
+    LongRareTerms(
+        String name,
+        BucketOrder order,
+        Map<String, Object> metadata,
+        DocValueFormat format,
+        List<LongRareTerms.Bucket> buckets,
+        long maxDocCount,
+        SetBackedScalingCuckooFilter filter
+    ) {
         super(name, order, metadata, format, buckets, maxDocCount, filter);
     }
 

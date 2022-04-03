@@ -68,7 +68,11 @@ public class ThrowingLeafReaderWrapper extends FilterLeafReader {
         DocsEnum,
         DocsAndPositionsEnum,
         Fields,
-        Norms, NumericDocValues, BinaryDocValues, SortedDocValues, SortedSetDocValues;
+        Norms,
+        NumericDocValues,
+        BinaryDocValues,
+        SortedDocValues,
+        SortedSetDocValues;
     }
 
     /**
@@ -179,7 +183,6 @@ public class ThrowingLeafReaderWrapper extends FilterLeafReader {
         }
     }
 
-
     @Override
     public NumericDocValues getNumericDocValues(String field) throws IOException {
         thrower.maybeThrow(Flags.NumericDocValues);
@@ -210,7 +213,6 @@ public class ThrowingLeafReaderWrapper extends FilterLeafReader {
         thrower.maybeThrow(Flags.Norms);
         return super.getNormValues(field);
     }
-
 
     @Override
     public CacheHelper getCoreCacheHelper() {

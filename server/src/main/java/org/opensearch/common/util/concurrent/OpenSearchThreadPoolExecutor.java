@@ -58,16 +58,41 @@ public class OpenSearchThreadPoolExecutor extends ThreadPoolExecutor {
         return name;
     }
 
-    OpenSearchThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
-                                 BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory, ThreadContext contextHolder) {
-        this(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory,
-            new OpenSearchAbortPolicy(), contextHolder);
+    OpenSearchThreadPoolExecutor(
+        String name,
+        int corePoolSize,
+        int maximumPoolSize,
+        long keepAliveTime,
+        TimeUnit unit,
+        BlockingQueue<Runnable> workQueue,
+        ThreadFactory threadFactory,
+        ThreadContext contextHolder
+    ) {
+        this(
+            name,
+            corePoolSize,
+            maximumPoolSize,
+            keepAliveTime,
+            unit,
+            workQueue,
+            threadFactory,
+            new OpenSearchAbortPolicy(),
+            contextHolder
+        );
     }
 
     @SuppressForbidden(reason = "properly rethrowing errors, see OpenSearchExecutors.rethrowErrors")
-    OpenSearchThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
-                                 BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory, XRejectedExecutionHandler handler,
-                                 ThreadContext contextHolder) {
+    OpenSearchThreadPoolExecutor(
+        String name,
+        int corePoolSize,
+        int maximumPoolSize,
+        long keepAliveTime,
+        TimeUnit unit,
+        BlockingQueue<Runnable> workQueue,
+        ThreadFactory threadFactory,
+        XRejectedExecutionHandler handler,
+        ThreadContext contextHolder
+    ) {
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler);
         this.name = name;
         this.contextHolder = contextHolder;
@@ -120,8 +145,11 @@ public class OpenSearchThreadPoolExecutor extends ThreadPoolExecutor {
     }
 
     private boolean assertDefaultContext(Runnable r) {
-        assert contextHolder.isDefaultContext() : "the thread context is not the default context and the thread [" +
-            Thread.currentThread().getName() + "] is being returned to the pool after executing [" + r + "]";
+        assert contextHolder.isDefaultContext() : "the thread context is not the default context and the thread ["
+            + Thread.currentThread().getName()
+            + "] is being returned to the pool after executing ["
+            + r
+            + "]";
         return true;
     }
 

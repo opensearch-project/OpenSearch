@@ -49,7 +49,8 @@ import java.util.Objects;
 public class ClusterBlock implements Writeable, ToXContentFragment {
 
     private final int id;
-    @Nullable private final String uuid;
+    @Nullable
+    private final String uuid;
     private final String description;
     private final EnumSet<ClusterBlockLevel> levels;
     private final boolean retryable;
@@ -72,13 +73,28 @@ public class ClusterBlock implements Writeable, ToXContentFragment {
         allowReleaseResources = in.readBoolean();
     }
 
-    public ClusterBlock(int id, String description, boolean retryable, boolean disableStatePersistence,
-                        boolean allowReleaseResources, RestStatus status, EnumSet<ClusterBlockLevel> levels) {
+    public ClusterBlock(
+        int id,
+        String description,
+        boolean retryable,
+        boolean disableStatePersistence,
+        boolean allowReleaseResources,
+        RestStatus status,
+        EnumSet<ClusterBlockLevel> levels
+    ) {
         this(id, null, description, retryable, disableStatePersistence, allowReleaseResources, status, levels);
     }
 
-    public ClusterBlock(int id, String uuid, String description, boolean retryable, boolean disableStatePersistence,
-                        boolean allowReleaseResources, RestStatus status, EnumSet<ClusterBlockLevel> levels) {
+    public ClusterBlock(
+        int id,
+        String uuid,
+        String description,
+        boolean retryable,
+        boolean disableStatePersistence,
+        boolean allowReleaseResources,
+        RestStatus status,
+        EnumSet<ClusterBlockLevel> levels
+    ) {
         this.id = id;
         this.uuid = uuid;
         this.description = description;

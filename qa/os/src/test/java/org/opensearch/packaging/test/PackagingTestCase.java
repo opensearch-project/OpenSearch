@@ -33,6 +33,7 @@
 package org.opensearch.packaging.test;
 
 import com.carrotsearch.randomizedtesting.JUnit3MethodProvider;
+import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
 import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
@@ -182,9 +183,17 @@ public abstract class PackagingTestCase extends Assert {
 
         sh.reset();
         if (distribution().hasJdk == false) {
-            Platforms.onLinux(() -> sh.getEnv().put("JAVA_HOME", systemJavaHome));
-            Platforms.onWindows(() -> sh.getEnv().put("JAVA_HOME", systemJavaHome));
+            // Randomly switch between JAVA_HOME and OPENSEARCH_JAVA_HOME
+            final String javaHomeEnv = randomBoolean() ? "JAVA_HOME" : "OPENSEARCH_JAVA_HOME";
+            logger.info("Using " + javaHomeEnv);
+
+            Platforms.onLinux(() -> sh.getEnv().put(javaHomeEnv, systemJavaHome));
+            Platforms.onWindows(() -> sh.getEnv().put(javaHomeEnv, systemJavaHome));
         }
+    }
+
+    private boolean randomBoolean() {
+        return RandomizedContext.current().getRandom().nextBoolean();
     }
 
     @After

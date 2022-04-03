@@ -39,7 +39,8 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.is;
 
-public class AcknowledgedResponseTests extends AbstractResponseTestCase<org.opensearch.action.support.master.AcknowledgedResponse,
+public class AcknowledgedResponseTests extends AbstractResponseTestCase<
+    org.opensearch.action.support.master.AcknowledgedResponse,
     AcknowledgedResponse> {
 
     @Override
@@ -53,8 +54,10 @@ public class AcknowledgedResponseTests extends AbstractResponseTestCase<org.open
     }
 
     @Override
-    protected void assertInstances(org.opensearch.action.support.master.AcknowledgedResponse serverTestInstance,
-                                   AcknowledgedResponse clientInstance) {
+    protected void assertInstances(
+        org.opensearch.action.support.master.AcknowledgedResponse serverTestInstance,
+        AcknowledgedResponse clientInstance
+    ) {
         assertThat(clientInstance.isAcknowledged(), is(serverTestInstance.isAcknowledged()));
     }
 

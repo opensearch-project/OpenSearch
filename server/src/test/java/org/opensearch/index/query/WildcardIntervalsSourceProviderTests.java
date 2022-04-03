@@ -51,7 +51,8 @@ public class WildcardIntervalsSourceProviderTests extends AbstractSerializingTes
         return new Wildcard(
             randomAlphaOfLength(10),
             randomBoolean() ? randomAlphaOfLength(10) : null,
-            randomBoolean() ? randomAlphaOfLength(10) : null
+            randomBoolean() ? randomAlphaOfLength(10) : null,
+            randomBoolean() ? randomIntBetween(-1, Integer.MAX_VALUE) : null
         );
     }
 
@@ -60,7 +61,8 @@ public class WildcardIntervalsSourceProviderTests extends AbstractSerializingTes
         String wildcard = instance.getPattern();
         String analyzer = instance.getAnalyzer();
         String useField = instance.getUseField();
-        switch (between(0, 2)) {
+        Integer maxExpansions = instance.getMaxExpansions();
+        switch (between(0, 3)) {
             case 0:
                 wildcard += "a";
                 break;
@@ -70,10 +72,13 @@ public class WildcardIntervalsSourceProviderTests extends AbstractSerializingTes
             case 2:
                 useField = useField == null ? randomAlphaOfLength(5) : null;
                 break;
+            case 3:
+                maxExpansions = maxExpansions == null ? randomIntBetween(1, Integer.MAX_VALUE) : null;
+                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new Wildcard(wildcard, analyzer, useField);
+        return new Wildcard(wildcard, analyzer, useField, maxExpansions);
     }
 
     @Override

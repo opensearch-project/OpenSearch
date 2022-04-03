@@ -60,8 +60,9 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class CloseIndexResponseTests extends
-    AbstractResponseTestCase<org.opensearch.action.admin.indices.close.CloseIndexResponse, CloseIndexResponse> {
+public class CloseIndexResponseTests extends AbstractResponseTestCase<
+    org.opensearch.action.admin.indices.close.CloseIndexResponse,
+    CloseIndexResponse> {
 
     @Override
     protected org.opensearch.action.admin.indices.close.CloseIndexResponse createServerTestInstance(XContentType xContentType) {
@@ -113,15 +114,18 @@ public class CloseIndexResponseTests extends
     }
 
     @Override
-    protected void assertInstances(final org.opensearch.action.admin.indices.close.CloseIndexResponse serverInstance,
-                                   final CloseIndexResponse clientInstance) {
+    protected void assertInstances(
+        final org.opensearch.action.admin.indices.close.CloseIndexResponse serverInstance,
+        final CloseIndexResponse clientInstance
+    ) {
         assertNotSame(serverInstance, clientInstance);
         assertThat(clientInstance.isAcknowledged(), equalTo(serverInstance.isAcknowledged()));
         assertThat(clientInstance.isShardsAcknowledged(), equalTo(serverInstance.isShardsAcknowledged()));
 
         assertThat(clientInstance.getIndices(), hasSize(serverInstance.getIndices().size()));
         serverInstance.getIndices().forEach(expectedIndexResult -> {
-            List<CloseIndexResponse.IndexResult> actualIndexResults = clientInstance.getIndices().stream()
+            List<CloseIndexResponse.IndexResult> actualIndexResults = clientInstance.getIndices()
+                .stream()
                 .filter(result -> result.getIndex().equals(expectedIndexResult.getIndex().getName()))
                 .collect(Collectors.toList());
             assertThat(actualIndexResults, hasSize(1));
@@ -142,10 +146,11 @@ public class CloseIndexResponseTests extends
             if (expectedIndexResult.getShards() != null) {
                 assertThat(actualIndexResult.getException(), nullValue());
 
-                List<org.opensearch.action.admin.indices.close.CloseIndexResponse.ShardResult> failedShardResults =
-                    Arrays.stream(expectedIndexResult.getShards())
-                        .filter(org.opensearch.action.admin.indices.close.CloseIndexResponse.ShardResult::hasFailures)
-                        .collect(Collectors.toList());
+                List<org.opensearch.action.admin.indices.close.CloseIndexResponse.ShardResult> failedShardResults = Arrays.stream(
+                    expectedIndexResult.getShards()
+                )
+                    .filter(org.opensearch.action.admin.indices.close.CloseIndexResponse.ShardResult::hasFailures)
+                    .collect(Collectors.toList());
 
                 if (failedShardResults.isEmpty()) {
                     assertThat(actualIndexResult.hasFailures(), is(false));
@@ -169,8 +174,8 @@ public class CloseIndexResponseTests extends
                     assertThat(actualShardResult.getFailures().length, equalTo(failedShardResult.getFailures().length));
 
                     for (int i = 0; i < failedShardResult.getFailures().length; i++) {
-                        org.opensearch.action.admin.indices.close.CloseIndexResponse.ShardResult.Failure expectedFailure =
-                            failedShardResult.getFailures()[i];
+                        org.opensearch.action.admin.indices.close.CloseIndexResponse.ShardResult.Failure expectedFailure = failedShardResult
+                            .getFailures()[i];
                         CloseIndexResponse.ShardResult.Failure actualFailure = actualShardResult.getFailures()[i];
                         assertThat(actualFailure.getNodeId(), equalTo(expectedFailure.getNodeId()));
                         assertThat(actualFailure.index(), equalTo(expectedFailure.index()));
@@ -193,7 +198,8 @@ public class CloseIndexResponseTests extends
             final XContentParser parser = xContent.createParser(
                 NamedXContentRegistry.EMPTY,
                 LoggingDeprecationHandler.INSTANCE,
-                bytes.streamInput());
+                bytes.streamInput()
+            );
 
             final CloseIndexResponse actual = doParseToClientInstance(parser);
             assertThat(actual, notNullValue());
@@ -204,7 +210,8 @@ public class CloseIndexResponseTests extends
         {
             final boolean acknowledged = randomBoolean();
             final boolean shardsAcknowledged = acknowledged ? randomBoolean() : false;
-            final ShardsAcknowledgedResponse expected = new ShardsAcknowledgedResponse(acknowledged, shardsAcknowledged){};
+            final ShardsAcknowledgedResponse expected = new ShardsAcknowledgedResponse(acknowledged, shardsAcknowledged) {
+            };
 
             final XContentType xContentType = randomFrom(XContentType.values());
             final BytesReference bytes = toShuffledXContent(expected, xContentType, getParams(), randomBoolean());
@@ -212,7 +219,8 @@ public class CloseIndexResponseTests extends
             final XContentParser parser = xContent.createParser(
                 NamedXContentRegistry.EMPTY,
                 LoggingDeprecationHandler.INSTANCE,
-                bytes.streamInput());
+                bytes.streamInput()
+            );
 
             final CloseIndexResponse actual = doParseToClientInstance(parser);
             assertThat(actual, notNullValue());
@@ -222,13 +230,17 @@ public class CloseIndexResponseTests extends
         }
     }
 
-    private org.opensearch.action.admin.indices.close.CloseIndexResponse.ShardResult.Failure newFailure(final String indexName,
-                                                                                                        final int shard,
-                                                                                                        final String nodeId) {
-        Exception exception = randomFrom(new IndexNotFoundException(indexName),
+    private org.opensearch.action.admin.indices.close.CloseIndexResponse.ShardResult.Failure newFailure(
+        final String indexName,
+        final int shard,
+        final String nodeId
+    ) {
+        Exception exception = randomFrom(
+            new IndexNotFoundException(indexName),
             new ActionNotFoundTransportException("test"),
             new IOException("boom", new NullPointerException()),
-            new OpenSearchStatusException("something", RestStatus.TOO_MANY_REQUESTS));
+            new OpenSearchStatusException("something", RestStatus.TOO_MANY_REQUESTS)
+        );
         return new org.opensearch.action.admin.indices.close.CloseIndexResponse.ShardResult.Failure(indexName, shard, exception, nodeId);
     }
 }

@@ -62,8 +62,13 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         shardsStats = in.readArray(ShardStats::new, ShardStats[]::new);
     }
 
-    public ClusterStatsNodeResponse(DiscoveryNode node, @Nullable ClusterHealthStatus clusterStatus,
-                                    NodeInfo nodeInfo, NodeStats nodeStats, ShardStats[] shardsStats) {
+    public ClusterStatsNodeResponse(
+        DiscoveryNode node,
+        @Nullable ClusterHealthStatus clusterStatus,
+        NodeInfo nodeInfo,
+        NodeStats nodeStats,
+        ShardStats[] shardsStats
+    ) {
         super(node);
         this.nodeInfo = nodeInfo;
         this.nodeStats = nodeStats;

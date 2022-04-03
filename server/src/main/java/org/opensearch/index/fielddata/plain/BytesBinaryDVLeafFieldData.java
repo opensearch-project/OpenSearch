@@ -36,7 +36,6 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.index.fielddata.ScriptDocValues;
 
-
 final class BytesBinaryDVLeafFieldData extends AbstractBinaryDVLeafFieldData {
     BytesBinaryDVLeafFieldData(BinaryDocValues values) {
         super(values);
@@ -47,4 +46,3 @@ final class BytesBinaryDVLeafFieldData extends AbstractBinaryDVLeafFieldData {
         return new ScriptDocValues.BytesRefs(getBytesValues());
     }
 }
-

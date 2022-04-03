@@ -33,12 +33,11 @@ package org.opensearch.action.admin.cluster.repositories.verify;
 
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.test.AbstractXContentTestCase;
-import org.opensearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class VerifyRepositoryResponseTests  extends AbstractXContentTestCase<VerifyRepositoryResponse> {
+public class VerifyRepositoryResponseTests extends AbstractXContentTestCase<VerifyRepositoryResponse> {
 
     @Override
     protected VerifyRepositoryResponse doParseInstance(XContentParser parser) {

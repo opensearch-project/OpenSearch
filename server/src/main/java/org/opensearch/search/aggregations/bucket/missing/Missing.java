@@ -36,5 +36,4 @@ import org.opensearch.search.aggregations.bucket.SingleBucketAggregation;
 /**
  * A {@code missing} aggregation. Defines a single bucket of all documents that are missing a specific field.
  */
-public interface Missing extends SingleBucketAggregation {
-}
+public interface Missing extends SingleBucketAggregation {}

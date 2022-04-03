@@ -66,9 +66,13 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "cluster_rebalance";
     private static final String CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE = "cluster.routing.allocation.allow_rebalance";
-    public static final Setting<ClusterRebalanceType> CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING =
-        new Setting<>(CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, ClusterRebalanceType.INDICES_ALL_ACTIVE.toString(),
-            ClusterRebalanceType::parseString, Property.Dynamic, Property.NodeScope);
+    public static final Setting<ClusterRebalanceType> CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING = new Setting<>(
+        CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
+        ClusterRebalanceType.INDICES_ALL_ACTIVE.toString(),
+        ClusterRebalanceType::parseString,
+        Property.Dynamic,
+        Property.NodeScope
+    );
 
     /**
      * An enum representation for the configured re-balance type.
@@ -95,8 +99,9 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
             } else if ("indices_all_active".equalsIgnoreCase(typeString) || "indicesAllActive".equalsIgnoreCase(typeString)) {
                 return ClusterRebalanceType.INDICES_ALL_ACTIVE;
             }
-            throw new IllegalArgumentException("Illegal value for " +
-                            CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING + ": " + typeString);
+            throw new IllegalArgumentException(
+                "Illegal value for " + CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING + ": " + typeString
+            );
         }
 
         @Override
@@ -126,33 +131,49 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
     public Decision canRebalance(RoutingAllocation allocation) {
         if (type == ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE) {
             // check if there are unassigned primaries.
-            if ( allocation.routingNodes().hasUnassignedPrimaries() ) {
-                return allocation.decision(Decision.NO, NAME,
-                        "the cluster has unassigned primary shards and cluster setting [%s] is set to [%s]",
-                        CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, type);
+            if (allocation.routingNodes().hasUnassignedPrimaries()) {
+                return allocation.decision(
+                    Decision.NO,
+                    NAME,
+                    "the cluster has unassigned primary shards and cluster setting [%s] is set to [%s]",
+                    CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
+                    type
+                );
             }
             // check if there are initializing primaries that don't have a relocatingNodeId entry.
-            if ( allocation.routingNodes().hasInactivePrimaries() ) {
-                return allocation.decision(Decision.NO, NAME,
-                        "the cluster has inactive primary shards and cluster setting [%s] is set to [%s]",
-                        CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, type);
+            if (allocation.routingNodes().hasInactivePrimaries()) {
+                return allocation.decision(
+                    Decision.NO,
+                    NAME,
+                    "the cluster has inactive primary shards and cluster setting [%s] is set to [%s]",
+                    CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
+                    type
+                );
             }
 
             return allocation.decision(Decision.YES, NAME, "all primary shards are active");
         }
         if (type == ClusterRebalanceType.INDICES_ALL_ACTIVE) {
             // check if there are unassigned shards.
-            if (allocation.routingNodes().hasUnassignedShards() ) {
-                return allocation.decision(Decision.NO, NAME,
-                        "the cluster has unassigned shards and cluster setting [%s] is set to [%s]",
-                        CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, type);
+            if (allocation.routingNodes().hasUnassignedShards()) {
+                return allocation.decision(
+                    Decision.NO,
+                    NAME,
+                    "the cluster has unassigned shards and cluster setting [%s] is set to [%s]",
+                    CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
+                    type
+                );
             }
             // in case all indices are assigned, are there initializing shards which
             // are not relocating?
-            if ( allocation.routingNodes().hasInactiveShards() ) {
-                return allocation.decision(Decision.NO, NAME,
-                        "the cluster has inactive shards and cluster setting [%s] is set to [%s]",
-                        CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, type);
+            if (allocation.routingNodes().hasInactiveShards()) {
+                return allocation.decision(
+                    Decision.NO,
+                    NAME,
+                    "the cluster has inactive shards and cluster setting [%s] is set to [%s]",
+                    CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
+                    type
+                );
             }
         }
         // type == Type.ALWAYS

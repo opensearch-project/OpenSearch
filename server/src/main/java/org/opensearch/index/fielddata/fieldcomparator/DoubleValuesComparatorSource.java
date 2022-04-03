@@ -62,8 +62,12 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
 
     private final IndexNumericFieldData indexFieldData;
 
-    public DoubleValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue, MultiValueMode sortMode,
-            Nested nested) {
+    public DoubleValuesComparatorSource(
+        IndexNumericFieldData indexFieldData,
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested
+    ) {
         super(missingValue, sortMode, nested);
         this.indexFieldData = indexFieldData;
     }
@@ -117,8 +121,13 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
     }
 
     @Override
-    public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format,
-            int bucketSize, BucketedSort.ExtraData extra) {
+    public BucketedSort newBucketedSort(
+        BigArrays bigArrays,
+        SortOrder sortOrder,
+        DocValueFormat format,
+        int bucketSize,
+        BucketedSort.ExtraData extra
+    ) {
         return new BucketedSort.ForDoubles(bigArrays, sortOrder, format, bucketSize, extra) {
             private final double dMissingValue = (Double) missingObject(missingValue, sortOrder == SortOrder.DESC);
 

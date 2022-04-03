@@ -117,9 +117,12 @@ public class CloseWhileRelocatingShardsIT extends OpenSearchIntegTestCase {
                     nbDocs = scaledRandomIntBetween(1, 100);
                     logger.debug("creating index {} with {} documents", indexName, nbDocs);
                     createIndex(indexName);
-                    indexRandom(randomBoolean(), IntStream.range(0, nbDocs)
-                        .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n))
-                        .collect(Collectors.toList()));
+                    indexRandom(
+                        randomBoolean(),
+                        IntStream.range(0, nbDocs)
+                            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n))
+                            .collect(Collectors.toList())
+                    );
                     break;
                 default:
                     logger.debug("creating index {} with background indexing", indexName);
@@ -132,10 +135,16 @@ public class CloseWhileRelocatingShardsIT extends OpenSearchIntegTestCase {
             indices[i] = indexName;
         }
 
-        ensureGreen(TimeValue.timeValueSeconds(60L),indices);
-        assertAcked(client().admin().cluster().prepareUpdateSettings()
-            .setTransientSettings(Settings.builder()
-                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), Rebalance.NONE.toString())));
+        ensureGreen(TimeValue.timeValueSeconds(60L), indices);
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(
+                    Settings.builder()
+                        .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), Rebalance.NONE.toString())
+                )
+        );
 
         final String targetNode = internalCluster().startDataOnlyNode();
         ensureClusterSizeConsistency(); // wait for the master to finish processing join.
@@ -168,7 +177,8 @@ public class CloseWhileRelocatingShardsIT extends OpenSearchIntegTestCase {
             }
 
             // Build the list of shards for which recoveries will be blocked
-            final Set<ShardId> blockedShards = commands.commands().stream()
+            final Set<ShardId> blockedShards = commands.commands()
+                .stream()
                 .map(c -> (MoveAllocationCommand) c)
                 .map(c -> new ShardId(clusterService.state().metadata().index(c.index()).getIndex(), c.shardId()))
                 .collect(Collectors.toSet());
@@ -188,8 +198,13 @@ public class CloseWhileRelocatingShardsIT extends OpenSearchIntegTestCase {
                             release.await();
                             logger.debug("releasing recovery of shard {}", startRecoveryRequest.shardId());
                         } catch (final InterruptedException e) {
-                            logger.warn(() -> new ParameterizedMessage("exception when releasing recovery of shard {}",
-                                startRecoveryRequest.shardId()), e);
+                            logger.warn(
+                                () -> new ParameterizedMessage(
+                                    "exception when releasing recovery of shard {}",
+                                    startRecoveryRequest.shardId()
+                                ),
+                                e
+                            );
                             interruptedRecoveries.add(startRecoveryRequest.shardId().getIndexName());
                             Thread.currentThread().interrupt();
                             return;
@@ -199,8 +214,10 @@ public class CloseWhileRelocatingShardsIT extends OpenSearchIntegTestCase {
                 connection.sendRequest(requestId, action, request, options);
             };
 
-            final MockTransportService targetTransportService =
-                (MockTransportService) internalCluster().getInstance(TransportService.class, targetNode);
+            final MockTransportService targetTransportService = (MockTransportService) internalCluster().getInstance(
+                TransportService.class,
+                targetNode
+            );
 
             for (DiscoveryNode node : state.getNodes()) {
                 if (node.isDataNode() && node.getName().equals(targetNode) == false) {
@@ -269,13 +286,29 @@ public class CloseWhileRelocatingShardsIT extends OpenSearchIntegTestCase {
 
             for (String index : acknowledgedCloses) {
                 long docsCount = client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get().getHits().getTotalHits().value;
-                assertEquals("Expected " + docsPerIndex.get(index) + " docs in index " + index + " but got " + docsCount
-                    + " (close acknowledged=" + acknowledgedCloses.contains(index) + ")", (long) docsPerIndex.get(index), docsCount);
+                assertEquals(
+                    "Expected "
+                        + docsPerIndex.get(index)
+                        + " docs in index "
+                        + index
+                        + " but got "
+                        + docsCount
+                        + " (close acknowledged="
+                        + acknowledgedCloses.contains(index)
+                        + ")",
+                    (long) docsPerIndex.get(index),
+                    docsCount
+                );
             }
         } finally {
-            assertAcked(client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder()
-                    .putNull(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey())));
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(
+                        Settings.builder().putNull(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey())
+                    )
+            );
         }
     }
 }

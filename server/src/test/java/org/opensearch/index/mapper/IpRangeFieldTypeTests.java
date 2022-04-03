@@ -35,7 +35,6 @@ package org.opensearch.index.mapper;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.mapper.FieldTypeTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -47,10 +46,12 @@ public class IpRangeFieldTypeTests extends FieldTypeTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
-        RangeFieldMapper mapper = new RangeFieldMapper.Builder("field", RangeType.IP, true).build(context);
+        RangeFieldMapper mapper = new RangeFieldMapper.Builder("field", RangeType.IP, true, Version.V_EMPTY).build(context);
         Map<String, Object> range = org.opensearch.common.collect.Map.of("gte", "2001:db8:0:0:0:0:2:1");
-        assertEquals(Collections.singletonList(org.opensearch.common.collect.Map.of("gte", "2001:db8::2:1")),
-            fetchSourceValue(mapper.fieldType(), range));
+        assertEquals(
+            Collections.singletonList(org.opensearch.common.collect.Map.of("gte", "2001:db8::2:1")),
+            fetchSourceValue(mapper.fieldType(), range)
+        );
         assertEquals(Collections.singletonList("2001:db8::2:1/32"), fetchSourceValue(mapper.fieldType(), "2001:db8:0:0:0:0:2:1/32"));
     }
 }

@@ -59,6 +59,8 @@ public interface TestClusterConfiguration {
 
     void plugin(String pluginProjectPath);
 
+    void upgradePlugin(List<Provider<RegularFile>> plugins);
+
     void module(Provider<RegularFile> module);
 
     void module(String moduleProjectPath);
@@ -170,11 +172,9 @@ public interface TestClusterConfiguration {
                 } else {
                     String extraCause = "";
                     Throwable cause = lastException;
-                    int ident = 2;
                     while (cause != null) {
                         if (cause.getMessage() != null && cause.getMessage().isEmpty() == false) {
                             extraCause += "\n" + "  " + cause.getMessage();
-                            ident += 2;
                         }
                         cause = cause.getCause();
                     }

@@ -33,6 +33,7 @@
 package org.opensearch.plugins;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase;
 import org.opensearch.LegacyESVersion;
@@ -44,6 +45,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.IndexModule;
+import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
@@ -51,9 +53,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
-import java.nio.file.FileSystemException;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
@@ -87,6 +87,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
                 .build();
         }
     }
+
     public static class AdditionalSettingsPlugin2 extends Plugin {
         @Override
         public Settings additionalSettings() {
@@ -98,8 +99,11 @@ public class PluginsServiceTests extends OpenSearchTestCase {
 
     static PluginsService newPluginsService(Settings settings, Class<? extends Plugin>... classpathPlugins) {
         return new PluginsService(
-            settings, null, null,
-            TestEnvironment.newEnvironment(settings).pluginsFile(), Arrays.asList(classpathPlugins)
+            settings,
+            null,
+            null,
+            TestEnvironment.newEnvironment(settings).pluginsFile(),
+            Arrays.asList(classpathPlugins)
         );
     }
 
@@ -107,21 +111,18 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put("my.setting", "test")
-            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.SIMPLEFS.getSettingsKey()).build();
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.NIOFS.getSettingsKey())
+            .build();
         PluginsService service = newPluginsService(settings, AdditionalSettingsPlugin1.class);
         Settings newSettings = service.updatedSettings();
         assertEquals("test", newSettings.get("my.setting")); // previous settings still exist
         assertEquals("1", newSettings.get("foo.bar")); // added setting exists
         // does not override pre existing settings
-        assertEquals(
-            IndexModule.Type.SIMPLEFS.getSettingsKey(),
-            newSettings.get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
-        );
+        assertEquals(IndexModule.Type.NIOFS.getSettingsKey(), newSettings.get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey()));
     }
 
     public void testAdditionalSettingsClash() {
-        Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         PluginsService service = newPluginsService(settings, AdditionalSettingsPlugin1.class, AdditionalSettingsPlugin2.class);
         try {
             service.updatedSettings();
@@ -138,97 +139,63 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         Path pluginsDir = createTempDir();
         Files.createDirectory(pluginsDir.resolve("plugin-missing-descriptor"));
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> PluginsService.getPluginBundles(pluginsDir));
-        assertThat(e.getMessage(),
-                   containsString("Could not load plugin descriptor for plugin directory [plugin-missing-descriptor]"));
+        assertThat(e.getMessage(), containsString("Could not load plugin descriptor for plugin directory [plugin-missing-descriptor]"));
     }
 
     public void testFilterPlugins() {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put("my.setting", "test")
-            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.SIMPLEFS.getSettingsKey()).build();
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.NIOFS.getSettingsKey())
+            .build();
         PluginsService service = newPluginsService(settings, AdditionalSettingsPlugin1.class, FilterablePlugin.class);
         List<ScriptPlugin> scriptPlugins = service.filterPlugins(ScriptPlugin.class);
         assertEquals(1, scriptPlugins.size());
         assertEquals(FilterablePlugin.class, scriptPlugins.get(0).getClass());
     }
 
-    public void testHiddenFiles() throws IOException {
+    public void testHiddenDirectories() throws IOException {
         final Path home = createTempDir();
-        final Settings settings =
-                Settings.builder()
-                        .put(Environment.PATH_HOME_SETTING.getKey(), home)
-                        .build();
+        final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
         final Path hidden = home.resolve("plugins").resolve(".hidden");
         Files.createDirectories(hidden);
         @SuppressWarnings("unchecked")
-        final IllegalStateException e = expectThrows(
-                IllegalStateException.class,
-                () -> newPluginsService(settings));
-
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
         final String expected = "Could not load plugin descriptor for plugin directory [.hidden]";
         assertThat(e, hasToString(containsString(expected)));
     }
 
-    public void testDesktopServicesStoreFiles() throws IOException {
-        final Path home = createTempDir();
-        final Settings settings =
-                Settings.builder()
-                        .put(Environment.PATH_HOME_SETTING.getKey(), home)
-                        .build();
-        final Path plugins = home.resolve("plugins");
-        Files.createDirectories(plugins);
-        final Path desktopServicesStore = plugins.resolve(".DS_Store");
-        Files.createFile(desktopServicesStore);
-        if (Constants.MAC_OS_X) {
-            @SuppressWarnings("unchecked") final PluginsService pluginsService = newPluginsService(settings);
-            assertNotNull(pluginsService);
-        } else {
-            final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
-            assertThat(e.getMessage(), containsString("Could not load plugin descriptor for plugin directory [.DS_Store]"));
-            assertNotNull(e.getCause());
-            assertThat(e.getCause(), instanceOf(FileSystemException.class));
-            if (Constants.WINDOWS) {
-                assertThat(e.getCause(), instanceOf(NoSuchFileException.class));
-            } else {
-                // force a "Not a directory" exception to be thrown so that we can extract the locale-dependent message
-                final String expected;
-                try (InputStream ignored = Files.newInputStream(desktopServicesStore.resolve("not-a-directory"))) {
-                    throw new AssertionError();
-                } catch (final FileSystemException inner) {
-                    // locale-dependent translation of "Not a directory"
-                    expected = inner.getReason();
-                }
-                assertThat(e.getCause(), hasToString(containsString(expected)));
-            }
-        }
-    }
-
     public void testStartupWithRemovingMarker() throws IOException {
         final Path home = createTempDir();
-        final Settings settings =
-                Settings.builder()
-                        .put(Environment.PATH_HOME_SETTING.getKey(), home)
-                        .build();
+        final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
         final Path fake = home.resolve("plugins").resolve("fake");
         Files.createDirectories(fake);
         Files.createFile(fake.resolve("plugin.jar"));
         final Path removing = home.resolve("plugins").resolve(".removing-fake");
         Files.createFile(removing);
         PluginTestUtil.writePluginProperties(
-                fake,
-                "description", "fake",
-                "name", "fake",
-                "version", "1.0.0",
-                "opensearch.version", Version.CURRENT.toString(),
-                "java.version", System.getProperty("java.specification.version"),
-                "classname", "Fake",
-                "has.native.controller", "false");
+            fake,
+            "description",
+            "fake",
+            "name",
+            "fake",
+            "version",
+            "1.0.0",
+            "opensearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "Fake",
+            "has.native.controller",
+            "false"
+        );
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
         final String expected = String.format(
-                Locale.ROOT,
-                "found file [%s] from a failed attempt to remove the plugin [fake]; execute [opensearch-plugin remove fake]",
-                removing);
+            Locale.ROOT,
+            "found file [%s] from a failed attempt to remove the plugin [fake]; execute [opensearch-plugin remove fake]",
+            removing
+        );
         assertThat(e, hasToString(containsString(expected)));
     }
 
@@ -243,8 +210,10 @@ public class PluginsServiceTests extends OpenSearchTestCase {
 
         final Path home = createTempDir();
         final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
-        final IllegalStateException e =
-                expectThrows(IllegalStateException.class, () -> newPluginsService(settings, NoPublicConstructorPlugin.class));
+        final IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> newPluginsService(settings, NoPublicConstructorPlugin.class)
+        );
         assertThat(e, hasToString(containsString("no public constructor")));
     }
 
@@ -308,10 +277,11 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         }
 
         final Collection<Class<? extends Plugin>> classes = Arrays.asList(
-                TooManyParametersPlugin.class,
-                TwoParametersFirstIncorrectType.class,
-                TwoParametersSecondIncorrectType.class,
-                OneParameterIncorrectType.class);
+            TooManyParametersPlugin.class,
+            TwoParametersFirstIncorrectType.class,
+            TwoParametersSecondIncorrectType.class,
+            OneParameterIncorrectType.class
+        );
         for (Class<? extends Plugin> pluginClass : classes) {
             final Path home = createTempDir();
             final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
@@ -322,11 +292,11 @@ public class PluginsServiceTests extends OpenSearchTestCase {
 
     public void testSortBundlesCycleSelfReference() throws Exception {
         Path pluginDir = createTempDir();
-        PluginInfo info = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.singletonList("foo"), false);
+        PluginInfo info = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Collections.singletonList("foo"), false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
-        IllegalStateException e = expectThrows(IllegalStateException.class, () ->
-            PluginsService.sortBundles(Collections.singleton(bundle))
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> PluginsService.sortBundles(Collections.singleton(bundle))
         );
         assertEquals("Cycle found in plugin dependencies: foo -> foo", e.getMessage());
     }
@@ -334,17 +304,31 @@ public class PluginsServiceTests extends OpenSearchTestCase {
     public void testSortBundlesCycle() throws Exception {
         Path pluginDir = createTempDir();
         Set<PluginsService.Bundle> bundles = new LinkedHashSet<>(); // control iteration order, so we get know the beginning of the cycle
-        PluginInfo info = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Arrays.asList("bar", "other"), false);
+        PluginInfo info = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Arrays.asList("bar", "other"), false);
         bundles.add(new PluginsService.Bundle(info, pluginDir));
-        PluginInfo info2 = new PluginInfo("bar", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.singletonList("baz"), false);
+        PluginInfo info2 = new PluginInfo(
+            "bar",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.singletonList("baz"),
+            false
+        );
         bundles.add(new PluginsService.Bundle(info2, pluginDir));
-        PluginInfo info3 = new PluginInfo("baz", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.singletonList("foo"), false);
+        PluginInfo info3 = new PluginInfo(
+            "baz",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.singletonList("foo"),
+            false
+        );
         bundles.add(new PluginsService.Bundle(info3, pluginDir));
-        PluginInfo info4 = new PluginInfo("other", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.emptyList(), false);
+        PluginInfo info4 = new PluginInfo("other", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Collections.emptyList(), false);
         bundles.add(new PluginsService.Bundle(info4, pluginDir));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> PluginsService.sortBundles(bundles));
@@ -353,8 +337,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
 
     public void testSortBundlesSingle() throws Exception {
         Path pluginDir = createTempDir();
-        PluginInfo info = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.emptyList(), false);
+        PluginInfo info = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Collections.emptyList(), false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
         List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(Collections.singleton(bundle));
         assertThat(sortedBundles, Matchers.contains(bundle));
@@ -363,16 +346,13 @@ public class PluginsServiceTests extends OpenSearchTestCase {
     public void testSortBundlesNoDeps() throws Exception {
         Path pluginDir = createTempDir();
         Set<PluginsService.Bundle> bundles = new LinkedHashSet<>(); // control iteration order
-        PluginInfo info1 = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.emptyList(), false);
+        PluginInfo info1 = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Collections.emptyList(), false);
         PluginsService.Bundle bundle1 = new PluginsService.Bundle(info1, pluginDir);
         bundles.add(bundle1);
-        PluginInfo info2 = new PluginInfo("bar", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.emptyList(), false);
+        PluginInfo info2 = new PluginInfo("bar", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Collections.emptyList(), false);
         PluginsService.Bundle bundle2 = new PluginsService.Bundle(info2, pluginDir);
         bundles.add(bundle2);
-        PluginInfo info3 = new PluginInfo("baz", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.emptyList(), false);
+        PluginInfo info3 = new PluginInfo("baz", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Collections.emptyList(), false);
         PluginsService.Bundle bundle3 = new PluginsService.Bundle(info3, pluginDir);
         bundles.add(bundle3);
         List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(bundles);
@@ -381,11 +361,11 @@ public class PluginsServiceTests extends OpenSearchTestCase {
 
     public void testSortBundlesMissingDep() throws Exception {
         Path pluginDir = createTempDir();
-        PluginInfo info = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.singletonList("dne"), false);
+        PluginInfo info = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Collections.singletonList("dne"), false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            PluginsService.sortBundles(Collections.singleton(bundle))
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PluginsService.sortBundles(Collections.singleton(bundle))
         );
         assertEquals("Missing plugin [dne], dependency of [foo]", e.getMessage());
     }
@@ -393,20 +373,43 @@ public class PluginsServiceTests extends OpenSearchTestCase {
     public void testSortBundlesCommonDep() throws Exception {
         Path pluginDir = createTempDir();
         Set<PluginsService.Bundle> bundles = new LinkedHashSet<>(); // control iteration order
-        PluginInfo info1 = new PluginInfo("grandparent", "desc", "1.0",Version.CURRENT, "1.8",
-            "MyPlugin", Collections.emptyList(), false);
+        PluginInfo info1 = new PluginInfo("grandparent", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Collections.emptyList(), false);
         PluginsService.Bundle bundle1 = new PluginsService.Bundle(info1, pluginDir);
         bundles.add(bundle1);
-        PluginInfo info2 = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.singletonList("common"), false);
+        PluginInfo info2 = new PluginInfo(
+            "foo",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.singletonList("common"),
+            false
+        );
         PluginsService.Bundle bundle2 = new PluginsService.Bundle(info2, pluginDir);
         bundles.add(bundle2);
-        PluginInfo info3 = new PluginInfo("bar", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.singletonList("common"), false);
+        PluginInfo info3 = new PluginInfo(
+            "bar",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.singletonList("common"),
+            false
+        );
         PluginsService.Bundle bundle3 = new PluginsService.Bundle(info3, pluginDir);
         bundles.add(bundle3);
-        PluginInfo info4 = new PluginInfo("common", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.singletonList("grandparent"), false);
+        PluginInfo info4 = new PluginInfo(
+            "common",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.singletonList("grandparent"),
+            false
+        );
         PluginsService.Bundle bundle4 = new PluginsService.Bundle(info4, pluginDir);
         bundles.add(bundle4);
         List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(bundles);
@@ -416,12 +419,19 @@ public class PluginsServiceTests extends OpenSearchTestCase {
     public void testSortBundlesAlreadyOrdered() throws Exception {
         Path pluginDir = createTempDir();
         Set<PluginsService.Bundle> bundles = new LinkedHashSet<>(); // control iteration order
-        PluginInfo info1 = new PluginInfo("dep", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.emptyList(), false);
+        PluginInfo info1 = new PluginInfo("dep", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Collections.emptyList(), false);
         PluginsService.Bundle bundle1 = new PluginsService.Bundle(info1, pluginDir);
         bundles.add(bundle1);
-        PluginInfo info2 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.singletonList("dep"), false);
+        PluginInfo info2 = new PluginInfo(
+            "myplugin",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.singletonList("dep"),
+            false
+        );
         PluginsService.Bundle bundle2 = new PluginsService.Bundle(info2, pluginDir);
         bundles.add(bundle2);
         List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(bundles);
@@ -451,7 +461,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
                         ZipEntry entry = in.getNextEntry();
                         while (entry != null) {
                             if (entry.getName().equals(relativePath)) {
-                                byte[] buffer = new byte[10*1024];
+                                byte[] buffer = new byte[10 * 1024];
                                 int read = in.read(buffer);
                                 while (read != -1) {
                                     out.write(buffer, 0, read);
@@ -479,11 +489,21 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         makeJar(dupJar);
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep", Collections.singleton(dupJar.toUri().toURL()));
-        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.singletonList("dep"), false);
+        PluginInfo info1 = new PluginInfo(
+            "myplugin",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.singletonList("dep"),
+            false
+        );
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
-        IllegalStateException e = expectThrows(IllegalStateException.class, () ->
-            PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps)
+        );
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell! duplicate codebases with extended plugin"));
     }
@@ -498,11 +518,21 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep1", Collections.singleton(dupJar.toUri().toURL()));
         transitiveDeps.put("dep2", Collections.singleton(dupJar.toUri().toURL()));
-        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Arrays.asList("dep1", "dep2"), false);
+        PluginInfo info1 = new PluginInfo(
+            "myplugin",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Arrays.asList("dep1", "dep2"),
+            false
+        );
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
-        IllegalStateException e = expectThrows(IllegalStateException.class, () ->
-            PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps)
+        );
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));
         assertThat(e.getCause().getMessage(), containsString("duplicate codebases"));
@@ -515,11 +545,12 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         Path pluginDir = createTempDir();
         Path pluginJar = pluginDir.resolve("plugin.jar");
         makeJar(pluginJar, Level.class);
-        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.emptyList(), false);
+        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Collections.emptyList(), false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
-        IllegalStateException e = expectThrows(IllegalStateException.class, () ->
-            PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, new HashMap<>()));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, new HashMap<>())
+        );
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));
         assertThat(e.getCause().getMessage(), containsString("Level"));
@@ -534,11 +565,21 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         makeJar(depJar, DummyClass1.class);
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep", Collections.singleton(depJar.toUri().toURL()));
-        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.singletonList("dep"), false);
+        PluginInfo info1 = new PluginInfo(
+            "myplugin",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.singletonList("dep"),
+            false
+        );
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
-        IllegalStateException e = expectThrows(IllegalStateException.class, () ->
-            PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps)
+        );
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));
         assertThat(e.getCause().getMessage(), containsString("DummyClass1"));
@@ -557,11 +598,21 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep1", Collections.singleton(dep1Jar.toUri().toURL()));
         transitiveDeps.put("dep2", Collections.singleton(dep2Jar.toUri().toURL()));
-        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Arrays.asList("dep1", "dep2"), false);
+        PluginInfo info1 = new PluginInfo(
+            "myplugin",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Arrays.asList("dep1", "dep2"),
+            false
+        );
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
-        IllegalStateException e = expectThrows(IllegalStateException.class, () ->
-            PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps)
+        );
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));
         assertThat(e.getCause().getMessage(), containsString("DummyClass2"));
@@ -580,8 +631,16 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep1", Collections.singleton(dep1Jar.toUri().toURL()));
         transitiveDeps.put("dep2", Collections.singleton(dep2Jar.toUri().toURL()));
-        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Arrays.asList("dep1", "dep2"), false);
+        PluginInfo info1 = new PluginInfo(
+            "myplugin",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Arrays.asList("dep1", "dep2"),
+            false
+        );
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
         PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps);
         Set<URL> deps = transitiveDeps.get("myplugin");
@@ -602,25 +661,40 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         Path mypluginDir = pluginsDir.resolve("myplugin");
         PluginTestUtil.writePluginProperties(
             mypluginDir,
-            "description", "whatever",
-            "name", "myplugin",
-            "version", "1.0.0",
-            "opensearch.version", Version.CURRENT.toString(),
-            "java.version", System.getProperty("java.specification.version"),
-            "extended.plugins", "nonextensible",
-            "classname", "test.DummyPlugin");
+            "description",
+            "whatever",
+            "name",
+            "myplugin",
+            "version",
+            "1.0.0",
+            "opensearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "extended.plugins",
+            "nonextensible",
+            "classname",
+            "test.DummyPlugin"
+        );
         try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("dummy-plugin.jar")) {
             Files.copy(jar, mypluginDir.resolve("plugin.jar"));
         }
         Path nonextensibleDir = pluginsDir.resolve("nonextensible");
         PluginTestUtil.writePluginProperties(
             nonextensibleDir,
-            "description", "whatever",
-            "name", "nonextensible",
-            "version", "1.0.0",
-            "opensearch.version", Version.CURRENT.toString(),
-            "java.version", System.getProperty("java.specification.version"),
-            "classname", "test.NonExtensiblePlugin");
+            "description",
+            "whatever",
+            "name",
+            "nonextensible",
+            "version",
+            "1.0.0",
+            "opensearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "test.NonExtensiblePlugin"
+        );
         try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("non-extensible-plugin.jar")) {
             Files.copy(jar, nonextensibleDir.resolve("plugin.jar"));
         }
@@ -629,46 +703,82 @@ public class PluginsServiceTests extends OpenSearchTestCase {
     }
 
     public void testIncompatibleOpenSearchVersion() throws Exception {
-        PluginInfo info = new PluginInfo("my_plugin", "desc", "1.0", LegacyESVersion.V_6_0_0,
-            "1.8", "FakePlugin", Collections.emptyList(), false);
+        PluginInfo info = new PluginInfo(
+            "my_plugin",
+            "desc",
+            "1.0",
+            LegacyESVersion.V_6_0_0,
+            "1.8",
+            "FakePlugin",
+            Collections.emptyList(),
+            false
+        );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsService.verifyCompatibility(info));
         assertThat(e.getMessage(), containsString("was built for OpenSearch version 6.0.0"));
     }
 
     public void testIncompatibleJavaVersion() throws Exception {
-        PluginInfo info = new PluginInfo("my_plugin", "desc", "1.0", Version.CURRENT,
-            "1000000.0", "FakePlugin", Collections.emptyList(), false);
+        PluginInfo info = new PluginInfo(
+            "my_plugin",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1000000.0",
+            "FakePlugin",
+            Collections.emptyList(),
+            false
+        );
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> PluginsService.verifyCompatibility(info));
         assertThat(e.getMessage(), containsString("my_plugin requires Java"));
     }
 
-    public void testFindPluginDirs() throws IOException {
+    public void testFindPluginDirs() throws Exception {
         final Path plugins = createTempDir();
 
-        final Path fake = plugins.resolve("fake");
+        try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(PluginsService.class))) {
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "[.test] warning",
+                    "org.opensearch.plugins.PluginsService",
+                    Level.WARN,
+                    "Non-plugin file located in the plugins folder with the following name: [.DS_Store]"
+                )
+            );
 
-        PluginTestUtil.writePluginProperties(
+            final Path fake = plugins.resolve("fake");
+            Path testFile = plugins.resolve(".DS_Store");
+            Files.createFile(testFile);
+
+            PluginTestUtil.writePluginProperties(
                 fake,
-                "description", "description",
-                "name", "fake",
-                "version", "1.0.0",
-                "opensearch.version", Version.CURRENT.toString(),
-                "java.version", System.getProperty("java.specification.version"),
-                "classname", "test.DummyPlugin");
+                "description",
+                "description",
+                "name",
+                "fake",
+                "version",
+                "1.0.0",
+                "opensearch.version",
+                Version.CURRENT.toString(),
+                "java.version",
+                System.getProperty("java.specification.version"),
+                "classname",
+                "test.DummyPlugin"
+            );
 
-        try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("dummy-plugin.jar")) {
-            Files.copy(jar, fake.resolve("plugin.jar"));
+            try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("dummy-plugin.jar")) {
+                Files.copy(jar, fake.resolve("plugin.jar"));
+            }
+
+            assertThat(PluginsService.findPluginDirs(plugins), containsInAnyOrder(fake));
+            mockLogAppender.assertAllExpectationsMatched();
         }
-
-        assertThat(PluginsService.findPluginDirs(plugins), containsInAnyOrder(fake));
     }
 
     public void testExistingMandatoryClasspathPlugin() {
-        final Settings settings =
-                Settings.builder()
-                        .put("path.home", createTempDir())
-                        .put("plugin.mandatory", "org.opensearch.plugins.PluginsServiceTests$FakePlugin")
-                        .build();
+        final Settings settings = Settings.builder()
+            .put("path.home", createTempDir())
+            .put("plugin.mandatory", "org.opensearch.plugins.PluginsServiceTests$FakePlugin")
+            .build();
         newPluginsService(settings, FakePlugin.class);
     }
 
@@ -691,22 +801,25 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         final Path fake = plugins.resolve("fake");
 
         PluginTestUtil.writePluginProperties(
-                fake,
-                "description", "description",
-                "name", "fake",
-                "version", "1.0.0",
-                "opensearch.version", Version.CURRENT.toString(),
-                "java.version", System.getProperty("java.specification.version"),
-                "classname", "test.DummyPlugin");
+            fake,
+            "description",
+            "description",
+            "name",
+            "fake",
+            "version",
+            "1.0.0",
+            "opensearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "test.DummyPlugin"
+        );
         try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("dummy-plugin.jar")) {
             Files.copy(jar, fake.resolve("plugin.jar"));
         }
 
-        final Settings settings =
-                Settings.builder()
-                        .put("path.home", pathHome)
-                        .put("plugin.mandatory", "fake")
-                        .build();
+        final Settings settings = Settings.builder().put("path.home", pathHome).put("plugin.mandatory", "fake").build();
         newPluginsService(settings);
     }
 
@@ -717,21 +830,34 @@ public class PluginsServiceTests extends OpenSearchTestCase {
 
         PluginTestUtil.writePluginProperties(
             fake,
-            "description", "description",
-            "name", "fake",
-            "version", "1.0.0",
-            "opensearch.version", Version.CURRENT.toString(),
-            "java.version", System.getProperty("java.specification.version"),
-            "classname", TestPlugin.class.getName()); // set a class defined outside the bundle (in parent class-loader of plugin)
+            "description",
+            "description",
+            "name",
+            "fake",
+            "version",
+            "1.0.0",
+            "opensearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            TestPlugin.class.getName()
+        ); // set a class defined outside the bundle (in parent class-loader of plugin)
 
-        final Settings settings =
-            Settings.builder()
-                .put("path.home", pathHome)
-                .put("plugin.mandatory", "fake")
-                .build();
+        final Settings settings = Settings.builder().put("path.home", pathHome).put("plugin.mandatory", "fake").build();
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
-        assertThat(exception, hasToString(containsString("Plugin [fake] must reference a class loader local Plugin class [" +
-            TestPlugin.class.getName() + "] (class loader [" + PluginsServiceTests.class.getClassLoader() + "])")));
+        assertThat(
+            exception,
+            hasToString(
+                containsString(
+                    "Plugin [fake] must reference a class loader local Plugin class ["
+                        + TestPlugin.class.getName()
+                        + "] (class loader ["
+                        + PluginsServiceTests.class.getClassLoader()
+                        + "])"
+                )
+            )
+        );
     }
 
     public void testPluginLoadFailure() throws IOException {
@@ -741,18 +867,21 @@ public class PluginsServiceTests extends OpenSearchTestCase {
 
         PluginTestUtil.writePluginProperties(
             fake,
-            "description", "description",
-            "name", "fake",
-            "version", "1.0.0",
-            "opensearch.version", Version.CURRENT.toString(),
-            "java.version", System.getProperty("java.specification.version"),
-            "classname", "DummyClass"); // This class is not present in Path, hence plugin loading will throw ClassNotFoundException
+            "description",
+            "description",
+            "name",
+            "fake",
+            "version",
+            "1.0.0",
+            "opensearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "DummyClass"
+        ); // This class is not present in Path, hence plugin loading will throw ClassNotFoundException
 
-        final Settings settings =
-            Settings.builder()
-                .put("path.home", pathHome)
-                .put("plugin.mandatory", "fake")
-                .build();
+        final Settings settings = Settings.builder().put("path.home", pathHome).put("plugin.mandatory", "fake").build();
         RuntimeException exception = expectThrows(RuntimeException.class, () -> newPluginsService(settings));
         assertTrue(exception.getCause() instanceof ClassNotFoundException);
         assertThat(exception, hasToString(containsString("Unable to load plugin class [DummyClass]")));
@@ -760,19 +889,26 @@ public class PluginsServiceTests extends OpenSearchTestCase {
 
     public void testExtensiblePlugin() {
         TestExtensiblePlugin extensiblePlugin = new TestExtensiblePlugin();
-        PluginsService.loadExtensions(Collections.singletonList(
-            Tuple.tuple(new PluginInfo("extensible", null, null, null, null, null, Collections.emptyList(), false), extensiblePlugin)
-        ));
+        PluginsService.loadExtensions(
+            Collections.singletonList(
+                Tuple.tuple(new PluginInfo("extensible", null, null, null, null, null, Collections.emptyList(), false), extensiblePlugin)
+            )
+        );
 
         assertThat(extensiblePlugin.extensions, notNullValue());
         assertThat(extensiblePlugin.extensions, hasSize(0));
 
         extensiblePlugin = new TestExtensiblePlugin();
         TestPlugin testPlugin = new TestPlugin();
-        PluginsService.loadExtensions(Arrays.asList(
-            Tuple.tuple(new PluginInfo("extensible", null, null, null, null, null, Collections.emptyList(), false), extensiblePlugin),
-            Tuple.tuple(new PluginInfo("test", null, null, null, null, null, Collections.singletonList("extensible"), false), testPlugin)
-        ));
+        PluginsService.loadExtensions(
+            Arrays.asList(
+                Tuple.tuple(new PluginInfo("extensible", null, null, null, null, null, Collections.emptyList(), false), extensiblePlugin),
+                Tuple.tuple(
+                    new PluginInfo("test", null, null, null, null, null, Collections.singletonList("extensible"), false),
+                    testPlugin
+                )
+            )
+        );
 
         assertThat(extensiblePlugin.extensions, notNullValue());
         assertThat(extensiblePlugin.extensions, hasSize(2));
@@ -784,66 +920,122 @@ public class PluginsServiceTests extends OpenSearchTestCase {
     public void testNoExtensionConstructors() {
         TestPlugin plugin = new TestPlugin();
         class TestExtension implements TestExtensionPoint {
-            private TestExtension() {
-            }
+            private TestExtension() {}
         }
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
-            PluginsService.createExtension(TestExtension.class, TestExtensionPoint.class, plugin);
-        });
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> { PluginsService.createExtension(TestExtension.class, TestExtensionPoint.class, plugin); }
+        );
 
-        assertThat(e, hasToString(containsString("no public constructor for extension [" + TestExtension.class.getName() +
-            "] of type [" + TestExtensionPoint.class.getName() + "]")));
+        assertThat(
+            e,
+            hasToString(
+                containsString(
+                    "no public constructor for extension ["
+                        + TestExtension.class.getName()
+                        + "] of type ["
+                        + TestExtensionPoint.class.getName()
+                        + "]"
+                )
+            )
+        );
     }
 
     public void testMultipleExtensionConstructors() {
         TestPlugin plugin = new TestPlugin();
         class TestExtension implements TestExtensionPoint {
-            public TestExtension() {
-            }
+            public TestExtension() {}
+
             public TestExtension(TestPlugin plugin) {
 
             }
         }
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
-            PluginsService.createExtension(TestExtension.class, TestExtensionPoint.class, plugin);
-        });
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> { PluginsService.createExtension(TestExtension.class, TestExtensionPoint.class, plugin); }
+        );
 
-        assertThat(e, hasToString(containsString("no unique public constructor for extension [" + TestExtension.class.getName() +
-            "] of type [" + TestExtensionPoint.class.getName() + "]")));
+        assertThat(
+            e,
+            hasToString(
+                containsString(
+                    "no unique public constructor for extension ["
+                        + TestExtension.class.getName()
+                        + "] of type ["
+                        + TestExtensionPoint.class.getName()
+                        + "]"
+                )
+            )
+        );
     }
 
     public void testBadSingleParameterConstructor() {
         TestPlugin plugin = new TestPlugin();
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
-            PluginsService.createExtension(BadSingleParameterConstructorExtension.class, TestExtensionPoint.class, plugin);
-        });
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> { PluginsService.createExtension(BadSingleParameterConstructorExtension.class, TestExtensionPoint.class, plugin); }
+        );
 
-        assertThat(e,
-            hasToString(containsString("signature of constructor for extension [" + BadSingleParameterConstructorExtension.class.getName() +
-                "] of type [" + TestExtensionPoint.class.getName() + "] must be either () or (" + TestPlugin.class.getName() + "), not (" +
-                String.class.getName() + ")")));
+        assertThat(
+            e,
+            hasToString(
+                containsString(
+                    "signature of constructor for extension ["
+                        + BadSingleParameterConstructorExtension.class.getName()
+                        + "] of type ["
+                        + TestExtensionPoint.class.getName()
+                        + "] must be either () or ("
+                        + TestPlugin.class.getName()
+                        + "), not ("
+                        + String.class.getName()
+                        + ")"
+                )
+            )
+        );
     }
 
     public void testTooManyParametersExtensionConstructors() {
         TestPlugin plugin = new TestPlugin();
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
-            PluginsService.createExtension(TooManyParametersConstructorExtension.class, TestExtensionPoint.class, plugin);
-        });
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> { PluginsService.createExtension(TooManyParametersConstructorExtension.class, TestExtensionPoint.class, plugin); }
+        );
 
-        assertThat(e,
-            hasToString(containsString("signature of constructor for extension [" + TooManyParametersConstructorExtension.class.getName() +
-                "] of type [" + TestExtensionPoint.class.getName() + "] must be either () or (" + TestPlugin.class.getName() + ")")));
+        assertThat(
+            e,
+            hasToString(
+                containsString(
+                    "signature of constructor for extension ["
+                        + TooManyParametersConstructorExtension.class.getName()
+                        + "] of type ["
+                        + TestExtensionPoint.class.getName()
+                        + "] must be either () or ("
+                        + TestPlugin.class.getName()
+                        + ")"
+                )
+            )
+        );
     }
 
     public void testThrowingConstructor() {
         TestPlugin plugin = new TestPlugin();
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
-            PluginsService.createExtension(ThrowingConstructorExtension.class, TestExtensionPoint.class, plugin);
-        });
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> { PluginsService.createExtension(ThrowingConstructorExtension.class, TestExtensionPoint.class, plugin); }
+        );
 
-        assertThat(e,
-            hasToString(containsString("failed to create extension [" + ThrowingConstructorExtension.class.getName() +
-                "] of type [" + TestExtensionPoint.class.getName() + "]")));
+        assertThat(
+            e,
+            hasToString(
+                containsString(
+                    "failed to create extension ["
+                        + ThrowingConstructorExtension.class.getName()
+                        + "] of type ["
+                        + TestExtensionPoint.class.getName()
+                        + "]"
+                )
+            )
+        );
         assertThat(e.getCause(), instanceOf(InvocationTargetException.class));
         assertThat(e.getCause().getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(e.getCause().getCause(), hasToString(containsString("test constructor failure")));
@@ -861,14 +1053,11 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         }
     }
 
-    public static class TestPlugin extends Plugin {
-    }
+    public static class TestPlugin extends Plugin {}
 
-    public interface TestExtensionPoint {
-    }
+    public interface TestExtensionPoint {}
 
-    public static class TestExtension1 implements TestExtensionPoint {
-    }
+    public static class TestExtension1 implements TestExtensionPoint {}
 
     public static class TestExtension2 implements TestExtensionPoint {
         public Plugin plugin;
@@ -879,13 +1068,11 @@ public class PluginsServiceTests extends OpenSearchTestCase {
     }
 
     public static class BadSingleParameterConstructorExtension implements TestExtensionPoint {
-        public BadSingleParameterConstructorExtension(String bad) {
-        }
+        public BadSingleParameterConstructorExtension(String bad) {}
     }
 
     public static class TooManyParametersConstructorExtension implements TestExtensionPoint {
-        public TooManyParametersConstructorExtension(String bad) {
-        }
+        public TooManyParametersConstructorExtension(String bad) {}
     }
 
     public static class ThrowingConstructorExtension implements TestExtensionPoint {

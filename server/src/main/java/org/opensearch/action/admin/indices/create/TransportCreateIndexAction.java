@@ -56,11 +56,23 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
     private final MetadataCreateIndexService createIndexService;
 
     @Inject
-    public TransportCreateIndexAction(TransportService transportService, ClusterService clusterService,
-                                      ThreadPool threadPool, MetadataCreateIndexService createIndexService,
-                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(CreateIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, CreateIndexRequest::new,
-            indexNameExpressionResolver);
+    public TransportCreateIndexAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        MetadataCreateIndexService createIndexService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            CreateIndexAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            CreateIndexRequest::new,
+            indexNameExpressionResolver
+        );
         this.createIndexService = createIndexService;
     }
 
@@ -81,23 +93,35 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
     }
 
     @Override
-    protected void masterOperation(final CreateIndexRequest request, final ClusterState state,
-                                   final ActionListener<CreateIndexResponse> listener) {
+    protected void masterOperation(
+        final CreateIndexRequest request,
+        final ClusterState state,
+        final ActionListener<CreateIndexResponse> listener
+    ) {
         String cause = request.cause();
         if (cause.length() == 0) {
             cause = "api";
         }
 
         final String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
-        final CreateIndexClusterStateUpdateRequest updateRequest =
-            new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index())
-                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                .settings(request.settings()).mappings(request.mappings())
-                .aliases(request.aliases())
-                .waitForActiveShards(request.waitForActiveShards());
+        final CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(
+            cause,
+            indexName,
+            request.index()
+        ).ackTimeout(request.timeout())
+            .masterNodeTimeout(request.masterNodeTimeout())
+            .settings(request.settings())
+            .mappings(request.mappings())
+            .aliases(request.aliases())
+            .waitForActiveShards(request.waitForActiveShards());
 
-        createIndexService.createIndex(updateRequest, ActionListener.map(listener, response ->
-            new CreateIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged(), indexName)));
+        createIndexService.createIndex(
+            updateRequest,
+            ActionListener.map(
+                listener,
+                response -> new CreateIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged(), indexName)
+            )
+        );
     }
 
 }

@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.containsString;
 
 public class BulkByScrollTaskTests extends OpenSearchTestCase {
     public void testStatusHatesNegatives() {
-        checkStatusNegatives(-1  ,  0, 0, 0, 0, 0, 0, 0, 0, 0, "sliceId");
+        checkStatusNegatives(-1, 0, 0, 0, 0, 0, 0, 0, 0, 0, "sliceId");
         checkStatusNegatives(null, -1, 0, 0, 0, 0, 0, 0, 0, 0, "total");
         checkStatusNegatives(null, 0, -1, 0, 0, 0, 0, 0, 0, 0, "updated");
         checkStatusNegatives(null, 0, 0, -1, 0, 0, 0, 0, 0, 0, "created");
@@ -65,30 +65,88 @@ public class BulkByScrollTaskTests extends OpenSearchTestCase {
     /**
      * Build a task status with only some values. Used for testing negative values.
      */
-    private void checkStatusNegatives(Integer sliceId, long total, long updated, long created, long deleted, int batches,
-            long versionConflicts, long noops, long bulkRetries, long searchRetries, String fieldName) {
+    private void checkStatusNegatives(
+        Integer sliceId,
+        long total,
+        long updated,
+        long created,
+        long deleted,
+        int batches,
+        long versionConflicts,
+        long noops,
+        long bulkRetries,
+        long searchRetries,
+        String fieldName
+    ) {
         TimeValue throttle = parseTimeValue(randomPositiveTimeValue(), "test");
         TimeValue throttledUntil = parseTimeValue(randomPositiveTimeValue(), "test");
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new BulkByScrollTask.Status(sliceId, total, updated,
-                created, deleted, batches, versionConflicts, noops, bulkRetries, searchRetries, throttle, 0f, null, throttledUntil));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new BulkByScrollTask.Status(
+                sliceId,
+                total,
+                updated,
+                created,
+                deleted,
+                batches,
+                versionConflicts,
+                noops,
+                bulkRetries,
+                searchRetries,
+                throttle,
+                0f,
+                null,
+                throttledUntil
+            )
+        );
         assertEquals(e.getMessage(), fieldName + " must be greater than 0 but was [-1]");
     }
 
     public void testXContentRepresentationOfUnlimitedRequestsPerSecond() throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder();
-        BulkByScrollTask.Status status = new BulkByScrollTask.Status(null, 0, 0, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0),
-                Float.POSITIVE_INFINITY, null, timeValueMillis(0));
+        BulkByScrollTask.Status status = new BulkByScrollTask.Status(
+            null,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            timeValueMillis(0),
+            Float.POSITIVE_INFINITY,
+            null,
+            timeValueMillis(0)
+        );
         status.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertThat(Strings.toString(builder), containsString("\"requests_per_second\":-1"));
     }
 
     public void testXContentRepresentationOfUnfinishedSlices() throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder();
-        BulkByScrollTask.Status completedStatus = new BulkByScrollTask.Status(2, 0, 0, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0),
-                Float.POSITIVE_INFINITY, null, timeValueMillis(0));
+        BulkByScrollTask.Status completedStatus = new BulkByScrollTask.Status(
+            2,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            timeValueMillis(0),
+            Float.POSITIVE_INFINITY,
+            null,
+            timeValueMillis(0)
+        );
         BulkByScrollTask.Status status = new BulkByScrollTask.Status(
-                Arrays.asList(null, null, new BulkByScrollTask.StatusOrException(completedStatus)), null);
+            Arrays.asList(null, null, new BulkByScrollTask.StatusOrException(completedStatus)),
+            null
+        );
         status.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertThat(Strings.toString(builder), containsString("\"slices\":[null,null,{\"slice_id\":2"));
     }
@@ -96,8 +154,10 @@ public class BulkByScrollTaskTests extends OpenSearchTestCase {
     public void testXContentRepresentationOfSliceFailures() throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder();
         Exception e = new Exception();
-        BulkByScrollTask.Status status = new BulkByScrollTask.Status(Arrays.asList(null, null, new BulkByScrollTask.StatusOrException(e)),
-                null);
+        BulkByScrollTask.Status status = new BulkByScrollTask.Status(
+            Arrays.asList(null, null, new BulkByScrollTask.StatusOrException(e)),
+            null
+        );
         status.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertThat(Strings.toString(builder), containsString("\"slices\":[null,null,{\"type\":\"exception\""));
     }
@@ -134,8 +194,24 @@ public class BulkByScrollTaskTests extends OpenSearchTestCase {
             float requestsPerSecond = randomValueOtherThanMany(r -> r <= 0, () -> randomFloat());
             String reasonCancelled = randomBoolean() ? null : "test";
             TimeValue throttledUntil = timeValueNanos(between(0, 1000));
-            statuses[i] = new BulkByScrollTask.StatusOrException(new BulkByScrollTask.Status(i, total, updated, created, deleted, batches,
-                    versionConflicts, noops, bulkRetries, searchRetries, throttled, requestsPerSecond, reasonCancelled, throttledUntil));
+            statuses[i] = new BulkByScrollTask.StatusOrException(
+                new BulkByScrollTask.Status(
+                    i,
+                    total,
+                    updated,
+                    created,
+                    deleted,
+                    batches,
+                    versionConflicts,
+                    noops,
+                    bulkRetries,
+                    searchRetries,
+                    throttled,
+                    requestsPerSecond,
+                    reasonCancelled,
+                    throttledUntil
+                )
+            );
             mergedTotal += total;
             mergedUpdated += updated;
             mergedCreated += created;

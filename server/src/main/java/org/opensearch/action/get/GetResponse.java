@@ -210,8 +210,10 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
         // a valid GetResponse instance. If it's not the case, we throw an
         // exception so that callers know it and can handle it correctly.
         if (getResult.getIndex() == null && getResult.getType() == null && getResult.getId() == null) {
-            throw new ParsingException(parser.getTokenLocation(),
-                    String.format(Locale.ROOT, "Missing required fields [%s,%s,%s]", GetResult._INDEX, GetResult._TYPE, GetResult._ID));
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                String.format(Locale.ROOT, "Missing required fields [%s,%s,%s]", GetResult._INDEX, GetResult._TYPE, GetResult._ID)
+            );
         }
         return new GetResponse(getResult);
     }

@@ -46,7 +46,11 @@ public class PainlessCast {
 
     /** Create a cast where the original type will be unboxed, and then the cast will be performed. */
     public static PainlessCast unboxOriginalType(
-            Class<?> originalType, Class<?> targetType, boolean explicitCast, Class<?> unboxOriginalType) {
+        Class<?> originalType,
+        Class<?> targetType,
+        boolean explicitCast,
+        Class<?> unboxOriginalType
+    ) {
 
         Objects.requireNonNull(originalType);
         Objects.requireNonNull(targetType);
@@ -56,8 +60,7 @@ public class PainlessCast {
     }
 
     /** Create a cast where the target type will be unboxed, and then the cast will be performed. */
-    public static PainlessCast unboxTargetType(
-            Class<?> originalType, Class<?> targetType, boolean explicitCast, Class<?> unboxTargetType) {
+    public static PainlessCast unboxTargetType(Class<?> originalType, Class<?> targetType, boolean explicitCast, Class<?> unboxTargetType) {
 
         Objects.requireNonNull(originalType);
         Objects.requireNonNull(targetType);
@@ -67,8 +70,7 @@ public class PainlessCast {
     }
 
     /** Create a cast where the original type will be boxed, and then the cast will be performed. */
-    public static PainlessCast boxOriginalType(
-            Class<?> originalType, Class<?> targetType, boolean explicitCast, Class<?> boxOriginalType) {
+    public static PainlessCast boxOriginalType(Class<?> originalType, Class<?> targetType, boolean explicitCast, Class<?> boxOriginalType) {
 
         Objects.requireNonNull(originalType);
         Objects.requireNonNull(targetType);
@@ -78,8 +80,7 @@ public class PainlessCast {
     }
 
     /** Create a cast where the target type will be boxed, and then the cast will be performed. */
-    public static PainlessCast boxTargetType(
-            Class<?> originalType, Class<?> targetType, boolean explicitCast, Class<?> boxTargetType) {
+    public static PainlessCast boxTargetType(Class<?> originalType, Class<?> targetType, boolean explicitCast, Class<?> boxTargetType) {
 
         Objects.requireNonNull(originalType);
         Objects.requireNonNull(targetType);
@@ -105,8 +106,15 @@ public class PainlessCast {
     public final Class<?> boxOriginalType;
     public final Class<?> boxTargetType;
 
-    private PainlessCast(Class<?> originalType, Class<?> targetType, boolean explicitCast,
-                         Class<?> unboxOriginalType, Class<?> unboxTargetType, Class<?> boxOriginalType, Class<?> boxTargetType) {
+    private PainlessCast(
+        Class<?> originalType,
+        Class<?> targetType,
+        boolean explicitCast,
+        Class<?> unboxOriginalType,
+        Class<?> unboxTargetType,
+        Class<?> boxOriginalType,
+        Class<?> boxTargetType
+    ) {
 
         this.originalType = originalType;
         this.targetType = targetType;
@@ -127,15 +135,15 @@ public class PainlessCast {
             return false;
         }
 
-        PainlessCast that = (PainlessCast)object;
+        PainlessCast that = (PainlessCast) object;
 
-        return explicitCast == that.explicitCast &&
-            Objects.equals(originalType, that.originalType) &&
-            Objects.equals(targetType, that.targetType) &&
-            Objects.equals(unboxOriginalType, that.unboxOriginalType) &&
-            Objects.equals(unboxTargetType, that.unboxTargetType) &&
-            Objects.equals(boxOriginalType, that.boxOriginalType) &&
-            Objects.equals(boxTargetType, that.boxTargetType);
+        return explicitCast == that.explicitCast
+            && Objects.equals(originalType, that.originalType)
+            && Objects.equals(targetType, that.targetType)
+            && Objects.equals(unboxOriginalType, that.unboxOriginalType)
+            && Objects.equals(unboxTargetType, that.unboxTargetType)
+            && Objects.equals(boxOriginalType, that.boxOriginalType)
+            && Objects.equals(boxTargetType, that.boxTargetType);
     }
 
     @Override

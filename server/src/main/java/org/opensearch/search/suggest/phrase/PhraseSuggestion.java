@@ -116,7 +116,7 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
         protected void merge(Suggestion.Entry<Option> other) {
             super.merge(other);
             // If the cluster contains both pre 0.90.4 and post 0.90.4 nodes then we'll see Suggestion.Entry
-            // objects being merged with PhraseSuggestion.Entry objects.  We merge Suggestion.Entry objects
+            // objects being merged with PhraseSuggestion.Entry objects. We merge Suggestion.Entry objects
             // by assuming they had a low cutoff score rather than a high one as that is the more common scenario
             // and the simplest one for us to implement.
             if (!(other instanceof PhraseSuggestion.Entry)) {
@@ -160,8 +160,7 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
 
         @Override
         public boolean equals(Object other) {
-            return super.equals(other)
-                && Objects.equals(cutoffScore, ((Entry) other).cutoffScore);
+            return super.equals(other) && Objects.equals(cutoffScore, ((Entry) other).cutoffScore);
         }
 
         @Override
@@ -183,15 +182,18 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
                 super(in);
             }
 
-            private static final ConstructingObjectParser<Option, Void> PARSER = new ConstructingObjectParser<>("PhraseOptionParser",
-                true, args -> {
+            private static final ConstructingObjectParser<Option, Void> PARSER = new ConstructingObjectParser<>(
+                "PhraseOptionParser",
+                true,
+                args -> {
                     Text text = new Text((String) args[0]);
                     float score = (Float) args[1];
                     String highlighted = (String) args[2];
                     Text highlightedText = highlighted == null ? null : new Text(highlighted);
                     Boolean collateMatch = (Boolean) args[3];
                     return new Option(text, highlightedText, score, collateMatch);
-            });
+                }
+            );
 
             static {
                 PARSER.declareString(constructorArg(), TEXT);
@@ -201,7 +203,7 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
             }
 
             public static Option fromXContent(XContentParser parser) {
-                    return PARSER.apply(parser, null);
+                return PARSER.apply(parser, null);
             }
         }
     }

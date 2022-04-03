@@ -59,8 +59,8 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TypeFieldType.class);
 
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using the _type field " +
-        "in queries and aggregations is deprecated, prefer to use a field instead.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using the _type field "
+        + "in queries and aggregations is deprecated, prefer to use a field instead.";
 
     public static void emitTypesDeprecationWarning() {
         deprecationLogger.deprecate("query_with_types", TYPES_DEPRECATION_MESSAGE);
@@ -126,8 +126,16 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-                                ShapeRelation relation, ZoneId timeZone, DateMathParser parser, QueryShardContext context) {
+        public Query rangeQuery(
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            ShapeRelation relation,
+            ZoneId timeZone,
+            DateMathParser parser,
+            QueryShardContext context
+        ) {
             emitTypesDeprecationWarning();
             BytesRef lower = (BytesRef) lowerTerm;
             BytesRef upper = (BytesRef) upperTerm;

@@ -37,8 +37,10 @@ import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.OpenSearchClient;
 
-public class DeleteIndexRequestBuilder
-        extends AcknowledgedRequestBuilder<DeleteIndexRequest, AcknowledgedResponse, DeleteIndexRequestBuilder> {
+public class DeleteIndexRequestBuilder extends AcknowledgedRequestBuilder<
+    DeleteIndexRequest,
+    AcknowledgedResponse,
+    DeleteIndexRequestBuilder> {
 
     public DeleteIndexRequestBuilder(OpenSearchClient client, DeleteIndexAction action, String... indices) {
         super(client, action, new DeleteIndexRequest(indices));

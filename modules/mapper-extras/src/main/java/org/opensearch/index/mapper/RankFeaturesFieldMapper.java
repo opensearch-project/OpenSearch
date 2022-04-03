@@ -172,8 +172,9 @@ public class RankFeaturesFieldMapper extends ParametrizedFieldMapper {
         }
 
         if (context.parser().currentToken() != Token.START_OBJECT) {
-            throw new IllegalArgumentException("[rank_features] fields must be json objects, expected a START_OBJECT but got: " +
-                    context.parser().currentToken());
+            throw new IllegalArgumentException(
+                "[rank_features] fields must be json objects, expected a START_OBJECT but got: " + context.parser().currentToken()
+            );
         }
 
         String feature = null;
@@ -186,16 +187,23 @@ public class RankFeaturesFieldMapper extends ParametrizedFieldMapper {
                 final String key = name() + "." + feature;
                 float value = context.parser().floatValue(true);
                 if (context.doc().getByKey(key) != null) {
-                    throw new IllegalArgumentException("[rank_features] fields do not support indexing multiple values for the same " +
-                            "rank feature [" + key + "] in the same document");
+                    throw new IllegalArgumentException(
+                        "[rank_features] fields do not support indexing multiple values for the same "
+                            + "rank feature ["
+                            + key
+                            + "] in the same document"
+                    );
                 }
                 if (positiveScoreImpact == false) {
                     value = 1 / value;
                 }
                 context.doc().addWithKey(key, new FeatureField(name(), feature, value));
             } else {
-                throw new IllegalArgumentException("[rank_features] fields take hashes that map a feature to a strictly positive " +
-                        "float, but got unexpected token " + token);
+                throw new IllegalArgumentException(
+                    "[rank_features] fields take hashes that map a feature to a strictly positive "
+                        + "float, but got unexpected token "
+                        + token
+                );
             }
         }
     }

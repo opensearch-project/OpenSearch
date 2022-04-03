@@ -39,7 +39,6 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.elasticsearch.mocksocket.MockHttpServer;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -61,7 +60,7 @@ public class RestClientGzipCompressionTests extends RestClientTestCase {
 
     @BeforeClass
     public static void startHttpServer() throws Exception {
-        httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        httpServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.createContext("/", new GzipResponseHandler());
         httpServer.start();
     }

@@ -19,23 +19,17 @@ public class DataStreamIndexTemplateIT extends DataStreamTestCase {
     public void testCreateDataStreamIndexTemplate() throws Exception {
         // Without the data stream metadata field mapper, data_stream would have been an unknown field in
         // the index template and would have thrown an error.
-        createIndexTemplate(
-            "demo-template",
-            "{" +
-                "\"index_patterns\": [ \"logs-*\" ]," +
-                "\"data_stream\": { }" +
-            "}"
-        );
+        createIndexTemplate("demo-template", "{" + "\"index_patterns\": [ \"logs-*\" ]," + "\"data_stream\": { }" + "}");
 
         // Data stream index template with a custom timestamp field name.
         createIndexTemplate(
             "demo-template",
-            "{" +
-                "\"index_patterns\": [ \"logs-*\" ]," +
-                "\"data_stream\": {" +
-                    "\"timestamp_field\": { \"name\": \"created_at\" }" +
-                "}" +
-            "}"
+            "{"
+                + "\"index_patterns\": [ \"logs-*\" ],"
+                + "\"data_stream\": {"
+                + "\"timestamp_field\": { \"name\": \"created_at\" }"
+                + "}"
+                + "}"
         );
     }
 

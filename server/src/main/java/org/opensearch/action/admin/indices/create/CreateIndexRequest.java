@@ -133,8 +133,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         waitForActiveShards = ActiveShardCount.readFrom(in);
     }
 
-    public CreateIndexRequest() {
-    }
+    public CreateIndexRequest() {}
 
     /**
      * Constructs a new request to create an index with the specified name.
@@ -162,7 +161,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     @Override
     public String[] indices() {
-        return new String[]{index};
+        return new String[] { index };
     }
 
     @Override
@@ -343,15 +342,14 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      */
     public CreateIndexRequest aliases(BytesReference source) {
         // EMPTY is safe here because we never call namedObject
-        try (XContentParser parser = XContentHelper
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)) {
-            //move to the first alias
+        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)) {
+            // move to the first alias
             parser.nextToken();
             while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 alias(Alias.fromXContent(parser));
             }
             return this;
-        } catch(IOException e) {
+        } catch (IOException e) {
             throw new OpenSearchParseException("Failed to parse aliases", e);
         }
     }

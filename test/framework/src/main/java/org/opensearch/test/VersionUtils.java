@@ -39,6 +39,7 @@ import org.opensearch.common.collect.Tuple;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -61,16 +62,17 @@ public class VersionUtils {
      */
     static Tuple<List<Version>, List<Version>> resolveReleasedVersions(Version current, Class<?> versionClass) {
         // group versions into major version
-        Map<Integer, List<Version>> majorVersions = Version.getDeclaredVersions(versionClass).stream()
-            .collect(Collectors.groupingBy(v -> (int)v.major));
+        Map<Integer, List<Version>> majorVersions = Version.getDeclaredVersions(versionClass)
+            .stream()
+            .collect(Collectors.groupingBy(v -> (int) v.major));
         // this breaks b/c 5.x is still in version list but master doesn't care about it!
-        //assert majorVersions.size() == 2;
+        // assert majorVersions.size() == 2;
         // TODO: remove oldVersions, we should only ever have 2 majors in Version
         int previousMajorID = current.major == 1 ? 7 : current.major - 1;
         List<List<Version>> oldVersions = splitByMinor(majorVersions.getOrDefault(previousMajorID - 1, Collections.emptyList()));
         // rebasing OpenSearch to 1.0.0 means the previous major version was 7.0.0
         List<List<Version>> previousMajor = splitByMinor(majorVersions.get(previousMajorID));
-        List<List<Version>> currentMajor = splitByMinor(majorVersions.get((int)current.major));
+        List<List<Version>> currentMajor = splitByMinor(majorVersions.get((int) current.major));
 
         List<Version> unreleasedVersions = new ArrayList<>();
         final List<List<Version>> stableVersions;
@@ -95,15 +97,20 @@ public class VersionUtils {
         // remove last minor unless the it's the first OpenSearch version.
         // all Legacy ES versions are released, so we don't exclude any.
         if (current.equals(Version.V_1_0_0) == false) {
-            Version lastMinor = moveLastToUnreleased(stableVersions, unreleasedVersions);
-            if (lastMinor.revision == 0) {
-                if (stableVersions.get(stableVersions.size() - 1).size() == 1) {
-                    // a minor is being staged, which is also unreleased
-                    moveLastToUnreleased(stableVersions, unreleasedVersions);
-                }
-                // remove the next bugfix
-                if (stableVersions.isEmpty() == false) {
-                    moveLastToUnreleased(stableVersions, unreleasedVersions);
+            List<Version> lastMinorLine = stableVersions.get(stableVersions.size() - 1);
+            if (lastMinorLine.get(lastMinorLine.size() - 1) instanceof LegacyESVersion == false) {
+                // if the last minor line is Legacy there are no more staged releases; do nothing
+                Version lastMinor = moveLastToUnreleased(stableVersions, unreleasedVersions);
+                if (lastMinor instanceof LegacyESVersion == false && lastMinor.revision == 0) {
+                    // no more staged legacy versions
+                    if (stableVersions.get(stableVersions.size() - 1).size() == 1) {
+                        // a minor is being staged, which is also unreleased
+                        moveLastToUnreleased(stableVersions, unreleasedVersions);
+                    }
+                    // remove the next bugfix
+                    if (stableVersions.isEmpty() == false) {
+                        moveLastToUnreleased(stableVersions, unreleasedVersions);
+                    }
                 }
             }
         }
@@ -117,14 +124,16 @@ public class VersionUtils {
             moveLastToUnreleased(oldVersions, unreleasedVersions);
         }
         List<Version> releasedVersions = Stream.of(oldVersions, previousMajor, currentMajor)
-            .flatMap(List::stream).flatMap(List::stream).collect(Collectors.toList());
+            .flatMap(List::stream)
+            .flatMap(List::stream)
+            .collect(Collectors.toList());
         Collections.sort(unreleasedVersions); // we add unreleased out of order, so need to sort here
         return new Tuple<>(Collections.unmodifiableList(releasedVersions), Collections.unmodifiableList(unreleasedVersions));
     }
 
     // split the given versions into sub lists grouped by minor version
     private static List<List<Version>> splitByMinor(List<Version> versions) {
-        Map<Integer, List<Version>> byMinor = versions.stream().collect(Collectors.groupingBy(v -> (int)v.minor));
+        Map<Integer, List<Version>> byMinor = versions.stream().collect(Collectors.groupingBy(v -> (int) v.minor));
         return byMinor.entrySet().stream().sorted(Map.Entry.comparingByKey()).map(Map.Entry::getValue).collect(Collectors.toList());
     }
 
@@ -144,6 +153,8 @@ public class VersionUtils {
     private static final List<Version> RELEASED_VERSIONS;
     private static final List<Version> UNRELEASED_VERSIONS;
     private static final List<Version> ALL_VERSIONS;
+    private static final List<Version> ALL_OPENSEARCH_VERSIONS;
+    private static final List<Version> ALL_LEGACY_VERSIONS;
 
     static {
         Tuple<List<Version>, List<Version>> versions = resolveReleasedVersions(Version.CURRENT, LegacyESVersion.class);
@@ -154,6 +165,9 @@ public class VersionUtils {
         allVersions.addAll(UNRELEASED_VERSIONS);
         Collections.sort(allVersions);
         ALL_VERSIONS = Collections.unmodifiableList(allVersions);
+        // @todo remove this when legacy support is no longer needed
+        ALL_OPENSEARCH_VERSIONS = ALL_VERSIONS.stream().filter(v -> v.major < 6).collect(Collectors.toList());
+        ALL_LEGACY_VERSIONS = ALL_VERSIONS.stream().filter(v -> v.major >= 6).collect(Collectors.toList());
     }
 
     /**
@@ -175,6 +189,16 @@ public class VersionUtils {
      */
     public static List<Version> allVersions() {
         return ALL_VERSIONS;
+    }
+
+    /** Returns an immutable, sorted list containing all opensearch versions; released and unreleased */
+    public static List<Version> allOpenSearchVersions() {
+        return ALL_OPENSEARCH_VERSIONS;
+    }
+
+    /** Returns an immutable, sorted list containing all legacy versions; released and unreleased */
+    public static List<Version> allLegacyVersions() {
+        return ALL_LEGACY_VERSIONS;
     }
 
     /**
@@ -206,8 +230,7 @@ public class VersionUtils {
     public static Version getPreviousMinorVersion() {
         for (int i = RELEASED_VERSIONS.size() - 1; i >= 0; i--) {
             Version v = RELEASED_VERSIONS.get(i);
-            if (v.minor < Version.CURRENT.minor
-                || (v.major != 1 && v.major < (Version.CURRENT.major != 1 ? Version.CURRENT.major : 8))) {
+            if (v.minor < Version.CURRENT.minor || (v.major != 1 && v.major < (Version.CURRENT.major != 1 ? Version.CURRENT.major : 8))) {
                 return v;
             }
         }
@@ -219,9 +242,39 @@ public class VersionUtils {
         return RELEASED_VERSIONS.get(0);
     }
 
+    public static Version getFirstVersionOfMajor(List<Version> versions, int major) {
+        Map<Integer, List<Version>> majorVersions = versions.stream().collect(Collectors.groupingBy(v -> (int) v.major));
+        return majorVersions.get(major).get(0);
+    }
+
     /** Returns a random {@link Version} from all available versions. */
     public static Version randomVersion(Random random) {
         return ALL_VERSIONS.get(random.nextInt(ALL_VERSIONS.size()));
+    }
+
+    /**
+     * Return a random {@link Version} from all available opensearch versions.
+     **/
+    public static Version randomOpenSearchVersion(Random random) {
+        return ALL_OPENSEARCH_VERSIONS.get(random.nextInt(ALL_OPENSEARCH_VERSIONS.size()));
+    }
+
+    /**
+     * Return a random {@link LegacyESVersion} from all available legacy versions.
+     **/
+    public static LegacyESVersion randomLegacyVersion(Random random) {
+        return (LegacyESVersion) ALL_LEGACY_VERSIONS.get(random.nextInt(ALL_LEGACY_VERSIONS.size()));
+    }
+
+    /** Returns the first released (e.g., patch version 0) {@link Version} of the last minor from the requested major version
+     *  e.g., for version 1.0.0 this would be legacy version (7.10.0); the first release (patch 0), of the last
+     *  minor (for 7.x that is minor version 10) for the desired major version (7)
+     **/
+    public static Version lastFirstReleasedMinorFromMajor(List<Version> allVersions, int major) {
+        Map<Integer, List<Version>> majorVersions = allVersions.stream().collect(Collectors.groupingBy(v -> (int) v.major));
+        Map<Integer, List<Version>> groupedByMinor = majorVersions.get(major).stream().collect(Collectors.groupingBy(v -> (int) v.minor));
+        List<Version> candidates = Collections.max(groupedByMinor.entrySet(), Comparator.comparing(Map.Entry::getKey)).getValue();
+        return candidates.get(0);
     }
 
     /** Returns a random {@link Version} from all available versions, that is compatible with the given version. */
@@ -269,7 +322,9 @@ public class VersionUtils {
 
     /** Returns the maximum {@link Version} that is compatible with the given version. */
     public static Version maxCompatibleVersion(Version version) {
-        final List<Version> compatible = ALL_VERSIONS.stream().filter(version::isCompatible).filter(version::onOrBefore)
+        final List<Version> compatible = ALL_VERSIONS.stream()
+            .filter(version::isCompatible)
+            .filter(version::onOrBefore)
             .collect(Collectors.toList());
         assert compatible.size() > 0;
         return compatible.get(compatible.size() - 1);

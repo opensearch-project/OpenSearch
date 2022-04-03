@@ -40,8 +40,7 @@ import org.opensearch.common.xcontent.json.JsonXContentParser;
 
 public class CborXContentParser extends JsonXContentParser {
 
-    public CborXContentParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, JsonParser parser) {
+    public CborXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, JsonParser parser) {
         super(xContentRegistry, deprecationHandler, parser);
     }
 

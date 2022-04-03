@@ -40,7 +40,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * Method represents the equivalent of a Java method available as a whitelisted class method
+ * Method represents the equivalent of a Java method available as an allowlisted class method
  * within Painless. Methods for Painless classes may be accessed exactly as methods for Java classes
  * are using the '.' operator on an existing class variable/field. Painless classes may have multiple
  * methods with the same name as long as they comply with arity overloading described in
@@ -50,11 +50,11 @@ import java.util.stream.Collectors;
  * these are known as augmented methods. An augmented method can be added to a class as a part of any
  * Java class as long as the method is static and the first parameter of the method is the Java class
  * represented by the class. Note that the augmented method's parent Java class does not need to be
- * whitelisted.
+ * allowlisted.
  */
 public class WhitelistMethod {
 
-    /** Information about where this method was whitelisted from. */
+    /** Information about where this method was allowlisted from. */
     public final String origin;
 
     /**
@@ -85,9 +85,14 @@ public class WhitelistMethod {
      * augmentedCanonicalClassName; augmentedCanonicalClassName will be {@code null} unless the method
      * is augmented as described in the class documentation.
      */
-    public WhitelistMethod(String origin, String augmentedCanonicalClassName, String methodName,
-            String returnCanonicalTypeName, List<String> canonicalTypeNameParameters,
-            List<Object> painlessAnnotations) {
+    public WhitelistMethod(
+        String origin,
+        String augmentedCanonicalClassName,
+        String methodName,
+        String returnCanonicalTypeName,
+        List<String> canonicalTypeNameParameters,
+        List<Object> painlessAnnotations
+    ) {
 
         this.origin = Objects.requireNonNull(origin);
         this.augmentedCanonicalClassName = augmentedCanonicalClassName;
@@ -98,9 +103,12 @@ public class WhitelistMethod {
         if (painlessAnnotations.isEmpty()) {
             this.painlessAnnotations = Collections.emptyMap();
         } else {
-            this.painlessAnnotations = Collections.unmodifiableMap(Objects.requireNonNull(painlessAnnotations).stream()
+            this.painlessAnnotations = Collections.unmodifiableMap(
+                Objects.requireNonNull(painlessAnnotations)
+                    .stream()
                     .map(painlessAnnotation -> new AbstractMap.SimpleEntry<>(painlessAnnotation.getClass(), painlessAnnotation))
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+            );
         }
     }
 }

@@ -53,9 +53,9 @@ public class MockNodeTests extends OpenSearchTestCase {
      */
     public void testComponentsMockedByMarkerPlugins() throws IOException {
         Settings settings = Settings.builder() // All these are required or MockNode will fail to build.
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .put("transport.type", getTestTransportType())
-                .build();
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put("transport.type", getTestTransportType())
+            .build();
         List<Class<? extends Plugin>> plugins = new ArrayList<>();
         plugins.add(getTestTransportPlugin());
         plugins.add(MockHttpTransport.TestPlugin.class);

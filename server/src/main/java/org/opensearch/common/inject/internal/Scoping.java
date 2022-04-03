@@ -243,6 +243,5 @@ public abstract class Scoping {
 
     public abstract void applyTo(ScopedBindingBuilder scopedBindingBuilder);
 
-    private Scoping() {
-    }
+    private Scoping() {}
 }

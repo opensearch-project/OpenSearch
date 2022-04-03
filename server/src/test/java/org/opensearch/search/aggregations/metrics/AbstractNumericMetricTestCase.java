@@ -36,8 +36,8 @@ import org.opensearch.search.aggregations.BaseAggregationTestCase;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 
-public abstract class AbstractNumericMetricTestCase<AF extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, AF>>
-        extends BaseAggregationTestCase<AF> {
+public abstract class AbstractNumericMetricTestCase<AF extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, AF>> extends
+    BaseAggregationTestCase<AF> {
 
     @Override
     protected final AF createTestAggregatorBuilder() {

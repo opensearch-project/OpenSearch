@@ -71,8 +71,12 @@ public class GeometryTestUtils {
 
     public static Circle randomCircle(boolean hasAlt) {
         if (hasAlt) {
-            return new Circle(randomLon(), randomLat(), OpenSearchTestCase.randomDouble(),
-                OpenSearchTestCase.randomDoubleBetween(0, 100, false));
+            return new Circle(
+                randomLon(),
+                randomLat(),
+                OpenSearchTestCase.randomDouble(),
+                OpenSearchTestCase.randomDoubleBetween(0, 100, false)
+            );
         } else {
             return new Circle(randomLon(), randomLat(), OpenSearchTestCase.randomDoubleBetween(0, 100, false));
         }
@@ -129,12 +133,11 @@ public class GeometryTestUtils {
         final int numPts = lucenePolygon.numPoints() - 1;
         for (int i = 0; i < numPts; i++) {
             // compute signed area
-            windingSum += lucenePolygon.getPolyLon(i) * lucenePolygon.getPolyLat(i + 1) -
-                lucenePolygon.getPolyLat(i) * lucenePolygon.getPolyLon(i + 1);
+            windingSum += lucenePolygon.getPolyLon(i) * lucenePolygon.getPolyLat(i + 1) - lucenePolygon.getPolyLat(i) * lucenePolygon
+                .getPolyLon(i + 1);
         }
-       return Math.abs(windingSum / 2);
+        return Math.abs(windingSum / 2);
     }
-
 
     private static double[] randomAltRing(int size) {
         double[] alts = new double[size];
@@ -145,7 +148,7 @@ public class GeometryTestUtils {
         return alts;
     }
 
-    public static LinearRing linearRing(double[] lons, double[] lats,boolean generateAlts) {
+    public static LinearRing linearRing(double[] lons, double[] lats, boolean generateAlts) {
         if (generateAlts) {
             return new LinearRing(lons, lats, randomAltRing(lats.length));
         }
@@ -202,7 +205,8 @@ public class GeometryTestUtils {
     }
 
     protected static Geometry randomGeometry(int level, boolean hasAlt) {
-        @SuppressWarnings("unchecked") Function<Boolean, Geometry> geometry = OpenSearchTestCase.randomFrom(
+        @SuppressWarnings("unchecked")
+        Function<Boolean, Geometry> geometry = OpenSearchTestCase.randomFrom(
             GeometryTestUtils::randomCircle,
             GeometryTestUtils::randomLine,
             GeometryTestUtils::randomPoint,
@@ -279,8 +283,12 @@ public class GeometryTestUtils {
 
             @Override
             public MultiPoint visit(Rectangle rectangle) throws RuntimeException {
-                return new MultiPoint(Arrays.asList(new Point(rectangle.getMinX(), rectangle.getMinY(), rectangle.getMinZ()),
-                    new Point(rectangle.getMaxX(), rectangle.getMaxY(), rectangle.getMaxZ())));
+                return new MultiPoint(
+                    Arrays.asList(
+                        new Point(rectangle.getMinX(), rectangle.getMinY(), rectangle.getMinZ()),
+                        new Point(rectangle.getMaxX(), rectangle.getMaxY(), rectangle.getMaxZ())
+                    )
+                );
             }
         });
     }

@@ -46,9 +46,7 @@ import org.opensearch.test.junit.listeners.ReproduceInfoPrinter;
 /**
  * Extends Lucene's BaseDirectoryTestCase with OpenSearch test behavior.
  */
-@Listeners({
-  ReproduceInfoPrinter.class
-})
+@Listeners({ ReproduceInfoPrinter.class })
 @TimeoutSuite(millis = TimeUnits.HOUR)
 @LuceneTestCase.SuppressReproduceLine
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")

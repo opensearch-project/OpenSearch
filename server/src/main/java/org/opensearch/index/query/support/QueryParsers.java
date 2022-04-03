@@ -61,9 +61,11 @@ public final class QueryParsers {
         return parseRewriteMethod(rewriteMethod, MultiTermQuery.CONSTANT_SCORE_REWRITE, deprecationHandler);
     }
 
-    public static MultiTermQuery.RewriteMethod parseRewriteMethod(@Nullable String rewriteMethod,
-                                                                  @Nullable MultiTermQuery.RewriteMethod defaultRewriteMethod,
-                                                                  DeprecationHandler deprecationHandler) {
+    public static MultiTermQuery.RewriteMethod parseRewriteMethod(
+        @Nullable String rewriteMethod,
+        @Nullable MultiTermQuery.RewriteMethod defaultRewriteMethod,
+        DeprecationHandler deprecationHandler
+    ) {
         if (rewriteMethod == null) {
             return defaultRewriteMethod;
         }

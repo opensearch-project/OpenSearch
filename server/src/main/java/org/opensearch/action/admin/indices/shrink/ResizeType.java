@@ -35,6 +35,8 @@ package org.opensearch.action.admin.indices.shrink;
 /**
  * The type of the resize operation
  */
-public enum  ResizeType {
-    SHRINK, SPLIT, CLONE;
+public enum ResizeType {
+    SHRINK,
+    SPLIT,
+    CLONE;
 }

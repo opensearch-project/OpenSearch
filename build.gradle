@@ -47,7 +47,7 @@ plugins {
   id 'lifecycle-base'
   id 'opensearch.docker-support'
   id 'opensearch.global-build-info'
-  id "com.diffplug.spotless" version "5.6.1" apply false
+  id "com.diffplug.spotless" version "6.3.0" apply false
 }
 
 apply from: 'gradle/build-complete.gradle'
@@ -58,6 +58,7 @@ apply from: 'gradle/formatting.gradle'
 apply from: 'gradle/local-distribution.gradle'
 apply from: 'gradle/fips.gradle'
 apply from: 'gradle/run.gradle'
+apply from: 'gradle/code-coverage.gradle'
 
 // common maven publishing configuration
 allprojects {
@@ -226,6 +227,41 @@ tasks.register("branchConsistency") {
 }
 
 allprojects {
+  // configure compiler options
+  tasks.withType(JavaCompile).configureEach { JavaCompile compile ->
+    compile.options.compilerArgs << '-Werror'
+    compile.options.compilerArgs << '-Xlint:auxiliaryclass'
+    compile.options.compilerArgs << '-Xlint:cast'
+    compile.options.compilerArgs << '-Xlint:classfile'
+    compile.options.compilerArgs << '-Xlint:dep-ann'
+    compile.options.compilerArgs << '-Xlint:divzero'
+    compile.options.compilerArgs << '-Xlint:empty'
+    compile.options.compilerArgs << '-Xlint:exports'
+    compile.options.compilerArgs << '-Xlint:fallthrough'
+    compile.options.compilerArgs << '-Xlint:finally'
+    compile.options.compilerArgs << '-Xlint:module'
+    compile.options.compilerArgs << '-Xlint:opens'
+    compile.options.compilerArgs << '-Xlint:overloads'
+    compile.options.compilerArgs << '-Xlint:overrides'
+    compile.options.compilerArgs << '-Xlint:processing'
+    compile.options.compilerArgs << '-Xlint:rawtypes'
+    compile.options.compilerArgs << '-Xlint:removal'
+    compile.options.compilerArgs << '-Xlint:requires-automatic'
+    compile.options.compilerArgs << '-Xlint:requires-transitive-automatic'
+    compile.options.compilerArgs << '-Xlint:static'
+    compile.options.compilerArgs << '-Xlint:unchecked'
+    compile.options.compilerArgs << '-Xlint:varargs'
+    compile.options.compilerArgs << '-Xlint:preview'
+    // TODO: disabled warnings: path, serial, options, deprecation, try
+    // -path because gradle will send in paths that don't always exist.
+    // -missing because we have tons of missing @returns and @param.
+    // -serial because we don't use java serialization.
+    compile.options.compilerArgs << '-Xdoclint:accessibility'
+    compile.options.compilerArgs << '-Xdoclint:html'
+    compile.options.compilerArgs << '-Xdoclint:reference'
+    compile.options.compilerArgs << '-Xdoclint:syntax'
+  }
+
   // ignore missing javadocs
   tasks.withType(Javadoc).configureEach { Javadoc javadoc ->
     // the -quiet here is because of a bug in gradle, in that adding a string option
@@ -235,6 +271,14 @@ allprojects {
     // see https://discuss.gradle.org/t/add-custom-javadoc-option-that-does-not-take-an-argument/5959
     javadoc.options.encoding = 'UTF8'
     javadoc.options.addStringOption('Xdoclint:all,-missing', '-quiet')
+  }
+
+  // support for reproducible builds
+  tasks.withType(AbstractArchiveTask).configureEach {
+    // ignore file timestamps
+    // be consistent in archive file order
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
   }
 
   project.afterEvaluate {
@@ -308,6 +352,15 @@ gradle.projectsEvaluated {
     if (tasks.findByPath('test') != null && tasks.findByPath('integTest') != null) {
       integTest.mustRunAfter test
     }
+
+    project.tasks.withType(Test) { task ->
+      if (task != null) {
+        if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_17) {
+          task.jvmArgs += ["-Djava.security.manager=allow"]
+        }
+      }
+    }
+
     configurations.matching { it.canBeResolved }.all { Configuration configuration ->
       dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
         Project upstreamProject = dep.dependencyProject

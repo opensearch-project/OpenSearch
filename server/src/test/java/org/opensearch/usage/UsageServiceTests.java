@@ -66,7 +66,8 @@ public class UsageServiceTests extends OpenSearchTestCase {
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> service.addRestHandler(horse));
         assertThat(
             e.getMessage(),
-            equalTo("handler of type [org.opensearch.usage.UsageServiceTests$MockRestHandler] does not have a name"));
+            equalTo("handler of type [org.opensearch.usage.UsageServiceTests$MockRestHandler] does not have a name")
+        );
     }
 
     /**
@@ -173,7 +174,6 @@ public class UsageServiceTests extends OpenSearchTestCase {
             usageService.incAggregationUsage("c", OTHER_SUBTYPE);
         }
 
-
         Map<String, Object> aggsUsage = usageService.getUsageStats();
         assertThat(aggsUsage, notNullValue());
         assertThat(aggsUsage.size(), equalTo(3));
@@ -200,8 +200,7 @@ public class UsageServiceTests extends OpenSearchTestCase {
 
         @Override
         protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-            return channel -> {
-            };
+            return channel -> {};
         }
 
     }

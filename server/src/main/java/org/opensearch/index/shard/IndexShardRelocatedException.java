@@ -46,7 +46,7 @@ public class IndexShardRelocatedException extends IllegalIndexShardStateExceptio
         super(shardId, IndexShardState.STARTED, reason);
     }
 
-    public IndexShardRelocatedException(StreamInput in) throws IOException{
+    public IndexShardRelocatedException(StreamInput in) throws IOException {
         super(in);
     }
 }

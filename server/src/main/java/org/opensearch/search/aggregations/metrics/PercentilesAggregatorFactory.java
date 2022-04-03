@@ -61,16 +61,23 @@ class PercentilesAggregatorFactory extends ValuesSourceAggregatorFactory {
         builder.register(
             PercentilesAggregationBuilder.REGISTRY_KEY,
             Arrays.asList(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
-            (name, valuesSource, context, parent, percents, percentilesConfig, keyed,  formatter,
-                                          metadata) -> percentilesConfig
+            (name, valuesSource, context, parent, percents, percentilesConfig, keyed, formatter, metadata) -> percentilesConfig
                 .createPercentilesAggregator(name, valuesSource, context, parent, percents, keyed, formatter, metadata),
-                true);
+            true
+        );
     }
 
-    PercentilesAggregatorFactory(String name, ValuesSourceConfig config, double[] percents,
-                                 PercentilesConfig percentilesConfig, boolean keyed, QueryShardContext queryShardContext,
-                                 AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                                 Map<String, Object> metadata) throws IOException {
+    PercentilesAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        double[] percents,
+        PercentilesConfig percentilesConfig,
+        boolean keyed,
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.percents = percents;
         this.percentilesConfig = percentilesConfig;
@@ -78,12 +85,9 @@ class PercentilesAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                        Aggregator parent,
-                                        Map<String, Object> metadata) throws IOException {
+    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
 
-        return percentilesConfig.createPercentilesAggregator(name, null, searchContext, parent, percents, keyed,
-            config.format(), metadata);
+        return percentilesConfig.createPercentilesAggregator(name, null, searchContext, parent, percents, keyed, config.format(), metadata);
     }
 
     @Override

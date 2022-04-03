@@ -61,8 +61,7 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
     public static final ParseField MAX_CONCURRENT_GROUP_REQUESTS_FIELD = new ParseField("max_concurrent_group_searches");
-    private static final ObjectParser<CollapseBuilder, Void> PARSER =
-        new ObjectParser<>("collapse", CollapseBuilder::new);
+    private static final ObjectParser<CollapseBuilder, Void> PARSER = new ObjectParser<>("collapse", CollapseBuilder::new);
 
     static {
         PARSER.declareString(CollapseBuilder::setField, FIELD_FIELD);
@@ -216,18 +215,18 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         if (fieldType == null) {
             throw new IllegalArgumentException("no mapping found for `" + field + "` in order to collapse on");
         }
-        if (fieldType instanceof KeywordFieldMapper.KeywordFieldType == false &&
-            fieldType instanceof NumberFieldMapper.NumberFieldType == false) {
-            throw new IllegalArgumentException("unknown type for collapse field `" + field +
-                "`, only keywords and numbers are accepted");
+        if (fieldType instanceof KeywordFieldMapper.KeywordFieldType == false
+            && fieldType instanceof NumberFieldMapper.NumberFieldType == false) {
+            throw new IllegalArgumentException("unknown type for collapse field `" + field + "`, only keywords and numbers are accepted");
         }
 
         if (fieldType.hasDocValues() == false) {
             throw new IllegalArgumentException("cannot collapse on field `" + field + "` without `doc_values`");
         }
         if (fieldType.isSearchable() == false && (innerHits != null && !innerHits.isEmpty())) {
-            throw new IllegalArgumentException("cannot expand `inner_hits` for collapse field `"
-                + field + "`, " + "only indexed field can retrieve `inner_hits`");
+            throw new IllegalArgumentException(
+                "cannot expand `inner_hits` for collapse field `" + field + "`, " + "only indexed field can retrieve `inner_hits`"
+            );
         }
 
         return new CollapseContext(field, fieldType, innerHits);

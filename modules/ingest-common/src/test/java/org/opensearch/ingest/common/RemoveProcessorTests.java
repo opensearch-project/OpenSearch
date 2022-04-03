@@ -50,8 +50,12 @@ public class RemoveProcessorTests extends OpenSearchTestCase {
     public void testRemoveFields() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String field = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
-        Processor processor = new RemoveProcessor(randomAlphaOfLength(10),
-                null, Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory(field)), false);
+        Processor processor = new RemoveProcessor(
+            randomAlphaOfLength(10),
+            null,
+            Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory(field)),
+            false
+        );
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(field), equalTo(false));
     }
@@ -66,7 +70,7 @@ public class RemoveProcessorTests extends OpenSearchTestCase {
         try {
             processor.execute(ingestDocument);
             fail("remove field should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("not present as part of path [" + fieldName + "]"));
         }
     }

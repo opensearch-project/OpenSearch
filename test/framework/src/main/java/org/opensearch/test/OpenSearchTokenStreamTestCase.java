@@ -44,9 +44,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.junit.listeners.ReproduceInfoPrinter;
 
-@Listeners({
-        ReproduceInfoPrinter.class
-})
+@Listeners({ ReproduceInfoPrinter.class })
 @TimeoutSuite(millis = TimeUnits.HOUR)
 @LuceneTestCase.SuppressReproduceLine
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")

@@ -93,8 +93,7 @@ public class RestClusterHealthActionTests extends OpenSearchTestCase {
     }
 
     private FakeRestRequest buildRestRequest(Map<String, String> params) {
-        return new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.GET)
+        return new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/_cluster/health")
             .withParams(params)
             .build();

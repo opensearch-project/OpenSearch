@@ -49,11 +49,9 @@ public class SearchRequestBuilderTests extends OpenSearchTestCase {
 
     @BeforeClass
     public static void initClient() {
-        //this client will not be hit by any request, but it needs to be a non null proper client
-        //that is why we create it but we don't add any transport address to it
-        Settings settings = Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .build();
+        // this client will not be hit by any request, but it needs to be a non null proper client
+        // that is why we create it but we don't add any transport address to it
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         client = new MockTransportClient(settings);
     }
 
@@ -77,16 +75,20 @@ public class SearchRequestBuilderTests extends OpenSearchTestCase {
     public void testSearchSourceBuilderToString() {
         SearchRequestBuilder searchRequestBuilder = client.prepareSearch();
         searchRequestBuilder.setSource(new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")));
-        assertThat(searchRequestBuilder.toString(), equalTo(new SearchSourceBuilder()
-            .query(QueryBuilders.termQuery("field", "value")).toString()));
+        assertThat(
+            searchRequestBuilder.toString(),
+            equalTo(new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")).toString())
+        );
     }
 
     public void testThatToStringDoesntWipeRequestSource() {
         SearchRequestBuilder searchRequestBuilder = client.prepareSearch()
             .setSource(new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")));
         String preToString = searchRequestBuilder.request().toString();
-        assertThat(searchRequestBuilder.toString(), equalTo(new SearchSourceBuilder()
-            .query(QueryBuilders.termQuery("field", "value")).toString()));
+        assertThat(
+            searchRequestBuilder.toString(),
+            equalTo(new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")).toString())
+        );
         String postToString = searchRequestBuilder.request().toString();
         assertThat(preToString, equalTo(postToString));
     }

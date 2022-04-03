@@ -137,7 +137,7 @@ public class InvokeCallMemberNode extends ArgumentsNode {
 
             for (ExpressionNode argumentNode : getArgumentNodes()) {
                 argumentNode.write(classWriter, methodWriter, writeScope);
-           }
+            }
 
             if (localFunction.isStatic()) {
                 methodWriter.invokeStatic(CLASS_TYPE, localFunction.getAsmMethod());
@@ -147,10 +147,12 @@ public class InvokeCallMemberNode extends ArgumentsNode {
         } else if (importedMethod != null) {
             for (ExpressionNode argumentNode : getArgumentNodes()) {
                 argumentNode.write(classWriter, methodWriter, writeScope);
-           }
+            }
 
-            methodWriter.invokeStatic(Type.getType(importedMethod.targetClass),
-                    new Method(importedMethod.javaMethod.getName(), importedMethod.methodType.toMethodDescriptorString()));
+            methodWriter.invokeStatic(
+                Type.getType(importedMethod.targetClass),
+                new Method(importedMethod.javaMethod.getName(), importedMethod.methodType.toMethodDescriptorString())
+            );
         } else if (classBinding != null) {
             Type type = Type.getType(classBinding.javaConstructor.getDeclaringClass());
             int javaConstructorParameterCount = classBinding.javaConstructor.getParameterCount() - classBindingOffset;
@@ -170,7 +172,7 @@ public class InvokeCallMemberNode extends ArgumentsNode {
 
             for (int argument = 0; argument < javaConstructorParameterCount; ++argument) {
                 getArgumentNodes().get(argument).write(classWriter, methodWriter, writeScope);
-           }
+            }
 
             methodWriter.invokeConstructor(type, Method.getMethod(classBinding.javaConstructor));
             methodWriter.putField(CLASS_TYPE, bindingName, type);

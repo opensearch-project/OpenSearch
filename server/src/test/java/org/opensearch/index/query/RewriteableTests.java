@@ -46,16 +46,21 @@ public class RewriteableTests extends OpenSearchTestCase {
 
     public void testRewrite() throws IOException {
         QueryRewriteContext context = new QueryRewriteContext(null, null, null, null);
-        TestRewriteable rewrite = Rewriteable.rewrite(new TestRewriteable(randomIntBetween(0, Rewriteable.MAX_REWRITE_ROUNDS)), context,
-            randomBoolean());
+        TestRewriteable rewrite = Rewriteable.rewrite(
+            new TestRewriteable(randomIntBetween(0, Rewriteable.MAX_REWRITE_ROUNDS)),
+            context,
+            randomBoolean()
+        );
         assertEquals(rewrite.numRewrites, 0);
-        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> Rewriteable.rewrite(new TestRewriteable(Rewriteable
-                .MAX_REWRITE_ROUNDS+1),
-            context));
+        IllegalStateException ise = expectThrows(
+            IllegalStateException.class,
+            () -> Rewriteable.rewrite(new TestRewriteable(Rewriteable.MAX_REWRITE_ROUNDS + 1), context)
+        );
         assertEquals(ise.getMessage(), "too many rewrite rounds, rewriteable might return new objects even if they are not rewritten");
-        ise = expectThrows(IllegalStateException.class, () -> Rewriteable.rewrite(new TestRewriteable(Rewriteable
-                .MAX_REWRITE_ROUNDS + 1, true),
-            context, true));
+        ise = expectThrows(
+            IllegalStateException.class,
+            () -> Rewriteable.rewrite(new TestRewriteable(Rewriteable.MAX_REWRITE_ROUNDS + 1, true), context, true)
+        );
         assertEquals(ise.getMessage(), "async actions are left after rewrite");
     }
 
@@ -146,9 +151,9 @@ public class RewriteableTests extends OpenSearchTestCase {
                         r.run();
                     }
                 });
-                return new TestRewriteable(numRewrites-1, fetch, setOnce::get);
+                return new TestRewriteable(numRewrites - 1, fetch, setOnce::get);
             }
-            return new TestRewriteable(numRewrites-1, fetch, null);
+            return new TestRewriteable(numRewrites - 1, fetch, null);
         }
     }
 }

@@ -38,6 +38,10 @@ preProcessFixture.doLast {
 }
 
 postProcessFixture {
+  // always run the task, otherwise the folders won't be created
+  outputs.upToDateWhen { 
+    false 
+  }
   inputs.dir("${testFixturesDir}/shared")
   services.each { service ->
     File confTemplate = file("${testFixturesDir}/shared/${service}/krb5.conf.template")

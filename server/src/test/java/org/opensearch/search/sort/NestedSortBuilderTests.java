@@ -131,18 +131,20 @@ public class NestedSortBuilderTests extends OpenSearchTestCase {
         NestedSortBuilder mutated = original.getNestedSort();
         int parameter = randomIntBetween(0, 2);
         switch (parameter) {
-        case 0:
-            mutated = new NestedSortBuilder(original.getPath()+"_suffix");
-            mutated.setFilter(original.getFilter());
-            mutated.setNestedSort(original.getNestedSort());
-            break;
-        case 1:
-            mutated.setFilter(randomValueOtherThan(original.getFilter(), AbstractSortTestCase::randomNestedFilter));
-            break;
-        case 2:
-        default:
-            mutated.setNestedSort(randomValueOtherThan(original.getNestedSort(), () -> NestedSortBuilderTests.createRandomNestedSort(3)));
-            break;
+            case 0:
+                mutated = new NestedSortBuilder(original.getPath() + "_suffix");
+                mutated.setFilter(original.getFilter());
+                mutated.setNestedSort(original.getNestedSort());
+                break;
+            case 1:
+                mutated.setFilter(randomValueOtherThan(original.getFilter(), AbstractSortTestCase::randomNestedFilter));
+                break;
+            case 2:
+            default:
+                mutated.setNestedSort(
+                    randomValueOtherThan(original.getNestedSort(), () -> NestedSortBuilderTests.createRandomNestedSort(3))
+                );
+                break;
         }
         return mutated;
     }
@@ -152,8 +154,11 @@ public class NestedSortBuilderTests extends OpenSearchTestCase {
      */
     public void testEqualsAndHashcode() {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
-            EqualsHashCodeTestUtils.checkEqualsAndHashCode(createRandomNestedSort(3), NestedSortBuilderTests::copy,
-                    NestedSortBuilderTests::mutate);
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+                createRandomNestedSort(3),
+                NestedSortBuilderTests::copy,
+                NestedSortBuilderTests::mutate
+            );
         }
     }
 
@@ -203,8 +208,7 @@ public class NestedSortBuilderTests extends OpenSearchTestCase {
         original = new NestedSortBuilder("firstLevel");
         ConstantScoreQueryBuilder constantScoreQueryBuilder = new ConstantScoreQueryBuilder(filterThatRewrites);
         original.setFilter(constantScoreQueryBuilder);
-        NestedSortBuilder nestedSortThatRewrites = new NestedSortBuilder("thirdLevel")
-                .setFilter(filterThatRewrites);
+        NestedSortBuilder nestedSortThatRewrites = new NestedSortBuilder("thirdLevel").setFilter(filterThatRewrites);
         original.setNestedSort(new NestedSortBuilder("secondLevel").setNestedSort(nestedSortThatRewrites));
         rewritten = original.rewrite(mockRewriteContext);
         assertNotSame(rewritten, original);

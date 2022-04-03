@@ -139,8 +139,7 @@ public class DiversifiedMapSamplerAggregator extends SamplerAggregator {
                         docID = target;
                         if (values.advanceExact(target)) {
                             if (values.docValueCount() > 1) {
-                                throw new IllegalArgumentException(
-                                        "Sample diversifying key must be a single valued-field");
+                                throw new IllegalArgumentException("Sample diversifying key must be a single valued-field");
                             }
                             return true;
                         } else {

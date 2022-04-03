@@ -101,14 +101,14 @@ public class SslConfigurationLoaderTests extends OpenSearchTestCase {
     }
 
     public void testLoadTrustFromPemCAs() {
-        settings = Settings.builder()
-            .putList("test.ssl.certificate_authorities", "ca1/ca.crt", "ca2/ca.crt", "ca3/ca.crt")
-            .build();
+        settings = Settings.builder().putList("test.ssl.certificate_authorities", "ca1/ca.crt", "ca2/ca.crt", "ca3/ca.crt").build();
         final SslConfiguration configuration = loader.load(certRoot);
         final SslTrustConfig trustConfig = configuration.getTrustConfig();
         assertThat(trustConfig, instanceOf(PemTrustConfig.class));
-        assertThat(trustConfig.getDependentFiles(),
-            containsInAnyOrder(getDataPath("/certs/ca1/ca.crt"), getDataPath("/certs/ca2/ca.crt"), getDataPath("/certs/ca3/ca.crt")));
+        assertThat(
+            trustConfig.getDependentFiles(),
+            containsInAnyOrder(getDataPath("/certs/ca1/ca.crt"), getDataPath("/certs/ca2/ca.crt"), getDataPath("/certs/ca3/ca.crt"))
+        );
         assertThat(trustConfig.createTrustManager(), notNullValue());
     }
 
@@ -174,14 +174,18 @@ public class SslConfigurationLoaderTests extends OpenSearchTestCase {
         final SslConfiguration configuration = loader.load(certRoot);
         final SslKeyConfig keyConfig = configuration.getKeyConfig();
         assertThat(keyConfig, instanceOf(PemKeyConfig.class));
-        assertThat(keyConfig.getDependentFiles(), containsInAnyOrder(
-            getDataPath("/certs/" + certName + "/" + certName + ".crt"), getDataPath("/certs/" + certName + "/" + certName + ".key")));
+        assertThat(
+            keyConfig.getDependentFiles(),
+            containsInAnyOrder(
+                getDataPath("/certs/" + certName + "/" + certName + ".crt"),
+                getDataPath("/certs/" + certName + "/" + certName + ".key")
+            )
+        );
         assertThat(keyConfig.createKeyManager(), notNullValue());
     }
 
     public void testLoadKeysFromPKCS12() {
-        final Settings.Builder builder = Settings.builder()
-            .put("test.ssl.keystore.path", "cert-all/certs.p12");
+        final Settings.Builder builder = Settings.builder().put("test.ssl.keystore.path", "cert-all/certs.p12");
         if (randomBoolean()) {
             builder.put("test.ssl.keystore.password", "p12-pass");
         } else {
@@ -204,8 +208,7 @@ public class SslConfigurationLoaderTests extends OpenSearchTestCase {
 
     public void testLoadKeysFromJKS() {
         assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
-        final Settings.Builder builder = Settings.builder()
-            .put("test.ssl.keystore.path", "cert-all/certs.jks");
+        final Settings.Builder builder = Settings.builder().put("test.ssl.keystore.path", "cert-all/certs.jks");
         if (randomBoolean()) {
             builder.put("test.ssl.keystore.password", "jks-pass");
         } else {

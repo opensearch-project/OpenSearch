@@ -60,38 +60,48 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
     protected static final String AGGREGABLE_DATE = "aggregable_date";
 
     protected final <R extends InternalAggregation> void asSubAggTestCase(AggregationBuilder builder, Consumer<R> verify)
-            throws IOException {
+        throws IOException {
         CheckedBiConsumer<RandomIndexWriter, DateFieldMapper.DateFieldType, IOException> buildIndex = (iw, dft) -> {
-            iw.addDocument(org.opensearch.common.collect.List.of(
-                new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2020-02-01T00:00:00Z")),
-                new SortedSetDocValuesField("k1", new BytesRef("a")),
-                new SortedSetDocValuesField("k2", new BytesRef("a")),
-                new SortedNumericDocValuesField("n", 1)
-            ));
-            iw.addDocument(org.opensearch.common.collect.List.of(
-                new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2020-03-01T00:00:00Z")),
-                new SortedSetDocValuesField("k1", new BytesRef("a")),
-                new SortedSetDocValuesField("k2", new BytesRef("a")),
-                new SortedNumericDocValuesField("n", 2)
-            ));
-            iw.addDocument(org.opensearch.common.collect.List.of(
-                new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2021-02-01T00:00:00Z")),
-                new SortedSetDocValuesField("k1", new BytesRef("a")),
-                new SortedSetDocValuesField("k2", new BytesRef("a")),
-                new SortedNumericDocValuesField("n", 3)
-            ));
-            iw.addDocument(org.opensearch.common.collect.List.of(
-                new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2021-03-01T00:00:00Z")),
-                new SortedSetDocValuesField("k1", new BytesRef("a")),
-                new SortedSetDocValuesField("k2", new BytesRef("b")),
-                new SortedNumericDocValuesField("n", 4)
-            ));
-            iw.addDocument(org.opensearch.common.collect.List.of(
-                new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2020-02-01T00:00:00Z")),
-                new SortedSetDocValuesField("k1", new BytesRef("b")),
-                new SortedSetDocValuesField("k2", new BytesRef("b")),
-                new SortedNumericDocValuesField("n", 5)
-            ));
+            iw.addDocument(
+                org.opensearch.common.collect.List.of(
+                    new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2020-02-01T00:00:00Z")),
+                    new SortedSetDocValuesField("k1", new BytesRef("a")),
+                    new SortedSetDocValuesField("k2", new BytesRef("a")),
+                    new SortedNumericDocValuesField("n", 1)
+                )
+            );
+            iw.addDocument(
+                org.opensearch.common.collect.List.of(
+                    new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2020-03-01T00:00:00Z")),
+                    new SortedSetDocValuesField("k1", new BytesRef("a")),
+                    new SortedSetDocValuesField("k2", new BytesRef("a")),
+                    new SortedNumericDocValuesField("n", 2)
+                )
+            );
+            iw.addDocument(
+                org.opensearch.common.collect.List.of(
+                    new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2021-02-01T00:00:00Z")),
+                    new SortedSetDocValuesField("k1", new BytesRef("a")),
+                    new SortedSetDocValuesField("k2", new BytesRef("a")),
+                    new SortedNumericDocValuesField("n", 3)
+                )
+            );
+            iw.addDocument(
+                org.opensearch.common.collect.List.of(
+                    new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2021-03-01T00:00:00Z")),
+                    new SortedSetDocValuesField("k1", new BytesRef("a")),
+                    new SortedSetDocValuesField("k2", new BytesRef("b")),
+                    new SortedNumericDocValuesField("n", 4)
+                )
+            );
+            iw.addDocument(
+                org.opensearch.common.collect.List.of(
+                    new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2020-02-01T00:00:00Z")),
+                    new SortedSetDocValuesField("k1", new BytesRef("b")),
+                    new SortedSetDocValuesField("k2", new BytesRef("b")),
+                    new SortedNumericDocValuesField("n", 5)
+                )
+            );
         };
         asSubAggTestCase(builder, buildIndex, verify);
     }
@@ -109,9 +119,15 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
     }
 
     protected final DateFieldMapper.DateFieldType aggregableDateFieldType(boolean useNanosecondResolution, boolean isSearchable) {
-        return new DateFieldMapper.DateFieldType(AGGREGABLE_DATE, isSearchable, false, true,
+        return new DateFieldMapper.DateFieldType(
+            AGGREGABLE_DATE,
+            isSearchable,
+            false,
+            true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             useNanosecondResolution ? DateFieldMapper.Resolution.NANOSECONDS : DateFieldMapper.Resolution.MILLISECONDS,
-            null, Collections.emptyMap());
+            null,
+            Collections.emptyMap()
+        );
     }
 }

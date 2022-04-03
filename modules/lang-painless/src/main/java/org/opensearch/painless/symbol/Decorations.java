@@ -103,7 +103,7 @@ public class Decorations {
 
     }
 
-    public static class TargetType implements Decoration  {
+    public static class TargetType implements Decoration {
 
         private final Class<?> targetType;
 
@@ -616,6 +616,7 @@ public class Decorations {
 
     public static class Converter implements Decoration {
         private final LocalFunction converter;
+
         public Converter(LocalFunction converter) {
             this.converter = converter;
         }

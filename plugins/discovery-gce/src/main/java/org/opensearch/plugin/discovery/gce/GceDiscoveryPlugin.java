@@ -65,8 +65,9 @@ import java.util.function.Supplier;
 public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Closeable {
 
     /** Determines whether settings those reroutes GCE call should be allowed (for testing purposes only). */
-    private static final boolean ALLOW_REROUTE_GCE_SETTINGS =
-        Booleans.parseBoolean(System.getProperty("opensearch.allow_reroute_gce_settings", "false"));
+    private static final boolean ALLOW_REROUTE_GCE_SETTINGS = Booleans.parseBoolean(
+        System.getProperty("opensearch.allow_reroute_gce_settings", "false")
+    );
 
     public static final String GCE = "gce";
     protected final Settings settings;
@@ -83,7 +84,7 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
          * our plugin permissions don't allow core to "reach through" plugins to
          * change the permission. Because that'd be silly.
          */
-        Access.doPrivilegedVoid( () -> ClassInfo.of(HttpHeaders.class, true));
+        Access.doPrivilegedVoid(() -> ClassInfo.of(HttpHeaders.class, true));
     }
 
     public GceDiscoveryPlugin(Settings settings) {
@@ -97,8 +98,7 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
     }
 
     @Override
-    public Map<String, Supplier<SeedHostsProvider>> getSeedHostProviders(TransportService transportService,
-                                                                         NetworkService networkService) {
+    public Map<String, Supplier<SeedHostsProvider>> getSeedHostProviders(TransportService transportService, NetworkService networkService) {
         return Collections.singletonMap(GCE, () -> {
             gceInstancesService.set(createGceInstancesService());
             return new GceSeedHostsProvider(settings, gceInstancesService.get(), transportService, networkService);
@@ -121,7 +121,8 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
                 GceSeedHostsProvider.TAGS_SETTING,
                 GceInstancesService.REFRESH_SETTING,
                 GceInstancesService.RETRY_SETTING,
-                GceInstancesService.MAX_WAIT_SETTING)
+                GceInstancesService.MAX_WAIT_SETTING
+            )
         );
 
         if (ALLOW_REROUTE_GCE_SETTINGS) {
@@ -130,8 +131,6 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
         }
         return Collections.unmodifiableList(settings);
     }
-
-
 
     @Override
     public void close() throws IOException {

@@ -77,11 +77,8 @@ public class BlendedTermQueryTests extends OpenSearchTestCase {
     public void testDismaxQuery() throws IOException {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())));
-        String[] username = new String[]{
-                "foo fighters", "some cool fan", "cover band"};
-        String[] song = new String[]{
-                "generator", "foo fighers - generator", "foo fighters generator"
-        };
+        String[] username = new String[] { "foo fighters", "some cool fan", "cover band" };
+        String[] song = new String[] { "generator", "foo fighers - generator", "foo fighters generator" };
         final boolean omitNorms = random().nextBoolean();
         final boolean omitFreqs = random().nextBoolean();
         FieldType ft = new FieldType(TextField.TYPE_NOT_STORED);
@@ -108,7 +105,7 @@ public class BlendedTermQueryTests extends OpenSearchTestCase {
         DirectoryReader reader = DirectoryReader.open(w);
         IndexSearcher searcher = setSimilarity(newSearcher(reader));
         {
-            String[] fields = new String[]{"username", "song"};
+            String[] fields = new String[] { "username", "song" };
             BooleanQuery.Builder query = new BooleanQuery.Builder();
             query.add(BlendedTermQuery.dismaxBlendedQuery(toTerms(fields, "foo"), 0.1f), BooleanClause.Occur.SHOULD);
             query.add(BlendedTermQuery.dismaxBlendedQuery(toTerms(fields, "fighters"), 0.1f), BooleanClause.Occur.SHOULD);
@@ -120,12 +117,18 @@ public class BlendedTermQueryTests extends OpenSearchTestCase {
         {
             BooleanQuery.Builder query = new BooleanQuery.Builder();
             DisjunctionMaxQuery uname = new DisjunctionMaxQuery(
-                    Arrays.asList(new TermQuery(new Term("username", "foo")), new TermQuery(new Term("song", "foo"))), 0.0f);
+                Arrays.asList(new TermQuery(new Term("username", "foo")), new TermQuery(new Term("song", "foo"))),
+                0.0f
+            );
 
             DisjunctionMaxQuery s = new DisjunctionMaxQuery(
-                    Arrays.asList(new TermQuery(new Term("username", "fighers")), new TermQuery(new Term("song", "fighers"))), 0.0f);
+                Arrays.asList(new TermQuery(new Term("username", "fighers")), new TermQuery(new Term("song", "fighers"))),
+                0.0f
+            );
             DisjunctionMaxQuery gen = new DisjunctionMaxQuery(
-                    Arrays.asList(new TermQuery(new Term("username", "generator")), new TermQuery(new Term("song", "generator"))), 0f);
+                Arrays.asList(new TermQuery(new Term("username", "generator")), new TermQuery(new Term("song", "generator"))),
+                0f
+            );
             query.add(uname, BooleanClause.Occur.SHOULD);
             query.add(s, BooleanClause.Occur.SHOULD);
             query.add(gen, BooleanClause.Occur.SHOULD);
@@ -136,7 +139,7 @@ public class BlendedTermQueryTests extends OpenSearchTestCase {
         }
         {
             // test with an unknown field
-            String[] fields = new String[] {"username", "song", "unknown_field"};
+            String[] fields = new String[] { "username", "song", "unknown_field" };
             Query query = BlendedTermQuery.dismaxBlendedQuery(toTerms(fields, "foo"), 1.0f);
             Query rewrite = searcher.rewrite(query);
             assertThat(rewrite, instanceOf(BooleanQuery.class));
@@ -156,7 +159,7 @@ public class BlendedTermQueryTests extends OpenSearchTestCase {
         }
         {
             // test with an unknown field and an unknown term
-            String[] fields = new String[] {"username", "song", "unknown_field"};
+            String[] fields = new String[] { "username", "song", "unknown_field" };
             Query query = BlendedTermQuery.dismaxBlendedQuery(toTerms(fields, "unknown_term"), 1.0f);
             Query rewrite = searcher.rewrite(query);
             assertThat(rewrite, instanceOf(BooleanQuery.class));
@@ -171,7 +174,7 @@ public class BlendedTermQueryTests extends OpenSearchTestCase {
         }
         {
             // test with an unknown field and a term that is present in only one field
-            String[] fields = new String[] {"username", "song", "id", "unknown_field"};
+            String[] fields = new String[] { "username", "song", "id", "unknown_field" };
             Query query = BlendedTermQuery.dismaxBlendedQuery(toTerms(fields, "fan"), 1.0f);
             Query rewrite = searcher.rewrite(query);
             assertThat(rewrite, instanceOf(BooleanQuery.class));
@@ -263,7 +266,7 @@ public class BlendedTermQueryTests extends OpenSearchTestCase {
         DirectoryReader reader = DirectoryReader.open(w);
         IndexSearcher searcher = setSimilarity(newSearcher(reader));
         {
-            String[] fields = new String[]{"dense", "sparse"};
+            String[] fields = new String[] { "dense", "sparse" };
             Query query = BlendedTermQuery.dismaxBlendedQuery(toTerms(fields, "foo"), 0.1f);
             TopDocs search = searcher.search(query, 10);
             ScoreDoc[] scoreDocs = search.scoreDocs;
@@ -339,6 +342,6 @@ public class BlendedTermQueryTests extends OpenSearchTestCase {
                 return BlendedTermQuery.dismaxBlendedQuery(terms, boostsCopy, tieBreaker);
             }
         };
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(original, copyFunction, mutateFunction );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(original, copyFunction, mutateFunction);
     }
 }

@@ -87,8 +87,8 @@ public class HttpInfo implements ReportingService.Info {
         if (CNAME_IN_PUBLISH_HOST) {
             deprecationLogger.deprecate(
                 "cname_in_publish_address",
-                "opensearch.http.cname_in_publish_address system property is deprecated and no longer affects http.publish_address " +
-                    "formatting. Remove this property to get rid of this deprecation warning."
+                "opensearch.http.cname_in_publish_address system property is deprecated and no longer affects http.publish_address "
+                    + "formatting. Remove this property to get rid of this deprecation warning."
             );
         }
         if (InetAddresses.isInetAddress(hostString) == false) {

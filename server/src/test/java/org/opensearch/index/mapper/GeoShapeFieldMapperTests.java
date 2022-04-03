@@ -40,7 +40,6 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.TestGeoShapeFieldMapperPlugin;
 import org.junit.Before;
-import org.opensearch.index.mapper.FieldMapperTestCase2;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -117,8 +116,7 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
-        assertThat(geoShapeFieldMapper.fieldType().orientation(),
-            equalTo(GeoShapeFieldMapper.Defaults.ORIENTATION.value()));
+        assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(GeoShapeFieldMapper.Defaults.ORIENTATION.value()));
         assertThat(geoShapeFieldMapper.fieldType().hasDocValues(), equalTo(false));
     }
 
@@ -130,7 +128,7 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
-        ShapeBuilder.Orientation orientation = ((GeoShapeFieldMapper)fieldMapper).fieldType().orientation();
+        ShapeBuilder.Orientation orientation = ((GeoShapeFieldMapper) fieldMapper).fieldType().orientation();
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.CLOCKWISE));
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.LEFT));
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.CW));
@@ -140,7 +138,7 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
         fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
-        orientation = ((GeoShapeFieldMapper)fieldMapper).fieldType().orientation();
+        orientation = ((GeoShapeFieldMapper) fieldMapper).fieldType().orientation();
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.COUNTER_CLOCKWISE));
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.RIGHT));
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.CCW));
@@ -153,14 +151,14 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_shape").field("coerce", true)));
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
-        boolean coerce = ((GeoShapeFieldMapper)fieldMapper).coerce().value();
+        boolean coerce = ((GeoShapeFieldMapper) fieldMapper).coerce().value();
         assertThat(coerce, equalTo(true));
 
         // explicit false coerce test
         mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_shape").field("coerce", false)));
         fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
-        coerce = ((GeoShapeFieldMapper)fieldMapper).coerce().value();
+        coerce = ((GeoShapeFieldMapper) fieldMapper).coerce().value();
         assertThat(coerce, equalTo(false));
         assertFieldWarnings("tree");
     }
@@ -173,7 +171,7 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
-        boolean ignoreZValue = ((GeoShapeFieldMapper)fieldMapper).ignoreZValue().value();
+        boolean ignoreZValue = ((GeoShapeFieldMapper) fieldMapper).ignoreZValue().value();
         assertThat(ignoreZValue, equalTo(true));
 
         // explicit false accept_z_value test
@@ -181,7 +179,7 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
         fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
-        ignoreZValue = ((GeoShapeFieldMapper)fieldMapper).ignoreZValue().value();
+        ignoreZValue = ((GeoShapeFieldMapper) fieldMapper).ignoreZValue().value();
         assertThat(ignoreZValue, equalTo(false));
     }
 
@@ -192,14 +190,14 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_shape").field("ignore_malformed", true)));
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
-        Explicit<Boolean> ignoreMalformed = ((GeoShapeFieldMapper)fieldMapper).ignoreMalformed();
+        Explicit<Boolean> ignoreMalformed = ((GeoShapeFieldMapper) fieldMapper).ignoreMalformed();
         assertThat(ignoreMalformed.value(), equalTo(true));
 
         // explicit false ignore_malformed test
         mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_shape").field("ignore_malformed", false)));
         fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
-        ignoreMalformed = ((GeoShapeFieldMapper)fieldMapper).ignoreMalformed();
+        ignoreMalformed = ((GeoShapeFieldMapper) fieldMapper).ignoreMalformed();
         assertThat(ignoreMalformed.explicit(), equalTo(true));
         assertThat(ignoreMalformed.value(), equalTo(false));
     }
@@ -207,8 +205,7 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
     private void assertFieldWarnings(String... fieldNames) {
         String[] warnings = new String[fieldNames.length];
         for (int i = 0; i < fieldNames.length; ++i) {
-            warnings[i] = "Field parameter [" + fieldNames[i] + "] "
-                + "is deprecated and will be removed in a future version.";
+            warnings[i] = "Field parameter [" + fieldNames[i] + "] " + "is deprecated and will be removed in a future version.";
         }
     }
 

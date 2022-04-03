@@ -52,8 +52,12 @@ final class TransportProxyClient {
     private final TransportClientNodesService nodesService;
     private final Map<ActionType, TransportActionNodeProxy> proxies;
 
-    TransportProxyClient(Settings settings, TransportService transportService,
-                                TransportClientNodesService nodesService, List<ActionType> actions) {
+    TransportProxyClient(
+        Settings settings,
+        TransportService transportService,
+        TransportClientNodesService nodesService,
+        List<ActionType> actions
+    ) {
         this.nodesService = nodesService;
         Map<ActionType, TransportActionNodeProxy> proxies = new HashMap<>();
         for (ActionType action : actions) {
@@ -62,9 +66,14 @@ final class TransportProxyClient {
         this.proxies = unmodifiableMap(proxies);
     }
 
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends
-        ActionRequestBuilder<Request, Response>> void execute(final ActionType<Response> action,
-                                                                              final Request request, ActionListener<Response> listener) {
+    public <
+        Request extends ActionRequest,
+        Response extends ActionResponse,
+        RequestBuilder extends ActionRequestBuilder<Request, Response>> void execute(
+            final ActionType<Response> action,
+            final Request request,
+            ActionListener<Response> listener
+        ) {
         final TransportActionNodeProxy<Request, Response> proxy = proxies.get(action);
         assert proxy != null : "no proxy found for action: " + action;
         nodesService.execute((n, l) -> proxy.execute(n, request, l), listener);

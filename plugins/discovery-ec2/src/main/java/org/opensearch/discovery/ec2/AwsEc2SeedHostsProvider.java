@@ -102,8 +102,14 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
         availabilityZones.addAll(AwsEc2Service.AVAILABILITY_ZONES_SETTING.get(settings));
 
         if (logger.isDebugEnabled()) {
-            logger.debug("using host_type [{}], tags [{}], groups [{}] with any_group [{}], availability_zones [{}]", hostType, tags,
-                    groups, bindAnyGroup, availabilityZones);
+            logger.debug(
+                "using host_type [{}], tags [{}], groups [{}] with any_group [{}], availability_zones [{}]",
+                hostType,
+                tags,
+                groups,
+                bindAnyGroup,
+                availabilityZones
+            );
         }
     }
 
@@ -144,18 +150,25 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
                     }
                     if (bindAnyGroup) {
                         // We check if we can find at least one group name or one group id in groups.
-                        if (disjoint(securityGroupNames, groups)
-                                && disjoint(securityGroupIds, groups)) {
-                            logger.trace("filtering out instance {} based on groups {}, not part of {}", instance.getInstanceId(),
-                                    instanceSecurityGroups, groups);
+                        if (disjoint(securityGroupNames, groups) && disjoint(securityGroupIds, groups)) {
+                            logger.trace(
+                                "filtering out instance {} based on groups {}, not part of {}",
+                                instance.getInstanceId(),
+                                instanceSecurityGroups,
+                                groups
+                            );
                             // continue to the next instance
                             continue;
                         }
                     } else {
                         // We need tp match all group names or group ids, otherwise we ignore this instance
                         if (!(securityGroupNames.containsAll(groups) || securityGroupIds.containsAll(groups))) {
-                            logger.trace("filtering out instance {} based on groups {}, does not include all of {}",
-                                    instance.getInstanceId(), instanceSecurityGroups, groups);
+                            logger.trace(
+                                "filtering out instance {} based on groups {}, does not include all of {}",
+                                instance.getInstanceId(),
+                                instanceSecurityGroups,
+                                groups
+                            );
                             // continue to the next instance
                             continue;
                         }
@@ -195,8 +208,13 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
                     } catch (final Exception e) {
                         final String finalAddress = address;
                         logger.warn(
-                            (Supplier<?>)
-                                () -> new ParameterizedMessage("failed to add {}, address {}", instance.getInstanceId(), finalAddress), e);
+                            (Supplier<?>) () -> new ParameterizedMessage(
+                                "failed to add {}, address {}",
+                                instance.getInstanceId(),
+                                finalAddress
+                            ),
+                            e
+                        );
                     }
                 } else {
                     logger.trace("not adding {}, address is null, host_type {}", instance.getInstanceId(), hostType);
@@ -210,23 +228,18 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
     }
 
     private DescribeInstancesRequest buildDescribeInstancesRequest() {
-        final DescribeInstancesRequest describeInstancesRequest = new DescribeInstancesRequest()
-            .withFilters(
-                new Filter("instance-state-name").withValues("running", "pending")
-            );
+        final DescribeInstancesRequest describeInstancesRequest = new DescribeInstancesRequest().withFilters(
+            new Filter("instance-state-name").withValues("running", "pending")
+        );
 
         for (final Map.Entry<String, List<String>> tagFilter : tags.entrySet()) {
             // for a given tag key, OR relationship for multiple different values
-            describeInstancesRequest.withFilters(
-                new Filter("tag:" + tagFilter.getKey()).withValues(tagFilter.getValue())
-            );
+            describeInstancesRequest.withFilters(new Filter("tag:" + tagFilter.getKey()).withValues(tagFilter.getValue()));
         }
 
         if (!availabilityZones.isEmpty()) {
             // OR relationship amongst multiple values of the availability-zone filter
-            describeInstancesRequest.withFilters(
-                new Filter("availability-zone").withValues(availabilityZones)
-            );
+            describeInstancesRequest.withFilters(new Filter("availability-zone").withValues(availabilityZones));
         }
 
         return describeInstancesRequest;
@@ -235,7 +248,7 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
     private final class TransportAddressesCache extends SingleObjectCache<List<TransportAddress>> {
 
         protected TransportAddressesCache(TimeValue refreshInterval) {
-            super(refreshInterval,  new ArrayList<>());
+            super(refreshInterval, new ArrayList<>());
         }
 
         @Override

@@ -38,12 +38,10 @@ import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.settings.Settings;
 
-public class ResizeRequestBuilder extends AcknowledgedRequestBuilder<ResizeRequest, ResizeResponse,
-    ResizeRequestBuilder> {
+public class ResizeRequestBuilder extends AcknowledgedRequestBuilder<ResizeRequest, ResizeResponse, ResizeRequestBuilder> {
     public ResizeRequestBuilder(OpenSearchClient client, ActionType<ResizeResponse> action) {
         super(client, action, new ResizeRequest());
     }
-
 
     public ResizeRequestBuilder setTargetIndex(CreateIndexRequest request) {
         this.request.setTargetIndex(request);

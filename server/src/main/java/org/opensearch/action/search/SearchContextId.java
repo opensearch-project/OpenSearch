@@ -78,8 +78,10 @@ public class SearchContextId {
         final Map<ShardId, SearchContextIdForNode> shards = new HashMap<>();
         for (SearchPhaseResult searchPhaseResult : searchPhaseResults) {
             final SearchShardTarget target = searchPhaseResult.getSearchShardTarget();
-            shards.put(target.getShardId(),
-                new SearchContextIdForNode(target.getClusterAlias(), target.getNodeId(), searchPhaseResult.getContextId()));
+            shards.put(
+                target.getShardId(),
+                new SearchContextIdForNode(target.getClusterAlias(), target.getNodeId(), searchPhaseResult.getContextId())
+            );
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(version);

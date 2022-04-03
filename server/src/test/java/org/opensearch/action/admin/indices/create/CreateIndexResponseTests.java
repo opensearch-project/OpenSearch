@@ -37,7 +37,6 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.test.AbstractSerializingTestCase;
-import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 
 import java.io.IOException;
 
@@ -69,8 +68,11 @@ public class CreateIndexResponseTests extends AbstractSerializingTestCase<Create
                 return new CreateIndexResponse(acknowledged, shardsAcknowledged, response.index());
             }
         } else {
-            return new CreateIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged(),
-                        response.index() + randomAlphaOfLengthBetween(2, 5));
+            return new CreateIndexResponse(
+                response.isAcknowledged(),
+                response.isShardsAcknowledged(),
+                response.index() + randomAlphaOfLengthBetween(2, 5)
+            );
         }
     }
 

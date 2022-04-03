@@ -48,4 +48,3 @@ public class RepositoryAzureClientYamlTestSuiteIT extends OpenSearchClientYamlSu
         return OpenSearchClientYamlSuiteTestCase.createParameters();
     }
 }
-

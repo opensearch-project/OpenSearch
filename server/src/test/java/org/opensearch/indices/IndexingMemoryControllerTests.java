@@ -81,10 +81,14 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         final Set<IndexShard> throttled = new HashSet<>();
 
         MockController(Settings settings) {
-            super(Settings.builder()
-                            .put("indices.memory.interval", "200h") // disable it
-                            .put(settings)
-                            .build(), null, null);
+            super(
+                Settings.builder()
+                    .put("indices.memory.interval", "200h") // disable it
+                    .put(settings)
+                    .build(),
+                null,
+                null
+            );
         }
 
         public void deleteShard(IndexShard shard) {
@@ -113,8 +117,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         }
 
         @Override
-        protected void checkIdle(IndexShard shard, long inactiveTimeNS) {
-        }
+        protected void checkIdle(IndexShard shard, long inactiveTimeNS) {}
 
         @Override
         public void writeIndexingBufferAsync(IndexShard shard) {
@@ -169,7 +172,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
                 writingBytes.put(shard, 0L);
             }
             // Each doc we index takes up a megabyte!
-            bytes += 1024*1024;
+            bytes += 1024 * 1024;
             indexBufferRAMBytesUsed.put(shard, bytes);
             forceCheck();
         }
@@ -182,8 +185,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
 
     public void testShardAdditionAndRemoval() throws IOException {
 
-        MockController controller = new MockController(Settings.builder()
-                                                       .put("indices.memory.index_buffer_size", "4mb").build());
+        MockController controller = new MockController(Settings.builder().put("indices.memory.index_buffer_size", "4mb").build());
         IndexShard shard0 = newStartedShard();
         controller.simulateIndexing(shard0);
         controller.assertBuffer(shard0, 1);
@@ -212,9 +214,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
 
     public void testActiveInactive() throws IOException {
 
-        MockController controller = new MockController(Settings.builder()
-                                                       .put("indices.memory.index_buffer_size", "5mb")
-                                                       .build());
+        MockController controller = new MockController(Settings.builder().put("indices.memory.index_buffer_size", "5mb").build());
 
         IndexShard shard0 = newStartedShard();
         controller.simulateIndexing(shard0);
@@ -247,59 +247,68 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
     }
 
     public void testMinBufferSizes() {
-        MockController controller = new MockController(Settings.builder()
-                                                       .put("indices.memory.index_buffer_size", "0.001%")
-                                                       .put("indices.memory.min_index_buffer_size", "6mb").build());
+        MockController controller = new MockController(
+            Settings.builder().put("indices.memory.index_buffer_size", "0.001%").put("indices.memory.min_index_buffer_size", "6mb").build()
+        );
 
         assertThat(controller.indexingBufferSize(), equalTo(new ByteSizeValue(6, ByteSizeUnit.MB)));
     }
 
     public void testNegativeMinIndexBufferSize() {
-        Exception e = expectThrows(IllegalArgumentException.class,
-                                   () -> new MockController(Settings.builder()
-                                                            .put("indices.memory.min_index_buffer_size", "-6mb").build()));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MockController(Settings.builder().put("indices.memory.min_index_buffer_size", "-6mb").build())
+        );
         assertEquals("failed to parse setting [indices.memory.min_index_buffer_size] with value [-6mb] as a size in bytes", e.getMessage());
 
     }
 
     public void testNegativeInterval() {
-        Exception e = expectThrows(IllegalArgumentException.class,
-                                   () -> new MockController(Settings.builder()
-                                                            .put("indices.memory.interval", "-42s").build()));
-        assertEquals("failed to parse setting [indices.memory.interval] with value " +
-            "[-42s] as a time value: negative durations are not supported", e.getMessage());
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MockController(Settings.builder().put("indices.memory.interval", "-42s").build())
+        );
+        assertEquals(
+            "failed to parse setting [indices.memory.interval] with value "
+                + "[-42s] as a time value: negative durations are not supported",
+            e.getMessage()
+        );
 
     }
 
     public void testNegativeShardInactiveTime() {
-        Exception e = expectThrows(IllegalArgumentException.class,
-                                   () -> new MockController(Settings.builder()
-                                                            .put("indices.memory.shard_inactive_time", "-42s").build()));
-        assertEquals("failed to parse setting [indices.memory.shard_inactive_time] with value " +
-            "[-42s] as a time value: negative durations are not supported", e.getMessage());
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MockController(Settings.builder().put("indices.memory.shard_inactive_time", "-42s").build())
+        );
+        assertEquals(
+            "failed to parse setting [indices.memory.shard_inactive_time] with value "
+                + "[-42s] as a time value: negative durations are not supported",
+            e.getMessage()
+        );
 
     }
 
     public void testNegativeMaxIndexBufferSize() {
-        Exception e = expectThrows(IllegalArgumentException.class,
-                                   () -> new MockController(Settings.builder()
-                                                            .put("indices.memory.max_index_buffer_size", "-6mb").build()));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MockController(Settings.builder().put("indices.memory.max_index_buffer_size", "-6mb").build())
+        );
         assertEquals("failed to parse setting [indices.memory.max_index_buffer_size] with value [-6mb] as a size in bytes", e.getMessage());
 
     }
 
     public void testMaxBufferSizes() {
-        MockController controller = new MockController(Settings.builder()
-                                                       .put("indices.memory.index_buffer_size", "90%")
-                                                       .put("indices.memory.max_index_buffer_size", "6mb").build());
+        MockController controller = new MockController(
+            Settings.builder().put("indices.memory.index_buffer_size", "90%").put("indices.memory.max_index_buffer_size", "6mb").build()
+        );
 
         assertThat(controller.indexingBufferSize(), equalTo(new ByteSizeValue(6, ByteSizeUnit.MB)));
     }
 
     public void testThrottling() throws Exception {
 
-        MockController controller = new MockController(Settings.builder()
-                                                       .put("indices.memory.index_buffer_size", "4mb").build());
+        MockController controller = new MockController(Settings.builder().put("indices.memory.index_buffer_size", "4mb").build());
         IndexShard shard0 = newStartedShard();
         IndexShard shard1 = newStartedShard();
         controller.simulateIndexing(shard0);
@@ -363,7 +372,8 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         shard.close("simon says", false);
         AtomicReference<IndexShard> shardRef = new AtomicReference<>();
         Settings settings = Settings.builder().put("indices.memory.index_buffer_size", "50kb").build();
-        Iterable<IndexShard> iterable = () -> (shardRef.get() == null) ? Collections.emptyIterator()
+        Iterable<IndexShard> iterable = () -> (shardRef.get() == null)
+            ? Collections.emptyIterator()
             : Collections.singleton(shardRef.get()).iterator();
         AtomicInteger flushes = new AtomicInteger();
         IndexingMemoryController imc = new IndexingMemoryController(settings, threadPool, iterable) {
@@ -387,15 +397,33 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
     }
 
     EngineConfig configWithRefreshListener(EngineConfig config, ReferenceManager.RefreshListener listener) {
-        final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>(config.getInternalRefreshListener());;
+        final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>(config.getInternalRefreshListener());
+        ;
         internalRefreshListener.add(listener);
-        return new EngineConfig(config.getShardId(), config.getThreadPool(),
-            config.getIndexSettings(), config.getWarmer(), config.getStore(), config.getMergePolicy(), config.getAnalyzer(),
-            config.getSimilarity(), new CodecService(null, logger), config.getEventListener(), config.getQueryCache(),
-            config.getQueryCachingPolicy(), config.getTranslogConfig(), config.getFlushMergesAfter(),
-            config.getExternalRefreshListener(), internalRefreshListener, config.getIndexSort(),
-            config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(), config.getTombstoneDocSupplier());
+        return new EngineConfig(
+            config.getShardId(),
+            config.getThreadPool(),
+            config.getIndexSettings(),
+            config.getWarmer(),
+            config.getStore(),
+            config.getMergePolicy(),
+            config.getAnalyzer(),
+            config.getSimilarity(),
+            new CodecService(null, logger),
+            config.getEventListener(),
+            config.getQueryCache(),
+            config.getQueryCachingPolicy(),
+            config.getTranslogConfig(),
+            config.getFlushMergesAfter(),
+            config.getExternalRefreshListener(),
+            internalRefreshListener,
+            config.getIndexSort(),
+            config.getCircuitBreakerService(),
+            config.getGlobalCheckpointSupplier(),
+            config.retentionLeasesSupplier(),
+            config.getPrimaryTermSupplier(),
+            config.getTombstoneDocSupplier()
+        );
     }
 
     ThreadPoolStats.Stats getRefreshThreadPoolStats() {
@@ -427,15 +455,21 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
 
             }
         };
-        IndexShard shard = newStartedShard(randomBoolean(), Settings.EMPTY,
-            config -> new InternalEngine(configWithRefreshListener(config, refreshListener)));
+        IndexShard shard = newStartedShard(
+            randomBoolean(),
+            Settings.EMPTY,
+            config -> new InternalEngine(configWithRefreshListener(config, refreshListener))
+        );
         refreshLatch.set(new CountDownLatch(1)); // block refresh
         final RefreshStats refreshStats = shard.refreshStats();
         final IndexingMemoryController controller = new IndexingMemoryController(
-            Settings.builder().put("indices.memory.interval", "200h") // disable it
-                .put("indices.memory.index_buffer_size", "1024b").build(),
+            Settings.builder()
+                .put("indices.memory.interval", "200h") // disable it
+                .put("indices.memory.index_buffer_size", "1024b")
+                .build(),
             threadPool,
-            Collections.singleton(shard)) {
+            Collections.singleton(shard)
+        ) {
             @Override
             protected long getIndexBufferRAMBytesUsed(IndexShard shard) {
                 return randomLongBetween(1025, 10 * 1024 * 1024);

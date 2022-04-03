@@ -65,13 +65,24 @@ public abstract class RetryableAction<Response> {
 
     private volatile Scheduler.ScheduledCancellable retryTask;
 
-    public RetryableAction(Logger logger, ThreadPool threadPool, TimeValue initialDelay, TimeValue timeoutValue,
-                           ActionListener<Response> listener) {
+    public RetryableAction(
+        Logger logger,
+        ThreadPool threadPool,
+        TimeValue initialDelay,
+        TimeValue timeoutValue,
+        ActionListener<Response> listener
+    ) {
         this(logger, threadPool, initialDelay, timeoutValue, listener, ThreadPool.Names.SAME);
     }
 
-    public RetryableAction(Logger logger, ThreadPool threadPool, TimeValue initialDelay, TimeValue timeoutValue,
-                           ActionListener<Response> listener, String executor) {
+    public RetryableAction(
+        Logger logger,
+        ThreadPool threadPool,
+        TimeValue initialDelay,
+        TimeValue timeoutValue,
+        ActionListener<Response> listener,
+        String executor
+    ) {
         this.logger = logger;
         this.threadPool = threadPool;
         this.initialDelayMillis = initialDelay.getMillis();
@@ -117,7 +128,7 @@ public abstract class RetryableAction<Response> {
             public void onRejection(Exception e) {
                 retryTask = null;
                 // TODO: The only implementations of this class use SAME which means the execution will not be
-                //  rejected. Future implementations can adjust this functionality as needed.
+                // rejected. Future implementations can adjust this functionality as needed.
                 onFailure(e);
             }
         };
@@ -127,8 +138,7 @@ public abstract class RetryableAction<Response> {
 
     public abstract boolean shouldRetry(Exception e);
 
-    public void onFinished() {
-    }
+    public void onFinished() {}
 
     private class RetryingListener implements ActionListener<Response> {
 
@@ -155,8 +165,10 @@ public abstract class RetryableAction<Response> {
             if (shouldRetry(e)) {
                 final long elapsedMillis = threadPool.relativeTimeInMillis() - startMillis;
                 if (elapsedMillis >= timeoutMillis) {
-                    logger.debug(() -> new ParameterizedMessage("retryable action timed out after {}",
-                        TimeValue.timeValueMillis(elapsedMillis)), e);
+                    logger.debug(
+                        () -> new ParameterizedMessage("retryable action timed out after {}", TimeValue.timeValueMillis(elapsedMillis)),
+                        e
+                    );
                     onFinalFailure(e);
                 } else {
                     addException(e);

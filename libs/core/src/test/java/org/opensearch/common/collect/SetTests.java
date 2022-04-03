@@ -50,7 +50,7 @@ public class SetTests extends OpenSearchTestCase {
     }
 
     public void testStringSetOfOne() {
-        final String[] strings = {"foo"};
+        final String[] strings = { "foo" };
         final java.util.Set<String> stringsSet = Set.of(strings);
         assertThat(stringsSet.size(), equalTo(strings.length));
         assertTrue(stringsSet.containsAll(Arrays.asList(strings)));
@@ -58,7 +58,7 @@ public class SetTests extends OpenSearchTestCase {
     }
 
     public void testStringSetOfTwo() {
-        final String[] strings = {"foo", "bar"};
+        final String[] strings = { "foo", "bar" };
         final java.util.Set<String> stringsSet = Set.of(strings);
         assertThat(stringsSet.size(), equalTo(strings.length));
         assertTrue(stringsSet.containsAll(Arrays.asList(strings)));
@@ -66,7 +66,7 @@ public class SetTests extends OpenSearchTestCase {
     }
 
     public void testStringSetOfN() {
-        final String[] strings = {"foo", "bar", "baz"};
+        final String[] strings = { "foo", "bar", "baz" };
         final java.util.Set<String> stringsSet = Set.of(strings);
         assertThat(stringsSet.size(), equalTo(strings.length));
         assertTrue(stringsSet.containsAll(Arrays.asList(strings)));

@@ -46,11 +46,10 @@ import static org.hamcrest.Matchers.is;
 public class RoundingDuelTests extends OpenSearchTestCase {
 
     // dont include nano/micro seconds as rounding would become zero then and throw an exception
-    private static final String[] ALLOWED_TIME_SUFFIXES = new String[]{"d", "h", "ms", "s", "m"};
+    private static final String[] ALLOWED_TIME_SUFFIXES = new String[] { "d", "h", "ms", "s", "m" };
 
     public void testSerialization() throws Exception {
-        org.opensearch.common.Rounding.DateTimeUnit randomDateTimeUnit =
-            randomFrom(org.opensearch.common.Rounding.DateTimeUnit.values());
+        org.opensearch.common.Rounding.DateTimeUnit randomDateTimeUnit = randomFrom(org.opensearch.common.Rounding.DateTimeUnit.values());
         org.opensearch.common.Rounding rounding;
         boolean oldNextRoundingValueWorks;
         if (randomBoolean()) {
@@ -65,8 +64,7 @@ public class RoundingDuelTests extends OpenSearchTestCase {
         rounding.writeTo(output);
 
         Rounding roundingJoda = Rounding.Streams.read(output.bytes().streamInput());
-        org.opensearch.common.Rounding roundingJavaTime =
-            org.opensearch.common.Rounding.read(output.bytes().streamInput());
+        org.opensearch.common.Rounding roundingJavaTime = org.opensearch.common.Rounding.read(output.bytes().streamInput());
 
         int randomInt = randomIntBetween(1, 1_000_000_000);
         assertThat(roundingJoda.round(randomInt), is(roundingJavaTime.round(randomInt)));
@@ -76,8 +74,7 @@ public class RoundingDuelTests extends OpenSearchTestCase {
     }
 
     public void testDuellingImplementations() {
-        org.opensearch.common.Rounding.DateTimeUnit randomDateTimeUnit =
-            randomFrom(org.opensearch.common.Rounding.DateTimeUnit.values());
+        org.opensearch.common.Rounding.DateTimeUnit randomDateTimeUnit = randomFrom(org.opensearch.common.Rounding.DateTimeUnit.values());
         org.opensearch.common.Rounding.Prepared rounding;
         Rounding roundingJoda;
 

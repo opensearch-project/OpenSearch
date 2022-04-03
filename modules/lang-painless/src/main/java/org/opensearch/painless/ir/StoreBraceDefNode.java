@@ -84,10 +84,11 @@ public class StoreBraceDefNode extends StoreNode {
 
         methodWriter.writeDebugInfo(getLocation());
         Type methodType = Type.getMethodType(
-                MethodWriter.getType(void.class),
-                MethodWriter.getType(def.class),
-                MethodWriter.getType(indexType),
-                MethodWriter.getType(getStoreType()));
+            MethodWriter.getType(void.class),
+            MethodWriter.getType(def.class),
+            MethodWriter.getType(indexType),
+            MethodWriter.getType(getStoreType())
+        );
         methodWriter.invokeDefCall("arrayStore", methodType, DefBootstrap.ARRAY_STORE);
     }
 }

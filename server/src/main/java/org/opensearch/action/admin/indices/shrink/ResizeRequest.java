@@ -60,10 +60,16 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
 
     public static final ObjectParser<ResizeRequest, Void> PARSER = new ObjectParser<>("resize_request");
     static {
-        PARSER.declareField((parser, request, context) -> request.getTargetIndexRequest().settings(parser.map()),
-            new ParseField("settings"), ObjectParser.ValueType.OBJECT);
-        PARSER.declareField((parser, request, context) -> request.getTargetIndexRequest().aliases(parser.map()),
-            new ParseField("aliases"), ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(
+            (parser, request, context) -> request.getTargetIndexRequest().settings(parser.map()),
+            new ParseField("settings"),
+            ObjectParser.ValueType.OBJECT
+        );
+        PARSER.declareField(
+            (parser, request, context) -> request.getTargetIndexRequest().aliases(parser.map()),
+            new ParseField("aliases"),
+            ObjectParser.ValueType.OBJECT
+        );
     }
 
     private CreateIndexRequest targetIndexRequest;
@@ -138,7 +144,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
 
     @Override
     public String[] indices() {
-        return new String[] {sourceIndex};
+        return new String[] { sourceIndex };
     }
 
     @Override

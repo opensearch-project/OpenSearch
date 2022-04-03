@@ -118,8 +118,7 @@ public class MultiLineStringBuilder extends ShapeBuilder<JtsGeometry, org.opense
 
     public int numDimensions() {
         if (lines == null || lines.isEmpty()) {
-            throw new IllegalStateException("unable to get number of dimensions, " +
-                "LineStrings have not yet been initialized");
+            throw new IllegalStateException("unable to get number of dimensions, " + "LineStrings have not yet been initialized");
         }
         return lines.get(0).numDimensions();
     }
@@ -130,7 +129,7 @@ public class MultiLineStringBuilder extends ShapeBuilder<JtsGeometry, org.opense
         builder.field(ShapeParser.FIELD_TYPE.getPreferredName(), TYPE.shapeName());
         builder.field(ShapeParser.FIELD_COORDINATES.getPreferredName());
         builder.startArray();
-        for(LineStringBuilder line : lines) {
+        for (LineStringBuilder line : lines) {
             line.coordinatesToXcontent(builder, false);
         }
         builder.endArray();
@@ -141,12 +140,12 @@ public class MultiLineStringBuilder extends ShapeBuilder<JtsGeometry, org.opense
     @Override
     public JtsGeometry buildS4J() {
         final Geometry geometry;
-        if(wrapdateline) {
+        if (wrapdateline) {
             ArrayList<LineString> parts = new ArrayList<>();
             for (LineStringBuilder line : lines) {
                 LineStringBuilder.decomposeS4J(FACTORY, line.coordinates(false), parts);
             }
-            if(parts.size() == 1) {
+            if (parts.size() == 1) {
                 geometry = parts.get(0);
             } else {
                 LineString[] lineStrings = parts.toArray(new LineString[parts.size()]);
@@ -171,9 +170,9 @@ public class MultiLineStringBuilder extends ShapeBuilder<JtsGeometry, org.opense
         List<Line> linestrings = new ArrayList<>(lines.size());
         for (int i = 0; i < lines.size(); ++i) {
             LineStringBuilder lsb = lines.get(i);
-            linestrings.add(new Line(lsb.coordinates.stream().mapToDouble(c->c.x).toArray(),
-                lsb.coordinates.stream().mapToDouble(c->c.y).toArray()
-            ));
+            linestrings.add(
+                new Line(lsb.coordinates.stream().mapToDouble(c -> c.x).toArray(), lsb.coordinates.stream().mapToDouble(c -> c.y).toArray())
+            );
         }
         return new MultiLine(linestrings);
     }

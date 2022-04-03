@@ -81,8 +81,14 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         this(hits, totalHits, maxScore, null, null, null);
     }
 
-    public SearchHits(SearchHit[] hits, @Nullable TotalHits totalHits, float maxScore, @Nullable SortField[] sortFields,
-                      @Nullable String collapseField, @Nullable Object[] collapseValues) {
+    public SearchHits(
+        SearchHit[] hits,
+        @Nullable TotalHits totalHits,
+        float maxScore,
+        @Nullable SortField[] sortFields,
+        @Nullable String collapseField,
+        @Nullable Object[] collapseValues
+    ) {
         this.hits = hits;
         this.totalHits = totalHits;
         this.maxScore = maxScore;
@@ -285,17 +291,23 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         }
         SearchHits other = (SearchHits) obj;
         return Objects.equals(totalHits, other.totalHits)
-                && Objects.equals(maxScore, other.maxScore)
-                && Arrays.equals(hits, other.hits)
-                && Arrays.equals(sortFields, other.sortFields)
-                && Objects.equals(collapseField, other.collapseField)
-                && Arrays.equals(collapseValues, other.collapseValues);
+            && Objects.equals(maxScore, other.maxScore)
+            && Arrays.equals(hits, other.hits)
+            && Arrays.equals(sortFields, other.sortFields)
+            && Objects.equals(collapseField, other.collapseField)
+            && Arrays.equals(collapseValues, other.collapseValues);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(totalHits, maxScore, Arrays.hashCode(hits),
-            Arrays.hashCode(sortFields), collapseField, Arrays.hashCode(collapseValues));
+        return Objects.hash(
+            totalHits,
+            maxScore,
+            Arrays.hashCode(hits),
+            Arrays.hashCode(sortFields),
+            collapseField,
+            Arrays.hashCode(collapseValues)
+        );
     }
 
     public static TotalHits parseTotalHitsFragment(XContentParser parser) throws IOException {

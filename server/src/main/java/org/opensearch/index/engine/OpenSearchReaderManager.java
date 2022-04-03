@@ -62,8 +62,10 @@ class OpenSearchReaderManager extends ReferenceManager<OpenSearchDirectoryReader
      * @param reader            the directoryReader to use for future reopens
      * @param refreshListener   A consumer that is called every time a new reader is opened
      */
-    OpenSearchReaderManager(OpenSearchDirectoryReader reader,
-                            BiConsumer<OpenSearchDirectoryReader, OpenSearchDirectoryReader> refreshListener) {
+    OpenSearchReaderManager(
+        OpenSearchDirectoryReader reader,
+        BiConsumer<OpenSearchDirectoryReader, OpenSearchDirectoryReader> refreshListener
+    ) {
         this.current = reader;
         this.refreshListener = refreshListener;
         refreshListener.accept(current, null);

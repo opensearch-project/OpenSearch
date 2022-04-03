@@ -16,6 +16,8 @@ import org.opensearch.gradle.VersionProperties
 import org.opensearch.gradle.docker.DockerBuildTask
 import org.opensearch.gradle.info.BuildParams
 import org.opensearch.gradle.testfixtures.TestFixturesPlugin
+import org.gradle.internal.os.OperatingSystem
+
 apply plugin: 'opensearch.standalone-rest-test'
 apply plugin: 'opensearch.test.fixtures'
 apply plugin: 'opensearch.internal-distribution-download'
@@ -50,7 +52,7 @@ ext.expansions = { Architecture architecture, DockerBase base, boolean local ->
     classifier = "linux-\$(arch)"
   }
 
-  final String opensearch = "opensearch-${VersionProperties.getOpenSearch()}-${classifier}.tar.gz"
+  final String opensearch = "opensearch-min-${VersionProperties.getOpenSearch()}-${classifier}.tar.gz"
 
   /* Both the following Dockerfile commands put the resulting artifact at
    * the same location, regardless of classifier, so that the commands that
@@ -153,6 +155,10 @@ opensearch_distributions {
 
 tasks.named("preProcessFixture").configure {
   dependsOn opensearch_distributions.docker
+  // always run the task, otherwise the folders won't be created
+  outputs.upToDateWhen { 
+    false 
+  }
   doLast {
     // tests expect to have an empty repo
     project.delete(
@@ -183,7 +189,7 @@ void addBuildDockerImage(Architecture architecture, DockerBase base) {
 
   final TaskProvider<DockerBuildTask> buildDockerImageTask =
           tasks.register(taskName("build", architecture, base, "DockerImage"), DockerBuildTask) {
-    onlyIf { Architecture.current() == architecture }
+    onlyIf { Architecture.current() == architecture && !OperatingSystem.current().isWindows() }
     TaskProvider<Sync> copyContextTask = tasks.named(taskName("copy", architecture, base, "DockerContext"))
     dependsOn(copyContextTask)
     dockerContext.fileProvider(copyContextTask.map { it.destinationDir })
@@ -246,7 +252,7 @@ subprojects { Project subProject ->
         "opensearch:test"
 
       dependsOn(parent.path + ":" + buildTaskName)
-      onlyIf { Architecture.current() == architecture }
+      onlyIf { Architecture.current() == architecture && !OperatingSystem.current().isWindows()}
     }
 
     artifacts.add('default', file(tarFile)) {
@@ -259,4 +265,8 @@ subprojects { Project subProject ->
       dependsOn(exportTaskName)
     }
   }
+}
+
+tasks.named("composeUp").configure {
+  dependsOn preProcessFixture
 }

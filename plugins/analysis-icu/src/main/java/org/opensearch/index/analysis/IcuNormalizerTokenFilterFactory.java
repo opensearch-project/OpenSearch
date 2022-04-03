@@ -42,7 +42,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 
-
 /**
  * Uses the {@link org.apache.lucene.analysis.icu.ICUNormalizer2Filter} to normalize tokens.
  * <p>The {@code name} can be used to provide the type of normalization to perform.</p>
@@ -50,8 +49,7 @@ import org.opensearch.index.IndexSettings;
  */
 public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
 
-    private static final DeprecationLogger deprecationLogger =
-            DeprecationLogger.getLogger(IcuNormalizerTokenFilterFactory.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IcuNormalizerTokenFilterFactory.class);
 
     private final Normalizer2 normalizer;
 
@@ -67,14 +65,14 @@ public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory 
         return new org.apache.lucene.analysis.icu.ICUNormalizer2Filter(tokenStream, normalizer);
     }
 
-    static Normalizer2 wrapWithUnicodeSetFilter(final IndexSettings indexSettings,
-                                                final Normalizer2 normalizer,
-                                                final Settings settings) {
+    static Normalizer2 wrapWithUnicodeSetFilter(final IndexSettings indexSettings, final Normalizer2 normalizer, final Settings settings) {
         String unicodeSetFilter = settings.get("unicodeSetFilter");
         if (indexSettings.getIndexVersionCreated().onOrAfter(LegacyESVersion.V_7_0_0)) {
             if (unicodeSetFilter != null) {
-                deprecationLogger.deprecate("icu_normalizer_unicode_set_filter",
-                    "[unicodeSetFilter] has been deprecated in favor of [unicode_set_filter]");
+                deprecationLogger.deprecate(
+                    "icu_normalizer_unicode_set_filter",
+                    "[unicodeSetFilter] has been deprecated in favor of [unicode_set_filter]"
+                );
             } else {
                 unicodeSetFilter = settings.get("unicode_set_filter");
             }

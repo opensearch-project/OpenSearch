@@ -42,7 +42,6 @@ import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
-import org.opensearch.common.lucene.search.function.MinScoreScorer;
 
 import java.io.IOException;
 import java.util.Arrays;

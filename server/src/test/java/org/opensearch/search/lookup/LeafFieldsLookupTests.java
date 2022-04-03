@@ -61,15 +61,27 @@ public class LeafFieldsLookupTests extends OpenSearchTestCase {
         MappedFieldType fieldType = mock(MappedFieldType.class);
         when(fieldType.name()).thenReturn("field");
         // Add 10 when valueForDisplay is called so it is easy to be sure it *was* called
-        when(fieldType.valueForDisplay(anyObject())).then(invocation ->
-                (Double) invocation.getArguments()[0] + 10);
+        when(fieldType.valueForDisplay(anyObject())).then(invocation -> (Double) invocation.getArguments()[0] + 10);
 
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.fieldType("field")).thenReturn(fieldType);
         when(mapperService.fieldType("alias")).thenReturn(fieldType);
 
-        FieldInfo mockFieldInfo = new FieldInfo("field", 1, false, false, true,
-            IndexOptions.NONE, DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, false);
+        FieldInfo mockFieldInfo = new FieldInfo(
+            "field",
+            1,
+            false,
+            false,
+            true,
+            IndexOptions.NONE,
+            DocValuesType.NONE,
+            -1,
+            Collections.emptyMap(),
+            0,
+            0,
+            0,
+            false
+        );
 
         LeafReader leafReader = mock(LeafReader.class);
         doAnswer(invocation -> {
@@ -79,9 +91,7 @@ public class LeafFieldsLookupTests extends OpenSearchTestCase {
             return null;
         }).when(leafReader).document(anyInt(), any(StoredFieldVisitor.class));
 
-        fieldsLookup = new LeafFieldsLookup(mapperService,
-            new String[] { "type" },
-            leafReader);
+        fieldsLookup = new LeafFieldsLookup(mapperService, new String[] { "type" }, leafReader);
     }
 
     public void testBasicLookup() {

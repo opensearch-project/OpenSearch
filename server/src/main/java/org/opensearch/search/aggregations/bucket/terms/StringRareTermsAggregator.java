@@ -77,24 +77,14 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
         double precision,
         CardinalityUpperBound cardinality
     ) throws IOException {
-        super(
-            name,
-            factories,
-            context,
-            parent,
-            metadata,
-            maxDocCount,
-            precision,
-            format
-        );
+        super(name, factories, context, parent, metadata, maxDocCount, precision, format);
         this.valuesSource = valuesSource;
         this.filter = filter;
         this.bucketOrds = BytesKeyedBucketOrds.build(context.bigArrays(), cardinality);
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-                                                final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
             final BytesRefBuilder previous = new BytesRefBuilder();
@@ -208,4 +198,3 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
         Releasables.close(bucketOrds);
     }
 }
-

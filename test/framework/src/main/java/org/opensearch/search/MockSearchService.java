@@ -41,6 +41,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.internal.ReaderContext;
+import org.opensearch.search.query.QueryPhase;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
@@ -63,9 +64,11 @@ public class MockSearchService extends SearchService {
         final Map<ReaderContext, Throwable> copy = new HashMap<>(ACTIVE_SEARCH_CONTEXTS);
         if (copy.isEmpty() == false) {
             throw new AssertionError(
-                    "There are still [" + copy.size()
-                            + "] in-flight contexts. The first one's creation site is listed as the cause of this exception.",
-                    copy.values().iterator().next());
+                "There are still ["
+                    + copy.size()
+                    + "] in-flight contexts. The first one's creation site is listed as the cause of this exception.",
+                copy.values().iterator().next()
+            );
         }
     }
 
@@ -83,10 +86,28 @@ public class MockSearchService extends SearchService {
         ACTIVE_SEARCH_CONTEXTS.remove(context);
     }
 
-    public MockSearchService(ClusterService clusterService,
-            IndicesService indicesService, ThreadPool threadPool, ScriptService scriptService,
-            BigArrays bigArrays, FetchPhase fetchPhase, CircuitBreakerService circuitBreakerService) {
-        super(clusterService, indicesService, threadPool, scriptService, bigArrays, fetchPhase, null, circuitBreakerService);
+    public MockSearchService(
+        ClusterService clusterService,
+        IndicesService indicesService,
+        ThreadPool threadPool,
+        ScriptService scriptService,
+        BigArrays bigArrays,
+        QueryPhase queryPhase,
+        FetchPhase fetchPhase,
+        CircuitBreakerService circuitBreakerService
+    ) {
+        super(
+            clusterService,
+            indicesService,
+            threadPool,
+            scriptService,
+            bigArrays,
+            queryPhase,
+            fetchPhase,
+            null,
+            circuitBreakerService,
+            null
+        );
     }
 
     @Override

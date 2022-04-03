@@ -46,15 +46,18 @@ import java.util.List;
 
 public enum ValueType implements Writeable {
 
-    STRING((byte) 1, "string", "string", CoreValuesSourceType.BYTES,
-        DocValueFormat.RAW),
+    STRING((byte) 1, "string", "string", CoreValuesSourceType.BYTES, DocValueFormat.RAW),
 
     LONG((byte) 2, "byte|short|integer|long", "long", CoreValuesSourceType.NUMERIC, DocValueFormat.RAW),
     DOUBLE((byte) 3, "float|double", "double", CoreValuesSourceType.NUMERIC, DocValueFormat.RAW),
     NUMBER((byte) 4, "number", "number", CoreValuesSourceType.NUMERIC, DocValueFormat.RAW),
-    DATE((byte) 5, "date", "date", CoreValuesSourceType.DATE,
-        new DocValueFormat.DateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, ZoneOffset.UTC,
-                DateFieldMapper.Resolution.MILLISECONDS)),
+    DATE(
+        (byte) 5,
+        "date",
+        "date",
+        CoreValuesSourceType.DATE,
+        new DocValueFormat.DateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, ZoneOffset.UTC, DateFieldMapper.Resolution.MILLISECONDS)
+    ),
     IP((byte) 6, "ip", "ip", CoreValuesSourceType.IP, DocValueFormat.IP),
     // TODO: what is the difference between "number" and "numeric"?
     NUMERIC((byte) 7, "numeric", "numeric", CoreValuesSourceType.NUMERIC, DocValueFormat.RAW),
@@ -70,8 +73,7 @@ public enum ValueType implements Writeable {
 
     public static final ParseField VALUE_TYPE = new ParseField("value_type", "valueType");
 
-    ValueType(byte id, String description, String preferredName, ValuesSourceType valuesSourceType,
-              DocValueFormat defaultFormat) {
+    ValueType(byte id, String description, String preferredName, ValuesSourceType valuesSourceType, DocValueFormat defaultFormat) {
         this.id = id;
         this.description = description;
         this.preferredName = preferredName;
@@ -87,8 +89,14 @@ public enum ValueType implements Writeable {
         return valuesSourceType;
     }
 
-    private static List<ValueType> numericValueTypes = Arrays.asList(ValueType.DOUBLE, ValueType.DATE, ValueType.LONG, ValueType.NUMBER,
-        ValueType.NUMERIC, ValueType.BOOLEAN);
+    private static List<ValueType> numericValueTypes = Arrays.asList(
+        ValueType.DOUBLE,
+        ValueType.DATE,
+        ValueType.LONG,
+        ValueType.NUMBER,
+        ValueType.NUMERIC,
+        ValueType.BOOLEAN
+    );
     private static List<ValueType> stringValueTypes = Arrays.asList(ValueType.STRING, ValueType.IP);
 
     /**
@@ -119,18 +127,24 @@ public enum ValueType implements Writeable {
 
     public static ValueType lenientParse(String type) {
         switch (type) {
-            case "string":  return STRING;
+            case "string":
+                return STRING;
             case "double":
-            case "float":   return DOUBLE;
+            case "float":
+                return DOUBLE;
             case "number":
             case "numeric":
             case "long":
             case "integer":
             case "short":
-            case "byte":    return LONG;
-            case "date":    return DATE;
-            case "ip":      return IP;
-            case "boolean": return BOOLEAN;
+            case "byte":
+                return LONG;
+            case "date":
+                return DATE;
+            case "ip":
+                return IP;
+            case "boolean":
+                return BOOLEAN;
             default:
                 // TODO: do not be lenient here
                 return null;

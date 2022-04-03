@@ -163,6 +163,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
             CollectConsumer consumer
         ) throws IOException;
     }
+
     @FunctionalInterface
     public interface CollectConsumer {
         void accept(LeafBucketCollector sub, int doc, long owningBucketOrd, BytesRef bytes) throws IOException;
@@ -438,9 +439,20 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
             } else {
                 reduceOrder = order;
             }
-            return new StringTerms(name, reduceOrder, order, bucketCountThresholds.getRequiredSize(),
-                bucketCountThresholds.getMinDocCount(), metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError,
-                otherDocCount, Arrays.asList(topBuckets), 0);
+            return new StringTerms(
+                name,
+                reduceOrder,
+                order,
+                bucketCountThresholds.getRequiredSize(),
+                bucketCountThresholds.getMinDocCount(),
+                metadata(),
+                format,
+                bucketCountThresholds.getShardSize(),
+                showTermDocCountError,
+                otherDocCount,
+                Arrays.asList(topBuckets),
+                0
+            );
         }
 
         @Override
@@ -571,4 +583,3 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         }
     }
 }
-

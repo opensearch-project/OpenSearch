@@ -49,4 +49,3 @@ public class DiscoveryAzureClassicClientYamlTestSuiteIT extends OpenSearchClient
         return OpenSearchClientYamlSuiteTestCase.createParameters();
     }
 }
-

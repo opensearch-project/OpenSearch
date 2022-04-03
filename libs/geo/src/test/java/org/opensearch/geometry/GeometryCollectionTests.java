@@ -50,11 +50,15 @@ public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollec
 
     public void testBasicSerialization() throws IOException, ParseException {
         WellKnownText wkt = new WellKnownText(true, new GeographyValidator(true));
-        assertEquals("GEOMETRYCOLLECTION (POINT (20.0 10.0),POINT EMPTY)",
-            wkt.toWKT(new GeometryCollection<Geometry>(Arrays.asList(new Point(20, 10), Point.EMPTY))));
+        assertEquals(
+            "GEOMETRYCOLLECTION (POINT (20.0 10.0),POINT EMPTY)",
+            wkt.toWKT(new GeometryCollection<Geometry>(Arrays.asList(new Point(20, 10), Point.EMPTY)))
+        );
 
-        assertEquals(new GeometryCollection<Geometry>(Arrays.asList(new Point(20, 10), Point.EMPTY)),
-            wkt.fromWKT("GEOMETRYCOLLECTION (POINT (20.0 10.0),POINT EMPTY)"));
+        assertEquals(
+            new GeometryCollection<Geometry>(Arrays.asList(new Point(20, 10), Point.EMPTY)),
+            wkt.fromWKT("GEOMETRYCOLLECTION (POINT (20.0 10.0),POINT EMPTY)")
+        );
 
         assertEquals("GEOMETRYCOLLECTION EMPTY", wkt.toWKT(GeometryCollection.EMPTY));
         assertEquals(GeometryCollection.EMPTY, wkt.fromWKT("GEOMETRYCOLLECTION EMPTY)"));
@@ -68,12 +72,16 @@ public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollec
         ex = expectThrows(IllegalArgumentException.class, () -> new GeometryCollection<>(null));
         assertEquals("the list of shapes cannot be null or empty", ex.getMessage());
 
-        ex = expectThrows(IllegalArgumentException.class, () -> new GeometryCollection<>(
-            Arrays.asList(new Point(20, 10), new Point(20, 10, 30))));
+        ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> new GeometryCollection<>(Arrays.asList(new Point(20, 10), new Point(20, 10, 30)))
+        );
         assertEquals("all elements of the collection should have the same number of dimension", ex.getMessage());
 
-        ex = expectThrows(IllegalArgumentException.class, () -> new StandardValidator(false).validate(
-            new GeometryCollection<Geometry>(Collections.singletonList(new Point(20, 10, 30)))));
+        ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> new StandardValidator(false).validate(new GeometryCollection<Geometry>(Collections.singletonList(new Point(20, 10, 30))))
+        );
         assertEquals("found Z value [30.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
 
         new StandardValidator(true).validate(new GeometryCollection<Geometry>(Collections.singletonList(new Point(20, 10, 30))));

@@ -187,6 +187,11 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
+    public void upgradePlugin(List<Provider<RegularFile>> plugins) {
+        nodes.all(each -> each.upgradePlugin(plugins));
+    }
+
+    @Override
     public void module(Provider<RegularFile> module) {
         nodes.all(each -> each.module(module));
     }
@@ -387,20 +392,27 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         writeUnicastHostsFiles();
     }
 
+    public void upgradeAllNodesAndPluginsToNextVersion(List<Provider<RegularFile>> plugins) {
+        stop(false);
+        nodes.all(OpenSearchNode::goToNextVersion);
+        upgradePlugin(plugins);
+        start();
+        writeUnicastHostsFiles();
+    }
+
     public void fullRestart() {
         stop(false);
         start();
     }
 
     public void nextNodeToNextVersion() {
-        if (nodeIndex + 1 > nodes.size()) {
-            throw new TestClustersException("Ran out of nodes to take to the next version");
-        }
-        OpenSearchNode node = nodes.getByName(clusterName + "-" + nodeIndex);
-        node.stop(false);
-        node.goToNextVersion();
-        commonNodeConfig(node, null, null);
-        nodeIndex += 1;
+        OpenSearchNode node = upgradeNodeToNextVersion();
+        node.start();
+    }
+
+    public void upgradeNodeAndPluginToNextVersion(List<Provider<RegularFile>> plugins) {
+        OpenSearchNode node = upgradeNodeToNextVersion();
+        node.upgradePlugin(plugins);
         node.start();
     }
 
@@ -433,6 +445,18 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
                 throw new UncheckedIOException("Failed to write unicast_hosts for " + this, e);
             }
         });
+    }
+
+    private OpenSearchNode upgradeNodeToNextVersion() {
+        if (nodeIndex + 1 > nodes.size()) {
+            throw new TestClustersException("Ran out of nodes to take to the next version");
+        }
+        OpenSearchNode node = nodes.getByName(clusterName + "-" + nodeIndex);
+        node.stop(false);
+        node.goToNextVersion();
+        commonNodeConfig(node, null, null);
+        nodeIndex += 1;
+        return node;
     }
 
     @Override

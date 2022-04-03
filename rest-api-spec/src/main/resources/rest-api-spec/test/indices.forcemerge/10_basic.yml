@@ -14,14 +14,14 @@
   - skip:
       version: " - 7.3.99"
       reason: "deprecation warning about only_expunge_deletes and max_num_segments added in 7.4"
-      features: "warnings"
+      features: "allowed_warnings"
 
   - do:
       indices.create:
         index: test
 
   - do:
-      warnings:
+      allowed_warnings:
         - 'setting only_expunge_deletes and max_num_segments at the same time is deprecated and will be rejected in a future version'
       indices.forcemerge:
         index: test

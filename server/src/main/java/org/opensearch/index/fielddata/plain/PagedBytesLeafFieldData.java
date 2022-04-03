@@ -58,8 +58,7 @@ public class PagedBytesLeafFieldData extends AbstractLeafOrdinalsFieldData {
     }
 
     @Override
-    public void close() {
-    }
+    public void close() {}
 
     @Override
     public long ramBytesUsed() {

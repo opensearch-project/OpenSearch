@@ -43,7 +43,6 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.RandomCreateIndexGenerator;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
-import org.opensearch.action.admin.indices.shrink.ResizeRequest;
 
 import java.io.IOException;
 import java.util.function.Consumer;
@@ -93,8 +92,8 @@ public class ResizeRequestTests extends OpenSearchTestCase {
             target.settings(settings);
             request.setTargetIndex(target);
             String actualRequestBody = Strings.toString(request);
-            String expectedRequestBody = "{\"settings\":{\"index\":{\"number_of_shards\":\"10\"}}," +
-                    "\"aliases\":{\"test_alias\":{\"filter\":{\"term\":{\"year\":2016}},\"routing\":\"1\",\"is_write_index\":true}}}";
+            String expectedRequestBody = "{\"settings\":{\"index\":{\"number_of_shards\":\"10\"}},"
+                + "\"aliases\":{\"test_alias\":{\"filter\":{\"term\":{\"year\":2016}},\"routing\":\"1\",\"is_write_index\":true}}}";
             assertEquals(expectedRequestBody, actualRequestBody);
         }
     }
@@ -106,16 +105,20 @@ public class ResizeRequestTests extends OpenSearchTestCase {
         final XContentType xContentType = randomFrom(XContentType.values());
         BytesReference originalBytes = toShuffledXContent(resizeRequest, xContentType, EMPTY_PARAMS, humanReadable);
 
-        ResizeRequest parsedResizeRequest = new ResizeRequest(resizeRequest.getTargetIndexRequest().index(),
-                resizeRequest.getSourceIndex());
+        ResizeRequest parsedResizeRequest = new ResizeRequest(
+            resizeRequest.getTargetIndexRequest().index(),
+            resizeRequest.getSourceIndex()
+        );
         try (XContentParser xParser = createParser(xContentType.xContent(), originalBytes)) {
             parsedResizeRequest.fromXContent(xParser);
         }
 
         assertEquals(resizeRequest.getSourceIndex(), parsedResizeRequest.getSourceIndex());
         assertEquals(resizeRequest.getTargetIndexRequest().index(), parsedResizeRequest.getTargetIndexRequest().index());
-        CreateIndexRequestTests.assertAliasesEqual(resizeRequest.getTargetIndexRequest().aliases(),
-                parsedResizeRequest.getTargetIndexRequest().aliases());
+        CreateIndexRequestTests.assertAliasesEqual(
+            resizeRequest.getTargetIndexRequest().aliases(),
+            parsedResizeRequest.getTargetIndexRequest().aliases()
+        );
         assertEquals(resizeRequest.getTargetIndexRequest().settings(), parsedResizeRequest.getTargetIndexRequest().settings());
 
         BytesReference finalBytes = toShuffledXContent(parsedResizeRequest, xContentType, EMPTY_PARAMS, humanReadable);

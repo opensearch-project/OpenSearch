@@ -105,6 +105,7 @@ public class CancellableThreads {
             throw new RuntimeException("unexpected IO exception", e);
         }
     }
+
     /**
      * run the Interruptible, capturing the executing thread. Concurrent calls to {@link #cancel(String)} will interrupt this thread
      * causing the call to prematurely return.
@@ -157,7 +158,6 @@ public class CancellableThreads {
 
     }
 
-
     private synchronized void remove() {
         threads.remove(Thread.currentThread());
     }
@@ -177,7 +177,6 @@ public class CancellableThreads {
         }
         threads.clear();
     }
-
 
     public interface Interruptible extends IOInterruptible {
         void run() throws InterruptedException;

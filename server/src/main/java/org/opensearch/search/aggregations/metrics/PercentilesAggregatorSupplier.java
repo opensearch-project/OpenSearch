@@ -40,13 +40,15 @@ import java.io.IOException;
 import java.util.Map;
 
 public interface PercentilesAggregatorSupplier {
-    Aggregator build(String name,
-                     ValuesSource valuesSource,
-                     SearchContext context,
-                     Aggregator parent,
-                     double[] percents,
-                     PercentilesConfig percentilesConfig,
-                     boolean keyed,
-                     DocValueFormat formatter,
-                     Map<String, Object> metadata) throws IOException;
+    Aggregator build(
+        String name,
+        ValuesSource valuesSource,
+        SearchContext context,
+        Aggregator parent,
+        double[] percents,
+        PercentilesConfig percentilesConfig,
+        boolean keyed,
+        DocValueFormat formatter,
+        Map<String, Object> metadata
+    ) throws IOException;
 }

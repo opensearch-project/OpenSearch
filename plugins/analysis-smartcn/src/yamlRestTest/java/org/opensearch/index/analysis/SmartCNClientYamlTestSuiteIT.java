@@ -49,4 +49,3 @@ public class SmartCNClientYamlTestSuiteIT extends OpenSearchClientYamlSuiteTestC
         return OpenSearchClientYamlSuiteTestCase.createParameters();
     }
 }
-

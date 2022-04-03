@@ -57,12 +57,12 @@ setup:
 "Get field mapping with local is deprecated":
 
   - skip:
-      features: ["warnings", "node_selector"]
+      features: ["allowed_warnings", "node_selector"]
 
   - do:
       node_selector:
         version: "7.8.0 - "
-      warnings:
+      allowed_warnings:
         - "Use [local] in get field mapping requests is deprecated. The parameter will be removed in the next major version"
       indices.get_field_mapping:
         fields: text

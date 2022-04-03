@@ -47,9 +47,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
-import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.opensearch.action.admin.cluster.health.TransportClusterHealthAction;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -60,7 +57,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 public class TransportClusterHealthActionTests extends OpenSearchTestCase {
 
     public void testWaitForInitializingShards() throws Exception {
-        final String[] indices = {"test"};
+        final String[] indices = { "test" };
         final ClusterHealthRequest request = new ClusterHealthRequest();
         request.waitForNoInitializingShards(true);
         ClusterState clusterState = randomClusterStateWithInitializingShards("test", 0);
@@ -79,7 +76,7 @@ public class TransportClusterHealthActionTests extends OpenSearchTestCase {
     }
 
     public void testWaitForAllShards() {
-        final String[] indices = {"test"};
+        final String[] indices = { "test" };
         final ClusterHealthRequest request = new ClusterHealthRequest();
         request.waitForActiveShards(ActiveShardCount.ALL);
 
@@ -93,16 +90,19 @@ public class TransportClusterHealthActionTests extends OpenSearchTestCase {
     }
 
     ClusterState randomClusterStateWithInitializingShards(String index, final int initializingShards) {
-        final IndexMetadata indexMetadata = IndexMetadata
-            .builder(index)
+        final IndexMetadata indexMetadata = IndexMetadata.builder(index)
             .settings(settings(Version.CURRENT))
             .numberOfShards(between(1, 10))
             .numberOfReplicas(randomInt(20))
             .build();
 
         final List<ShardRoutingState> shardRoutingStates = new ArrayList<>();
-        IntStream.range(0, between(1, 30)).forEach(i -> shardRoutingStates.add(randomFrom(
-            ShardRoutingState.STARTED, ShardRoutingState.UNASSIGNED, ShardRoutingState.RELOCATING)));
+        IntStream.range(0, between(1, 30))
+            .forEach(
+                i -> shardRoutingStates.add(
+                    randomFrom(ShardRoutingState.STARTED, ShardRoutingState.UNASSIGNED, ShardRoutingState.RELOCATING)
+                )
+            );
         IntStream.range(0, initializingShards).forEach(i -> shardRoutingStates.add(ShardRoutingState.INITIALIZING));
         Randomness.shuffle(shardRoutingStates);
 
@@ -113,16 +113,14 @@ public class TransportClusterHealthActionTests extends OpenSearchTestCase {
         {
             ShardRoutingState state = shardRoutingStates.remove(0);
             String node = state == ShardRoutingState.UNASSIGNED ? null : "node";
-            routingTable.addShard(
-                TestShardRouting.newShardRouting(shardId, node, "relocating", true, state)
-            );
+            routingTable.addShard(TestShardRouting.newShardRouting(shardId, node, "relocating", true, state));
         }
 
         // Replicas
         for (int i = 0; i < shardRoutingStates.size(); i++) {
             ShardRoutingState state = shardRoutingStates.get(i);
             String node = state == ShardRoutingState.UNASSIGNED ? null : "node" + i;
-            routingTable.addShard(TestShardRouting.newShardRouting(shardId, node, "relocating"+i, randomBoolean(), state));
+            routingTable.addShard(TestShardRouting.newShardRouting(shardId, node, "relocating" + i, randomBoolean(), state));
         }
 
         return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))

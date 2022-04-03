@@ -61,7 +61,6 @@ public class TermsLookup implements Writeable, ToXContentFragment {
     private final String path;
     private String routing;
 
-
     public TermsLookup(String index, String id, String path) {
         this(index, null, id, path);
     }
@@ -115,8 +114,9 @@ public class TermsLookup implements Writeable, ToXContentFragment {
             out.writeOptionalString(type);
         } else {
             if (type == null) {
-                throw new IllegalArgumentException("Typeless [terms] lookup queries are not supported if any " +
-                    "node is running a version before 7.0.");
+                throw new IllegalArgumentException(
+                    "Typeless [terms] lookup queries are not supported if any " + "node is running a version before 7.0."
+                );
 
             }
             out.writeString(type);
@@ -160,14 +160,13 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         return this;
     }
 
-    private static final ConstructingObjectParser<TermsLookup, Void> PARSER = new ConstructingObjectParser<>("terms_lookup",
-        args -> {
-            String index = (String) args[0];
-            String type = (String) args[1];
-            String id = (String) args[2];
-            String path = (String) args[3];
-            return new TermsLookup(index, type, id, path);
-        });
+    private static final ConstructingObjectParser<TermsLookup, Void> PARSER = new ConstructingObjectParser<>("terms_lookup", args -> {
+        String index = (String) args[0];
+        String type = (String) args[1];
+        String id = (String) args[2];
+        String path = (String) args[3];
+        return new TermsLookup(index, type, id, path);
+    });
     static {
         PARSER.declareString(constructorArg(), new ParseField("index"));
         PARSER.declareString(optionalConstructorArg(), new ParseField("type").withAllDeprecated());
@@ -217,10 +216,10 @@ public class TermsLookup implements Writeable, ToXContentFragment {
             return false;
         }
         TermsLookup other = (TermsLookup) obj;
-        return Objects.equals(index, other.index) &&
-                Objects.equals(type, other.type) &&
-                Objects.equals(id, other.id) &&
-                Objects.equals(path, other.path) &&
-                Objects.equals(routing, other.routing);
+        return Objects.equals(index, other.index)
+            && Objects.equals(type, other.type)
+            && Objects.equals(id, other.id)
+            && Objects.equals(path, other.path)
+            && Objects.equals(routing, other.routing);
     }
 }

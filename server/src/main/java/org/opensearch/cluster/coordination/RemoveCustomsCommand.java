@@ -51,14 +51,13 @@ import java.util.List;
 public class RemoveCustomsCommand extends OpenSearchNodeCommand {
 
     static final String CUSTOMS_REMOVED_MSG = "Customs were successfully removed from the cluster state";
-    static final String CONFIRMATION_MSG =
-        DELIMITER +
-            "\n" +
-            "You should only run this tool if you have broken custom metadata in the\n" +
-            "cluster state that prevents the cluster state from being loaded.\n" +
-            "This tool can cause data loss and its use should be your last resort.\n" +
-            "\n" +
-            "Do you want to proceed?\n";
+    static final String CONFIRMATION_MSG = DELIMITER
+        + "\n"
+        + "You should only run this tool if you have broken custom metadata in the\n"
+        + "cluster state that prevents the cluster state from being loaded.\n"
+        + "This tool can cause data loss and its use should be your last resort.\n"
+        + "\n"
+        + "Do you want to proceed?\n";
 
     private final OptionSpec<String> arguments;
 
@@ -96,13 +95,14 @@ public class RemoveCustomsCommand extends OpenSearchNodeCommand {
                 }
             }
             if (matched == false) {
-                throw new UserException(ExitCodes.USAGE,
-                    "No custom metadata matching [" + customToRemove + "] were found on this node");
+                throw new UserException(ExitCodes.USAGE, "No custom metadata matching [" + customToRemove + "] were found on this node");
             }
         }
         final ClusterState newClusterState = ClusterState.builder(oldClusterState).metadata(metadataBuilder.build()).build();
-        terminal.println(Terminal.Verbosity.VERBOSE,
-            "[old cluster state = " + oldClusterState + ", new cluster state = " + newClusterState + "]");
+        terminal.println(
+            Terminal.Verbosity.VERBOSE,
+            "[old cluster state = " + oldClusterState + ", new cluster state = " + newClusterState + "]"
+        );
 
         confirm(terminal, CONFIRMATION_MSG);
 

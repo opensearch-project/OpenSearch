@@ -138,8 +138,7 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
             return false;
         }
         SearchSortValues that = (SearchSortValues) o;
-        return Arrays.equals(formattedSortValues, that.formattedSortValues) &&
-            Arrays.equals(rawSortValues, that.rawSortValues);
+        return Arrays.equals(formattedSortValues, that.formattedSortValues) && Arrays.equals(rawSortValues, that.rawSortValues);
     }
 
     @Override

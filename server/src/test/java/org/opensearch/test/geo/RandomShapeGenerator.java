@@ -69,7 +69,12 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
     protected static boolean ST_VALIDATE = true;
 
     public enum ShapeType {
-        POINT, MULTIPOINT, LINESTRING, MULTILINESTRING, POLYGON;
+        POINT,
+        MULTIPOINT,
+        LINESTRING,
+        MULTILINESTRING,
+        POLYGON;
+
         private static final ShapeType[] types = values();
 
         public static ShapeType randomType(Random r) {
@@ -109,8 +114,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
         return createGeometryCollection(r, nearPoint, null, 0);
     }
 
-    public static GeometryCollectionBuilder createGeometryCollectionNear(Random r, Point nearPoint, int size) throws
-            InvalidShapeException {
+    public static GeometryCollectionBuilder createGeometryCollectionNear(Random r, Point nearPoint, int size) throws InvalidShapeException {
         return createGeometryCollection(r, nearPoint, null, size);
     }
 
@@ -118,13 +122,13 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
         return createGeometryCollection(r, null, within, 0);
     }
 
-    public static GeometryCollectionBuilder createGeometryCollectionWithin(Random r, Rectangle within, int size) throws
-            InvalidShapeException {
+    public static GeometryCollectionBuilder createGeometryCollectionWithin(Random r, Rectangle within, int size)
+        throws InvalidShapeException {
         return createGeometryCollection(r, null, within, size);
     }
 
     protected static GeometryCollectionBuilder createGeometryCollection(Random r, Point nearPoint, Rectangle bounds, int numGeometries)
-            throws InvalidShapeException {
+        throws InvalidShapeException {
         if (numGeometries <= 0) {
             // cap geometry collection at 4 shapes (to save test time)
             numGeometries = RandomNumbers.randomIntBetween(r, 2, 4);
@@ -139,7 +143,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
         }
 
         GeometryCollectionBuilder gcb = new GeometryCollectionBuilder();
-        for (int i=0; i<numGeometries;) {
+        for (int i = 0; i < numGeometries;) {
             ShapeBuilder builder = createShapeWithin(r, bounds);
             // due to world wrapping, and the possibility for ambiguous polygons, the random shape generation could bail with
             // a null shape. We catch that situation here, and only increment the counter when a valid shape is returned.
@@ -154,7 +158,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
 
     private static ShapeBuilder createShape(Random r, Point nearPoint, Rectangle within, ShapeType st) throws InvalidShapeException {
         ShapeBuilder shape;
-        short i=0;
+        short i = 0;
         do {
             shape = createShape(r, nearPoint, within, st, ST_VALIDATE);
             if (shape != null) {
@@ -175,8 +179,8 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
      * @param st Create a random shape of the provided type
      * @return the ShapeBuilder for a random shape
      */
-    private static ShapeBuilder createShape(Random r, Point nearPoint, Rectangle within, ShapeType st, boolean validate) throws
-            InvalidShapeException {
+    private static ShapeBuilder createShape(Random r, Point nearPoint, Rectangle within, ShapeType st, boolean validate)
+        throws InvalidShapeException {
 
         if (st == null) {
             st = ShapeType.randomType(r);
@@ -201,7 +205,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
                 // (n^2-n)/2 and computing the relation intersection matrix will become NP-Hard
                 int numPoints = RandomNumbers.randomIntBetween(r, 3, 10);
                 CoordinatesBuilder coordinatesBuilder = new CoordinatesBuilder();
-                for (int i=0; i<numPoints; ++i) {
+                for (int i = 0; i < numPoints; ++i) {
                     p = xRandomPointIn(r, within);
                     coordinatesBuilder.coordinate(p.getX(), p.getY());
                 }
@@ -211,14 +215,14 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
                 return pcb;
             case MULTILINESTRING:
                 MultiLineStringBuilder mlsb = new MultiLineStringBuilder();
-                for (int i=0; i<RandomNumbers.randomIntBetween(r, 1, 10); ++i) {
+                for (int i = 0; i < RandomNumbers.randomIntBetween(r, 1, 10); ++i) {
                     mlsb.linestring((LineStringBuilder) createShape(r, nearPoint, within, ShapeType.LINESTRING, false));
                 }
                 return mlsb;
             case POLYGON:
                 numPoints = RandomNumbers.randomIntBetween(r, 5, 25);
                 Coordinate[] coordinates = new Coordinate[numPoints];
-                for (int i=0; i<numPoints; ++i) {
+                for (int i = 0; i < numPoints; ++i) {
                     p = (Point) createShape(r, nearPoint, within, ShapeType.POINT, false).buildS4J();
                     coordinates[i] = new Coordinate(p.getX(), p.getY());
                 }
@@ -268,8 +272,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
     }
 
     private static Rectangle xRandomRectangle(Random r, Point nearP, Rectangle bounds, boolean small) {
-        if (nearP == null)
-            nearP = xRandomPointIn(r, bounds);
+        if (nearP == null) nearP = xRandomPointIn(r, bounds);
 
         if (small) {
             // between 3 and 6 degrees
@@ -296,10 +299,11 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
         Range yRange = xRandomRange(r, rarely(r) ? 0 : nearP.getY(), Range.yRange(bounds, ctx));
 
         return xMakeNormRect(
-                xDivisible(xRange.getMin()*10e3)/10e3,
-                xDivisible(xRange.getMax()*10e3)/10e3,
-                xDivisible(yRange.getMin()*10e3)/10e3,
-                xDivisible(yRange.getMax()*10e3)/10e3);
+            xDivisible(xRange.getMin() * 10e3) / 10e3,
+            xDivisible(xRange.getMax() * 10e3) / 10e3,
+            xDivisible(yRange.getMin() * 10e3) / 10e3,
+            xDivisible(yRange.getMax() * 10e3) / 10e3
+        );
     }
 
     /** creates a small random rectangle by default to keep shape test performance at bay */
@@ -317,7 +321,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
 
     private static Range xRandomRange(Random r, double near, Range bounds) {
         double mid = near + r.nextGaussian() * bounds.getWidth() / 6;
-        double width = Math.abs(r.nextGaussian()) * bounds.getWidth() / 6;//1/3rd
+        double width = Math.abs(r.nextGaussian()) * bounds.getWidth() / 6;// 1/3rd
         return new Range(mid - width / 2, mid + width / 2);
     }
 

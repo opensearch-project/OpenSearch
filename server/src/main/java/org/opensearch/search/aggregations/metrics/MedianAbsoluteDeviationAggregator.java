@@ -62,13 +62,15 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
 
     private ObjectArray<TDigestState> valueSketches;
 
-    MedianAbsoluteDeviationAggregator(String name,
-                                      @Nullable ValuesSource valuesSource,
-                                      DocValueFormat format,
-                                      SearchContext context,
-                                             Aggregator parent,
-                                             Map<String, Object> metadata,
-                                             double compression) throws IOException {
+    MedianAbsoluteDeviationAggregator(
+        String name,
+        @Nullable ValuesSource valuesSource,
+        DocValueFormat format,
+        SearchContext context,
+        Aggregator parent,
+        Map<String, Object> metadata,
+        double compression
+    ) throws IOException {
 
         super(name, context, parent, metadata);
 

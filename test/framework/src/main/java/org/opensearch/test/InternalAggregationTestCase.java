@@ -290,9 +290,10 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         map.put(TopHitsAggregationBuilder.NAME, (p, c) -> ParsedTopHits.fromXContent(p, (String) c));
         map.put(CompositeAggregationBuilder.NAME, (p, c) -> ParsedComposite.fromXContent(p, (String) c));
 
-        namedXContents = map.entrySet().stream()
-                .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))
-                .collect(Collectors.toList());
+        namedXContents = map.entrySet()
+            .stream()
+            .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))
+            .collect(Collectors.toList());
     }
 
     public static List<NamedXContentRegistry.Entry> getDefaultNamedXContents() {
@@ -321,8 +322,11 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
      */
     protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         SearchPlugin plugin = registerPlugin();
-        SearchModule searchModule
-            = new SearchModule(Settings.EMPTY, false, plugin == null ? emptyList() : Collections.singletonList(plugin));
+        SearchModule searchModule = new SearchModule(
+            Settings.EMPTY,
+            false,
+            plugin == null ? emptyList() : Collections.singletonList(plugin)
+        );
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(searchModule.getNamedWriteables());
 
         // Modules/plugins may have extra namedwriteables that are not added by agg specs
@@ -376,7 +380,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         assertThat(inputs, hasSize(size));
         List<InternalAggregation> toReduce = new ArrayList<>();
         toReduce.addAll(inputs);
-        // Sort aggs so that unmapped come last.  This mimicks the behavior of InternalAggregations.reduce()
+        // Sort aggs so that unmapped come last. This mimicks the behavior of InternalAggregations.reduce()
         inputs.sort(INTERNAL_AGG_COMPARATOR);
         ScriptService mockScriptService = mockScriptService();
         MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
@@ -385,10 +389,13 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             Collections.shuffle(toReduce, random());
             int r = randomIntBetween(1, inputs.size());
             List<InternalAggregation> toPartialReduce = toReduce.subList(0, r);
-            // Sort aggs so that unmapped come last.  This mimicks the behavior of InternalAggregations.reduce()
+            // Sort aggs so that unmapped come last. This mimicks the behavior of InternalAggregations.reduce()
             toPartialReduce.sort(INTERNAL_AGG_COMPARATOR);
             InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(
-                    bigArrays, mockScriptService, () -> PipelineAggregator.PipelineTree.EMPTY);
+                bigArrays,
+                mockScriptService,
+                () -> PipelineAggregator.PipelineTree.EMPTY
+            );
             @SuppressWarnings("unchecked")
             T reduced = (T) toPartialReduce.get(0).reduce(toPartialReduce, context);
             int initialBucketCount = 0;
@@ -396,7 +403,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
                 initialBucketCount += countInnerBucket(internalAggregation);
             }
             int reducedBucketCount = countInnerBucket(reduced);
-            //check that non final reduction never adds buckets
+            // check that non final reduction never adds buckets
             assertThat(reducedBucketCount, lessThanOrEqualTo(initialBucketCount));
             /*
              * Sometimes serializing and deserializing the partially reduced
@@ -409,10 +416,16 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             toReduce = new ArrayList<>(toReduce.subList(r, inputs.size()));
             toReduce.add(reduced);
         }
-        MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(DEFAULT_MAX_BUCKETS,
-            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
+        MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(
+            DEFAULT_MAX_BUCKETS,
+            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+        );
         InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
-                bigArrays, mockScriptService, bucketConsumer, PipelineTree.EMPTY);
+            bigArrays,
+            mockScriptService,
+            bucketConsumer,
+            PipelineTree.EMPTY
+        );
         @SuppressWarnings("unchecked")
         T reduced = (T) inputs.get(0).reduce(toReduce, context);
         doAssertReducedMultiBucketConsumer(reduced, bucketConsumer);
@@ -422,7 +435,6 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     protected void doAssertReducedMultiBucketConsumer(Aggregation agg, MultiBucketConsumerService.MultiBucketConsumer bucketConsumer) {
         InternalAggregationTestCase.assertMultiBucketConsumer(agg, bucketConsumer);
     }
-
 
     /**
      * overwrite in tests that need it
@@ -537,8 +549,11 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     protected abstract void assertFromXContent(T aggregation, ParsedAggregation parsedAggregation) throws IOException;
 
     @SuppressWarnings("unchecked")
-    protected <P extends ParsedAggregation> P parseAndAssert(final InternalAggregation aggregation,
-                                                             final boolean shuffled, final boolean addRandomFields) throws IOException {
+    protected <P extends ParsedAggregation> P parseAndAssert(
+        final InternalAggregation aggregation,
+        final boolean shuffled,
+        final boolean addRandomFields
+    ) throws IOException {
 
         final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         final XContentType xContentType = randomFrom(XContentType.values());
@@ -565,8 +580,10 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
              * we also exclude top_hits that contain SearchHits, as all unknown fields
              * on a root level of SearchHit are interpreted as meta-fields and will be kept.
              */
-            Predicate<String> basicExcludes = path -> path.isEmpty() || path.endsWith(Aggregation.CommonFields.META.getPreferredName())
-                    || path.endsWith(Aggregation.CommonFields.BUCKETS.getPreferredName()) || path.contains("top_hits");
+            Predicate<String> basicExcludes = path -> path.isEmpty()
+                || path.endsWith(Aggregation.CommonFields.META.getPreferredName())
+                || path.endsWith(Aggregation.CommonFields.BUCKETS.getPreferredName())
+                || path.contains("top_hits");
             Predicate<String> excludes = basicExcludes.or(excludePathsFromXContentInsertion());
             mutated = XContentTestUtils.insertRandomFields(xContentType, originalBytes, excludes, random());
         } else {

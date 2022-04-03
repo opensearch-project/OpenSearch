@@ -106,7 +106,7 @@ public class HotThreadsIT extends OpenSearchIntegTestCase {
                         assertThat(nodesMap.size(), equalTo(cluster().size()));
                         for (NodeHotThreads ht : nodeHotThreads.getNodes()) {
                             assertNotNull(ht.getHotThreads());
-                            //logger.info(ht.getHotThreads());
+                            // logger.info(ht.getHotThreads());
                         }
                         success = true;
                     } finally {
@@ -126,19 +126,24 @@ public class HotThreadsIT extends OpenSearchIntegTestCase {
                 }
             });
 
-            indexRandom(true,
-                    client().prepareIndex("test", "type1", "1").setSource("field1", "value1"),
-                    client().prepareIndex("test", "type1", "2").setSource("field1", "value2"),
-                    client().prepareIndex("test", "type1", "3").setSource("field1", "value3"));
+            indexRandom(
+                true,
+                client().prepareIndex("test", "type1", "1").setSource("field1", "value1"),
+                client().prepareIndex("test", "type1", "2").setSource("field1", "value2"),
+                client().prepareIndex("test", "type1", "3").setSource("field1", "value3")
+            );
             ensureSearchable();
-            while(latch.getCount() > 0) {
+            while (latch.getCount() > 0) {
                 assertHitCount(
-                        client().prepareSearch()
-                                .setQuery(matchAllQuery())
-                                .setPostFilter(boolQuery().must(matchAllQuery()).mustNot(boolQuery()
-                                    .must(termQuery("field1", "value1")).must(termQuery("field1", "value2"))))
-                                .get(),
-                        3L);
+                    client().prepareSearch()
+                        .setQuery(matchAllQuery())
+                        .setPostFilter(
+                            boolQuery().must(matchAllQuery())
+                                .mustNot(boolQuery().must(termQuery("field1", "value1")).must(termQuery("field1", "value2")))
+                        )
+                        .get(),
+                    3L
+                );
             }
             latch.await();
             assertThat(hasErrors.get(), is(false));
@@ -154,8 +159,9 @@ public class HotThreadsIT extends OpenSearchIntegTestCase {
         builder.setThreads(Integer.MAX_VALUE);
         NodesHotThreadsResponse response = builder.execute().get();
 
-        final Matcher<String> containsCachedTimeThreadRunMethod
-            = containsString("org.opensearch.threadpool.ThreadPool$CachedTimeThread.run");
+        final Matcher<String> containsCachedTimeThreadRunMethod = containsString(
+            "org.opensearch.threadpool.ThreadPool$CachedTimeThread.run"
+        );
 
         int totSizeAll = 0;
         for (NodeHotThreads node : response.getNodesMap().values()) {

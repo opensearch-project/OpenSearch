@@ -52,11 +52,18 @@ public class ClusterStateRequestTests extends OpenSearchTestCase {
         for (int i = 0; i < iterations; i++) {
 
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
-            ClusterStateRequest clusterStateRequest = new ClusterStateRequest().routingTable(randomBoolean()).metadata(randomBoolean())
-                    .nodes(randomBoolean()).blocks(randomBoolean()).indices("testindex", "testindex2").indicesOptions(indicesOptions);
+            ClusterStateRequest clusterStateRequest = new ClusterStateRequest().routingTable(randomBoolean())
+                .metadata(randomBoolean())
+                .nodes(randomBoolean())
+                .blocks(randomBoolean())
+                .indices("testindex", "testindex2")
+                .indicesOptions(indicesOptions);
 
-            Version testVersion = VersionUtils.randomVersionBetween(random(),
-                Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
+            Version testVersion = VersionUtils.randomVersionBetween(
+                random(),
+                Version.CURRENT.minimumCompatibilityVersion(),
+                Version.CURRENT
+            );
             // TODO: change version to V_6_6_0 after backporting:
             if (testVersion.onOrAfter(LegacyESVersion.V_7_0_0)) {
                 if (randomBoolean()) {
@@ -90,8 +97,10 @@ public class ClusterStateRequestTests extends OpenSearchTestCase {
 
     public void testWaitForMetadataVersion() {
         ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-        expectThrows(IllegalArgumentException.class,
-            () -> clusterStateRequest.waitForMetadataVersion(randomLongBetween(Long.MIN_VALUE, 0)));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> clusterStateRequest.waitForMetadataVersion(randomLongBetween(Long.MIN_VALUE, 0))
+        );
         clusterStateRequest.waitForMetadataVersion(randomLongBetween(1, Long.MAX_VALUE));
     }
 

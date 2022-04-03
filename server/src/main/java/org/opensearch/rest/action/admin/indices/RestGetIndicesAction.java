@@ -32,7 +32,6 @@
 
 package org.opensearch.rest.action.admin.indices;
 
-
 import org.opensearch.action.admin.indices.get.GetIndexRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
@@ -62,17 +61,16 @@ public class RestGetIndicesAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetIndicesAction.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using `include_type_name` in get indices requests"
-            + " is deprecated. The parameter will be removed in the next major version.";
+        + " is deprecated. The parameter will be removed in the next major version.";
 
-    private static final Set<String> allowedResponseParameters = Collections
-            .unmodifiableSet(Stream.concat(Collections.singleton(INCLUDE_TYPE_NAME_PARAMETER).stream(), Settings.FORMAT_PARAMS.stream())
-                    .collect(Collectors.toSet()));
+    private static final Set<String> allowedResponseParameters = Collections.unmodifiableSet(
+        Stream.concat(Collections.singleton(INCLUDE_TYPE_NAME_PARAMETER).stream(), Settings.FORMAT_PARAMS.stream())
+            .collect(Collectors.toSet())
+    );
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/{index}"),
-            new Route(HEAD, "/{index}")));
+        return unmodifiableList(asList(new Route(GET, "/{index}"), new Route(HEAD, "/{index}")));
     }
 
     @Override

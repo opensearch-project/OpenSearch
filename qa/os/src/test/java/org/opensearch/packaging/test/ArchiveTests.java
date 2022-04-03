@@ -85,6 +85,7 @@ public class ArchiveTests extends PackagingTestCase {
     public void test30MissingBundledJdk() throws Exception {
         final Installation.Executables bin = installation.executables();
         sh.getEnv().remove("JAVA_HOME");
+        sh.getEnv().remove("OPENSEARCH_JAVA_HOME");
 
         final Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
 
@@ -105,6 +106,7 @@ public class ArchiveTests extends PackagingTestCase {
 
     public void test31BadJavaHome() throws Exception {
         final Installation.Executables bin = installation.executables();
+        sh.getEnv().remove("OPENSEARCH_JAVA_HOME");
         sh.getEnv().put("JAVA_HOME", "doesnotexist");
 
         // ask for opensearch version to quickly exit if java is actually found (ie test failure)
@@ -114,11 +116,23 @@ public class ArchiveTests extends PackagingTestCase {
 
     }
 
+    public void test31BadOpensearchJavaHome() throws Exception {
+        final Installation.Executables bin = installation.executables();
+        sh.getEnv().put("OPENSEARCH_JAVA_HOME", "doesnotexist");
+
+        // ask for opensearch version to quickly exit if java is actually found (ie test failure)
+        final Result runResult = sh.runIgnoreExitCode(bin.opensearch.toString() + " -V");
+        assertThat(runResult.exitCode, is(1));
+        assertThat(runResult.stderr, containsString("could not find java in OPENSEARCH_JAVA_HOME"));
+
+    }
+
     public void test32SpecialCharactersInJdkPath() throws Exception {
         final Installation.Executables bin = installation.executables();
         assumeTrue("Only run this test when we know where the JDK is.", distribution().hasJdk);
 
         final Path relocatedJdk = installation.bundledJdk.getParent().resolve("a (special) path");
+        sh.getEnv().remove("OPENSEARCH_JAVA_HOME");
         sh.getEnv().put("JAVA_HOME", relocatedJdk.toString());
 
         try {
@@ -154,6 +168,8 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test51JavaHomeOverride() throws Exception {
+        sh.getEnv().remove("OPENSEARCH_JAVA_HOME");
+
         Platforms.onLinux(() -> {
             String systemJavaHome1 = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
             sh.getEnv().put("JAVA_HOME", systemJavaHome1);
@@ -171,8 +187,29 @@ public class ArchiveTests extends PackagingTestCase {
         assertThat(FileUtils.slurpAllLogs(installation.logs, "opensearch.log", "*.log.gz"), containsString(systemJavaHome1));
     }
 
-    public void test52BundledJdkRemoved() throws Exception {
+    public void test51OpensearchJavaHomeOverride() throws Exception {
+        Platforms.onLinux(() -> {
+            String systemJavaHome1 = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+            sh.getEnv().put("OPENSEARCH_JAVA_HOME", systemJavaHome1);
+            sh.getEnv().put("JAVA_HOME", "doesnotexist");
+        });
+        Platforms.onWindows(() -> {
+            final String systemJavaHome1 = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
+            sh.getEnv().put("OPENSEARCH_JAVA_HOME", systemJavaHome1);
+            sh.getEnv().put("JAVA_HOME", "doesnotexist");
+        });
+
+        startOpenSearch();
+        ServerUtils.runOpenSearchTests();
+        stopOpenSearch();
+
+        String systemJavaHome1 = sh.getEnv().get("OPENSEARCH_JAVA_HOME");
+        assertThat(FileUtils.slurpAllLogs(installation.logs, "opensearch.log", "*.log.gz"), containsString(systemJavaHome1));
+    }
+
+    public void test52JavaHomeBundledJdkRemoved() throws Exception {
         assumeThat(distribution().hasJdk, is(true));
+        sh.getEnv().remove("OPENSEARCH_JAVA_HOME");
 
         Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
         try {
@@ -197,7 +234,37 @@ public class ArchiveTests extends PackagingTestCase {
         }
     }
 
+    public void test52OpensearchJavaHomeBundledJdkRemoved() throws Exception {
+        assumeThat(distribution().hasJdk, is(true));
+
+        Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
+        try {
+            mv(installation.bundledJdk, relocatedJdk);
+            Platforms.onLinux(() -> {
+                String systemJavaHome1 = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+                sh.getEnv().put("OPENSEARCH_JAVA_HOME", systemJavaHome1);
+                sh.getEnv().put("JAVA_HOME", "doesnotexist");
+            });
+            Platforms.onWindows(() -> {
+                final String systemJavaHome1 = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
+                sh.getEnv().put("OPENSEARCH_JAVA_HOME", systemJavaHome1);
+                sh.getEnv().put("JAVA_HOME", "doesnotexist");
+            });
+
+            startOpenSearch();
+            ServerUtils.runOpenSearchTests();
+            stopOpenSearch();
+
+            String systemJavaHome1 = sh.getEnv().get("OPENSEARCH_JAVA_HOME");
+            assertThat(FileUtils.slurpAllLogs(installation.logs, "opensearch.log", "*.log.gz"), containsString(systemJavaHome1));
+        } finally {
+            mv(relocatedJdk, installation.bundledJdk);
+        }
+    }
+
     public void test53JavaHomeWithSpecialCharacters() throws Exception {
+        sh.getEnv().remove("OPENSEARCH_JAVA_HOME");
+
         Platforms.onWindows(() -> {
             String javaPath = "C:\\Program Files (x86)\\java";
             try {
@@ -250,6 +317,7 @@ public class ArchiveTests extends PackagingTestCase {
         // cleanup from previous test
         rm(installation.config("opensearch.keystore"));
 
+        sh.getEnv().put("OPENSEARCH_JAVA_HOME", "");
         sh.getEnv().put("JAVA_HOME", "");
 
         startOpenSearch();

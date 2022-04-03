@@ -86,7 +86,10 @@ public class RecoveriesCollectionTests extends OpenSearchIndexLevelReplicationTe
             final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool);
             final AtomicBoolean failed = new AtomicBoolean();
             final CountDownLatch latch = new CountDownLatch(1);
-            final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica(),
+            final long recoveryId = startRecovery(
+                collection,
+                shards.getPrimaryNode(),
+                shards.addReplica(),
                 new PeerRecoveryTargetService.RecoveryListener() {
                     @Override
                     public void onRecoveryDone(RecoveryState state) {
@@ -98,7 +101,9 @@ public class RecoveriesCollectionTests extends OpenSearchIndexLevelReplicationTe
                         failed.set(true);
                         latch.countDown();
                     }
-                }, TimeValue.timeValueMillis(100));
+                },
+                TimeValue.timeValueMillis(100)
+            );
             try {
                 latch.await(30, TimeUnit.SECONDS);
                 assertTrue("recovery failed to timeout", failed.get());
@@ -165,11 +170,16 @@ public class RecoveriesCollectionTests extends OpenSearchIndexLevelReplicationTe
     }
 
     long startRecovery(RecoveriesCollection collection, DiscoveryNode sourceNode, IndexShard shard) {
-        return startRecovery(collection,sourceNode, shard, listener, TimeValue.timeValueMinutes(60));
+        return startRecovery(collection, sourceNode, shard, listener, TimeValue.timeValueMinutes(60));
     }
 
-    long startRecovery(RecoveriesCollection collection, DiscoveryNode sourceNode, IndexShard indexShard,
-                       PeerRecoveryTargetService.RecoveryListener listener, TimeValue timeValue) {
+    long startRecovery(
+        RecoveriesCollection collection,
+        DiscoveryNode sourceNode,
+        IndexShard indexShard,
+        PeerRecoveryTargetService.RecoveryListener listener,
+        TimeValue timeValue
+    ) {
         final DiscoveryNode rNode = getDiscoveryNode(indexShard.routingEntry().currentNodeId());
         indexShard.markAsRecovering("remote", new RecoveryState(indexShard.routingEntry(), sourceNode, rNode));
         indexShard.prepareForIndexRecovery();

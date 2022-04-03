@@ -52,7 +52,6 @@ import static org.opensearch.common.ssl.SslDiagnostics.getTrustDiagnosticFailure
 
 public final class DiagnosticTrustManager extends X509ExtendedTrustManager {
 
-
     /**
      * This interface exists because the ssl-config library does not depend on log4j, however the whole purpose of this class is to log
      * diagnostic messages, so it must be provided with a function by which it can do that.
@@ -61,7 +60,6 @@ public final class DiagnosticTrustManager extends X509ExtendedTrustManager {
     public interface DiagnosticLogger {
         void warning(String message, GeneralSecurityException cause);
     }
-
 
     private final X509ExtendedTrustManager delegate;
     private final Supplier<String> contextName;
@@ -78,13 +76,18 @@ public final class DiagnosticTrustManager extends X509ExtendedTrustManager {
         this.contextName = contextName;
         this.logger = logger;
         this.issuers = Stream.of(delegate.getAcceptedIssuers())
-            .collect(Collectors.toMap(cert -> cert.getSubjectX500Principal().getName(), Collections::singletonList,
-                (List<X509Certificate> a, List<X509Certificate> b) -> {
-                    final ArrayList<X509Certificate> list = new ArrayList<>(a.size() + b.size());
-                    list.addAll(a);
-                    list.addAll(b);
-                    return list;
-                }));
+            .collect(
+                Collectors.toMap(
+                    cert -> cert.getSubjectX500Principal().getName(),
+                    Collections::singletonList,
+                    (List<X509Certificate> a, List<X509Certificate> b) -> {
+                        final ArrayList<X509Certificate> list = new ArrayList<>(a.size() + b.size());
+                        list.addAll(a);
+                        list.addAll(b);
+                        return list;
+                    }
+                )
+            );
     }
 
     @Override

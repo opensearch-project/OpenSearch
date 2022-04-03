@@ -57,16 +57,25 @@ public class ClusterUpdateSettingsResponseTests extends AbstractSerializingTestC
     @Override
     protected ClusterUpdateSettingsResponse mutateInstance(ClusterUpdateSettingsResponse response) {
         int i = randomIntBetween(0, 2);
-        switch(i) {
+        switch (i) {
             case 0:
-                return new ClusterUpdateSettingsResponse(response.isAcknowledged() == false,
-                        response.transientSettings, response.persistentSettings);
+                return new ClusterUpdateSettingsResponse(
+                    response.isAcknowledged() == false,
+                    response.transientSettings,
+                    response.persistentSettings
+                );
             case 1:
-                return new ClusterUpdateSettingsResponse(response.isAcknowledged(), mutateSettings(response.transientSettings),
-                        response.persistentSettings);
+                return new ClusterUpdateSettingsResponse(
+                    response.isAcknowledged(),
+                    mutateSettings(response.transientSettings),
+                    response.persistentSettings
+                );
             case 2:
-                return new ClusterUpdateSettingsResponse(response.isAcknowledged(), response.transientSettings,
-                        mutateSettings(response.persistentSettings));
+                return new ClusterUpdateSettingsResponse(
+                    response.isAcknowledged(),
+                    response.transientSettings,
+                    mutateSettings(response.persistentSettings)
+                );
             default:
                 throw new UnsupportedOperationException();
         }

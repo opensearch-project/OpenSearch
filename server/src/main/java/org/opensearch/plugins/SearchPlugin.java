@@ -32,13 +32,16 @@
 
 package org.opensearch.plugins;
 
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Sort;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.lucene.search.function.ScoreFunction;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.ContextParser;
 import org.opensearch.common.xcontent.XContent;
 import org.opensearch.common.xcontent.XContentParser;
@@ -60,16 +63,22 @@ import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.subphase.highlight.Highlighter;
+import org.opensearch.search.query.QueryPhaseSearcher;
 import org.opensearch.search.rescore.Rescorer;
 import org.opensearch.search.rescore.RescorerBuilder;
+import org.opensearch.search.sort.SortBuilder;
+import org.opensearch.search.sort.SortParser;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.Suggester;
 import org.opensearch.search.suggest.SuggestionBuilder;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.TreeMap;
+import java.util.concurrent.ExecutorService;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
@@ -86,6 +95,7 @@ public interface SearchPlugin {
     default List<ScoreFunctionSpec<?>> getScoreFunctions() {
         return emptyList();
     }
+
     /**
      * The new {@link SignificanceHeuristic}s defined by this plugin. {@linkplain SignificanceHeuristic}s are used by the
      * {@link SignificantTerms} aggregation to pick which terms are significant for a given query.
@@ -93,6 +103,7 @@ public interface SearchPlugin {
     default List<SignificanceHeuristicSpec<?>> getSignificanceHeuristics() {
         return emptyList();
     }
+
     /**
      * The new {@link MovAvgModel}s defined by this plugin. {@linkplain MovAvgModel}s are used by the {@link MovAvgPipelineAggregator} to
      * model trends in data.
@@ -100,42 +111,56 @@ public interface SearchPlugin {
     default List<SearchExtensionSpec<MovAvgModel, MovAvgModel.AbstractModelParser>> getMovingAverageModels() {
         return emptyList();
     }
+
     /**
      * The new {@link FetchSubPhase}s defined by this plugin.
      */
     default List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
         return emptyList();
     }
+
     /**
      * The new {@link SearchExtBuilder}s defined by this plugin.
      */
     default List<SearchExtSpec<?>> getSearchExts() {
         return emptyList();
     }
+
     /**
      * Get the {@link Highlighter}s defined by this plugin.
      */
     default Map<String, Highlighter> getHighlighters() {
         return emptyMap();
     }
+
     /**
      * The new {@link Suggester}s defined by this plugin.
      */
     default List<SuggesterSpec<?>> getSuggesters() {
         return emptyList();
     }
+
     /**
      * The new {@link Query}s defined by this plugin.
      */
     default List<QuerySpec<?>> getQueries() {
         return emptyList();
     }
+
+    /**
+     * The new {@link Sort}s defined by this plugin.
+     */
+    default List<SortSpec<?>> getSorts() {
+        return emptyList();
+    }
+
     /**
      * The new {@link Aggregation}s added by this plugin.
      */
     default List<AggregationSpec> getAggregations() {
         return emptyList();
     }
+
     /**
      * Allows plugins to register new aggregations using aggregation names that are already defined
      * in Core, as long as the new aggregations target different ValuesSourceTypes
@@ -144,12 +169,14 @@ public interface SearchPlugin {
     default List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
         return emptyList();
     }
+
     /**
      * The new {@link PipelineAggregator}s added by this plugin.
      */
     default List<PipelineAggregationSpec> getPipelineAggregations() {
         return emptyList();
     }
+
     /**
      * The new {@link Rescorer}s added by this plugin.
      */
@@ -158,13 +185,64 @@ public interface SearchPlugin {
     }
 
     /**
+     * The new {@link QueryPhaseSearcher} added by this plugin. At the moment, only one {@link QueryPhaseSearcher} is supported per
+     * instance, the {@link IllegalStateException} is going to be thrown if more then one plugin tries to register
+     * {@link QueryPhaseSearcher} implementation.
+     */
+    default Optional<QueryPhaseSearcher> getQueryPhaseSearcher() {
+        return Optional.empty();
+    }
+
+    /**
+     * The executor service provider (registered through {@link Plugin#getExecutorBuilders(Settings)} to be used at search
+     * time by {@link IndexSearcher}. The {@link IllegalStateException} is going to be thrown if more then one
+     * plugin tries to register index searcher executor.
+     */
+    default Optional<ExecutorServiceProvider> getIndexSearcherExecutorProvider() {
+        return Optional.empty();
+    }
+
+    /**
+     * Executor service provider
+     */
+    interface ExecutorServiceProvider {
+        /**
+         * Provides an executor service instance
+         * @param threadPool thread pool
+         * @return executor service instance
+         */
+        ExecutorService getExecutor(ThreadPool threadPool);
+    }
+
+    /**
      * Specification of custom {@link ScoreFunction}.
      */
     class ScoreFunctionSpec<T extends ScoreFunctionBuilder<T>> extends SearchExtensionSpec<T, ScoreFunctionParser<T>> {
+        /**
+         * Specification of custom {@link ScoreFunctionBuilder}.
+         *
+         * @param name holds the names by which this score function might be parsed. The {@link ParseField#getPreferredName()} is special as it
+         *        is the name by under which the reader is registered. So it is the name that the score function should use as its
+         *        {@link NamedWriteable#getWriteableName()} too.  It is an error if {@link ParseField#getPreferredName()} conflicts with
+         *        another registered name, including names from other plugins.
+         * @param reader the reader registered for this score function's builder. Typically, a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser the reads the score function builder from xcontent
+         */
         public ScoreFunctionSpec(ParseField name, Writeable.Reader<T> reader, ScoreFunctionParser<T> parser) {
             super(name, reader, parser);
         }
 
+        /**
+         * Specification of custom {@link ScoreFunctionBuilder}.
+         *
+         * @param name the name by which this score function might be parsed or deserialized. Make sure that the score function builder returns this name for
+         *        {@link NamedWriteable#getWriteableName()}.  It is an error if this name conflicts with another registered name, including
+         *        names from other plugins.
+         * @param reader the reader registered for this score function's builder. Typically, a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser the reads the score function builder from xcontent
+         */
         public ScoreFunctionSpec(String name, Writeable.Reader<T> reader, ScoreFunctionParser<T> parser) {
             super(name, reader, parser);
         }
@@ -174,10 +252,31 @@ public interface SearchPlugin {
      * Specification of custom {@link SignificanceHeuristic}.
      */
     class SignificanceHeuristicSpec<T extends SignificanceHeuristic> extends SearchExtensionSpec<T, BiFunction<XContentParser, Void, T>> {
+        /**
+         * Specification of custom {@link SignificanceHeuristic}.
+         *
+         * @param name holds the names by which this heuristic might be parsed. The {@link ParseField#getPreferredName()} is special as it
+         *        is the name by under which the reader is registered. So it is the name that the heuristic should use as its
+         *        {@link NamedWriteable#getWriteableName()} too.  It is an error if {@link ParseField#getPreferredName()} conflicts with
+         *        another registered name, including names from other plugins.
+         * @param reader the reader registered for this heuristic. Typically, a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser function that reads the heuristic from xcontent
+         */
         public SignificanceHeuristicSpec(ParseField name, Writeable.Reader<T> reader, BiFunction<XContentParser, Void, T> parser) {
             super(name, reader, parser);
         }
 
+        /**
+         * Specification of custom {@link SignificanceHeuristic}.
+         *
+         * @param name the name by which this heuristic might be parsed or deserialized. Make sure that the heuristic returns this name for
+         *        {@link NamedWriteable#getWriteableName()}.  It is an error if this name conflicts with another registered name, including
+         *        names from other plugins.
+         * @param reader the reader registered for this heuristic. Typically, a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser function that reads the heuristic from xcontent
+         */
         public SignificanceHeuristicSpec(String name, Writeable.Reader<T> reader, BiFunction<XContentParser, Void, T> parser) {
             super(name, reader, parser);
         }
@@ -195,18 +294,20 @@ public interface SearchPlugin {
          *
          * @param name holds the names by which this suggester might be parsed. The {@link ParseField#getPreferredName()} is special as it
          *        is the name by under which the request builder and Suggestion response readers are registered. So it is the name that the
-         *        query and Suggestion response should use as their {@link NamedWriteable#getWriteableName()} return values too.
-         * @param builderReader the reader registered for this suggester's builder. Typically a reference to a constructor that takes a
+         *        query and Suggestion response should use as their {@link NamedWriteable#getWriteableName()} return values too.  It is
+         *        an error if {@link ParseField#getPreferredName()} conflicts with another registered name, including names from other plugins.
+         * @param builderReader the reader registered for this suggester's builder. Typically, a reference to a constructor that takes a
          *        {@link StreamInput}
          * @param builderParser a parser that reads the suggester's builder from xcontent
-         * @param suggestionReader the reader registered for this suggester's Suggestion response. Typically a reference to a constructor
+         * @param suggestionReader the reader registered for this suggester's Suggestion response. Typically, a reference to a constructor
          *        that takes a {@link StreamInput}
          */
         public SuggesterSpec(
-                ParseField name,
-                Writeable.Reader<T> builderReader,
-                CheckedFunction<XContentParser, T, IOException> builderParser,
-                Writeable.Reader<? extends Suggest.Suggestion> suggestionReader) {
+            ParseField name,
+            Writeable.Reader<T> builderReader,
+            CheckedFunction<XContentParser, T, IOException> builderParser,
+            Writeable.Reader<? extends Suggest.Suggestion> suggestionReader
+        ) {
 
             super(name, builderReader, builderParser);
             setSuggestionReader(suggestionReader);
@@ -216,18 +317,20 @@ public interface SearchPlugin {
          * Specification of custom {@link Suggester}.
          *
          * @param name the name by which this suggester might be parsed or deserialized. Make sure that the query builder and Suggestion
-         *        response reader return this name for {@link NamedWriteable#getWriteableName()}.
-         * @param builderReader the reader registered for this suggester's builder. Typically a reference to a constructor that takes a
+         *        response reader return this name for {@link NamedWriteable#getWriteableName()}.  It is an error if this name conflicts
+         *        with another registered name, including names from other plugins.
+         * @param builderReader the reader registered for this suggester's builder. Typically, a reference to a constructor that takes a
          *        {@link StreamInput}
          * @param builderParser a parser that reads the suggester's builder from xcontent
-         * @param suggestionReader the reader registered for this suggester's Suggestion response. Typically a reference to a constructor
+         * @param suggestionReader the reader registered for this suggester's Suggestion response. Typically, a reference to a constructor
          *        that takes a {@link StreamInput}
          */
         public SuggesterSpec(
-                String name,
-                Writeable.Reader<T> builderReader,
-                CheckedFunction<XContentParser, T, IOException> builderParser,
-                Writeable.Reader<? extends Suggest.Suggestion> suggestionReader) {
+            String name,
+            Writeable.Reader<T> builderReader,
+            CheckedFunction<XContentParser, T, IOException> builderParser,
+            Writeable.Reader<? extends Suggest.Suggestion> suggestionReader
+        ) {
 
             super(name, builderReader, builderParser);
             setSuggestionReader(suggestionReader);
@@ -254,8 +357,9 @@ public interface SearchPlugin {
          *
          * @param name holds the names by which this query might be parsed. The {@link ParseField#getPreferredName()} is special as it
          *        is the name by under which the reader is registered. So it is the name that the query should use as its
-         *        {@link NamedWriteable#getWriteableName()} too.
-         * @param reader the reader registered for this query's builder. Typically a reference to a constructor that takes a
+         *        {@link NamedWriteable#getWriteableName()} too.  It is an error if {@link ParseField#getPreferredName()} conflicts with
+         *        another registered name, including names from other plugins.
+         * @param reader the reader registered for this query's builder. Typically, a reference to a constructor that takes a
          *        {@link StreamInput}
          * @param parser the parser the reads the query builder from xcontent
          */
@@ -267,12 +371,47 @@ public interface SearchPlugin {
          * Specification of custom {@link Query}.
          *
          * @param name the name by which this query might be parsed or deserialized. Make sure that the query builder returns this name for
-         *        {@link NamedWriteable#getWriteableName()}.
-         * @param reader the reader registered for this query's builder. Typically a reference to a constructor that takes a
+         *        {@link NamedWriteable#getWriteableName()}.  It is an error if this name conflicts with another registered name, including
+         *        names from other plugins.
+         * @param reader the reader registered for this query's builder. Typically, a reference to a constructor that takes a
          *        {@link StreamInput}
          * @param parser the parser the reads the query builder from xcontent
          */
         public QuerySpec(String name, Writeable.Reader<T> reader, QueryParser<T> parser) {
+            super(name, reader, parser);
+        }
+    }
+
+    /**
+     * Specification of custom {@link Sort}.
+     */
+    class SortSpec<T extends SortBuilder<T>> extends SearchExtensionSpec<T, SortParser<T>> {
+        /**
+         * Specification of custom {@link Sort}.
+         *
+         * @param name holds the names by which this sort might be parsed. The {@link ParseField#getPreferredName()} is special as it
+         *        is the name by under which the reader is registered. So it is the name that the sort should use as its
+         *        {@link NamedWriteable#getWriteableName()} too.  It is an error if {@link ParseField#getPreferredName()} conflicts with
+         *        another registered name, including names from other plugins.
+         * @param reader the reader registered for this sort's builder. Typically, a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser the reads the sort builder from xcontent
+         */
+        public SortSpec(ParseField name, Writeable.Reader<T> reader, SortParser<T> parser) {
+            super(name, reader, parser);
+        }
+
+        /**
+         * Specification of custom {@link Sort}.
+         *
+         * @param name the name by which this sort might be parsed or deserialized. Make sure that the sort builder returns this name for
+         *        {@link NamedWriteable#getWriteableName()}. It is an error if this name conflicts with another registered name, including
+         *        names from other plugins.
+         * @param reader the reader registered for this sort's builder. Typically, a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser the reads the sort builder from xcontent
+         */
+        public SortSpec(String name, Writeable.Reader<T> reader, SortParser<T> parser) {
             super(name, reader, parser);
         }
     }
@@ -289,13 +428,17 @@ public interface SearchPlugin {
          *
          * @param name holds the names by which this aggregation might be parsed. The {@link ParseField#getPreferredName()} is special as it
          *        is the name by under which the reader is registered. So it is the name that the {@link AggregationBuilder} should return
-         *        from {@link NamedWriteable#getWriteableName()}.
-         * @param reader the reader registered for this aggregation's builder. Typically a reference to a constructor that takes a
+         *        from {@link NamedWriteable#getWriteableName()}. It is an error if {@link ParseField#getPreferredName()} conflicts with
+         *        another registered name, including names from other plugins.
+         * @param reader the reader registered for this aggregation's builder. Typically, a reference to a constructor that takes a
          *        {@link StreamInput}
          * @param parser the parser the reads the aggregation builder from xcontent
          */
-        public <T extends AggregationBuilder> AggregationSpec(ParseField name, Writeable.Reader<T> reader,
-                ContextParser<String, T> parser) {
+        public <T extends AggregationBuilder> AggregationSpec(
+            ParseField name,
+            Writeable.Reader<T> reader,
+            ContextParser<String, T> parser
+        ) {
             super(name, reader, parser);
         }
 
@@ -303,8 +446,9 @@ public interface SearchPlugin {
          * Specification for an {@link Aggregation}.
          *
          * @param name the name by which this aggregation might be parsed or deserialized. Make sure that the {@link AggregationBuilder}
-         *        returns this from {@link NamedWriteable#getWriteableName()}.
-         * @param reader the reader registered for this aggregation's builder. Typically a reference to a constructor that takes a
+         *        returns this from {@link NamedWriteable#getWriteableName()}.  It is an error if this name conflicts with another
+         *        registered name, including names from other plugins.
+         * @param reader the reader registered for this aggregation's builder. Typically, a reference to a constructor that takes a
          *        {@link StreamInput}
          * @param parser the parser the reads the aggregation builder from xcontent
          */
@@ -317,8 +461,9 @@ public interface SearchPlugin {
          *
          * @param name holds the names by which this aggregation might be parsed. The {@link ParseField#getPreferredName()} is special as it
          *        is the name by under which the reader is registered. So it is the name that the {@link AggregationBuilder} should return
-         *        from {@link NamedWriteable#getWriteableName()}.
-         * @param reader the reader registered for this aggregation's builder. Typically a reference to a constructor that takes a
+         *        from {@link NamedWriteable#getWriteableName()}. It is an error if {@link ParseField#getPreferredName()} conflicts with
+         *        another registered name, including names from other plugins.
+         * @param reader the reader registered for this aggregation's builder. Typically, a reference to a constructor that takes a
          *        {@link StreamInput}
          * @param parser the parser the reads the aggregation builder from xcontent
          * @deprecated Use the ctor that takes a {@link ContextParser} instead
@@ -332,8 +477,9 @@ public interface SearchPlugin {
          * Specification for an {@link Aggregation}.
          *
          * @param name the name by which this aggregation might be parsed or deserialized. Make sure that the {@link AggregationBuilder}
-         *        returns this from {@link NamedWriteable#getWriteableName()}.
-         * @param reader the reader registered for this aggregation's builder. Typically a reference to a constructor that takes a
+         *        returns this from {@link NamedWriteable#getWriteableName()}.  It is an error if this name conflicts with another
+         *        registered name, including names from other plugins.
+         * @param reader the reader registered for this aggregation's builder. Typically, a reference to a constructor that takes a
          *        {@link StreamInput}
          * @param parser the parser the reads the aggregation builder from xcontent
          * @deprecated Use the ctor that takes a {@link ContextParser} instead
@@ -387,8 +533,9 @@ public interface SearchPlugin {
     /**
      * Specification for a {@link PipelineAggregator}.
      */
-    class PipelineAggregationSpec extends SearchExtensionSpec<PipelineAggregationBuilder,
-            ContextParser<String, ? extends PipelineAggregationBuilder>> {
+    class PipelineAggregationSpec extends SearchExtensionSpec<
+        PipelineAggregationBuilder,
+        ContextParser<String, ? extends PipelineAggregationBuilder>> {
         private final Map<String, Writeable.Reader<? extends InternalAggregation>> resultReaders = new TreeMap<>();
         /**
          * Read the aggregator from a stream.
@@ -402,14 +549,17 @@ public interface SearchPlugin {
          *
          * @param name holds the names by which this aggregation might be parsed. The {@link ParseField#getPreferredName()} is special as it
          *        is the name by under which the readers are registered. So it is the name that the {@link PipelineAggregationBuilder} and
-         *        {@link PipelineAggregator} should return from {@link NamedWriteable#getWriteableName()}.
-         * @param builderReader the reader registered for this aggregation's builder. Typically a reference to a constructor that takes a
+         *        {@link PipelineAggregator} should return from {@link NamedWriteable#getWriteableName()}. It is an error if
+         *        {@link ParseField#getPreferredName()} conflicts with another registered name, including names from other plugins.
+         * @param builderReader the reader registered for this aggregation's builder. Typically, a reference to a constructor that takes a
          *        {@link StreamInput}
          * @param parser reads the aggregation builder from XContent
          */
-        public PipelineAggregationSpec(ParseField name,
-                Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
-                ContextParser<String, ? extends PipelineAggregationBuilder> parser) {
+        public PipelineAggregationSpec(
+            ParseField name,
+            Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
+            ContextParser<String, ? extends PipelineAggregationBuilder> parser
+        ) {
             super(name, builderReader, parser);
             this.aggregatorReader = null;
         }
@@ -419,14 +569,17 @@ public interface SearchPlugin {
          *
          * @param name name by which this aggregation might be parsed or deserialized. Make sure it is the name that the
          *        {@link PipelineAggregationBuilder} and {@link PipelineAggregator} should return from
-         *        {@link NamedWriteable#getWriteableName()}.
-         * @param builderReader the reader registered for this aggregation's builder. Typically a reference to a constructor that takes a
+         *        {@link NamedWriteable#getWriteableName()}.  It is an error if this name conflicts with another registered name, including
+         *        names from other plugins.
+         * @param builderReader the reader registered for this aggregation's builder. Typically, a reference to a constructor that takes a
          *        {@link StreamInput}
          * @param parser reads the aggregation builder from XContent
          */
-        public PipelineAggregationSpec(String name,
-                Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
-                ContextParser<String, ? extends PipelineAggregationBuilder> parser) {
+        public PipelineAggregationSpec(
+            String name,
+            Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
+            ContextParser<String, ? extends PipelineAggregationBuilder> parser
+        ) {
             super(name, builderReader, parser);
             this.aggregatorReader = null;
         }
@@ -436,8 +589,9 @@ public interface SearchPlugin {
          *
          * @param name holds the names by which this aggregation might be parsed. The {@link ParseField#getPreferredName()} is special as it
          *        is the name by under which the readers are registered. So it is the name that the {@link PipelineAggregationBuilder} and
-         *        {@link PipelineAggregator} should return from {@link NamedWriteable#getWriteableName()}.
-         * @param builderReader the reader registered for this aggregation's builder. Typically a reference to a constructor that takes a
+         *        {@link PipelineAggregator} should return from {@link NamedWriteable#getWriteableName()}.  It is an error if
+         *        {@link ParseField#getPreferredName()} conflicts with another registered name, including names from other plugins.
+         * @param builderReader the reader registered for this aggregation's builder. Typically, a reference to a constructor that takes a
          *        {@link StreamInput}
          * @param aggregatorReader reads the {@link PipelineAggregator} from a stream
          * @param parser reads the aggregation builder from XContent
@@ -445,10 +599,12 @@ public interface SearchPlugin {
          *             pipelines implemented after 7.8.0
          */
         @Deprecated
-        public PipelineAggregationSpec(ParseField name,
-                Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
-                Writeable.Reader<? extends PipelineAggregator> aggregatorReader,
-                ContextParser<String, ? extends PipelineAggregationBuilder> parser) {
+        public PipelineAggregationSpec(
+            ParseField name,
+            Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
+            Writeable.Reader<? extends PipelineAggregator> aggregatorReader,
+            ContextParser<String, ? extends PipelineAggregationBuilder> parser
+        ) {
             super(name, builderReader, parser);
             this.aggregatorReader = aggregatorReader;
         }
@@ -458,8 +614,9 @@ public interface SearchPlugin {
          *
          * @param name name by which this aggregation might be parsed or deserialized. Make sure it is the name that the
          *        {@link PipelineAggregationBuilder} and {@link PipelineAggregator} should return from
-         *        {@link NamedWriteable#getWriteableName()}.
-         * @param builderReader the reader registered for this aggregation's builder. Typically a reference to a constructor that takes a
+         *        {@link NamedWriteable#getWriteableName()}.  It is an error if this name conflicts with another registered name, including
+         *        names from other plugins.
+         * @param builderReader the reader registered for this aggregation's builder. Typically, a reference to a constructor that takes a
          *        {@link StreamInput}
          * @param aggregatorReader reads the {@link PipelineAggregator} from a stream
          * @param parser reads the aggregation builder from XContent
@@ -467,10 +624,12 @@ public interface SearchPlugin {
          *             implemented after 7.8.0
          */
         @Deprecated
-        public PipelineAggregationSpec(String name,
-                Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
-                Writeable.Reader<? extends PipelineAggregator> aggregatorReader,
-                ContextParser<String, ? extends PipelineAggregationBuilder> parser) {
+        public PipelineAggregationSpec(
+            String name,
+            Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
+            Writeable.Reader<? extends PipelineAggregator> aggregatorReader,
+            ContextParser<String, ? extends PipelineAggregationBuilder> parser
+        ) {
             super(name, builderReader, parser);
             this.aggregatorReader = aggregatorReader;
         }
@@ -480,18 +639,21 @@ public interface SearchPlugin {
          *
          * @param name holds the names by which this aggregation might be parsed. The {@link ParseField#getPreferredName()} is special as it
          *        is the name by under which the readers are registered. So it is the name that the {@link PipelineAggregationBuilder} and
-         *        {@link PipelineAggregator} should return from {@link NamedWriteable#getWriteableName()}.
-         * @param builderReader the reader registered for this aggregation's builder. Typically a reference to a constructor that takes a
+         *        {@link PipelineAggregator} should return from {@link NamedWriteable#getWriteableName()}.  It is an error if
+         *        {@link ParseField#getPreferredName()} conflicts with another registered name, including names from other plugins.
+         * @param builderReader the reader registered for this aggregation's builder. Typically, a reference to a constructor that takes a
          *        {@link StreamInput}
          * @param aggregatorReader reads the {@link PipelineAggregator} from a stream
          * @param parser reads the aggregation builder from XContent
          * @deprecated prefer the ctor that takes a {@link ContextParser}
          */
         @Deprecated
-        public PipelineAggregationSpec(ParseField name,
-                Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
-                Writeable.Reader<? extends PipelineAggregator> aggregatorReader,
-                PipelineAggregator.Parser parser) {
+        public PipelineAggregationSpec(
+            ParseField name,
+            Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
+            Writeable.Reader<? extends PipelineAggregator> aggregatorReader,
+            PipelineAggregator.Parser parser
+        ) {
             super(name, builderReader, (p, n) -> parser.parse(n, p));
             this.aggregatorReader = aggregatorReader;
         }
@@ -501,17 +663,20 @@ public interface SearchPlugin {
          *
          * @param name name by which this aggregation might be parsed or deserialized. Make sure it is the name that the
          *        {@link PipelineAggregationBuilder} and {@link PipelineAggregator} should return from
-         *        {@link NamedWriteable#getWriteableName()}.
-         * @param builderReader the reader registered for this aggregation's builder. Typically a reference to a constructor that takes a
+         *        {@link NamedWriteable#getWriteableName()}.  It is an error if this name conflicts with another registered name, including
+         *        names from other plugins.
+         * @param builderReader the reader registered for this aggregation's builder. Typically, a reference to a constructor that takes a
          *        {@link StreamInput}
          * @param aggregatorReader reads the {@link PipelineAggregator} from a stream
          * @deprecated prefer the ctor that takes a {@link ContextParser}
          */
         @Deprecated
-        public PipelineAggregationSpec(String name,
-                Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
-                Writeable.Reader<? extends PipelineAggregator> aggregatorReader,
-                PipelineAggregator.Parser parser) {
+        public PipelineAggregationSpec(
+            String name,
+            Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
+            Writeable.Reader<? extends PipelineAggregator> aggregatorReader,
+            PipelineAggregator.Parser parser
+        ) {
             super(name, builderReader, (p, n) -> parser.parse(n, p));
             this.aggregatorReader = aggregatorReader;
         }
@@ -554,22 +719,69 @@ public interface SearchPlugin {
      * parsed in a search request (within the ext element).
      */
     class SearchExtSpec<T extends SearchExtBuilder> extends SearchExtensionSpec<T, CheckedFunction<XContentParser, T, IOException>> {
-        public SearchExtSpec(ParseField name, Writeable.Reader<? extends T> reader,
-                CheckedFunction<XContentParser, T, IOException> parser) {
+        /**
+         * Specification of custom {@link SearchExtBuilder}.
+         *
+         * @param name holds the names by which this search ext might be parsed. The {@link ParseField#getPreferredName()} is special as it
+         *        is the name by under which the reader is registered. So it is the name that the search ext should use as its
+         *        {@link NamedWriteable#getWriteableName()} too.  It is an error if {@link ParseField#getPreferredName()} conflicts with
+         *        another registered name, including names from other plugins.
+         * @param reader the reader registered for this search ext's builder. Typically, a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser function that reads the search ext builder from xcontent
+         */
+        public SearchExtSpec(
+            ParseField name,
+            Writeable.Reader<? extends T> reader,
+            CheckedFunction<XContentParser, T, IOException> parser
+        ) {
             super(name, reader, parser);
         }
 
+        /**
+         * Specification of custom {@link SearchExtBuilder}.
+         *
+         * @param name the name by which this search ext might be parsed or deserialized. Make sure that the search ext builder returns this name for
+         *        {@link NamedWriteable#getWriteableName()}.  It is an error if this name conflicts with another registered name, including
+         *        names from other plugins.
+         * @param reader the reader registered for this search ext's builder. Typically, a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser function that reads the search ext builder from xcontent
+         */
         public SearchExtSpec(String name, Writeable.Reader<? extends T> reader, CheckedFunction<XContentParser, T, IOException> parser) {
             super(name, reader, parser);
         }
     }
 
+    /**
+     * Specification for a {@link RescorerBuilder}.
+     */
     class RescorerSpec<T extends RescorerBuilder<T>> extends SearchExtensionSpec<T, CheckedFunction<XContentParser, T, IOException>> {
-        public RescorerSpec(ParseField name, Writeable.Reader<? extends T> reader,
-                CheckedFunction<XContentParser, T, IOException> parser) {
+        /**
+         * Specification of custom {@link RescorerBuilder}.
+         *
+         * @param name holds the names by which this rescorer might be parsed. The {@link ParseField#getPreferredName()} is special as it
+         *        is the name by under which the reader is registered. So it is the name that the rescorer should use as its
+         *        {@link NamedWriteable#getWriteableName()} too.  It is an error if {@link ParseField#getPreferredName()} conflicts with
+         *        another registered name, including names from other plugins.
+         * @param reader the reader registered for this rescorer's builder. Typically, a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser function that reads the rescorer builder from xcontent
+         */
+        public RescorerSpec(ParseField name, Writeable.Reader<? extends T> reader, CheckedFunction<XContentParser, T, IOException> parser) {
             super(name, reader, parser);
         }
 
+        /**
+         * Specification of custom {@link RescorerBuilder}.
+         *
+         * @param name the name by which this rescorer might be parsed or deserialized. Make sure that the rescorer builder returns this name for
+         *        {@link NamedWriteable#getWriteableName()}.  It is an error if this name conflicts with another registered name, including
+         *        names from other plugins.
+         * @param reader the reader registered for this rescorer's builder. Typically, a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser function that reads the rescorer builder from xcontent
+         */
         public RescorerSpec(String name, Writeable.Reader<? extends T> reader, CheckedFunction<XContentParser, T, IOException> parser) {
             super(name, reader, parser);
         }
@@ -593,7 +805,8 @@ public interface SearchPlugin {
          *
          * @param name the name of the behavior as a {@linkplain ParseField}. The parser is registered under all names specified by the
          *        {@linkplain ParseField} but the reader is only registered under the {@link ParseField#getPreferredName()} so be sure that
-         *        that is the name that W's {@link NamedWriteable#getWriteableName()} returns.
+         *        that is the name that W's {@link NamedWriteable#getWriteableName()} returns.  It is an error if
+         *        {@link ParseField#getPreferredName()} conflicts with another registered name, including names from other plugins.
          * @param reader reader that reads the behavior from the internode protocol
          * @param parser parser that read the behavior from a REST request
          */
@@ -607,7 +820,8 @@ public interface SearchPlugin {
          * Build the spec with a String.
          *
          * @param name the name of the behavior. The parser and the reader are are registered under this name so be sure that that is the
-         *        name that W's {@link NamedWriteable#getWriteableName()} returns.
+         *        name that W's {@link NamedWriteable#getWriteableName()} returns.  It is an error if this name conflicts with another
+         *        registered name, including names from other plugins.
          * @param reader reader that reads the behavior from the internode protocol
          * @param parser parser that read the behavior from a REST request
          */

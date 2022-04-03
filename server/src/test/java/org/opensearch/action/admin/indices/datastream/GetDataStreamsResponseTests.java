@@ -51,8 +51,9 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
         int numDataStreams = randomIntBetween(0, 8);
         List<Response.DataStreamInfo> dataStreams = new ArrayList<>();
         for (int i = 0; i < numDataStreams; i++) {
-            dataStreams.add(new Response.DataStreamInfo(DataStreamTests.randomInstance(), ClusterHealthStatus.GREEN,
-                randomAlphaOfLengthBetween(2, 10)));
+            dataStreams.add(
+                new Response.DataStreamInfo(DataStreamTests.randomInstance(), ClusterHealthStatus.GREEN, randomAlphaOfLengthBetween(2, 10))
+            );
         }
         return new Response(dataStreams);
     }

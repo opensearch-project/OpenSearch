@@ -55,10 +55,12 @@ public class DelayedAllocationIT extends OpenSearchIntegTestCase {
      */
     public void testNoDelayedTimeout() throws Exception {
         internalCluster().startNodes(3);
-        prepareCreate("test").setSettings(Settings.builder()
+        prepareCreate("test").setSettings(
+            Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)).get();
+                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)
+        ).get();
         ensureGreen("test");
         indexRandomData();
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(findNodeWithShard()));
@@ -74,17 +76,23 @@ public class DelayedAllocationIT extends OpenSearchIntegTestCase {
      */
     public void testDelayedAllocationNodeLeavesAndComesBack() throws Exception {
         internalCluster().startNodes(3);
-        prepareCreate("test").setSettings(Settings.builder()
+        prepareCreate("test").setSettings(
+            Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1))).get();
+                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1))
+        ).get();
         ensureGreen("test");
         indexRandomData();
         String nodeWithShard = findNodeWithShard();
         Settings nodeWithShardDataPathSettings = internalCluster().dataPathSettings(nodeWithShard);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithShard));
-        assertBusy(() -> assertThat(client().admin().cluster().prepareState().all().get().getState()
-            .getRoutingNodes().unassigned().size() > 0, equalTo(true)));
+        assertBusy(
+            () -> assertThat(
+                client().admin().cluster().prepareState().all().get().getState().getRoutingNodes().unassigned().size() > 0,
+                equalTo(true)
+            )
+        );
         assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1));
         internalCluster().startNode(nodeWithShardDataPathSettings); // this will use the same data location as the stopped node
         ensureGreen("test");
@@ -96,18 +104,27 @@ public class DelayedAllocationIT extends OpenSearchIntegTestCase {
      */
     public void testDelayedAllocationTimesOut() throws Exception {
         internalCluster().startNodes(3);
-        prepareCreate("test").setSettings(Settings.builder()
+        prepareCreate("test").setSettings(
+            Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(100))).get();
+                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(100))
+        ).get();
         ensureGreen("test");
         indexRandomData();
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(findNodeWithShard()));
         ensureGreen("test");
         internalCluster().startNode();
         // do a second round with longer delay to make sure it happens
-        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
-            .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(100))).get());
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(
+                    Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(100))
+                )
+                .get()
+        );
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(findNodeWithShard()));
         ensureGreen("test");
     }
@@ -119,18 +136,31 @@ public class DelayedAllocationIT extends OpenSearchIntegTestCase {
      */
     public void testDelayedAllocationChangeWithSettingTo100ms() throws Exception {
         internalCluster().startNodes(3);
-        prepareCreate("test").setSettings(Settings.builder()
+        prepareCreate("test").setSettings(
+            Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1))).get();
+                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1))
+        ).get();
         ensureGreen("test");
         indexRandomData();
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(findNodeWithShard()));
-        assertBusy(() -> assertThat(client().admin().cluster().prepareState().all().get()
-            .getState().getRoutingNodes().unassigned().size() > 0, equalTo(true)));
+        assertBusy(
+            () -> assertThat(
+                client().admin().cluster().prepareState().all().get().getState().getRoutingNodes().unassigned().size() > 0,
+                equalTo(true)
+            )
+        );
         assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1));
-        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
-            .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(100))).get());
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(
+                    Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(100))
+                )
+                .get()
+        );
         ensureGreen("test");
         assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(0));
     }
@@ -142,22 +172,34 @@ public class DelayedAllocationIT extends OpenSearchIntegTestCase {
      */
     public void testDelayedAllocationChangeWithSettingTo0() throws Exception {
         internalCluster().startNodes(3);
-        prepareCreate("test").setSettings(Settings.builder()
+        prepareCreate("test").setSettings(
+            Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1))).get();
+                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1))
+        ).get();
         ensureGreen("test");
         indexRandomData();
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(findNodeWithShard()));
-        assertBusy(() -> assertThat(client().admin().cluster().prepareState().all().get().getState()
-            .getRoutingNodes().unassigned().size() > 0, equalTo(true)));
+        assertBusy(
+            () -> assertThat(
+                client().admin().cluster().prepareState().all().get().getState().getRoutingNodes().unassigned().size() > 0,
+                equalTo(true)
+            )
+        );
         assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1));
-        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
-            .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(0))).get());
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(
+                    Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(0))
+                )
+                .get()
+        );
         ensureGreen("test");
         assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(0));
     }
-
 
     private void indexRandomData() throws Exception {
         int numDocs = scaledRandomIntBetween(100, 1000);
@@ -174,7 +216,7 @@ public class DelayedAllocationIT extends OpenSearchIntegTestCase {
     private String findNodeWithShard() {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         List<ShardRouting> startedShards = state.routingTable().shardsWithState(ShardRoutingState.STARTED);
-        Collections.shuffle(startedShards,random());
+        Collections.shuffle(startedShards, random());
         return state.nodes().get(startedShards.get(0).currentNodeId()).getName();
     }
 }

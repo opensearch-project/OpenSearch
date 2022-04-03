@@ -266,10 +266,10 @@ public class InboundChannelBufferTests extends OpenSearchTestCase {
             if (randomBoolean()) {
                 long bytesToRelease = Math.min(randomInt(50), channelBuffer.getIndex());
                 channelBuffer.release(bytesToRelease);
-                bytesReleased += bytesToRelease;
+                bytesReleased += (int) bytesToRelease;
             }
             channelBuffer.incrementIndex(amountToInc);
-            indexIncremented += amountToInc;
+            indexIncremented += (int) amountToInc;
         }
 
         assertEquals(0, channelBuffer.sliceBuffersFrom(channelBuffer.getIndex()).length);

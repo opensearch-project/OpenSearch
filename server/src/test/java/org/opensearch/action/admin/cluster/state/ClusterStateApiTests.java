@@ -65,9 +65,7 @@ public class ClusterStateApiTests extends OpenSearchSingleNodeTestCase {
         updateSettingsRequest.transientSettings(Settings.builder().put("cluster.max_shards_per_node", 999));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
-        assertBusy(() -> {
-            assertThat(future2.isDone(), is(true));
-        });
+        assertBusy(() -> { assertThat(future2.isDone(), is(true)); });
         ClusterStateResponse response = future2.actionGet();
         assertThat(response.isWaitForTimedOut(), is(false));
         assertThat(response.getState().metadata().version(), equalTo(metadataVersion + 1));
@@ -77,9 +75,7 @@ public class ClusterStateApiTests extends OpenSearchSingleNodeTestCase {
         clusterStateRequest.waitForMetadataVersion(metadataVersion + 1);
         clusterStateRequest.waitForTimeout(TimeValue.timeValueMillis(500)); // Fail fast
         ActionFuture<ClusterStateResponse> future3 = client().admin().cluster().state(clusterStateRequest);
-        assertBusy(() -> {
-            assertThat(future3.isDone(), is(true));
-        });
+        assertBusy(() -> { assertThat(future3.isDone(), is(true)); });
         response = future3.actionGet();
         assertThat(response.isWaitForTimedOut(), is(true));
         assertThat(response.getState(), nullValue());

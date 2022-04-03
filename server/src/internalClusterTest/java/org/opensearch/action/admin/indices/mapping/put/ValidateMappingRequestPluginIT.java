@@ -51,6 +51,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ValidateMappingRequestPluginIT extends OpenSearchSingleNodeTestCase {
     static final Map<String, Collection<String>> allowedOrigins = ConcurrentCollections.newConcurrentMap();
+
     public static class TestPlugin extends Plugin implements ActionPlugin {
         @Override
         public Collection<RequestValidators.RequestValidator<PutMappingRequest>> mappingRequestValidators() {
@@ -58,7 +59,8 @@ public class ValidateMappingRequestPluginIT extends OpenSearchSingleNodeTestCase
                 for (Index index : indices) {
                     if (allowedOrigins.getOrDefault(index.getName(), Collections.emptySet()).contains(request.origin()) == false) {
                         return Optional.of(
-                                new IllegalStateException("not allowed: index[" + index.getName() + "] origin[" + request.origin() + "]"));
+                            new IllegalStateException("not allowed: index[" + index.getName() + "] origin[" + request.origin() + "]")
+                        );
                     }
                 }
                 return Optional.empty();
@@ -83,8 +85,10 @@ public class ValidateMappingRequestPluginIT extends OpenSearchSingleNodeTestCase
             assertThat(e.getMessage(), equalTo("not allowed: index[index_1] origin[" + origin + "]"));
         }
         {
-            PutMappingRequest request = new PutMappingRequest().indices("index_1").origin(randomFrom("1", "2"))
-                .type("doc").source("t1", "type=keyword");
+            PutMappingRequest request = new PutMappingRequest().indices("index_1")
+                .origin(randomFrom("1", "2"))
+                .type("doc")
+                .source("t1", "type=keyword");
             assertAcked(client().admin().indices().putMapping(request).actionGet());
         }
 
@@ -95,8 +99,10 @@ public class ValidateMappingRequestPluginIT extends OpenSearchSingleNodeTestCase
             assertThat(e.getMessage(), equalTo("not allowed: index[index_2] origin[" + origin + "]"));
         }
         {
-            PutMappingRequest request = new PutMappingRequest().indices("index_2").origin(randomFrom("2", "3"))
-                .type("doc").source("t1", "type=keyword");
+            PutMappingRequest request = new PutMappingRequest().indices("index_2")
+                .origin(randomFrom("2", "3"))
+                .type("doc")
+                .source("t1", "type=keyword");
             assertAcked(client().admin().indices().putMapping(request).actionGet());
         }
 
@@ -107,8 +113,7 @@ public class ValidateMappingRequestPluginIT extends OpenSearchSingleNodeTestCase
             assertThat(e.getMessage(), containsString("not allowed:"));
         }
         {
-            PutMappingRequest request = new PutMappingRequest().indices("index_2").origin("2")
-                .type("doc").source("t3", "type=keyword");
+            PutMappingRequest request = new PutMappingRequest().indices("index_2").origin("2").type("doc").source("t3", "type=keyword");
             assertAcked(client().admin().indices().putMapping(request).actionGet());
         }
     }

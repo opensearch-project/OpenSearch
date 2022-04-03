@@ -65,7 +65,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
         @Nullable
         private String name;
 
-        public Request() { }
+        public Request() {}
 
         public Request(@Nullable String name) {
             this.name = name;

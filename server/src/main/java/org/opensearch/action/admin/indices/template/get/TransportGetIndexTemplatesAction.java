@@ -52,15 +52,25 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class TransportGetIndexTemplatesAction extends
-    TransportMasterNodeReadAction<GetIndexTemplatesRequest, GetIndexTemplatesResponse> {
+public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAction<GetIndexTemplatesRequest, GetIndexTemplatesResponse> {
 
     @Inject
-    public TransportGetIndexTemplatesAction(TransportService transportService, ClusterService clusterService,
-                                            ThreadPool threadPool, ActionFilters actionFilters,
-                                            IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(GetIndexTemplatesAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            GetIndexTemplatesRequest::new, indexNameExpressionResolver);
+    public TransportGetIndexTemplatesAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            GetIndexTemplatesAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            GetIndexTemplatesRequest::new,
+            indexNameExpressionResolver
+        );
     }
 
     @Override
@@ -79,8 +89,11 @@ public class TransportGetIndexTemplatesAction extends
     }
 
     @Override
-    protected void masterOperation(GetIndexTemplatesRequest request, ClusterState state,
-                                   ActionListener<GetIndexTemplatesResponse> listener) {
+    protected void masterOperation(
+        GetIndexTemplatesRequest request,
+        ClusterState state,
+        ActionListener<GetIndexTemplatesResponse> listener
+    ) {
         List<IndexTemplateMetadata> results;
 
         // If we did not ask for a specific name, then we return all templates

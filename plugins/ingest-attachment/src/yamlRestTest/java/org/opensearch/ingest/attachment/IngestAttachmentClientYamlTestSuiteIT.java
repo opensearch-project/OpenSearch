@@ -49,4 +49,3 @@ public class IngestAttachmentClientYamlTestSuiteIT extends OpenSearchClientYamlS
         return OpenSearchClientYamlSuiteTestCase.createParameters();
     }
 }
-

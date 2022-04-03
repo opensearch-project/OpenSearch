@@ -202,7 +202,6 @@ public class TasksClientDocumentationIT extends OpenSearchRestHighLevelClientTes
         List<org.opensearch.client.tasks.TaskGroup> groups = response.getTaskGroups(); // <2>
         // end::cancel-tasks-response-calc
 
-
         // tag::cancel-tasks-response-failures
         List<org.opensearch.client.tasks.OpenSearchException> nodeFailures = response.getNodeFailures(); // <1>
         List<org.opensearch.client.tasks.TaskOperationFailure> taskFailures = response.getTaskFailures(); // <2>

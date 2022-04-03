@@ -80,7 +80,7 @@ public class XMoreLikeThisTests extends OpenSearchTestCase {
         mlt.setMinDocFreq(1);
         mlt.setMinTermFreq(1);
         mlt.setMinWordLen(1);
-        mlt.setFieldNames(new String[]{"text"});
+        mlt.setFieldNames(new String[] { "text" });
 
         // perform MLT query
         String likeText = "";

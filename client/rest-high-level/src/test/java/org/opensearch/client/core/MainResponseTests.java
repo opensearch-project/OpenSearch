@@ -55,10 +55,14 @@ public class MainResponseTests extends AbstractResponseTestCase<org.opensearch.a
         final String date = new Date(randomNonNegativeLong()).toString();
         Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_1, Version.CURRENT);
         Build build = new Build(
-            Build.Type.UNKNOWN, randomAlphaOfLength(8), date, randomBoolean(),
-            version.toString(), version.before(Version.V_1_0_0) ? null : "opensearch"
+            Build.Type.UNKNOWN,
+            randomAlphaOfLength(8),
+            date,
+            randomBoolean(),
+            version.toString(),
+            version.before(Version.V_1_0_0) ? null : "opensearch"
         );
-        return new org.opensearch.action.main.MainResponse(nodeName, version, clusterName, clusterUuid , build);
+        return new org.opensearch.action.main.MainResponse(nodeName, version, clusterName, clusterUuid, build);
     }
 
     @Override
@@ -77,9 +81,13 @@ public class MainResponseTests extends AbstractResponseTestCase<org.opensearch.a
         assertThat(serverTestInstance.getBuild().date(), equalTo(clientInstance.getVersion().getBuildDate()));
         assertThat(serverTestInstance.getBuild().type().displayName(), equalTo(clientInstance.getVersion().getBuildType()));
         assertThat(serverTestInstance.getVersion().luceneVersion.toString(), equalTo(clientInstance.getVersion().getLuceneVersion()));
-        assertThat(serverTestInstance.getVersion().minimumIndexCompatibilityVersion().toString(),
-            equalTo(clientInstance.getVersion().getMinimumIndexCompatibilityVersion()));
-        assertThat(serverTestInstance.getVersion().minimumCompatibilityVersion().toString(),
-            equalTo(clientInstance.getVersion().getMinimumWireCompatibilityVersion()));
+        assertThat(
+            serverTestInstance.getVersion().minimumIndexCompatibilityVersion().toString(),
+            equalTo(clientInstance.getVersion().getMinimumIndexCompatibilityVersion())
+        );
+        assertThat(
+            serverTestInstance.getVersion().minimumCompatibilityVersion().toString(),
+            equalTo(clientInstance.getVersion().getMinimumWireCompatibilityVersion())
+        );
     }
 }

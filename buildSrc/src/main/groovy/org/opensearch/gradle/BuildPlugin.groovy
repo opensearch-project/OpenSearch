@@ -81,6 +81,7 @@ class BuildPlugin implements Plugin<Project> {
         configureLicenseAndNotice(project)
         project.pluginManager.apply('opensearch.publish')
         project.pluginManager.apply(DependenciesInfoPlugin)
+        project.pluginManager.apply('jacoco')
 
         PrecommitTasks.create(project, true)
     }

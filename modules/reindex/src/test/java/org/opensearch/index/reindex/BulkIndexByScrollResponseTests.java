@@ -61,14 +61,31 @@ public class BulkIndexByScrollResponseTests extends OpenSearchTestCase {
             TimeValue thisTook = timeValueMillis(i == tookIndex ? took : between(0, took));
             // The actual status doesn't matter too much - we test merging those elsewhere
             String thisReasonCancelled = rarely() ? randomAlphaOfLength(5) : null;
-            BulkByScrollTask.Status status = new BulkByScrollTask.Status(i, 0, 0, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0), 0f,
-                    thisReasonCancelled, timeValueMillis(0));
-            List<BulkItemResponse.Failure> bulkFailures = frequently() ? emptyList()
-                    : IntStream.range(0, between(1, 3)).mapToObj(j -> new BulkItemResponse.Failure("idx", "type", "id", new Exception()))
-                            .collect(Collectors.toList());
+            BulkByScrollTask.Status status = new BulkByScrollTask.Status(
+                i,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                timeValueMillis(0),
+                0f,
+                thisReasonCancelled,
+                timeValueMillis(0)
+            );
+            List<BulkItemResponse.Failure> bulkFailures = frequently()
+                ? emptyList()
+                : IntStream.range(0, between(1, 3))
+                    .mapToObj(j -> new BulkItemResponse.Failure("idx", "type", "id", new Exception()))
+                    .collect(Collectors.toList());
             allBulkFailures.addAll(bulkFailures);
-            List<SearchFailure> searchFailures = frequently() ? emptyList()
-                    : IntStream.range(0, between(1, 3)).mapToObj(j -> new SearchFailure(new Exception())).collect(Collectors.toList());
+            List<SearchFailure> searchFailures = frequently()
+                ? emptyList()
+                : IntStream.range(0, between(1, 3)).mapToObj(j -> new SearchFailure(new Exception())).collect(Collectors.toList());
             allSearchFailures.addAll(searchFailures);
             boolean thisTimedOut = rarely();
             timedOut |= thisTimedOut;

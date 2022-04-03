@@ -109,8 +109,7 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
 
     public MappingMetadata(String type, Map<String, Object> mapping) throws IOException {
         this.type = type;
-        this.source = new CompressedXContent(
-                (builder, params) -> builder.mapContents(mapping), XContentType.JSON, ToXContent.EMPTY_PARAMS);
+        this.source = new CompressedXContent((builder, params) -> builder.mapContents(mapping), XContentType.JSON, ToXContent.EMPTY_PARAMS);
         Map<String, Object> withoutType = mapping;
         if (mapping.size() == 1 && mapping.containsKey(type)) {
             withoutType = (Map<String, Object>) mapping.get(type);
@@ -129,8 +128,10 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
                     try {
                         required = nodeBooleanValue(fieldNode);
                     } catch (IllegalArgumentException ex) {
-                        throw new IllegalArgumentException("Failed to create mapping for type [" + this.type() + "]. " +
-                            "Illegal value in field [_routing.required].", ex);
+                        throw new IllegalArgumentException(
+                            "Failed to create mapping for type [" + this.type() + "]. " + "Illegal value in field [_routing.required].",
+                            ex
+                        );
                     }
                 }
             }

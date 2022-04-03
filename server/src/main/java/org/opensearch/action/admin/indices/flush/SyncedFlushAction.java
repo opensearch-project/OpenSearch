@@ -34,7 +34,6 @@ package org.opensearch.action.admin.indices.flush;
 
 import org.opensearch.action.ActionType;
 
-
 public class SyncedFlushAction extends ActionType<SyncedFlushResponse> {
 
     public static final SyncedFlushAction INSTANCE = new SyncedFlushAction();

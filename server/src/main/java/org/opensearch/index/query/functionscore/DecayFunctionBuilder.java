@@ -35,6 +35,7 @@ package org.opensearch.index.query.functionscore;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoDistance;
@@ -82,7 +83,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
     public static final MultiValueMode DEFAULT_MULTI_VALUE_MODE = MultiValueMode.MIN;
 
     private final String fieldName;
-    //parsing of origin, scale, offset and decay depends on the field type, delayed to the data node that has the mapping for it
+    // parsing of origin, scale, offset and decay depends on the field type, delayed to the data node that has the mapping for it
     private final BytesReference functionBytes;
     private MultiValueMode multiValueMode = DEFAULT_MULTI_VALUE_MODE;
 
@@ -96,7 +97,28 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
     /**
      * Convenience constructor that converts its parameters into json to parse on the data nodes.
      */
+    protected DecayFunctionBuilder(String fieldName, Object origin, Object scale, Object offset, @Nullable String functionName) {
+        this(fieldName, origin, scale, offset, DEFAULT_DECAY, functionName);
+    }
+
+    /**
+     * Convenience constructor that converts its parameters into json to parse on the data nodes.
+     */
     protected DecayFunctionBuilder(String fieldName, Object origin, Object scale, Object offset, double decay) {
+        this(fieldName, origin, scale, offset, decay, null);
+    }
+
+    /**
+     * Convenience constructor that converts its parameters into json to parse on the data nodes.
+     */
+    protected DecayFunctionBuilder(
+        String fieldName,
+        Object origin,
+        Object scale,
+        Object offset,
+        double decay,
+        @Nullable String functionName
+    ) {
         if (fieldName == null) {
             throw new IllegalArgumentException("decay function: field name must not be null");
         }
@@ -121,8 +143,9 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
             builder.endObject();
             this.functionBytes = BytesReference.bytes(builder);
         } catch (IOException e) {
-            throw new IllegalArgumentException("unable to build inner function object",e);
+            throw new IllegalArgumentException("unable to build inner function object", e);
         }
+        setFunctionName(functionName);
     }
 
     protected DecayFunctionBuilder(String fieldName, BytesReference functionBytes) {
@@ -186,9 +209,9 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
 
     @Override
     protected boolean doEquals(DFB functionBuilder) {
-        return Objects.equals(this.fieldName, functionBuilder.getFieldName()) &&
-                Objects.equals(this.functionBytes, functionBuilder.getFunctionBytes()) &&
-                Objects.equals(this.multiValueMode, functionBuilder.getMultiValueMode());
+        return Objects.equals(this.fieldName, functionBuilder.getFieldName())
+            && Objects.equals(this.functionBytes, functionBuilder.getFunctionBytes())
+            && Objects.equals(this.multiValueMode, functionBuilder.getMultiValueMode());
     }
 
     @Override
@@ -200,9 +223,11 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
     protected ScoreFunction doToFunction(QueryShardContext context) throws IOException {
         AbstractDistanceScoreFunction scoreFunction;
         // EMPTY is safe because parseVariable doesn't use namedObject
-        try (InputStream stream = functionBytes.streamInput();
-             XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(functionBytes))
-                 .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+        try (
+            InputStream stream = functionBytes.streamInput();
+            XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(functionBytes))
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+        ) {
             scoreFunction = parseVariable(fieldName, parser, context, multiValueMode);
         }
         return scoreFunction;
@@ -213,9 +238,13 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
      * */
     protected abstract DecayFunction getDecayFunction();
 
-    private AbstractDistanceScoreFunction parseVariable(String fieldName, XContentParser parser, QueryShardContext context,
-            MultiValueMode mode) throws IOException {
-        //the field must exist, else we cannot read the value for the doc later
+    private AbstractDistanceScoreFunction parseVariable(
+        String fieldName,
+        XContentParser parser,
+        QueryShardContext context,
+        MultiValueMode mode
+    ) throws IOException {
+        // the field must exist, else we cannot read the value for the doc later
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType == null) {
             throw new ParsingException(parser.getTokenLocation(), "unknown field [{}]", fieldName);
@@ -231,13 +260,21 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         } else if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
             return parseNumberVariable(parser, context, fieldType, mode);
         } else {
-            throw new ParsingException(parser.getTokenLocation(), "field [{}] is of type [{}], but only numeric types are supported.",
-                    fieldName, fieldType);
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "field [{}] is of type [{}], but only numeric types are supported.",
+                fieldName,
+                fieldType
+            );
         }
     }
 
-    private AbstractDistanceScoreFunction parseNumberVariable(XContentParser parser, QueryShardContext context,
-            MappedFieldType fieldType, MultiValueMode mode) throws IOException {
+    private AbstractDistanceScoreFunction parseNumberVariable(
+        XContentParser parser,
+        QueryShardContext context,
+        MappedFieldType fieldType,
+        MultiValueMode mode
+    ) throws IOException {
         XContentParser.Token token;
         String parameterName = null;
         double scale = 0;
@@ -264,15 +301,31 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
             }
         }
         if (!scaleFound || !refFound) {
-            throw new OpenSearchParseException("both [{}] and [{}] must be set for numeric fields.", DecayFunctionBuilder.SCALE,
-                    DecayFunctionBuilder.ORIGIN);
+            throw new OpenSearchParseException(
+                "both [{}] and [{}] must be set for numeric fields.",
+                DecayFunctionBuilder.SCALE,
+                DecayFunctionBuilder.ORIGIN
+            );
         }
         IndexNumericFieldData numericFieldData = context.getForField(fieldType);
-        return new NumericFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), numericFieldData, mode);
+        return new NumericFieldDataScoreFunction(
+            origin,
+            scale,
+            decay,
+            offset,
+            getDecayFunction(),
+            numericFieldData,
+            mode,
+            getFunctionName()
+        );
     }
 
-    private AbstractDistanceScoreFunction parseGeoVariable(XContentParser parser, QueryShardContext context,
-            MappedFieldType fieldType, MultiValueMode mode) throws IOException {
+    private AbstractDistanceScoreFunction parseGeoVariable(
+        XContentParser parser,
+        QueryShardContext context,
+        MappedFieldType fieldType,
+        MultiValueMode mode
+    ) throws IOException {
         XContentParser.Token token;
         String parameterName = null;
         GeoPoint origin = new GeoPoint();
@@ -295,18 +348,25 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
             }
         }
         if (origin == null || scaleString == null) {
-            throw new OpenSearchParseException("[{}] and [{}] must be set for geo fields.", DecayFunctionBuilder.ORIGIN,
-                    DecayFunctionBuilder.SCALE);
+            throw new OpenSearchParseException(
+                "[{}] and [{}] must be set for geo fields.",
+                DecayFunctionBuilder.ORIGIN,
+                DecayFunctionBuilder.SCALE
+            );
         }
         double scale = DistanceUnit.DEFAULT.parse(scaleString, DistanceUnit.DEFAULT);
         double offset = DistanceUnit.DEFAULT.parse(offsetString, DistanceUnit.DEFAULT);
         IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
-        return new GeoFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), indexFieldData, mode);
+        return new GeoFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), indexFieldData, mode, getFunctionName());
 
     }
 
-    private AbstractDistanceScoreFunction parseDateVariable(XContentParser parser, QueryShardContext context,
-            MappedFieldType dateFieldType, MultiValueMode mode) throws IOException {
+    private AbstractDistanceScoreFunction parseDateVariable(
+        XContentParser parser,
+        QueryShardContext context,
+        MappedFieldType dateFieldType,
+        MultiValueMode mode
+    ) throws IOException {
         XContentParser.Token token;
         String parameterName = null;
         String scaleString = null;
@@ -338,13 +398,25 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         if (scaleString == null) {
             throw new OpenSearchParseException("[{}] must be set for date fields.", DecayFunctionBuilder.SCALE);
         }
-        TimeValue val = TimeValue.parseTimeValue(scaleString, TimeValue.timeValueHours(24),
-                DecayFunctionParser.class.getSimpleName() + ".scale");
+        TimeValue val = TimeValue.parseTimeValue(
+            scaleString,
+            TimeValue.timeValueHours(24),
+            DecayFunctionParser.class.getSimpleName() + ".scale"
+        );
         double scale = val.getMillis();
         val = TimeValue.parseTimeValue(offsetString, TimeValue.timeValueHours(24), DecayFunctionParser.class.getSimpleName() + ".offset");
         double offset = val.getMillis();
         IndexNumericFieldData numericFieldData = context.getForField(dateFieldType);
-        return new NumericFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), numericFieldData, mode);
+        return new NumericFieldDataScoreFunction(
+            origin,
+            scale,
+            decay,
+            offset,
+            getDecayFunction(),
+            numericFieldData,
+            mode,
+            getFunctionName()
+        );
     }
 
     static class GeoFieldDataScoreFunction extends AbstractDistanceScoreFunction {
@@ -354,9 +426,17 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
 
         private static final GeoDistance distFunction = GeoDistance.ARC;
 
-        GeoFieldDataScoreFunction(GeoPoint origin, double scale, double decay, double offset, DecayFunction func,
-                                         IndexGeoPointFieldData fieldData, MultiValueMode mode) {
-            super(scale, decay, offset, func, mode);
+        GeoFieldDataScoreFunction(
+            GeoPoint origin,
+            double scale,
+            double decay,
+            double offset,
+            DecayFunction func,
+            IndexGeoPointFieldData fieldData,
+            MultiValueMode mode,
+            @Nullable String functionName
+        ) {
+            super(scale, decay, offset, func, mode, functionName);
             this.origin = origin;
             this.fieldData = fieldData;
         }
@@ -378,7 +458,12 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                         for (int i = 0; i < n; i++) {
                             GeoPoint other = geoPointValues.nextValue();
                             double distance = distFunction.calculate(
-                                origin.lat(), origin.lon(), other.lat(), other.lon(), DistanceUnit.METERS);
+                                origin.lat(),
+                                origin.lon(),
+                                other.lat(),
+                                other.lon(),
+                                DistanceUnit.METERS
+                            );
                             values[i] = Math.max(0.0d, distance - offset);
                         }
                         sort();
@@ -421,8 +506,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         @Override
         protected boolean doEquals(ScoreFunction other) {
             GeoFieldDataScoreFunction geoFieldDataScoreFunction = (GeoFieldDataScoreFunction) other;
-            return super.doEquals(other) &&
-                    Objects.equals(this.origin, geoFieldDataScoreFunction.origin);
+            return super.doEquals(other) && Objects.equals(this.origin, geoFieldDataScoreFunction.origin);
         }
 
         @Override
@@ -436,9 +520,17 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         private final IndexNumericFieldData fieldData;
         private final double origin;
 
-        NumericFieldDataScoreFunction(double origin, double scale, double decay, double offset, DecayFunction func,
-                                             IndexNumericFieldData fieldData, MultiValueMode mode) {
-            super(scale, decay, offset, func, mode);
+        NumericFieldDataScoreFunction(
+            double origin,
+            double scale,
+            double decay,
+            double offset,
+            DecayFunction func,
+            IndexNumericFieldData fieldData,
+            MultiValueMode mode,
+            @Nullable String functionName
+        ) {
+            super(scale, decay, offset, func, mode, functionName);
             this.fieldData = fieldData;
             this.origin = origin;
         }
@@ -520,9 +612,16 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         protected final double offset;
         private final DecayFunction func;
         protected final MultiValueMode mode;
+        protected final String functionName;
 
-        public AbstractDistanceScoreFunction(double userSuppiedScale, double decay, double offset, DecayFunction func,
-                MultiValueMode mode) {
+        public AbstractDistanceScoreFunction(
+            double userSuppiedScale,
+            double decay,
+            double offset,
+            DecayFunction func,
+            MultiValueMode mode,
+            @Nullable String functionName
+        ) {
             super(CombineFunction.MULTIPLY);
             this.mode = mode;
             if (userSuppiedScale <= 0.0) {
@@ -537,6 +636,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                 throw new IllegalArgumentException(FunctionScoreQueryBuilder.NAME + " : offset must be > 0.0");
             }
             this.offset = offset;
+            this.functionName = functionName;
         }
 
         /**
@@ -568,9 +668,10 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                     }
                     double value = distance.doubleValue();
                     return Explanation.match(
-                            (float) score(docId, subQueryScore.getValue().floatValue()),
-                            "Function for field " + getFieldName() + ":",
-                            func.explainFunction(getDistanceString(ctx, docId), value, scale));
+                        (float) score(docId, subQueryScore.getValue().floatValue()),
+                        "Function for field " + getFieldName() + ":",
+                        func.explainFunction(getDistanceString(ctx, docId), value, scale, functionName)
+                    );
                 }
             };
         }
@@ -582,11 +683,11 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         @Override
         protected boolean doEquals(ScoreFunction other) {
             AbstractDistanceScoreFunction distanceScoreFunction = (AbstractDistanceScoreFunction) other;
-            return Objects.equals(this.scale, distanceScoreFunction.scale) &&
-                    Objects.equals(this.offset, distanceScoreFunction.offset) &&
-                    Objects.equals(this.mode, distanceScoreFunction.mode) &&
-                    Objects.equals(this.func, distanceScoreFunction.func) &&
-                    Objects.equals(this.getFieldName(), distanceScoreFunction.getFieldName());
+            return Objects.equals(this.scale, distanceScoreFunction.scale)
+                && Objects.equals(this.offset, distanceScoreFunction.offset)
+                && Objects.equals(this.mode, distanceScoreFunction.mode)
+                && Objects.equals(this.func, distanceScoreFunction.func)
+                && Objects.equals(this.getFieldName(), distanceScoreFunction.getFieldName());
         }
 
         @Override

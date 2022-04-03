@@ -82,8 +82,10 @@ public class GeoBoundingBox implements ToXContentObject, Writeable {
     }
 
     public boolean isUnbounded() {
-        return Double.isNaN(topLeft.lon()) || Double.isNaN(topLeft.lat())
-            || Double.isNaN(bottomRight.lon()) || Double.isNaN(bottomRight.lat());
+        return Double.isNaN(topLeft.lon())
+            || Double.isNaN(topLeft.lat())
+            || Double.isNaN(bottomRight.lon())
+            || Double.isNaN(bottomRight.lat());
     }
 
     public GeoPoint topLeft() {
@@ -169,8 +171,7 @@ public class GeoBoundingBox implements ToXContentObject, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GeoBoundingBox that = (GeoBoundingBox) o;
-        return topLeft.equals(that.topLeft) &&
-            bottomRight.equals(that.bottomRight);
+        return topLeft.equals(that.topLeft) && bottomRight.equals(that.bottomRight);
     }
 
     @Override
@@ -209,11 +210,12 @@ public class GeoBoundingBox implements ToXContentObject, Writeable {
                     try {
                         Geometry geometry = WKT_PARSER.fromWKT(parser.text());
                         if (ShapeType.ENVELOPE.equals(geometry.type()) == false) {
-                            throw new OpenSearchParseException("failed to parse WKT bounding box. ["
-                                + geometry.type() + "] found. expected [" + ShapeType.ENVELOPE + "]");
+                            throw new OpenSearchParseException(
+                                "failed to parse WKT bounding box. [" + geometry.type() + "] found. expected [" + ShapeType.ENVELOPE + "]"
+                            );
                         }
                         envelope = (Rectangle) geometry;
-                    } catch (ParseException|IllegalArgumentException e) {
+                    } catch (ParseException | IllegalArgumentException e) {
                         throw new OpenSearchParseException("failed to parse WKT bounding box", e);
                     }
                 } else if (TOP_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -250,10 +252,13 @@ public class GeoBoundingBox implements ToXContentObject, Writeable {
             }
         }
         if (envelope != null) {
-            if (Double.isNaN(top) == false || Double.isNaN(bottom) == false || Double.isNaN(left) == false ||
-                Double.isNaN(right) == false) {
-                throw new OpenSearchParseException("failed to parse bounding box. Conflicting definition found "
-                    + "using well-known text and explicit corners.");
+            if (Double.isNaN(top) == false
+                || Double.isNaN(bottom) == false
+                || Double.isNaN(left) == false
+                || Double.isNaN(right) == false) {
+                throw new OpenSearchParseException(
+                    "failed to parse bounding box. Conflicting definition found " + "using well-known text and explicit corners."
+                );
             }
             GeoPoint topLeft = new GeoPoint(envelope.getMaxLat(), envelope.getMinLon());
             GeoPoint bottomRight = new GeoPoint(envelope.getMinLat(), envelope.getMaxLon());

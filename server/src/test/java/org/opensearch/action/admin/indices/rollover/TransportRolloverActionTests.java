@@ -84,14 +84,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 import org.mockito.ArgumentCaptor;
-import org.opensearch.action.admin.indices.rollover.Condition;
-import org.opensearch.action.admin.indices.rollover.MaxAgeCondition;
-import org.opensearch.action.admin.indices.rollover.MaxDocsCondition;
-import org.opensearch.action.admin.indices.rollover.MaxSizeCondition;
-import org.opensearch.action.admin.indices.rollover.MetadataRolloverService;
-import org.opensearch.action.admin.indices.rollover.RolloverRequest;
-import org.opensearch.action.admin.indices.rollover.RolloverResponse;
-import org.opensearch.action.admin.indices.rollover.TransportRolloverAction;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -112,7 +104,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-
 public class TransportRolloverActionTests extends OpenSearchTestCase {
 
     public void testDocStatsSelectionFromPrimariesOnly() {
@@ -121,8 +112,11 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
 
         final Condition<?> condition = createTestCondition();
         String indexName = randomAlphaOfLengthBetween(5, 7);
-        evaluateConditions(Sets.newHashSet(condition), createMetadata(indexName),
-                createIndicesStatResponse(indexName, docsInShards, docsInPrimaryShards));
+        evaluateConditions(
+            Sets.newHashSet(condition),
+            createMetadata(indexName),
+            createIndicesStatResponse(indexName, docsInShards, docsInPrimaryShards)
+        );
         final ArgumentCaptor<Condition.Stats> argument = ArgumentCaptor.forClass(Condition.Stats.class);
         verify(condition).evaluate(argument.capture());
 
@@ -148,8 +142,11 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
             .settings(settings)
             .build();
         final Set<Condition<?>> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
-        Map<String, Boolean> results = evaluateConditions(conditions,
-            new DocsStats(matchMaxDocs, 0L, ByteSizeUnit.MB.toBytes(120)), metadata);
+        Map<String, Boolean> results = evaluateConditions(
+            conditions,
+            new DocsStats(matchMaxDocs, 0L, ByteSizeUnit.MB.toBytes(120)),
+            metadata
+        );
         assertThat(results.size(), equalTo(3));
         for (Boolean matched : results.values()) {
             assertThat(matched, equalTo(true));
@@ -210,8 +207,7 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
 
         long matchMaxDocs = randomIntBetween(100, 1000);
         final Set<Condition<?>> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
-        Map<String, Boolean> results = evaluateConditions(conditions,
-            new DocsStats(matchMaxDocs, 0L, ByteSizeUnit.MB.toBytes(120)), null);
+        Map<String, Boolean> results = evaluateConditions(conditions, new DocsStats(matchMaxDocs, 0L, ByteSizeUnit.MB.toBytes(120)), null);
         assertThat(results.size(), equalTo(3));
         results.forEach((k, v) -> assertFalse(v));
 
@@ -226,12 +222,11 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
             .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(randomIntBetween(5, 10)).getMillis())
             .settings(settings)
             .build();
-        IndicesStatsResponse indicesStats = randomIndicesStatsResponse(new IndexMetadata[]{metadata});
+        IndicesStatsResponse indicesStats = randomIndicesStatsResponse(new IndexMetadata[] { metadata });
         Map<String, Boolean> results2 = evaluateConditions(conditions, null, indicesStats);
         assertThat(results2.size(), equalTo(3));
         results2.forEach((k, v) -> assertFalse(v));
     }
-
 
     public void testConditionEvaluationWhenAliasToWriteAndReadIndicesConsidersOnlyPrimariesFromWriteIndex() throws Exception {
         final TransportService mockTransportService = mock(TransportService.class);
@@ -266,20 +261,36 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
         assert statsResponse.getTotal().getDocs().getCount() == (total + total);
 
         final IndexMetadata.Builder indexMetadata = IndexMetadata.builder("logs-index-000001")
-                .putAlias(AliasMetadata.builder("logs-alias").writeIndex(false).build()).settings(settings(Version.CURRENT))
-                .numberOfShards(1).numberOfReplicas(1);
+            .putAlias(AliasMetadata.builder("logs-alias").writeIndex(false).build())
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1);
         final IndexMetadata.Builder indexMetadata2 = IndexMetadata.builder("logs-index-000002")
-                .putAlias(AliasMetadata.builder("logs-alias").writeIndex(true).build()).settings(settings(Version.CURRENT))
-                .numberOfShards(1).numberOfReplicas(1);
+            .putAlias(AliasMetadata.builder("logs-alias").writeIndex(true).build())
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1);
         final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
-                .metadata(Metadata.builder().put(indexMetadata).put(indexMetadata2)).build();
+            .metadata(Metadata.builder().put(indexMetadata).put(indexMetadata2))
+            .build();
 
         when(mockCreateIndexService.applyCreateIndexRequest(any(), any(), anyBoolean())).thenReturn(stateBefore);
         when(mdIndexAliasesService.applyAliasActions(any(), any())).thenReturn(stateBefore);
-        MetadataRolloverService rolloverService = new MetadataRolloverService(mockThreadPool, mockCreateIndexService,
-            mdIndexAliasesService, mockIndexNameExpressionResolver);
-        final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(mockTransportService, mockClusterService,
-                mockThreadPool, mockActionFilters, mockIndexNameExpressionResolver, rolloverService, mockClient);
+        MetadataRolloverService rolloverService = new MetadataRolloverService(
+            mockThreadPool,
+            mockCreateIndexService,
+            mdIndexAliasesService,
+            mockIndexNameExpressionResolver
+        );
+        final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
+            mockTransportService,
+            mockClusterService,
+            mockThreadPool,
+            mockActionFilters,
+            mockIndexNameExpressionResolver,
+            rolloverService,
+            mockClient
+        );
 
         // For given alias, verify that condition evaluation fails when the condition doc count is greater than the primaries doc count
         // (primaries from only write index is considered)
@@ -387,7 +398,9 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
                 ShardId shardId = new ShardId(index.getIndex(), i);
                 boolean primary = (i == primaryIdx);
                 Path path = createTempDir().resolve("indices").resolve(index.getIndexUUID()).resolve(String.valueOf(i));
-                ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, primary,
+                ShardRouting shardRouting = ShardRouting.newUnassigned(
+                    shardId,
+                    primary,
                     primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE,
                     new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
                 );
@@ -412,7 +425,11 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
             }
         }
         return IndicesStatsTests.newIndicesStatsResponse(
-            shardStats.toArray(new ShardStats[shardStats.size()]), shardStats.size(), shardStats.size(), 0, emptyList()
+            shardStats.toArray(new ShardStats[shardStats.size()]),
+            shardStats.size(),
+            shardStats.size(),
+            0,
+            emptyList()
         );
     }
 }

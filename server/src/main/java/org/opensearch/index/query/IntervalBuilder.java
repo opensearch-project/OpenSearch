@@ -69,14 +69,20 @@ public class IntervalBuilder {
     }
 
     public IntervalsSource analyzeText(String query, int maxGaps, boolean ordered) throws IOException {
-        try (TokenStream ts = analyzer.tokenStream(field, query);
-             CachingTokenFilter stream = new CachingTokenFilter(ts)) {
-            return analyzeText(stream, maxGaps, ordered);
+        return analyzeText(query, maxGaps, ordered ? IntervalMode.ORDERED : IntervalMode.UNORDERED);
+    }
+
+    public IntervalsSource analyzeText(String query, int maxGaps, IntervalMode mode) throws IOException {
+        try (TokenStream ts = analyzer.tokenStream(field, query); CachingTokenFilter stream = new CachingTokenFilter(ts)) {
+            return analyzeText(stream, maxGaps, mode);
         }
     }
 
     protected IntervalsSource analyzeText(CachingTokenFilter stream, int maxGaps, boolean ordered) throws IOException {
+        return analyzeText(stream, maxGaps, ordered ? IntervalMode.ORDERED : IntervalMode.UNORDERED);
+    }
 
+    protected IntervalsSource analyzeText(CachingTokenFilter stream, int maxGaps, IntervalMode mode) throws IOException {
         TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
         PositionIncrementAttribute posIncAtt = stream.addAttribute(PositionIncrementAttribute.class);
         PositionLengthAttribute posLenAtt = stream.addAttribute(PositionLengthAttribute.class);
@@ -115,15 +121,15 @@ public class IntervalBuilder {
             return analyzeTerm(stream);
         } else if (isGraph) {
             // graph
-            return combineSources(analyzeGraph(stream), maxGaps, ordered);
+            return combineSources(analyzeGraph(stream), maxGaps, mode);
         } else {
             // phrase
             if (hasSynonyms) {
                 // phrase with single-term synonyms
-                return analyzeSynonyms(stream, maxGaps, ordered);
+                return analyzeSynonyms(stream, maxGaps, mode);
             } else {
                 // simple phrase
-                return combineSources(analyzeTerms(stream), maxGaps, ordered);
+                return combineSources(analyzeTerms(stream), maxGaps, mode);
             }
         }
 
@@ -136,7 +142,7 @@ public class IntervalBuilder {
         return Intervals.term(BytesRef.deepCopyOf(bytesAtt.getBytesRef()));
     }
 
-    protected static IntervalsSource combineSources(List<IntervalsSource> sources, int maxGaps, boolean ordered) {
+    protected static IntervalsSource combineSources(List<IntervalsSource> sources, int maxGaps, IntervalMode mode) {
         if (sources.size() == 0) {
             return NO_INTERVALS;
         }
@@ -144,10 +150,21 @@ public class IntervalBuilder {
             return sources.get(0);
         }
         IntervalsSource[] sourcesArray = sources.toArray(new IntervalsSource[0]);
-        if (maxGaps == 0 && ordered) {
+        if (maxGaps == 0 && mode == IntervalMode.ORDERED) {
             return Intervals.phrase(sourcesArray);
         }
-        IntervalsSource inner = ordered ? Intervals.ordered(sourcesArray) : Intervals.unordered(sourcesArray);
+        IntervalsSource inner;
+        if (mode == IntervalMode.ORDERED) {
+            inner = Intervals.ordered(sourcesArray);
+        } else if (mode == IntervalMode.UNORDERED) {
+            inner = Intervals.unordered(sourcesArray);
+        } else {
+            inner = Intervals.unorderedNoOverlaps(sourcesArray[0], sourcesArray[1]);
+            for (int sourceIdx = 2; sourceIdx < sourcesArray.length; sourceIdx++) {
+                inner = Intervals.unorderedNoOverlaps(maxGaps == -1 ? inner : Intervals.maxgaps(maxGaps, inner), sourcesArray[sourceIdx]);
+            }
+        }
+
         if (maxGaps == -1) {
             return inner;
         }
@@ -175,7 +192,7 @@ public class IntervalBuilder {
         return Intervals.extend(source, precedingSpaces, 0);
     }
 
-    protected IntervalsSource analyzeSynonyms(TokenStream ts, int maxGaps, boolean ordered) throws IOException {
+    protected IntervalsSource analyzeSynonyms(TokenStream ts, int maxGaps, IntervalMode mode) throws IOException {
         List<IntervalsSource> terms = new ArrayList<>();
         List<IntervalsSource> synonyms = new ArrayList<>();
         TermToBytesRefAttribute bytesAtt = ts.addAttribute(TermToBytesRefAttribute.class);
@@ -187,8 +204,7 @@ public class IntervalBuilder {
             if (posInc > 0) {
                 if (synonyms.size() == 1) {
                     terms.add(extend(synonyms.get(0), spaces));
-                }
-                else if (synonyms.size() > 1) {
+                } else if (synonyms.size() > 1) {
                     terms.add(extend(Intervals.or(synonyms.toArray(new IntervalsSource[0])), spaces));
                 }
                 synonyms.clear();
@@ -198,11 +214,10 @@ public class IntervalBuilder {
         }
         if (synonyms.size() == 1) {
             terms.add(extend(synonyms.get(0), spaces));
-        }
-        else {
+        } else {
             terms.add(extend(Intervals.or(synonyms.toArray(new IntervalsSource[0])), spaces));
         }
-        return combineSources(terms, maxGaps, ordered);
+        return combineSources(terms, maxGaps, mode);
     }
 
     protected List<IntervalsSource> analyzeGraph(TokenStream source) throws IOException {
@@ -225,7 +240,7 @@ public class IntervalBuilder {
                 Iterator<TokenStream> it = graph.getFiniteStrings(start, end);
                 while (it.hasNext()) {
                     TokenStream ts = it.next();
-                    IntervalsSource phrase = combineSources(analyzeTerms(ts), 0, true);
+                    IntervalsSource phrase = combineSources(analyzeTerms(ts), 0, IntervalMode.ORDERED);
                     if (paths.size() >= maxClauseCount) {
                         throw new BooleanQuery.TooManyClauses();
                     }

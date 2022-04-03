@@ -53,19 +53,23 @@ class MinAggregatorFactory extends ValuesSourceAggregatorFactory {
             MinAggregationBuilder.REGISTRY_KEY,
             org.opensearch.common.collect.List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             MinAggregator::new,
-            true);
+            true
+        );
     }
 
-    MinAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
-                         AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                         Map<String, Object> metadata) throws IOException {
+    MinAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
         return new MinAggregator(name, config, searchContext, parent, metadata);
     }
 

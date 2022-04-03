@@ -38,10 +38,10 @@ import org.opensearch.client.OpenSearchClient;
 /**
  * Builder for requests to explain the allocation of a shard in the cluster
  */
-public class ClusterAllocationExplainRequestBuilder
-        extends MasterNodeOperationRequestBuilder<ClusterAllocationExplainRequest,
-                                                          ClusterAllocationExplainResponse,
-                                                          ClusterAllocationExplainRequestBuilder> {
+public class ClusterAllocationExplainRequestBuilder extends MasterNodeOperationRequestBuilder<
+    ClusterAllocationExplainRequest,
+    ClusterAllocationExplainResponse,
+    ClusterAllocationExplainRequestBuilder> {
 
     public ClusterAllocationExplainRequestBuilder(OpenSearchClient client, ClusterAllocationExplainAction action) {
         super(client, action, new ClusterAllocationExplainRequest());

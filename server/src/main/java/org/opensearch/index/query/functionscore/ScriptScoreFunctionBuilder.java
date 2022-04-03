@@ -32,6 +32,7 @@
 
 package org.opensearch.index.query.functionscore;
 
+import org.opensearch.common.Nullable;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -57,10 +58,15 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
     private final Script script;
 
     public ScriptScoreFunctionBuilder(Script script) {
+        this(script, null);
+    }
+
+    public ScriptScoreFunctionBuilder(Script script, @Nullable String functionName) {
         if (script == null) {
             throw new IllegalArgumentException("script must not be null");
         }
         this.script = script;
+        setFunctionName(functionName);
     }
 
     /**
@@ -107,15 +113,20 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
         try {
             ScoreScript.Factory factory = context.compile(script, ScoreScript.CONTEXT);
             ScoreScript.LeafFactory searchScript = factory.newFactory(script.getParams(), context.lookup());
-            return new ScriptScoreFunction(script, searchScript,
-                context.index().getName(), context.getShardId(), context.indexVersionCreated());
+            return new ScriptScoreFunction(
+                script,
+                searchScript,
+                context.index().getName(),
+                context.getShardId(),
+                context.indexVersionCreated(),
+                getFunctionName()
+            );
         } catch (Exception e) {
             throw new QueryShardException(context, "script_score: the script could not be loaded", e);
         }
     }
 
-    public static ScriptScoreFunctionBuilder fromXContent(XContentParser parser)
-            throws IOException, ParsingException {
+    public static ScriptScoreFunctionBuilder fromXContent(XContentParser parser) throws IOException, ParsingException {
         Script script = null;
         String currentFieldName = null;
         XContentParser.Token token;

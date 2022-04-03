@@ -82,8 +82,9 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
 
     protected static final Settings SETTINGS = Settings.builder().put("index.version.created", Version.CURRENT).build();
 
-    protected static final ToXContent.Params INCLUDE_DEFAULTS
-        = new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true"));
+    protected static final ToXContent.Params INCLUDE_DEFAULTS = new ToXContent.MapParams(
+        Collections.singletonMap("include_defaults", "true")
+    );
 
     protected Collection<? extends Plugin> getPlugins() {
         return emptyList();
@@ -206,9 +207,7 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
     /**
      * Merge a new mapping into the one in the provided {@link MapperService} with a specific {@code MergeReason}
      */
-    protected final void merge(MapperService mapperService,
-                               MapperService.MergeReason reason,
-                               XContentBuilder mapping) throws IOException {
+    protected final void merge(MapperService mapperService, MapperService.MergeReason reason, XContentBuilder mapping) throws IOException {
         mapperService.merge("_doc", new CompressedXContent(BytesReference.bytes(mapping)), reason);
     }
 
@@ -250,12 +249,9 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
             inv -> mapperService.simpleMatchToFullName(inv.getArguments()[0].toString())
         );
         when(queryShardContext.allowExpensiveQueries()).thenReturn(true);
-        when(queryShardContext.lookup()).thenReturn(new SearchLookup(
-            mapperService,
-            (ft, s) -> {
-                throw new UnsupportedOperationException("search lookup not available");
-            },
-            null));
+        when(queryShardContext.lookup()).thenReturn(
+            new SearchLookup(mapperService, (ft, s) -> { throw new UnsupportedOperationException("search lookup not available"); }, null)
+        );
         return queryShardContext;
     }
 }

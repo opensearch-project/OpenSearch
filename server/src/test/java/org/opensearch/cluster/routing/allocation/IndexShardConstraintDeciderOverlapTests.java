@@ -54,29 +54,23 @@ public class IndexShardConstraintDeciderOverlapTests extends OpenSearchAllocatio
         usagesBuilder.put("node_0", new DiskUsage("node_0", "node_0", "/dev/null", 100, 80)); // 20% used
         usagesBuilder.put("node_1", new DiskUsage("node_1", "node_1", "/dev/null", 100, 55)); // 45% used
         usagesBuilder.put("node_2", new DiskUsage("node_2", "node_2", "/dev/null", 100, 35)); // 65% used
-        usagesBuilder.put("high_watermark_node_0",
-            new DiskUsage("high_watermark_node_0", "high_watermark_node_0", "/dev/null", 100, 10)); // 90% used
+        usagesBuilder.put("high_watermark_node_0", new DiskUsage("high_watermark_node_0", "high_watermark_node_0", "/dev/null", 100, 10)); // 90%
+                                                                                                                                           // used
 
         ImmutableOpenMap<String, DiskUsage> usages = usagesBuilder.build();
         ImmutableOpenMap.Builder<String, Long> shardSizesBuilder = ImmutableOpenMap.builder();
-        clusterState.getRoutingTable().allShards().forEach(shard ->
-            shardSizesBuilder.put(shardIdentifierFromRouting(shard), 1L)); // Each shard is 1 byte
+        clusterState.getRoutingTable().allShards().forEach(shard -> shardSizesBuilder.put(shardIdentifierFromRouting(shard), 1L)); // Each
+                                                                                                                                   // shard
+                                                                                                                                   // is 1
+                                                                                                                                   // byte
         ImmutableOpenMap<String, Long> shardSizes = shardSizesBuilder.build();
 
-        final ImmutableOpenMap<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace =
-            new ImmutableOpenMap.Builder<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace>()
-                .fPut(
-                    getNodeAndDevNullPath("node_0"), getReservedSpace()
-                )
-                .fPut(
-                    getNodeAndDevNullPath("node_1"), getReservedSpace()
-                )
-                .fPut(
-                    getNodeAndDevNullPath("node_2"), getReservedSpace()
-                )
-                .fPut(
-                    getNodeAndDevNullPath("high_watermark_node_0"), getReservedSpace()
-                )
+        final ImmutableOpenMap<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace = new ImmutableOpenMap.Builder<
+            ClusterInfo.NodeAndPath,
+            ClusterInfo.ReservedSpace>().fPut(getNodeAndDevNullPath("node_0"), getReservedSpace())
+                .fPut(getNodeAndDevNullPath("node_1"), getReservedSpace())
+                .fPut(getNodeAndDevNullPath("node_2"), getReservedSpace())
+                .fPut(getNodeAndDevNullPath("high_watermark_node_0"), getReservedSpace())
                 .build();
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes, reservedSpace);
         ClusterInfoService cis = () -> clusterInfo;
@@ -87,13 +81,11 @@ public class IndexShardConstraintDeciderOverlapTests extends OpenSearchAllocatio
         assertTrue(clusterState.getRoutingTable().shardsWithState(UNASSIGNED).isEmpty());
         assertTrue(clusterState.getRoutingNodes().node("high_watermark_node_0").isEmpty());
 
-
         /* Shard sizes that would breach high watermark on node_2 if allocated.
          */
         addIndices("big_index_", 1, 10, 0);
-        ImmutableOpenMap.Builder<String, Long>  bigIndexShardSizeBuilder = ImmutableOpenMap.builder(shardSizes);
-        clusterState.getRoutingNodes().unassigned()
-            .forEach(shard -> bigIndexShardSizeBuilder.put(shardIdentifierFromRouting(shard), 20L));
+        ImmutableOpenMap.Builder<String, Long> bigIndexShardSizeBuilder = ImmutableOpenMap.builder(shardSizes);
+        clusterState.getRoutingNodes().unassigned().forEach(shard -> bigIndexShardSizeBuilder.put(shardIdentifierFromRouting(shard), 20L));
         shardSizes = bigIndexShardSizeBuilder.build();
         final ClusterInfo bigIndexClusterInfo = new DevNullClusterInfo(usages, usages, shardSizes, reservedSpace);
         cis = () -> bigIndexClusterInfo;
@@ -102,7 +94,7 @@ public class IndexShardConstraintDeciderOverlapTests extends OpenSearchAllocatio
         allocateAndCheckIndexShardHotSpots(false, 2, "node_0", "node_1");
         assertForIndexShardHotSpots(true, 4);
         assertTrue(clusterState.getRoutingTable().shardsWithState(UNASSIGNED).isEmpty());
-        for (ShardRouting shard: clusterState.getRoutingTable().index("big_index_0").shardsWithState(STARTED)) {
+        for (ShardRouting shard : clusterState.getRoutingTable().index("big_index_0").shardsWithState(STARTED)) {
             assertNotEquals("node_2", shard.currentNodeId());
         }
     }
@@ -112,7 +104,7 @@ public class IndexShardConstraintDeciderOverlapTests extends OpenSearchAllocatio
     }
 
     private ClusterInfo.ReservedSpace getReservedSpace() {
-        return new ClusterInfo.ReservedSpace.Builder().add(new ShardId("", "", 0),  2).build();
+        return new ClusterInfo.ReservedSpace.Builder().add(new ShardId("", "", 0), 2).build();
     }
 
     /**
@@ -133,7 +125,7 @@ public class IndexShardConstraintDeciderOverlapTests extends OpenSearchAllocatio
         assertForIndexShardHotSpots(true, 4);
         assertTrue(clusterState.getRoutingTable().shardsWithState(UNASSIGNED).isEmpty());
 
-        for (ShardRouting shard: clusterState.getRoutingTable().allShards()) {
+        for (ShardRouting shard : clusterState.getRoutingTable().allShards()) {
             assertNotEquals("node_0", shard.currentNodeId());
             assertNotEquals("old_node", shard.currentNodeId());
         }
@@ -170,7 +162,6 @@ public class IndexShardConstraintDeciderOverlapTests extends OpenSearchAllocatio
         addIndices("index_", 1, 5, 1);
         updateInitialCluster();
 
-
         buildZoneAwareAllocationService();
         clusterState = allocateShardsAndBalance(clusterState);
         assertForIndexShardHotSpots(true, 6);
@@ -187,10 +178,12 @@ public class IndexShardConstraintDeciderOverlapTests extends OpenSearchAllocatio
      * ClusterInfo that always points to DevNull.
      */
     public static class DevNullClusterInfo extends ClusterInfo {
-        public DevNullClusterInfo(ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsage,
-                                  ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsage,
-                                  ImmutableOpenMap<String, Long> shardSizes,
-                                  ImmutableOpenMap<NodeAndPath, ReservedSpace> reservedSpace) {
+        public DevNullClusterInfo(
+            ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsage,
+            ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsage,
+            ImmutableOpenMap<String, Long> shardSizes,
+            ImmutableOpenMap<NodeAndPath, ReservedSpace> reservedSpace
+        ) {
             super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null, reservedSpace);
         }
 

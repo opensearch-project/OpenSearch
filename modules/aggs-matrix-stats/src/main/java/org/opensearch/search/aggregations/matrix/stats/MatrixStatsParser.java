@@ -49,8 +49,13 @@ public class MatrixStatsParser extends ArrayValuesSourceParser.NumericValuesSour
     }
 
     @Override
-    protected boolean token(String aggregationName, String currentFieldName, XContentParser.Token token, XContentParser parser,
-                            Map<ParseField, Object> otherOptions) throws IOException {
+    protected boolean token(
+        String aggregationName,
+        String currentFieldName,
+        XContentParser.Token token,
+        XContentParser parser,
+        Map<ParseField, Object> otherOptions
+    ) throws IOException {
         if (ArrayValuesSourceAggregationBuilder.MULTIVALUE_MODE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
             if (token == XContentParser.Token.VALUE_STRING) {
                 otherOptions.put(ArrayValuesSourceAggregationBuilder.MULTIVALUE_MODE_FIELD, parser.text());
@@ -61,10 +66,14 @@ public class MatrixStatsParser extends ArrayValuesSourceParser.NumericValuesSour
     }
 
     @Override
-    protected MatrixStatsAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-                                                          ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+    protected MatrixStatsAggregationBuilder createFactory(
+        String aggregationName,
+        ValuesSourceType valuesSourceType,
+        ValueType targetValueType,
+        Map<ParseField, Object> otherOptions
+    ) {
         MatrixStatsAggregationBuilder builder = new MatrixStatsAggregationBuilder(aggregationName);
-        String mode = (String)otherOptions.get(ArrayValuesSourceAggregationBuilder.MULTIVALUE_MODE_FIELD);
+        String mode = (String) otherOptions.get(ArrayValuesSourceAggregationBuilder.MULTIVALUE_MODE_FIELD);
         if (mode != null) {
             builder.multiValueMode(MultiValueMode.fromString(mode));
         }

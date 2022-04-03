@@ -34,5 +34,4 @@ package org.opensearch.client.slm;
 
 import org.opensearch.client.TimedRequest;
 
-public class SnapshotLifecycleManagementStatusRequest extends TimedRequest {
-}
+public class SnapshotLifecycleManagementStatusRequest extends TimedRequest {}

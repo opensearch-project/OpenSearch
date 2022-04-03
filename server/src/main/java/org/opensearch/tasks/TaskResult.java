@@ -191,7 +191,10 @@ public final class TaskResult implements Writeable, ToXContentObject {
 
     static {
         InstantiatingObjectParser.Builder<TaskResult, Void> parser = InstantiatingObjectParser.builder(
-            "stored_task_result", true, TaskResult.class);
+            "stored_task_result",
+            true,
+            TaskResult.class
+        );
         parser.declareBoolean(constructorArg(), new ParseField("completed"));
         parser.declareObject(constructorArg(), TaskInfo.PARSER, new ParseField("task"));
         ObjectParserHelper<TaskResult, Void> parserHelper = new ObjectParserHelper<>();
@@ -217,9 +220,9 @@ public final class TaskResult implements Writeable, ToXContentObject {
          * differences so perfect for testing.
          */
         return Objects.equals(completed, other.completed)
-                && Objects.equals(task, other.task)
-                && Objects.equals(getErrorAsMap(), other.getErrorAsMap())
-                && Objects.equals(getResponseAsMap(), other.getResponseAsMap());
+            && Objects.equals(task, other.task)
+            && Objects.equals(getErrorAsMap(), other.getErrorAsMap())
+            && Objects.equals(getResponseAsMap(), other.getResponseAsMap());
     }
 
     @Override

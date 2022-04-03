@@ -57,8 +57,6 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
-import org.opensearch.cluster.metadata.DiffableStringMap;
-import org.opensearch.cluster.metadata.IndexMetadata;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -99,22 +97,30 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         customMap.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
         customMap.put(randomAlphaOfLength(10), randomAlphaOfLength(15));
         IndexMetadata metadata = IndexMetadata.builder("foo")
-            .settings(Settings.builder()
-                .put("index.version.created", 1)
-                .put("index.number_of_shards", numShard)
-                .put("index.number_of_replicas", numberOfReplicas)
-                .build())
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1)
+                    .put("index.number_of_shards", numShard)
+                    .put("index.number_of_replicas", numberOfReplicas)
+                    .build()
+            )
             .creationDate(randomLong())
             .primaryTerm(0, 2)
             .setRoutingNumShards(32)
             .system(system)
             .putCustom("my_custom", customMap)
             .putRolloverInfo(
-                new RolloverInfo(randomAlphaOfLength(5),
-                    Arrays.asList(new MaxAgeCondition(TimeValue.timeValueMillis(randomNonNegativeLong())),
+                new RolloverInfo(
+                    randomAlphaOfLength(5),
+                    Arrays.asList(
+                        new MaxAgeCondition(TimeValue.timeValueMillis(randomNonNegativeLong())),
                         new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
-                        new MaxDocsCondition(randomNonNegativeLong())),
-                    randomNonNegativeLong())).build();
+                        new MaxDocsCondition(randomNonNegativeLong())
+                    ),
+                    randomNonNegativeLong()
+                )
+            )
+            .build();
         assertEquals(system, metadata.isSystem());
 
         final XContentBuilder builder = JsonXContent.contentBuilder();
@@ -123,8 +129,11 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         builder.endObject();
         XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         final IndexMetadata fromXContentMeta = IndexMetadata.fromXContent(parser);
-        assertEquals("expected: " + Strings.toString(metadata) + "\nactual  : " + Strings.toString(fromXContentMeta),
-            metadata, fromXContentMeta);
+        assertEquals(
+            "expected: " + Strings.toString(metadata) + "\nactual  : " + Strings.toString(fromXContentMeta),
+            metadata,
+            fromXContentMeta
+        );
         assertEquals(metadata.hashCode(), fromXContentMeta.hashCode());
 
         assertEquals(metadata.getNumberOfReplicas(), fromXContentMeta.getNumberOfReplicas());
@@ -157,7 +166,7 @@ public class IndexMetadataTests extends OpenSearchTestCase {
             assertEquals(metadata.primaryTerm(0), deserialized.primaryTerm(0));
             assertEquals(metadata.getRolloverInfos(), deserialized.getRolloverInfos());
             assertEquals(deserialized.getCustomData(), expectedCustom);
-            assertEquals(metadata.getCustomData(),  deserialized.getCustomData());
+            assertEquals(metadata.getCustomData(), deserialized.getCustomData());
             assertEquals(metadata.isSystem(), deserialized.isSystem());
         }
     }
@@ -174,67 +183,102 @@ public class IndexMetadataTests extends OpenSearchTestCase {
     public void testSelectShrinkShards() {
         int numberOfReplicas = randomIntBetween(0, 10);
         IndexMetadata metadata = IndexMetadata.builder("foo")
-            .settings(Settings.builder()
-                .put("index.version.created", 1)
-                .put("index.number_of_shards", 32)
-                .put("index.number_of_replicas", numberOfReplicas)
-                .build())
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1)
+                    .put("index.number_of_shards", 32)
+                    .put("index.number_of_replicas", numberOfReplicas)
+                    .build()
+            )
             .creationDate(randomLong())
             .build();
         Set<ShardId> shardIds = IndexMetadata.selectShrinkShards(0, metadata, 8);
-        assertEquals(shardIds, Sets.newHashSet(new ShardId(metadata.getIndex(), 0), new ShardId(metadata.getIndex(), 1),
-            new ShardId(metadata.getIndex(), 2), new ShardId(metadata.getIndex(), 3)));
+        assertEquals(
+            shardIds,
+            Sets.newHashSet(
+                new ShardId(metadata.getIndex(), 0),
+                new ShardId(metadata.getIndex(), 1),
+                new ShardId(metadata.getIndex(), 2),
+                new ShardId(metadata.getIndex(), 3)
+            )
+        );
         shardIds = IndexMetadata.selectShrinkShards(1, metadata, 8);
-        assertEquals(shardIds, Sets.newHashSet(new ShardId(metadata.getIndex(), 4), new ShardId(metadata.getIndex(), 5),
-            new ShardId(metadata.getIndex(), 6), new ShardId(metadata.getIndex(), 7)));
+        assertEquals(
+            shardIds,
+            Sets.newHashSet(
+                new ShardId(metadata.getIndex(), 4),
+                new ShardId(metadata.getIndex(), 5),
+                new ShardId(metadata.getIndex(), 6),
+                new ShardId(metadata.getIndex(), 7)
+            )
+        );
         shardIds = IndexMetadata.selectShrinkShards(7, metadata, 8);
-        assertEquals(shardIds, Sets.newHashSet(new ShardId(metadata.getIndex(), 28), new ShardId(metadata.getIndex(), 29),
-            new ShardId(metadata.getIndex(), 30), new ShardId(metadata.getIndex(), 31)));
+        assertEquals(
+            shardIds,
+            Sets.newHashSet(
+                new ShardId(metadata.getIndex(), 28),
+                new ShardId(metadata.getIndex(), 29),
+                new ShardId(metadata.getIndex(), 30),
+                new ShardId(metadata.getIndex(), 31)
+            )
+        );
 
-        assertEquals("the number of target shards (8) must be greater than the shard id: 8",
-            expectThrows(IllegalArgumentException.class, () -> IndexMetadata.selectShrinkShards(8, metadata, 8)).getMessage());
+        assertEquals(
+            "the number of target shards (8) must be greater than the shard id: 8",
+            expectThrows(IllegalArgumentException.class, () -> IndexMetadata.selectShrinkShards(8, metadata, 8)).getMessage()
+        );
     }
 
     public void testSelectResizeShards() {
         int numTargetShards = randomFrom(4, 6, 8, 12);
 
         IndexMetadata split = IndexMetadata.builder("foo")
-            .settings(Settings.builder()
-                .put("index.version.created", 1)
-                .put("index.number_of_shards", 2)
-                .put("index.number_of_replicas", 0)
-                .build())
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1)
+                    .put("index.number_of_shards", 2)
+                    .put("index.number_of_replicas", 0)
+                    .build()
+            )
             .creationDate(randomLong())
             .setRoutingNumShards(numTargetShards * 2)
             .build();
 
         IndexMetadata shrink = IndexMetadata.builder("foo")
-            .settings(Settings.builder()
-                .put("index.version.created", 1)
-                .put("index.number_of_shards", 32)
-                .put("index.number_of_replicas", 0)
-                .build())
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1)
+                    .put("index.number_of_shards", 32)
+                    .put("index.number_of_replicas", 0)
+                    .build()
+            )
             .creationDate(randomLong())
             .build();
-        int shard = randomIntBetween(0, numTargetShards-1);
-        assertEquals(Collections.singleton(IndexMetadata.selectSplitShard(shard, split, numTargetShards)),
-            IndexMetadata.selectRecoverFromShards(shard, split, numTargetShards));
+        int shard = randomIntBetween(0, numTargetShards - 1);
+        assertEquals(
+            Collections.singleton(IndexMetadata.selectSplitShard(shard, split, numTargetShards)),
+            IndexMetadata.selectRecoverFromShards(shard, split, numTargetShards)
+        );
 
         numTargetShards = randomFrom(1, 2, 4, 8, 16);
-        shard = randomIntBetween(0, numTargetShards-1);
-        assertEquals(IndexMetadata.selectShrinkShards(shard, shrink, numTargetShards),
-            IndexMetadata.selectRecoverFromShards(shard, shrink, numTargetShards));
+        shard = randomIntBetween(0, numTargetShards - 1);
+        assertEquals(
+            IndexMetadata.selectShrinkShards(shard, shrink, numTargetShards),
+            IndexMetadata.selectRecoverFromShards(shard, shrink, numTargetShards)
+        );
 
         IndexMetadata.selectRecoverFromShards(0, shrink, 32);
     }
 
     public void testSelectSplitShard() {
         IndexMetadata metadata = IndexMetadata.builder("foo")
-            .settings(Settings.builder()
-                .put("index.version.created", 1)
-                .put("index.number_of_shards", 2)
-                .put("index.number_of_replicas", 0)
-                .build())
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1)
+                    .put("index.number_of_shards", 2)
+                    .put("index.number_of_replicas", 0)
+                    .build()
+            )
             .creationDate(randomLong())
             .setRoutingNumShards(4)
             .build();
@@ -247,44 +291,48 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         shardId = IndexMetadata.selectSplitShard(3, metadata, 4);
         assertEquals(1, shardId.getId());
 
-        assertEquals("the number of target shards (0) must be greater than the shard id: 0",
-            expectThrows(IllegalArgumentException.class, () -> IndexMetadata.selectSplitShard(0, metadata, 0)).getMessage());
+        assertEquals(
+            "the number of target shards (0) must be greater than the shard id: 0",
+            expectThrows(IllegalArgumentException.class, () -> IndexMetadata.selectSplitShard(0, metadata, 0)).getMessage()
+        );
 
-        assertEquals("the number of source shards [2] must be a factor of [3]",
-            expectThrows(IllegalArgumentException.class, () -> IndexMetadata.selectSplitShard(0, metadata, 3)).getMessage());
+        assertEquals(
+            "the number of source shards [2] must be a factor of [3]",
+            expectThrows(IllegalArgumentException.class, () -> IndexMetadata.selectSplitShard(0, metadata, 3)).getMessage()
+        );
 
-        assertEquals("the number of routing shards [4] must be a multiple of the target shards [8]",
-            expectThrows(IllegalStateException.class, () -> IndexMetadata.selectSplitShard(0, metadata, 8)).getMessage());
+        assertEquals(
+            "the number of routing shards [4] must be a multiple of the target shards [8]",
+            expectThrows(IllegalStateException.class, () -> IndexMetadata.selectSplitShard(0, metadata, 8)).getMessage()
+        );
     }
 
     public void testIndexFormat() {
         Settings defaultSettings = Settings.builder()
-                .put("index.version.created", 1)
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 1)
-                .build();
+            .put("index.version.created", 1)
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 1)
+            .build();
 
         // matching version
         {
             IndexMetadata metadata = IndexMetadata.builder("foo")
-                    .settings(Settings.builder()
-                            .put(defaultSettings)
-                            // intentionally not using the constant, so upgrading requires you to look at this test
-                            // where you have to update this part and the next one
-                            .put("index.format", 6)
-                            .build())
-                    .build();
+                .settings(
+                    Settings.builder()
+                        .put(defaultSettings)
+                        // intentionally not using the constant, so upgrading requires you to look at this test
+                        // where you have to update this part and the next one
+                        .put("index.format", 6)
+                        .build()
+                )
+                .build();
 
             assertThat(metadata.getSettings().getAsInt(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 0), is(6));
         }
 
         // no setting configured
         {
-            IndexMetadata metadata = IndexMetadata.builder("foo")
-                    .settings(Settings.builder()
-                            .put(defaultSettings)
-                            .build())
-                    .build();
+            IndexMetadata metadata = IndexMetadata.builder("foo").settings(Settings.builder().put(defaultSettings).build()).build();
             assertThat(metadata.getSettings().getAsInt(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 0), is(0));
         }
     }
@@ -301,46 +349,42 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         assertEquals(numShards, IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(build).intValue());
 
         Settings lessThanSettings = Settings.builder().put("index.number_of_shards", 8).put("index.number_of_routing_shards", 4).build();
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
-            () -> IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(lessThanSettings));
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(lessThanSettings)
+        );
         assertEquals("index.number_of_routing_shards [4] must be >= index.number_of_shards [8]", iae.getMessage());
 
         Settings notAFactorySettings = Settings.builder().put("index.number_of_shards", 2).put("index.number_of_routing_shards", 3).build();
-        iae = expectThrows(IllegalArgumentException.class,
-            () -> IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(notAFactorySettings));
+        iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(notAFactorySettings)
+        );
         assertEquals("the number of source shards [2] must be a factor of [3]", iae.getMessage());
     }
 
     public void testMappingOrDefault() throws IOException {
         Settings settings = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .build();
-        IndexMetadata meta = IndexMetadata.builder("index")
-                .settings(settings)
-                .build();
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
+        IndexMetadata meta = IndexMetadata.builder("index").settings(settings).build();
         assertNull(meta.mappingOrDefault());
 
-        meta = IndexMetadata.builder("index")
-                .settings(settings)
-                .putMapping("type", "{}")
-                .build();
+        meta = IndexMetadata.builder("index").settings(settings).putMapping("type", "{}").build();
         assertNotNull(meta.mappingOrDefault());
         assertEquals("type", meta.mappingOrDefault().type());
 
-        meta = IndexMetadata.builder("index")
-                .settings(settings)
-                .putMapping(MapperService.DEFAULT_MAPPING, "{}")
-                .build();
+        meta = IndexMetadata.builder("index").settings(settings).putMapping(MapperService.DEFAULT_MAPPING, "{}").build();
         assertNotNull(meta.mappingOrDefault());
         assertEquals(MapperService.DEFAULT_MAPPING, meta.mappingOrDefault().type());
 
         meta = IndexMetadata.builder("index")
-                .settings(settings)
-                .putMapping("type", "{}")
-                .putMapping(MapperService.DEFAULT_MAPPING, "{}")
-                .build();
+            .settings(settings)
+            .putMapping("type", "{}")
+            .putMapping(MapperService.DEFAULT_MAPPING, "{}")
+            .build();
         assertNotNull(meta.mappingOrDefault());
         assertEquals("type", meta.mappingOrDefault().type());
     }
@@ -359,20 +403,23 @@ public class IndexMetadataTests extends OpenSearchTestCase {
     }
 
     private void runTestNumberOfShardsIsPositive(final int numberOfShards) {
-        final Settings settings =
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
-        final IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> IndexMetadata.builder("test").settings(settings).build());
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexMetadata.builder("test").settings(settings).build()
+        );
         assertThat(
             e.getMessage(),
-            equalTo("Failed to parse value [" + numberOfShards + "] for setting [index.number_of_shards] must be >= 1"));
+            equalTo("Failed to parse value [" + numberOfShards + "] for setting [index.number_of_shards] must be >= 1")
+        );
     }
 
     public void testMissingNumberOfReplicas() {
-        final Settings settings =
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 8)).build();
-        final IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> IndexMetadata.builder("test").settings(settings).build());
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 8)).build();
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexMetadata.builder("test").settings(settings).build()
+        );
         assertThat(e.getMessage(), containsString("must specify number of replicas for index [test]"));
     }
 
@@ -382,12 +429,14 @@ public class IndexMetadataTests extends OpenSearchTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 8))
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
             .build();
-        final IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> IndexMetadata.builder("test").settings(settings).build());
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexMetadata.builder("test").settings(settings).build()
+        );
         assertThat(
             e.getMessage(),
-            equalTo(
-                "Failed to parse value [" + numberOfReplicas + "] for setting [index.number_of_replicas] must be >= 0"));
+            equalTo("Failed to parse value [" + numberOfReplicas + "] for setting [index.number_of_replicas] must be >= 0")
+        );
     }
 
     public void testParseIndexNameReturnsCounter() {

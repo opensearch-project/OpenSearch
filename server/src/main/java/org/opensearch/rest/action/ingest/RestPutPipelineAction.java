@@ -47,7 +47,6 @@ import java.util.List;
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
-
 public class RestPutPipelineAction extends BaseRestHandler {
 
     @Override

@@ -163,22 +163,22 @@ public class IdFieldMapper extends MetadataFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             if (fieldDataEnabled.get() == false) {
-                throw new IllegalArgumentException("Fielddata access on the _id field is disallowed, "
-                    + "you can re-enable it by updating the dynamic cluster setting: "
-                    + IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey());
+                throw new IllegalArgumentException(
+                    "Fielddata access on the _id field is disallowed, "
+                        + "you can re-enable it by updating the dynamic cluster setting: "
+                        + IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()
+                );
             }
             final IndexFieldData.Builder fieldDataBuilder = new PagedBytesIndexFieldData.Builder(
-                    name(),
-                    TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
-                    TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
-                    TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE,
-                    CoreValuesSourceType.BYTES);
+                name(),
+                TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
+                TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
+                TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE,
+                CoreValuesSourceType.BYTES
+            );
             return new IndexFieldData.Builder() {
                 @Override
-                public IndexFieldData<?> build(
-                    IndexFieldDataCache cache,
-                    CircuitBreakerService breakerService
-                ) {
+                public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
                     deprecationLogger.deprecate("id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
                     final IndexFieldData<?> fieldData = fieldDataBuilder.build(cache, breakerService);
                     return new IndexFieldData<LeafFieldData>() {
@@ -204,14 +204,21 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
                         @Override
                         public SortField sortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
-                            XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue,
-                                sortMode, nested);
+                            XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
                             return new SortField(getFieldName(), source, reverse);
                         }
 
                         @Override
-                        public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode,
-                                Nested nested, SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+                        public BucketedSort newBucketedSort(
+                            BigArrays bigArrays,
+                            Object missingValue,
+                            MultiValueMode sortMode,
+                            Nested nested,
+                            SortOrder sortOrder,
+                            DocValueFormat format,
+                            int bucketSize,
+                            BucketedSort.ExtraData extra
+                        ) {
                             throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
                         }
                     };
@@ -246,8 +253,9 @@ public class IdFieldMapper extends MetadataFieldMapper {
                     @Override
                     public BytesRef nextValue() throws IOException {
                         BytesRef encoded = inValues.nextValue();
-                        return new BytesRef(Uid.decodeId(
-                                Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length)));
+                        return new BytesRef(
+                            Uid.decodeId(Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length))
+                        );
                     }
 
                     @Override

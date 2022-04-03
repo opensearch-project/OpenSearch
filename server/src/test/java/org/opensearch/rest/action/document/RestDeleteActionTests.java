@@ -49,15 +49,13 @@ public class RestDeleteActionTests extends RestActionTestCase {
         // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
         verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
 
-        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(Method.DELETE)
+        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(Method.DELETE)
             .withPath("/some_index/some_type/some_id")
             .build();
         dispatchRequest(deprecatedRequest);
         assertWarnings(RestDeleteAction.TYPES_DEPRECATION_MESSAGE);
 
-        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(Method.DELETE)
+        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(Method.DELETE)
             .withPath("/some_index/_doc/some_id")
             .build();
         dispatchRequest(validRequest);

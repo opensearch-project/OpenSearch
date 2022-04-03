@@ -85,15 +85,18 @@ import java.util.function.Predicate;
 
 import static org.opensearch.action.support.TransportActions.isShardNotAvailableException;
 
-public class TransportFieldCapabilitiesIndexAction
-        extends HandledTransportAction<FieldCapabilitiesIndexRequest, FieldCapabilitiesIndexResponse> {
+public class TransportFieldCapabilitiesIndexAction extends HandledTransportAction<
+    FieldCapabilitiesIndexRequest,
+    FieldCapabilitiesIndexResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportFieldCapabilitiesIndexAction.class);
 
     private static final String ACTION_NAME = FieldCapabilitiesAction.NAME + "[index]";
     private static final String ACTION_SHARD_NAME = ACTION_NAME + "[s]";
-    public static final ActionType<FieldCapabilitiesIndexResponse> TYPE =
-        new ActionType<>(ACTION_NAME, FieldCapabilitiesIndexResponse::new);
+    public static final ActionType<FieldCapabilitiesIndexResponse> TYPE = new ActionType<>(
+        ACTION_NAME,
+        FieldCapabilitiesIndexResponse::new
+    );
 
     private final ClusterService clusterService;
     private final TransportService transportService;
@@ -102,17 +105,27 @@ public class TransportFieldCapabilitiesIndexAction
     private final Executor executor;
 
     @Inject
-    public TransportFieldCapabilitiesIndexAction(ClusterService clusterService, TransportService transportService,
-                                                 IndicesService indicesService, SearchService searchService, ThreadPool threadPool,
-                                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+    public TransportFieldCapabilitiesIndexAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        IndicesService indicesService,
+        SearchService searchService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
         super(ACTION_NAME, transportService, actionFilters, FieldCapabilitiesIndexRequest::new);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.searchService = searchService;
         this.indicesService = indicesService;
         this.executor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
-        transportService.registerRequestHandler(ACTION_SHARD_NAME, ThreadPool.Names.SAME,
-            FieldCapabilitiesIndexRequest::new, new ShardTransportHandler());
+        transportService.registerRequestHandler(
+            ACTION_SHARD_NAME,
+            ThreadPool.Names.SAME,
+            FieldCapabilitiesIndexRequest::new,
+            new ShardTransportHandler()
+        );
     }
 
     @Override
@@ -137,8 +150,13 @@ public class TransportFieldCapabilitiesIndexAction
             if (ft != null) {
                 if (indicesService.isMetadataField(mapperService.getIndexSettings().getIndexVersionCreated(), field)
                     || fieldPredicate.test(ft.name())) {
-                    IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(field, ft.familyTypeName(),
-                        ft.isSearchable(), ft.isAggregatable(), ft.meta());
+                    IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
+                        field,
+                        ft.familyTypeName(),
+                        ft.isSearchable(),
+                        ft.isAggregatable(),
+                        ft.meta()
+                    );
                     responseMap.put(field, fieldCap);
                 } else {
                     continue;
@@ -156,8 +174,13 @@ public class TransportFieldCapabilitiesIndexAction
                         // no field type, it must be an object field
                         ObjectMapper mapper = mapperService.getObjectMapper(parentField);
                         String type = mapper.nested().isNested() ? "nested" : "object";
-                        IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(parentField, type,
-                            false, false, Collections.emptyMap());
+                        IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
+                            parentField,
+                            type,
+                            false,
+                            false,
+                            Collections.emptyMap()
+                        );
                         responseMap.put(parentField, fieldCap);
                     }
                     dotIndex = parentField.lastIndexOf('.');
@@ -217,8 +240,8 @@ public class TransportFieldCapabilitiesIndexAction
                 throw blockException;
             }
 
-            shardsIt = clusterService.operationRouting().searchShards(clusterService.state(),
-                new String[]{request.index()}, null, null, null, null);
+            shardsIt = clusterService.operationRouting()
+                .searchShards(clusterService.state(), new String[] { request.index() }, null, null, null, null);
         }
 
         public void start() {
@@ -232,7 +255,7 @@ public class TransportFieldCapabilitiesIndexAction
             tryNext(e, false);
         }
 
-        private ShardRouting nextRoutingOrNull()  {
+        private ShardRouting nextRoutingOrNull() {
             if (shardsIt.size() == 0 || shardIndex >= shardsIt.size()) {
                 return null;
             }
@@ -245,7 +268,7 @@ public class TransportFieldCapabilitiesIndexAction
         }
 
         private void moveToNextShard() {
-            ++ shardIndex;
+            ++shardIndex;
         }
 
         private void tryNext(@Nullable final Exception lastFailure, boolean canMatchShard) {
@@ -255,8 +278,13 @@ public class TransportFieldCapabilitiesIndexAction
                     listener.onResponse(new FieldCapabilitiesIndexResponse(request.index(), Collections.emptyMap(), false));
                 } else {
                     if (lastFailure == null || isShardNotAvailableException(lastFailure)) {
-                        listener.onFailure(new NoShardAvailableActionException(null,
-                            LoggerMessageFormat.format("No shard available for [{}]", request), lastFailure));
+                        listener.onFailure(
+                            new NoShardAvailableActionException(
+                                null,
+                                LoggerMessageFormat.format("No shard available for [{}]", request),
+                                lastFailure
+                            )
+                        );
                     } else {
                         logger.debug(() -> new ParameterizedMessage("{}: failed to execute [{}]", null, request), lastFailure);
                         listener.onFailure(lastFailure);
@@ -270,13 +298,12 @@ public class TransportFieldCapabilitiesIndexAction
             } else {
                 request.shardId(shardRouting.shardId());
                 if (logger.isTraceEnabled()) {
-                    logger.trace(
-                        "sending request [{}] on node [{}]",
-                        request,
-                        node
-                    );
+                    logger.trace("sending request [{}] on node [{}]", request, node);
                 }
-                transportService.sendRequest(node, ACTION_SHARD_NAME, request,
+                transportService.sendRequest(
+                    node,
+                    ACTION_SHARD_NAME,
+                    request,
                     new TransportResponseHandler<FieldCapabilitiesIndexResponse>() {
 
                         @Override
@@ -303,16 +330,16 @@ public class TransportFieldCapabilitiesIndexAction
                         public void handleException(TransportException exp) {
                             onFailure(shardRouting, exp);
                         }
-                    });
+                    }
+                );
             }
         }
     }
 
     private class ShardTransportHandler implements TransportRequestHandler<FieldCapabilitiesIndexRequest> {
         @Override
-        public void messageReceived(final FieldCapabilitiesIndexRequest request,
-                                    final TransportChannel channel,
-                                    Task task) throws Exception {
+        public void messageReceived(final FieldCapabilitiesIndexRequest request, final TransportChannel channel, Task task)
+            throws Exception {
             if (logger.isTraceEnabled()) {
                 logger.trace("executing [{}]", request);
             }

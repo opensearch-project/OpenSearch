@@ -78,10 +78,13 @@ public class RestClusterStateAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_cluster/state"),
-            new Route(GET, "/_cluster/state/{metric}"),
-            new Route(GET, "/_cluster/state/{metric}/{indices}")));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "/_cluster/state"),
+                new Route(GET, "/_cluster/state/{metric}"),
+                new Route(GET, "/_cluster/state/{metric}/{indices}")
+            )
+        );
     }
 
     @Override
@@ -115,7 +118,8 @@ public class RestClusterStateAction extends BaseRestHandler {
              * flag to ask for it
              */
             clusterStateRequest.routingTable(
-                    metrics.contains(ClusterState.Metric.ROUTING_TABLE) || metrics.contains(ClusterState.Metric.ROUTING_NODES));
+                metrics.contains(ClusterState.Metric.ROUTING_TABLE) || metrics.contains(ClusterState.Metric.ROUTING_NODES)
+            );
             clusterStateRequest.metadata(metrics.contains(ClusterState.Metric.METADATA));
             clusterStateRequest.blocks(metrics.contains(ClusterState.Metric.BLOCKS));
             clusterStateRequest.customs(metrics.contains(ClusterState.Metric.CUSTOMS));
@@ -131,7 +135,9 @@ public class RestClusterStateAction extends BaseRestHandler {
                 }
                 builder.field(Fields.CLUSTER_NAME, response.getClusterName().value());
                 ToXContent.Params params = new ToXContent.DelegatingMapParams(
-                    singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API), request);
+                    singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API),
+                    request
+                );
                 response.getState().toXContent(builder, params);
                 builder.endObject();
                 return new BytesRestResponse(RestStatus.OK, builder);

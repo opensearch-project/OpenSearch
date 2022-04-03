@@ -41,6 +41,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.junit.Assume.assumeThat;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -50,8 +51,16 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.opensearch.test.OpenSearchTestCase;
+
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class OsProbeTests extends OpenSearchTestCase {
 
@@ -103,8 +112,10 @@ public class OsProbeTests extends OpenSearchTestCase {
         OsStats stats = osProbe.osStats();
         assertNotNull(stats);
         assertThat(stats.getTimestamp(), greaterThan(0L));
-        assertThat(stats.getCpu().getPercent(), anyOf(equalTo((short) -1),
-                is(both(greaterThanOrEqualTo((short) 0)).and(lessThanOrEqualTo((short) 100)))));
+        assertThat(
+            stats.getCpu().getPercent(),
+            anyOf(equalTo((short) -1), is(both(greaterThanOrEqualTo((short) 0)).and(lessThanOrEqualTo((short) 100))))
+        );
         double[] loadAverage = stats.getCpu().getLoadAverage();
         if (loadAverage != null) {
             assertThat(loadAverage.length, equalTo(3));
@@ -230,8 +241,7 @@ public class OsProbeTests extends OpenSearchTestCase {
         final String hierarchy = randomAlphaOfLength(16);
 
         // This cgroup data is missing a line about cpuacct
-        List<String> procSelfCgroupLines = getProcSelfGroupLines(hierarchy)
-            .stream()
+        List<String> procSelfCgroupLines = getProcSelfGroupLines(hierarchy).stream()
             .map(line -> line.replaceFirst(",cpuacct", ""))
             .collect(Collectors.toList());
 
@@ -248,11 +258,9 @@ public class OsProbeTests extends OpenSearchTestCase {
         final String hierarchy = randomAlphaOfLength(16);
 
         // This cgroup data is missing a line about cpu
-        List<String> procSelfCgroupLines = getProcSelfGroupLines(hierarchy)
-            .stream()
+        List<String> procSelfCgroupLines = getProcSelfGroupLines(hierarchy).stream()
             .map(line -> line.replaceFirst(":cpu,", ":"))
             .collect(Collectors.toList());
-
 
         final OsProbe probe = buildStubOsProbe(true, hierarchy, procSelfCgroupLines);
 
@@ -267,8 +275,7 @@ public class OsProbeTests extends OpenSearchTestCase {
         final String hierarchy = randomAlphaOfLength(16);
 
         // This cgroup data is missing a line about memory
-        List<String> procSelfCgroupLines = getProcSelfGroupLines(hierarchy)
-            .stream()
+        List<String> procSelfCgroupLines = getProcSelfGroupLines(hierarchy).stream()
             .filter(line -> !line.contains(":memory:"))
             .collect(Collectors.toList());
 
@@ -277,6 +284,25 @@ public class OsProbeTests extends OpenSearchTestCase {
         final OsStats.Cgroup cgroup = probe.osStats().getCgroup();
 
         assertNull(cgroup);
+    }
+
+    public void testLogWarnCpuMessageOnlyOnes() {
+        final Logger logger = mock(Logger.class);
+
+        final OsProbe noCpuStatsOsProbe = new OsProbe(logger) {
+            @Override
+            List<String> readSysFsCgroupCpuAcctCpuStat(String controlGroup) throws IOException {
+                return Collections.singletonList("nr_periods 1");
+            }
+        };
+
+        assumeThat("CGroups are not available", noCpuStatsOsProbe.areCgroupStatsAvailable(), is(true));
+        noCpuStatsOsProbe.osStats();
+        // no nr_throttled and throttled_time
+        verify(logger, times(2)).warn(anyString());
+        reset(logger);
+        noCpuStatsOsProbe.osStats();
+        verify(logger, never()).warn(anyString());
     }
 
     private static List<String> getProcSelfGroupLines(String hierarchy) {
@@ -291,7 +317,8 @@ public class OsProbeTests extends OpenSearchTestCase {
             "3:perf_event:/",
             "2:cpu,cpuacct,cpuset:/" + hierarchy,
             "1:name=systemd:/user.slice/user-1000.slice/session-2359.scope",
-            "0::/cgroup2");
+            "0::/cgroup2"
+        );
     }
 
     private static OsProbe buildStubOsProbe(final boolean areCgroupStatsAvailable, final String hierarchy) {
@@ -340,10 +367,7 @@ public class OsProbeTests extends OpenSearchTestCase {
 
             @Override
             List<String> readSysFsCgroupCpuAcctCpuStat(String controlGroup) {
-                return Arrays.asList(
-                    "nr_periods 17992",
-                    "nr_throttled 1311",
-                    "throttled_time 139298645489");
+                return Arrays.asList("nr_periods 17992", "nr_throttled 1311", "throttled_time 139298645489");
             }
 
             @Override
@@ -365,4 +389,5 @@ public class OsProbeTests extends OpenSearchTestCase {
             }
         };
     }
+
 }

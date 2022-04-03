@@ -60,8 +60,14 @@ final class MatrixStatsAggregator extends MetricsAggregator {
     /** array of descriptive stats, per shard, needed to compute the correlation */
     ObjectArray<RunningStats> stats;
 
-    MatrixStatsAggregator(String name, Map<String, ValuesSource.Numeric> valuesSources, SearchContext context,
-                                 Aggregator parent, MultiValueMode multiValueMode, Map<String,Object> metadata) throws IOException {
+    MatrixStatsAggregator(
+        String name,
+        Map<String, ValuesSource.Numeric> valuesSources,
+        SearchContext context,
+        Aggregator parent,
+        MultiValueMode multiValueMode,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, context, parent, metadata);
         if (valuesSources != null && !valuesSources.isEmpty()) {
             this.valuesSources = new ArrayValuesSource.NumericArrayValuesSource(valuesSources, multiValueMode);
@@ -77,8 +83,7 @@ final class MatrixStatsAggregator extends MetricsAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-                                                final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         if (valuesSources == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }

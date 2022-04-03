@@ -38,7 +38,8 @@ import org.opensearch.common.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Collections;
 
-public class OpenSearchExceptionTests extends AbstractResponseTestCase<org.opensearch.OpenSearchException,
+public class OpenSearchExceptionTests extends AbstractResponseTestCase<
+    org.opensearch.OpenSearchException,
     org.opensearch.client.tasks.OpenSearchException> {
 
     @Override
@@ -46,8 +47,8 @@ public class OpenSearchExceptionTests extends AbstractResponseTestCase<org.opens
         IllegalStateException ies = new IllegalStateException("illegal_state");
         IllegalArgumentException iae = new IllegalArgumentException("argument", ies);
         org.opensearch.OpenSearchException exception = new org.opensearch.OpenSearchException("elastic_exception", iae);
-        exception.addHeader("key","value");
-        exception.addMetadata("opensearch.meta","data");
+        exception.addHeader("key", "value");
+        exception.addMetadata("opensearch.meta", "data");
         exception.addSuppressed(new NumberFormatException("3/0"));
         return exception;
     }
@@ -64,32 +65,26 @@ public class OpenSearchExceptionTests extends AbstractResponseTestCase<org.opens
         IllegalArgumentException sCauseLevel1 = (IllegalArgumentException) serverTestInstance.getCause();
         OpenSearchException cCauseLevel1 = clientInstance.getCause();
 
-        assertTrue(sCauseLevel1 !=null);
-        assertTrue(cCauseLevel1 !=null);
+        assertTrue(sCauseLevel1 != null);
+        assertTrue(cCauseLevel1 != null);
 
         IllegalStateException causeLevel2 = (IllegalStateException) serverTestInstance.getCause().getCause();
         OpenSearchException cCauseLevel2 = clientInstance.getCause().getCause();
-        assertTrue(causeLevel2 !=null);
-        assertTrue(cCauseLevel2 !=null);
+        assertTrue(causeLevel2 != null);
+        assertTrue(cCauseLevel2 != null);
 
-
-        OpenSearchException cause = new OpenSearchException(
-            "OpenSearch exception [type=illegal_state_exception, reason=illegal_state]"
-        );
+        OpenSearchException cause = new OpenSearchException("OpenSearch exception [type=illegal_state_exception, reason=illegal_state]");
         OpenSearchException caused1 = new OpenSearchException(
-            "OpenSearch exception [type=illegal_argument_exception, reason=argument]",cause
+            "OpenSearch exception [type=illegal_argument_exception, reason=argument]",
+            cause
         );
-        OpenSearchException caused2 = new OpenSearchException(
-            "OpenSearch exception [type=exception, reason=elastic_exception]",caused1
-        );
+        OpenSearchException caused2 = new OpenSearchException("OpenSearch exception [type=exception, reason=elastic_exception]", caused1);
 
         caused2.addHeader("key", Collections.singletonList("value"));
-        OpenSearchException supp = new OpenSearchException(
-            "OpenSearch exception [type=number_format_exception, reason=3/0]"
-        );
+        OpenSearchException supp = new OpenSearchException("OpenSearch exception [type=number_format_exception, reason=3/0]");
         caused2.addSuppressed(Collections.singletonList(supp));
 
-        assertEquals(caused2,clientInstance);
+        assertEquals(caused2, clientInstance);
 
     }
 

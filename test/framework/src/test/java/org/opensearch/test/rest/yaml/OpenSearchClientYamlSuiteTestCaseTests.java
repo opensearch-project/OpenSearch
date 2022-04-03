@@ -37,7 +37,6 @@ import java.util.Map;
 import java.util.Set;
 
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.test.rest.yaml.OpenSearchClientYamlSuiteTestCase;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -46,28 +45,28 @@ import static org.hamcrest.Matchers.greaterThan;
 public class OpenSearchClientYamlSuiteTestCaseTests extends OpenSearchTestCase {
 
     public void testLoadAllYamlSuites() throws Exception {
-        Map<String,Set<Path>> yamlSuites = OpenSearchClientYamlSuiteTestCase.loadSuites("");
+        Map<String, Set<Path>> yamlSuites = OpenSearchClientYamlSuiteTestCase.loadSuites("");
         assertEquals(2, yamlSuites.size());
     }
 
     public void testLoadSingleYamlSuite() throws Exception {
-        Map<String,Set<Path>> yamlSuites = OpenSearchClientYamlSuiteTestCase.loadSuites("suite1/10_basic");
+        Map<String, Set<Path>> yamlSuites = OpenSearchClientYamlSuiteTestCase.loadSuites("suite1/10_basic");
         assertSingleFile(yamlSuites, "suite1", "10_basic.yml");
 
-        //extension .yaml is optional
+        // extension .yaml is optional
         yamlSuites = OpenSearchClientYamlSuiteTestCase.loadSuites("suite1/10_basic");
         assertSingleFile(yamlSuites, "suite1", "10_basic.yml");
     }
 
     public void testLoadMultipleYamlSuites() throws Exception {
-        //single directory
-        Map<String,Set<Path>> yamlSuites = OpenSearchClientYamlSuiteTestCase.loadSuites("suite1");
+        // single directory
+        Map<String, Set<Path>> yamlSuites = OpenSearchClientYamlSuiteTestCase.loadSuites("suite1");
         assertThat(yamlSuites, notNullValue());
         assertThat(yamlSuites.size(), equalTo(1));
         assertThat(yamlSuites.containsKey("suite1"), equalTo(true));
         assertThat(yamlSuites.get("suite1").size(), greaterThan(1));
 
-        //multiple directories
+        // multiple directories
         yamlSuites = OpenSearchClientYamlSuiteTestCase.loadSuites("suite1", "suite2");
         assertThat(yamlSuites, notNullValue());
         assertThat(yamlSuites.size(), equalTo(2));
@@ -76,7 +75,7 @@ public class OpenSearchClientYamlSuiteTestCaseTests extends OpenSearchTestCase {
         assertThat(yamlSuites.containsKey("suite2"), equalTo(true));
         assertEquals(2, yamlSuites.get("suite2").size());
 
-        //multiple paths, which can be both directories or yaml test suites (with optional file extension)
+        // multiple paths, which can be both directories or yaml test suites (with optional file extension)
         yamlSuites = OpenSearchClientYamlSuiteTestCase.loadSuites("suite2/10_basic", "suite1");
         assertThat(yamlSuites, notNullValue());
         assertThat(yamlSuites.size(), equalTo(2));
@@ -86,7 +85,7 @@ public class OpenSearchClientYamlSuiteTestCaseTests extends OpenSearchTestCase {
         assertThat(yamlSuites.containsKey("suite1"), equalTo(true));
         assertThat(yamlSuites.get("suite1").size(), greaterThan(1));
 
-        //files can be loaded from classpath and from file system too
+        // files can be loaded from classpath and from file system too
         Path dir = createTempDir();
         Path file = dir.resolve("test_loading.yml");
         Files.createFile(file);

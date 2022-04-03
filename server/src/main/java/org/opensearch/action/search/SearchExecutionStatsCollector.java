@@ -53,9 +53,7 @@ public final class SearchExecutionStatsCollector implements ActionListener<Searc
     private final ResponseCollectorService collector;
     private final long startNanos;
 
-    SearchExecutionStatsCollector(ActionListener<SearchPhaseResult> listener,
-                                  ResponseCollectorService collector,
-                                  String nodeId) {
+    SearchExecutionStatsCollector(ActionListener<SearchPhaseResult> listener, ResponseCollectorService collector, String nodeId) {
         this.listener = Objects.requireNonNull(listener, "listener cannot be null");
         this.collector = Objects.requireNonNull(collector, "response collector cannot be null");
         this.startNanos = System.nanoTime();

@@ -222,11 +222,7 @@ public class ReplicationResponse extends ActionResponse {
 
         @Override
         public String toString() {
-            return "ShardInfo{" +
-                "total=" + total +
-                ", successful=" + successful +
-                ", failures=" + Arrays.toString(failures) +
-                '}';
+            return "ShardInfo{" + "total=" + total + ", successful=" + successful + ", failures=" + Arrays.toString(failures) + '}';
         }
 
         public static class Failure extends ShardOperationFailedException implements ToXContentObject {
@@ -252,7 +248,7 @@ public class ReplicationResponse extends ActionResponse {
                 primary = in.readBoolean();
             }
 
-            public Failure(ShardId  shardId, @Nullable String nodeId, Exception cause, RestStatus status, boolean primary) {
+            public Failure(ShardId shardId, @Nullable String nodeId, Exception cause, RestStatus status, boolean primary) {
                 super(shardId.getIndexName(), shardId.getId(), ExceptionsHelper.detailedMessage(cause), status, cause);
                 this.shardId = shardId;
                 this.nodeId = nodeId;

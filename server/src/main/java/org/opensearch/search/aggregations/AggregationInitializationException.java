@@ -49,7 +49,7 @@ public class AggregationInitializationException extends OpenSearchException {
         super(msg, cause);
     }
 
-    public AggregationInitializationException(StreamInput in) throws IOException{
+    public AggregationInitializationException(StreamInput in) throws IOException {
         super(in);
     }
 }

@@ -89,11 +89,7 @@ public class AsyncIngestProcessorIT extends OpenSearchSingleNodeTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         int numDocs = randomIntBetween(8, 256);
         for (int i = 0; i < numDocs; i++) {
-            bulkRequest.add(new IndexRequest("foobar")
-                .id(Integer.toString(i))
-                .source("{}", XContentType.JSON)
-                .setPipeline("_id")
-            );
+            bulkRequest.add(new IndexRequest("foobar").id(Integer.toString(i)).source("{}", XContentType.JSON).setPipeline("_id"));
         }
         BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
         assertThat(bulkResponse.getItems().length, equalTo(numDocs));
@@ -113,12 +109,19 @@ public class AsyncIngestProcessorIT extends OpenSearchSingleNodeTestCase {
         private ThreadPool threadPool;
 
         @Override
-        public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                                   ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                                   NamedXContentRegistry xContentRegistry, Environment environment,
-                                                   NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                                   IndexNameExpressionResolver expressionResolver,
-                                                   Supplier<RepositoriesService> repositoriesServiceSupplier) {
+        public Collection<Object> createComponents(
+            Client client,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ResourceWatcherService resourceWatcherService,
+            ScriptService scriptService,
+            NamedXContentRegistry xContentRegistry,
+            Environment environment,
+            NodeEnvironment nodeEnvironment,
+            NamedWriteableRegistry namedWriteableRegistry,
+            IndexNameExpressionResolver expressionResolver,
+            Supplier<RepositoriesService> repositoriesServiceSupplier
+        ) {
             this.threadPool = threadPool;
             return Collections.emptyList();
         }

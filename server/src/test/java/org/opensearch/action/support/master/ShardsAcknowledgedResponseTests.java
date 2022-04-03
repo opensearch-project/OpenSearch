@@ -47,14 +47,21 @@ public class ShardsAcknowledgedResponseTests extends OpenSearchTestCase {
     public void testSerialization() throws Exception {
         ShardsAcknowledgedResponse testInstance = new TestImpl(true, true);
 
-        ShardsAcknowledgedResponse result =
-            copyWriteable(testInstance, new NamedWriteableRegistry(Collections.emptyList()),
-                in -> new TestImpl(in, true, true), Version.CURRENT);
+        ShardsAcknowledgedResponse result = copyWriteable(
+            testInstance,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            in -> new TestImpl(in, true, true),
+            Version.CURRENT
+        );
         assertThat(result.isAcknowledged(), is(true));
         assertThat(result.isShardsAcknowledged(), is(true));
 
-        result = copyWriteable(testInstance, new NamedWriteableRegistry(Collections.emptyList()),
-            in -> new TestImpl(in, false, false), Version.CURRENT);
+        result = copyWriteable(
+            testInstance,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            in -> new TestImpl(in, false, false),
+            Version.CURRENT
+        );
         assertThat(result.isAcknowledged(), is(false));
         assertThat(result.isShardsAcknowledged(), is(false));
     }

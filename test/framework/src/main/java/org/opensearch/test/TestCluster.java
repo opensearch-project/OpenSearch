@@ -100,8 +100,7 @@ public abstract class TestCluster implements Closeable {
     /**
      * Assertions that should run before the cluster is wiped should be called in this method
      */
-    public void beforeIndexDeletion() throws Exception {
-    }
+    public void beforeIndexDeletion() throws Exception {}
 
     /**
      * This method checks all the things that need to be checked after each test
@@ -153,8 +152,10 @@ public abstract class TestCluster implements Closeable {
     public void wipeAllDataStreams() {
         // Feature flag may not be enabled in all gradle modules that use OpenSearchIntegTestCase
         if (size() > 0) {
-            AcknowledgedResponse response =
-                client().admin().indices().deleteDataStream(new DeleteDataStreamAction.Request(new String[]{"*"})).actionGet();
+            AcknowledgedResponse response = client().admin()
+                .indices()
+                .deleteDataStream(new DeleteDataStreamAction.Request(new String[] { "*" }))
+                .actionGet();
             OpenSearchAssertions.assertAcked(response);
         }
     }
@@ -168,8 +169,12 @@ public abstract class TestCluster implements Closeable {
         if (size() > 0) {
             try {
                 // include wiping hidden indices!
-                OpenSearchAssertions.assertAcked(client().admin().indices().prepareDelete(indices)
-                    .setIndicesOptions(IndicesOptions.fromOptions(false, true, true, true, true, false, false, true, false)));
+                OpenSearchAssertions.assertAcked(
+                    client().admin()
+                        .indices()
+                        .prepareDelete(indices)
+                        .setIndicesOptions(IndicesOptions.fromOptions(false, true, true, true, true, false, false, true, false))
+                );
             } catch (IndexNotFoundException e) {
                 // ignore
             } catch (IllegalArgumentException e) {
@@ -216,7 +221,7 @@ public abstract class TestCluster implements Closeable {
         if (size() > 0) {
             // if nothing is provided, delete all
             if (templates.length == 0) {
-                templates = new String[]{"*"};
+                templates = new String[] { "*" };
             }
             for (String template : templates) {
                 try {
@@ -235,7 +240,7 @@ public abstract class TestCluster implements Closeable {
         if (size() > 0) {
             // if nothing is provided, delete all
             if (repositories.length == 0) {
-                repositories = new String[]{"*"};
+                repositories = new String[] { "*" };
             }
             for (String repository : repositories) {
                 try {

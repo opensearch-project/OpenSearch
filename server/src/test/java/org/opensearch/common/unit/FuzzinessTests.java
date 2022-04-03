@@ -46,7 +46,7 @@ import static org.hamcrest.CoreMatchers.sameInstance;
 
 public class FuzzinessTests extends OpenSearchTestCase {
     public void testNumerics() {
-        String[] options = new String[]{"1.0", "1", "1.000000"};
+        String[] options = new String[] { "1.0", "1", "1.000000" };
         assertThat(Fuzziness.build(randomFrom(options)).asFloat(), equalTo(1f));
     }
 
@@ -55,9 +55,7 @@ public class FuzzinessTests extends OpenSearchTestCase {
         for (int i = 0; i < iters; i++) {
             {
                 float floatValue = randomFloat();
-                XContentBuilder json = jsonBuilder().startObject()
-                        .field(Fuzziness.X_FIELD_NAME, floatValue)
-                        .endObject();
+                XContentBuilder json = jsonBuilder().startObject().field(Fuzziness.X_FIELD_NAME, floatValue).endObject();
                 try (XContentParser parser = createParser(json)) {
                     assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
                     assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
@@ -75,13 +73,15 @@ public class FuzzinessTests extends OpenSearchTestCase {
                     value = Float.valueOf(floatRep += intValue);
                 }
                 XContentBuilder json = jsonBuilder().startObject()
-                        .field(Fuzziness.X_FIELD_NAME, randomBoolean() ? value.toString() : value)
-                        .endObject();
+                    .field(Fuzziness.X_FIELD_NAME, randomBoolean() ? value.toString() : value)
+                    .endObject();
                 try (XContentParser parser = createParser(json)) {
                     assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
                     assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
-                    assertThat(parser.nextToken(), anyOf(equalTo(XContentParser.Token.VALUE_NUMBER),
-                        equalTo(XContentParser.Token.VALUE_STRING)));
+                    assertThat(
+                        parser.nextToken(),
+                        anyOf(equalTo(XContentParser.Token.VALUE_NUMBER), equalTo(XContentParser.Token.VALUE_STRING))
+                    );
                     Fuzziness fuzziness = Fuzziness.parse(parser);
                     if (value.intValue() >= 1) {
                         assertThat(fuzziness.asDistance(), equalTo(Math.min(2, value.intValue())));

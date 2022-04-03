@@ -76,7 +76,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
-
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class TransportReplicationActionRetryOnClosedNodeIT extends OpenSearchIntegTestCase {
 
@@ -106,8 +105,7 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends OpenSearchInt
     }
 
     public static class Response extends ReplicationResponse {
-        public Response() {
-        }
+        public Response() {}
 
         public Response(StreamInput in) throws IOException {
             super(in);
@@ -119,11 +117,28 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends OpenSearchInt
         private static final ActionType<Response> TYPE = new ActionType<>(ACTION_NAME, Response::new);
 
         @Inject
-        public TestAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                          IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
-                          ActionFilters actionFilters) {
-            super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-                Request::new, Request::new, ThreadPool.Names.GENERIC);
+        public TestAction(
+            Settings settings,
+            TransportService transportService,
+            ClusterService clusterService,
+            IndicesService indicesService,
+            ThreadPool threadPool,
+            ShardStateAction shardStateAction,
+            ActionFilters actionFilters
+        ) {
+            super(
+                settings,
+                ACTION_NAME,
+                transportService,
+                clusterService,
+                indicesService,
+                threadPool,
+                shardStateAction,
+                actionFilters,
+                Request::new,
+                Request::new,
+                ThreadPool.Names.GENERIC
+            );
         }
 
         @Override
@@ -132,8 +147,11 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends OpenSearchInt
         }
 
         @Override
-        protected void shardOperationOnPrimary(Request shardRequest, IndexShard primary,
-                                               ActionListener<PrimaryResult<Request, Response>> listener) {
+        protected void shardOperationOnPrimary(
+            Request shardRequest,
+            IndexShard primary,
+            ActionListener<PrimaryResult<Request, Response>> listener
+        ) {
             listener.onResponse(new PrimaryResult<>(shardRequest, new Response()));
         }
 
@@ -148,8 +166,7 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends OpenSearchInt
         private CountDownLatch actionWaitLatch = new CountDownLatch(1);
         private volatile String testActionName;
 
-        public TestPlugin() {
-        }
+        public TestPlugin() {}
 
         @Override
         public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -157,16 +174,22 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends OpenSearchInt
         }
 
         @Override
-        public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry,
-                                                                   ThreadContext threadContext) {
+        public List<TransportInterceptor> getTransportInterceptors(
+            NamedWriteableRegistry namedWriteableRegistry,
+            ThreadContext threadContext
+        ) {
             return Arrays.asList(new TransportInterceptor() {
                 @Override
                 public AsyncSender interceptSender(AsyncSender sender) {
                     return new AsyncSender() {
                         @Override
-                        public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action,
-                                                                              TransportRequest request, TransportRequestOptions options,
-                                                                              TransportResponseHandler<T> handler) {
+                        public <T extends TransportResponse> void sendRequest(
+                            Transport.Connection connection,
+                            String action,
+                            TransportRequest request,
+                            TransportRequestOptions options,
+                            TransportResponseHandler<T> handler
+                        ) {
                             // only activated on primary
                             if (action.equals(testActionName)) {
                                 actionRunningLatch.countDown();
@@ -187,12 +210,14 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends OpenSearchInt
     public void testRetryOnStoppedTransportService() throws Exception {
         internalCluster().startMasterOnlyNodes(2);
         String primary = internalCluster().startDataOnlyNode();
-        assertAcked(prepareCreate("test")
-            .setSettings(Settings.builder()
-                .put(indexSettings())
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            ));
+        assertAcked(
+            prepareCreate("test").setSettings(
+                Settings.builder()
+                    .put(indexSettings())
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            )
+        );
 
         String replica = internalCluster().startDataOnlyNode();
         String coordinator = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
@@ -200,21 +225,26 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends OpenSearchInt
 
         TestPlugin primaryTestPlugin = getTestPlugin(primary);
         // this test only provoked an issue for the primary action, but for completeness, we pick the action randomly
-        primaryTestPlugin.testActionName = TestAction.ACTION_NAME  + (randomBoolean() ? "[p]" : "[r]");
+        primaryTestPlugin.testActionName = TestAction.ACTION_NAME + (randomBoolean() ? "[p]" : "[r]");
         logger.info("--> Test action {}, primary {}, replica {}", primaryTestPlugin.testActionName, primary, replica);
 
         AtomicReference<Object> response = new AtomicReference<>();
         CountDownLatch doneLatch = new CountDownLatch(1);
-        client(coordinator).execute(TestAction.TYPE, new Request(new ShardId(resolveIndex("test"), 0)),
-            ActionListener.runAfter(ActionListener.wrap(
-                r -> assertTrue(response.compareAndSet(null, r)),
-                e -> assertTrue(response.compareAndSet(null, e))),
-                doneLatch::countDown));
+        client(coordinator).execute(
+            TestAction.TYPE,
+            new Request(new ShardId(resolveIndex("test"), 0)),
+            ActionListener.runAfter(
+                ActionListener.wrap(r -> assertTrue(response.compareAndSet(null, r)), e -> assertTrue(response.compareAndSet(null, e))),
+                doneLatch::countDown
+            )
+        );
 
         assertTrue(primaryTestPlugin.actionRunningLatch.await(10, TimeUnit.SECONDS));
 
-        MockTransportService primaryTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class,
-            primary);
+        MockTransportService primaryTransportService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            primary
+        );
         // we pause node after TransportService has moved to stopped, but before closing connections, since if connections are closed
         // we would not hit the transport service closed case.
         primaryTransportService.addOnStopListener(() -> {

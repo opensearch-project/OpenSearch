@@ -94,35 +94,36 @@ tasks.withType(JavaCompile).configureEach {
  *****************************************************************************/
 
 repositories {
-  jcenter()
+  mavenCentral()
+  gradlePluginPortal()
 }
 
 dependencies {
 
   api localGroovy()
 
-  api 'commons-codec:commons-codec:1.13'
-  api 'org.apache.commons:commons-compress:1.19'
-  api 'org.apache.ant:ant:1.10.9'
+  api 'commons-codec:commons-codec:1.15'
+  api 'org.apache.commons:commons-compress:1.21'
+  api 'org.apache.ant:ant:1.10.12'
   api 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
   api 'com.netflix.nebula:nebula-publishing-plugin:4.4.4'
   api 'com.netflix.nebula:gradle-info-plugin:7.1.3'
-  api 'org.apache.rat:apache-rat:0.11'
-  api "org.elasticsearch:jna:5.5.0"
+  api 'org.apache.rat:apache-rat:0.13'
+  api 'commons-io:commons-io:2.7'
+  api "net.java.dev.jna:jna:5.5.0"
   api 'com.github.jengelman.gradle.plugins:shadow:6.0.0'
-  api 'de.thetaphi:forbiddenapis:3.0'
+  api 'de.thetaphi:forbiddenapis:3.2'
   api 'com.avast.gradle:gradle-docker-compose-plugin:0.12.1'
   api 'org.apache.maven:maven-model:3.6.2'
   api 'com.networknt:json-schema-validator:1.0.36'
+  api "com.fasterxml.jackson.core:jackson-databind:${props.getProperty('jackson_databind')}"
 
-  compileOnly "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
-  testImplementation "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
   testFixturesApi "junit:junit:${props.getProperty('junit')}"
   testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
   testFixturesApi gradleApi()
   testFixturesApi gradleTestKit()
   testImplementation 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
-  testImplementation 'org.mockito:mockito-core:1.9.5'
+  testImplementation "org.mockito:mockito-core:${props.getProperty('mockito')}"
   integTestImplementation('org.spockframework:spock-core:1.3-groovy-2.5') {
     exclude module: "groovy"
   }
@@ -157,8 +158,8 @@ if (project != rootProject) {
   apply plugin: 'opensearch.publish'
 
   allprojects {
-    targetCompatibility = 10
-    sourceCompatibility = 10
+    targetCompatibility = 8
+    sourceCompatibility = 8
   }
 
   // groovydoc succeeds, but has some weird internal exception...
@@ -182,10 +183,10 @@ if (project != rootProject) {
 
   dependencies {
     reaper project('reaper')
-    distribution project(':distribution:archives:windows-zip')
     distribution project(':distribution:archives:darwin-tar')
-    distribution project(':distribution:archives:linux-tar')
     distribution project(':distribution:archives:linux-arm64-tar')
+    distribution project(':distribution:archives:linux-tar')
+    distribution project(':distribution:archives:windows-zip')
 
     integTestRuntimeOnly(project(":libs:opensearch-core"))
   }
@@ -230,6 +231,12 @@ if (project != rootProject) {
         baseClass 'org.opensearch.gradle.test.GradleIntegrationTestCase'
       }
     }
+  }
+
+  // disable fail-on-warnings for this specific task which trips Java 11 bug
+  // https://bugs.openjdk.java.net/browse/JDK-8209058
+  tasks.named("compileTestFixturesJava").configure {
+    options.compilerArgs -= '-Werror'
   }
 
   tasks.register("integTest", Test) {

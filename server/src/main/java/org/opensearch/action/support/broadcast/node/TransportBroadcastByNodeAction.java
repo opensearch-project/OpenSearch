@@ -87,9 +87,10 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  * @param <Response>             the response to the client request
  * @param <ShardOperationResult> per-shard operation results
  */
-public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRequest<Request>,
-        Response extends BroadcastResponse,
-        ShardOperationResult extends Writeable> extends HandledTransportAction<Request, Response> {
+public abstract class TransportBroadcastByNodeAction<
+    Request extends BroadcastRequest<Request>,
+    Response extends BroadcastResponse,
+    ShardOperationResult extends Writeable> extends HandledTransportAction<Request, Response> {
 
     private final ClusterService clusterService;
     private final TransportService transportService;
@@ -104,19 +105,21 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Request> request,
-        String executor) {
+        String executor
+    ) {
         this(actionName, clusterService, transportService, actionFilters, indexNameExpressionResolver, request, executor, true);
     }
 
     public TransportBroadcastByNodeAction(
-            String actionName,
-            ClusterService clusterService,
-            TransportService transportService,
-            ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver,
-            Writeable.Reader<Request> request,
-            String executor,
-            boolean canTripCircuitBreaker) {
+        String actionName,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Writeable.Reader<Request> request,
+        String executor,
+        boolean canTripCircuitBreaker
+    ) {
         super(actionName, canTripCircuitBreaker, transportService, actionFilters, request);
 
         this.clusterService = clusterService;
@@ -125,16 +128,23 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
         transportNodeBroadcastAction = actionName + "[n]";
 
-        transportService.registerRequestHandler(transportNodeBroadcastAction, executor, false, canTripCircuitBreaker, NodeRequest::new,
-            new BroadcastByNodeTransportRequestHandler());
+        transportService.registerRequestHandler(
+            transportNodeBroadcastAction,
+            executor,
+            false,
+            canTripCircuitBreaker,
+            NodeRequest::new,
+            new BroadcastByNodeTransportRequestHandler()
+        );
     }
 
     private Response newResponse(
-            Request request,
-            AtomicReferenceArray responses,
-            List<NoShardAvailableActionException> unavailableShardExceptions,
-            Map<String, List<ShardRouting>> nodes,
-            ClusterState clusterState) {
+        Request request,
+        AtomicReferenceArray responses,
+        List<NoShardAvailableActionException> unavailableShardExceptions,
+        Map<String, List<ShardRouting>> nodes,
+        ClusterState clusterState
+    ) {
         int totalShards = 0;
         int successfulShards = 0;
         List<ShardOperationResult> broadcastByNodeResponses = new ArrayList<>();
@@ -153,8 +163,13 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 successfulShards += response.getSuccessfulShards();
                 for (BroadcastShardOperationFailedException throwable : response.getExceptions()) {
                     if (!TransportActions.isShardNotAvailableException(throwable)) {
-                        exceptions.add(new DefaultShardOperationFailedException(throwable.getShardId().getIndexName(),
-                            throwable.getShardId().getId(), throwable));
+                        exceptions.add(
+                            new DefaultShardOperationFailedException(
+                                throwable.getShardId().getIndexName(),
+                                throwable.getShardId().getId(),
+                                throwable
+                            )
+                        );
                     }
                 }
             }
@@ -184,9 +199,15 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
      * @param clusterState     the cluster state
      * @return the response
      */
-    protected abstract Response newResponse(Request request, int totalShards, int successfulShards, int failedShards,
-                                            List<ShardOperationResult> results, List<DefaultShardOperationFailedException> shardFailures,
-                                            ClusterState clusterState);
+    protected abstract Response newResponse(
+        Request request,
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<ShardOperationResult> results,
+        List<DefaultShardOperationFailedException> shardFailures,
+        ClusterState clusterState
+    );
 
     /**
      * Deserialize a request from an input stream
@@ -301,10 +322,10 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                     nodeIds.get(nodeId).add(shard);
                 } else {
                     unavailableShardExceptions.add(
-                            new NoShardAvailableActionException(
-                                    shard.shardId(),
-                                    " no shards available for shard " + shard.toString() + " while executing " + actionName
-                            )
+                        new NoShardAvailableActionException(
+                            shard.shardId(),
+                            " no shards available for shard " + shard.toString() + " while executing " + actionName
+                        )
                     );
                 }
             }
@@ -340,27 +361,32 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                     transportRequestOptions = TransportRequestOptions.builder().withTimeout(request.timeout()).build();
                 }
                 transportService.sendRequest(
-                    node, transportNodeBroadcastAction, nodeRequest, transportRequestOptions, new TransportResponseHandler<NodeResponse>() {
-                    @Override
-                    public NodeResponse read(StreamInput in) throws IOException {
-                        return new NodeResponse(in);
-                    }
+                    node,
+                    transportNodeBroadcastAction,
+                    nodeRequest,
+                    transportRequestOptions,
+                    new TransportResponseHandler<NodeResponse>() {
+                        @Override
+                        public NodeResponse read(StreamInput in) throws IOException {
+                            return new NodeResponse(in);
+                        }
 
-                    @Override
-                    public void handleResponse(NodeResponse response) {
-                        onNodeResponse(node, nodeIndex, response);
-                    }
+                        @Override
+                        public void handleResponse(NodeResponse response) {
+                            onNodeResponse(node, nodeIndex, response);
+                        }
 
-                    @Override
-                    public void handleException(TransportException exp) {
-                        onNodeFailure(node, nodeIndex, exp);
-                    }
+                        @Override
+                        public void handleException(TransportException exp) {
+                            onNodeFailure(node, nodeIndex, exp);
+                        }
 
-                    @Override
-                    public String executor() {
-                        return ThreadPool.Names.SAME;
+                        @Override
+                        public String executor() {
+                            return ThreadPool.Names.SAME;
+                        }
                     }
-                });
+                );
             } catch (Exception e) {
                 onNodeFailure(node, nodeIndex, e);
             }
@@ -444,8 +470,12 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             channel.sendResponse(new NodeResponse(request.getNodeId(), totalShards, results, accumulatedExceptions));
         }
 
-        private void onShardOperation(final NodeRequest request, final Object[] shardResults, final int shardIndex,
-                                      final ShardRouting shardRouting) {
+        private void onShardOperation(
+            final NodeRequest request,
+            final Object[] shardResults,
+            final int shardIndex,
+            final ShardRouting shardRouting
+        ) {
             try {
                 if (logger.isTraceEnabled()) {
                     logger.trace("[{}]  executing operation for shard [{}]", actionName, shardRouting.shortSummary());
@@ -456,19 +486,34 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                     logger.trace("[{}]  completed operation for shard [{}]", actionName, shardRouting.shortSummary());
                 }
             } catch (Exception e) {
-                BroadcastShardOperationFailedException failure =
-                    new BroadcastShardOperationFailedException(shardRouting.shardId(), "operation " + actionName + " failed", e);
+                BroadcastShardOperationFailedException failure = new BroadcastShardOperationFailedException(
+                    shardRouting.shardId(),
+                    "operation " + actionName + " failed",
+                    e
+                );
                 failure.setShard(shardRouting.shardId());
                 shardResults[shardIndex] = failure;
                 if (TransportActions.isShardNotAvailableException(e)) {
                     if (logger.isTraceEnabled()) {
-                        logger.trace(new ParameterizedMessage(
-                            "[{}] failed to execute operation for shard [{}]", actionName, shardRouting.shortSummary()), e);
+                        logger.trace(
+                            new ParameterizedMessage(
+                                "[{}] failed to execute operation for shard [{}]",
+                                actionName,
+                                shardRouting.shortSummary()
+                            ),
+                            e
+                        );
                     }
                 } else {
                     if (logger.isDebugEnabled()) {
-                        logger.debug(new ParameterizedMessage(
-                            "[{}] failed to execute operation for shard [{}]", actionName, shardRouting.shortSummary()), e);
+                        logger.debug(
+                            new ParameterizedMessage(
+                                "[{}] failed to execute operation for shard [{}]",
+                                actionName,
+                                shardRouting.shortSummary()
+                            ),
+                            e
+                        );
                     }
                 }
             }
@@ -540,10 +585,12 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             }
         }
 
-        NodeResponse(String nodeId,
-                            int totalShards,
-                            List<ShardOperationResult> results,
-                            List<BroadcastShardOperationFailedException> exceptions) {
+        NodeResponse(
+            String nodeId,
+            int totalShards,
+            List<ShardOperationResult> results,
+            List<BroadcastShardOperationFailedException> exceptions
+        ) {
             this.nodeId = nodeId;
             this.totalShards = totalShards;
             this.results = results;
@@ -593,7 +640,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         private EmptyResult(StreamInput in) {}
 
         @Override
-        public void writeTo(StreamOutput out) { }
+        public void writeTo(StreamOutput out) {}
 
         public static EmptyResult readEmptyResultFrom(StreamInput in) {
             return INSTANCE;

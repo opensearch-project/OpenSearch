@@ -52,8 +52,6 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.Index;
 import org.opensearch.index.RandomCreateIndexGenerator;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.opensearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -90,9 +88,11 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
         r.setConcreteIndex(new Index("foo", "bar"));
         ex = r.validate();
         assertNotNull("source validation should fail", ex);
-        assertEquals(ex.getMessage(),
-            "Validation Failed: 1: either concrete index or unresolved indices can be set," +
-                " concrete index: [[foo/bar]] and indices: [myindex];");
+        assertEquals(
+            ex.getMessage(),
+            "Validation Failed: 1: either concrete index or unresolved indices can be set,"
+                + " concrete index: [[foo/bar]] and indices: [myindex];"
+        );
     }
 
     /**
@@ -101,11 +101,12 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
      * paired correctly
      */
     public void testBuildFromSimplifiedDef() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> PutMappingRequest.buildFromSimplifiedDef("type", "only_field"));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PutMappingRequest.buildFromSimplifiedDef("type", "only_field")
+        );
         assertEquals("mapping source must be pairs of fieldnames and properties definition.", e.getMessage());
     }
-
 
     public void testToXContent() throws IOException {
         PutMappingRequest request = new PutMappingRequest("foo");
@@ -150,8 +151,10 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
 
     private void assertMappingsEqual(String expected, String actual) throws IOException {
 
-        try (XContentParser expectedJson = createParser(XContentType.JSON.xContent(), expected);
-            XContentParser actualJson = createParser(XContentType.JSON.xContent(), actual)) {
+        try (
+            XContentParser expectedJson = createParser(XContentType.JSON.xContent(), expected);
+            XContentParser actualJson = createParser(XContentType.JSON.xContent(), actual)
+        ) {
             assertEquals(expectedJson.mapOrdered(), actualJson.mapOrdered());
         }
     }
@@ -172,21 +175,30 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
     }
 
     public void testResolveIndicesWithWriteIndexOnlyAndDataStreamsAndWriteAliases() {
-        String[] dataStreamNames = {"foo", "bar", "baz"};
+        String[] dataStreamNames = { "foo", "bar", "baz" };
         List<Tuple<String, Integer>> dsMetadata = org.opensearch.common.collect.List.of(
             tuple(dataStreamNames[0], randomIntBetween(1, 3)),
             tuple(dataStreamNames[1], randomIntBetween(1, 3)),
-            tuple(dataStreamNames[2], randomIntBetween(1, 3)));
+            tuple(dataStreamNames[2], randomIntBetween(1, 3))
+        );
 
-        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(dsMetadata,
-            org.opensearch.common.collect.List.of("index1", "index2", "index3"));
-        cs = addAliases(cs, org.opensearch.common.collect.List.of(
-            tuple("alias1", org.opensearch.common.collect.List.of(tuple("index1", false), tuple("index2", true))),
-            tuple("alias2", org.opensearch.common.collect.List.of(tuple("index2", false), tuple("index3", true)))
-        ));
+        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(
+            dsMetadata,
+            org.opensearch.common.collect.List.of("index1", "index2", "index3")
+        );
+        cs = addAliases(
+            cs,
+            org.opensearch.common.collect.List.of(
+                tuple("alias1", org.opensearch.common.collect.List.of(tuple("index1", false), tuple("index2", true))),
+                tuple("alias2", org.opensearch.common.collect.List.of(tuple("index2", false), tuple("index3", true)))
+            )
+        );
         PutMappingRequest request = new PutMappingRequest().indices("foo", "alias1", "alias2").writeIndexOnly(true);
-        Index[] indices = TransportPutMappingAction.resolveIndices(cs, request,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+        Index[] indices = TransportPutMappingAction.resolveIndices(
+            cs,
+            request,
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
+        );
         List<String> indexNames = Arrays.stream(indices).map(Index::getName).collect(Collectors.toList());
         IndexAbstraction expectedDs = cs.metadata().getIndicesLookup().get("foo");
         // should resolve the data stream and each alias to their respective write indices
@@ -194,21 +206,30 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
     }
 
     public void testResolveIndicesWithoutWriteIndexOnlyAndDataStreamsAndWriteAliases() {
-        String[] dataStreamNames = {"foo", "bar", "baz"};
+        String[] dataStreamNames = { "foo", "bar", "baz" };
         List<Tuple<String, Integer>> dsMetadata = org.opensearch.common.collect.List.of(
             tuple(dataStreamNames[0], randomIntBetween(1, 3)),
             tuple(dataStreamNames[1], randomIntBetween(1, 3)),
-            tuple(dataStreamNames[2], randomIntBetween(1, 3)));
+            tuple(dataStreamNames[2], randomIntBetween(1, 3))
+        );
 
-        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(dsMetadata,
-            org.opensearch.common.collect.List.of("index1", "index2", "index3"));
-        cs = addAliases(cs, org.opensearch.common.collect.List.of(
-            tuple("alias1", org.opensearch.common.collect.List.of(tuple("index1", false), tuple("index2", true))),
-            tuple("alias2", org.opensearch.common.collect.List.of(tuple("index2", false), tuple("index3", true)))
-        ));
+        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(
+            dsMetadata,
+            org.opensearch.common.collect.List.of("index1", "index2", "index3")
+        );
+        cs = addAliases(
+            cs,
+            org.opensearch.common.collect.List.of(
+                tuple("alias1", org.opensearch.common.collect.List.of(tuple("index1", false), tuple("index2", true))),
+                tuple("alias2", org.opensearch.common.collect.List.of(tuple("index2", false), tuple("index3", true)))
+            )
+        );
         PutMappingRequest request = new PutMappingRequest().indices("foo", "alias1", "alias2");
-        Index[] indices = TransportPutMappingAction.resolveIndices(cs, request,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+        Index[] indices = TransportPutMappingAction.resolveIndices(
+            cs,
+            request,
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
+        );
         List<String> indexNames = Arrays.stream(indices).map(Index::getName).collect(Collectors.toList());
         IndexAbstraction expectedDs = cs.metadata().getIndicesLookup().get("foo");
         List<String> expectedIndices = expectedDs.getIndices().stream().map(im -> im.getIndex().getName()).collect(Collectors.toList());
@@ -218,21 +239,30 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
     }
 
     public void testResolveIndicesWithWriteIndexOnlyAndDataStreamAndIndex() {
-        String[] dataStreamNames = {"foo", "bar", "baz"};
+        String[] dataStreamNames = { "foo", "bar", "baz" };
         List<Tuple<String, Integer>> dsMetadata = org.opensearch.common.collect.List.of(
             tuple(dataStreamNames[0], randomIntBetween(1, 3)),
             tuple(dataStreamNames[1], randomIntBetween(1, 3)),
-            tuple(dataStreamNames[2], randomIntBetween(1, 3)));
+            tuple(dataStreamNames[2], randomIntBetween(1, 3))
+        );
 
-        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(dsMetadata,
-            org.opensearch.common.collect.List.of("index1", "index2", "index3"));
-        cs = addAliases(cs, org.opensearch.common.collect.List.of(
-            tuple("alias1", org.opensearch.common.collect.List.of(tuple("index1", false), tuple("index2", true))),
-            tuple("alias2", org.opensearch.common.collect.List.of(tuple("index2", false), tuple("index3", true)))
-        ));
+        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(
+            dsMetadata,
+            org.opensearch.common.collect.List.of("index1", "index2", "index3")
+        );
+        cs = addAliases(
+            cs,
+            org.opensearch.common.collect.List.of(
+                tuple("alias1", org.opensearch.common.collect.List.of(tuple("index1", false), tuple("index2", true))),
+                tuple("alias2", org.opensearch.common.collect.List.of(tuple("index2", false), tuple("index3", true)))
+            )
+        );
         PutMappingRequest request = new PutMappingRequest().indices("foo", "index3").writeIndexOnly(true);
-        Index[] indices = TransportPutMappingAction.resolveIndices(cs, request,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+        Index[] indices = TransportPutMappingAction.resolveIndices(
+            cs,
+            request,
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
+        );
         List<String> indexNames = Arrays.stream(indices).map(Index::getName).collect(Collectors.toList());
         IndexAbstraction expectedDs = cs.metadata().getIndicesLookup().get("foo");
         List<String> expectedIndices = expectedDs.getIndices().stream().map(im -> im.getIndex().getName()).collect(Collectors.toList());
@@ -242,42 +272,56 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
     }
 
     public void testResolveIndicesWithWriteIndexOnlyAndNoSingleWriteIndex() {
-        String[] dataStreamNames = {"foo", "bar", "baz"};
+        String[] dataStreamNames = { "foo", "bar", "baz" };
         List<Tuple<String, Integer>> dsMetadata = org.opensearch.common.collect.List.of(
             tuple(dataStreamNames[0], randomIntBetween(1, 3)),
             tuple(dataStreamNames[1], randomIntBetween(1, 3)),
-            tuple(dataStreamNames[2], randomIntBetween(1, 3)));
+            tuple(dataStreamNames[2], randomIntBetween(1, 3))
+        );
 
-        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(dsMetadata,
-            org.opensearch.common.collect.List.of("index1", "index2", "index3"));
-        final ClusterState cs2 = addAliases(cs, org.opensearch.common.collect.List.of(
-            tuple("alias1", org.opensearch.common.collect.List.of(tuple("index1", false), tuple("index2", true))),
-            tuple("alias2", org.opensearch.common.collect.List.of(tuple("index2", false), tuple("index3", true)))
-        ));
+        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(
+            dsMetadata,
+            org.opensearch.common.collect.List.of("index1", "index2", "index3")
+        );
+        final ClusterState cs2 = addAliases(
+            cs,
+            org.opensearch.common.collect.List.of(
+                tuple("alias1", org.opensearch.common.collect.List.of(tuple("index1", false), tuple("index2", true))),
+                tuple("alias2", org.opensearch.common.collect.List.of(tuple("index2", false), tuple("index3", true)))
+            )
+        );
         PutMappingRequest request = new PutMappingRequest().indices("*").writeIndexOnly(true);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> TransportPutMappingAction.resolveIndices(cs2, request,
-                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportPutMappingAction.resolveIndices(cs2, request, new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)))
+        );
         assertThat(e.getMessage(), containsString("The index expression [*] and options provided did not point to a single write-index"));
     }
 
     public void testResolveIndicesWithWriteIndexOnlyAndAliasWithoutWriteIndex() {
-        String[] dataStreamNames = {"foo", "bar", "baz"};
+        String[] dataStreamNames = { "foo", "bar", "baz" };
         List<Tuple<String, Integer>> dsMetadata = org.opensearch.common.collect.List.of(
             tuple(dataStreamNames[0], randomIntBetween(1, 3)),
             tuple(dataStreamNames[1], randomIntBetween(1, 3)),
-            tuple(dataStreamNames[2], randomIntBetween(1, 3)));
+            tuple(dataStreamNames[2], randomIntBetween(1, 3))
+        );
 
-        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(dsMetadata,
-            org.opensearch.common.collect.List.of("index1", "index2", "index3"));
-        final ClusterState cs2 = addAliases(cs, org.opensearch.common.collect.List.of(
-            tuple("alias1", org.opensearch.common.collect.List.of(tuple("index1", false), tuple("index2", false))),
-            tuple("alias2", org.opensearch.common.collect.List.of(tuple("index2", false), tuple("index3", false)))
-        ));
+        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(
+            dsMetadata,
+            org.opensearch.common.collect.List.of("index1", "index2", "index3")
+        );
+        final ClusterState cs2 = addAliases(
+            cs,
+            org.opensearch.common.collect.List.of(
+                tuple("alias1", org.opensearch.common.collect.List.of(tuple("index1", false), tuple("index2", false))),
+                tuple("alias2", org.opensearch.common.collect.List.of(tuple("index2", false), tuple("index3", false)))
+            )
+        );
         PutMappingRequest request = new PutMappingRequest().indices("alias2").writeIndexOnly(true);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> TransportPutMappingAction.resolveIndices(cs2, request,
-                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportPutMappingAction.resolveIndices(cs2, request, new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)))
+        );
         assertThat(e.getMessage(), containsString("no write index is defined for alias [alias2]"));
     }
 

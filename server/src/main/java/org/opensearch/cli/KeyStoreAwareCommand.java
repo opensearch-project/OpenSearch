@@ -65,10 +65,11 @@ public abstract class KeyStoreAwareCommand extends EnvironmentAwareCommand {
     protected static SecureString readPassword(Terminal terminal, boolean withVerification) throws UserException {
         final char[] passwordArray;
         if (withVerification) {
-            passwordArray = terminal.readSecret("Enter new password for the opensearch keystore (empty for no password): ",
-                MAX_PASSPHRASE_LENGTH);
-            char[] passwordVerification = terminal.readSecret("Enter same password again: ",
-                MAX_PASSPHRASE_LENGTH);
+            passwordArray = terminal.readSecret(
+                "Enter new password for the opensearch keystore (empty for no password): ",
+                MAX_PASSPHRASE_LENGTH
+            );
+            char[] passwordVerification = terminal.readSecret("Enter same password again: ", MAX_PASSPHRASE_LENGTH);
             if (Arrays.equals(passwordArray, passwordVerification) == false) {
                 throw new UserException(ExitCodes.DATA_ERROR, "Passwords are not equal, exiting.");
             }
@@ -82,10 +83,9 @@ public abstract class KeyStoreAwareCommand extends EnvironmentAwareCommand {
     /**
      * Decrypt the {@code keyStore}, prompting the user to enter the password in the {@link Terminal} if it is password protected
      */
-    protected static void decryptKeyStore(KeyStoreWrapper keyStore, Terminal terminal)
-        throws UserException, GeneralSecurityException, IOException {
-        try (SecureString keystorePassword = keyStore.hasPassword() ?
-            readPassword(terminal, false) : new SecureString(new char[0])) {
+    protected static void decryptKeyStore(KeyStoreWrapper keyStore, Terminal terminal) throws UserException, GeneralSecurityException,
+        IOException {
+        try (SecureString keystorePassword = keyStore.hasPassword() ? readPassword(terminal, false) : new SecureString(new char[0])) {
             keyStore.decrypt(keystorePassword.getChars());
         } catch (SecurityException e) {
             throw new UserException(ExitCodes.DATA_ERROR, e.getMessage());

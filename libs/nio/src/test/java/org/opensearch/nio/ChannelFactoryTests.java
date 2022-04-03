@@ -152,8 +152,11 @@ public class ChannelFactoryTests extends OpenSearchTestCase {
         }
 
         @Override
-        public NioServerSocketChannel createServerChannel(NioSelector selector, ServerSocketChannel channel,
-                                                          Config.ServerSocket socketConfig) {
+        public NioServerSocketChannel createServerChannel(
+            NioSelector selector,
+            ServerSocketChannel channel,
+            Config.ServerSocket socketConfig
+        ) {
             return new NioServerSocketChannel(channel);
         }
 

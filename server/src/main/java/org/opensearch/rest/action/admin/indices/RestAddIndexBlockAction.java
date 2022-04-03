@@ -51,8 +51,7 @@ public class RestAddIndexBlockAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.singletonList(
-            new Route(PUT, "/{index}/_block/{block}"));
+        return Collections.singletonList(new Route(PUT, "/{index}/_block/{block}"));
     }
 
     @Override
@@ -64,7 +63,8 @@ public class RestAddIndexBlockAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         AddIndexBlockRequest addIndexBlockRequest = new AddIndexBlockRequest(
             IndexMetadata.APIBlock.fromName(request.param("block")),
-            Strings.splitStringByCommaToArray(request.param("index")));
+            Strings.splitStringByCommaToArray(request.param("index"))
+        );
         addIndexBlockRequest.masterNodeTimeout(request.paramAsTime("master_timeout", addIndexBlockRequest.masterNodeTimeout()));
         addIndexBlockRequest.timeout(request.paramAsTime("timeout", addIndexBlockRequest.timeout()));
         addIndexBlockRequest.indicesOptions(IndicesOptions.fromRequest(request, addIndexBlockRequest.indicesOptions()));

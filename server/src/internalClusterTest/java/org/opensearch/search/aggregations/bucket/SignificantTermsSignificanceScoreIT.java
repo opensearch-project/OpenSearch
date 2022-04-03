@@ -111,12 +111,15 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
             scripts.put("script_with_params", params -> {
                 double factor = ((Number) params.get("param")).doubleValue();
-                return factor * (longValue(params.get("_subset_freq")) + longValue(params.get("_subset_size")) +
-                                 longValue(params.get("_superset_freq")) + longValue(params.get("_superset_size"))) / factor;
+                return factor * (longValue(params.get("_subset_freq")) + longValue(params.get("_subset_size")) + longValue(
+                    params.get("_superset_freq")
+                ) + longValue(params.get("_superset_size"))) / factor;
             });
-            scripts.put("script_no_params", params ->
-                longValue(params.get("_subset_freq")) + longValue(params.get("_subset_size")) +
-                longValue(params.get("_superset_freq")) + longValue(params.get("_superset_size"))
+            scripts.put(
+                "script_no_params",
+                params -> longValue(params.get("_subset_freq")) + longValue(params.get("_subset_size")) + longValue(
+                    params.get("_superset_freq")
+                ) + longValue(params.get("_superset_size"))
             );
             return scripts;
         }
@@ -141,20 +144,19 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
         SharedSignificantTermsTestMethods.index01Docs(type, settings, this);
 
         SearchRequestBuilder request;
-        if ("text".equals(type) && randomBoolean() ) {
+        if ("text".equals(type) && randomBoolean()) {
             // Use significant_text on text fields but occasionally run with alternative of
             // significant_terms on legacy fieldData=true too.
-            request = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
-                    .addAggregation(terms("class").field(CLASS_FIELD)
-                            .subAggregation(significantText("sig_terms", TEXT_FIELD)));
+            request = client().prepareSearch(INDEX_NAME)
+                .setTypes(DOC_TYPE)
+                .addAggregation(terms("class").field(CLASS_FIELD).subAggregation(significantText("sig_terms", TEXT_FIELD)));
         } else {
-            request = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
-                    .addAggregation(terms("class").field(CLASS_FIELD)
-                            .subAggregation(significantTerms("sig_terms").field(TEXT_FIELD)));
+            request = client().prepareSearch(INDEX_NAME)
+                .setTypes(DOC_TYPE)
+                .addAggregation(terms("class").field(CLASS_FIELD).subAggregation(significantTerms("sig_terms").field(TEXT_FIELD)));
         }
 
         SearchResponse response = request.get();
-
 
         assertSearchResponse(response);
         StringTerms classes = response.getAggregations().get("class");
@@ -175,57 +177,57 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
         responseBuilder.endObject();
 
         String result = "{\"class\":{\"doc_count_error_upper_bound\":0,\"sum_other_doc_count\":0,"
-                + "\"buckets\":["
-                + "{"
-                + "\"key\":\"0\","
-                + "\"doc_count\":4,"
-                + "\"sig_terms\":{"
-                + "\"doc_count\":4,"
-                + "\"bg_count\":7,"
-                + "\"buckets\":["
-                + "{"
-                + "\"key\":" + (type.equals("long") ? "0," : "\"0\",")
-                + "\"doc_count\":4,"
-                + "\"score\":0.39999999999999997,"
-                + "\"bg_count\":5"
-                + "}"
-                + "]"
-                + "}"
-                + "},"
-                + "{"
-                + "\"key\":\"1\","
-                + "\"doc_count\":3,"
-                + "\"sig_terms\":{"
-                + "\"doc_count\":3,"
-                + "\"bg_count\":7,"
-                + "\"buckets\":["
-                + "{"
-                + "\"key\":" + (type.equals("long") ? "1," : "\"1\",")
-                + "\"doc_count\":3,"
-                + "\"score\":0.75,"
-                + "\"bg_count\":4"
-                + "}]}}]}}";
+            + "\"buckets\":["
+            + "{"
+            + "\"key\":\"0\","
+            + "\"doc_count\":4,"
+            + "\"sig_terms\":{"
+            + "\"doc_count\":4,"
+            + "\"bg_count\":7,"
+            + "\"buckets\":["
+            + "{"
+            + "\"key\":"
+            + (type.equals("long") ? "0," : "\"0\",")
+            + "\"doc_count\":4,"
+            + "\"score\":0.39999999999999997,"
+            + "\"bg_count\":5"
+            + "}"
+            + "]"
+            + "}"
+            + "},"
+            + "{"
+            + "\"key\":\"1\","
+            + "\"doc_count\":3,"
+            + "\"sig_terms\":{"
+            + "\"doc_count\":3,"
+            + "\"bg_count\":7,"
+            + "\"buckets\":["
+            + "{"
+            + "\"key\":"
+            + (type.equals("long") ? "1," : "\"1\",")
+            + "\"doc_count\":3,"
+            + "\"score\":0.75,"
+            + "\"bg_count\":4"
+            + "}]}}]}}";
         assertThat(Strings.toString(responseBuilder), equalTo(result));
 
     }
 
     public void testPopularTermManyDeletedDocs() throws Exception {
         String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
-        assertAcked(prepareCreate(INDEX_NAME).setSettings(settings, XContentType.JSON)
-                .addMapping("_doc", "text", "type=keyword", CLASS_FIELD, "type=keyword"));
-        String[] cat1v1 = {"constant", "one"};
-        String[] cat1v2 = {"constant", "uno"};
-        String[] cat2v1 = {"constant", "two"};
-        String[] cat2v2 = {"constant", "duo"};
+        assertAcked(
+            prepareCreate(INDEX_NAME).setSettings(settings, XContentType.JSON)
+                .addMapping("_doc", "text", "type=keyword", CLASS_FIELD, "type=keyword")
+        );
+        String[] cat1v1 = { "constant", "one" };
+        String[] cat1v2 = { "constant", "uno" };
+        String[] cat2v1 = { "constant", "two" };
+        String[] cat2v2 = { "constant", "duo" };
         List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
-        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "1")
-                .setSource(TEXT_FIELD, cat1v1, CLASS_FIELD, "1"));
-        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "2")
-                .setSource(TEXT_FIELD, cat1v2, CLASS_FIELD, "1"));
-        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "3")
-                .setSource(TEXT_FIELD, cat2v1, CLASS_FIELD, "2"));
-        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "4")
-                .setSource(TEXT_FIELD, cat2v2, CLASS_FIELD, "2"));
+        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "1").setSource(TEXT_FIELD, cat1v1, CLASS_FIELD, "1"));
+        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "2").setSource(TEXT_FIELD, cat1v2, CLASS_FIELD, "1"));
+        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "3").setSource(TEXT_FIELD, cat2v1, CLASS_FIELD, "2"));
+        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "4").setSource(TEXT_FIELD, cat2v2, CLASS_FIELD, "2"));
         indexRandom(true, false, indexRequestBuilderList);
 
         // Now create some holes in the index with selective deletes caused by updates.
@@ -240,26 +242,17 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
         }
         indexRandom(true, false, indexRequestBuilderList);
 
-
         SearchRequestBuilder request;
-        if (randomBoolean() ) {
-            request = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
+        if (randomBoolean()) {
+            request = client().prepareSearch(INDEX_NAME)
+                .setTypes(DOC_TYPE)
                 .addAggregation(
-                        terms("class")
-                        .field(CLASS_FIELD)
-                        .subAggregation(
-                                significantTerms("sig_terms")
-                                        .field(TEXT_FIELD)
-                                        .minDocCount(1)));
-        } else
-        {
-            request = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
-                    .addAggregation(
-                            terms("class")
-                            .field(CLASS_FIELD)
-                            .subAggregation(
-                                    significantText("sig_terms", TEXT_FIELD)
-                                            .minDocCount(1)));
+                    terms("class").field(CLASS_FIELD).subAggregation(significantTerms("sig_terms").field(TEXT_FIELD).minDocCount(1))
+                );
+        } else {
+            request = client().prepareSearch(INDEX_NAME)
+                .setTypes(DOC_TYPE)
+                .addAggregation(terms("class").field(CLASS_FIELD).subAggregation(significantText("sig_terms", TEXT_FIELD).minDocCount(1)));
         }
 
         request.get();
@@ -279,32 +272,35 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
     // 1. terms agg on class and significant terms
     // 2. filter buckets and set the background to the other class and set is_background false
     // both should yield exact same result
-    public void testBackgroundVsSeparateSet(SignificanceHeuristic significanceHeuristicExpectingSuperset,
-                                            SignificanceHeuristic significanceHeuristicExpectingSeparateSets,
-                                            String type) throws Exception {
+    public void testBackgroundVsSeparateSet(
+        SignificanceHeuristic significanceHeuristicExpectingSuperset,
+        SignificanceHeuristic significanceHeuristicExpectingSeparateSets,
+        String type
+    ) throws Exception {
 
         final boolean useSigText = randomBoolean() && type.equals("text");
         SearchRequestBuilder request1;
         if (useSigText) {
-            request1 = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
-                    .addAggregation(terms("class")
-                            .field(CLASS_FIELD)
-                            .subAggregation(
-                                    significantText("sig_terms", TEXT_FIELD)
-                                            .minDocCount(1)
-                                            .significanceHeuristic(
-                                                    significanceHeuristicExpectingSuperset)));
-        }else
-        {
-            request1 = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
-                    .addAggregation(terms("class")
-                            .field(CLASS_FIELD)
-                            .subAggregation(
-                                    significantTerms("sig_terms")
-                                            .field(TEXT_FIELD)
-                                            .minDocCount(1)
-                                            .significanceHeuristic(
-                                                    significanceHeuristicExpectingSuperset)));
+            request1 = client().prepareSearch(INDEX_NAME)
+                .setTypes(DOC_TYPE)
+                .addAggregation(
+                    terms("class").field(CLASS_FIELD)
+                        .subAggregation(
+                            significantText("sig_terms", TEXT_FIELD).minDocCount(1)
+                                .significanceHeuristic(significanceHeuristicExpectingSuperset)
+                        )
+                );
+        } else {
+            request1 = client().prepareSearch(INDEX_NAME)
+                .setTypes(DOC_TYPE)
+                .addAggregation(
+                    terms("class").field(CLASS_FIELD)
+                        .subAggregation(
+                            significantTerms("sig_terms").field(TEXT_FIELD)
+                                .minDocCount(1)
+                                .significanceHeuristic(significanceHeuristicExpectingSuperset)
+                        )
+                );
         }
 
         SearchResponse response1 = request1.get();
@@ -312,32 +308,41 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
 
         SearchRequestBuilder request2;
         if (useSigText) {
-            request2 = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
-                    .addAggregation(filter("0", QueryBuilders.termQuery(CLASS_FIELD, "0"))
-                            .subAggregation(significantText("sig_terms", TEXT_FIELD)
-                                    .minDocCount(1)
-                                    .backgroundFilter(QueryBuilders.termQuery(CLASS_FIELD, "1"))
-                                    .significanceHeuristic(significanceHeuristicExpectingSeparateSets)))
-                    .addAggregation(filter("1", QueryBuilders.termQuery(CLASS_FIELD, "1"))
-                            .subAggregation(significantText("sig_terms", TEXT_FIELD)
-                                    .minDocCount(1)
-                                    .backgroundFilter(QueryBuilders.termQuery(CLASS_FIELD, "0"))
-                                    .significanceHeuristic(significanceHeuristicExpectingSeparateSets)));
-        }else
-        {
-            request2 = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
-                    .addAggregation(filter("0", QueryBuilders.termQuery(CLASS_FIELD, "0"))
-                            .subAggregation(significantTerms("sig_terms")
-                                    .field(TEXT_FIELD)
-                                    .minDocCount(1)
-                                    .backgroundFilter(QueryBuilders.termQuery(CLASS_FIELD, "1"))
-                                    .significanceHeuristic(significanceHeuristicExpectingSeparateSets)))
-                    .addAggregation(filter("1", QueryBuilders.termQuery(CLASS_FIELD, "1"))
-                            .subAggregation(significantTerms("sig_terms")
-                                    .field(TEXT_FIELD)
-                                    .minDocCount(1)
-                                    .backgroundFilter(QueryBuilders.termQuery(CLASS_FIELD, "0"))
-                                    .significanceHeuristic(significanceHeuristicExpectingSeparateSets)));
+            request2 = client().prepareSearch(INDEX_NAME)
+                .setTypes(DOC_TYPE)
+                .addAggregation(
+                    filter("0", QueryBuilders.termQuery(CLASS_FIELD, "0")).subAggregation(
+                        significantText("sig_terms", TEXT_FIELD).minDocCount(1)
+                            .backgroundFilter(QueryBuilders.termQuery(CLASS_FIELD, "1"))
+                            .significanceHeuristic(significanceHeuristicExpectingSeparateSets)
+                    )
+                )
+                .addAggregation(
+                    filter("1", QueryBuilders.termQuery(CLASS_FIELD, "1")).subAggregation(
+                        significantText("sig_terms", TEXT_FIELD).minDocCount(1)
+                            .backgroundFilter(QueryBuilders.termQuery(CLASS_FIELD, "0"))
+                            .significanceHeuristic(significanceHeuristicExpectingSeparateSets)
+                    )
+                );
+        } else {
+            request2 = client().prepareSearch(INDEX_NAME)
+                .setTypes(DOC_TYPE)
+                .addAggregation(
+                    filter("0", QueryBuilders.termQuery(CLASS_FIELD, "0")).subAggregation(
+                        significantTerms("sig_terms").field(TEXT_FIELD)
+                            .minDocCount(1)
+                            .backgroundFilter(QueryBuilders.termQuery(CLASS_FIELD, "1"))
+                            .significanceHeuristic(significanceHeuristicExpectingSeparateSets)
+                    )
+                )
+                .addAggregation(
+                    filter("1", QueryBuilders.termQuery(CLASS_FIELD, "1")).subAggregation(
+                        significantTerms("sig_terms").field(TEXT_FIELD)
+                            .minDocCount(1)
+                            .backgroundFilter(QueryBuilders.termQuery(CLASS_FIELD, "0"))
+                            .significanceHeuristic(significanceHeuristicExpectingSeparateSets)
+                    )
+                );
         }
 
         SearchResponse response2 = request2.get();
@@ -376,21 +381,32 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
 
     public void testScoresEqualForPositiveAndNegative(SignificanceHeuristic heuristic) throws Exception {
 
-        //check that results for both classes are the same with exclude negatives = false and classes are routing ids
+        // check that results for both classes are the same with exclude negatives = false and classes are routing ids
         SearchRequestBuilder request;
         if (randomBoolean()) {
             request = client().prepareSearch("test")
-                    .addAggregation(terms("class").field("class").subAggregation(significantTerms("mySignificantTerms")
-                            .field("text")
-                            .executionHint(randomExecutionHint())
-                            .significanceHeuristic(heuristic)
-                            .minDocCount(1).shardSize(1000).size(1000)));
-        }else
-        {
+                .addAggregation(
+                    terms("class").field("class")
+                        .subAggregation(
+                            significantTerms("mySignificantTerms").field("text")
+                                .executionHint(randomExecutionHint())
+                                .significanceHeuristic(heuristic)
+                                .minDocCount(1)
+                                .shardSize(1000)
+                                .size(1000)
+                        )
+                );
+        } else {
             request = client().prepareSearch("test")
-                    .addAggregation(terms("class").field("class").subAggregation(significantText("mySignificantTerms", "text")
-                            .significanceHeuristic(heuristic)
-                            .minDocCount(1).shardSize(1000).size(1000)));
+                .addAggregation(
+                    terms("class").field("class")
+                        .subAggregation(
+                            significantText("mySignificantTerms", "text").significanceHeuristic(heuristic)
+                                .minDocCount(1)
+                                .shardSize(1000)
+                                .size(1000)
+                        )
+                );
         }
         SearchResponse response = request.get();
         assertSearchResponse(response);
@@ -422,17 +438,15 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
 
         QueryBuilder query = QueryBuilders.termsQuery(TEXT_FIELD, "a", "b");
         AggregationBuilder subAgg = terms("class").field(CLASS_FIELD);
-        AggregationBuilder agg = significantTerms("significant_terms")
-            .field(TEXT_FIELD)
+        AggregationBuilder agg = significantTerms("significant_terms").field(TEXT_FIELD)
             .executionHint(randomExecutionHint())
             .significanceHeuristic(new ChiSquare(true, true))
-            .minDocCount(1).shardSize(1000).size(1000)
+            .minDocCount(1)
+            .shardSize(1000)
+            .size(1000)
             .subAggregation(subAgg);
 
-        SearchResponse response = client().prepareSearch("test")
-            .setQuery(query)
-            .addAggregation(agg)
-            .get();
+        SearchResponse response = client().prepareSearch("test").setQuery(query).addAggregation(agg).get();
         assertSearchResponse(response);
 
         SignificantTerms sigTerms = response.getAggregations().get("significant_terms");
@@ -445,36 +459,35 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
     }
 
     private void indexEqualTestData() throws ExecutionException, InterruptedException {
-        assertAcked(prepareCreate("test")
-            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-            .addMapping("_doc", "text", "type=text,fielddata=true", "class", "type=keyword"));
+        assertAcked(
+            prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
+                .addMapping("_doc", "text", "type=text,fielddata=true", "class", "type=keyword")
+        );
         createIndex("idx_unmapped");
 
         ensureGreen();
         String data[] = {
-                "A\ta",
-                "A\ta",
-                "A\tb",
-                "A\tb",
-                "A\tb",
-                "B\tc",
-                "B\tc",
-                "B\tc",
-                "B\tc",
-                "B\td",
-                "B\td",
-                "B\td",
-                "B\td",
-                "B\td",
-                "A\tc d",
-                "B\ta b"
-        };
+            "A\ta",
+            "A\ta",
+            "A\tb",
+            "A\tb",
+            "A\tb",
+            "B\tc",
+            "B\tc",
+            "B\tc",
+            "B\tc",
+            "B\td",
+            "B\td",
+            "B\td",
+            "B\td",
+            "B\td",
+            "A\tc d",
+            "B\ta b" };
 
         List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = 0; i < data.length; i++) {
             String[] parts = data[i].split("\t");
-            indexRequestBuilders.add(client().prepareIndex("test", "_doc", "" + i)
-                    .setSource("class", parts[0], "text", parts[1]));
+            indexRequestBuilders.add(client().prepareIndex("test", "_doc", "" + i).setSource("class", parts[0], "text", parts[1]));
         }
         indexRandom(true, false, indexRequestBuilders);
     }
@@ -487,26 +500,38 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
         SearchRequestBuilder request;
         if ("text".equals(type) && randomBoolean()) {
             request = client().prepareSearch(INDEX_NAME)
-                    .addAggregation(terms("class").field(CLASS_FIELD)
-                            .subAggregation(significantText("mySignificantTerms", TEXT_FIELD)
-                            .significanceHeuristic(scriptHeuristic)
-                            .minDocCount(1).shardSize(2).size(2)));
+                .addAggregation(
+                    terms("class").field(CLASS_FIELD)
+                        .subAggregation(
+                            significantText("mySignificantTerms", TEXT_FIELD).significanceHeuristic(scriptHeuristic)
+                                .minDocCount(1)
+                                .shardSize(2)
+                                .size(2)
+                        )
+                );
         } else {
             request = client().prepareSearch(INDEX_NAME)
-                    .addAggregation(terms("class").field(CLASS_FIELD)
-                            .subAggregation(significantTerms("mySignificantTerms")
-                            .field(TEXT_FIELD)
-                            .executionHint(randomExecutionHint())
-                            .significanceHeuristic(scriptHeuristic)
-                            .minDocCount(1).shardSize(2).size(2)));
+                .addAggregation(
+                    terms("class").field(CLASS_FIELD)
+                        .subAggregation(
+                            significantTerms("mySignificantTerms").field(TEXT_FIELD)
+                                .executionHint(randomExecutionHint())
+                                .significanceHeuristic(scriptHeuristic)
+                                .minDocCount(1)
+                                .shardSize(2)
+                                .size(2)
+                        )
+                );
         }
         SearchResponse response = request.get();
         assertSearchResponse(response);
         for (Terms.Bucket classBucket : ((Terms) response.getAggregations().get("class")).getBuckets()) {
             SignificantTerms sigTerms = classBucket.getAggregations().get("mySignificantTerms");
             for (SignificantTerms.Bucket bucket : sigTerms.getBuckets()) {
-                assertThat(bucket.getSignificanceScore(),
-                        is((double) bucket.getSubsetDf() + bucket.getSubsetSize() + bucket.getSupersetDf() + bucket.getSupersetSize()));
+                assertThat(
+                    bucket.getSignificanceScore(),
+                    is((double) bucket.getSubsetDf() + bucket.getSubsetSize() + bucket.getSupersetDf() + bucket.getSupersetSize())
+                );
             }
         }
     }
@@ -529,7 +554,7 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
             textMappings += ",fielddata=true";
         }
         assertAcked(prepareCreate(INDEX_NAME).addMapping(DOC_TYPE, TEXT_FIELD, textMappings, CLASS_FIELD, "type=keyword"));
-        String[] gb = {"0", "1"};
+        String[] gb = { "0", "1" };
         List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
         for (int i = 0; i < randomInt(20); i++) {
             int randNum = randomInt(2);
@@ -539,8 +564,9 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
             } else {
                 text[0] = gb[randNum];
             }
-            indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE)
-                    .setSource(TEXT_FIELD, text, CLASS_FIELD, randomBoolean() ? "one" : "zero"));
+            indexRequestBuilderList.add(
+                client().prepareIndex(INDEX_NAME, DOC_TYPE).setSource(TEXT_FIELD, text, CLASS_FIELD, randomBoolean() ? "one" : "zero")
+            );
         }
         indexRandom(true, indexRequestBuilderList);
     }
@@ -554,17 +580,40 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
      * Ensure requests using nondeterministic scripts do not get cached.
      */
     public void testScriptCaching() throws Exception {
-        assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=long")
+        assertAcked(
+            prepareCreate("cache_test_idx").addMapping("type", "d", "type=long")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
-                .get());
-        indexRandom(true, client().prepareIndex("cache_test_idx", "type", "1").setSource("s", 1),
-                client().prepareIndex("cache_test_idx", "type", "2").setSource("s", 2));
+                .get()
+        );
+        indexRandom(
+            true,
+            client().prepareIndex("cache_test_idx", "type", "1").setSource("s", 1),
+            client().prepareIndex("cache_test_idx", "type", "2").setSource("s", 2)
+        );
 
         // Make sure we are starting with a clear cache
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
-                .getHitCount(), equalTo(0L));
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
-                .getMissCount(), equalTo(0L));
+        assertThat(
+            client().admin()
+                .indices()
+                .prepareStats("cache_test_idx")
+                .setRequestCache(true)
+                .get()
+                .getTotal()
+                .getRequestCache()
+                .getHitCount(),
+            equalTo(0L)
+        );
+        assertThat(
+            client().admin()
+                .indices()
+                .prepareStats("cache_test_idx")
+                .setRequestCache(true)
+                .get()
+                .getTotal()
+                .getRequestCache()
+                .getMissCount(),
+            equalTo(0L)
+        );
 
         // Test that a request using a nondeterministic script does not get cached
         ScriptHeuristic scriptHeuristic = new ScriptHeuristic(
@@ -573,35 +622,79 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
         boolean useSigText = randomBoolean();
         SearchResponse r;
         if (useSigText) {
-            r = client().prepareSearch("cache_test_idx").setSize(0)
-                    .addAggregation(significantText("foo", "s").significanceHeuristic(scriptHeuristic)).get();
+            r = client().prepareSearch("cache_test_idx")
+                .setSize(0)
+                .addAggregation(significantText("foo", "s").significanceHeuristic(scriptHeuristic))
+                .get();
         } else {
-            r = client().prepareSearch("cache_test_idx").setSize(0)
-                    .addAggregation(significantTerms("foo").field("s").significanceHeuristic(scriptHeuristic)).get();
+            r = client().prepareSearch("cache_test_idx")
+                .setSize(0)
+                .addAggregation(significantTerms("foo").field("s").significanceHeuristic(scriptHeuristic))
+                .get();
         }
         assertSearchResponse(r);
 
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
-                .getHitCount(), equalTo(0L));
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
-                .getMissCount(), equalTo(0L));
+        assertThat(
+            client().admin()
+                .indices()
+                .prepareStats("cache_test_idx")
+                .setRequestCache(true)
+                .get()
+                .getTotal()
+                .getRequestCache()
+                .getHitCount(),
+            equalTo(0L)
+        );
+        assertThat(
+            client().admin()
+                .indices()
+                .prepareStats("cache_test_idx")
+                .setRequestCache(true)
+                .get()
+                .getTotal()
+                .getRequestCache()
+                .getMissCount(),
+            equalTo(0L)
+        );
 
         // Test that a request using a deterministic script gets cached
         scriptHeuristic = getScriptSignificanceHeuristic();
         useSigText = randomBoolean();
         if (useSigText) {
-            r = client().prepareSearch("cache_test_idx").setSize(0)
-                    .addAggregation(significantText("foo", "s").significanceHeuristic(scriptHeuristic)).get();
+            r = client().prepareSearch("cache_test_idx")
+                .setSize(0)
+                .addAggregation(significantText("foo", "s").significanceHeuristic(scriptHeuristic))
+                .get();
         } else {
-            r = client().prepareSearch("cache_test_idx").setSize(0)
-                    .addAggregation(significantTerms("foo").field("s").significanceHeuristic(scriptHeuristic)).get();
+            r = client().prepareSearch("cache_test_idx")
+                .setSize(0)
+                .addAggregation(significantTerms("foo").field("s").significanceHeuristic(scriptHeuristic))
+                .get();
         }
         assertSearchResponse(r);
 
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
-                .getHitCount(), equalTo(0L));
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
-                .getMissCount(), equalTo(1L));
+        assertThat(
+            client().admin()
+                .indices()
+                .prepareStats("cache_test_idx")
+                .setRequestCache(true)
+                .get()
+                .getTotal()
+                .getRequestCache()
+                .getHitCount(),
+            equalTo(0L)
+        );
+        assertThat(
+            client().admin()
+                .indices()
+                .prepareStats("cache_test_idx")
+                .setRequestCache(true)
+                .get()
+                .getTotal()
+                .getRequestCache()
+                .getMissCount(),
+            equalTo(1L)
+        );
 
         // Ensure that non-scripted requests are cached as normal
         if (useSigText) {
@@ -611,9 +704,27 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
         }
         assertSearchResponse(r);
 
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
-                .getHitCount(), equalTo(0L));
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
-                .getMissCount(), equalTo(2L));
+        assertThat(
+            client().admin()
+                .indices()
+                .prepareStats("cache_test_idx")
+                .setRequestCache(true)
+                .get()
+                .getTotal()
+                .getRequestCache()
+                .getHitCount(),
+            equalTo(0L)
+        );
+        assertThat(
+            client().admin()
+                .indices()
+                .prepareStats("cache_test_idx")
+                .setRequestCache(true)
+                .get()
+                .getTotal()
+                .getRequestCache()
+                .getMissCount(),
+            equalTo(2L)
+        );
     }
 }

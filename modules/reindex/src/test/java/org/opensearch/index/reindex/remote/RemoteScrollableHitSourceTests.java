@@ -162,10 +162,9 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
 
     private void assertLookupRemoteVersion(Version expected, String s) throws Exception {
         AtomicBoolean called = new AtomicBoolean();
-        sourceWithMockedRemoteCall(false, ContentType.APPLICATION_JSON, s)
-            .lookupRemoteVersion(wrapAsListener(v -> {
-                assertEquals(expected, v);
-                called.set(true);
+        sourceWithMockedRemoteCall(false, ContentType.APPLICATION_JSON, s).lookupRemoteVersion(wrapAsListener(v -> {
+            assertEquals(expected, v);
+            called.set(true);
         }));
         assertTrue(called.get());
     }
@@ -269,10 +268,13 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
             assertEquals((Integer) 0, r.getFailures().get(0).getShardId());
             assertEquals("87A7NvevQxSrEwMbtRCecg", r.getFailures().get(0).getNodeId());
             assertThat(r.getFailures().get(0).getReason(), instanceOf(OpenSearchRejectedExecutionException.class));
-            assertEquals("rejected execution of org.opensearch.transport.TransportService$5@52d06af2 on "
+            assertEquals(
+                "rejected execution of org.opensearch.transport.TransportService$5@52d06af2 on "
                     + "OpenSearchThreadPoolExecutor[search, queue capacity = 1000, org.opensearch.common.util.concurrent."
                     + "OpenSearchThreadPoolExecutor@778ea553[Running, pool size = 7, active threads = 7, queued tasks = 1000, "
-                    + "completed tasks = 4182]]", r.getFailures().get(0).getReason().getMessage());
+                    + "completed tasks = 4182]]",
+                r.getFailures().get(0).getReason().getMessage()
+            );
             assertThat(r.getHits(), hasSize(1));
             assertEquals("test", r.getHits().get(0).getIndex());
             assertEquals("test", r.getHits().get(0).getType());
@@ -300,8 +302,10 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
             assertEquals(null, r.getFailures().get(0).getShardId());
             assertEquals(null, r.getFailures().get(0).getNodeId());
             assertThat(r.getFailures().get(0).getReason(), instanceOf(RuntimeException.class));
-            assertEquals("Unknown remote exception with reason=[SearchContextMissingException[No search context found for id [82]]]",
-                    r.getFailures().get(0).getReason().getMessage());
+            assertEquals(
+                "Unknown remote exception with reason=[SearchContextMissingException[No search context found for id [82]]]",
+                r.getFailures().get(0).getReason().getMessage()
+            );
             assertThat(r.getHits(), hasSize(1));
             assertEquals("test", r.getHits().get(0).getIndex());
             assertEquals("test", r.getHits().get(0).getType());
@@ -312,8 +316,11 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
         sourceWithMockedRemoteCall("failure_with_status.json").doStart(wrapAsListener(checkResponse));
         assertTrue(called.get());
         called.set(false);
-        sourceWithMockedRemoteCall("failure_with_status.json").doStartNextScroll("scroll", timeValueMillis(0),
-            wrapAsListener(checkResponse));
+        sourceWithMockedRemoteCall("failure_with_status.json").doStartNextScroll(
+            "scroll",
+            timeValueMillis(0),
+            wrapAsListener(checkResponse)
+        );
         assertTrue(called.get());
     }
 
@@ -443,8 +450,14 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
     public void testTooLargeResponse() throws Exception {
         ContentTooLongException tooLong = new ContentTooLongException("too long!");
         CloseableHttpAsyncClient httpClient = mock(CloseableHttpAsyncClient.class);
-        when(httpClient.<HttpResponse>execute(any(HttpAsyncRequestProducer.class), any(HttpAsyncResponseConsumer.class),
-                any(HttpClientContext.class), any(FutureCallback.class))).then(new Answer<Future<HttpResponse>>() {
+        when(
+            httpClient.<HttpResponse>execute(
+                any(HttpAsyncRequestProducer.class),
+                any(HttpAsyncResponseConsumer.class),
+                any(HttpClientContext.class),
+                any(FutureCallback.class)
+            )
+        ).then(new Answer<Future<HttpResponse>>() {
             @Override
             public Future<HttpResponse> answer(InvocationOnMock invocationOnMock) throws Throwable {
                 HeapBufferedAsyncResponseConsumer consumer = (HeapBufferedAsyncResponseConsumer) invocationOnMock.getArguments()[1];
@@ -469,22 +482,29 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
     }
 
     public void testNoContentTypeIsError() {
-        RuntimeException e = expectListenerFailure(RuntimeException.class, (RejectAwareActionListener<Version> listener) ->
-                sourceWithMockedRemoteCall(false, null, "main/0_20_5.json").lookupRemoteVersion(listener));
+        RuntimeException e = expectListenerFailure(
+            RuntimeException.class,
+            (RejectAwareActionListener<Version> listener) -> sourceWithMockedRemoteCall(false, null, "main/0_20_5.json")
+                .lookupRemoteVersion(listener)
+        );
         assertEquals(e.getMessage(), "Response didn't include supported Content-Type, remote is likely not an OpenSearch instance");
     }
 
     public void testInvalidJsonThinksRemoteIsNotES() throws IOException {
         Exception e = expectThrows(RuntimeException.class, () -> sourceWithMockedRemoteCall("some_text.txt").start());
-        assertEquals("Error parsing the response, remote is likely not an OpenSearch instance",
-                e.getCause().getCause().getCause().getMessage());
+        assertEquals(
+            "Error parsing the response, remote is likely not an OpenSearch instance",
+            e.getCause().getCause().getCause().getMessage()
+        );
     }
 
     public void testUnexpectedJsonThinksRemoteIsNotES() throws IOException {
         // Use the response from a main action instead of a proper start response to generate a parse error
         Exception e = expectThrows(RuntimeException.class, () -> sourceWithMockedRemoteCall("main/2_3_3.json").start());
-        assertEquals("Error parsing the response, remote is likely not an OpenSearch instance",
-                e.getCause().getCause().getCause().getMessage());
+        assertEquals(
+            "Error parsing the response, remote is likely not an OpenSearch instance",
+            e.getCause().getCause().getCause().getMessage()
+        );
     }
 
     public void testCleanupSuccessful() throws Exception {
@@ -525,8 +545,14 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
         }
 
         CloseableHttpAsyncClient httpClient = mock(CloseableHttpAsyncClient.class);
-        when(httpClient.<HttpResponse>execute(any(HttpAsyncRequestProducer.class), any(HttpAsyncResponseConsumer.class),
-                any(HttpClientContext.class), any(FutureCallback.class))).thenAnswer(new Answer<Future<HttpResponse>>() {
+        when(
+            httpClient.<HttpResponse>execute(
+                any(HttpAsyncRequestProducer.class),
+                any(HttpAsyncResponseConsumer.class),
+                any(HttpClientContext.class),
+                any(FutureCallback.class)
+            )
+        ).thenAnswer(new Answer<Future<HttpResponse>>() {
 
             int responseCount = 0;
 
@@ -536,7 +562,7 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
                 threadPool.getThreadContext().stashContext();
                 HttpAsyncRequestProducer requestProducer = (HttpAsyncRequestProducer) invocationOnMock.getArguments()[0];
                 FutureCallback<HttpResponse> futureCallback = (FutureCallback<HttpResponse>) invocationOnMock.getArguments()[3];
-                HttpEntityEnclosingRequest request = (HttpEntityEnclosingRequest)requestProducer.generateRequest();
+                HttpEntityEnclosingRequest request = (HttpEntityEnclosingRequest) requestProducer.generateRequest();
                 URL resource = resources[responseCount];
                 String path = paths[responseCount++];
                 ProtocolVersion protocolVersion = new ProtocolVersion("http", 1, 1);
@@ -566,7 +592,8 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
         when(clientBuilder.build()).thenReturn(httpClient);
 
         RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200))
-                .setHttpClientConfigCallback(httpClientBuilder -> clientBuilder).build();
+            .setHttpClientConfigCallback(httpClientBuilder -> clientBuilder)
+            .build();
 
         TestRemoteScrollableHitSource hitSource = new TestRemoteScrollableHitSource(restClient) {
             @Override
@@ -598,30 +625,32 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
 
     private class TestRemoteScrollableHitSource extends RemoteScrollableHitSource {
         TestRemoteScrollableHitSource(RestClient client) {
-            super(RemoteScrollableHitSourceTests.this.logger, backoff(), RemoteScrollableHitSourceTests.this.threadPool,
+            super(
+                RemoteScrollableHitSourceTests.this.logger,
+                backoff(),
+                RemoteScrollableHitSourceTests.this.threadPool,
                 RemoteScrollableHitSourceTests.this::countRetry,
-                responseQueue::add, RemoteScrollableHitSourceTests.this::failRequest,
-                client, new BytesArray("{}"), RemoteScrollableHitSourceTests.this.searchRequest);
+                responseQueue::add,
+                RemoteScrollableHitSourceTests.this::failRequest,
+                client,
+                new BytesArray("{}"),
+                RemoteScrollableHitSourceTests.this.searchRequest
+            );
         }
     }
 
     private <T> RejectAwareActionListener<T> wrapAsListener(Consumer<T> consumer) {
-        Consumer<Exception> throwing = e -> {
-            throw new AssertionError(e);
-        };
+        Consumer<Exception> throwing = e -> { throw new AssertionError(e); };
         return RejectAwareActionListener.wrap(consumer::accept, throwing, throwing);
     }
 
     @SuppressWarnings("unchecked")
     private <T extends Exception, V> T expectListenerFailure(Class<T> expectedException, Consumer<RejectAwareActionListener<V>> subject) {
         AtomicReference<T> exception = new AtomicReference<>();
-        subject.accept(RejectAwareActionListener.wrap(
-            r -> fail(),
-            e -> {
-                assertThat(e, instanceOf(expectedException));
-                assertTrue(exception.compareAndSet(null, (T) e));
-            },
-            e -> fail()));
+        subject.accept(RejectAwareActionListener.wrap(r -> fail(), e -> {
+            assertThat(e, instanceOf(expectedException));
+            assertTrue(exception.compareAndSet(null, (T) e));
+        }, e -> fail()));
         assertNotNull(exception.get());
         return exception.get();
     }

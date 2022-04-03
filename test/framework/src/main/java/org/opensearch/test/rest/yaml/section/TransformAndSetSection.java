@@ -105,8 +105,9 @@ public class TransformAndSetSection implements ExecutableSection {
                 value = entry.getValue().substring("#base64EncodeCredentials(".length(), entry.getValue().lastIndexOf(")"));
                 String[] idAndPassword = value.split(",");
                 if (idAndPassword.length == 2) {
-                    String credentials = executionContext.response(idAndPassword[0].trim()) + ":"
-                            + executionContext.response(idAndPassword[1].trim());
+                    String credentials = executionContext.response(idAndPassword[0].trim())
+                        + ":"
+                        + executionContext.response(idAndPassword[1].trim());
                     value = Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
                 } else {
                     throw new IllegalArgumentException("base64EncodeCredentials requires a username/id and a password parameters");

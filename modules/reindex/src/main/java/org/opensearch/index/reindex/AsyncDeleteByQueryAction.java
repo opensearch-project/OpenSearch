@@ -44,9 +44,15 @@ import org.opensearch.threadpool.ThreadPool;
  */
 public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<DeleteByQueryRequest, TransportDeleteByQueryAction> {
 
-    public AsyncDeleteByQueryAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
-                                    ThreadPool threadPool, DeleteByQueryRequest request, ScriptService scriptService,
-                                    ActionListener<BulkByScrollResponse> listener) {
+    public AsyncDeleteByQueryAction(
+        BulkByScrollTask task,
+        Logger logger,
+        ParentTaskAssigningClient client,
+        ThreadPool threadPool,
+        DeleteByQueryRequest request,
+        ScriptService scriptService,
+        ActionListener<BulkByScrollResponse> listener
+    ) {
         super(task, false, true, logger, client, threadPool, request, listener, scriptService, null);
     }
 

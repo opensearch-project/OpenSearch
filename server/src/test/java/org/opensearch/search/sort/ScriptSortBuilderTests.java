@@ -32,7 +32,6 @@
 
 package org.opensearch.search.sort;
 
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.SortField;
@@ -75,10 +74,9 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
 
     public static ScriptSortBuilder randomScriptSortBuilder() {
         ScriptSortType type = randomBoolean() ? ScriptSortType.NUMBER : ScriptSortType.STRING;
-        ScriptSortBuilder builder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME),
-                type);
+        ScriptSortBuilder builder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), type);
         if (randomBoolean()) {
-                builder.order(randomFrom(SortOrder.values()));
+            builder.order(randomFrom(SortOrder.values()));
         }
         if (randomBoolean()) {
             if (type == ScriptSortType.NUMBER) {
@@ -138,8 +136,9 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
                 }
                 break;
             case 2:
-                result.setNestedSort(randomValueOtherThan(original.getNestedSort(),
-                        () -> NestedSortBuilderTests.createRandomNestedSort(3)));
+                result.setNestedSort(
+                    randomValueOtherThan(original.getNestedSort(), () -> NestedSortBuilderTests.createRandomNestedSort(3))
+                );
                 break;
         }
         return result;
@@ -209,13 +208,13 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
     }
 
     public void testParseJson_simple() throws IOException {
-        String scriptSort = "{\n" +
-                "\"_script\" : {\n" +
-                "\"type\" : \"number\",\n" +
-                "\"script\" : \"doc['field_name'].value\",\n" +
-                "\"mode\" : \"max\",\n" +
-                "\"order\" : \"asc\"\n" +
-                "} }\n";
+        String scriptSort = "{\n"
+            + "\"_script\" : {\n"
+            + "\"type\" : \"number\",\n"
+            + "\"script\" : \"doc['field_name'].value\",\n"
+            + "\"mode\" : \"max\",\n"
+            + "\"order\" : \"asc\"\n"
+            + "} }\n";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, scriptSort)) {
             parser.nextToken();
             parser.nextToken();
@@ -329,8 +328,9 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
     public void testBuildNested() throws IOException {
         QueryShardContext shardContextMock = createMockShardContext();
 
-        ScriptSortBuilder sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER)
-                .setNestedSort(new NestedSortBuilder("path").setFilter(QueryBuilders.matchAllQuery()));
+        ScriptSortBuilder sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER).setNestedSort(
+            new NestedSortBuilder("path").setFilter(QueryBuilders.matchAllQuery())
+        );
         SortField sortField = sortBuilder.build(shardContextMock).field;
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         XFieldComparatorSource comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
@@ -347,7 +347,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         assertEquals(new TermQuery(new Term(TypeFieldMapper.NAME, "__path")), nested.getInnerQuery());
 
         sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER).setNestedPath("path")
-                .setNestedFilter(QueryBuilders.matchAllQuery());
+            .setNestedFilter(QueryBuilders.matchAllQuery());
         sortField = sortBuilder.build(shardContextMock).field;
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
@@ -356,8 +356,9 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         assertEquals(new MatchAllDocsQuery(), nested.getInnerQuery());
 
         // if nested path is missing, we omit nested element in the comparator
-        sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER)
-                .setNestedFilter(QueryBuilders.matchAllQuery());
+        sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER).setNestedFilter(
+            QueryBuilders.matchAllQuery()
+        );
         sortField = sortBuilder.build(shardContextMock).field;
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
@@ -369,16 +370,22 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
      */
     public void testNestedSortBothThrows() throws IOException {
         ScriptSortBuilder sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER);
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
-                () -> sortBuilder.setNestedPath("nestedPath").setNestedSort(new NestedSortBuilder("otherPath")));
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> sortBuilder.setNestedPath("nestedPath").setNestedSort(new NestedSortBuilder("otherPath"))
+        );
         assertEquals("Setting both nested_path/nested_filter and nested not allowed", iae.getMessage());
-        iae = expectThrows(IllegalArgumentException.class,
-                () -> sortBuilder.setNestedSort(new NestedSortBuilder("otherPath")).setNestedPath("nestedPath"));
+        iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> sortBuilder.setNestedSort(new NestedSortBuilder("otherPath")).setNestedPath("nestedPath")
+        );
         assertEquals("Setting both nested_path/nested_filter and nested not allowed", iae.getMessage());
-        iae = expectThrows(IllegalArgumentException.class,
-                () -> sortBuilder.setNestedSort(new NestedSortBuilder("otherPath")).setNestedFilter(QueryBuilders.matchAllQuery()));
+        iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> sortBuilder.setNestedSort(new NestedSortBuilder("otherPath")).setNestedFilter(QueryBuilders.matchAllQuery())
+        );
         assertEquals("Setting both nested_path/nested_filter and nested not allowed", iae.getMessage());
-     }
+    }
 
     /**
      * Test the nested Filter gets rewritten
@@ -392,8 +399,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
             }
         };
         sortBuilder.setNestedPath("path").setNestedFilter(rangeQuery);
-        ScriptSortBuilder rewritten = sortBuilder
-                .rewrite(createMockShardContext());
+        ScriptSortBuilder rewritten = sortBuilder.rewrite(createMockShardContext());
         assertNotSame(rangeQuery, rewritten.getNestedFilter());
     }
 
@@ -409,8 +415,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
             }
         };
         sortBuilder.setNestedSort(new NestedSortBuilder("path").setFilter(rangeQuery));
-        ScriptSortBuilder rewritten = sortBuilder
-                .rewrite(createMockShardContext());
+        ScriptSortBuilder rewritten = sortBuilder.rewrite(createMockShardContext());
         assertNotSame(rangeQuery, rewritten.getNestedSort().getFilter());
     }
 

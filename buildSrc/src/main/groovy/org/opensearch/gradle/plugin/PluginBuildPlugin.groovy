@@ -105,6 +105,7 @@ class PluginBuildPlugin implements Plugin<Project> {
                     'opensearchVersion'   : Version.fromString(VersionProperties.getOpenSearch()).toString(),
                     'javaVersion'         : project.targetCompatibility as String,
                     'classname'           : extension1.classname,
+                    'customFolderName'    : extension1.customFolderName,
                     'extendedPlugins'     : extension1.extendedPlugins.join(','),
                     'hasNativeController' : extension1.hasNativeController,
                     'requiresKeystore'    : extension1.requiresKeystore
@@ -174,7 +175,7 @@ class PluginBuildPlugin implements Plugin<Project> {
             compileOnly "org.locationtech.jts:jts-core:${project.versions.jts}"
             compileOnly "org.apache.logging.log4j:log4j-api:${project.versions.log4j}"
             compileOnly "org.apache.logging.log4j:log4j-core:${project.versions.log4j}"
-            compileOnly "org.elasticsearch:jna:${project.versions.jna}"
+            compileOnly "net.java.dev.jna:jna:${project.versions.jna}"
         }
     }
 

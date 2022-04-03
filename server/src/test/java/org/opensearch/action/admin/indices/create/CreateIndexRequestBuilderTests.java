@@ -41,8 +41,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpClient;
 import org.junit.After;
 import org.junit.Before;
-import org.opensearch.action.admin.indices.create.CreateIndexAction;
-import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -76,22 +74,32 @@ public class CreateIndexRequestBuilderTests extends OpenSearchTestCase {
     public void testSetSource() throws IOException {
         CreateIndexRequestBuilder builder = new CreateIndexRequestBuilder(this.testClient, CreateIndexAction.INSTANCE);
 
-        OpenSearchParseException e = expectThrows(OpenSearchParseException.class,
-                () -> {builder.setSource("{\""+KEY+"\" : \""+VALUE+"\"}", XContentType.JSON);});
+        OpenSearchParseException e = expectThrows(
+            OpenSearchParseException.class,
+            () -> { builder.setSource("{\"" + KEY + "\" : \"" + VALUE + "\"}", XContentType.JSON); }
+        );
         assertEquals(String.format(Locale.ROOT, "unknown key [%s] for create index", KEY), e.getMessage());
 
-        builder.setSource("{\"settings\" : {\""+KEY+"\" : \""+VALUE+"\"}}", XContentType.JSON);
+        builder.setSource("{\"settings\" : {\"" + KEY + "\" : \"" + VALUE + "\"}}", XContentType.JSON);
         assertEquals(VALUE, builder.request().settings().get(KEY));
 
-        XContentBuilder xContent = XContentFactory.jsonBuilder().startObject()
-                .startObject("settings").field(KEY, VALUE).endObject().endObject();
+        XContentBuilder xContent = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("settings")
+            .field(KEY, VALUE)
+            .endObject()
+            .endObject();
         xContent.close();
         builder.setSource(xContent);
         assertEquals(VALUE, builder.request().settings().get(KEY));
 
         ByteArrayOutputStream docOut = new ByteArrayOutputStream();
-        XContentBuilder doc = XContentFactory.jsonBuilder(docOut).startObject()
-                .startObject("settings").field(KEY, VALUE).endObject().endObject();
+        XContentBuilder doc = XContentFactory.jsonBuilder(docOut)
+            .startObject()
+            .startObject("settings")
+            .field(KEY, VALUE)
+            .endObject()
+            .endObject();
         doc.close();
         builder.setSource(docOut.toByteArray(), XContentType.JSON);
         assertEquals(VALUE, builder.request().settings().get(KEY));
@@ -110,7 +118,7 @@ public class CreateIndexRequestBuilderTests extends OpenSearchTestCase {
         builder.setSettings(Settings.builder().put(KEY, VALUE));
         assertEquals(VALUE, builder.request().settings().get(KEY));
 
-        builder.setSettings("{\""+KEY+"\" : \""+VALUE+"\"}", XContentType.JSON);
+        builder.setSettings("{\"" + KEY + "\" : \"" + VALUE + "\"}", XContentType.JSON);
         assertEquals(VALUE, builder.request().settings().get(KEY));
 
         builder.setSettings(Settings.builder().put(KEY, VALUE));

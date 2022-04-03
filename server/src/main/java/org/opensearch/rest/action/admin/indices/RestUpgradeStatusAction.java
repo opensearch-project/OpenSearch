@@ -51,9 +51,7 @@ public class RestUpgradeStatusAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_upgrade"),
-            new Route(GET, "/{index}/_upgrade")));
+        return unmodifiableList(asList(new Route(GET, "/_upgrade"), new Route(GET, "/{index}/_upgrade")));
     }
 
     @Override

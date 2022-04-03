@@ -59,7 +59,8 @@ public class HighlightFieldTests extends OpenSearchTestCase {
             fragments = new Text[size];
             for (int i = 0; i < size; i++) {
                 fragments[i] = new Text(
-                        frequently() ? randomAlphaOfLengthBetween(10, 30) : randomRealisticUnicodeOfCodepointLengthBetween(10, 30));
+                    frequently() ? randomAlphaOfLengthBetween(10, 30) : randomRealisticUnicodeOfCodepointLengthBetween(10, 30)
+                );
             }
         }
         return new HighlightField(name, fragments);
@@ -95,13 +96,7 @@ public class HighlightFieldTests extends OpenSearchTestCase {
         builder.startObject();
         field.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        assertEquals(
-          "{\n" +
-          "  \"foo\" : [\n" +
-          "    \"bar\",\n" +
-          "    \"baz\"\n" +
-          "  ]\n" +
-          "}", Strings.toString(builder));
+        assertEquals("{\n" + "  \"foo\" : [\n" + "    \"bar\",\n" + "    \"baz\"\n" + "  ]\n" + "}", Strings.toString(builder));
 
         field = new HighlightField("foo", null);
         builder = JsonXContent.contentBuilder();
@@ -109,10 +104,7 @@ public class HighlightFieldTests extends OpenSearchTestCase {
         builder.startObject();
         field.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        assertEquals(
-          "{\n" +
-          "  \"foo\" : null\n" +
-          "}", Strings.toString(builder));
+        assertEquals("{\n" + "  \"foo\" : null\n" + "}", Strings.toString(builder));
     }
 
     /**
@@ -138,10 +130,10 @@ public class HighlightFieldTests extends OpenSearchTestCase {
     private static HighlightField mutate(HighlightField original) {
         Text[] fragments = original.getFragments();
         if (randomBoolean()) {
-            return new HighlightField(original.getName()+"_suffix", fragments);
+            return new HighlightField(original.getName() + "_suffix", fragments);
         } else {
             if (fragments == null) {
-                fragments = new Text[]{new Text("field")};
+                fragments = new Text[] { new Text("field") };
             } else {
                 fragments = Arrays.copyOf(fragments, fragments.length + 1);
                 fragments[fragments.length - 1] = new Text("something new");

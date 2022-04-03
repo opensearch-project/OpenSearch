@@ -71,8 +71,7 @@ public class IndicesModuleTests extends OpenSearchTestCase {
 
     private static class FakeMapperParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext)
-            throws MapperParsingException {
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             return null;
         }
     }
@@ -84,29 +83,50 @@ public class IndicesModuleTests extends OpenSearchTestCase {
         public Map<String, Mapper.TypeParser> getMappers() {
             return Collections.singletonMap("fake-mapper", new FakeMapperParser());
         }
+
         @Override
         public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
             return Collections.singletonMap("fake-metadata-mapper", PARSER);
         }
     });
 
-    private static String[] EXPECTED_METADATA_FIELDS = new String[]{IgnoredFieldMapper.NAME, IdFieldMapper.NAME,
-        RoutingFieldMapper.NAME, IndexFieldMapper.NAME, DataStreamFieldMapper.NAME, SourceFieldMapper.NAME,
-        TypeFieldMapper.NAME, VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, FieldNamesFieldMapper.NAME};
+    private static String[] EXPECTED_METADATA_FIELDS = new String[] {
+        IgnoredFieldMapper.NAME,
+        IdFieldMapper.NAME,
+        RoutingFieldMapper.NAME,
+        IndexFieldMapper.NAME,
+        DataStreamFieldMapper.NAME,
+        SourceFieldMapper.NAME,
+        TypeFieldMapper.NAME,
+        VersionFieldMapper.NAME,
+        SeqNoFieldMapper.NAME,
+        FieldNamesFieldMapper.NAME };
 
-    private static String[] EXPECTED_METADATA_FIELDS_6x = new String[]{AllFieldMapper.NAME, IgnoredFieldMapper.NAME,
-        IdFieldMapper.NAME, RoutingFieldMapper.NAME, IndexFieldMapper.NAME, DataStreamFieldMapper.NAME, SourceFieldMapper.NAME,
-        TypeFieldMapper.NAME, VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, FieldNamesFieldMapper.NAME};
+    private static String[] EXPECTED_METADATA_FIELDS_6x = new String[] {
+        AllFieldMapper.NAME,
+        IgnoredFieldMapper.NAME,
+        IdFieldMapper.NAME,
+        RoutingFieldMapper.NAME,
+        IndexFieldMapper.NAME,
+        DataStreamFieldMapper.NAME,
+        SourceFieldMapper.NAME,
+        TypeFieldMapper.NAME,
+        VersionFieldMapper.NAME,
+        SeqNoFieldMapper.NAME,
+        FieldNamesFieldMapper.NAME };
 
     public void testBuiltinMappers() {
         IndicesModule module = new IndicesModule(Collections.emptyList());
         {
             Version version = VersionUtils.randomVersionBetween(
-                random(), LegacyESVersion.V_6_0_0, LegacyESVersion.V_7_0_0.minimumCompatibilityVersion());
+                random(),
+                LegacyESVersion.V_6_0_0,
+                LegacyESVersion.V_7_0_0.minimumCompatibilityVersion()
+            );
             assertFalse(module.getMapperRegistry().getMapperParsers().isEmpty());
             assertFalse(module.getMapperRegistry().getMetadataMapperParsers(version).isEmpty());
-            Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
-                module.getMapperRegistry().getMetadataMapperParsers(version);
+            Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = module.getMapperRegistry()
+                .getMetadataMapperParsers(version);
             assertEquals(EXPECTED_METADATA_FIELDS_6x.length, metadataMapperParsers.size());
             int i = 0;
             for (String field : metadataMapperParsers.keySet()) {
@@ -117,8 +137,8 @@ public class IndicesModuleTests extends OpenSearchTestCase {
             Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, Version.CURRENT);
             assertFalse(module.getMapperRegistry().getMapperParsers().isEmpty());
             assertFalse(module.getMapperRegistry().getMetadataMapperParsers(version).isEmpty());
-            Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
-                module.getMapperRegistry().getMetadataMapperParsers(version);
+            Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = module.getMapperRegistry()
+                .getMetadataMapperParsers(version);
             assertEquals(EXPECTED_METADATA_FIELDS.length, metadataMapperParsers.size());
             int i = 0;
             for (String field : metadataMapperParsers.keySet()) {
@@ -132,10 +152,15 @@ public class IndicesModuleTests extends OpenSearchTestCase {
         IndicesModule module = new IndicesModule(fakePlugins);
         MapperRegistry registry = module.getMapperRegistry();
         Version version = VersionUtils.randomVersionBetween(
-            random(), LegacyESVersion.V_6_0_0, LegacyESVersion.V_7_0_0.minimumCompatibilityVersion());
+            random(),
+            LegacyESVersion.V_6_0_0,
+            LegacyESVersion.V_7_0_0.minimumCompatibilityVersion()
+        );
         assertThat(registry.getMapperParsers().size(), greaterThan(noPluginsModule.getMapperRegistry().getMapperParsers().size()));
-        assertThat(registry.getMetadataMapperParsers(version).size(),
-                greaterThan(noPluginsModule.getMapperRegistry().getMetadataMapperParsers(version).size()));
+        assertThat(
+            registry.getMetadataMapperParsers(version).size(),
+            greaterThan(noPluginsModule.getMapperRegistry().getMetadataMapperParsers(version).size())
+        );
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = module.getMapperRegistry().getMetadataMapperParsers(version);
         Iterator<String> iterator = metadataMapperParsers.keySet().iterator();
         if (version.before(LegacyESVersion.V_7_0_0)) {
@@ -143,7 +168,7 @@ public class IndicesModuleTests extends OpenSearchTestCase {
         }
         assertEquals(IgnoredFieldMapper.NAME, iterator.next());
         String last = null;
-        while(iterator.hasNext()) {
+        while (iterator.hasNext()) {
             last = iterator.next();
         }
         assertEquals(FieldNamesFieldMapper.NAME, last);
@@ -164,8 +189,7 @@ public class IndicesModuleTests extends OpenSearchTestCase {
                 return Collections.singletonMap(TextFieldMapper.CONTENT_TYPE, new FakeMapperParser());
             }
         });
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new IndicesModule(plugins));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndicesModule(plugins));
         assertThat(e.getMessage(), containsString("already registered"));
     }
 
@@ -177,8 +201,7 @@ public class IndicesModuleTests extends OpenSearchTestCase {
             }
         };
         List<MapperPlugin> plugins = Arrays.asList(plugin, plugin);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new IndicesModule(plugins));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndicesModule(plugins));
         assertThat(e.getMessage(), containsString("already registered"));
     }
 
@@ -189,8 +212,7 @@ public class IndicesModuleTests extends OpenSearchTestCase {
                 return Collections.singletonMap(IdFieldMapper.NAME, PARSER);
             }
         });
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new IndicesModule(plugins));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndicesModule(plugins));
         assertThat(e.getMessage(), containsString("already registered"));
     }
 
@@ -202,8 +224,7 @@ public class IndicesModuleTests extends OpenSearchTestCase {
             }
         };
         List<MapperPlugin> plugins = Arrays.asList(plugin, plugin);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new IndicesModule(plugins));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndicesModule(plugins));
         assertThat(e.getMessage(), containsString("already registered"));
     }
 
@@ -214,8 +235,7 @@ public class IndicesModuleTests extends OpenSearchTestCase {
                 return Collections.singletonMap(FieldNamesFieldMapper.NAME, PARSER);
             }
         });
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new IndicesModule(plugins));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndicesModule(plugins));
         assertThat(e.getMessage(), containsString("cannot contain metadata mapper [_field_names]"));
     }
 
@@ -234,31 +254,27 @@ public class IndicesModuleTests extends OpenSearchTestCase {
     }
 
     public void testGetFieldFilter() {
-        List<MapperPlugin> mapperPlugins = Arrays.asList(
-            new MapperPlugin() {
-                @Override
-                public Function<String, Predicate<String>> getFieldFilter() {
-                    return MapperPlugin.NOOP_FIELD_FILTER;
-                }
-            },
-            new MapperPlugin() {
-                @Override
-                public Function<String, Predicate<String>> getFieldFilter() {
-                    return index -> index.equals("hidden_index") ? field -> false : MapperPlugin.NOOP_FIELD_PREDICATE;
-                }
-            },
-            new MapperPlugin() {
-                @Override
-                public Function<String, Predicate<String>> getFieldFilter() {
-                    return index -> field -> field.equals("hidden_field") == false;
-                }
-            },
-            new MapperPlugin() {
-                @Override
-                public Function<String, Predicate<String>> getFieldFilter() {
-                    return index -> index.equals("filtered") ? field ->  field.equals("visible") : MapperPlugin.NOOP_FIELD_PREDICATE;
-                }
-            });
+        List<MapperPlugin> mapperPlugins = Arrays.asList(new MapperPlugin() {
+            @Override
+            public Function<String, Predicate<String>> getFieldFilter() {
+                return MapperPlugin.NOOP_FIELD_FILTER;
+            }
+        }, new MapperPlugin() {
+            @Override
+            public Function<String, Predicate<String>> getFieldFilter() {
+                return index -> index.equals("hidden_index") ? field -> false : MapperPlugin.NOOP_FIELD_PREDICATE;
+            }
+        }, new MapperPlugin() {
+            @Override
+            public Function<String, Predicate<String>> getFieldFilter() {
+                return index -> field -> field.equals("hidden_field") == false;
+            }
+        }, new MapperPlugin() {
+            @Override
+            public Function<String, Predicate<String>> getFieldFilter() {
+                return index -> index.equals("filtered") ? field -> field.equals("visible") : MapperPlugin.NOOP_FIELD_PREDICATE;
+            }
+        });
 
         IndicesModule indicesModule = new IndicesModule(mapperPlugins);
         MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
@@ -281,7 +297,8 @@ public class IndicesModuleTests extends OpenSearchTestCase {
         int numPlugins = randomIntBetween(0, 10);
         List<MapperPlugin> mapperPlugins = new ArrayList<>(numPlugins);
         for (int i = 0; i < numPlugins; i++) {
-            mapperPlugins.add(new MapperPlugin() {});
+            mapperPlugins.add(new MapperPlugin() {
+            });
         }
         IndicesModule indicesModule = new IndicesModule(mapperPlugins);
         Function<String, Predicate<String>> fieldFilter = indicesModule.getMapperRegistry().getFieldFilter();
@@ -289,25 +306,22 @@ public class IndicesModuleTests extends OpenSearchTestCase {
     }
 
     public void testNoOpFieldPredicate() {
-        List<MapperPlugin> mapperPlugins = Arrays.asList(
-                new MapperPlugin() {
-                    @Override
-                    public Function<String, Predicate<String>> getFieldFilter() {
-                        return MapperPlugin.NOOP_FIELD_FILTER;
-                    }
-                },
-                new MapperPlugin() {
-                    @Override
-                    public Function<String, Predicate<String>> getFieldFilter() {
-                        return index -> index.equals("hidden_index") ? field -> false : MapperPlugin.NOOP_FIELD_PREDICATE;
-                    }
-                },
-                new MapperPlugin() {
-                    @Override
-                    public Function<String, Predicate<String>> getFieldFilter() {
-                        return index -> index.equals("filtered") ? field ->  field.equals("visible") : MapperPlugin.NOOP_FIELD_PREDICATE;
-                    }
-                });
+        List<MapperPlugin> mapperPlugins = Arrays.asList(new MapperPlugin() {
+            @Override
+            public Function<String, Predicate<String>> getFieldFilter() {
+                return MapperPlugin.NOOP_FIELD_FILTER;
+            }
+        }, new MapperPlugin() {
+            @Override
+            public Function<String, Predicate<String>> getFieldFilter() {
+                return index -> index.equals("hidden_index") ? field -> false : MapperPlugin.NOOP_FIELD_PREDICATE;
+            }
+        }, new MapperPlugin() {
+            @Override
+            public Function<String, Predicate<String>> getFieldFilter() {
+                return index -> index.equals("filtered") ? field -> field.equals("visible") : MapperPlugin.NOOP_FIELD_PREDICATE;
+            }
+        });
 
         IndicesModule indicesModule = new IndicesModule(mapperPlugins);
         MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();

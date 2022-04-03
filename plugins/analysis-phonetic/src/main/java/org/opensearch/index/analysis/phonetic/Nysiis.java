@@ -85,15 +85,15 @@ import java.util.regex.Pattern;
  */
 public class Nysiis implements StringEncoder {
 
-    private static final char[] CHARS_A = new char[]{'A'};
-    private static final char[] CHARS_AF = new char[]{'A', 'F'};
-    private static final char[] CHARS_C = new char[]{'C'};
-    private static final char[] CHARS_FF = new char[]{'F', 'F'};
-    private static final char[] CHARS_G = new char[]{'G'};
-    private static final char[] CHARS_N = new char[]{'N'};
-    private static final char[] CHARS_NN = new char[]{'N', 'N'};
-    private static final char[] CHARS_S = new char[]{'S'};
-    private static final char[] CHARS_SSS = new char[]{'S', 'S', 'S'};
+    private static final char[] CHARS_A = new char[] { 'A' };
+    private static final char[] CHARS_AF = new char[] { 'A', 'F' };
+    private static final char[] CHARS_C = new char[] { 'C' };
+    private static final char[] CHARS_FF = new char[] { 'F', 'F' };
+    private static final char[] CHARS_G = new char[] { 'G' };
+    private static final char[] CHARS_N = new char[] { 'N' };
+    private static final char[] CHARS_NN = new char[] { 'N', 'N' };
+    private static final char[] CHARS_S = new char[] { 'S' };
+    private static final char[] CHARS_SSS = new char[] { 'S', 'S', 'S' };
     private static final Pattern PAT_MAC = Pattern.compile("^MAC");
     private static final Pattern PAT_KN = Pattern.compile("^KN");
     private static final Pattern PAT_K = Pattern.compile("^K");
@@ -166,16 +166,17 @@ public class Nysiis implements StringEncoder {
 
         // 5. H -> If previous or next is a non vowel, previous.
         if (curr == 'H' && (!isVowel(prev) || !isVowel(next))) {
-            return new char[]{prev};
+            return new char[] { prev };
         }
 
         // 6. W -> If previous is vowel, previous.
         if (curr == 'W' && isVowel(prev)) {
-            return new char[]{prev};
+            return new char[] { prev };
         }
 
-        return new char[]{curr};
+        return new char[] { curr };
     }
+
     /**
      * Indicates the strict mode.
      */

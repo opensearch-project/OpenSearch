@@ -102,8 +102,10 @@ public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {
 
         // Simulate a network issue between the unlucky node and elected master node in both directions.
 
-        NetworkDisruption networkDisconnect =
-            new NetworkDisruption(new NetworkDisruption.TwoPartitions(masterNode, unluckyNode), NetworkDisruption.DISCONNECT);
+        NetworkDisruption networkDisconnect = new NetworkDisruption(
+            new NetworkDisruption.TwoPartitions(masterNode, unluckyNode),
+            NetworkDisruption.DISCONNECT
+        );
         setDisruptionScheme(networkDisconnect);
         networkDisconnect.startDisrupting();
 
@@ -125,8 +127,11 @@ public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {
     }
 
     private void ensureNoMaster(String node) throws Exception {
-        assertBusy(() -> assertNull(client(node).admin().cluster().state(
-            new ClusterStateRequest().local(true)).get().getState().nodes().getMasterNode()));
+        assertBusy(
+            () -> assertNull(
+                client(node).admin().cluster().state(new ClusterStateRequest().local(true)).get().getState().nodes().getMasterNode()
+            )
+        );
     }
 
     /**
@@ -140,15 +145,19 @@ public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {
      * Verify that nodes fault detection detects an unresponsive node after master reelection
      */
     public void testFollowerCheckerDetectsUnresponsiveNodeAfterMasterReelection() throws Exception {
-        testFollowerCheckerAfterMasterReelection(NetworkDisruption.UNRESPONSIVE, Settings.builder()
-            .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
-            .put(LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), "4")
-            .put(FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
-            .put(FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), 1).build());
+        testFollowerCheckerAfterMasterReelection(
+            NetworkDisruption.UNRESPONSIVE,
+            Settings.builder()
+                .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
+                .put(LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), "4")
+                .put(FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
+                .put(FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), 1)
+                .build()
+        );
     }
 
-    private void testFollowerCheckerAfterMasterReelection(NetworkLinkDisruptionType networkLinkDisruptionType,
-                                                          Settings settings) throws Exception {
+    private void testFollowerCheckerAfterMasterReelection(NetworkLinkDisruptionType networkLinkDisruptionType, Settings settings)
+        throws Exception {
         internalCluster().startNodes(4, settings);
         ensureStableCluster(4);
 
@@ -158,15 +167,18 @@ public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {
         ensureStableCluster(3);
 
         final String master = internalCluster().getMasterName();
-        final List<String> nonMasters = Arrays.stream(internalCluster().getNodeNames()).filter(n -> master.equals(n) == false)
+        final List<String> nonMasters = Arrays.stream(internalCluster().getNodeNames())
+            .filter(n -> master.equals(n) == false)
             .collect(Collectors.toList());
         final String isolatedNode = randomFrom(nonMasters);
         final String otherNode = nonMasters.get(nonMasters.get(0).equals(isolatedNode) ? 1 : 0);
 
         logger.info("--> isolating [{}]", isolatedNode);
 
-        final NetworkDisruption networkDisruption = new NetworkDisruption(new TwoPartitions(
-            singleton(isolatedNode), Sets.newHashSet(master, otherNode)), networkLinkDisruptionType);
+        final NetworkDisruption networkDisruption = new NetworkDisruption(
+            new TwoPartitions(singleton(isolatedNode), Sets.newHashSet(master, otherNode)),
+            networkLinkDisruptionType
+        );
         setDisruptionScheme(networkDisruption);
         networkDisruption.startDisrupting();
 
@@ -178,16 +190,18 @@ public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {
         ensureStableCluster(3);
     }
 
-
     /**
      * Tests that emulates a frozen elected master node that unfreezes and pushes its cluster state to other nodes that already are
      * following another elected master node. These nodes should reject this cluster state and prevent them from following the stale master.
      */
     public void testStaleMasterNotHijackingMajority() throws Exception {
-        final List<String> nodes = internalCluster().startNodes(3, Settings.builder()
-            .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
-            .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
-            .build());
+        final List<String> nodes = internalCluster().startNodes(
+            3,
+            Settings.builder()
+                .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
+                .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
+                .build()
+        );
         ensureStableCluster(3);
 
         // Save the current master node as old master node, because that node will get frozen
@@ -208,8 +222,12 @@ public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {
                 DiscoveryNode previousMaster = event.previousState().nodes().getMasterNode();
                 DiscoveryNode currentMaster = event.state().nodes().getMasterNode();
                 if (!Objects.equals(previousMaster, currentMaster)) {
-                    logger.info("--> node {} received new cluster state: {} \n and had previous cluster state: {}", node, event.state(),
-                        event.previousState());
+                    logger.info(
+                        "--> node {} received new cluster state: {} \n and had previous cluster state: {}",
+                        node,
+                        event.state(),
+                        event.previousState()
+                    );
                     String previousMasterNodeName = previousMaster != null ? previousMaster.getName() : null;
                     String currentMasterNodeName = currentMaster != null ? currentMaster.getName() : null;
                     masters.get(node).add(new Tuple<>(previousMasterNodeName, currentMasterNodeName));
@@ -232,16 +250,15 @@ public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {
         assertBusy(() -> {
             for (final Map.Entry<String, List<Tuple<String, String>>> entry : masters.entrySet()) {
                 final List<Tuple<String, String>> transitions = entry.getValue();
-                assertTrue(entry.getKey() + ": " + transitions,
-                    transitions.stream().anyMatch(transition -> transition.v2() != null));
+                assertTrue(entry.getKey() + ": " + transitions, transitions.stream().anyMatch(transition -> transition.v2() != null));
             }
         });
 
         // The old master node is frozen, but here we submit a cluster state update task that doesn't get executed, but will be queued and
-        // once the old master node un-freezes it gets executed.  The old master node will send this update + the cluster state where it is
+        // once the old master node un-freezes it gets executed. The old master node will send this update + the cluster state where it is
         // flagged as master to the other nodes that follow the new master. These nodes should ignore this update.
-        internalCluster().getInstance(ClusterService.class, oldMasterNode).submitStateUpdateTask("sneaky-update", new
-            ClusterStateUpdateTask(Priority.IMMEDIATE) {
+        internalCluster().getInstance(ClusterService.class, oldMasterNode)
+            .submitStateUpdateTask("sneaky-update", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return ClusterState.builder(currentState).build();
@@ -269,8 +286,10 @@ public class StableMasterDisruptionIT extends OpenSearchIntegTestCase {
         for (Map.Entry<String, List<Tuple<String, String>>> entry : masters.entrySet()) {
             String nodeName = entry.getKey();
             List<Tuple<String, String>> transitions = entry.getValue();
-            assertTrue("[" + nodeName + "] should not apply state from old master [" + oldMasterNode + "] but it did: " + transitions,
-                transitions.stream().noneMatch(t -> oldMasterNode.equals(t.v2())));
+            assertTrue(
+                "[" + nodeName + "] should not apply state from old master [" + oldMasterNode + "] but it did: " + transitions,
+                transitions.stream().noneMatch(t -> oldMasterNode.equals(t.v2()))
+            );
         }
     }
 

@@ -109,7 +109,7 @@ public class ForLoopNode extends LoopNode {
         if (initializerNode instanceof DeclarationBlockNode) {
             initializerNode.write(classWriter, methodWriter, writeScope);
         } else if (initializerNode instanceof ExpressionNode) {
-            ExpressionNode initializer = (ExpressionNode)this.initializerNode;
+            ExpressionNode initializer = (ExpressionNode) this.initializerNode;
 
             initializer.write(classWriter, methodWriter, writeScope);
             methodWriter.writePop(MethodWriter.getType(initializer.getExpressionType()).getSize());

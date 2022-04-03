@@ -63,14 +63,22 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
     private final IndexNumericFieldData indexFieldData;
     private final Function<SortedNumericDocValues, SortedNumericDocValues> converter;
 
-    public LongValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue,
-                                      MultiValueMode sortMode, Nested nested) {
+    public LongValuesComparatorSource(
+        IndexNumericFieldData indexFieldData,
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested
+    ) {
         this(indexFieldData, missingValue, sortMode, nested, null);
     }
 
-    public LongValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue,
-                                      MultiValueMode sortMode, Nested nested,
-                                      Function<SortedNumericDocValues, SortedNumericDocValues> converter) {
+    public LongValuesComparatorSource(
+        IndexNumericFieldData indexFieldData,
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested,
+        Function<SortedNumericDocValues, SortedNumericDocValues> converter
+    ) {
         super(missingValue, sortMode, nested);
         this.indexFieldData = indexFieldData;
         this.converter = converter;
@@ -124,8 +132,13 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
     }
 
     @Override
-    public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format,
-            int bucketSize, BucketedSort.ExtraData extra) {
+    public BucketedSort newBucketedSort(
+        BigArrays bigArrays,
+        SortOrder sortOrder,
+        DocValueFormat format,
+        int bucketSize,
+        BucketedSort.ExtraData extra
+    ) {
         return new BucketedSort.ForLongs(bigArrays, sortOrder, format, bucketSize, extra) {
             private final long lMissingValue = (Long) missingObject(missingValue, sortOrder == SortOrder.DESC);
 

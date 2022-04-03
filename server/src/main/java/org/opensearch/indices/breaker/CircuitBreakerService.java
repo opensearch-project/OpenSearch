@@ -44,8 +44,7 @@ import org.opensearch.common.component.AbstractLifecycleComponent;
 public abstract class CircuitBreakerService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(CircuitBreakerService.class);
 
-    protected CircuitBreakerService() {
-    }
+    protected CircuitBreakerService() {}
 
     /**
      * @return the breaker that can be used to register estimates against
@@ -63,15 +62,12 @@ public abstract class CircuitBreakerService extends AbstractLifecycleComponent {
     public abstract CircuitBreakerStats stats(String name);
 
     @Override
-    protected void doStart() {
-    }
+    protected void doStart() {}
 
     @Override
-    protected void doStop() {
-    }
+    protected void doStop() {}
 
     @Override
-    protected void doClose() {
-    }
+    protected void doClose() {}
 
 }

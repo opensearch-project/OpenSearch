@@ -42,6 +42,7 @@ import org.opensearch.index.mapper.ContentPath;
 import org.opensearch.index.mapper.FieldTypeTestCase;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.Mapper;
+import org.opensearch.index.query.IntervalMode;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -51,14 +52,14 @@ public class AnnotatedTextFieldTypeTests extends FieldTypeTestCase {
     public void testIntervals() throws IOException {
         MappedFieldType ft = new AnnotatedTextFieldMapper.AnnotatedTextFieldType("field", Collections.emptyMap());
         NamedAnalyzer a = new NamedAnalyzer("name", AnalyzerScope.INDEX, new StandardAnalyzer());
-        IntervalsSource source = ft.intervals("Donald Trump", 0, true, a, false);
+        IntervalsSource source = ft.intervals("Donald Trump", 0, IntervalMode.ORDERED, a, false);
         assertEquals(Intervals.phrase(Intervals.term("donald"), Intervals.term("trump")), source);
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType fieldType = new AnnotatedTextFieldMapper.Builder("field", createDefaultIndexAnalyzers())
-            .build(new Mapper.BuilderContext(Settings.EMPTY, new ContentPath()))
-            .fieldType();
+        MappedFieldType fieldType = new AnnotatedTextFieldMapper.Builder("field", createDefaultIndexAnalyzers()).build(
+            new Mapper.BuilderContext(Settings.EMPTY, new ContentPath())
+        ).fieldType();
 
         assertEquals(Collections.singletonList("value"), fetchSourceValue(fieldType, "value"));
         assertEquals(Collections.singletonList("42"), fetchSourceValue(fieldType, 42L));

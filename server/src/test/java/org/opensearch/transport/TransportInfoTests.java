@@ -49,8 +49,8 @@ public class TransportInfoTests extends OpenSearchTestCase {
 
     private TransportInfo createTransportInfo(InetAddress address, int port, boolean cnameInPublishAddress) {
         BoundTransportAddress boundAddress = new BoundTransportAddress(
-                new TransportAddress[]{new TransportAddress(address, port)},
-                new TransportAddress(address, port)
+            new TransportAddress[] { new TransportAddress(address, port) },
+            new TransportAddress(address, port)
         );
         Map<String, BoundTransportAddress> profiles = Collections.singletonMap("test_profile", boundAddress);
         return new TransportInfo(boundAddress, profiles, cnameInPublishAddress);
@@ -59,44 +59,34 @@ public class TransportInfoTests extends OpenSearchTestCase {
     public void testCorrectlyDisplayPublishedCname() throws Exception {
         InetAddress address = InetAddress.getByName("localhost");
         int port = 9200;
-        assertPublishAddress(
-            createTransportInfo(address, port,true),
-            "localhost/" + NetworkAddress.format(address) + ':' + port
-        );
+        assertPublishAddress(createTransportInfo(address, port, true), "localhost/" + NetworkAddress.format(address) + ':' + port);
     }
 
     public void testHideCnameIfDeprecatedFormat() throws Exception {
         InetAddress address = InetAddress.getByName("localhost");
         int port = 9200;
-        assertPublishAddress(
-                createTransportInfo(address, port,false),
-                NetworkAddress.format(address) + ':' + port
-        );
-        assertWarnings("transport.publish_address was printed as [ip:port] instead of [hostname/ip:port]. " +
-                "This format is deprecated and will change to [hostname/ip:port] in a future version. " +
-                "Use -Dopensearch.transport.cname_in_publish_address=true to enforce non-deprecated formatting.",
+        assertPublishAddress(createTransportInfo(address, port, false), NetworkAddress.format(address) + ':' + port);
+        assertWarnings(
+            "transport.publish_address was printed as [ip:port] instead of [hostname/ip:port]. "
+                + "This format is deprecated and will change to [hostname/ip:port] in a future version. "
+                + "Use -Dopensearch.transport.cname_in_publish_address=true to enforce non-deprecated formatting.",
 
-                "transport.test_profile.publish_address was printed as [ip:port] instead of [hostname/ip:port]. " +
-                "This format is deprecated and will change to [hostname/ip:port] in a future version. " +
-                "Use -Dopensearch.transport.cname_in_publish_address=true to enforce non-deprecated formatting.");
+            "transport.test_profile.publish_address was printed as [ip:port] instead of [hostname/ip:port]. "
+                + "This format is deprecated and will change to [hostname/ip:port] in a future version. "
+                + "Use -Dopensearch.transport.cname_in_publish_address=true to enforce non-deprecated formatting."
+        );
     }
 
     public void testCorrectDisplayPublishedIp() throws Exception {
         InetAddress address = InetAddress.getByName(NetworkAddress.format(InetAddress.getByName("localhost")));
         int port = 9200;
-        assertPublishAddress(
-                createTransportInfo(address, port,true),
-                NetworkAddress.format(address) + ':' + port
-        );
+        assertPublishAddress(createTransportInfo(address, port, true), NetworkAddress.format(address) + ':' + port);
     }
 
     public void testCorrectDisplayPublishedIpv6() throws Exception {
         InetAddress address = InetAddress.getByName(NetworkAddress.format(InetAddress.getByName("0:0:0:0:0:0:0:1")));
         int port = 9200;
-        assertPublishAddress(
-                createTransportInfo(address, port,true),
-                new TransportAddress(address, port).toString()
-        );
+        assertPublishAddress(createTransportInfo(address, port, true), new TransportAddress(address, port).toString());
     }
 
     @SuppressWarnings("unchecked")
@@ -108,13 +98,7 @@ public class TransportInfoTests extends OpenSearchTestCase {
 
         Map<String, Object> transportMap = (Map<String, Object>) createParser(builder).map().get(TransportInfo.Fields.TRANSPORT);
         Map<String, Object> profilesMap = (Map<String, Object>) transportMap.get("profiles");
-        assertEquals(
-            expected,
-            transportMap.get(TransportInfo.Fields.PUBLISH_ADDRESS)
-        );
-        assertEquals(
-                expected,
-                ((Map<String, Object>)profilesMap.get("test_profile")).get(TransportInfo.Fields.PUBLISH_ADDRESS)
-        );
+        assertEquals(expected, transportMap.get(TransportInfo.Fields.PUBLISH_ADDRESS));
+        assertEquals(expected, ((Map<String, Object>) profilesMap.get("test_profile")).get(TransportInfo.Fields.PUBLISH_ADDRESS));
     }
 }

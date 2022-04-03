@@ -50,4 +50,3 @@ public class MapperExtrasClientYamlTestSuiteIT extends OpenSearchClientYamlSuite
         return OpenSearchClientYamlSuiteTestCase.createParameters();
     }
 }
-

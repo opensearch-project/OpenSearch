@@ -51,20 +51,32 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class TransportDeleteComposableIndexTemplateAction
-    extends TransportMasterNodeAction<DeleteComposableIndexTemplateAction.Request, AcknowledgedResponse> {
+public class TransportDeleteComposableIndexTemplateAction extends TransportMasterNodeAction<
+    DeleteComposableIndexTemplateAction.Request,
+    AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportDeleteComposableIndexTemplateAction.class);
 
     private final MetadataIndexTemplateService indexTemplateService;
 
     @Inject
-    public TransportDeleteComposableIndexTemplateAction(TransportService transportService, ClusterService clusterService,
-                                                        ThreadPool threadPool, MetadataIndexTemplateService indexTemplateService,
-                                                        ActionFilters actionFilters,
-                                                        IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(DeleteComposableIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            DeleteComposableIndexTemplateAction.Request::new, indexNameExpressionResolver);
+    public TransportDeleteComposableIndexTemplateAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        MetadataIndexTemplateService indexTemplateService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            DeleteComposableIndexTemplateAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            DeleteComposableIndexTemplateAction.Request::new,
+            indexNameExpressionResolver
+        );
         this.indexTemplateService = indexTemplateService;
     }
 
@@ -85,8 +97,11 @@ public class TransportDeleteComposableIndexTemplateAction
     }
 
     @Override
-    protected void masterOperation(final DeleteComposableIndexTemplateAction.Request request, final ClusterState state,
-                                   final ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(
+        final DeleteComposableIndexTemplateAction.Request request,
+        final ClusterState state,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
         indexTemplateService.removeIndexTemplateV2(request.name(), request.masterNodeTimeout(), listener);
     }
 }

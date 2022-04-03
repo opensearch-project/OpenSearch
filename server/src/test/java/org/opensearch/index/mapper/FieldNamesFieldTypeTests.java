@@ -56,16 +56,34 @@ public class FieldNamesFieldTypeTests extends OpenSearchTestCase {
 
         Settings settings = settings(Version.CURRENT).build();
         IndexSettings indexSettings = new IndexSettings(
-                new IndexMetadata.Builder("foo").settings(settings).numberOfShards(1).numberOfReplicas(0).build(), settings);
+            new IndexMetadata.Builder("foo").settings(settings).numberOfShards(1).numberOfReplicas(0).build(),
+            settings
+        );
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.fieldType("_field_names")).thenReturn(fieldNamesFieldType);
         when(mapperService.fieldType("field_name")).thenReturn(fieldType);
         when(mapperService.simpleMatchToFullName("field_name")).thenReturn(Collections.singleton("field_name"));
 
-        QueryShardContext queryShardContext = new QueryShardContext(0,
-                indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null, mapperService,
-                null, null, null, null, null, null, () -> 0L, null, null, () -> true, null);
-                Query termQuery = fieldNamesFieldType.termQuery("field_name", queryShardContext);
+        QueryShardContext queryShardContext = new QueryShardContext(
+            0,
+            indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null,
+            null,
+            mapperService,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            () -> 0L,
+            null,
+            null,
+            () -> true,
+            null
+        );
+        Query termQuery = fieldNamesFieldType.termQuery("field_name", queryShardContext);
         assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.CONTENT_TYPE, "field_name")), termQuery);
         assertWarnings("terms query on the _field_names field is deprecated and will be removed, use exists query instead");
 

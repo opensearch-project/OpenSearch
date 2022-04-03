@@ -39,6 +39,7 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 
 import java.io.IOException;
 import java.util.function.LongUnaryOperator;
@@ -50,15 +51,18 @@ import java.util.function.LongUnaryOperator;
  * The main differences is {@link GeoTileValuesSource#setAfter(Comparable)} as it needs to accept geotile string values i.e. "zoom/x/y".
  */
 class GeoTileValuesSource extends LongValuesSource {
-    GeoTileValuesSource(BigArrays bigArrays,
-                        MappedFieldType fieldType,
-                        CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesFunc,
-                        LongUnaryOperator rounding,
-                        DocValueFormat format,
-                        boolean missingBucket,
-                        int size,
-                        int reverseMul) {
-        super(bigArrays, fieldType, docValuesFunc, rounding, format, missingBucket, size, reverseMul);
+    GeoTileValuesSource(
+        BigArrays bigArrays,
+        MappedFieldType fieldType,
+        CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesFunc,
+        LongUnaryOperator rounding,
+        DocValueFormat format,
+        boolean missingBucket,
+        MissingOrder missingOrder,
+        int size,
+        int reverseMul
+    ) {
+        super(bigArrays, fieldType, docValuesFunc, rounding, format, missingBucket, missingOrder, size, reverseMul);
     }
 
     @Override

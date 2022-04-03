@@ -43,6 +43,7 @@ import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.network.IfConfig;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.mockito.plugin.PriviledgedMockMaker;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.secure_sm.SecureSM;
 import org.junit.Assert;
@@ -84,8 +85,9 @@ public class BootstrapForTesting {
 
     static {
         // make sure java.io.tmpdir exists always (in case code uses it in a static initializer)
-        Path javaTmpDir = PathUtils.get(Objects.requireNonNull(System.getProperty("java.io.tmpdir"),
-                                                               "please set ${java.io.tmpdir} in pom.xml"));
+        Path javaTmpDir = PathUtils.get(
+            Objects.requireNonNull(System.getProperty("java.io.tmpdir"), "please set ${java.io.tmpdir} in pom.xml")
+        );
         try {
             Security.ensureDirectoryExists(javaTmpDir);
         } catch (Exception e) {
@@ -93,8 +95,8 @@ public class BootstrapForTesting {
         }
 
         // just like bootstrap, initialize natives, then SM
-        final boolean memoryLock =
-                BootstrapSettings.MEMORY_LOCK_SETTING.get(Settings.EMPTY); // use the default bootstrap.memory_lock setting
+        final boolean memoryLock = BootstrapSettings.MEMORY_LOCK_SETTING.get(Settings.EMPTY); // use the default bootstrap.memory_lock
+                                                                                              // setting
         final boolean systemCallFilter = Booleans.parseBoolean(System.getProperty("tests.system_call_filter", "true"));
         Bootstrap.initializeNatives(javaTmpDir, memoryLock, systemCallFilter, true);
 
@@ -127,15 +129,6 @@ public class BootstrapForTesting {
                 if (Strings.hasLength(System.getProperty("tests.config"))) {
                     FilePermissionUtils.addSingleFilePath(perms, PathUtils.get(System.getProperty("tests.config")), "read,readlink");
                 }
-                // jacoco coverage output file
-                final boolean testsCoverage =
-                        Booleans.parseBoolean(System.getProperty("tests.coverage", "false"));
-                if (testsCoverage) {
-                    Path coverageDir = PathUtils.get(System.getProperty("tests.coverage.dir"));
-                    FilePermissionUtils.addSingleFilePath(perms, coverageDir.resolve("jacoco.exec"), "read,write");
-                    // in case we get fancy and use the -integration goals later:
-                    FilePermissionUtils.addSingleFilePath(perms, coverageDir.resolve("jacoco-it.exec"), "read,write");
-                }
                 // intellij hack: intellij test runner wants setIO and will
                 // screw up all test logging without it!
                 if (System.getProperty("tests.gradle") == null) {
@@ -153,11 +146,11 @@ public class BootstrapForTesting {
                 // read test-framework permissions
                 Map<String, URL> codebases = Security.getCodebaseJarMap(JarHell.parseClassPath());
                 // when testing server, the main opensearch code is not yet in a jar, so we need to manually add it
-                addClassCodebase(codebases,"opensearch", "org.opensearch.plugins.PluginsService");
+                addClassCodebase(codebases, "opensearch", "org.opensearch.plugins.PluginsService");
                 if (System.getProperty("tests.gradle") == null) {
                     // intellij and eclipse don't package our internal libs, so we need to set the codebases for them manually
-                    addClassCodebase(codebases,"plugin-classloader", "org.opensearch.plugins.ExtendedPluginsClassLoader");
-                    addClassCodebase(codebases,"opensearch-nio", "org.opensearch.nio.ChannelFactory");
+                    addClassCodebase(codebases, "plugin-classloader", "org.opensearch.plugins.ExtendedPluginsClassLoader");
+                    addClassCodebase(codebases, "opensearch-nio", "org.opensearch.nio.ChannelFactory");
                     addClassCodebase(codebases, "opensearch-secure-sm", "org.opensearch.secure_sm.SecureSM");
                     addClassCodebase(codebases, "opensearch-rest-client", "org.opensearch.client.RestClient");
                 }
@@ -170,13 +163,16 @@ public class BootstrapForTesting {
                         return opensearchPolicy.implies(domain, permission) || testFramework.implies(domain, permission);
                     }
                 });
+
+                PriviledgedMockMaker.createAccessControlContext();
                 System.setSecurityManager(SecureSM.createTestSecureSM());
                 Security.selfTest();
 
                 // guarantee plugin classes are initialized first, in case they have one-time hacks.
                 // this just makes unit testing more realistic
                 for (URL url : Collections.list(
-                        BootstrapForTesting.class.getClassLoader().getResources(PluginInfo.OPENSEARCH_PLUGIN_PROPERTIES))) {
+                    BootstrapForTesting.class.getClassLoader().getResources(PluginInfo.OPENSEARCH_PLUGIN_PROPERTIES)
+                )) {
                     Properties properties = new Properties();
                     try (InputStream stream = FileSystemUtils.openFileURLStream(url)) {
                         properties.load(stream);
@@ -213,16 +209,18 @@ public class BootstrapForTesting {
      * like core, test-framework, etc. this way tests fail if accesscontroller blocks are missing.
      */
     @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
-    static Map<String,Policy> getPluginPermissions() throws Exception {
-        List<URL> pluginPolicies =
-            Collections.list(BootstrapForTesting.class.getClassLoader().getResources(PluginInfo.OPENSEARCH_PLUGIN_POLICY));
+    static Map<String, Policy> getPluginPermissions() throws Exception {
+        List<URL> pluginPolicies = Collections.list(
+            BootstrapForTesting.class.getClassLoader().getResources(PluginInfo.OPENSEARCH_PLUGIN_POLICY)
+        );
         if (pluginPolicies.isEmpty()) {
             return Collections.emptyMap();
         }
 
         // compute classpath minus obvious places, all other jars will get the permission.
         Set<URL> codebases = new HashSet<>(parseClassPathWithSymlinks());
-        Set<URL> excluded = new HashSet<>(Arrays.asList(
+        Set<URL> excluded = new HashSet<>(
+            Arrays.asList(
                 // es core
                 Bootstrap.class.getProtectionDomain().getCodeSource().getLocation(),
                 // es test framework
@@ -233,7 +231,8 @@ public class BootstrapForTesting {
                 RandomizedRunner.class.getProtectionDomain().getCodeSource().getLocation(),
                 // junit library
                 Assert.class.getProtectionDomain().getCodeSource().getLocation()
-        ));
+            )
+        );
         codebases.removeAll(excluded);
 
         // parse each policy file, with codebase substitution from the classpath
@@ -243,7 +242,7 @@ public class BootstrapForTesting {
         }
 
         // consult each policy file for those codebases
-        Map<String,Policy> map = new HashMap<>();
+        Map<String, Policy> map = new HashMap<>();
         for (URL url : codebases) {
             map.put(url.getFile(), new Policy() {
                 @Override

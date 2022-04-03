@@ -3,7 +3,7 @@
   - skip:
       version:  " - 7.5.99"
       reason:   "indices without soft deletes are deprecated in 7.6"
-      features: "warnings"
+      features: "allowed_warnings"
 
   - do:
       indices.create:
@@ -11,7 +11,7 @@
         body:
           settings:
             soft_deletes.enabled: false
-      warnings:
+      allowed_warnings:
         - Creating indices with soft-deletes disabled is deprecated and will be removed in future OpenSearch versions.
           Please do not specify value for setting [index.soft_deletes.enabled] of index [test].
   - do:
@@ -132,9 +132,9 @@
   - skip:
       version: " - 7.6.99"
       reason: "translog retention settings are deprecated in 7.6"
-      features: "warnings"
+      features: "allowed_warnings"
   - do:
-      warnings:
+      allowed_warnings:
         - Translog retention settings [index.translog.retention.age] and [index.translog.retention.size]
           are deprecated and effectively ignored. They will be removed in a future version.
       indices.create:
@@ -148,7 +148,7 @@
         body:
           index.number_of_replicas: 0
   - do:
-      warnings:
+      allowed_warnings:
         - Translog retention settings [index.translog.retention.age] and [index.translog.retention.size]
           are deprecated and effectively ignored. They will be removed in a future version.
       indices.put_settings:
@@ -183,7 +183,7 @@
   - skip:
       version: " - 7.5.99"
       reason:  "indices without soft deletes are deprecated in 7.6"
-      features: "warnings"
+      features: "allowed_warnings"
 
   - do:
       indices.create:
@@ -192,7 +192,7 @@
           settings:
             soft_deletes.enabled: false
             routing.rebalance.enable: "none" # prevents shard relocations while we are closing an index
-      warnings:
+      allowed_warnings:
         - Creating indices with soft-deletes disabled is deprecated and will be removed in future OpenSearch versions.
           Please do not specify value for setting [index.soft_deletes.enabled] of index [test].
 

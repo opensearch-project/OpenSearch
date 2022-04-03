@@ -83,7 +83,8 @@ public class StoreKeyConfig implements SslKeyConfig {
             checkKeyStore(keyStore);
             return KeyStoreUtil.createKeyManager(keyStore, keyPassword, algorithm);
         } catch (UnrecoverableKeyException e) {
-            String message = "failed to load a KeyManager for keystore [" + path.toAbsolutePath()
+            String message = "failed to load a KeyManager for keystore ["
+                + path.toAbsolutePath()
                 + "], this is usually caused by an incorrect key-password";
             if (keyPassword.length == 0) {
                 message += " (no key-password was provided)";

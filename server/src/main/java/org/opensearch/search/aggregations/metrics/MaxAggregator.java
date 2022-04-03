@@ -67,10 +67,8 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
     DoubleArray maxes;
 
-    MaxAggregator(String name,
-                    ValuesSourceConfig config,
-                    SearchContext context,
-                    Aggregator parent, Map<String, Object> metadata) throws IOException {
+    MaxAggregator(String name, ValuesSourceConfig config, SearchContext context, Aggregator parent, Map<String, Object> metadata)
+        throws IOException {
         super(name, context, parent, metadata);
         // TODO stop expecting nulls here
         this.valuesSource = config.hasValues() ? (ValuesSource.Numeric) config.getValuesSource() : null;
@@ -93,8 +91,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             if (parent != null) {
                 return LeafBucketCollector.NO_OP_COLLECTOR;

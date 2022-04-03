@@ -35,7 +35,6 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.NamedAnalyzer;
-import org.opensearch.index.mapper.FieldTypeTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;

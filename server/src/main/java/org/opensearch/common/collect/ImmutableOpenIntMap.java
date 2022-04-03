@@ -228,7 +228,7 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
         private IntObjectHashMap<VType> map;
 
         public Builder() {
-            //noinspection unchecked
+            // noinspection unchecked
             this(EMPTY);
         }
 

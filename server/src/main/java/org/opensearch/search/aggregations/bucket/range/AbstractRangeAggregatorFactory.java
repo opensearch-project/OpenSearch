@@ -64,19 +64,22 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
             registryKey,
             org.opensearch.common.collect.List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             RangeAggregator::new,
-                true);
+            true
+        );
     }
 
-    public AbstractRangeAggregatorFactory(String name,
-                                          ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> registryKey,
-                                          ValuesSourceConfig config,
-                                          R[] ranges,
-                                          boolean keyed,
-                                          InternalRange.Factory<?, ?> rangeFactory,
-                                          QueryShardContext queryShardContext,
-                                          AggregatorFactory parent,
-                                          AggregatorFactories.Builder subFactoriesBuilder,
-                                          Map<String, Object> metadata) throws IOException {
+    public AbstractRangeAggregatorFactory(
+        String name,
+        ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> registryKey,
+        ValuesSourceConfig config,
+        R[] ranges,
+        boolean keyed,
+        InternalRange.Factory<?, ?> rangeFactory,
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.ranges = ranges;
         this.keyed = keyed;
@@ -85,9 +88,7 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
         return new Unmapped<>(name, factories, ranges, keyed, config.format(), searchContext, parent, rangeFactory, metadata);
     }
 

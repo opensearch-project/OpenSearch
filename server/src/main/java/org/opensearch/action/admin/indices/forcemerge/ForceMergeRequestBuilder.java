@@ -42,8 +42,10 @@ import org.opensearch.client.OpenSearchClient;
  * merge down to. By default, will cause the force merge process to merge down
  * to half the configured number of segments.
  */
-public class ForceMergeRequestBuilder
-        extends BroadcastOperationRequestBuilder<ForceMergeRequest, ForceMergeResponse, ForceMergeRequestBuilder> {
+public class ForceMergeRequestBuilder extends BroadcastOperationRequestBuilder<
+    ForceMergeRequest,
+    ForceMergeResponse,
+    ForceMergeRequestBuilder> {
 
     public ForceMergeRequestBuilder(OpenSearchClient client, ForceMergeAction action) {
         super(client, action, new ForceMergeRequest());

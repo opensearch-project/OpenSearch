@@ -61,9 +61,18 @@ public class RankFeatureMetaFieldMapperTests extends OpenSearchSingleNodeTestCas
     }
 
     public void testBasics() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "rank_feature").endObject().endObject()
-                .endObject().endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("type")
+                .startObject("properties")
+                .startObject("field")
+                .field("type", "rank_feature")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
@@ -80,9 +89,12 @@ public class RankFeatureMetaFieldMapperTests extends OpenSearchSingleNodeTestCas
         DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
         String rfMetaField = RankFeatureMetaFieldMapper.CONTENT_TYPE;
         BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field(rfMetaField, 0).endObject());
-        MapperParsingException e = expectThrows(MapperParsingException.class, () ->
-            mapper.parse(new SourceToParse("test", "_doc", "1", bytes, XContentType.JSON)));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(new SourceToParse("test", "_doc", "1", bytes, XContentType.JSON))
+        );
         assertTrue(
-            e.getCause().getMessage().contains("Field ["+ rfMetaField + "] is a metadata field and cannot be added inside a document."));
+            e.getCause().getMessage().contains("Field [" + rfMetaField + "] is a metadata field and cannot be added inside a document.")
+        );
     }
 }

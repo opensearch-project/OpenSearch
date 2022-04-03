@@ -52,17 +52,21 @@ public class ClientYamlSuiteRestApi {
 
     private final String location;
     private final String name;
-    private Set<Path>  paths = new LinkedHashSet<>();
+    private Set<Path> paths = new LinkedHashSet<>();
     private Map<String, Boolean> params = new HashMap<>();
     private Body body = Body.NOT_SUPPORTED;
     private Stability stability;
 
     public enum Stability {
-        EXPERIMENTAL, BETA, STABLE
+        EXPERIMENTAL,
+        BETA,
+        STABLE
     }
 
     public enum Body {
-        NOT_SUPPORTED, OPTIONAL, REQUIRED
+        NOT_SUPPORTED,
+        OPTIONAL,
+        REQUIRED
     }
 
     ClientYamlSuiteRestApi(String location, String name) {
@@ -132,7 +136,9 @@ public class ClientYamlSuiteRestApi {
         this.stability = Stability.valueOf(stability.toUpperCase(Locale.ROOT));
     }
 
-    public Stability getStability() { return this.stability; }
+    public Stability getStability() {
+        return this.stability;
+    }
 
     /**
      * Returns the best matching paths based on the provided parameters, which may include either path parts or query_string parameters.

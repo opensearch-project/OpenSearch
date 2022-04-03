@@ -43,7 +43,7 @@ public class DocumentMissingException extends EngineException {
         super(shardId, "[" + type + "][" + id + "]: document missing");
     }
 
-    public DocumentMissingException(StreamInput in) throws IOException{
+    public DocumentMissingException(StreamInput in) throws IOException {
         super(in);
     }
 

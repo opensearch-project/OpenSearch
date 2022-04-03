@@ -60,8 +60,7 @@ import static org.hamcrest.core.Is.is;
 // These tests are here today so they have access to a proper REST client. They cannot be in :server:integTest since the REST client needs a
 // proper transport implementation, and they cannot be REST tests today since they need to restart nodes. When #35599 and friends land we
 // should be able to move these tests to run against a proper cluster instead. TODO do this.
-@OpenSearchIntegTestCase.ClusterScope(
-    scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0, autoManageMasterNodes = false)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0, autoManageMasterNodes = false)
 public class Zen2RestApiIT extends OpenSearchNetty4IntegTestCase {
 
     @Override
@@ -72,12 +71,14 @@ public class Zen2RestApiIT extends OpenSearchNetty4IntegTestCase {
     public void testRollingRestartOfTwoNodeCluster() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(1);
         final List<String> nodes = internalCluster().startNodes(2);
-        createIndex("test",
+        createIndex(
+            "test",
             Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO) // assign shards
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2) // causes rebalancing
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .build());
+                .build()
+        );
         ensureGreen("test");
 
         RestClient restClient = getRestClient();
@@ -86,9 +87,9 @@ public class Zen2RestApiIT extends OpenSearchNetty4IntegTestCase {
             @Override
             public void doAfterNodes(int n, Client client) throws IOException {
                 ensureGreen("test");
-                Response response =
-                    restClient.performRequest(new Request("POST", "/_cluster/voting_config_exclusions/" +
-                        internalCluster().getNodeNames()[n]));
+                Response response = restClient.performRequest(
+                    new Request("POST", "/_cluster/voting_config_exclusions/" + internalCluster().getNodeNames()[n])
+                );
                 assertThat(response.getStatusLine().getStatusCode(), is(200));
             }
 
@@ -103,7 +104,9 @@ public class Zen2RestApiIT extends OpenSearchNetty4IntegTestCase {
                             new Node(
                                 HttpHost.create(
                                     internalCluster().getInstance(HttpServerTransport.class, viaNode)
-                                        .boundAddress().publishAddress().toString()
+                                        .boundAddress()
+                                        .publishAddress()
+                                        .toString()
                                 )
                             )
                         )
@@ -111,7 +114,9 @@ public class Zen2RestApiIT extends OpenSearchNetty4IntegTestCase {
                     Response deleteResponse = restClient.performRequest(new Request("DELETE", "/_cluster/voting_config_exclusions"));
                     assertThat(deleteResponse.getStatusLine().getStatusCode(), is(200));
 
-                    ClusterHealthResponse clusterHealthResponse = client(viaNode).admin().cluster().prepareHealth()
+                    ClusterHealthResponse clusterHealthResponse = client(viaNode).admin()
+                        .cluster()
+                        .prepareHealth()
                         .setWaitForEvents(Priority.LANGUID)
                         .setWaitForNodes(Integer.toString(1))
                         .setTimeout(TimeValue.timeValueSeconds(30L))
@@ -138,7 +143,8 @@ public class Zen2RestApiIT extends OpenSearchNetty4IntegTestCase {
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         assertThat(response.getEntity().getContentLength(), is(0L));
         Response deleteResponse = restClient.performRequest(
-            new Request("DELETE", "/_cluster/voting_config_exclusions/?wait_for_removal=false"));
+            new Request("DELETE", "/_cluster/voting_config_exclusions/?wait_for_removal=false")
+        );
         assertThat(deleteResponse.getStatusLine().getStatusCode(), is(200));
         assertThat(deleteResponse.getEntity().getContentLength(), is(0L));
     }
@@ -180,8 +186,9 @@ public class Zen2RestApiIT extends OpenSearchNetty4IntegTestCase {
         List<String> nodes = internalCluster().startNodes(3);
         ensureStableCluster(3);
         RestClient restClient = getRestClient();
-        Response response = restClient.performRequest(new Request("POST", "/_cluster/voting_config_exclusions/" +
-            nodes.get(2) + "," + nodes.get(0)));
+        Response response = restClient.performRequest(
+            new Request("POST", "/_cluster/voting_config_exclusions/" + nodes.get(2) + "," + nodes.get(0))
+        );
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         assertThat(response.getEntity().getContentLength(), is(0L));
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(0)));

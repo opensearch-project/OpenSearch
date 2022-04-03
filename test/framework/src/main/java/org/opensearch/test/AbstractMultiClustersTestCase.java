@@ -113,13 +113,28 @@ public abstract class AbstractMultiClustersTestCase extends OpenSearchTestCase {
         for (String clusterAlias : clusterAliases) {
             final String clusterName = clusterAlias.equals(LOCAL_CLUSTER) ? "main-cluster" : clusterAlias;
             final int numberOfNodes = randomIntBetween(1, 3);
-            final List<Class<? extends Plugin>> mockPlugins =
-               Arrays.asList(MockHttpTransport.TestPlugin.class, MockTransportService.TestPlugin.class, MockNioTransportPlugin.class);
+            final List<Class<? extends Plugin>> mockPlugins = Arrays.asList(
+                MockHttpTransport.TestPlugin.class,
+                MockTransportService.TestPlugin.class,
+                MockNioTransportPlugin.class
+            );
             final Collection<Class<? extends Plugin>> nodePlugins = nodePlugins(clusterAlias);
             final Settings nodeSettings = Settings.EMPTY;
             final NodeConfigurationSource nodeConfigurationSource = nodeConfigurationSource(nodeSettings, nodePlugins);
-            final InternalTestCluster cluster = new InternalTestCluster(randomLong(), createTempDir(), true, true, numberOfNodes,
-                numberOfNodes, clusterName, nodeConfigurationSource, 0, clusterName + "-", mockPlugins, Function.identity());
+            final InternalTestCluster cluster = new InternalTestCluster(
+                randomLong(),
+                createTempDir(),
+                true,
+                true,
+                numberOfNodes,
+                numberOfNodes,
+                clusterName,
+                nodeConfigurationSource,
+                0,
+                clusterName + "-",
+                mockPlugins,
+                Function.identity()
+            );
             cluster.beforeTest(random(), 0);
             clusters.put(clusterAlias, cluster);
         }
@@ -173,16 +188,19 @@ public abstract class AbstractMultiClustersTestCase extends OpenSearchTestCase {
         Settings.Builder settings = Settings.builder();
         for (Map.Entry<String, List<String>> entry : seedNodes.entrySet()) {
             final String clusterAlias = entry.getKey();
-            final String seeds = entry.getValue().stream()
+            final String seeds = entry.getValue()
+                .stream()
                 .map(node -> cluster(clusterAlias).getInstance(TransportService.class, node).boundAddress().publishAddress().toString())
                 .collect(Collectors.joining(","));
             settings.put("cluster.remote." + clusterAlias + ".seeds", seeds);
         }
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
         assertBusy(() -> {
-            List<RemoteConnectionInfo> remoteConnectionInfos = client()
-                .execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).actionGet().getInfos()
-                .stream().filter(RemoteConnectionInfo::isConnected)
+            List<RemoteConnectionInfo> remoteConnectionInfos = client().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest())
+                .actionGet()
+                .getInfos()
+                .stream()
+                .filter(RemoteConnectionInfo::isConnected)
                 .collect(Collectors.toList());
             final long totalConnections = seedNodes.values().stream().map(List::size).count();
             assertThat(remoteConnectionInfos, hasSize(Math.toIntExact(totalConnections)));

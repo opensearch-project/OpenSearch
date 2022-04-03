@@ -66,9 +66,7 @@ public class BroadcastActionsIT extends OpenSearchIntegTestCase {
         // check count
         for (int i = 0; i < 5; i++) {
             // test successful
-            SearchResponse countResponse = client().prepareSearch("test").setSize(0)
-                    .setQuery(termQuery("_type", "type1"))
-                    .get();
+            SearchResponse countResponse = client().prepareSearch("test").setSize(0).setQuery(termQuery("_type", "type1")).get();
             assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
             assertThat(countResponse.getTotalShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));

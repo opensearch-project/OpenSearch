@@ -51,8 +51,12 @@ opensearch_distributions {
   }
 }
 
-preProcessFixture {
+tasks.named("preProcessFixture").configure {
   dependsOn opensearch_distributions.docker
+  // always run the task, otherwise the folders won't be created
+  outputs.upToDateWhen { 
+    false 
+  }
   doLast {
     // tests expect to have an empty repo
     project.delete(
@@ -86,3 +90,7 @@ tasks.register("integTest", Test) {
 }
 
 tasks.named("check").configure { dependsOn "integTest" }
+
+tasks.named("composeUp").configure {
+  dependsOn preProcessFixture
+}

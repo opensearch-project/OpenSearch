@@ -93,8 +93,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         }
     }
 
-    public IndicesAliasesRequest() {
-    }
+    public IndicesAliasesRequest() {}
 
     /**
      * Request to take one or more actions on one or more indexes and alias combinations.
@@ -136,10 +135,14 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
 
             public static Type fromValue(byte value) {
                 switch (value) {
-                    case 0: return ADD;
-                    case 1: return REMOVE;
-                    case 2: return REMOVE_INDEX;
-                    default: throw new IllegalArgumentException("No type for action [" + value + "]");
+                    case 0:
+                        return ADD;
+                    case 1:
+                        return REMOVE;
+                    case 2:
+                        return REMOVE_INDEX;
+                    default:
+                        throw new IllegalArgumentException("No type for action [" + value + "]");
                 }
             }
         }
@@ -212,27 +215,28 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             ADD_PARSER.declareField(AliasActions::mustExist, XContentParser::booleanValue, MUST_EXIST, ValueType.BOOLEAN);
         }
         private static final ObjectParser<AliasActions, Void> REMOVE_PARSER = parser(REMOVE.getPreferredName(), AliasActions::remove);
-        private static final ObjectParser<AliasActions, Void> REMOVE_INDEX_PARSER = parser(REMOVE_INDEX.getPreferredName(),
-                AliasActions::removeIndex);
+        private static final ObjectParser<AliasActions, Void> REMOVE_INDEX_PARSER = parser(
+            REMOVE_INDEX.getPreferredName(),
+            AliasActions::removeIndex
+        );
 
         /**
          * Parser for any one {@link AliasAction}.
          */
-        public static final ConstructingObjectParser<AliasActions, Void> PARSER = new ConstructingObjectParser<>(
-                "alias_action", a -> {
-                    // Take the first action and complain if there are more than one actions
-                    AliasActions action = null;
-                    for (Object o : a) {
-                        if (o != null) {
-                            if (action == null) {
-                                action = (AliasActions) o;
-                            } else {
-                                throw new IllegalArgumentException("Too many operations declared on operation entry");
-                            }
-                        }
+        public static final ConstructingObjectParser<AliasActions, Void> PARSER = new ConstructingObjectParser<>("alias_action", a -> {
+            // Take the first action and complain if there are more than one actions
+            AliasActions action = null;
+            for (Object o : a) {
+                if (o != null) {
+                    if (action == null) {
+                        action = (AliasActions) o;
+                    } else {
+                        throw new IllegalArgumentException("Too many operations declared on operation entry");
                     }
-                    return action;
-                });
+                }
+            }
+            return action;
+        });
         static {
             PARSER.declareObject(optionalConstructorArg(), ADD_PARSER, ADD);
             PARSER.declareObject(optionalConstructorArg(), REMOVE_PARSER, REMOVE);
@@ -269,7 +273,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
                 writeIndex = in.readOptionalBoolean();
             }
-            //TODO fix for backport of https://github.com/elastic/elasticsearch/pull/52547
+            // TODO fix for backport of https://github.com/elastic/elasticsearch/pull/52547
             if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
                 isHidden = in.readOptionalBoolean();
             }
@@ -295,7 +299,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
                 out.writeOptionalBoolean(writeIndex);
             }
-            //TODO fix for backport https://github.com/elastic/elasticsearch/pull/52547
+            // TODO fix for backport https://github.com/elastic/elasticsearch/pull/52547
             if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
                 out.writeOptionalBoolean(isHidden);
             }
@@ -348,7 +352,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             if (false == Strings.hasLength(index)) {
                 throw new IllegalArgumentException("[index] can't be empty string");
             }
-            this.indices = new String[] {index};
+            this.indices = new String[] { index };
             return this;
         }
 
@@ -382,7 +386,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             if (false == Strings.hasLength(alias)) {
                 throw new IllegalArgumentException("[alias] can't be empty string");
             }
-            this.aliases = new String[] {alias};
+            this.aliases = new String[] { alias };
             this.originalAliases = aliases;
             return this;
         }
@@ -518,7 +522,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
 
         @Override
         public boolean expandAliasesWildcards() {
-            //remove operations support wildcards among aliases, add operations don't
+            // remove operations support wildcards among aliases, add operations don't
             return type == Type.REMOVE;
         }
 
@@ -574,15 +578,23 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         @Override
         public String toString() {
             return "AliasActions["
-                    + "type=" + type
-                    + ",indices=" + Arrays.toString(indices)
-                    + ",aliases=" + Arrays.deepToString(aliases)
-                    + ",filter=" + filter
-                    + ",routing=" + routing
-                    + ",indexRouting=" + indexRouting
-                    + ",searchRouting=" + searchRouting
-                    + ",writeIndex=" + writeIndex
-                    + "]";
+                + "type="
+                + type
+                + ",indices="
+                + Arrays.toString(indices)
+                + ",aliases="
+                + Arrays.deepToString(aliases)
+                + ",filter="
+                + filter
+                + ",routing="
+                + routing
+                + ",indexRouting="
+                + indexRouting
+                + ",searchRouting="
+                + searchRouting
+                + ",writeIndex="
+                + writeIndex
+                + "]";
         }
 
         // equals, and hashCode implemented for easy testing of round trip
@@ -593,14 +605,14 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             }
             AliasActions other = (AliasActions) obj;
             return Objects.equals(type, other.type)
-                    && Arrays.equals(indices, other.indices)
-                    && Arrays.equals(aliases, other.aliases)
-                    && Objects.equals(filter, other.filter)
-                    && Objects.equals(routing, other.routing)
-                    && Objects.equals(indexRouting, other.indexRouting)
-                    && Objects.equals(searchRouting, other.searchRouting)
-                    && Objects.equals(writeIndex, other.writeIndex)
-                    && Objects.equals(isHidden, other.isHidden);
+                && Arrays.equals(indices, other.indices)
+                && Arrays.equals(aliases, other.aliases)
+                && Objects.equals(filter, other.filter)
+                && Objects.equals(routing, other.routing)
+                && Objects.equals(indexRouting, other.indexRouting)
+                && Objects.equals(searchRouting, other.searchRouting)
+                && Objects.equals(writeIndex, other.writeIndex)
+                && Objects.equals(isHidden, other.isHidden);
         }
 
         @Override

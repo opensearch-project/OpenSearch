@@ -59,7 +59,9 @@ import java.util.Objects;
  * Implementation of {@link Histogram}.
  */
 public final class InternalHistogram extends InternalMultiBucketAggregation<InternalHistogram, InternalHistogram.Bucket>
-        implements Histogram, HistogramFactory {
+    implements
+        Histogram,
+        HistogramFactory {
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Histogram.Bucket, KeyComparable<Bucket> {
 
         final double key;
@@ -68,8 +70,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         private final transient boolean keyed;
         protected final transient DocValueFormat format;
 
-        public Bucket(double key, long docCount, boolean keyed, DocValueFormat format,
-                InternalAggregations aggregations) {
+        public Bucket(double key, long docCount, boolean keyed, DocValueFormat format, InternalAggregations aggregations) {
             this.format = format;
             this.keyed = keyed;
             this.key = key;
@@ -96,9 +97,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
             Bucket that = (Bucket) obj;
             // No need to take the keyed and format parameters into account,
             // they are already stored and tested on the InternalHistogram object
-            return key == that.key
-                    && docCount == that.docCount
-                    && Objects.equals(aggregations, that.aggregations);
+            return key == that.key && docCount == that.docCount && Objects.equals(aggregations, that.aggregations);
         }
 
         @Override
@@ -197,10 +196,10 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
             }
             EmptyBucketInfo that = (EmptyBucketInfo) obj;
             return interval == that.interval
-                    && offset == that.offset
-                    && minBound == that.minBound
-                    && maxBound == that.maxBound
-                    && Objects.equals(subAggregations, that.subAggregations);
+                && offset == that.offset
+                && minBound == that.minBound
+                && maxBound == that.maxBound
+                && Objects.equals(subAggregations, that.subAggregations);
         }
 
         @Override
@@ -224,7 +223,8 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         EmptyBucketInfo emptyBucketInfo,
         DocValueFormat formatter,
         boolean keyed,
-        Map<String, Object> metadata) {
+        Map<String, Object> metadata
+    ) {
         super(name, metadata);
         this.buckets = buckets;
         this.order = order;
@@ -375,8 +375,9 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
 
         // first adding all the empty buckets *before* the actual data (based on th extended_bounds.min the user requested)
         InternalAggregations reducedEmptySubAggs = InternalAggregations.reduce(
-                Collections.singletonList(emptyBucketInfo.subAggregations),
-                reduceContext);
+            Collections.singletonList(emptyBucketInfo.subAggregations),
+            reduceContext
+        );
 
         if (iter.hasNext() == false) {
             // fill with empty buckets
@@ -427,7 +428,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
                 List<Bucket> reverse = new ArrayList<>(reducedBuckets);
                 Collections.reverse(reverse);
                 reducedBuckets = reverse;
-            } else if (InternalOrder.isKeyAsc(order) ==  false){
+            } else if (InternalOrder.isKeyAsc(order) == false) {
                 // nothing to do when sorting by key ascending, as data is already sorted since shards return
                 // sorted buckets and the merge-sort performed by reduceBuckets maintains order.
                 // otherwise, sorted by compound order or sub-aggregation, we need to fall back to a costly n*log(n) sort
@@ -492,11 +493,11 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
 
         InternalHistogram that = (InternalHistogram) obj;
         return Objects.equals(buckets, that.buckets)
-                && Objects.equals(emptyBucketInfo, that.emptyBucketInfo)
-                && Objects.equals(format, that.format)
-                && Objects.equals(keyed, that.keyed)
-                && Objects.equals(minDocCount, that.minDocCount)
-                && Objects.equals(order, that.order);
+            && Objects.equals(emptyBucketInfo, that.emptyBucketInfo)
+            && Objects.equals(format, that.format)
+            && Objects.equals(keyed, that.keyed)
+            && Objects.equals(minDocCount, that.minDocCount)
+            && Objects.equals(order, that.order);
     }
 
     @Override

@@ -38,5 +38,4 @@ package org.opensearch.action;
  * (e.g. {@link org.opensearch.action.search.TransportMultiSearchAction}), which goes through all sub-requests and delegates their
  * execution to the appropriate transport action (e.g. {@link org.opensearch.action.search.TransportSearchAction}) for each single item.
  */
-public interface CompositeIndicesRequest {
-}
+public interface CompositeIndicesRequest {}

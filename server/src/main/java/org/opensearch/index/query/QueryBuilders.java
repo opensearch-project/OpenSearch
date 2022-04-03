@@ -33,6 +33,7 @@
 package org.opensearch.index.query;
 
 import org.apache.lucene.search.join.ScoreMode;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.ShapeRelation;
@@ -55,8 +56,7 @@ import java.util.List;
  */
 public final class QueryBuilders {
 
-    private QueryBuilders() {
-    }
+    private QueryBuilders() {}
 
     /**
      * A query that matches on all documents.
@@ -296,7 +296,6 @@ public final class QueryBuilders {
         return new WildcardQueryBuilder(name, query);
     }
 
-
     /**
      * A Query that matches documents containing terms with a specified regular expression.
      *
@@ -443,8 +442,10 @@ public final class QueryBuilders {
      * @param filterFunctionBuilders the filters and functions to execute
      * @return the function score query
      */
-    public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder,
-                                                               FunctionScoreQueryBuilder.FilterFunctionBuilder[] filterFunctionBuilders) {
+    public static FunctionScoreQueryBuilder functionScoreQuery(
+        QueryBuilder queryBuilder,
+        FunctionScoreQueryBuilder.FilterFunctionBuilder[] filterFunctionBuilders
+    ) {
         return new FunctionScoreQueryBuilder(queryBuilder, filterFunctionBuilders);
     }
 
@@ -464,7 +465,17 @@ public final class QueryBuilders {
      * @param function The function builder used to custom score
      */
     public static FunctionScoreQueryBuilder functionScoreQuery(ScoreFunctionBuilder function) {
-        return new FunctionScoreQueryBuilder(function);
+        return functionScoreQuery(function, null);
+    }
+
+    /**
+     * A query that allows to define a custom scoring function.
+     *
+     * @param function The function builder used to custom score
+     * @param queryName The query name
+     */
+    public static FunctionScoreQueryBuilder functionScoreQuery(ScoreFunctionBuilder function, @Nullable String queryName) {
+        return new FunctionScoreQueryBuilder(function, queryName);
     }
 
     /**
@@ -486,7 +497,6 @@ public final class QueryBuilders {
     public static ScriptScoreQueryBuilder scriptScoreQuery(QueryBuilder queryBuilder, Script script) {
         return new ScriptScoreQueryBuilder(queryBuilder, script);
     }
-
 
     /**
      * A more like this query that finds documents that are "like" the provided texts or documents
@@ -647,7 +657,6 @@ public final class QueryBuilders {
     public static ScriptQueryBuilder scriptQuery(Script script) {
         return new ScriptQueryBuilder(script);
     }
-
 
     /**
      * A filter to filter based on a specific distance from a specific geo location / point.

@@ -36,7 +36,6 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.DocWriteResponse;
-import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.bulk.BulkItemResponse.Failure;
 import org.opensearch.action.delete.DeleteResponseTests;
 import org.opensearch.action.index.IndexResponseTests;
@@ -157,7 +156,7 @@ public class BulkItemResponseTests extends OpenSearchTestCase {
 
             IndexResponseTests.assertDocWriteResponse(expectedDocResponse, actualDocResponse);
             if (expected.getOpType() == DocWriteRequest.OpType.UPDATE) {
-                assertEquals(((UpdateResponse) expectedDocResponse).getGetResult(), ((UpdateResponse)actualDocResponse).getGetResult());
+                assertEquals(((UpdateResponse) expectedDocResponse).getGetResult(), ((UpdateResponse) actualDocResponse).getGetResult());
             }
         }
     }

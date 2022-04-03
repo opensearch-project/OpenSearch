@@ -29,8 +29,7 @@ public class AllocationConstraints {
         private BalancedShardsAllocator.ModelNode node;
         private String index;
 
-        ConstraintParams(BalancedShardsAllocator.Balancer balancer, BalancedShardsAllocator.ModelNode node,
-                String index) {
+        ConstraintParams(BalancedShardsAllocator.Balancer balancer, BalancedShardsAllocator.ModelNode node, String index) {
             this.balancer = balancer;
             this.node = node;
             this.index = index;
@@ -49,8 +48,7 @@ public class AllocationConstraints {
      * This weight function is used only in case of unassigned shards to avoid overloading a newly added node.
      * Weight calculation in other scenarios like shard movement and re-balancing remain unaffected by this function.
      */
-    public long weight(BalancedShardsAllocator.Balancer balancer, BalancedShardsAllocator.ModelNode node,
-            String index) {
+    public long weight(BalancedShardsAllocator.Balancer balancer, BalancedShardsAllocator.ModelNode node, String index) {
         int constraintsBreached = 0;
         ConstraintParams params = new ConstraintParams(balancer, node, index);
         for (Predicate<ConstraintParams> predicate : constraintPredicates) {

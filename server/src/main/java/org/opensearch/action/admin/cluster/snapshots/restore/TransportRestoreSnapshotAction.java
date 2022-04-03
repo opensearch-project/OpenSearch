@@ -55,11 +55,23 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
     private final RestoreService restoreService;
 
     @Inject
-    public TransportRestoreSnapshotAction(TransportService transportService, ClusterService clusterService,
-                                          ThreadPool threadPool, RestoreService restoreService, ActionFilters actionFilters,
-                                          IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(RestoreSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters,
-              RestoreSnapshotRequest::new,indexNameExpressionResolver);
+    public TransportRestoreSnapshotAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        RestoreService restoreService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            RestoreSnapshotAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            RestoreSnapshotRequest::new,
+            indexNameExpressionResolver
+        );
         this.restoreService = restoreService;
     }
 
@@ -88,15 +100,17 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
     }
 
     @Override
-    protected void masterOperation(final RestoreSnapshotRequest request, final ClusterState state,
-                                   final ActionListener<RestoreSnapshotResponse> listener) {
-        restoreService.restoreSnapshot(request, ActionListener.delegateFailure(listener,
-            (delegatedListener, restoreCompletionResponse) -> {
-                if (restoreCompletionResponse.getRestoreInfo() == null && request.waitForCompletion()) {
-                    RestoreClusterStateListener.createAndRegisterListener(clusterService, restoreCompletionResponse, delegatedListener);
-                } else {
-                    delegatedListener.onResponse(new RestoreSnapshotResponse(restoreCompletionResponse.getRestoreInfo()));
-                }
-            }));
+    protected void masterOperation(
+        final RestoreSnapshotRequest request,
+        final ClusterState state,
+        final ActionListener<RestoreSnapshotResponse> listener
+    ) {
+        restoreService.restoreSnapshot(request, ActionListener.delegateFailure(listener, (delegatedListener, restoreCompletionResponse) -> {
+            if (restoreCompletionResponse.getRestoreInfo() == null && request.waitForCompletion()) {
+                RestoreClusterStateListener.createAndRegisterListener(clusterService, restoreCompletionResponse, delegatedListener);
+            } else {
+                delegatedListener.onResponse(new RestoreSnapshotResponse(restoreCompletionResponse.getRestoreInfo()));
+            }
+        }));
     }
 }

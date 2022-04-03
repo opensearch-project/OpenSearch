@@ -40,7 +40,6 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.Index;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.cluster.metadata.Manifest;
 
 import java.io.IOException;
 import java.util.HashMap;

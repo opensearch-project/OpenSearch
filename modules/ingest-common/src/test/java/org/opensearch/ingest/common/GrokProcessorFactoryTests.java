@@ -129,7 +129,9 @@ public class GrokProcessorFactoryTests extends OpenSearchTestCase {
         config.put("patterns", Collections.singletonList("%{MY_PATTERN:name}!"));
         config.put("pattern_definitions", Collections.singletonMap("MY_PATTERN", "["));
         OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> factory.create(null, null, null, config));
-        assertThat(e.getMessage(),
-            equalTo("[patterns] Invalid regex pattern found in: [%{MY_PATTERN:name}!]. premature end of char-class"));
+        assertThat(
+            e.getMessage(),
+            equalTo("[patterns] Invalid regex pattern found in: [%{MY_PATTERN:name}!]. premature end of char-class")
+        );
     }
 }

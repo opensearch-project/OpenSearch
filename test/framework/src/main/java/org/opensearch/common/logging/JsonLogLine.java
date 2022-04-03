@@ -37,7 +37,6 @@ import org.opensearch.common.xcontent.ObjectParser;
 
 import java.util.List;
 
-
 /**
  * Represents a single log line in a json format.
  * Parsing log lines with this class confirms the json format of logs

@@ -69,8 +69,10 @@ public class SimpleIndexStateIT extends OpenSearchIntegTestCase {
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
         assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.OPEN));
         assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(numShards.numPrimaries));
-        assertEquals(stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size()
-            , numShards.totalNumShards);
+        assertEquals(
+            stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(),
+            numShards.totalNumShards
+        );
 
         logger.info("--> indexing a simple document");
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
@@ -101,8 +103,10 @@ public class SimpleIndexStateIT extends OpenSearchIntegTestCase {
         assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.OPEN));
 
         assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(numShards.numPrimaries));
-        assertEquals(stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(),
-            numShards.totalNumShards);
+        assertEquals(
+            stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(),
+            numShards.totalNumShards
+        );
 
         logger.info("--> indexing a simple document");
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
@@ -110,8 +114,12 @@ public class SimpleIndexStateIT extends OpenSearchIntegTestCase {
 
     public void testFastCloseAfterCreateContinuesCreateAfterOpen() {
         logger.info("--> creating test index that cannot be allocated");
-        client().admin().indices().prepareCreate("test").setWaitForActiveShards(ActiveShardCount.NONE).setSettings(Settings.builder()
-                .put("index.routing.allocation.include.tag", "no_such_node").build()).get();
+        client().admin()
+            .indices()
+            .prepareCreate("test")
+            .setWaitForActiveShards(ActiveShardCount.NONE)
+            .setSettings(Settings.builder().put("index.routing.allocation.include.tag", "no_such_node").build())
+            .get();
 
         ClusterHealthResponse health = client().admin().cluster().prepareHealth("test").setWaitForNodes(">=2").get();
         assertThat(health.isTimedOut(), equalTo(false));
@@ -120,8 +128,11 @@ public class SimpleIndexStateIT extends OpenSearchIntegTestCase {
         assertAcked(client().admin().indices().prepareClose("test").setWaitForActiveShards(ActiveShardCount.NONE));
 
         logger.info("--> updating test index settings to allow allocation");
-        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
-                .put("index.routing.allocation.include.tag", "").build()).get();
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put("index.routing.allocation.include.tag", "").build())
+            .get();
 
         client().admin().indices().prepareOpen("test").get();
 
@@ -133,8 +144,10 @@ public class SimpleIndexStateIT extends OpenSearchIntegTestCase {
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
         assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.OPEN));
         assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(numShards.numPrimaries));
-        assertEquals(stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(),
-            numShards.totalNumShards);
+        assertEquals(
+            stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(),
+            numShards.totalNumShards
+        );
 
         logger.info("--> indexing a simple document");
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
@@ -158,8 +171,11 @@ public class SimpleIndexStateIT extends OpenSearchIntegTestCase {
         }
 
         logger.info("--> creating test index with valid settings ");
-        CreateIndexResponse response = client().admin().indices().prepareCreate("test")
-            .setSettings(Settings.builder().put("number_of_shards", 1)).get();
+        CreateIndexResponse response = client().admin()
+            .indices()
+            .prepareCreate("test")
+            .setSettings(Settings.builder().put("number_of_shards", 1))
+            .get();
         assertThat(response.isAcknowledged(), equalTo(true));
     }
 }

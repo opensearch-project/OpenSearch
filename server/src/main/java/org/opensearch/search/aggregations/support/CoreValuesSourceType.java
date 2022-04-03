@@ -80,8 +80,9 @@ public enum CoreValuesSourceType implements ValuesSourceType {
 
             if ((fieldContext.indexFieldData() instanceof IndexNumericFieldData) == false) {
                 // TODO: Is this the correct exception type here?
-                throw new IllegalArgumentException("Expected numeric type on field [" + fieldContext.field() +
-                    "], but got [" + fieldContext.fieldType().typeName() + "]");
+                throw new IllegalArgumentException(
+                    "Expected numeric type on field [" + fieldContext.field() + "], but got [" + fieldContext.fieldType().typeName() + "]"
+                );
             }
 
             ValuesSource.Numeric dataSource = new ValuesSource.Numeric.FieldData((IndexNumericFieldData) fieldContext.indexFieldData());
@@ -166,8 +167,9 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
             if (!(fieldContext.indexFieldData() instanceof IndexGeoPointFieldData)) {
                 // TODO: Is this the correct exception type here?
-                throw new IllegalArgumentException("Expected geo_point type on field [" + fieldContext.field() +
-                    "], but got [" + fieldContext.fieldType().typeName() + "]");
+                throw new IllegalArgumentException(
+                    "Expected geo_point type on field [" + fieldContext.field() + "], but got [" + fieldContext.fieldType().typeName() + "]"
+                );
             }
 
             return new ValuesSource.GeoPoint.Fielddata((IndexGeoPointFieldData) fieldContext.indexFieldData());
@@ -263,11 +265,11 @@ public enum CoreValuesSourceType implements ValuesSourceType {
 
         private ValuesSource.Numeric fieldData(FieldContext fieldContext) {
             if ((fieldContext.indexFieldData() instanceof IndexNumericFieldData) == false) {
-                throw new IllegalArgumentException("Expected numeric type on field [" + fieldContext.field() +
-                    "], but got [" + fieldContext.fieldType().typeName() + "]");
+                throw new IllegalArgumentException(
+                    "Expected numeric type on field [" + fieldContext.field() + "], but got [" + fieldContext.fieldType().typeName() + "]"
+                );
             }
-            if (fieldContext.fieldType().isSearchable() == false
-                    || fieldContext.fieldType() instanceof DateFieldType == false) {
+            if (fieldContext.fieldType().isSearchable() == false || fieldContext.fieldType() instanceof DateFieldType == false) {
                 /*
                  * We can't implement roundingPreparer in these cases because
                  * we can't look up the min and max date without both the
@@ -307,12 +309,13 @@ public enum CoreValuesSourceType implements ValuesSourceType {
 
         @Override
         public DocValueFormat getFormatter(String format, ZoneId tz) {
-            return  new DocValueFormat.DateTime(
+            return new DocValueFormat.DateTime(
                 format == null ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER : DateFormatter.forPattern(format),
                 tz == null ? ZoneOffset.UTC : tz,
                 // If we were just looking at fields, we could read the resolution from the field settings, but we need to deal with script
-                // output, which has no way to indicate the resolution, so we need to default to something.  Milliseconds is the standard.
-                DateFieldMapper.Resolution.MILLISECONDS);
+                // output, which has no way to indicate the resolution, so we need to default to something. Milliseconds is the standard.
+                DateFieldMapper.Resolution.MILLISECONDS
+            );
         }
     },
     BOOLEAN() {
@@ -340,8 +343,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         public DocValueFormat getFormatter(String format, ZoneId tz) {
             return DocValueFormat.BOOLEAN;
         }
-    }
-    ;
+    };
 
     public static ValuesSourceType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

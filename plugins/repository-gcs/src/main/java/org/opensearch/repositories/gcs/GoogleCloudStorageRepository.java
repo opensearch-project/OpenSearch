@@ -68,14 +68,17 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
 
     static final String TYPE = "gcs";
 
-    static final Setting<String> BUCKET =
-            simpleString("bucket", Property.NodeScope, Property.Dynamic);
-    static final Setting<String> BASE_PATH =
-            simpleString("base_path", Property.NodeScope, Property.Dynamic);
-    static final Setting<Boolean> COMPRESS =
-            boolSetting("compress", false, Property.NodeScope, Property.Dynamic);
-    static final Setting<ByteSizeValue> CHUNK_SIZE =
-            byteSizeSetting("chunk_size", MAX_CHUNK_SIZE, MIN_CHUNK_SIZE, MAX_CHUNK_SIZE, Property.NodeScope, Property.Dynamic);
+    static final Setting<String> BUCKET = simpleString("bucket", Property.NodeScope, Property.Dynamic);
+    static final Setting<String> BASE_PATH = simpleString("base_path", Property.NodeScope, Property.Dynamic);
+    static final Setting<Boolean> COMPRESS = boolSetting("compress", false, Property.NodeScope, Property.Dynamic);
+    static final Setting<ByteSizeValue> CHUNK_SIZE = byteSizeSetting(
+        "chunk_size",
+        MAX_CHUNK_SIZE,
+        MIN_CHUNK_SIZE,
+        MAX_CHUNK_SIZE,
+        Property.NodeScope,
+        Property.Dynamic
+    );
     static final Setting<String> CLIENT_NAME = new Setting<>("client", "default", Function.identity());
 
     private final GoogleCloudStorageService storageService;
@@ -89,7 +92,8 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         final NamedXContentRegistry namedXContentRegistry,
         final GoogleCloudStorageService storageService,
         final ClusterService clusterService,
-        final RecoverySettings recoverySettings) {
+        final RecoverySettings recoverySettings
+    ) {
         super(metadata, getSetting(COMPRESS, metadata), namedXContentRegistry, clusterService, recoverySettings, buildLocation(metadata));
         this.storageService = storageService;
 
@@ -111,8 +115,12 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     }
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
-        return org.opensearch.common.collect.Map.of("base_path", BASE_PATH.get(metadata.settings()),
-            "bucket", getSetting(BUCKET, metadata));
+        return org.opensearch.common.collect.Map.of(
+            "base_path",
+            BASE_PATH.get(metadata.settings()),
+            "bucket",
+            getSetting(BUCKET, metadata)
+        );
     }
 
     @Override

@@ -74,9 +74,12 @@ public class UserAgentProcessorFactoryTests extends OpenSearchTestCase {
         Files.createDirectories(userAgentConfigDir);
 
         // Copy file, leaving out the device parsers at the end
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(UserAgentProcessor.class.getResourceAsStream("/regexes.yml"), StandardCharsets.UTF_8));
-                BufferedWriter writer = Files.newBufferedWriter(userAgentConfigDir.resolve(regexWithoutDevicesFilename));) {
+        try (
+            BufferedReader reader = new BufferedReader(
+                new InputStreamReader(UserAgentProcessor.class.getResourceAsStream("/regexes.yml"), StandardCharsets.UTF_8)
+            );
+            BufferedWriter writer = Files.newBufferedWriter(userAgentConfigDir.resolve(regexWithoutDevicesFilename));
+        ) {
             String line;
             while ((line = reader.readLine()) != null) {
                 if (line.startsWith("device_parsers:")) {
@@ -212,8 +215,13 @@ public class UserAgentProcessorFactoryTests extends OpenSearchTestCase {
         config.put("properties", Collections.singletonList("invalid"));
 
         OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> factory.create(null, null, null, config));
-        assertThat(e.getMessage(), equalTo("[properties] illegal property value [invalid]. valid values are [NAME, MAJOR, MINOR, "
-                + "PATCH, OS, OS_NAME, OS_MAJOR, OS_MINOR, DEVICE, BUILD, ORIGINAL, VERSION]"));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "[properties] illegal property value [invalid]. valid values are [NAME, MAJOR, MINOR, "
+                    + "PATCH, OS, OS_NAME, OS_MAJOR, OS_MINOR, DEVICE, BUILD, ORIGINAL, VERSION]"
+            )
+        );
     }
 
     public void testInvalidPropertiesType() throws Exception {

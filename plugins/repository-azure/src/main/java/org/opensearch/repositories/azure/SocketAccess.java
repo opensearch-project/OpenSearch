@@ -32,7 +32,7 @@
 
 package org.opensearch.repositories.azure;
 
-import com.microsoft.azure.storage.StorageException;
+import com.azure.storage.blob.models.BlobStorageException;
 import org.apache.logging.log4j.core.util.Throwables;
 import org.opensearch.SpecialPermission;
 
@@ -64,7 +64,7 @@ public final class SocketAccess {
         }
     }
 
-    public static <T> T doPrivilegedException(PrivilegedExceptionAction<T> operation) throws StorageException {
+    public static <T> T doPrivilegedException(PrivilegedExceptionAction<T> operation) throws BlobStorageException {
         SpecialPermission.check();
         try {
             return AccessController.doPrivileged(operation);
@@ -75,7 +75,7 @@ public final class SocketAccess {
         }
     }
 
-    public static void doPrivilegedVoidException(StorageRunnable action) throws StorageException, URISyntaxException {
+    public static void doPrivilegedVoidException(StorageRunnable action) throws BlobStorageException, URISyntaxException {
         SpecialPermission.check();
         try {
             AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
@@ -89,7 +89,7 @@ public final class SocketAccess {
 
     @FunctionalInterface
     public interface StorageRunnable {
-        void executeCouldThrow() throws StorageException, URISyntaxException, IOException;
+        void executeCouldThrow() throws BlobStorageException, URISyntaxException, IOException;
     }
 
 }

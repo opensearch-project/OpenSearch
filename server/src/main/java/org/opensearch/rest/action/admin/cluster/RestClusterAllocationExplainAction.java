@@ -60,9 +60,7 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_cluster/allocation/explain"),
-            new Route(POST, "/_cluster/allocation/explain")));
+        return unmodifiableList(asList(new Route(GET, "/_cluster/allocation/explain"), new Route(POST, "/_cluster/allocation/explain")));
     }
 
     @Override
@@ -89,8 +87,9 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
 
         req.includeYesDecisions(request.paramAsBoolean("include_yes_decisions", false));
         req.includeDiskInfo(request.paramAsBoolean("include_disk_info", false));
-        return channel -> client.admin().cluster().allocationExplain(req,
-            new RestBuilderListener<ClusterAllocationExplainResponse>(channel) {
+        return channel -> client.admin()
+            .cluster()
+            .allocationExplain(req, new RestBuilderListener<ClusterAllocationExplainResponse>(channel) {
                 @Override
                 public RestResponse buildResponse(ClusterAllocationExplainResponse response, XContentBuilder builder) throws IOException {
                     response.getExplanation().toXContent(builder, ToXContent.EMPTY_PARAMS);

@@ -66,8 +66,11 @@ public interface RejectAwareActionListener<T> extends ActionListener<T> {
     /**
      * Similar to {@link ActionListener#wrap(CheckedConsumer, Consumer)}, extended to have handler for onRejection.
      */
-    static <Response> RejectAwareActionListener<Response> wrap(CheckedConsumer<Response, ? extends Exception> onResponse,
-                                                    Consumer<Exception> onFailure, Consumer<Exception> onRejection) {
+    static <Response> RejectAwareActionListener<Response> wrap(
+        CheckedConsumer<Response, ? extends Exception> onResponse,
+        Consumer<Exception> onFailure,
+        Consumer<Exception> onRejection
+    ) {
         return new RejectAwareActionListener<Response>() {
             @Override
             public void onResponse(Response response) {
@@ -91,4 +94,3 @@ public interface RejectAwareActionListener<T> extends ActionListener<T> {
     }
 
 }
-

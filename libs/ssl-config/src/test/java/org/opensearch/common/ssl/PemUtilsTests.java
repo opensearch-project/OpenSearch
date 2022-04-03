@@ -107,8 +107,7 @@ public class PemUtilsTests extends OpenSearchTestCase {
         Key key = getKeyFromKeystore("RSA");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath
-            ("/certs/pem-utils/key_pkcs8_encrypted.pem"), TESTNODE_PASSWORD);
+        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/key_pkcs8_encrypted.pem"), TESTNODE_PASSWORD);
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
     }
@@ -157,8 +156,10 @@ public class PemUtilsTests extends OpenSearchTestCase {
         Key key = getKeyFromKeystore("DSA");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/dsa_key_openssl_plain_with_params.pem"),
-            EMPTY_PASSWORD);
+        PrivateKey privateKey = PemUtils.readPrivateKey(
+            getDataPath("/certs/pem-utils/dsa_key_openssl_plain_with_params.pem"),
+            EMPTY_PASSWORD
+        );
 
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
@@ -188,8 +189,10 @@ public class PemUtilsTests extends OpenSearchTestCase {
         Key key = getKeyFromKeystore("EC");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/ec_key_openssl_plain_with_params.pem"),
-            EMPTY_PASSWORD);
+        PrivateKey privateKey = PemUtils.readPrivateKey(
+            getDataPath("/certs/pem-utils/ec_key_openssl_plain_with_params.pem"),
+            EMPTY_PASSWORD
+        );
 
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));

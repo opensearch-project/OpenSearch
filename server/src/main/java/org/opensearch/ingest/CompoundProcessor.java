@@ -72,8 +72,13 @@ public class CompoundProcessor implements Processor {
     public CompoundProcessor(boolean ignoreFailure, List<Processor> processors, List<Processor> onFailureProcessors) {
         this(ignoreFailure, processors, onFailureProcessors, System::nanoTime);
     }
-    CompoundProcessor(boolean ignoreFailure, List<Processor> processors, List<Processor> onFailureProcessors,
-                      LongSupplier relativeTimeProvider) {
+
+    CompoundProcessor(
+        boolean ignoreFailure,
+        List<Processor> processors,
+        List<Processor> onFailureProcessors,
+        LongSupplier relativeTimeProvider
+    ) {
         super();
         this.ignoreFailure = ignoreFailure;
         this.processors = processors;
@@ -162,8 +167,7 @@ public class CompoundProcessor implements Processor {
                 if (ignoreFailure) {
                     innerExecute(currentProcessor + 1, ingestDocument, handler);
                 } else {
-                    IngestProcessorException compoundProcessorException =
-                        newCompoundProcessorException(e, processor, ingestDocument);
+                    IngestProcessorException compoundProcessorException = newCompoundProcessorException(e, processor, ingestDocument);
                     if (onFailureProcessors.isEmpty()) {
                         handler.accept(null, compoundProcessorException);
                     } else {
@@ -180,8 +184,12 @@ public class CompoundProcessor implements Processor {
         });
     }
 
-    void executeOnFailureAsync(int currentOnFailureProcessor, IngestDocument ingestDocument, OpenSearchException exception,
-                               BiConsumer<IngestDocument, Exception> handler) {
+    void executeOnFailureAsync(
+        int currentOnFailureProcessor,
+        IngestDocument ingestDocument,
+        OpenSearchException exception,
+        BiConsumer<IngestDocument, Exception> handler
+    ) {
         if (currentOnFailureProcessor == 0) {
             putFailureMetadata(ingestDocument, exception);
         }

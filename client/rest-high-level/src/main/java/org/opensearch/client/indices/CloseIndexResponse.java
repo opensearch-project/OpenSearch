@@ -51,13 +51,16 @@ import static org.opensearch.common.xcontent.ObjectParser.ValueType;
 public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<CloseIndexResponse, Void> PARSER = new ConstructingObjectParser<>("close_index_response",
-        true, args -> {
-        boolean acknowledged = (boolean) args[0];
-        boolean shardsAcknowledged = args[1] != null ? (boolean) args[1] : acknowledged;
-        List<CloseIndexResponse.IndexResult> indices = args[2] != null ? (List<CloseIndexResponse.IndexResult>) args[2] : emptyList();
-        return new CloseIndexResponse(acknowledged, shardsAcknowledged, indices);
-    });
+    private static final ConstructingObjectParser<CloseIndexResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "close_index_response",
+        true,
+        args -> {
+            boolean acknowledged = (boolean) args[0];
+            boolean shardsAcknowledged = args[1] != null ? (boolean) args[1] : acknowledged;
+            List<CloseIndexResponse.IndexResult> indices = args[2] != null ? (List<CloseIndexResponse.IndexResult>) args[2] : emptyList();
+            return new CloseIndexResponse(acknowledged, shardsAcknowledged, indices);
+        }
+    );
 
     static {
         declareAcknowledgedField(PARSER);
@@ -83,7 +86,9 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
     public static class IndexResult {
 
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<IndexResult, String> PARSER = new ConstructingObjectParser<>("index_result", true,
+        private static final ConstructingObjectParser<IndexResult, String> PARSER = new ConstructingObjectParser<>(
+            "index_result",
+            true,
             (args, index) -> {
                 Exception exception = (Exception) args[1];
                 if (exception != null) {
@@ -97,7 +102,8 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
                 }
                 assert (boolean) args[0];
                 return new IndexResult(index);
-            });
+            }
+        );
         static {
             PARSER.declareBoolean(optionalConstructorArg(), new ParseField("closed"));
             PARSER.declareObject(optionalConstructorArg(), (p, c) -> {
@@ -107,8 +113,11 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
                 XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, p.nextToken(), p);
                 return e;
             }, new ParseField("exception"));
-            PARSER.declareNamedObjects(optionalConstructorArg(),
-                (p, c, id) -> ShardResult.fromXContent(p, id), new ParseField("failedShards"));
+            PARSER.declareNamedObjects(
+                optionalConstructorArg(),
+                (p, c, id) -> ShardResult.fromXContent(p, id),
+                new ParseField("failedShards")
+            );
         }
 
         private final String index;
@@ -167,11 +176,14 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
     public static class ShardResult {
 
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<ShardResult, String> PARSER = new ConstructingObjectParser<>("shard_result", true,
+        private static final ConstructingObjectParser<ShardResult, String> PARSER = new ConstructingObjectParser<>(
+            "shard_result",
+            true,
             (arg, id) -> {
                 Failure[] failures = arg[0] != null ? ((List<Failure>) arg[0]).toArray(new Failure[0]) : new Failure[0];
                 return new ShardResult(Integer.parseInt(id), failures);
-            });
+            }
+        );
 
         static {
             PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> Failure.PARSER.apply(p, null), new ParseField("failures"));
@@ -203,8 +215,11 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
         public static class Failure extends DefaultShardOperationFailedException {
 
-            static final ConstructingObjectParser<Failure, Void> PARSER = new ConstructingObjectParser<>("failure", true,
-                arg -> new Failure((String) arg[0], (int) arg[1], (Throwable) arg[2], (String) arg[3]));
+            static final ConstructingObjectParser<Failure, Void> PARSER = new ConstructingObjectParser<>(
+                "failure",
+                true,
+                arg -> new Failure((String) arg[0], (int) arg[1], (Throwable) arg[2], (String) arg[3])
+            );
 
             static {
                 declareFields(PARSER);

@@ -134,10 +134,10 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DiscoveryNodeRole that = (DiscoveryNodeRole) o;
-        return roleName.equals(that.roleName) &&
-            roleNameAbbreviation.equals(that.roleNameAbbreviation) &&
-            canContainData == that.canContainData &&
-            isKnownRole == that.isKnownRole;
+        return roleName.equals(that.roleName)
+            && roleNameAbbreviation.equals(that.roleNameAbbreviation)
+            && canContainData == that.canContainData
+            && isKnownRole == that.isKnownRole;
     }
 
     @Override
@@ -152,12 +152,17 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
 
     @Override
     public final String toString() {
-        return "DiscoveryNodeRole{" +
-                "roleName='" + roleName + '\'' +
-                ", roleNameAbbreviation='" + roleNameAbbreviation + '\'' +
-                ", canContainData=" + canContainData +
-                (isKnownRole ? "" : ", isKnownRole=false") +
-                '}';
+        return "DiscoveryNodeRole{"
+            + "roleName='"
+            + roleName
+            + '\''
+            + ", roleNameAbbreviation='"
+            + roleNameAbbreviation
+            + '\''
+            + ", canContainData="
+            + canContainData
+            + (isKnownRole ? "" : ", isKnownRole=false")
+            + '}';
     }
 
     /**
@@ -218,7 +223,8 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
      * The built-in node roles.
      */
     public static SortedSet<DiscoveryNodeRole> BUILT_IN_ROLES = Collections.unmodifiableSortedSet(
-        new TreeSet<>(Arrays.asList(DATA_ROLE, INGEST_ROLE, MASTER_ROLE, REMOTE_CLUSTER_CLIENT_ROLE)));
+        new TreeSet<>(Arrays.asList(DATA_ROLE, INGEST_ROLE, MASTER_ROLE, REMOTE_CLUSTER_CLIENT_ROLE))
+    );
 
     /**
      * The version that {@link #REMOTE_CLUSTER_CLIENT_ROLE} is introduced. Nodes before this version do not have that role even
@@ -226,8 +232,9 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
      */
     public static final Version REMOTE_CLUSTER_CLIENT_ROLE_VERSION = LegacyESVersion.fromString("7.8.0");
 
-    static SortedSet<DiscoveryNodeRole> LEGACY_ROLES =
-        Collections.unmodifiableSortedSet(new TreeSet<>(Arrays.asList(DATA_ROLE, INGEST_ROLE, MASTER_ROLE)));
+    static SortedSet<DiscoveryNodeRole> LEGACY_ROLES = Collections.unmodifiableSortedSet(
+        new TreeSet<>(Arrays.asList(DATA_ROLE, INGEST_ROLE, MASTER_ROLE))
+    );
 
     /**
      * Represents an unknown role. This can occur if a newer version adds a role that an older version does not know about, or a newer

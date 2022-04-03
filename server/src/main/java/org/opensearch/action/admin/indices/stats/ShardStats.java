@@ -88,12 +88,13 @@ public class ShardStats implements Writeable, ToXContentFragment {
     }
 
     public ShardStats(
-            final ShardRouting routing,
-            final ShardPath shardPath,
-            final CommonStats commonStats,
-            final CommitStats commitStats,
-            final SeqNoStats seqNoStats,
-            final RetentionLeaseStats retentionLeaseStats) {
+        final ShardRouting routing,
+        final ShardPath shardPath,
+        final CommonStats commonStats,
+        final CommitStats commitStats,
+        final SeqNoStats seqNoStats,
+        final RetentionLeaseStats retentionLeaseStats
+    ) {
         this.shardRouting = routing;
         this.dataPath = shardPath.getRootDataPath().toString();
         this.statePath = shardPath.getRootStatePath().toString();
@@ -156,11 +157,11 @@ public class ShardStats implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.ROUTING)
-                .field(Fields.STATE, shardRouting.state())
-                .field(Fields.PRIMARY, shardRouting.primary())
-                .field(Fields.NODE, shardRouting.currentNodeId())
-                .field(Fields.RELOCATING_NODE, shardRouting.relocatingNodeId())
-                .endObject();
+            .field(Fields.STATE, shardRouting.state())
+            .field(Fields.PRIMARY, shardRouting.primary())
+            .field(Fields.NODE, shardRouting.currentNodeId())
+            .field(Fields.RELOCATING_NODE, shardRouting.relocatingNodeId())
+            .endObject();
 
         commonStats.toXContent(builder, params);
         if (commitStats != null) {

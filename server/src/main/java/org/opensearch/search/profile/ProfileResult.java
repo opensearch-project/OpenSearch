@@ -78,8 +78,14 @@ public final class ProfileResult implements Writeable, ToXContentObject {
     private final long nodeTime;
     private final List<ProfileResult> children;
 
-    public ProfileResult(String type, String description, Map<String, Long> breakdown, Map<String, Object> debug,
-            long nodeTime, List<ProfileResult> children) {
+    public ProfileResult(
+        String type,
+        String description,
+        Map<String, Long> breakdown,
+        Map<String, Object> debug,
+        long nodeTime,
+        List<ProfileResult> children
+    ) {
         this.type = type;
         this.description = description;
         this.breakdown = Objects.requireNonNull(breakdown, "required breakdown argument missing");
@@ -91,7 +97,7 @@ public final class ProfileResult implements Writeable, ToXContentObject {
     /**
      * Read from a stream.
      */
-    public ProfileResult(StreamInput in) throws IOException{
+    public ProfileResult(StreamInput in) throws IOException {
         this.type = in.readString();
         this.description = in.readString();
         this.nodeTime = in.readLong();
@@ -187,8 +193,11 @@ public final class ProfileResult implements Writeable, ToXContentObject {
 
     private static final InstantiatingObjectParser<ProfileResult, Void> PARSER;
     static {
-        InstantiatingObjectParser.Builder<ProfileResult, Void> parser =
-                InstantiatingObjectParser.builder("profile_result", true, ProfileResult.class);
+        InstantiatingObjectParser.Builder<ProfileResult, Void> parser = InstantiatingObjectParser.builder(
+            "profile_result",
+            true,
+            ProfileResult.class
+        );
         parser.declareString(constructorArg(), TYPE);
         parser.declareString(constructorArg(), DESCRIPTION);
         parser.declareObject(constructorArg(), (p, c) -> p.map(), BREAKDOWN);
@@ -197,6 +206,7 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         parser.declareObjectArray(optionalConstructorArg(), (p, c) -> fromXContent(p), CHILDREN);
         PARSER = parser.build();
     }
+
     public static ProfileResult fromXContent(XContentParser p) throws IOException {
         return PARSER.parse(p, null);
     }

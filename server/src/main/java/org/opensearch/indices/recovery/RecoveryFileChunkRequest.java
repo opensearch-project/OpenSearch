@@ -70,8 +70,17 @@ public final class RecoveryFileChunkRequest extends RecoveryTransportRequest {
         sourceThrottleTimeInNanos = in.readLong();
     }
 
-    public RecoveryFileChunkRequest(long recoveryId, final long requestSeqNo, ShardId shardId, StoreFileMetadata metadata, long position,
-                                    BytesReference content, boolean lastChunk, int totalTranslogOps, long sourceThrottleTimeInNanos) {
+    public RecoveryFileChunkRequest(
+        long recoveryId,
+        final long requestSeqNo,
+        ShardId shardId,
+        StoreFileMetadata metadata,
+        long position,
+        BytesReference content,
+        boolean lastChunk,
+        int totalTranslogOps,
+        long sourceThrottleTimeInNanos
+    ) {
         super(requestSeqNo);
         this.recoveryId = recoveryId;
         this.shardId = shardId;
@@ -133,9 +142,7 @@ public final class RecoveryFileChunkRequest extends RecoveryTransportRequest {
 
     @Override
     public String toString() {
-        return shardId + ": name='" + name() + '\'' +
-                ", position=" + position +
-                ", length=" + length();
+        return shardId + ": name='" + name() + '\'' + ", position=" + position + ", length=" + length();
     }
 
     public StoreFileMetadata metadata() {

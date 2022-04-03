@@ -34,6 +34,7 @@ package org.opensearch.index.query.functionscore;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
@@ -111,7 +112,17 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
      * @param filterFunctionBuilders the filters and functions
      */
     public FunctionScoreQueryBuilder(FilterFunctionBuilder[] filterFunctionBuilders) {
-        this(new MatchAllQueryBuilder(), filterFunctionBuilders);
+        this(filterFunctionBuilders, null);
+    }
+
+    /**
+     * Creates a function_score query that executes the provided filters and functions on all documents
+     *
+     * @param filterFunctionBuilders the filters and functions
+     * @param queryName the query name
+     */
+    public FunctionScoreQueryBuilder(FilterFunctionBuilder[] filterFunctionBuilders, @Nullable String queryName) {
+        this(new MatchAllQueryBuilder().queryName(queryName), filterFunctionBuilders);
     }
 
     /**
@@ -120,7 +131,20 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
      * @param scoreFunctionBuilder score function that is executed
      */
     public FunctionScoreQueryBuilder(ScoreFunctionBuilder<?> scoreFunctionBuilder) {
-        this(new MatchAllQueryBuilder(), new FilterFunctionBuilder[]{new FilterFunctionBuilder(scoreFunctionBuilder)});
+        this(scoreFunctionBuilder, null);
+    }
+
+    /**
+     * Creates a function_score query that will execute the function provided on all documents
+     *
+     * @param scoreFunctionBuilder score function that is executed
+     * @param queryName the query name
+     */
+    public FunctionScoreQueryBuilder(ScoreFunctionBuilder<?> scoreFunctionBuilder, @Nullable String queryName) {
+        this(
+            new MatchAllQueryBuilder().queryName(queryName),
+            new FilterFunctionBuilder[] { new FilterFunctionBuilder(scoreFunctionBuilder) }
+        );
     }
 
     /**
@@ -130,7 +154,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
      * @param scoreFunctionBuilder score function that is executed
      */
     public FunctionScoreQueryBuilder(QueryBuilder query, ScoreFunctionBuilder<?> scoreFunctionBuilder) {
-        this(query, new FilterFunctionBuilder[]{new FilterFunctionBuilder(scoreFunctionBuilder)});
+        this(query, new FilterFunctionBuilder[] { new FilterFunctionBuilder(scoreFunctionBuilder) });
     }
 
     /**
@@ -290,18 +314,24 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
 
     @Override
     protected boolean doEquals(FunctionScoreQueryBuilder other) {
-        return Objects.equals(this.query, other.query) &&
-                Arrays.equals(this.filterFunctionBuilders, other.filterFunctionBuilders) &&
-                Objects.equals(this.boostMode, other.boostMode) &&
-                Objects.equals(this.scoreMode, other.scoreMode) &&
-                Objects.equals(this.minScore, other.minScore) &&
-                Objects.equals(this.maxBoost, other.maxBoost);
+        return Objects.equals(this.query, other.query)
+            && Arrays.equals(this.filterFunctionBuilders, other.filterFunctionBuilders)
+            && Objects.equals(this.boostMode, other.boostMode)
+            && Objects.equals(this.scoreMode, other.scoreMode)
+            && Objects.equals(this.minScore, other.minScore)
+            && Objects.equals(this.maxBoost, other.maxBoost);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(this.query, Arrays.hashCode(this.filterFunctionBuilders), this.boostMode, this.scoreMode, this.minScore,
-                this.maxBoost);
+        return Objects.hash(
+            this.query,
+            Arrays.hashCode(this.filterFunctionBuilders),
+            this.boostMode,
+            this.scoreMode,
+            this.minScore,
+            this.maxBoost
+        );
     }
 
     @Override
@@ -310,15 +340,17 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         int i = 0;
         for (FilterFunctionBuilder filterFunctionBuilder : filterFunctionBuilders) {
             ScoreFunction scoreFunction = filterFunctionBuilder.getScoreFunction().toFunction(context);
-            if (filterFunctionBuilder.getFilter().getName().equals(MatchAllQueryBuilder.NAME)) {
+            final QueryBuilder builder = filterFunctionBuilder.getFilter();
+            if (builder.getName().equals(MatchAllQueryBuilder.NAME)) {
                 filterFunctions[i++] = scoreFunction;
             } else {
-                Query filter = filterFunctionBuilder.getFilter().toQuery(context);
-                filterFunctions[i++] = new FunctionScoreQuery.FilterScoreFunction(filter, scoreFunction);
+                Query filter = builder.toQuery(context);
+                filterFunctions[i++] = new FunctionScoreQuery.FilterScoreFunction(filter, scoreFunction, builder.queryName());
             }
         }
 
-        Query query = this.query.toQuery(context);
+        final QueryBuilder builder = this.query;
+        Query query = builder.toQuery(context);
         if (query == null) {
             query = new MatchAllDocsQuery();
         }
@@ -326,12 +358,12 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         CombineFunction boostMode = this.boostMode == null ? DEFAULT_BOOST_MODE : this.boostMode;
         // handle cases where only one score function and no filter was provided. In this case we create a FunctionScoreQuery.
         if (filterFunctions.length == 0) {
-            return new FunctionScoreQuery(query, minScore, maxBoost);
+            return new FunctionScoreQuery(query, builder.queryName(), minScore, maxBoost);
         } else if (filterFunctions.length == 1 && filterFunctions[0] instanceof FunctionScoreQuery.FilterScoreFunction == false) {
-            return new FunctionScoreQuery(query, filterFunctions[0], boostMode, minScore, maxBoost);
+            return new FunctionScoreQuery(query, builder.queryName(), filterFunctions[0], boostMode, minScore, maxBoost);
         }
         // in all other cases we create a FunctionScoreQuery with filters
-        return new FunctionScoreQuery(query, scoreMode, filterFunctions, boostMode, minScore, maxBoost);
+        return new FunctionScoreQuery(query, builder.queryName(), scoreMode, filterFunctions, boostMode, minScore, maxBoost);
     }
 
     /**
@@ -403,8 +435,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                 return false;
             }
             FilterFunctionBuilder that = (FilterFunctionBuilder) obj;
-            return Objects.equals(this.filter, that.filter) &&
-                    Objects.equals(this.scoreFunction, that.scoreFunction);
+            return Objects.equals(this.filter, that.filter) && Objects.equals(this.scoreFunction, that.scoreFunction);
         }
 
         public FilterFunctionBuilder rewrite(QueryRewriteContext context) throws IOException {
@@ -470,16 +501,23 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (query != null) {
-                        throw new ParsingException(parser.getTokenLocation(), "failed to parse [{}] query. [query] is already defined.",
-                                NAME);
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "failed to parse [{}] query. [query] is already defined.",
+                            NAME
+                        );
                     }
                     query = parseInnerQueryBuilder(parser);
                 } else {
                     if (singleFunctionFound) {
-                        throw new ParsingException(parser.getTokenLocation(),
-                                "failed to parse [{}] query. already found function [{}], now encountering [{}]. use [functions] "
-                                        + "array if you want to define several functions.",
-                                NAME, singleFunctionName, currentFieldName);
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "failed to parse [{}] query. already found function [{}], now encountering [{}]. use [functions] "
+                                + "array if you want to define several functions.",
+                            NAME,
+                            singleFunctionName,
+                            currentFieldName
+                        );
                     }
                     if (functionArrayFound) {
                         String errorString = "already found [functions] array, now encountering [" + currentFieldName + "].";
@@ -488,8 +526,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                     singleFunctionFound = true;
                     singleFunctionName = currentFieldName;
 
-                        ScoreFunctionBuilder<?> scoreFunction = parser.namedObject(ScoreFunctionBuilder.class, currentFieldName,
-                                null);
+                    ScoreFunctionBuilder<?> scoreFunction = parser.namedObject(ScoreFunctionBuilder.class, currentFieldName, null);
                     filterFunctionBuilders.add(new FunctionScoreQueryBuilder.FilterFunctionBuilder(scoreFunction));
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
@@ -501,8 +538,12 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                     functionArrayFound = true;
                     currentFieldName = parseFiltersAndFunctions(parser, filterFunctionBuilders);
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "failed to parse [{}] query. array [{}] is not supported",
-                            NAME, currentFieldName);
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "failed to parse [{}] query. array [{}] is not supported",
+                        NAME,
+                        currentFieldName
+                    );
                 }
 
             } else if (token.isValue()) {
@@ -520,10 +561,14 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                     minScore = parser.floatValue();
                 } else {
                     if (singleFunctionFound) {
-                        throw new ParsingException(parser.getTokenLocation(),
-                                "failed to parse [{}] query. already found function [{}], now encountering [{}]. use [functions] array "
-                                        + "if you want to define several functions.",
-                                NAME, singleFunctionName, currentFieldName);
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "failed to parse [{}] query. already found function [{}], now encountering [{}]. use [functions] array "
+                                + "if you want to define several functions.",
+                            NAME,
+                            singleFunctionName,
+                            currentFieldName
+                        );
                     }
                     if (functionArrayFound) {
                         String errorString = "already found [functions] array, now encountering [" + currentFieldName + "].";
@@ -531,12 +576,17 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                     }
                     if (WEIGHT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         filterFunctionBuilders.add(
-                                new FunctionScoreQueryBuilder.FilterFunctionBuilder(new WeightBuilder().setWeight(parser.floatValue())));
+                            new FunctionScoreQueryBuilder.FilterFunctionBuilder(new WeightBuilder().setWeight(parser.floatValue()))
+                        );
                         singleFunctionFound = true;
                         singleFunctionName = currentFieldName;
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(), "failed to parse [{}] query. field [{}] is not supported",
-                                NAME, currentFieldName);
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "failed to parse [{}] query. field [{}] is not supported",
+                            NAME,
+                            currentFieldName
+                        );
                     }
                 }
             }
@@ -546,8 +596,10 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
             query = new MatchAllQueryBuilder();
         }
 
-        FunctionScoreQueryBuilder functionScoreQueryBuilder = new FunctionScoreQueryBuilder(query,
-                filterFunctionBuilders.toArray(new FunctionScoreQueryBuilder.FilterFunctionBuilder[filterFunctionBuilders.size()]));
+        FunctionScoreQueryBuilder functionScoreQueryBuilder = new FunctionScoreQueryBuilder(
+            query,
+            filterFunctionBuilders.toArray(new FunctionScoreQueryBuilder.FilterFunctionBuilder[filterFunctionBuilders.size()])
+        );
         if (combineFunction != null) {
             functionScoreQueryBuilder.boostMode(combineFunction);
         }
@@ -562,22 +614,33 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     }
 
     private static void handleMisplacedFunctionsDeclaration(XContentLocation contentLocation, String errorString) {
-        throw new ParsingException(contentLocation, "failed to parse [{}] query. [{}]", NAME,
-                MISPLACED_FUNCTION_MESSAGE_PREFIX + errorString);
+        throw new ParsingException(
+            contentLocation,
+            "failed to parse [{}] query. [{}]",
+            NAME,
+            MISPLACED_FUNCTION_MESSAGE_PREFIX + errorString
+        );
     }
 
-    private static String parseFiltersAndFunctions(XContentParser parser,
-            List<FunctionScoreQueryBuilder.FilterFunctionBuilder> filterFunctionBuilders) throws IOException {
+    private static String parseFiltersAndFunctions(
+        XContentParser parser,
+        List<FunctionScoreQueryBuilder.FilterFunctionBuilder> filterFunctionBuilders
+    ) throws IOException {
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             QueryBuilder filter = null;
             ScoreFunctionBuilder<?> scoreFunction = null;
             Float functionWeight = null;
+            String functionName = null;
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new ParsingException(parser.getTokenLocation(),
-                        "failed to parse [{}]. malformed query, expected a [{}] while parsing functions but got a [{}] instead",
-                        XContentParser.Token.START_OBJECT, token, NAME);
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "failed to parse [{}]. malformed query, expected a [{}] while parsing functions but got a [{}] instead",
+                    XContentParser.Token.START_OBJECT,
+                    token,
+                    NAME
+                );
             } else {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -587,18 +650,27 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                             filter = parseInnerQueryBuilder(parser);
                         } else {
                             if (scoreFunction != null) {
-                                throw new ParsingException(parser.getTokenLocation(),
-                                        "failed to parse function_score functions. already found [{}], now encountering [{}].",
-                                        scoreFunction.getName(), currentFieldName);
+                                throw new ParsingException(
+                                    parser.getTokenLocation(),
+                                    "failed to parse function_score functions. already found [{}], now encountering [{}].",
+                                    scoreFunction.getName(),
+                                    currentFieldName
+                                );
                             }
                             scoreFunction = parser.namedObject(ScoreFunctionBuilder.class, currentFieldName, null);
                         }
                     } else if (token.isValue()) {
                         if (WEIGHT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             functionWeight = parser.floatValue();
+                        } else if (NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                            functionName = parser.text();
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(), "failed to parse [{}] query. field [{}] is not supported",
-                                    NAME, currentFieldName);
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "failed to parse [{}] query. field [{}] is not supported",
+                                NAME,
+                                currentFieldName
+                            );
                         }
                     }
                 }
@@ -609,13 +681,20 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                         scoreFunction.setWeight(functionWeight);
                     }
                 }
+
+                if (functionName != null && scoreFunction != null) {
+                    scoreFunction.setFunctionName(functionName);
+                }
             }
             if (filter == null) {
                 filter = new MatchAllQueryBuilder();
             }
             if (scoreFunction == null) {
-                throw new ParsingException(parser.getTokenLocation(),
-                        "failed to parse [{}] query. an entry in functions list is missing a function.", NAME);
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "failed to parse [{}] query. an entry in functions list is missing a function.",
+                    NAME
+                );
             }
             filterFunctionBuilders.add(new FunctionScoreQueryBuilder.FilterFunctionBuilder(filter, scoreFunction));
         }

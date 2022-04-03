@@ -96,8 +96,11 @@ public class IndicesModule extends AbstractModule {
     private final MapperRegistry mapperRegistry;
 
     public IndicesModule(List<MapperPlugin> mapperPlugins) {
-        this.mapperRegistry = new MapperRegistry(getMappers(mapperPlugins), getMetadataMappers(mapperPlugins),
-                getFieldFilter(mapperPlugins));
+        this.mapperRegistry = new MapperRegistry(
+            getMappers(mapperPlugins),
+            getMetadataMappers(mapperPlugins),
+            getFieldFilter(mapperPlugins)
+        );
         registerBuiltinWritables();
     }
 
@@ -113,12 +116,21 @@ public class IndicesModule extends AbstractModule {
 
     public static List<NamedXContentRegistry.Entry> getNamedXContents() {
         return Arrays.asList(
-            new NamedXContentRegistry.Entry(Condition.class, new ParseField(MaxAgeCondition.NAME), (p, c) ->
-                MaxAgeCondition.fromXContent(p)),
-            new NamedXContentRegistry.Entry(Condition.class, new ParseField(MaxDocsCondition.NAME), (p, c) ->
-                MaxDocsCondition.fromXContent(p)),
-            new NamedXContentRegistry.Entry(Condition.class, new ParseField(MaxSizeCondition.NAME), (p, c) ->
-                MaxSizeCondition.fromXContent(p))
+            new NamedXContentRegistry.Entry(
+                Condition.class,
+                new ParseField(MaxAgeCondition.NAME),
+                (p, c) -> MaxAgeCondition.fromXContent(p)
+            ),
+            new NamedXContentRegistry.Entry(
+                Condition.class,
+                new ParseField(MaxDocsCondition.NAME),
+                (p, c) -> MaxDocsCondition.fromXContent(p)
+            ),
+            new NamedXContentRegistry.Entry(
+                Condition.class,
+                new ParseField(MaxSizeCondition.NAME),
+                (p, c) -> MaxSizeCondition.fromXContent(p)
+            )
         );
     }
 
@@ -177,7 +189,7 @@ public class IndicesModule extends AbstractModule {
         builtInMetadataMappers.put(TypeFieldMapper.NAME, TypeFieldMapper.PARSER);
         builtInMetadataMappers.put(VersionFieldMapper.NAME, VersionFieldMapper.PARSER);
         builtInMetadataMappers.put(SeqNoFieldMapper.NAME, SeqNoFieldMapper.PARSER);
-        //_field_names must be added last so that it has a chance to see all the other mappers
+        // _field_names must be added last so that it has a chance to see all the other mappers
         builtInMetadataMappers.put(FieldNamesFieldMapper.NAME, FieldNamesFieldMapper.PARSER);
         return Collections.unmodifiableMap(builtInMetadataMappers);
     }
@@ -229,10 +241,12 @@ public class IndicesModule extends AbstractModule {
         return fieldFilter;
     }
 
-    private static Function<String, Predicate<String>> and(Function<String, Predicate<String>> first,
-                                                           Function<String, Predicate<String>> second) {
-        //the purpose of this method is to not chain no-op field predicates, so that we can easily find out when no plugins plug in
-        //a field filter, hence skip the mappings filtering part as a whole, as it requires parsing mappings into a map.
+    private static Function<String, Predicate<String>> and(
+        Function<String, Predicate<String>> first,
+        Function<String, Predicate<String>> second
+    ) {
+        // the purpose of this method is to not chain no-op field predicates, so that we can easily find out when no plugins plug in
+        // a field filter, hence skip the mappings filtering part as a whole, as it requires parsing mappings into a map.
         if (first == MapperPlugin.NOOP_FIELD_FILTER) {
             return second;
         }

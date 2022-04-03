@@ -85,18 +85,28 @@ public class LeaderChecker {
     static final String LEADER_CHECK_ACTION_NAME = "internal:coordination/fault_detection/leader_check";
 
     // the time between checks sent to the leader
-    public static final Setting<TimeValue> LEADER_CHECK_INTERVAL_SETTING =
-        Setting.timeSetting("cluster.fault_detection.leader_check.interval",
-            TimeValue.timeValueMillis(1000), TimeValue.timeValueMillis(100), Setting.Property.NodeScope);
+    public static final Setting<TimeValue> LEADER_CHECK_INTERVAL_SETTING = Setting.timeSetting(
+        "cluster.fault_detection.leader_check.interval",
+        TimeValue.timeValueMillis(1000),
+        TimeValue.timeValueMillis(100),
+        Setting.Property.NodeScope
+    );
 
     // the timeout for each check sent to the leader
-    public static final Setting<TimeValue> LEADER_CHECK_TIMEOUT_SETTING =
-        Setting.timeSetting("cluster.fault_detection.leader_check.timeout",
-            TimeValue.timeValueMillis(10000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+    public static final Setting<TimeValue> LEADER_CHECK_TIMEOUT_SETTING = Setting.timeSetting(
+        "cluster.fault_detection.leader_check.timeout",
+        TimeValue.timeValueMillis(10000),
+        TimeValue.timeValueMillis(1),
+        Setting.Property.NodeScope
+    );
 
     // the number of failed checks that must happen before the leader is considered to have failed.
-    public static final Setting<Integer> LEADER_CHECK_RETRY_COUNT_SETTING =
-        Setting.intSetting("cluster.fault_detection.leader_check.retry_count", 3, 1, Setting.Property.NodeScope);
+    public static final Setting<Integer> LEADER_CHECK_RETRY_COUNT_SETTING = Setting.intSetting(
+        "cluster.fault_detection.leader_check.retry_count",
+        3,
+        1,
+        Setting.Property.NodeScope
+    );
 
     private final Settings settings;
 
@@ -111,8 +121,12 @@ public class LeaderChecker {
 
     private volatile DiscoveryNodes discoveryNodes;
 
-    LeaderChecker(final Settings settings, final TransportService transportService, final Consumer<Exception> onLeaderFailure,
-                  NodeHealthService nodeHealthService) {
+    LeaderChecker(
+        final Settings settings,
+        final TransportService transportService,
+        final Consumer<Exception> onLeaderFailure,
+        NodeHealthService nodeHealthService
+    ) {
         this.settings = settings;
         leaderCheckInterval = LEADER_CHECK_INTERVAL_SETTING.get(settings);
         leaderCheckTimeout = LEADER_CHECK_TIMEOUT_SETTING.get(settings);
@@ -121,21 +135,33 @@ public class LeaderChecker {
         this.onLeaderFailure = onLeaderFailure;
         this.nodeHealthService = nodeHealthService;
 
-        transportService.registerRequestHandler(LEADER_CHECK_ACTION_NAME, Names.SAME, false, false, LeaderCheckRequest::new,
+        transportService.registerRequestHandler(
+            LEADER_CHECK_ACTION_NAME,
+            Names.SAME,
+            false,
+            false,
+            LeaderCheckRequest::new,
             (request, channel, task) -> {
                 handleLeaderCheck(request);
                 channel.sendResponse(Empty.INSTANCE);
-            });
+            }
+        );
 
-        transportService.registerRequestHandler(MasterFaultDetection.MASTER_PING_ACTION_NAME,
-            Names.SAME, false, false, MasterFaultDetection.MasterPingRequest::new, (request, channel, task) -> {
+        transportService.registerRequestHandler(
+            MasterFaultDetection.MASTER_PING_ACTION_NAME,
+            Names.SAME,
+            false,
+            false,
+            MasterFaultDetection.MasterPingRequest::new,
+            (request, channel, task) -> {
                 try {
                     handleLeaderCheck(new LeaderCheckRequest(request.sourceNode));
                 } catch (CoordinationStateRejectedException e) {
                     throw new MasterFaultDetection.ThisIsNotTheMasterYouAreLookingForException(e.getMessage());
                 }
                 channel.sendResponse(new MasterFaultDetection.MasterPingResponseResponse());
-            });
+            }
+        );
 
         transportService.addConnectionListener(new TransportConnectionListener() {
             @Override
@@ -191,18 +217,24 @@ public class LeaderChecker {
         assert discoveryNodes != null;
         final StatusInfo statusInfo = nodeHealthService.getHealth();
         if (statusInfo.getStatus() == UNHEALTHY) {
-            final String message = "rejecting leader check from [" + request.getSender() + "] " +
-                "since node is unhealthy [" + statusInfo.getInfo() + "]";
+            final String message = "rejecting leader check from ["
+                + request.getSender()
+                + "] "
+                + "since node is unhealthy ["
+                + statusInfo.getInfo()
+                + "]";
             logger.debug(message);
             throw new NodeHealthCheckFailureException(message);
         } else if (discoveryNodes.isLocalNodeElectedMaster() == false) {
             logger.debug("rejecting leader check on non-master {}", request);
             throw new CoordinationStateRejectedException(
-                "rejecting leader check from [" + request.getSender() + "] sent to a node that is no longer the master");
+                "rejecting leader check from [" + request.getSender() + "] sent to a node that is no longer the master"
+            );
         } else if (discoveryNodes.nodeExists(request.getSender()) == false) {
             logger.debug("rejecting leader check from removed node: {}", request);
             throw new CoordinationStateRejectedException(
-                "rejecting leader check since [" + request.getSender() + "] has been removed from the cluster");
+                "rejecting leader check since [" + request.getSender() + "] has been removed from the cluster"
+            );
         } else {
             logger.trace("handling {}", request);
         }
@@ -249,7 +281,10 @@ public class LeaderChecker {
             if (Coordinator.isZen1Node(leader)) {
                 actionName = MasterFaultDetection.MASTER_PING_ACTION_NAME;
                 transportRequest = new MasterFaultDetection.MasterPingRequest(
-                    transportService.getLocalNode(), leader, ClusterName.CLUSTER_NAME_SETTING.get(settings));
+                    transportService.getLocalNode(),
+                    leader,
+                    ClusterName.CLUSTER_NAME_SETTING.get(settings)
+                );
             } else {
                 actionName = LEADER_CHECK_ACTION_NAME;
                 transportRequest = new LeaderCheckRequest(transportService.getLocalNode());
@@ -258,7 +293,10 @@ public class LeaderChecker {
             // In the PoC, the leader sent its current version to the follower in the response to a LeaderCheck, so the follower
             // could detect if it was lagging. We'd prefer this to be implemented on the leader, so the response is just
             // TransportResponse.Empty here.
-            transportService.sendRequest(leader, actionName, transportRequest,
+            transportService.sendRequest(
+                leader,
+                actionName,
+                transportRequest,
                 TransportRequestOptions.builder().withTimeout(leaderCheckTimeout).withType(Type.PING).build(),
 
                 new TransportResponseHandler<TransportResponse.Empty>() {
@@ -287,28 +325,42 @@ public class LeaderChecker {
                         }
 
                         if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
-                            logger.debug(new ParameterizedMessage(
-                                "leader [{}] disconnected during check", leader), exp);
+                            logger.debug(new ParameterizedMessage("leader [{}] disconnected during check", leader), exp);
                             leaderFailed(new ConnectTransportException(leader, "disconnected during check", exp));
                             return;
                         } else if (exp.getCause() instanceof NodeHealthCheckFailureException) {
-                            logger.debug(new ParameterizedMessage(
-                                "leader [{}] health check failed", leader), exp);
+                            logger.debug(new ParameterizedMessage("leader [{}] health check failed", leader), exp);
                             leaderFailed(new NodeHealthCheckFailureException("node [" + leader + "] failed health checks", exp));
                             return;
                         }
                         long failureCount = failureCountSinceLastSuccess.incrementAndGet();
                         if (failureCount >= leaderCheckRetryCount) {
-                            logger.debug(new ParameterizedMessage(
-                                "leader [{}] has failed {} consecutive checks (limit [{}] is {}); last failure was:",
-                                leader, failureCount, LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), leaderCheckRetryCount), exp);
-                            leaderFailed(new OpenSearchException(
-                                "node [" + leader + "] failed [" + failureCount + "] consecutive checks", exp));
+                            logger.debug(
+                                new ParameterizedMessage(
+                                    "leader [{}] has failed {} consecutive checks (limit [{}] is {}); last failure was:",
+                                    leader,
+                                    failureCount,
+                                    LEADER_CHECK_RETRY_COUNT_SETTING.getKey(),
+                                    leaderCheckRetryCount
+                                ),
+                                exp
+                            );
+                            leaderFailed(
+                                new OpenSearchException("node [" + leader + "] failed [" + failureCount + "] consecutive checks", exp)
+                            );
                             return;
                         }
 
-                        logger.debug(new ParameterizedMessage("{} consecutive failures (limit [{}] is {}) with leader [{}]",
-                            failureCount, LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), leaderCheckRetryCount, leader), exp);
+                        logger.debug(
+                            new ParameterizedMessage(
+                                "{} consecutive failures (limit [{}] is {}) with leader [{}]",
+                                failureCount,
+                                LEADER_CHECK_RETRY_COUNT_SETTING.getKey(),
+                                leaderCheckRetryCount,
+                                leader
+                            ),
+                            exp
+                        );
                         scheduleNextWakeUp();
                     }
 
@@ -316,7 +368,8 @@ public class LeaderChecker {
                     public String executor() {
                         return Names.SAME;
                     }
-                });
+                }
+            );
         }
 
         void leaderFailed(Exception e) {
@@ -398,10 +451,7 @@ public class LeaderChecker {
 
         @Override
         public String toString() {
-            return "LeaderCheckRequest{" +
-                "sender=" + sender +
-                '}';
+            return "LeaderCheckRequest{" + "sender=" + sender + '}';
         }
     }
 }
-

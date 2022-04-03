@@ -77,9 +77,7 @@ public class InstantiatingObjectParserTests extends OpenSearchTestCase {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             NoAnnotations that = (NoAnnotations) o;
-            return a == that.a &&
-                c == that.c &&
-                Objects.equals(b, that.b);
+            return a == that.a && c == that.c && Objects.equals(b, that.b);
         }
 
         @Override
@@ -114,9 +112,10 @@ public class InstantiatingObjectParserTests extends OpenSearchTestCase {
         builder.declareInt(constructorArg(), new ParseField("a"));
         builder.declareString(constructorArg(), new ParseField("b"));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
-        assertThat(e.getMessage(), containsString(
-            "More then one public constructor with 2 arguments found. The use of @ParserConstructor annotation is required"
-        ));
+        assertThat(
+            e.getMessage(),
+            containsString("More then one public constructor with 2 arguments found. The use of @ParserConstructor annotation is required")
+        );
     }
 
     public void testPrivateConstructor() {
@@ -149,8 +148,7 @@ public class InstantiatingObjectParserTests extends OpenSearchTestCase {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             LonelyArgument that = (LonelyArgument) o;
-            return a == that.a &&
-                Objects.equals(b, that.b);
+            return a == that.a && Objects.equals(b, that.b);
         }
 
         @Override
@@ -211,9 +209,7 @@ public class InstantiatingObjectParserTests extends OpenSearchTestCase {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Annotations that = (Annotations) o;
-            return a == that.a &&
-                c == that.c &&
-                Objects.equals(b, that.b);
+            return a == that.a && c == that.c && Objects.equals(b, that.b);
         }
 
         @Override

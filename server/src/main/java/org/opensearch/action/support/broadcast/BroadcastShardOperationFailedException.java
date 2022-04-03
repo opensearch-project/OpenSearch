@@ -59,7 +59,7 @@ public class BroadcastShardOperationFailedException extends OpenSearchException 
         setShard(shardId);
     }
 
-    public BroadcastShardOperationFailedException(StreamInput in) throws IOException{
+    public BroadcastShardOperationFailedException(StreamInput in) throws IOException {
         super(in);
     }
 }

@@ -39,9 +39,12 @@ import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilde
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.util.ArrayUtils;
 
-public abstract class BaseAliasesRequestBuilder<Response extends ActionResponse,
-                                                Builder extends BaseAliasesRequestBuilder<Response, Builder>>
-    extends MasterNodeReadOperationRequestBuilder<GetAliasesRequest, Response, Builder> {
+public abstract class BaseAliasesRequestBuilder<
+    Response extends ActionResponse,
+    Builder extends BaseAliasesRequestBuilder<Response, Builder>> extends MasterNodeReadOperationRequestBuilder<
+        GetAliasesRequest,
+        Response,
+        Builder> {
 
     public BaseAliasesRequestBuilder(OpenSearchClient client, ActionType<Response> action, String... aliases) {
         super(client, action, new GetAliasesRequest(aliases));

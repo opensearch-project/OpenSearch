@@ -91,18 +91,19 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     private static final ObjectParser<CompletionSuggestionBuilder.InnerBuilder, Void> PARSER = new ObjectParser<>(SUGGESTION_NAME);
     static {
         PARSER.declareField((parser, completionSuggestionContext, context) -> {
-                if (parser.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
-                    if (parser.booleanValue()) {
-                        completionSuggestionContext.fuzzyOptions = new FuzzyOptions.Builder().build();
-                    }
-                } else {
-                    completionSuggestionContext.fuzzyOptions = FuzzyOptions.parse(parser);
+            if (parser.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
+                if (parser.booleanValue()) {
+                    completionSuggestionContext.fuzzyOptions = new FuzzyOptions.Builder().build();
                 }
-            },
-            FuzzyOptions.FUZZY_OPTIONS, ObjectParser.ValueType.OBJECT_OR_BOOLEAN);
-        PARSER.declareField((parser, completionSuggestionContext, context) ->
-            completionSuggestionContext.regexOptions = RegexOptions.parse(parser),
-            RegexOptions.REGEX_OPTIONS, ObjectParser.ValueType.OBJECT);
+            } else {
+                completionSuggestionContext.fuzzyOptions = FuzzyOptions.parse(parser);
+            }
+        }, FuzzyOptions.FUZZY_OPTIONS, ObjectParser.ValueType.OBJECT_OR_BOOLEAN);
+        PARSER.declareField(
+            (parser, completionSuggestionContext, context) -> completionSuggestionContext.regexOptions = RegexOptions.parse(parser),
+            RegexOptions.REGEX_OPTIONS,
+            ObjectParser.ValueType.OBJECT
+        );
         PARSER.declareString(CompletionSuggestionBuilder.InnerBuilder::field, FIELDNAME_FIELD);
         PARSER.declareString(CompletionSuggestionBuilder.InnerBuilder::analyzer, ANALYZER_FIELD);
         PARSER.declareInt(CompletionSuggestionBuilder.InnerBuilder::size, SIZE_FIELD);
@@ -292,8 +293,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         String field = builder.field;
         // now we should have field name, check and copy fields over to the suggestion builder we return
         if (field == null) {
-            throw new OpenSearchParseException(
-                "the required field option [" + FIELDNAME_FIELD.getPreferredName() + "] is missing");
+            throw new OpenSearchParseException("the required field option [" + FIELDNAME_FIELD.getPreferredName() + "] is missing");
         }
         return new CompletionSuggestionBuilder(field, builder);
     }
@@ -318,8 +318,11 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
             CompletionFieldMapper.CompletionFieldType type = (CompletionFieldMapper.CompletionFieldType) mappedFieldType;
             suggestionContext.setFieldType(type);
             if (type.hasContextMappings() && contextBytes != null) {
-                Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = parseContextBytes(contextBytes,
-                        context.getXContentRegistry(), type.getContextMappings());
+                Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = parseContextBytes(
+                    contextBytes,
+                    context.getXContentRegistry(),
+                    type.getContextMappings()
+                );
                 suggestionContext.setQueryContexts(queryContexts);
             } else if (contextBytes != null) {
                 throw new IllegalArgumentException("suggester [" + type.name() + "] doesn't expect any context");
@@ -329,10 +332,19 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         return suggestionContext;
     }
 
-    static Map<String, List<ContextMapping.InternalQueryContext>> parseContextBytes(BytesReference contextBytes,
-            NamedXContentRegistry xContentRegistry, ContextMappings contextMappings) throws IOException {
-        try (XContentParser contextParser = XContentHelper.createParser(xContentRegistry,
-            LoggingDeprecationHandler.INSTANCE, contextBytes, CONTEXT_BYTES_XCONTENT_TYPE)) {
+    static Map<String, List<ContextMapping.InternalQueryContext>> parseContextBytes(
+        BytesReference contextBytes,
+        NamedXContentRegistry xContentRegistry,
+        ContextMappings contextMappings
+    ) throws IOException {
+        try (
+            XContentParser contextParser = XContentHelper.createParser(
+                xContentRegistry,
+                LoggingDeprecationHandler.INSTANCE,
+                contextBytes,
+                CONTEXT_BYTES_XCONTENT_TYPE
+            )
+        ) {
             contextParser.nextToken();
             Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = new HashMap<>(contextMappings.size());
             assert contextParser.currentToken() == XContentParser.Token.START_OBJECT;
@@ -356,10 +368,10 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
 
     @Override
     protected boolean doEquals(CompletionSuggestionBuilder other) {
-        return skipDuplicates == other.skipDuplicates &&
-            Objects.equals(fuzzyOptions, other.fuzzyOptions) &&
-            Objects.equals(regexOptions, other.regexOptions) &&
-            Objects.equals(contextBytes, other.contextBytes);
+        return skipDuplicates == other.skipDuplicates
+            && Objects.equals(fuzzyOptions, other.fuzzyOptions)
+            && Objects.equals(regexOptions, other.regexOptions)
+            && Objects.equals(contextBytes, other.contextBytes);
     }
 
     @Override

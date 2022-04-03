@@ -55,8 +55,7 @@ class DynamicKeyFieldTypeLookup {
      */
     private final int maxKeyDepth;
 
-    DynamicKeyFieldTypeLookup(Map<String, DynamicKeyFieldMapper> newMappers,
-                              Map<String, String> aliasToConcreteName) {
+    DynamicKeyFieldTypeLookup(Map<String, DynamicKeyFieldMapper> newMappers, Map<String, String> aliasToConcreteName) {
         this.mappers = newMappers;
         this.aliasToConcreteName = aliasToConcreteName;
         this.maxKeyDepth = getMaxKeyDepth(mappers, aliasToConcreteName);
@@ -97,14 +96,11 @@ class DynamicKeyFieldTypeLookup {
     }
 
     Iterator<MappedFieldType> fieldTypes() {
-        return mappers.values().stream()
-            .<MappedFieldType>map(mapper -> mapper.keyedFieldType(""))
-            .iterator();
+        return mappers.values().stream().<MappedFieldType>map(mapper -> mapper.keyedFieldType("")).iterator();
     }
 
     // Visible for testing.
-    static int getMaxKeyDepth(Map<String, DynamicKeyFieldMapper> dynamicKeyMappers,
-                              Map<String, String> aliasToConcreteName) {
+    static int getMaxKeyDepth(Map<String, DynamicKeyFieldMapper> dynamicKeyMappers, Map<String, String> aliasToConcreteName) {
         int maxFieldDepth = 0;
         for (Map.Entry<String, String> entry : aliasToConcreteName.entrySet()) {
             String aliasName = entry.getKey();

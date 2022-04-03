@@ -196,8 +196,9 @@ public class RetentionLeases implements ToXContentFragment, Writeable {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<RetentionLeases, Void> PARSER = new ConstructingObjectParser<>(
-            "retention_leases",
-            (a) -> new RetentionLeases((Long) a[0], (Long) a[1], (Collection<RetentionLease>) a[2]));
+        "retention_leases",
+        (a) -> new RetentionLeases((Long) a[0], (Long) a[1], (Collection<RetentionLease>) a[2])
+    );
 
     static {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), PRIMARY_TERM_FIELD);
@@ -249,9 +250,7 @@ public class RetentionLeases implements ToXContentFragment, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         final RetentionLeases that = (RetentionLeases) o;
-        return primaryTerm == that.primaryTerm &&
-                version == that.version &&
-                Objects.equals(leases, that.leases);
+        return primaryTerm == that.primaryTerm && version == that.version && Objects.equals(leases, that.leases);
     }
 
     @Override
@@ -261,11 +260,7 @@ public class RetentionLeases implements ToXContentFragment, Writeable {
 
     @Override
     public String toString() {
-        return "RetentionLeases{" +
-                "primaryTerm=" + primaryTerm +
-                ", version=" + version +
-                ", leases=" + leases +
-                '}';
+        return "RetentionLeases{" + "primaryTerm=" + primaryTerm + ", version=" + version + ", leases=" + leases + '}';
     }
 
     /**
@@ -276,16 +271,10 @@ public class RetentionLeases implements ToXContentFragment, Writeable {
      */
     private static Map<String, RetentionLease> toMap(final Collection<RetentionLease> leases) {
         // use a linked hash map to preserve order
-        return leases.stream()
-                .collect(Collectors.toMap(
-                        RetentionLease::id,
-                        Function.identity(),
-                        (left, right) -> {
-                            assert left.id().equals(right.id()) : "expected [" + left.id() + "] to equal [" + right.id() + "]";
-                            throw new IllegalStateException("duplicate retention lease ID [" + left.id() + "]");
-                        },
-                        LinkedHashMap::new));
+        return leases.stream().collect(Collectors.toMap(RetentionLease::id, Function.identity(), (left, right) -> {
+            assert left.id().equals(right.id()) : "expected [" + left.id() + "] to equal [" + right.id() + "]";
+            throw new IllegalStateException("duplicate retention lease ID [" + left.id() + "]");
+        }, LinkedHashMap::new));
     }
 
 }
-

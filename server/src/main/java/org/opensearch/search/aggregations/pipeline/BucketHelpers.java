@@ -67,7 +67,8 @@ public class BucketHelpers {
      * "skip": empty buckets will simply be ignored
      */
     public enum GapPolicy implements Writeable {
-        INSERT_ZEROS((byte) 0, "insert_zeros"), SKIP((byte) 1, "skip");
+        INSERT_ZEROS((byte) 0, "insert_zeros"),
+        SKIP((byte) 1, "skip");
 
         /**
          * Parse a string GapPolicy into the byte enum
@@ -83,8 +84,13 @@ public class BucketHelpers {
                     if (result == null) {
                         result = policy;
                     } else {
-                        throw new IllegalStateException("Text can be parsed to 2 different gap policies: text=[" + text
-                                + "], " + "policies=" + Arrays.asList(result, policy));
+                        throw new IllegalStateException(
+                            "Text can be parsed to 2 different gap policies: text=["
+                                + text
+                                + "], "
+                                + "policies="
+                                + Arrays.asList(result, policy)
+                        );
                     }
                 }
             }
@@ -161,20 +167,30 @@ public class BucketHelpers {
      * @return The value extracted from <code>bucket</code> found at
      *         <code>aggPath</code>
      */
-    public static Double resolveBucketValue(MultiBucketsAggregation agg,
-            InternalMultiBucketAggregation.InternalBucket bucket, String aggPath, GapPolicy gapPolicy) {
+    public static Double resolveBucketValue(
+        MultiBucketsAggregation agg,
+        InternalMultiBucketAggregation.InternalBucket bucket,
+        String aggPath,
+        GapPolicy gapPolicy
+    ) {
         List<String> aggPathsList = AggregationPath.parse(aggPath).getPathElementsAsStringList();
         return resolveBucketValue(agg, bucket, aggPathsList, gapPolicy);
     }
 
-    public static Double resolveBucketValue(MultiBucketsAggregation agg,
-            InternalMultiBucketAggregation.InternalBucket bucket, List<String> aggPathAsList, GapPolicy gapPolicy) {
+    public static Double resolveBucketValue(
+        MultiBucketsAggregation agg,
+        InternalMultiBucketAggregation.InternalBucket bucket,
+        List<String> aggPathAsList,
+        GapPolicy gapPolicy
+    ) {
         try {
             Object propertyValue = bucket.getProperty(agg.getName(), aggPathAsList);
 
             if (propertyValue == null) {
-                throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
-                        + " must reference either a number value or a single value numeric metric aggregation");
+                throw new AggregationExecutionException(
+                    AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
+                        + " must reference either a number value or a single value numeric metric aggregation"
+                );
             } else {
                 double value;
                 if (propertyValue instanceof Number) {
@@ -188,11 +204,11 @@ public class BucketHelpers {
                 boolean isDocCountProperty = aggPathAsList.size() == 1 && "_count".equals(aggPathAsList.get(0));
                 if (Double.isInfinite(value) || Double.isNaN(value) || (bucket.getDocCount() == 0 && !isDocCountProperty)) {
                     switch (gapPolicy) {
-                    case INSERT_ZEROS:
-                        return 0.0;
-                    case SKIP:
-                    default:
-                        return Double.NaN;
+                        case INSERT_ZEROS:
+                            return 0.0;
+                        case SKIP:
+                        default:
+                            return Double.NaN;
                     }
                 } else {
                     return value;
@@ -206,8 +222,11 @@ public class BucketHelpers {
     /**
      * Inspects where we are in the agg tree and tries to format a helpful error
      */
-    private static AggregationExecutionException formatResolutionError(MultiBucketsAggregation agg,
-                                                                       List<String> aggPathAsList, Object propertyValue) {
+    private static AggregationExecutionException formatResolutionError(
+        MultiBucketsAggregation agg,
+        List<String> aggPathAsList,
+        Object propertyValue
+    ) {
         String currentAggName;
         Object currentAgg;
         if (aggPathAsList.isEmpty()) {
@@ -218,13 +237,21 @@ public class BucketHelpers {
             currentAgg = propertyValue;
         }
         if (currentAgg instanceof InternalNumericMetricsAggregation.MultiValue) {
-            return new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
-                + " must reference either a number value or a single value numeric metric aggregation, but [" + currentAggName
-                + "] contains multiple values. Please specify which to use.");
+            return new AggregationExecutionException(
+                AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
+                    + " must reference either a number value or a single value numeric metric aggregation, but ["
+                    + currentAggName
+                    + "] contains multiple values. Please specify which to use."
+            );
         } else {
-            return new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
-                + " must reference either a number value or a single value numeric metric aggregation, got: ["
-                + propertyValue.getClass().getSimpleName() + "] at aggregation [" + currentAggName + "]");
+            return new AggregationExecutionException(
+                AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
+                    + " must reference either a number value or a single value numeric metric aggregation, got: ["
+                    + propertyValue.getClass().getSimpleName()
+                    + "] at aggregation ["
+                    + currentAggName
+                    + "]"
+            );
         }
     }
 }

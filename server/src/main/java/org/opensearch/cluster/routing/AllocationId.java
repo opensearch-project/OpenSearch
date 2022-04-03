@@ -59,8 +59,7 @@ public class AllocationId implements ToXContentObject, Writeable {
     private static final String ID_KEY = "id";
     private static final String RELOCATION_ID_KEY = "relocation_id";
 
-    private static final ObjectParser<AllocationId.Builder, Void> ALLOCATION_ID_PARSER = new ObjectParser<>(
-            "allocationId");
+    private static final ObjectParser<AllocationId.Builder, Void> ALLOCATION_ID_PARSER = new ObjectParser<>("allocationId");
 
     static {
         ALLOCATION_ID_PARSER.declareString(AllocationId.Builder::setId, new ParseField(ID_KEY));

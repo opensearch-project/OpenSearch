@@ -76,16 +76,28 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
     systemProperty 'tests.rest.suite', 'step2'
   }
 
-  tasks.register("${baseName}#Step3OldClusterTest", StandaloneRestIntegTestTask) {
+  // Step 3 and Step 4 registered for versions for OpenSearch 
+  // since the ES cluster would not be able to read snapshots from OpenSearch cluster in Step 3.
+  if (bwcVersion.after('7.10.2')) {
+    tasks.register("${baseName}#Step3OldClusterTest", StandaloneRestIntegTestTask) {
     useCluster testClusters."${oldClusterName}"
     dependsOn "${baseName}#Step2NewClusterTest"
     systemProperty 'tests.rest.suite', 'step3'
   }
 
-  tasks.register("${baseName}#Step4NewClusterTest", StandaloneRestIntegTestTask) {
-    useCluster testClusters."${newClusterName}"
-    dependsOn "${baseName}#Step3OldClusterTest"
-    systemProperty 'tests.rest.suite', 'step4'
+    tasks.register("${baseName}#Step4NewClusterTest", StandaloneRestIntegTestTask) {
+      useCluster testClusters."${newClusterName}"
+      dependsOn "${baseName}#Step3OldClusterTest"
+      systemProperty 'tests.rest.suite', 'step4'
+    }
+
+    tasks.register(bwcTaskName(bwcVersion)) {
+      dependsOn tasks.named("${baseName}#Step4NewClusterTest")
+    }
+  } else {
+    tasks.register(bwcTaskName(bwcVersion)) {
+      dependsOn tasks.named("${baseName}#Step2NewClusterTest")
+    }
   }
 
   tasks.matching { it.name.startsWith(baseName) && it.name.endsWith("ClusterTest") }.configureEach {
@@ -94,10 +106,6 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
     def clusterName = it.name.contains("Step2") || it.name.contains("Step4") ? "${newClusterName}" : "${oldClusterName}"
     it.nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${clusterName}".allHttpSocketURI.join(",")}")
     it.nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${clusterName}".getName()}")
-  }
-
-  tasks.register(bwcTaskName(bwcVersion)) {
-    dependsOn tasks.named("${baseName}#Step4NewClusterTest")
   }
 }
 

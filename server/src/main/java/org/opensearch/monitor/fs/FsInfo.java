@@ -63,8 +63,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         long free = -1;
         long available = -1;
 
-        public Path() {
-        }
+        public Path() {}
 
         public Path(String path, @Nullable String mount, long total, long free, long available) {
             this.path = path;
@@ -200,40 +199,43 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         final long previousSectorsWritten;
 
         public DeviceStats(
-                final int majorDeviceNumber,
-                final int minorDeviceNumber,
-                final String deviceName,
-                final long currentReadsCompleted,
-                final long currentSectorsRead,
-                final long currentWritesCompleted,
-                final long currentSectorsWritten,
-                final DeviceStats previousDeviceStats) {
+            final int majorDeviceNumber,
+            final int minorDeviceNumber,
+            final String deviceName,
+            final long currentReadsCompleted,
+            final long currentSectorsRead,
+            final long currentWritesCompleted,
+            final long currentSectorsWritten,
+            final DeviceStats previousDeviceStats
+        ) {
             this(
-                    majorDeviceNumber,
-                    minorDeviceNumber,
-                    deviceName,
-                    currentReadsCompleted,
-                    previousDeviceStats != null ? previousDeviceStats.currentReadsCompleted : -1,
-                    currentSectorsWritten,
-                    previousDeviceStats != null ? previousDeviceStats.currentSectorsWritten : -1,
-                    currentSectorsRead,
-                    previousDeviceStats != null ? previousDeviceStats.currentSectorsRead : -1,
-                    currentWritesCompleted,
-                    previousDeviceStats != null ? previousDeviceStats.currentWritesCompleted : -1);
+                majorDeviceNumber,
+                minorDeviceNumber,
+                deviceName,
+                currentReadsCompleted,
+                previousDeviceStats != null ? previousDeviceStats.currentReadsCompleted : -1,
+                currentSectorsWritten,
+                previousDeviceStats != null ? previousDeviceStats.currentSectorsWritten : -1,
+                currentSectorsRead,
+                previousDeviceStats != null ? previousDeviceStats.currentSectorsRead : -1,
+                currentWritesCompleted,
+                previousDeviceStats != null ? previousDeviceStats.currentWritesCompleted : -1
+            );
         }
 
         private DeviceStats(
-                final int majorDeviceNumber,
-                final int minorDeviceNumber,
-                final String deviceName,
-                final long currentReadsCompleted,
-                final long previousReadsCompleted,
-                final long currentSectorsWritten,
-                final long previousSectorsWritten,
-                final long currentSectorsRead,
-                final long previousSectorsRead,
-                final long currentWritesCompleted,
-                final long previousWritesCompleted) {
+            final int majorDeviceNumber,
+            final int minorDeviceNumber,
+            final String deviceName,
+            final long currentReadsCompleted,
+            final long previousReadsCompleted,
+            final long currentSectorsWritten,
+            final long previousSectorsWritten,
+            final long currentSectorsRead,
+            final long previousSectorsRead,
+            final long currentWritesCompleted,
+            final long previousWritesCompleted
+        ) {
             this.majorDeviceNumber = majorDeviceNumber;
             this.minorDeviceNumber = minorDeviceNumber;
             this.deviceName = deviceName;
@@ -279,8 +281,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         public long operations() {
             if (previousReadsCompleted == -1 || previousWritesCompleted == -1) return -1;
 
-            return (currentReadsCompleted - previousReadsCompleted) +
-                (currentWritesCompleted - previousWritesCompleted);
+            return (currentReadsCompleted - previousReadsCompleted) + (currentWritesCompleted - previousWritesCompleted);
         }
 
         public long readOperations() {

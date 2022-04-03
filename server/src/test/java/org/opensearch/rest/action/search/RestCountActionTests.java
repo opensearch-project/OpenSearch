@@ -49,8 +49,7 @@ public class RestCountActionTests extends RestActionTestCase {
     }
 
     public void testTypeInPath() {
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(Method.POST)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(Method.POST)
             .withPath("/some_index/some_type/_count")
             .build();
 
@@ -65,8 +64,7 @@ public class RestCountActionTests extends RestActionTestCase {
         Map<String, String> params = new HashMap<>();
         params.put("type", "some_type");
 
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(Method.GET)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(Method.GET)
             .withPath("/some_index/_count")
             .withParams(params)
             .build();

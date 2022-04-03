@@ -39,8 +39,7 @@ import org.opensearch.script.ScriptType;
 
 import java.util.Map;
 
-public class SearchTemplateRequestBuilder
-        extends ActionRequestBuilder<SearchTemplateRequest, SearchTemplateResponse> {
+public class SearchTemplateRequestBuilder extends ActionRequestBuilder<SearchTemplateRequest, SearchTemplateResponse> {
 
     SearchTemplateRequestBuilder(OpenSearchClient client, SearchTemplateAction action) {
         super(client, action, new SearchTemplateRequest());

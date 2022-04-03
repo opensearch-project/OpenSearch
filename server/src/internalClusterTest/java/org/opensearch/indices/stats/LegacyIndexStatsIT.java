@@ -55,13 +55,14 @@ public class LegacyIndexStatsIT extends OpenSearchIntegTestCase {
     }
 
     public void testFieldDataFieldsParam() {
-        assertAcked(client()
-                .admin()
+        assertAcked(
+            client().admin()
                 .indices()
                 .prepareCreate("test1")
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), LegacyESVersion.V_6_0_0))
                 .addMapping("_doc", "bar", "type=text,fielddata=true", "baz", "type=text,fielddata=true")
-                .get());
+                .get()
+        );
 
         ensureGreen();
 

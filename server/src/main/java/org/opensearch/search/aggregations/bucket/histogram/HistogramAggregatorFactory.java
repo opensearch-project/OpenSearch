@@ -68,22 +68,25 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
             HistogramAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             NumericHistogramAggregator::new,
-                true);
+            true
+        );
     }
 
-    public HistogramAggregatorFactory(String name,
-                                        ValuesSourceConfig config,
-                                        double interval,
-                                        double offset,
-                                        BucketOrder order,
-                                        boolean keyed,
-                                        long minDocCount,
-                                        DoubleBounds extendedBounds,
-                                        DoubleBounds hardBounds,
-                                        QueryShardContext queryShardContext,
-                                        AggregatorFactory parent,
-                                        AggregatorFactories.Builder subFactoriesBuilder,
-                                        Map<String, Object> metadata) throws IOException {
+    public HistogramAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        double interval,
+        double offset,
+        BucketOrder order,
+        boolean keyed,
+        long minDocCount,
+        DoubleBounds extendedBounds,
+        DoubleBounds hardBounds,
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.interval = interval;
         this.offset = offset;
@@ -99,10 +102,12 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                          Aggregator parent,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metadata) throws IOException {
+    protected Aggregator doCreateInternal(
+        SearchContext searchContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         return queryShardContext.getValuesSourceRegistry()
             .getAggregator(HistogramAggregationBuilder.REGISTRY_KEY, config)
             .build(
@@ -124,10 +129,22 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
-        return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, extendedBounds,
-            hardBounds, config, searchContext, parent, CardinalityUpperBound.NONE, metadata);
+    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new NumericHistogramAggregator(
+            name,
+            factories,
+            interval,
+            offset,
+            order,
+            keyed,
+            minDocCount,
+            extendedBounds,
+            hardBounds,
+            config,
+            searchContext,
+            parent,
+            CardinalityUpperBound.NONE,
+            metadata
+        );
     }
 }

@@ -47,11 +47,9 @@ public class BlockMasterServiceOnMaster extends SingleNodeDisruption {
 
     AtomicReference<CountDownLatch> disruptionLatch = new AtomicReference<>();
 
-
     public BlockMasterServiceOnMaster(Random random) {
         super(random);
     }
-
 
     @Override
     public void startDisrupting() {
@@ -95,8 +93,7 @@ public class BlockMasterServiceOnMaster extends SingleNodeDisruption {
         });
         try {
             started.await();
-        } catch (InterruptedException e) {
-        }
+        } catch (InterruptedException e) {}
     }
 
     @Override

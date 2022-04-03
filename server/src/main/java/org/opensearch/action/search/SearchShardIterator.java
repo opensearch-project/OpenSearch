@@ -75,13 +75,24 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
      * @param originalIndices the indices that the search request originally related to (before any rewriting happened)
      */
     public SearchShardIterator(@Nullable String clusterAlias, ShardId shardId, List<ShardRouting> shards, OriginalIndices originalIndices) {
-        this(clusterAlias, shardId, shards.stream().map(ShardRouting::currentNodeId).collect(Collectors.toList()),
-            originalIndices, null, null);
+        this(
+            clusterAlias,
+            shardId,
+            shards.stream().map(ShardRouting::currentNodeId).collect(Collectors.toList()),
+            originalIndices,
+            null,
+            null
+        );
     }
 
-    public SearchShardIterator(@Nullable String clusterAlias, ShardId shardId,
-                               List<String> targetNodeIds, OriginalIndices originalIndices,
-                               ShardSearchContextId searchContextId, TimeValue searchContextKeepAlive) {
+    public SearchShardIterator(
+        @Nullable String clusterAlias,
+        ShardId shardId,
+        List<String> targetNodeIds,
+        OriginalIndices originalIndices,
+        ShardSearchContextId searchContextId,
+        TimeValue searchContextKeepAlive
+    ) {
         this.shardId = shardId;
         this.targetNodesIterator = new PlainIterator<>(targetNodeIds);
         this.originalIndices = originalIndices;
@@ -152,7 +163,6 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
     boolean skip() {
         return skip;
     }
-
 
     @Override
     public int size() {

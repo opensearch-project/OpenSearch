@@ -49,8 +49,10 @@ import static org.hamcrest.Matchers.is;
 public class AwsEc2ServiceImplTests extends OpenSearchTestCase {
 
     public void testAWSCredentialsWithSystemProviders() {
-        final AWSCredentialsProvider credentialsProvider = AwsEc2ServiceImpl.buildCredentials(logger,
-                Ec2ClientSettings.getClientSettings(Settings.EMPTY));
+        final AWSCredentialsProvider credentialsProvider = AwsEc2ServiceImpl.buildCredentials(
+            logger,
+            Ec2ClientSettings.getClientSettings(Settings.EMPTY)
+        );
         assertThat(credentialsProvider, instanceOf(DefaultAWSCredentialsProviderChain.class));
     }
 
@@ -58,8 +60,10 @@ public class AwsEc2ServiceImplTests extends OpenSearchTestCase {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("discovery.ec2.access_key", "aws_key");
         secureSettings.setString("discovery.ec2.secret_key", "aws_secret");
-        final AWSCredentials credentials = AwsEc2ServiceImpl.buildCredentials(logger,
-            Ec2ClientSettings.getClientSettings(Settings.builder().setSecureSettings(secureSettings).build())).getCredentials();
+        final AWSCredentials credentials = AwsEc2ServiceImpl.buildCredentials(
+            logger,
+            Ec2ClientSettings.getClientSettings(Settings.builder().setSecureSettings(secureSettings).build())
+        ).getCredentials();
         assertThat(credentials.getAWSAccessKeyId(), is("aws_key"));
         assertThat(credentials.getAWSSecretKey(), is("aws_secret"));
     }
@@ -69,8 +73,10 @@ public class AwsEc2ServiceImplTests extends OpenSearchTestCase {
         secureSettings.setString("discovery.ec2.access_key", "aws_key");
         secureSettings.setString("discovery.ec2.secret_key", "aws_secret");
         secureSettings.setString("discovery.ec2.session_token", "aws_session_token");
-        final BasicSessionCredentials credentials = (BasicSessionCredentials) AwsEc2ServiceImpl.buildCredentials(logger,
-            Ec2ClientSettings.getClientSettings(Settings.builder().setSecureSettings(secureSettings).build())).getCredentials();
+        final BasicSessionCredentials credentials = (BasicSessionCredentials) AwsEc2ServiceImpl.buildCredentials(
+            logger,
+            Ec2ClientSettings.getClientSettings(Settings.builder().setSecureSettings(secureSettings).build())
+        ).getCredentials();
         assertThat(credentials.getAWSAccessKeyId(), is("aws_key"));
         assertThat(credentials.getAWSSecretKey(), is("aws_secret"));
         assertThat(credentials.getSessionToken(), is("aws_session_token"));
@@ -79,37 +85,51 @@ public class AwsEc2ServiceImplTests extends OpenSearchTestCase {
     public void testDeprecationOfLoneAccessKey() {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("discovery.ec2.access_key", "aws_key");
-        final AWSCredentials credentials = AwsEc2ServiceImpl.buildCredentials(logger,
-            Ec2ClientSettings.getClientSettings(Settings.builder().setSecureSettings(secureSettings).build())).getCredentials();
+        final AWSCredentials credentials = AwsEc2ServiceImpl.buildCredentials(
+            logger,
+            Ec2ClientSettings.getClientSettings(Settings.builder().setSecureSettings(secureSettings).build())
+        ).getCredentials();
         assertThat(credentials.getAWSAccessKeyId(), is("aws_key"));
         assertThat(credentials.getAWSSecretKey(), is(""));
-        assertSettingDeprecationsAndWarnings(new String[]{},
-            "Setting [discovery.ec2.access_key] is set but [discovery.ec2.secret_key] is not, which will be unsupported in future");
+        assertSettingDeprecationsAndWarnings(
+            new String[] {},
+            "Setting [discovery.ec2.access_key] is set but [discovery.ec2.secret_key] is not, which will be unsupported in future"
+        );
     }
 
     public void testDeprecationOfLoneSecretKey() {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("discovery.ec2.secret_key", "aws_secret");
-        final AWSCredentials credentials = AwsEc2ServiceImpl.buildCredentials(logger,
-            Ec2ClientSettings.getClientSettings(Settings.builder().setSecureSettings(secureSettings).build())).getCredentials();
+        final AWSCredentials credentials = AwsEc2ServiceImpl.buildCredentials(
+            logger,
+            Ec2ClientSettings.getClientSettings(Settings.builder().setSecureSettings(secureSettings).build())
+        ).getCredentials();
         assertThat(credentials.getAWSAccessKeyId(), is(""));
         assertThat(credentials.getAWSSecretKey(), is("aws_secret"));
-        assertSettingDeprecationsAndWarnings(new String[]{},
-            "Setting [discovery.ec2.secret_key] is set but [discovery.ec2.access_key] is not, which will be unsupported in future");
+        assertSettingDeprecationsAndWarnings(
+            new String[] {},
+            "Setting [discovery.ec2.secret_key] is set but [discovery.ec2.access_key] is not, which will be unsupported in future"
+        );
     }
 
     public void testRejectionOfLoneSessionToken() {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("discovery.ec2.session_token", "aws_session_token");
-        SettingsException e = expectThrows(SettingsException.class, () -> AwsEc2ServiceImpl.buildCredentials(logger,
-            Ec2ClientSettings.getClientSettings(Settings.builder().setSecureSettings(secureSettings).build())));
-        assertThat(e.getMessage(), is(
-            "Setting [discovery.ec2.session_token] is set but [discovery.ec2.access_key] and [discovery.ec2.secret_key] are not"));
+        SettingsException e = expectThrows(
+            SettingsException.class,
+            () -> AwsEc2ServiceImpl.buildCredentials(
+                logger,
+                Ec2ClientSettings.getClientSettings(Settings.builder().setSecureSettings(secureSettings).build())
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            is("Setting [discovery.ec2.session_token] is set but [discovery.ec2.access_key] and [discovery.ec2.secret_key] are not")
+        );
     }
 
     public void testAWSDefaultConfiguration() {
-        launchAWSConfigurationTest(Settings.EMPTY, Protocol.HTTPS, null, -1, null, null,
-            ClientConfiguration.DEFAULT_SOCKET_TIMEOUT);
+        launchAWSConfigurationTest(Settings.EMPTY, Protocol.HTTPS, null, -1, null, null, ClientConfiguration.DEFAULT_SOCKET_TIMEOUT);
     }
 
     public void testAWSConfigurationWithAwsSettings() {
@@ -126,15 +146,19 @@ public class AwsEc2ServiceImplTests extends OpenSearchTestCase {
         launchAWSConfigurationTest(settings, Protocol.HTTP, "aws_proxy_host", 8080, "aws_proxy_username", "aws_proxy_password", 10000);
     }
 
-    protected void launchAWSConfigurationTest(Settings settings,
-                                              Protocol expectedProtocol,
-                                              String expectedProxyHost,
-                                              int expectedProxyPort,
-                                              String expectedProxyUsername,
-                                              String expectedProxyPassword,
-                                              int expectedReadTimeout) {
-        final ClientConfiguration configuration = AwsEc2ServiceImpl.buildConfiguration(logger,
-                Ec2ClientSettings.getClientSettings(settings));
+    protected void launchAWSConfigurationTest(
+        Settings settings,
+        Protocol expectedProtocol,
+        String expectedProxyHost,
+        int expectedProxyPort,
+        String expectedProxyUsername,
+        String expectedProxyPassword,
+        int expectedReadTimeout
+    ) {
+        final ClientConfiguration configuration = AwsEc2ServiceImpl.buildConfiguration(
+            logger,
+            Ec2ClientSettings.getClientSettings(settings)
+        );
 
         assertThat(configuration.getResponseMetadataCacheSize(), is(0));
         assertThat(configuration.getProtocol(), is(expectedProtocol));

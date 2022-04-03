@@ -207,7 +207,7 @@ public class MultiBucketCollector extends BucketCollector {
         public void collect(int doc, long bucket) throws IOException {
             final LeafBucketCollector[] collectors = this.collectors;
             int numCollectors = this.numCollectors;
-            for (int i = 0; i < numCollectors; ) {
+            for (int i = 0; i < numCollectors;) {
                 final LeafBucketCollector collector = collectors[i];
                 try {
                     collector.collect(doc, bucket);

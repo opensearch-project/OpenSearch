@@ -121,14 +121,13 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         // All writes (adds and deletes) go into here:
         final VersionLookup current;
 
-        // Used while refresh is running, and to hold adds/deletes until refresh finishes.  We read from both current and old on lookup:
+        // Used while refresh is running, and to hold adds/deletes until refresh finishes. We read from both current and old on lookup:
         final VersionLookup old;
 
         // this is not volatile since we don't need to maintain a happens before relation ship across doc IDs so it's enough to
         // have the volatile read of the Maps reference to make it visible even across threads.
         boolean needsSafeAccess;
         final boolean previousMapsNeededSafeAccess;
-
 
         Maps(VersionLookup current, VersionLookup old, boolean previousMapsNeededSafeAccess) {
             this.current = current;
@@ -137,8 +136,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         }
 
         Maps() {
-            this(new VersionLookup(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency()),
-                VersionLookup.EMPTY, false);
+            this(new VersionLookup(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency()), VersionLookup.EMPTY, false);
         }
 
         boolean isSafeAccessMode() {
@@ -156,8 +154,11 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
          * Builds a new map for the refresh transition this should be called in beforeRefresh()
          */
         Maps buildTransitionMap() {
-            return new Maps(new VersionLookup(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(current.size())), current,
-                shouldInheritSafeAccess());
+            return new Maps(
+                new VersionLookup(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(current.size())),
+                current,
+                shouldInheritSafeAccess()
+            );
         }
 
         /**
@@ -220,7 +221,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
     private static final long BASE_BYTES_PER_BYTESREF =
         // shallow memory usage of the BytesRef object
         RamUsageEstimator.shallowSizeOfInstance(BytesRef.class) +
-            // header of the byte[] array
+        // header of the byte[] array
             RamUsageEstimator.NUM_BYTES_ARRAY_HEADER +
             // with an alignment size (-XX:ObjectAlignmentInBytes) of 8 (default),
             // there could be between 0 and 7 lost bytes, so we account for 3
@@ -252,7 +253,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
     @Override
     public void beforeRefresh() throws IOException {
         // Start sending all updates after this point to the new
-        // map.  While reopen is running, any lookup will first
+        // map. While reopen is running, any lookup will first
         // try this new map, then fallback to old, then to the
         // current searcher:
         maps = maps.buildTransitionMap();
@@ -263,12 +264,12 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
 
     @Override
     public void afterRefresh(boolean didRefresh) throws IOException {
-        // We can now drop old because these operations are now visible via the newly opened searcher.  Even if didRefresh is false, which
+        // We can now drop old because these operations are now visible via the newly opened searcher. Even if didRefresh is false, which
         // means Lucene did not actually open a new reader because it detected no changes, it's possible old has some entries in it, which
         // is fine: it means they were actually already included in the previously opened reader, so we can still safely drop them in that
-        // case.  This is because we assign new maps (in beforeRefresh) slightly before Lucene actually flushes any segments for the
+        // case. This is because we assign new maps (in beforeRefresh) slightly before Lucene actually flushes any segments for the
         // reopen, and so any concurrent indexing requests can still sneak in a few additions to that current map that are in fact
-        // reflected in the previous reader.   We don't touch tombstones here: they expire on their own index.gc_deletes timeframe:
+        // reflected in the previous reader. We don't touch tombstones here: they expire on their own index.gc_deletes timeframe:
 
         maps = maps.invalidateOldMap();
         assert (unsafeKeysMap = unsafeKeysMap.invalidateOldMap()) != null;
@@ -368,7 +369,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         }
         if (accountRam != 0) {
             long v = ramBytesUsedTombstones.addAndGet(accountRam);
-            assert v >= 0: "bytes=" + v;
+            assert v >= 0 : "bytes=" + v;
         }
     }
 
@@ -431,9 +432,9 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         maps = new Maps();
         tombstones.clear();
         // NOTE: we can't zero this here, because a refresh thread could be calling InternalEngine.pruneDeletedTombstones at the same time,
-        // and this will lead to an assert trip.  Presumably it's fine if our ramBytesUsedTombstones is non-zero after clear since the
+        // and this will lead to an assert trip. Presumably it's fine if our ramBytesUsedTombstones is non-zero after clear since the
         // index is being closed:
-        //ramBytesUsedTombstones.set(0);
+        // ramBytesUsedTombstones.set(0);
     }
 
     @Override
@@ -487,8 +488,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
     }
 
     boolean assertKeyedLockHeldByCurrentThread(BytesRef uid) {
-        assert keyedLock.isHeldByCurrentThread(uid) : "Thread [" + Thread.currentThread().getName() +
-            "], uid [" + uid.utf8ToString() + "]";
+        assert keyedLock.isHeldByCurrentThread(uid) : "Thread [" + Thread.currentThread().getName() + "], uid [" + uid.utf8ToString() + "]";
         return true;
     }
 }

@@ -69,6 +69,5 @@ public interface InternalFactory<T> {
      * @throws ErrorsException
      *          if a value cannot be provided
      */
-    T get(Errors errors, InternalContext context, Dependency<?> dependency)
-            throws ErrorsException;
+    T get(Errors errors, InternalContext context, Dependency<?> dependency) throws ErrorsException;
 }

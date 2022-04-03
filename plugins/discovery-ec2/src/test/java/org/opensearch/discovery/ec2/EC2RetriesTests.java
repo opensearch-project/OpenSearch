@@ -68,9 +68,21 @@ public class EC2RetriesTests extends AbstractEC2MockAPITestCase {
 
     @Override
     protected MockTransportService createTransportService() {
-        return new MockTransportService(Settings.EMPTY, new MockNioTransport(Settings.EMPTY, Version.CURRENT, threadPool, networkService,
-            PageCacheRecycler.NON_RECYCLING_INSTANCE, new NamedWriteableRegistry(Collections.emptyList()),
-            new NoneCircuitBreakerService()), threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+        return new MockTransportService(
+            Settings.EMPTY,
+            new MockNioTransport(
+                Settings.EMPTY,
+                Version.CURRENT,
+                threadPool,
+                networkService,
+                PageCacheRecycler.NON_RECYCLING_INSTANCE,
+                new NamedWriteableRegistry(Collections.emptyList()),
+                new NoneCircuitBreakerService()
+            ),
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            null
+        );
     }
 
     public void testEC2DiscoveryRetriesOnRateLimiting() throws IOException {
@@ -88,8 +100,10 @@ public class EC2RetriesTests extends AbstractEC2MockAPITestCase {
                     if (auth == null || auth.contains(accessKey) == false) {
                         throw new IllegalArgumentException("wrong access key: " + auth);
                     }
-                    if (failedRequests.compute(exchange.getRequestHeaders().getFirst("Amz-sdk-invocation-id"),
-                        (requestId, count) -> (count == null ? 0 : count) + 1) < maxRetries) {
+                    if (failedRequests.compute(
+                        exchange.getRequestHeaders().getFirst("Amz-sdk-invocation-id"),
+                        (requestId, count) -> (count == null ? 0 : count) + 1
+                    ) < maxRetries) {
                         exchange.sendResponseHeaders(HttpStatus.SC_SERVICE_UNAVAILABLE, -1);
                         return;
                     }
@@ -97,8 +111,9 @@ public class EC2RetriesTests extends AbstractEC2MockAPITestCase {
                     byte[] responseBody = null;
                     for (NameValuePair parse : URLEncodedUtils.parse(request, UTF_8)) {
                         if ("Action".equals(parse.getName())) {
-                            responseBody = generateDescribeInstancesResponse(hosts.stream().map(
-                                address -> new Instance().withPublicIpAddress(address)).collect(Collectors.toList()));
+                            responseBody = generateDescribeInstancesResponse(
+                                hosts.stream().map(address -> new Instance().withPublicIpAddress(address)).collect(Collectors.toList())
+                            );
                             break;
                         }
                     }

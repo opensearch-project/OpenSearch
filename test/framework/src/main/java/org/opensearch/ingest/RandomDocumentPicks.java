@@ -57,7 +57,7 @@ public final class RandomDocumentPicks {
     public static String randomFieldName(Random random) {
         int numLevels = RandomNumbers.randomIntBetween(random, 1, 5);
         StringBuilder fieldName = new StringBuilder();
-        for (int i = 0; i < numLevels-1; i++) {
+        for (int i = 0; i < numLevels - 1; i++) {
             if (i > 0) {
                 fieldName.append('.');
             }
@@ -153,8 +153,10 @@ public final class RandomDocumentPicks {
         String id = randomString(random);
         String routing = null;
         Long version = randomNonNegtiveLong(random);
-        VersionType versionType = RandomPicks.randomFrom(random,
-            new VersionType[]{VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE});
+        VersionType versionType = RandomPicks.randomFrom(
+            random,
+            new VersionType[] { VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE }
+        );
         if (random.nextBoolean()) {
             routing = randomString(random);
         }
@@ -175,7 +177,7 @@ public final class RandomDocumentPicks {
     }
 
     private static Object randomFieldValue(Random random, int currentDepth) {
-        switch(RandomNumbers.randomIntBetween(random, 0, 9)) {
+        switch (RandomNumbers.randomIntBetween(random, 0, 9)) {
             case 0:
                 return randomString(random);
             case 1:

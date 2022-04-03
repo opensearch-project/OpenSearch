@@ -75,7 +75,8 @@ public class SerialDiffIT extends OpenSearchIntegTestCase {
     static Map<String, ArrayList<Double>> testValues;
 
     enum MetricTarget {
-        VALUE ("value"), COUNT("count");
+        VALUE("value"),
+        COUNT("count");
 
         private final String name;
 
@@ -84,14 +85,13 @@ public class SerialDiffIT extends OpenSearchIntegTestCase {
         }
 
         @Override
-        public String toString(){
+        public String toString() {
             return name;
         }
     }
 
-    private ValuesSourceAggregationBuilder<
-        ? extends ValuesSourceAggregationBuilder<?>> randomMetric(String name, String field) {
-        int rand = randomIntBetween(0,3);
+    private ValuesSourceAggregationBuilder<? extends ValuesSourceAggregationBuilder<?>> randomMetric(String name, String field) {
+        int rand = randomIntBetween(0, 3);
 
         switch (rand) {
             case 0:
@@ -124,8 +124,11 @@ public class SerialDiffIT extends OpenSearchIntegTestCase {
             assertThat("[_count] diff is not null", countDiff, nullValue());
         } else {
             assertThat("[_count] diff is null", countDiff, notNullValue());
-            assertThat("[_count] diff does not match expected [" + countDiff.value() + " vs " + expectedCount + "]",
-                    countDiff.value(), closeTo(expectedCount, 0.1));
+            assertThat(
+                "[_count] diff does not match expected [" + countDiff.value() + " vs " + expectedCount + "]",
+                countDiff.value(),
+                closeTo(expectedCount, 0.1)
+            );
         }
 
         // This is a gap bucket
@@ -134,18 +137,19 @@ public class SerialDiffIT extends OpenSearchIntegTestCase {
             assertThat("[value] diff is not null", valuesDiff, Matchers.nullValue());
         } else {
             assertThat("[value] diff is null", valuesDiff, notNullValue());
-            assertThat("[value] diff does not match expected [" + valuesDiff.value() + " vs " + expectedValue + "]",
-                    valuesDiff.value(), closeTo(expectedValue, 0.1));
+            assertThat(
+                "[value] diff does not match expected [" + valuesDiff.value() + " vs " + expectedValue + "]",
+                valuesDiff.value(),
+                closeTo(expectedValue, 0.1)
+            );
         }
     }
-
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         createIndex("idx");
         createIndex("idx_unmapped");
         List<IndexRequestBuilder> builders = new ArrayList<>();
-
 
         interval = 5;
         numBuckets = randomIntBetween(10, 80);
@@ -163,9 +167,10 @@ public class SerialDiffIT extends OpenSearchIntegTestCase {
 
         for (PipelineAggregationHelperTests.MockBucket mockBucket : mockHisto) {
             for (double value : mockBucket.docValues) {
-                builders.add(client().prepareIndex("idx", "type").setSource(jsonBuilder().startObject()
-                        .field(INTERVAL_FIELD, mockBucket.key)
-                        .field(VALUE_FIELD, value).endObject()));
+                builders.add(
+                    client().prepareIndex("idx", "type")
+                        .setSource(jsonBuilder().startObject().field(INTERVAL_FIELD, mockBucket.key).field(VALUE_FIELD, value).endObject())
+                );
             }
         }
 
@@ -229,29 +234,23 @@ public class SerialDiffIT extends OpenSearchIntegTestCase {
 
             lagWindow.add(metricValue);
 
-
-
-
         }
-
 
         testValues.put(target.toString(), values);
     }
 
     public void testBasicDiff() {
-        SearchResponse response = client()
-                .prepareSearch("idx").setTypes("type")
-                .addAggregation(
-                        histogram("histo").field(INTERVAL_FIELD).interval(interval)
-                                .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
-                                .subAggregation(metric)
-                                .subAggregation(diff("diff_counts", "_count")
-                                        .lag(lag)
-                                        .gapPolicy(gapPolicy))
-                                .subAggregation(diff("diff_values", "the_metric")
-                                        .lag(lag)
-                                        .gapPolicy(gapPolicy))
-                ).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .setTypes("type")
+            .addAggregation(
+                histogram("histo").field(INTERVAL_FIELD)
+                    .interval(interval)
+                    .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
+                    .subAggregation(metric)
+                    .subAggregation(diff("diff_counts", "_count").lag(lag).gapPolicy(gapPolicy))
+                    .subAggregation(diff("diff_values", "the_metric").lag(lag).gapPolicy(gapPolicy))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -278,7 +277,7 @@ public class SerialDiffIT extends OpenSearchIntegTestCase {
             Double expectedValue = expectedValuesIter.next();
 
             assertThat("keys do not match", ((Number) actual.getKey()).longValue(), equalTo(expected.key));
-            assertThat("doc counts do not match", actual.getDocCount(), equalTo((long)expected.count));
+            assertThat("doc counts do not match", actual.getDocCount(), equalTo((long) expected.count));
 
             assertBucketContents(actual, expectedCount, expectedValue);
         }
@@ -286,16 +285,16 @@ public class SerialDiffIT extends OpenSearchIntegTestCase {
 
     public void testInvalidLagSize() {
         try {
-            client()
-                .prepareSearch("idx").setTypes("type")
+            client().prepareSearch("idx")
+                .setTypes("type")
                 .addAggregation(
-                        histogram("histo").field(INTERVAL_FIELD).interval(interval)
-                                .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
-                                .subAggregation(metric)
-                                .subAggregation(diff("diff_counts", "_count")
-                                        .lag(-1)
-                                        .gapPolicy(gapPolicy))
-                ).get();
+                    histogram("histo").field(INTERVAL_FIELD)
+                        .interval(interval)
+                        .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
+                        .subAggregation(metric)
+                        .subAggregation(diff("diff_counts", "_count").lag(-1).gapPolicy(gapPolicy))
+                )
+                .get();
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), is("[lag] must be a positive integer: [diff_counts]"));
         }

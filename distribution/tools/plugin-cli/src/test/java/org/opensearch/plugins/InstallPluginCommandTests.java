@@ -576,6 +576,17 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         assertInstallCleaned(env.v2());
     }
 
+    public void testExistingPluginWithCustomFolderName() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        String pluginZip = createPluginUrl("fake", pluginDir, "custom.foldername", "fake-folder");
+        installPlugin(pluginZip, env.v1());
+        assertPlugin("fake-folder", pluginDir, env.v2());
+        UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
+        assertTrue(e.getMessage(), e.getMessage().contains("already exists"));
+        assertInstallCleaned(env.v2());
+    }
+
     public void testBin() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
@@ -817,6 +828,31 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         }
     }
 
+    public void testPluginsHelpNonOptionArgumentsOutput() throws Exception {
+        MockTerminal terminal = new MockTerminal();
+        new InstallPluginCommand() {
+            @Override
+            protected boolean addShutdownHook() {
+                return false;
+            }
+        }.main(new String[] { "--help" }, terminal);
+        try (BufferedReader reader = new BufferedReader(new StringReader(terminal.getOutput()))) {
+
+            // grab first line of --help output
+            String line = reader.readLine();
+
+            // find the beginning of Non-option arguments list
+            while (line.contains("Non-option arguments:") == false) {
+                line = reader.readLine();
+            }
+
+            // check that non option agrument list contains correct string
+            line = reader.readLine();
+            assertThat(line, containsString("<name|Zip File|URL>"));
+
+        }
+    }
+
     public void testInstallMisspelledOfficialPlugins() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
 
@@ -873,6 +909,14 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         );
     }
 
+    public void testPluginInstallationWithCustomFolderName() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        String pluginZip = createPluginUrl("fake", pluginDir, "custom.foldername", "fake-folder");
+        installPlugin(pluginZip, env.v1());
+        assertPlugin("fake-folder", pluginDir, env.v2());
+    }
+
     private void installPlugin(MockTerminal terminal, boolean isBatch) throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
@@ -916,8 +960,8 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
                     String checksum = shaCalculator.apply(zipbytes);
                     Files.write(shaFile, checksum.getBytes(StandardCharsets.UTF_8));
                     return shaFile.toUri().toURL();
-                } else if ((url + ".asc").equals(urlString)) {
-                    final Path ascFile = temp.apply("asc").resolve("downloaded.zip" + ".asc");
+                } else if ((url + ".sig").equals(urlString)) {
+                    final Path ascFile = temp.apply("sig").resolve("downloaded.zip" + ".sig");
                     final byte[] zipBytes = Files.readAllBytes(pluginZip);
                     final String asc = signature.apply(zipBytes, secretKey);
                     Files.write(ascFile, asc.getBytes(StandardCharsets.UTF_8));

@@ -81,9 +81,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            .put(AbstractDisruptionTestCase.DEFAULT_SETTINGS)
-            .build();
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(AbstractDisruptionTestCase.DEFAULT_SETTINGS).build();
     }
 
     public void testDisruptionAfterFinalization() throws Exception {
@@ -110,8 +108,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
                 if (snapshots != null && snapshots.entries().size() > 0) {
                     final SnapshotsInProgress.Entry snapshotEntry = snapshots.entries().get(0);
                     if (snapshotEntry.state() == SnapshotsInProgress.State.SUCCESS) {
-                        final RepositoriesMetadata repoMeta =
-                            event.state().metadata().custom(RepositoriesMetadata.TYPE);
+                        final RepositoriesMetadata repoMeta = event.state().metadata().custom(RepositoriesMetadata.TYPE);
                         final RepositoryMetadata metadata = repoMeta.repository("test-repo");
                         if (metadata.pendingGeneration() > snapshotEntry.repositoryStateId()) {
                             logger.info("--> starting disruption");
@@ -127,9 +124,12 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         final String snapshot = "test-snap";
 
         logger.info("--> starting snapshot");
-        ActionFuture<CreateSnapshotResponse> future = client(masterNode1).admin().cluster()
-            .prepareCreateSnapshot("test-repo", snapshot).setWaitForCompletion(true)
-            .setIndices(idxName).execute();
+        ActionFuture<CreateSnapshotResponse> future = client(masterNode1).admin()
+            .cluster()
+            .prepareCreateSnapshot("test-repo", snapshot)
+            .setWaitForCompletion(true)
+            .setIndices(idxName)
+            .execute();
 
         logger.info("--> waiting for disruption to start");
         assertTrue(disruptionStarted.await(1, TimeUnit.MINUTES));
@@ -157,8 +157,9 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
             final SnapshotException sne = (SnapshotException) ExceptionsHelper.unwrap(ex, SnapshotException.class);
             assertNotNull(sne);
             assertThat(
-                sne.getMessage(), either(endsWith(" Failed to update cluster state during snapshot finalization"))
-                            .or(endsWith(" no longer master")));
+                sne.getMessage(),
+                either(endsWith(" Failed to update cluster state during snapshot finalization")).or(endsWith(" no longer master"))
+            );
             assertThat(sne.getSnapshotName(), is(snapshot));
         }
 
@@ -182,8 +183,11 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         final String snapshot = "test-snap";
         logger.info("--> starting snapshot");
-        ActionFuture<CreateSnapshotResponse> future = client(masterNode).admin().cluster()
-                .prepareCreateSnapshot(repoName, snapshot).setWaitForCompletion(true).execute();
+        ActionFuture<CreateSnapshotResponse> future = client(masterNode).admin()
+            .cluster()
+            .prepareCreateSnapshot(repoName, snapshot)
+            .setWaitForCompletion(true)
+            .execute();
 
         waitForBlockOnAnyDataNode(repoName, TimeValue.timeValueSeconds(10L));
 
@@ -209,15 +213,21 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> run a snapshot that fails to finalize but succeeds on the data node");
         blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
-        final ActionFuture<CreateSnapshotResponse> snapshotFuture =
-                client(masterNode).admin().cluster().prepareCreateSnapshot(repoName, "snapshot-2").setWaitForCompletion(true).execute();
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = client(masterNode).admin()
+            .cluster()
+            .prepareCreateSnapshot(repoName, "snapshot-2")
+            .setWaitForCompletion(true)
+            .execute();
         waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(10L));
         unblockNode(repoName, masterNode);
         assertFutureThrows(snapshotFuture, SnapshotException.class);
 
         logger.info("--> create a snapshot expected to be successful");
-        final CreateSnapshotResponse successfulSnapshot =
-                client(masterNode).admin().cluster().prepareCreateSnapshot(repoName, "snapshot-2").setWaitForCompletion(true).get();
+        final CreateSnapshotResponse successfulSnapshot = client(masterNode).admin()
+            .cluster()
+            .prepareCreateSnapshot(repoName, "snapshot-2")
+            .setWaitForCompletion(true)
+            .get();
         final SnapshotInfo successfulSnapshotInfo = successfulSnapshot.getSnapshotInfo();
         assertThat(successfulSnapshotInfo.state(), is(SnapshotState.SUCCESS));
 
@@ -239,8 +249,12 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         blockDataNode(repoName, dataNode);
 
         logger.info("--> create snapshot via master node client");
-        final ActionFuture<CreateSnapshotResponse> snapshotResponse = internalCluster().masterClient().admin().cluster()
-                .prepareCreateSnapshot(repoName, "test-snap").setWaitForCompletion(true).execute();
+        final ActionFuture<CreateSnapshotResponse> snapshotResponse = internalCluster().masterClient()
+            .admin()
+            .cluster()
+            .prepareCreateSnapshot(repoName, "test-snap")
+            .setWaitForCompletion(true)
+            .execute();
 
         waitForBlock(dataNode, repoName, TimeValue.timeValueSeconds(30L));
 
@@ -254,14 +268,19 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         awaitNoMoreRunningOperations(dataNode);
 
         logger.info("--> make sure isolated master responds to snapshot request");
-        final SnapshotException sne =
-                expectThrows(SnapshotException.class, () -> snapshotResponse.actionGet(TimeValue.timeValueSeconds(30L)));
+        final SnapshotException sne = expectThrows(
+            SnapshotException.class,
+            () -> snapshotResponse.actionGet(TimeValue.timeValueSeconds(30L))
+        );
         assertThat(sne.getMessage(), endsWith("no longer master"));
     }
 
     private void assertSnapshotExists(String repository, String snapshot) {
-        GetSnapshotsResponse snapshotsStatusResponse = dataNodeClient().admin().cluster().prepareGetSnapshots(repository)
-                .setSnapshots(snapshot).get();
+        GetSnapshotsResponse snapshotsStatusResponse = dataNodeClient().admin()
+            .cluster()
+            .prepareGetSnapshots(repository)
+            .setSnapshots(snapshot)
+            .get();
         SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
         assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
         assertEquals(snapshotInfo.totalShards(), snapshotInfo.successfulShards());

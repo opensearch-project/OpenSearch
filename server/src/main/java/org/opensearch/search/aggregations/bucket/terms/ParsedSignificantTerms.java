@@ -53,7 +53,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public abstract class ParsedSignificantTerms extends ParsedMultiBucketAggregation<ParsedSignificantTerms.ParsedBucket>
-        implements SignificantTerms {
+    implements
+        SignificantTerms {
 
     private Map<String, ParsedBucket> bucketMap;
     protected long subsetSize;
@@ -97,8 +98,10 @@ public abstract class ParsedSignificantTerms extends ParsedMultiBucketAggregatio
         return builder;
     }
 
-    static <T extends ParsedSignificantTerms> T parseSignificantTermsXContent(final CheckedSupplier<T, IOException> aggregationSupplier,
-                                                                              final String name) throws IOException {
+    static <T extends ParsedSignificantTerms> T parseSignificantTermsXContent(
+        final CheckedSupplier<T, IOException> aggregationSupplier,
+        final String name
+    ) throws IOException {
         T aggregation = aggregationSupplier.get();
         aggregation.setName(name);
         for (ParsedBucket bucket : aggregation.buckets) {
@@ -108,12 +111,16 @@ public abstract class ParsedSignificantTerms extends ParsedMultiBucketAggregatio
         return aggregation;
     }
 
-    static void declareParsedSignificantTermsFields(final ObjectParser<? extends ParsedSignificantTerms, Void> objectParser,
-                                     final CheckedFunction<XContentParser, ParsedSignificantTerms.ParsedBucket, IOException> bucketParser) {
+    static void declareParsedSignificantTermsFields(
+        final ObjectParser<? extends ParsedSignificantTerms, Void> objectParser,
+        final CheckedFunction<XContentParser, ParsedSignificantTerms.ParsedBucket, IOException> bucketParser
+    ) {
         declareMultiBucketAggregationFields(objectParser, bucketParser::apply, bucketParser::apply);
-        objectParser.declareLong((parsedTerms, value) -> parsedTerms.subsetSize = value , CommonFields.DOC_COUNT);
-        objectParser.declareLong((parsedTerms, value) -> parsedTerms.supersetSize = value ,
-                new ParseField(InternalMappedSignificantTerms.BG_COUNT));
+        objectParser.declareLong((parsedTerms, value) -> parsedTerms.subsetSize = value, CommonFields.DOC_COUNT);
+        objectParser.declareLong(
+            (parsedTerms, value) -> parsedTerms.supersetSize = value,
+            new ParseField(InternalMappedSignificantTerms.BG_COUNT)
+        );
     }
 
     public abstract static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements SignificantTerms.Bucket {
@@ -169,8 +176,11 @@ public abstract class ParsedSignificantTerms extends ParsedMultiBucketAggregatio
         @Override
         protected abstract XContentBuilder keyToXContent(XContentBuilder builder) throws IOException;
 
-        static <B extends ParsedBucket> B parseSignificantTermsBucketXContent(final XContentParser parser, final B bucket,
-            final CheckedBiConsumer<XContentParser, B, IOException> keyConsumer) throws IOException {
+        static <B extends ParsedBucket> B parseSignificantTermsBucketXContent(
+            final XContentParser parser,
+            final B bucket,
+            final CheckedBiConsumer<XContentParser, B, IOException> keyConsumer
+        ) throws IOException {
 
             final List<Aggregation> aggregations = new ArrayList<>();
             XContentParser.Token token;
@@ -193,8 +203,12 @@ public abstract class ParsedSignificantTerms extends ParsedMultiBucketAggregatio
                         bucket.supersetDf = parser.longValue();
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class,
-                            aggregations::add);
+                    XContentParserUtils.parseTypedKeysObject(
+                        parser,
+                        Aggregation.TYPED_KEYS_DELIMITER,
+                        Aggregation.class,
+                        aggregations::add
+                    );
                 }
             }
             bucket.setAggregations(new Aggregations(aggregations));

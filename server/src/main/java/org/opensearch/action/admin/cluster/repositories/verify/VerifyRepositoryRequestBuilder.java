@@ -38,8 +38,10 @@ import org.opensearch.client.OpenSearchClient;
 /**
  * Builder for verify repository request
  */
-public class VerifyRepositoryRequestBuilder
-        extends MasterNodeOperationRequestBuilder<VerifyRepositoryRequest, VerifyRepositoryResponse, VerifyRepositoryRequestBuilder> {
+public class VerifyRepositoryRequestBuilder extends MasterNodeOperationRequestBuilder<
+    VerifyRepositoryRequest,
+    VerifyRepositoryResponse,
+    VerifyRepositoryRequestBuilder> {
 
     /**
      * Constructs unregister repository request builder

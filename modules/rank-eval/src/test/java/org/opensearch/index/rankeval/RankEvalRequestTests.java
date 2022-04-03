@@ -68,13 +68,20 @@ public class RankEvalRequestTests extends AbstractWireSerializingTestCase<RankEv
     protected RankEvalRequest createTestInstance() {
         int numberOfIndices = randomInt(3);
         String[] indices = new String[numberOfIndices];
-        for (int i=0; i < numberOfIndices; i++) {
+        for (int i = 0; i < numberOfIndices; i++) {
             indices[i] = randomAlphaOfLengthBetween(5, 10);
         }
         RankEvalRequest rankEvalRequest = new RankEvalRequest(RankEvalSpecTests.createTestItem(), indices);
         IndicesOptions indicesOptions = IndicesOptions.fromOptions(
-                randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
-            randomBoolean());
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean()
+        );
         rankEvalRequest.indicesOptions(indicesOptions);
         rankEvalRequest.searchType(randomFrom(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH));
         return rankEvalRequest;
@@ -90,8 +97,14 @@ public class RankEvalRequestTests extends AbstractWireSerializingTestCase<RankEv
         RankEvalRequest mutation = copyInstance(instance);
         List<Runnable> mutators = new ArrayList<>();
         mutators.add(() -> mutation.indices(ArrayUtils.concat(instance.indices(), new String[] { randomAlphaOfLength(10) })));
-        mutators.add(() -> mutation.indicesOptions(randomValueOtherThan(instance.indicesOptions(),
-                () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()))));
+        mutators.add(
+            () -> mutation.indicesOptions(
+                randomValueOtherThan(
+                    instance.indicesOptions(),
+                    () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())
+                )
+            )
+        );
         mutators.add(() -> {
             if (instance.searchType() == SearchType.DFS_QUERY_THEN_FETCH) {
                 mutation.searchType(SearchType.QUERY_THEN_FETCH);

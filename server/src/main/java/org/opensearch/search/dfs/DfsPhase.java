@@ -62,7 +62,7 @@ public class DfsPhase {
                 @Override
                 public TermStatistics termStatistics(Term term, int docFreq, long totalTermFreq) throws IOException {
                     if (context.isCancelled()) {
-                        throw new TaskCancelledException("cancelled");
+                        throw new TaskCancelledException("cancelled task with reason: " + context.getTask().getReasonCancelled());
                     }
                     TermStatistics ts = super.termStatistics(term, docFreq, totalTermFreq);
                     if (ts != null) {
@@ -74,7 +74,7 @@ public class DfsPhase {
                 @Override
                 public CollectionStatistics collectionStatistics(String field) throws IOException {
                     if (context.isCancelled()) {
-                        throw new TaskCancelledException("cancelled");
+                        throw new TaskCancelledException("cancelled task with reason: " + context.getTask().getReasonCancelled());
                     }
                     CollectionStatistics cs = super.collectionStatistics(field);
                     if (cs != null) {
@@ -97,9 +97,10 @@ public class DfsPhase {
                 termStatistics[i] = stats.get(terms[i]);
             }
 
-            context.dfsResult().termsStatistics(terms, termStatistics)
-                    .fieldStatistics(fieldStatistics)
-                    .maxDoc(context.searcher().getIndexReader().maxDoc());
+            context.dfsResult()
+                .termsStatistics(terms, termStatistics)
+                .fieldStatistics(fieldStatistics)
+                .maxDoc(context.searcher().getIndexReader().maxDoc());
         } catch (Exception e) {
             throw new DfsPhaseExecutionException(context.shardTarget(), "Exception during dfs phase", e);
         }

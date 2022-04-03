@@ -49,4 +49,3 @@ public class LangMustacheClientYamlTestSuiteIT extends OpenSearchClientYamlSuite
         return OpenSearchClientYamlSuiteTestCase.createParameters();
     }
 }
-

@@ -35,6 +35,7 @@ import com.carrotsearch.hppc.BitMixer;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.util.StringHelper;
+import org.opensearch.common.Nullable;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.LeafFieldData;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
@@ -50,6 +51,7 @@ public class RandomScoreFunction extends ScoreFunction {
     private final int originalSeed;
     private final int saltedSeed;
     private final IndexFieldData<?> fieldData;
+    private final String functionName;
 
     /**
      * Creates a RandomScoreFunction.
@@ -59,10 +61,23 @@ public class RandomScoreFunction extends ScoreFunction {
      * @param uidFieldData The field data for _uid to use for generating consistent random values for the same id
      */
     public RandomScoreFunction(int seed, int salt, IndexFieldData<?> uidFieldData) {
+        this(seed, salt, uidFieldData, null);
+    }
+
+    /**
+     * Creates a RandomScoreFunction.
+     *
+     * @param seed A seed for randomness
+     * @param salt A value to salt the seed with, ideally unique to the running node/index
+     * @param uidFieldData The field data for _uid to use for generating consistent random values for the same id
+     * @param functionName The function name
+     */
+    public RandomScoreFunction(int seed, int salt, IndexFieldData<?> uidFieldData, @Nullable String functionName) {
         super(CombineFunction.MULTIPLY);
         this.originalSeed = seed;
         this.saltedSeed = BitMixer.mix(seed, salt);
         this.fieldData = uidFieldData;
+        this.functionName = functionName;
     }
 
     @Override
@@ -89,15 +104,16 @@ public class RandomScoreFunction extends ScoreFunction {
                     // field has no value
                     hash = saltedSeed;
                 }
-                return (hash & 0x00FFFFFF) / (float)(1 << 24); // only use the lower 24 bits to construct a float from 0.0-1.0
+                return (hash & 0x00FFFFFF) / (float) (1 << 24); // only use the lower 24 bits to construct a float from 0.0-1.0
             }
 
             @Override
             public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
                 String field = fieldData == null ? null : fieldData.getFieldName();
                 return Explanation.match(
-                        (float) score(docId, subQueryScore.getValue().floatValue()),
-                        "random score function (seed: " + originalSeed + ", field: " + field + ")");
+                    (float) score(docId, subQueryScore.getValue().floatValue()),
+                    "random score function (seed: " + originalSeed + ", field: " + field + Functions.nameOrEmptyArg(functionName) + ")"
+                );
             }
         };
     }
@@ -110,8 +126,7 @@ public class RandomScoreFunction extends ScoreFunction {
     @Override
     protected boolean doEquals(ScoreFunction other) {
         RandomScoreFunction randomScoreFunction = (RandomScoreFunction) other;
-        return this.originalSeed == randomScoreFunction.originalSeed
-                && this.saltedSeed == randomScoreFunction.saltedSeed;
+        return this.originalSeed == randomScoreFunction.originalSeed && this.saltedSeed == randomScoreFunction.saltedSeed;
     }
 
     @Override

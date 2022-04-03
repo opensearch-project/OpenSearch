@@ -38,7 +38,10 @@ package org.opensearch.monitor;
  */
 public class StatusInfo {
 
-    public enum Status { HEALTHY, UNHEALTHY }
+    public enum Status {
+        HEALTHY,
+        UNHEALTHY
+    }
 
     private Status status;
     private String info;

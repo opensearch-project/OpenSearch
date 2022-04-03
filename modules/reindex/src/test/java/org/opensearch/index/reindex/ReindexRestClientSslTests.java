@@ -62,7 +62,6 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.security.cert.Certificate;
@@ -85,12 +84,11 @@ import static org.mockito.Mockito.mock;
 public class ReindexRestClientSslTests extends OpenSearchTestCase {
 
     private static HttpsServer server;
-    private static Consumer<HttpsExchange> handler = ignore -> {
-    };
+    private static Consumer<HttpsExchange> handler = ignore -> {};
 
     @BeforeClass
     public static void setupHttpServer() throws Exception {
-        InetSocketAddress address = new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0);
+        InetSocketAddress address = new InetSocketAddress("localhost", 0);
         SSLContext sslContext = buildServerSslContext();
         server = MockHttpServer.createHttps(address, 0);
         server.setHttpsConfigurator(new ClientAuthHttpsConfigurator(sslContext));
@@ -100,8 +98,8 @@ public class ReindexRestClientSslTests extends OpenSearchTestCase {
             HttpsExchange https = (HttpsExchange) http;
             handler.accept(https);
             // Always respond with 200
-            //  * If the reindex sees the 200, it means the SSL connection was established correctly.
-            //  * We can check client certs in the handler.
+            // * If the reindex sees the 200, it means the SSL connection was established correctly.
+            // * We can check client certs in the handler.
             https.sendResponseHeaders(200, 0);
             https.close();
         });
@@ -213,9 +211,18 @@ public class ReindexRestClientSslTests extends OpenSearchTestCase {
     }
 
     private RemoteInfo getRemoteInfo() {
-        return new RemoteInfo("https", server.getAddress().getHostName(), server.getAddress().getPort(), "/",
-            new BytesArray("{\"match_all\":{}}"), "user", "password", Collections.emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
-            RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
+        return new RemoteInfo(
+            "https",
+            "localhost",
+            server.getAddress().getPort(),
+            "/",
+            new BytesArray("{\"match_all\":{}}"),
+            "user",
+            "password",
+            Collections.emptyMap(),
+            RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+            RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+        );
     }
 
     @SuppressForbidden(reason = "use http server")

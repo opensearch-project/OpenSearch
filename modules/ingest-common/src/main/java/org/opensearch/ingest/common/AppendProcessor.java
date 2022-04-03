@@ -90,15 +90,23 @@ public final class AppendProcessor extends AbstractProcessor {
         }
 
         @Override
-        public AppendProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                      String description, Map<String, Object> config) throws Exception {
+        public AppendProcessor create(
+            Map<String, Processor.Factory> registry,
+            String processorTag,
+            String description,
+            Map<String, Object> config
+        ) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             Object value = ConfigurationUtils.readObject(TYPE, processorTag, config, "value");
             boolean allowDuplicates = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "allow_duplicates", true);
-            TemplateScript.Factory compiledTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
-                "field", field, scriptService);
-            return new AppendProcessor(processorTag, description, compiledTemplate, ValueSource.wrap(value, scriptService),
-                allowDuplicates);
+            TemplateScript.Factory compiledTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag, "field", field, scriptService);
+            return new AppendProcessor(
+                processorTag,
+                description,
+                compiledTemplate,
+                ValueSource.wrap(value, scriptService),
+                allowDuplicates
+            );
         }
     }
 }

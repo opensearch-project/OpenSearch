@@ -54,7 +54,7 @@ public class TrimTokenFilterTests extends OpenSearchTokenStreamTestCase {
         NamedAnalyzer normalizer = analysis.indexAnalyzers.getNormalizer("my_normalizer");
         assertNotNull(normalizer);
         assertEquals("my_normalizer", normalizer.name());
-        assertTokenStreamContents(normalizer.tokenStream("foo", "  bar  "), new String[] {"bar"});
+        assertTokenStreamContents(normalizer.tokenStream("foo", "  bar  "), new String[] { "bar" });
         assertEquals(new BytesRef("bar"), normalizer.normalize("foo", "  bar  "));
     }
 

@@ -33,6 +33,7 @@
 package org.opensearch.action.search;
 
 import org.opensearch.LegacyESVersion;
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
@@ -109,10 +110,11 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private boolean ccsMinimizeRoundtrips = true;
 
-    public static final IndicesOptions DEFAULT_INDICES_OPTIONS =
-        IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
 
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
+
+    private TimeValue cancelAfterTimeInterval;
 
     public SearchRequest() {
         this.localClusterAlias = null;
@@ -124,8 +126,13 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      * Constructs a new search request from the provided search request
      */
     public SearchRequest(SearchRequest searchRequest) {
-        this(searchRequest, searchRequest.indices, searchRequest.localClusterAlias,
-            searchRequest.absoluteStartMillis, searchRequest.finalReduce);
+        this(
+            searchRequest,
+            searchRequest.indices,
+            searchRequest.localClusterAlias,
+            searchRequest.absoluteStartMillis,
+            searchRequest.finalReduce
+        );
     }
 
     /**
@@ -161,8 +168,13 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      * @param absoluteStartMillis the absolute start time to be used on the remote clusters to ensure that the same value is used
      * @param finalReduce whether the reduction should be final or not
      */
-    static SearchRequest subSearchRequest(SearchRequest originalSearchRequest, String[] indices,
-                                          String clusterAlias, long absoluteStartMillis, boolean finalReduce) {
+    static SearchRequest subSearchRequest(
+        SearchRequest originalSearchRequest,
+        String[] indices,
+        String clusterAlias,
+        long absoluteStartMillis,
+        boolean finalReduce
+    ) {
         Objects.requireNonNull(originalSearchRequest, "search request must not be null");
         validateIndices(indices);
         Objects.requireNonNull(clusterAlias, "cluster alias must not be null");
@@ -172,8 +184,13 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return new SearchRequest(originalSearchRequest, indices, clusterAlias, absoluteStartMillis, finalReduce);
     }
 
-    private SearchRequest(SearchRequest searchRequest, String[] indices, String localClusterAlias, long absoluteStartMillis,
-                          boolean finalReduce) {
+    private SearchRequest(
+        SearchRequest searchRequest,
+        String[] indices,
+        String localClusterAlias,
+        long absoluteStartMillis,
+        boolean finalReduce
+    ) {
         this.allowPartialSearchResults = searchRequest.allowPartialSearchResults;
         this.batchedReduceSize = searchRequest.batchedReduceSize;
         this.ccsMinimizeRoundtrips = searchRequest.ccsMinimizeRoundtrips;
@@ -191,6 +208,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.localClusterAlias = localClusterAlias;
         this.absoluteStartMillis = absoluteStartMillis;
         this.finalReduce = finalReduce;
+        this.cancelAfterTimeInterval = searchRequest.cancelAfterTimeInterval;
     }
 
     /**
@@ -237,6 +255,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
             ccsMinimizeRoundtrips = in.readBoolean();
         }
+
+        if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
+            cancelAfterTimeInterval = in.readOptionalTimeValue();
+        }
     }
 
     @Override
@@ -271,6 +293,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
             out.writeBoolean(ccsMinimizeRoundtrips);
         }
+
+        if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
+            out.writeOptionalTimeValue(cancelAfterTimeInterval);
+        }
     }
 
     @Override
@@ -280,24 +306,23 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (scroll) {
             if (source != null) {
                 if (source.trackTotalHitsUpTo() != null && source.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
-                    validationException =
-                        addValidationError("disabling [track_total_hits] is not allowed in a scroll context", validationException);
+                    validationException = addValidationError(
+                        "disabling [track_total_hits] is not allowed in a scroll context",
+                        validationException
+                    );
                 }
                 if (source.from() > 0) {
-                    validationException =
-                        addValidationError("using [from] is not allowed in a scroll context", validationException);
+                    validationException = addValidationError("using [from] is not allowed in a scroll context", validationException);
                 }
                 if (source.size() == 0) {
                     validationException = addValidationError("[size] cannot be [0] in a scroll context", validationException);
                 }
                 if (source.rescores() != null && source.rescores().isEmpty() == false) {
-                    validationException =
-                        addValidationError("using [rescore] is not allowed in a scroll context", validationException);
+                    validationException = addValidationError("using [rescore] is not allowed in a scroll context", validationException);
                 }
             }
             if (requestCache != null && requestCache) {
-                validationException =
-                    addValidationError("[request_cache] cannot be used in a scroll context", validationException);
+                validationException = addValidationError("[request_cache] cannot be used in a scroll context", validationException);
             }
         }
         if (source != null) {
@@ -610,6 +635,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         this.maxConcurrentShardRequests = maxConcurrentShardRequests;
     }
+
     /**
      * Sets a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
      * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
@@ -665,13 +691,22 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             // no matter what the value of track_total_hits is
             return SearchContext.TRACK_TOTAL_HITS_ACCURATE;
         }
-        return source == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : source.trackTotalHitsUpTo() == null ?
-            SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : source.trackTotalHitsUpTo();
+        return source == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
+            : source.trackTotalHitsUpTo() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
+            : source.trackTotalHitsUpTo();
+    }
+
+    public void setCancelAfterTimeInterval(TimeValue cancelAfterTimeInterval) {
+        this.cancelAfterTimeInterval = cancelAfterTimeInterval;
+    }
+
+    public TimeValue getCancelAfterTimeInterval() {
+        return cancelAfterTimeInterval;
     }
 
     @Override
     public SearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new SearchTask(id, type, action, this::buildDescription, parentTaskId, headers);
+        return new SearchTask(id, type, action, this::buildDescription, parentTaskId, headers, cancelAfterTimeInterval);
     }
 
     public final String buildDescription() {
@@ -703,49 +738,87 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             return false;
         }
         SearchRequest that = (SearchRequest) o;
-        return searchType == that.searchType &&
-                Arrays.equals(indices, that.indices) &&
-                Objects.equals(routing, that.routing) &&
-                Objects.equals(preference, that.preference) &&
-                Objects.equals(source, that.source) &&
-                Objects.equals(requestCache, that.requestCache)  &&
-                Objects.equals(scroll, that.scroll) &&
-                Arrays.equals(types, that.types) &&
-                Objects.equals(batchedReduceSize, that.batchedReduceSize) &&
-                Objects.equals(maxConcurrentShardRequests, that.maxConcurrentShardRequests) &&
-                Objects.equals(preFilterShardSize, that.preFilterShardSize) &&
-                Objects.equals(indicesOptions, that.indicesOptions) &&
-                Objects.equals(allowPartialSearchResults, that.allowPartialSearchResults) &&
-                Objects.equals(localClusterAlias, that.localClusterAlias) &&
-                absoluteStartMillis == that.absoluteStartMillis &&
-                ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips;
+        return searchType == that.searchType
+            && Arrays.equals(indices, that.indices)
+            && Objects.equals(routing, that.routing)
+            && Objects.equals(preference, that.preference)
+            && Objects.equals(source, that.source)
+            && Objects.equals(requestCache, that.requestCache)
+            && Objects.equals(scroll, that.scroll)
+            && Arrays.equals(types, that.types)
+            && Objects.equals(batchedReduceSize, that.batchedReduceSize)
+            && Objects.equals(maxConcurrentShardRequests, that.maxConcurrentShardRequests)
+            && Objects.equals(preFilterShardSize, that.preFilterShardSize)
+            && Objects.equals(indicesOptions, that.indicesOptions)
+            && Objects.equals(allowPartialSearchResults, that.allowPartialSearchResults)
+            && Objects.equals(localClusterAlias, that.localClusterAlias)
+            && absoluteStartMillis == that.absoluteStartMillis
+            && ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips
+            && Objects.equals(cancelAfterTimeInterval, that.cancelAfterTimeInterval);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(searchType, Arrays.hashCode(indices), routing, preference, source, requestCache,
-                scroll, Arrays.hashCode(types), indicesOptions, batchedReduceSize, maxConcurrentShardRequests, preFilterShardSize,
-                allowPartialSearchResults, localClusterAlias, absoluteStartMillis, ccsMinimizeRoundtrips);
+        return Objects.hash(
+            searchType,
+            Arrays.hashCode(indices),
+            routing,
+            preference,
+            source,
+            requestCache,
+            scroll,
+            Arrays.hashCode(types),
+            indicesOptions,
+            batchedReduceSize,
+            maxConcurrentShardRequests,
+            preFilterShardSize,
+            allowPartialSearchResults,
+            localClusterAlias,
+            absoluteStartMillis,
+            ccsMinimizeRoundtrips,
+            cancelAfterTimeInterval
+        );
     }
 
     @Override
     public String toString() {
-        return "SearchRequest{" +
-                "searchType=" + searchType +
-                ", indices=" + Arrays.toString(indices) +
-                ", indicesOptions=" + indicesOptions +
-                ", types=" + Arrays.toString(types) +
-                ", routing='" + routing + '\'' +
-                ", preference='" + preference + '\'' +
-                ", requestCache=" + requestCache +
-                ", scroll=" + scroll +
-                ", maxConcurrentShardRequests=" + maxConcurrentShardRequests +
-                ", batchedReduceSize=" + batchedReduceSize +
-                ", preFilterShardSize=" + preFilterShardSize +
-                ", allowPartialSearchResults=" + allowPartialSearchResults +
-                ", localClusterAlias=" + localClusterAlias +
-                ", getOrCreateAbsoluteStartMillis=" + absoluteStartMillis +
-                ", ccsMinimizeRoundtrips=" + ccsMinimizeRoundtrips +
-                ", source=" + source + '}';
+        return "SearchRequest{"
+            + "searchType="
+            + searchType
+            + ", indices="
+            + Arrays.toString(indices)
+            + ", indicesOptions="
+            + indicesOptions
+            + ", types="
+            + Arrays.toString(types)
+            + ", routing='"
+            + routing
+            + '\''
+            + ", preference='"
+            + preference
+            + '\''
+            + ", requestCache="
+            + requestCache
+            + ", scroll="
+            + scroll
+            + ", maxConcurrentShardRequests="
+            + maxConcurrentShardRequests
+            + ", batchedReduceSize="
+            + batchedReduceSize
+            + ", preFilterShardSize="
+            + preFilterShardSize
+            + ", allowPartialSearchResults="
+            + allowPartialSearchResults
+            + ", localClusterAlias="
+            + localClusterAlias
+            + ", getOrCreateAbsoluteStartMillis="
+            + absoluteStartMillis
+            + ", ccsMinimizeRoundtrips="
+            + ccsMinimizeRoundtrips
+            + ", source="
+            + source
+            + ", cancelAfterTimeInterval="
+            + cancelAfterTimeInterval
+            + "}";
     }
 }

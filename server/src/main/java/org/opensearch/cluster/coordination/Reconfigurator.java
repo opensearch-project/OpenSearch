@@ -67,8 +67,12 @@ public class Reconfigurator {
      * as long as there have been at least three master-eligible nodes in the cluster and no more than one of them is currently unavailable,
      * then the cluster will still operate, which is what almost everyone wants. Manual control is for users who want different guarantees.
      */
-    public static final Setting<Boolean> CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION =
-        Setting.boolSetting("cluster.auto_shrink_voting_configuration", true, Property.NodeScope, Property.Dynamic);
+    public static final Setting<Boolean> CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION = Setting.boolSetting(
+        "cluster.auto_shrink_voting_configuration",
+        true,
+        Property.NodeScope,
+        Property.Dynamic
+    );
 
     private volatile boolean autoShrinkVotingConfiguration;
 
@@ -87,9 +91,7 @@ public class Reconfigurator {
 
     @Override
     public String toString() {
-        return "Reconfigurator{" +
-            "autoShrinkVotingConfiguration=" + autoShrinkVotingConfiguration +
-            '}';
+        return "Reconfigurator{" + "autoShrinkVotingConfiguration=" + autoShrinkVotingConfiguration + '}';
     }
 
     /**
@@ -104,22 +106,37 @@ public class Reconfigurator {
      * @param currentConfig  The current configuration. As far as possible, we prefer to keep the current config as-is.
      * @return An optimal configuration, or leave the current configuration unchanged if the optimal configuration has no live quorum.
      */
-    public VotingConfiguration reconfigure(Set<DiscoveryNode> liveNodes, Set<String> retiredNodeIds, DiscoveryNode currentMaster,
-                                           VotingConfiguration currentConfig) {
+    public VotingConfiguration reconfigure(
+        Set<DiscoveryNode> liveNodes,
+        Set<String> retiredNodeIds,
+        DiscoveryNode currentMaster,
+        VotingConfiguration currentConfig
+    ) {
         assert liveNodes.contains(currentMaster) : "liveNodes = " + liveNodes + " master = " + currentMaster;
-        logger.trace("{} reconfiguring {} based on liveNodes={}, retiredNodeIds={}, currentMaster={}",
-            this, currentConfig, liveNodes, retiredNodeIds, currentMaster);
+        logger.trace(
+            "{} reconfiguring {} based on liveNodes={}, retiredNodeIds={}, currentMaster={}",
+            this,
+            currentConfig,
+            liveNodes,
+            retiredNodeIds,
+            currentMaster
+        );
 
         final Set<String> liveNodeIds = liveNodes.stream()
-            .filter(DiscoveryNode::isMasterNode).map(DiscoveryNode::getId).collect(Collectors.toSet());
+            .filter(DiscoveryNode::isMasterNode)
+            .map(DiscoveryNode::getId)
+            .collect(Collectors.toSet());
         final Set<String> currentConfigNodeIds = currentConfig.getNodeIds();
 
         final Set<VotingConfigNode> orderedCandidateNodes = new TreeSet<>();
         liveNodes.stream()
             .filter(DiscoveryNode::isMasterNode)
             .filter(n -> retiredNodeIds.contains(n.getId()) == false)
-            .forEach(n -> orderedCandidateNodes.add(new VotingConfigNode(n.getId(), true,
-                n.getId().equals(currentMaster.getId()), currentConfigNodeIds.contains(n.getId()))));
+            .forEach(
+                n -> orderedCandidateNodes.add(
+                    new VotingConfigNode(n.getId(), true, n.getId().equals(currentMaster.getId()), currentConfigNodeIds.contains(n.getId()))
+                )
+            );
         currentConfigNodeIds.stream()
             .filter(nid -> liveNodeIds.contains(nid) == false)
             .filter(nid -> retiredNodeIds.contains(nid) == false)
@@ -134,10 +151,8 @@ public class Reconfigurator {
         final int targetSize = Math.max(roundDownToOdd(nonRetiredLiveNodeCount), minimumConfigEnforcedSize);
 
         final VotingConfiguration newConfig = new VotingConfiguration(
-            orderedCandidateNodes.stream()
-                .limit(targetSize)
-                .map(n -> n.id)
-                .collect(Collectors.toSet()));
+            orderedCandidateNodes.stream().limit(targetSize).map(n -> n.id).collect(Collectors.toSet())
+        );
 
         // new configuration should have a quorum
         if (newConfig.hasQuorum(liveNodeIds)) {
@@ -184,12 +199,17 @@ public class Reconfigurator {
 
         @Override
         public String toString() {
-            return "VotingConfigNode{" +
-                "id='" + id + '\'' +
-                ", live=" + live +
-                ", currentMaster=" + currentMaster +
-                ", inCurrentConfig=" + inCurrentConfig +
-                '}';
+            return "VotingConfigNode{"
+                + "id='"
+                + id
+                + '\''
+                + ", live="
+                + live
+                + ", currentMaster="
+                + currentMaster
+                + ", inCurrentConfig="
+                + inCurrentConfig
+                + '}';
         }
     }
 }

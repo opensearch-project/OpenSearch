@@ -39,7 +39,6 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.test.AbstractWireSerializingTestCase;
-import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 
 public class ClusterStateResponseTests extends AbstractWireSerializingTestCase<ClusterStateResponse> {
 
@@ -48,8 +47,7 @@ public class ClusterStateResponseTests extends AbstractWireSerializingTestCase<C
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(4));
         ClusterState clusterState = null;
         if (randomBoolean()) {
-            ClusterState.Builder clusterStateBuilder = ClusterState.builder(clusterName)
-                .version(randomNonNegativeLong());
+            ClusterState.Builder clusterStateBuilder = ClusterState.builder(clusterName).version(randomNonNegativeLong());
             if (randomBoolean()) {
                 clusterStateBuilder.nodes(DiscoveryNodes.builder().masterNodeId(randomAlphaOfLength(4)).build());
             }

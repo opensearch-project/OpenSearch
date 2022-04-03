@@ -155,8 +155,7 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
         final int maxContentLength = randomIntBetween(1, 104857600);
         final Settings settings = createBuilderWithPort().put(key, maxContentLength + "b").build();
         final int contentLength = randomIntBetween(maxContentLength + 1, Integer.MAX_VALUE);
-        runExpectHeaderTest(
-                settings, HttpHeaderValues.CONTINUE.toString(), contentLength, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE);
+        runExpectHeaderTest(settings, HttpHeaderValues.CONTINUE.toString(), contentLength, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE);
     }
 
     /**
@@ -169,10 +168,11 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
     }
 
     private void runExpectHeaderTest(
-            final Settings settings,
-            final String expectation,
-            final int contentLength,
-            final HttpResponseStatus expectedStatus) throws InterruptedException {
+        final Settings settings,
+        final String expectation,
+        final int contentLength,
+        final HttpResponseStatus expectedStatus
+    ) throws InterruptedException {
         final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
             @Override
             public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
@@ -181,13 +181,25 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
 
             @Override
             public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
-                logger.error(new ParameterizedMessage("--> Unexpected bad request [{}]",
-                    FakeRestRequest.requestToString(channel.request())), cause);
+                logger.error(
+                    new ParameterizedMessage("--> Unexpected bad request [{}]", FakeRestRequest.requestToString(channel.request())),
+                    cause
+                );
                 throw new AssertionError();
             }
         };
-        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool,
-                xContentRegistry(), dispatcher, clusterSettings, new SharedGroupFactory(settings))) {
+        try (
+            Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
+                settings,
+                networkService,
+                bigArrays,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                clusterSettings,
+                new SharedGroupFactory(settings)
+            )
+        ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
             try (Netty4HttpClient client = new Netty4HttpClient()) {
@@ -199,13 +211,18 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
                 try {
                     assertThat(response.status(), equalTo(expectedStatus));
                     if (expectedStatus.equals(HttpResponseStatus.CONTINUE)) {
-                        final FullHttpRequest continuationRequest =
-                            new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/", Unpooled.EMPTY_BUFFER);
+                        final FullHttpRequest continuationRequest = new DefaultFullHttpRequest(
+                            HttpVersion.HTTP_1_1,
+                            HttpMethod.POST,
+                            "/",
+                            Unpooled.EMPTY_BUFFER
+                        );
                         final FullHttpResponse continuationResponse = client.send(remoteAddress.address(), continuationRequest);
                         try {
                             assertThat(continuationResponse.status(), is(HttpResponseStatus.OK));
                             assertThat(
-                                new String(ByteBufUtil.getBytes(continuationResponse.content()), StandardCharsets.UTF_8), is("done")
+                                new String(ByteBufUtil.getBytes(continuationResponse.content()), StandardCharsets.UTF_8),
+                                is("done")
                             );
                         } finally {
                             continuationResponse.release();
@@ -220,21 +237,38 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
 
     public void testBindUnavailableAddress() {
         Settings initialSettings = createSettings();
-        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(initialSettings, networkService, bigArrays, threadPool,
-                xContentRegistry(), new NullDispatcher(), clusterSettings, new SharedGroupFactory(Settings.EMPTY))) {
+        try (
+            Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
+                initialSettings,
+                networkService,
+                bigArrays,
+                threadPool,
+                xContentRegistry(),
+                new NullDispatcher(),
+                clusterSettings,
+                new SharedGroupFactory(Settings.EMPTY)
+            )
+        ) {
             transport.start();
             TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
             Settings settings = Settings.builder()
                 .put("http.port", remoteAddress.getPort())
                 .put("network.host", remoteAddress.getAddress())
                 .build();
-            try (Netty4HttpServerTransport otherTransport = new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool,
-                    xContentRegistry(), new NullDispatcher(), clusterSettings, new SharedGroupFactory(settings))) {
+            try (
+                Netty4HttpServerTransport otherTransport = new Netty4HttpServerTransport(
+                    settings,
+                    networkService,
+                    bigArrays,
+                    threadPool,
+                    xContentRegistry(),
+                    new NullDispatcher(),
+                    clusterSettings,
+                    new SharedGroupFactory(settings)
+                )
+            ) {
                 BindHttpException bindHttpException = expectThrows(BindHttpException.class, otherTransport::start);
-                assertEquals(
-                    "Failed to bind to " + NetworkAddress.format(remoteAddress.address()),
-                    bindHttpException.getMessage()
-                );
+                assertEquals("Failed to bind to " + NetworkAddress.format(remoteAddress.address()), bindHttpException.getMessage());
             }
         }
     }
@@ -273,9 +307,18 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
             settings = createBuilderWithPort().put(httpMaxInitialLineLengthSetting.getKey(), maxInitialLineLength + "b").build();
         }
 
-        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
-            settings, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher, clusterSettings,
-            new SharedGroupFactory(settings))) {
+        try (
+            Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
+                settings,
+                networkService,
+                bigArrays,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                clusterSettings,
+                new SharedGroupFactory(settings)
+            )
+        ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
@@ -288,7 +331,8 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
                     assertThat(response.status(), equalTo(HttpResponseStatus.BAD_REQUEST));
                     assertThat(
                         new String(response.content().array(), Charset.forName("UTF-8")),
-                        containsString("you sent a bad request and you should feel bad"));
+                        containsString("you sent a bad request and you should feel bad")
+                    );
                 } finally {
                     response.release();
                 }
@@ -316,16 +360,27 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
 
             @Override
             public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
-                logger.error(new ParameterizedMessage("--> Unexpected bad request [{}]",
-                    FakeRestRequest.requestToString(channel.request())), cause);
+                logger.error(
+                    new ParameterizedMessage("--> Unexpected bad request [{}]", FakeRestRequest.requestToString(channel.request())),
+                    cause
+                );
                 throw new AssertionError();
             }
 
         };
 
-        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
-            Settings.EMPTY, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher, clusterSettings,
-            new SharedGroupFactory(Settings.EMPTY))) {
+        try (
+            Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
+                Settings.EMPTY,
+                networkService,
+                bigArrays,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                clusterSettings,
+                new SharedGroupFactory(Settings.EMPTY)
+            )
+        ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
@@ -369,23 +424,32 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
             }
 
             @Override
-            public void dispatchBadRequest(final RestChannel channel,
-                                           final ThreadContext threadContext,
-                                           final Throwable cause) {
-                logger.error(new ParameterizedMessage("--> Unexpected bad request [{}]",
-                    FakeRestRequest.requestToString(channel.request())), cause);
+            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
+                logger.error(
+                    new ParameterizedMessage("--> Unexpected bad request [{}]", FakeRestRequest.requestToString(channel.request())),
+                    cause
+                );
                 throw new AssertionError();
             }
 
         };
 
-        final Settings settings = createBuilderWithPort()
-            .put(SETTING_CORS_ENABLED.getKey(), true)
-            .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "test-cors.org").build();
+        final Settings settings = createBuilderWithPort().put(SETTING_CORS_ENABLED.getKey(), true)
+            .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "test-cors.org")
+            .build();
 
-        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool,
-            xContentRegistry(), dispatcher, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            new SharedGroupFactory(settings))) {
+        try (
+            Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
+                settings,
+                networkService,
+                bigArrays,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                new SharedGroupFactory(settings)
+            )
+        ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
@@ -431,40 +495,51 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
             }
 
             @Override
-            public void dispatchBadRequest(final RestChannel channel,
-                                           final ThreadContext threadContext,
-                                           final Throwable cause) {
-                logger.error(new ParameterizedMessage("--> Unexpected bad request [{}]",
-                    FakeRestRequest.requestToString(channel.request())), cause);
+            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
+                logger.error(
+                    new ParameterizedMessage("--> Unexpected bad request [{}]", FakeRestRequest.requestToString(channel.request())),
+                    cause
+                );
                 throw new AssertionError("Should not have received a dispatched request");
             }
 
         };
 
-        Settings settings = createBuilderWithPort()
-            .put(HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT.getKey(), new TimeValue(randomIntBetween(100, 300)))
-            .build();
+        Settings settings = createBuilderWithPort().put(
+            HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT.getKey(),
+            new TimeValue(randomIntBetween(100, 300))
+        ).build();
 
         NioEventLoopGroup group = new NioEventLoopGroup();
-        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool,
-            xContentRegistry(), dispatcher, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            new SharedGroupFactory(settings))) {
+        try (
+            Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
+                settings,
+                networkService,
+                bigArrays,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                new SharedGroupFactory(settings)
+            )
+        ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
             CountDownLatch channelClosedLatch = new CountDownLatch(1);
 
-            Bootstrap clientBootstrap = new Bootstrap()
-                .option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator())
+            Bootstrap clientBootstrap = new Bootstrap().option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator())
                 .channel(NioSocketChannel.class)
                 .handler(new ChannelInitializer<SocketChannel>() {
 
-                @Override
-                protected void initChannel(SocketChannel ch) {
-                    ch.pipeline().addLast(new ChannelHandlerAdapter() {});
+                    @Override
+                    protected void initChannel(SocketChannel ch) {
+                        ch.pipeline().addLast(new ChannelHandlerAdapter() {
+                        });
 
-                }
-            }).group(group);
+                    }
+                })
+                .group(group);
             ChannelFuture connect = clientBootstrap.connect(remoteAddress.address());
             connect.channel().closeFuture().addListener(future -> channelClosedLatch.countDown());
 

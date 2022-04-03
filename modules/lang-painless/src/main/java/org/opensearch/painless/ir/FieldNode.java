@@ -96,7 +96,8 @@ public class FieldNode extends IRNode {
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        classWriter.getClassVisitor().visitField(
-                ClassWriter.buildAccess(modifiers, true), name, Type.getType(fieldType).getDescriptor(), null, null).visitEnd();
+        classWriter.getClassVisitor()
+            .visitField(ClassWriter.buildAccess(modifiers, true), name, Type.getType(fieldType).getDescriptor(), null, null)
+            .visitEnd();
     }
 }

@@ -78,13 +78,16 @@ public class PlainHighlighter implements Highlighter {
             fieldContext.cache.put(CACHE_KEY, new HashMap<>());
         }
         @SuppressWarnings("unchecked")
-        Map<MappedFieldType, org.apache.lucene.search.highlight.Highlighter> cache =
-            (Map<MappedFieldType, org.apache.lucene.search.highlight.Highlighter>) fieldContext.cache.get(CACHE_KEY);
+        Map<MappedFieldType, org.apache.lucene.search.highlight.Highlighter> cache = (Map<
+            MappedFieldType,
+            org.apache.lucene.search.highlight.Highlighter>) fieldContext.cache.get(CACHE_KEY);
 
         org.apache.lucene.search.highlight.Highlighter entry = cache.get(fieldType);
         if (entry == null) {
-            QueryScorer queryScorer = new CustomQueryScorer(fieldContext.query,
-                    field.fieldOptions().requireFieldMatch() ? fieldType.name() : null);
+            QueryScorer queryScorer = new CustomQueryScorer(
+                fieldContext.query,
+                field.fieldOptions().requireFieldMatch() ? fieldType.name() : null
+            );
             queryScorer.setExpandMultiTermQuery(true);
             Fragmenter fragmenter;
             if (field.fieldOptions().numberOfFragments() == 0) {
@@ -96,8 +99,9 @@ public class PlainHighlighter implements Highlighter {
             } else if ("span".equals(field.fieldOptions().fragmenter())) {
                 fragmenter = new SimpleSpanFragmenter(queryScorer, field.fieldOptions().fragmentCharSize());
             } else {
-                throw new IllegalArgumentException("unknown fragmenter option [" + field.fieldOptions().fragmenter()
-                        + "] for the field [" + fieldContext.fieldName + "]");
+                throw new IllegalArgumentException(
+                    "unknown fragmenter option [" + field.fieldOptions().fragmenter() + "] for the field [" + fieldContext.fieldName + "]"
+                );
             }
             Formatter formatter = new SimpleHTMLFormatter(field.fieldOptions().preTags()[0], field.fieldOptions().postTags()[0]);
 
@@ -116,10 +120,13 @@ public class PlainHighlighter implements Highlighter {
         Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().getType()).mappers().indexAnalyzer();
         Integer keywordIgnoreAbove = null;
         if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
-            KeywordFieldMapper mapper = (KeywordFieldMapper) context.mapperService().documentMapper()
-                .mappers().getMapper(fieldContext.fieldName);
+            KeywordFieldMapper mapper = (KeywordFieldMapper) context.mapperService()
+                .documentMapper()
+                .mappers()
+                .getMapper(fieldContext.fieldName);
             keywordIgnoreAbove = mapper.ignoreAbove();
-        };
+        }
+        ;
         final int maxAnalyzedOffset = context.getIndexSettings().getHighlightMaxAnalyzedOffset();
 
         textsToHighlight = HighlightUtils.loadFieldValues(fieldType, hitContext, fieldContext.forceSource);
@@ -132,12 +139,22 @@ public class PlainHighlighter implements Highlighter {
             }
             if (textLength > maxAnalyzedOffset) {
                 throw new IllegalArgumentException(
-                    "The length of [" + fieldContext.fieldName + "] field of [" + hitContext.hit().getId() +
-                        "] doc of [" + context.getIndexName() + "] index " +
-                        "has exceeded [" + maxAnalyzedOffset + "] - maximum allowed to be analyzed for highlighting. " +
-                        "This maximum can be set by changing the [" + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() +
-                        "] index level setting. " + "For large texts, indexing with offsets or term vectors, and highlighting " +
-                        "with unified or fvh highlighter is recommended!");
+                    "The length of ["
+                        + fieldContext.fieldName
+                        + "] field of ["
+                        + hitContext.hit().getId()
+                        + "] doc of ["
+                        + context.getIndexName()
+                        + "] index "
+                        + "has exceeded ["
+                        + maxAnalyzedOffset
+                        + "] - maximum allowed to be analyzed for highlighting. "
+                        + "This maximum can be set by changing the ["
+                        + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey()
+                        + "] index level setting. "
+                        + "For large texts, indexing with offsets or term vectors, and highlighting "
+                        + "with unified or fvh highlighter is recommended!"
+                );
             }
 
             try (TokenStream tokenStream = analyzer.tokenStream(fieldType.name(), text)) {
@@ -202,7 +219,7 @@ public class PlainHighlighter implements Highlighter {
     }
 
     private static int findGoodEndForNoHighlightExcerpt(int noMatchSize, Analyzer analyzer, String fieldName, String contents)
-            throws IOException {
+        throws IOException {
         try (TokenStream tokenStream = analyzer.tokenStream(fieldName, contents)) {
             if (!tokenStream.hasAttribute(OffsetAttribute.class)) {
                 // Can't split on term boundaries without offsets

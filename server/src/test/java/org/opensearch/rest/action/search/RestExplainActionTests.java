@@ -48,15 +48,13 @@ public class RestExplainActionTests extends RestActionTestCase {
         // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
         verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
 
-        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.GET)
+        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/some_index/some_type/some_id/_explain")
             .build();
         dispatchRequest(deprecatedRequest);
         assertWarnings(RestExplainAction.TYPES_DEPRECATION_MESSAGE);
 
-        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.GET)
+        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/some_index/_explain/some_id")
             .build();
         dispatchRequest(validRequest);

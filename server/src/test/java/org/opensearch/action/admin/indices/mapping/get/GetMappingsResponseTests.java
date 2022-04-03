@@ -43,7 +43,6 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.test.AbstractSerializingTestCase;
 import org.opensearch.test.EqualsHashCodeTestUtils;
-import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;

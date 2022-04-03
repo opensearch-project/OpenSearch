@@ -246,16 +246,22 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
                             } else if ("all".equalsIgnoreCase(zeroTermsValue)) {
                                 zeroTermsQuery = ZeroTermsQuery.ALL;
                             } else {
-                                throw new ParsingException(parser.getTokenLocation(),
-                                    "Unsupported zero_terms_query value [" + zeroTermsValue + "]");
+                                throw new ParsingException(
+                                    parser.getTokenLocation(),
+                                    "Unsupported zero_terms_query value [" + zeroTermsValue + "]"
+                                );
                             }
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(),
-                                    "[" + NAME + "] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "[" + NAME + "] query does not support [" + currentFieldName + "]"
+                            );
                         }
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(),
-                                "[" + NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "[" + NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]"
+                        );
                     }
                 }
             } else {

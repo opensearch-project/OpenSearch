@@ -53,12 +53,18 @@ import java.util.Objects;
  */
 public class CreateSnapshotResponse extends ActionResponse implements ToXContentObject {
 
-    private static final ObjectParser<CreateSnapshotResponse, Void> PARSER =
-        new ObjectParser<>(CreateSnapshotResponse.class.getName(), true, CreateSnapshotResponse::new);
+    private static final ObjectParser<CreateSnapshotResponse, Void> PARSER = new ObjectParser<>(
+        CreateSnapshotResponse.class.getName(),
+        true,
+        CreateSnapshotResponse::new
+    );
 
     static {
-        PARSER.declareObject(CreateSnapshotResponse::setSnapshotInfoFromBuilder,
-            SnapshotInfo.SNAPSHOT_INFO_PARSER, new ParseField("snapshot"));
+        PARSER.declareObject(
+            CreateSnapshotResponse::setSnapshotInfoFromBuilder,
+            SnapshotInfo.SNAPSHOT_INFO_PARSER,
+            new ParseField("snapshot")
+        );
     }
 
     @Nullable
@@ -127,9 +133,7 @@ public class CreateSnapshotResponse extends ActionResponse implements ToXContent
 
     @Override
     public String toString() {
-        return "CreateSnapshotResponse{" +
-            "snapshotInfo=" + snapshotInfo +
-            '}';
+        return "CreateSnapshotResponse{" + "snapshotInfo=" + snapshotInfo + '}';
     }
 
     @Override

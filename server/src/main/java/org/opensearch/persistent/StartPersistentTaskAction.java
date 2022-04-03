@@ -119,8 +119,10 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
             }
             if (params != null) {
                 if (params.getWriteableName().equals(taskName) == false) {
-                    validationException = addValidationError("params have to have the same writeable name as task. params: " +
-                            params.getWriteableName() + " task: " + taskName, validationException);
+                    validationException = addValidationError(
+                        "params have to have the same writeable name as task. params: " + params.getWriteableName() + " task: " + taskName,
+                        validationException
+                    );
                 }
             }
             return validationException;
@@ -131,8 +133,9 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request1 = (Request) o;
-            return Objects.equals(taskId, request1.taskId) && Objects.equals(taskName, request1.taskName) &&
-                    Objects.equals(params, request1.params);
+            return Objects.equals(taskId, request1.taskId)
+                && Objects.equals(taskName, request1.taskName)
+                && Objects.equals(params, request1.params);
         }
 
         @Override
@@ -167,8 +170,10 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
 
     }
 
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<StartPersistentTaskAction.Request,
-            PersistentTaskResponse, StartPersistentTaskAction.RequestBuilder> {
+    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<
+        StartPersistentTaskAction.Request,
+        PersistentTaskResponse,
+        StartPersistentTaskAction.RequestBuilder> {
 
         protected RequestBuilder(OpenSearchClient client, StartPersistentTaskAction action) {
             super(client, action, new Request());
@@ -196,18 +201,35 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
         private final PersistentTasksClusterService persistentTasksClusterService;
 
         @Inject
-        public TransportAction(TransportService transportService, ClusterService clusterService,
-                               ThreadPool threadPool, ActionFilters actionFilters,
-                               PersistentTasksClusterService persistentTasksClusterService,
-                               PersistentTasksExecutorRegistry persistentTasksExecutorRegistry,
-                               PersistentTasksService persistentTasksService,
-                               IndexNameExpressionResolver indexNameExpressionResolver) {
-            super(StartPersistentTaskAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                Request::new, indexNameExpressionResolver);
+        public TransportAction(
+            TransportService transportService,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ActionFilters actionFilters,
+            PersistentTasksClusterService persistentTasksClusterService,
+            PersistentTasksExecutorRegistry persistentTasksExecutorRegistry,
+            PersistentTasksService persistentTasksService,
+            IndexNameExpressionResolver indexNameExpressionResolver
+        ) {
+            super(
+                StartPersistentTaskAction.NAME,
+                transportService,
+                clusterService,
+                threadPool,
+                actionFilters,
+                Request::new,
+                indexNameExpressionResolver
+            );
             this.persistentTasksClusterService = persistentTasksClusterService;
             NodePersistentTasksExecutor executor = new NodePersistentTasksExecutor(threadPool);
-            clusterService.addListener(new PersistentTasksNodeService(persistentTasksService, persistentTasksExecutorRegistry,
-                    transportService.getTaskManager(), executor));
+            clusterService.addListener(
+                new PersistentTasksNodeService(
+                    persistentTasksService,
+                    persistentTasksExecutorRegistry,
+                    transportService.getTaskManager(),
+                    executor
+                )
+            );
         }
 
         @Override
@@ -227,13 +249,20 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
         }
 
         @Override
-        protected final void masterOperation(final Request request, ClusterState state,
-                                             final ActionListener<PersistentTaskResponse> listener) {
-            persistentTasksClusterService.createPersistentTask(request.taskId, request.taskName, request.params,
-                ActionListener.delegateFailure(listener,
-                    (delegatedListener, task) -> delegatedListener.onResponse(new PersistentTaskResponse(task))));
+        protected final void masterOperation(
+            final Request request,
+            ClusterState state,
+            final ActionListener<PersistentTaskResponse> listener
+        ) {
+            persistentTasksClusterService.createPersistentTask(
+                request.taskId,
+                request.taskName,
+                request.params,
+                ActionListener.delegateFailure(
+                    listener,
+                    (delegatedListener, task) -> delegatedListener.onResponse(new PersistentTaskResponse(task))
+                )
+            );
         }
     }
 }
-
-

@@ -33,7 +33,6 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
-import org.opensearch.index.mapper.FieldTypeTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -61,8 +60,7 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
         assertEquals(new TermQuery(new Term("field", "F")), ft.termQuery("false", null));
 
         MappedFieldType unsearchable = new BooleanFieldMapper.BooleanFieldType("field", false);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> unsearchable.termQuery("true", null));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("true", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 
@@ -73,9 +71,7 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
         assertEquals(Collections.singletonList(false), fetchSourceValue(fieldType, "false"));
         assertEquals(Collections.singletonList(false), fetchSourceValue(fieldType, ""));
 
-        MappedFieldType nullFieldType = new BooleanFieldMapper.BooleanFieldType(
-            "field", true, false, true, true, Collections.emptyMap()
-        );
+        MappedFieldType nullFieldType = new BooleanFieldMapper.BooleanFieldType("field", true, false, true, true, Collections.emptyMap());
         assertEquals(Collections.singletonList(true), fetchSourceValue(nullFieldType, null));
     }
 }

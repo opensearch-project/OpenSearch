@@ -62,13 +62,19 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
     private static final Logger logger = LogManager.getLogger(HandshakingTransportAddressConnector.class);
 
     // connection timeout for probes
-    public static final Setting<TimeValue> PROBE_CONNECT_TIMEOUT_SETTING =
-        Setting.timeSetting("discovery.probe.connect_timeout",
-            TimeValue.timeValueMillis(3000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+    public static final Setting<TimeValue> PROBE_CONNECT_TIMEOUT_SETTING = Setting.timeSetting(
+        "discovery.probe.connect_timeout",
+        TimeValue.timeValueMillis(3000),
+        TimeValue.timeValueMillis(1),
+        Setting.Property.NodeScope
+    );
     // handshake timeout for probes
-    public static final Setting<TimeValue> PROBE_HANDSHAKE_TIMEOUT_SETTING =
-        Setting.timeSetting("discovery.probe.handshake_timeout",
-            TimeValue.timeValueMillis(1000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+    public static final Setting<TimeValue> PROBE_HANDSHAKE_TIMEOUT_SETTING = Setting.timeSetting(
+        "discovery.probe.handshake_timeout",
+        TimeValue.timeValueMillis(1000),
+        TimeValue.timeValueMillis(1),
+        Setting.Property.NodeScope
+    );
 
     private final TransportService transportService;
     private final TimeValue probeConnectTimeout;
@@ -90,15 +96,29 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                 // We could skip this if the transportService were already connected to the given address, but the savings would be minimal
                 // so we open a new connection anyway.
 
-                final DiscoveryNode targetNode = new DiscoveryNode("", transportAddress.toString(),
+                final DiscoveryNode targetNode = new DiscoveryNode(
+                    "",
+                    transportAddress.toString(),
                     UUIDs.randomBase64UUID(Randomness.get()), // generated deterministically for reproducible tests
-                    transportAddress.address().getHostString(), transportAddress.getAddress(), transportAddress, emptyMap(),
-                    emptySet(), Version.CURRENT.minimumCompatibilityVersion());
+                    transportAddress.address().getHostString(),
+                    transportAddress.getAddress(),
+                    transportAddress,
+                    emptyMap(),
+                    emptySet(),
+                    Version.CURRENT.minimumCompatibilityVersion()
+                );
 
                 logger.trace("[{}] opening probe connection", thisConnectionAttempt);
-                transportService.openConnection(targetNode,
-                    ConnectionProfile.buildSingleChannelProfile(Type.REG, probeConnectTimeout, probeHandshakeTimeout,
-                        TimeValue.MINUS_ONE, null), new ActionListener<Connection>() {
+                transportService.openConnection(
+                    targetNode,
+                    ConnectionProfile.buildSingleChannelProfile(
+                        Type.REG,
+                        probeConnectTimeout,
+                        probeHandshakeTimeout,
+                        TimeValue.MINUS_ONE,
+                        null
+                    ),
+                    new ActionListener<Connection>() {
                         @Override
                         public void onResponse(Connection connection) {
                             logger.trace("[{}] opened probe connection", thisConnectionAttempt);
@@ -122,8 +142,11 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                                             transportService.connectToNode(remoteNode, new ActionListener<Void>() {
                                                 @Override
                                                 public void onResponse(Void ignored) {
-                                                    logger.trace("[{}] completed full connection with [{}]",
-                                                        thisConnectionAttempt, remoteNode);
+                                                    logger.trace(
+                                                        "[{}] completed full connection with [{}]",
+                                                        thisConnectionAttempt,
+                                                        remoteNode
+                                                    );
                                                     listener.onResponse(remoteNode);
                                                 }
 
@@ -134,9 +157,14 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                                                     // but the attempt to open a full connection to its publish address failed; a common
                                                     // reason is that the remote node is listening on 0.0.0.0 but has made an inappropriate
                                                     // choice for its publish address.
-                                                    logger.warn(new ParameterizedMessage(
-                                                        "[{}] completed handshake with [{}] but followup connection failed",
-                                                        thisConnectionAttempt, remoteNode), e);
+                                                    logger.warn(
+                                                        new ParameterizedMessage(
+                                                            "[{}] completed handshake with [{}] but followup connection failed",
+                                                            thisConnectionAttempt,
+                                                            remoteNode
+                                                        ),
+                                                        e
+                                                    );
                                                     listener.onFailure(e);
                                                 }
                                             });
@@ -164,7 +192,8 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                         public void onFailure(Exception e) {
                             listener.onFailure(e);
                         }
-                    });
+                    }
+                );
             }
 
             @Override

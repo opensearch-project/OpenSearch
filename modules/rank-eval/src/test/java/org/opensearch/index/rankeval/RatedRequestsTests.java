@@ -77,8 +77,10 @@ public class RatedRequestsTests extends OpenSearchTestCase {
     @BeforeClass
     public static void init() {
         xContentRegistry = new NamedXContentRegistry(
-                Stream.of(new SearchModule(Settings.EMPTY, false, emptyList()).getNamedXContents().stream()).flatMap(Function.identity())
-                        .collect(toList()));
+            Stream.of(new SearchModule(Settings.EMPTY, false, emptyList()).getNamedXContents().stream())
+                .flatMap(Function.identity())
+                .collect(toList())
+        );
     }
 
     @AfterClass
@@ -187,34 +189,34 @@ public class RatedRequestsTests extends OpenSearchTestCase {
 
         int mutate = randomIntBetween(0, 3);
         switch (mutate) {
-        case 0:
-            id = randomValueOtherThan(id, () -> randomAlphaOfLength(10));
-            break;
-        case 1:
-            if (evaluationRequest != null) {
-                int size = randomValueOtherThan(evaluationRequest.size(), () -> randomInt(Integer.MAX_VALUE));
-                evaluationRequest = new SearchSourceBuilder();
-                evaluationRequest.size(size);
-                evaluationRequest.query(new MatchAllQueryBuilder());
-            } else {
-                if (randomBoolean()) {
-                    Map<String, Object> mutated = new HashMap<>();
-                    mutated.putAll(params);
-                    mutated.put("one_more_key", "one_more_value");
-                    params = mutated;
+            case 0:
+                id = randomValueOtherThan(id, () -> randomAlphaOfLength(10));
+                break;
+            case 1:
+                if (evaluationRequest != null) {
+                    int size = randomValueOtherThan(evaluationRequest.size(), () -> randomInt(Integer.MAX_VALUE));
+                    evaluationRequest = new SearchSourceBuilder();
+                    evaluationRequest.size(size);
+                    evaluationRequest.query(new MatchAllQueryBuilder());
                 } else {
-                    templateId = randomValueOtherThan(templateId, () -> randomAlphaOfLength(5));
+                    if (randomBoolean()) {
+                        Map<String, Object> mutated = new HashMap<>();
+                        mutated.putAll(params);
+                        mutated.put("one_more_key", "one_more_value");
+                        params = mutated;
+                    } else {
+                        templateId = randomValueOtherThan(templateId, () -> randomAlphaOfLength(5));
+                    }
                 }
-            }
-            break;
-        case 2:
-            ratedDocs = Arrays.asList(randomValueOtherThanMany(ratedDocs::contains, () -> RatedDocumentTests.createRatedDocument()));
-            break;
-        case 3:
-            summaryFields = Arrays.asList(randomValueOtherThanMany(summaryFields::contains, () -> randomAlphaOfLength(10)));
-            break;
-        default:
-            throw new IllegalStateException("Requested to modify more than available parameters.");
+                break;
+            case 2:
+                ratedDocs = Arrays.asList(randomValueOtherThanMany(ratedDocs::contains, () -> RatedDocumentTests.createRatedDocument()));
+                break;
+            case 3:
+                summaryFields = Arrays.asList(randomValueOtherThanMany(summaryFields::contains, () -> randomAlphaOfLength(10)));
+                break;
+            default:
+                throw new IllegalStateException("Requested to modify more than available parameters.");
         }
 
         RatedRequest ratedRequest;
@@ -230,15 +232,21 @@ public class RatedRequestsTests extends OpenSearchTestCase {
 
     public void testDuplicateRatedDocThrowsException() {
         List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1), new RatedDocument("index1", "id1", 5));
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-                () -> new RatedRequest("test_query", ratedDocs, new SearchSourceBuilder()));
-        assertEquals("Found duplicate rated document key [{\"_index\":\"index1\",\"_id\":\"id1\"}] in evaluation request [test_query]",
-                ex.getMessage());
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RatedRequest("test_query", ratedDocs, new SearchSourceBuilder())
+        );
+        assertEquals(
+            "Found duplicate rated document key [{\"_index\":\"index1\",\"_id\":\"id1\"}] in evaluation request [test_query]",
+            ex.getMessage()
+        );
         Map<String, Object> params = new HashMap<>();
         params.put("key", "value");
         ex = expectThrows(IllegalArgumentException.class, () -> new RatedRequest("test_query", ratedDocs, params, "templateId"));
-        assertEquals("Found duplicate rated document key [{\"_index\":\"index1\",\"_id\":\"id1\"}] in evaluation request [test_query]",
-                ex.getMessage());
+        assertEquals(
+            "Found duplicate rated document key [{\"_index\":\"index1\",\"_id\":\"id1\"}] in evaluation request [test_query]",
+            ex.getMessage()
+        );
     }
 
     public void testNullSummaryFieldsTreatment() {
@@ -298,15 +306,19 @@ public class RatedRequestsTests extends OpenSearchTestCase {
 
     public void testExplainNotAllowed() {
         List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> new RatedRequest("id", ratedDocs, new SearchSourceBuilder().explain(true)));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RatedRequest("id", ratedDocs, new SearchSourceBuilder().explain(true))
+        );
         assertEquals("Query in rated requests should not use explain.", e.getMessage());
     }
 
     public void testProfileNotAllowed() {
         List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> new RatedRequest("id", ratedDocs, new SearchSourceBuilder().profile(true)));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RatedRequest("id", ratedDocs, new SearchSourceBuilder().profile(true))
+        );
         assertEquals("Query in rated requests should not use profile.", e.getMessage());
     }
 
@@ -316,26 +328,26 @@ public class RatedRequestsTests extends OpenSearchTestCase {
      */
     public void testParseFromXContent() throws IOException {
         String querySpecString = " {\n"
-                + "   \"id\": \"my_qa_query\",\n"
-                + "   \"request\": {\n"
-                + "           \"query\": {\n"
-                + "               \"bool\": {\n"
-                + "                   \"must\": [\n"
-                + "                       {\"match\": {\"beverage\": \"coffee\"}},\n"
-                + "                       {\"term\": {\"browser\": {\"value\": \"safari\"}}},\n"
-                + "                       {\"term\": {\"time_of_day\": "
-                + "                                  {\"value\": \"morning\",\"boost\": 2}}},\n"
-                + "                       {\"term\": {\"ip_location\": "
-                + "                                  {\"value\": \"ams\",\"boost\": 10}}}]}\n"
-                + "           },\n"
-                + "           \"size\": 10\n"
-                + "   },\n"
-                + "   \"summary_fields\" : [\"title\"],\n"
-                + "   \"ratings\": [\n"
-                + "        {\"_index\": \"test\" , \"_id\": \"1\", \"rating\" : 1 },\n"
-                + "        {\"_index\": \"test\", \"rating\" : 0, \"_id\": \"2\"},\n"
-                + "        {\"_id\": \"3\", \"_index\": \"test\", \"rating\" : 1} ]"
-                + "}\n";
+            + "   \"id\": \"my_qa_query\",\n"
+            + "   \"request\": {\n"
+            + "           \"query\": {\n"
+            + "               \"bool\": {\n"
+            + "                   \"must\": [\n"
+            + "                       {\"match\": {\"beverage\": \"coffee\"}},\n"
+            + "                       {\"term\": {\"browser\": {\"value\": \"safari\"}}},\n"
+            + "                       {\"term\": {\"time_of_day\": "
+            + "                                  {\"value\": \"morning\",\"boost\": 2}}},\n"
+            + "                       {\"term\": {\"ip_location\": "
+            + "                                  {\"value\": \"ams\",\"boost\": 10}}}]}\n"
+            + "           },\n"
+            + "           \"size\": 10\n"
+            + "   },\n"
+            + "   \"summary_fields\" : [\"title\"],\n"
+            + "   \"ratings\": [\n"
+            + "        {\"_index\": \"test\" , \"_id\": \"1\", \"rating\" : 1 },\n"
+            + "        {\"_index\": \"test\", \"rating\" : 0, \"_id\": \"2\"},\n"
+            + "        {\"_id\": \"3\", \"_index\": \"test\", \"rating\" : 1} ]"
+            + "}\n";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, querySpecString)) {
             RatedRequest specification = RatedRequest.fromXContent(parser);
             assertEquals("my_qa_query", specification.getId());

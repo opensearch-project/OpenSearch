@@ -31,7 +31,6 @@
 
 package org.opensearch.index.fielddata;
 
-
 /**
  * {@link LeafFieldData} specialization for geo points.
  */

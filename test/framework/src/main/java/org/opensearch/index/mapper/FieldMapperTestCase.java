@@ -66,9 +66,7 @@ import static org.hamcrest.Matchers.equalTo;
 @Deprecated
 public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> extends OpenSearchSingleNodeTestCase {
 
-    protected final Settings SETTINGS = Settings.builder()
-        .put("index.version.created", Version.CURRENT)
-        .build();
+    protected final Settings SETTINGS = Settings.builder().put("index.version.created", Version.CURRENT).build();
 
     private final class Modifier {
         final String property;
@@ -97,19 +95,16 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
         return Collections.emptySet();
     }
 
-    private final List<Modifier> modifiers = new ArrayList<>(Arrays.asList(
-        new Modifier("analyzer", false, (a, b) -> {
-            a.indexAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
-            a.indexAnalyzer(new NamedAnalyzer("keyword", AnalyzerScope.INDEX, new KeywordAnalyzer()));
-        }),
-        new Modifier("boost", true, (a, b) -> {
-           a.boost(1.1f);
-           b.boost(1.2f);
-        }),
-        new Modifier("doc_values", false, (a, b) -> {
-            a.docValues(true);
-            b.docValues(false);
-        }),
+    private final List<Modifier> modifiers = new ArrayList<>(Arrays.asList(new Modifier("analyzer", false, (a, b) -> {
+        a.indexAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
+        a.indexAnalyzer(new NamedAnalyzer("keyword", AnalyzerScope.INDEX, new KeywordAnalyzer()));
+    }), new Modifier("boost", true, (a, b) -> {
+        a.boost(1.1f);
+        b.boost(1.2f);
+    }), new Modifier("doc_values", false, (a, b) -> {
+        a.docValues(true);
+        b.docValues(false);
+    }),
         booleanModifier("eager_global_ordinals", true, (a, t) -> a.setEagerGlobalOrdinals(t)),
         booleanModifier("index", false, (a, t) -> a.index(t)),
         booleanModifier("norms", false, FieldMapper.Builder::omitNorms),
@@ -209,8 +204,11 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
             if (modifier.updateable) {
                 mapper.merge(toMerge);
             } else {
-                IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    "Expected an error when merging property difference " + modifier.property, () -> mapper.merge(toMerge));
+                IllegalArgumentException e = expectThrows(
+                    IllegalArgumentException.class,
+                    "Expected an error when merging property difference " + modifier.property,
+                    () -> mapper.merge(toMerge)
+                );
                 assertThat(e.getMessage(), containsString(modifier.property));
             }
         }
@@ -255,8 +253,9 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
     }
 
     private String mappingsToString(ToXContent builder, boolean includeDefaults) throws IOException {
-        ToXContent.Params params = includeDefaults ?
-            new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true")) : ToXContent.EMPTY_PARAMS;
+        ToXContent.Params params = includeDefaults
+            ? new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true"))
+            : ToXContent.EMPTY_PARAMS;
         XContentBuilder x = JsonXContent.contentBuilder();
         x.startObject().startObject("properties");
         builder.toXContent(x, params);

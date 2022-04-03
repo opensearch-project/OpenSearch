@@ -73,11 +73,16 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                           ClusterService clusterService, RecoverySettings recoverySettings) {
-        return Collections.singletonMap(AzureRepository.TYPE,
-                (metadata) -> new AzureRepository(metadata, namedXContentRegistry, azureStoreService, clusterService,
-                    recoverySettings));
+    public Map<String, Repository.Factory> getRepositories(
+        Environment env,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        RecoverySettings recoverySettings
+    ) {
+        return Collections.singletonMap(
+            AzureRepository.TYPE,
+            (metadata) -> new AzureRepository(metadata, namedXContentRegistry, azureStoreService, clusterService, recoverySettings)
+        );
     }
 
     @Override
@@ -89,9 +94,15 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
             AzureStorageSettings.ENDPOINT_SUFFIX_SETTING,
             AzureStorageSettings.TIMEOUT_SETTING,
             AzureStorageSettings.MAX_RETRIES_SETTING,
+            AzureStorageSettings.CONNECT_TIMEOUT_SETTING,
+            AzureStorageSettings.WRITE_TIMEOUT_SETTING,
+            AzureStorageSettings.READ_TIMEOUT_SETTING,
+            AzureStorageSettings.RESPONSE_TIMEOUT_SETTING,
             AzureStorageSettings.PROXY_TYPE_SETTING,
             AzureStorageSettings.PROXY_HOST_SETTING,
-            AzureStorageSettings.PROXY_PORT_SETTING
+            AzureStorageSettings.PROXY_PORT_SETTING,
+            AzureStorageSettings.PROXY_USERNAME_SETTING,
+            AzureStorageSettings.PROXY_PASSWORD_SETTING
         );
     }
 

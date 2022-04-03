@@ -35,7 +35,7 @@ package org.opensearch.common.settings;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.SimpleFSDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.opensearch.common.Randomness;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.env.Environment;
@@ -192,7 +192,7 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
 
     public void testFailWhenCannotConsumeSecretStream() throws Exception {
         Path configDir = env.configFile();
-        SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
+        NIOFSDirectory directory = new NIOFSDirectory(configDir);
         try (IndexOutput indexOutput = directory.createOutput("opensearch.keystore", IOContext.DEFAULT)) {
             CodecUtil.writeHeader(indexOutput, "opensearch.keystore", 3);
             indexOutput.writeByte((byte) 0); // No password
@@ -220,7 +220,7 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
 
     public void testFailWhenCannotConsumeEncryptedBytesStream() throws Exception {
         Path configDir = env.configFile();
-        SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
+        NIOFSDirectory directory = new NIOFSDirectory(configDir);
         try (IndexOutput indexOutput = directory.createOutput("opensearch.keystore", IOContext.DEFAULT)) {
             CodecUtil.writeHeader(indexOutput, "opensearch.keystore", 3);
             indexOutput.writeByte((byte) 0); // No password
@@ -249,7 +249,7 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
 
     public void testFailWhenSecretStreamNotConsumed() throws Exception {
         Path configDir = env.configFile();
-        SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
+        NIOFSDirectory directory = new NIOFSDirectory(configDir);
         try (IndexOutput indexOutput = directory.createOutput("opensearch.keystore", IOContext.DEFAULT)) {
             CodecUtil.writeHeader(indexOutput, "opensearch.keystore", 3);
             indexOutput.writeByte((byte) 0); // No password
@@ -276,7 +276,7 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
 
     public void testFailWhenEncryptedBytesStreamIsNotConsumed() throws Exception {
         Path configDir = env.configFile();
-        SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
+        NIOFSDirectory directory = new NIOFSDirectory(configDir);
         try (IndexOutput indexOutput = directory.createOutput("opensearch.keystore", IOContext.DEFAULT)) {
             CodecUtil.writeHeader(indexOutput, "opensearch.keystore", 3);
             indexOutput.writeByte((byte) 0); // No password
@@ -362,7 +362,7 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
     public void testBackcompatV1() throws Exception {
         assumeFalse("Can't run in a FIPS JVM as PBE is not available", inFipsJvm());
         Path configDir = env.configFile();
-        SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
+        NIOFSDirectory directory = new NIOFSDirectory(configDir);
         try (IndexOutput output = directory.createOutput("opensearch.keystore", IOContext.DEFAULT)) {
             CodecUtil.writeHeader(output, "opensearch.keystore", 1);
             output.writeByte((byte) 0); // hasPassword = false
@@ -393,7 +393,7 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
     public void testBackcompatV2() throws Exception {
         assumeFalse("Can't run in a FIPS JVM as PBE is not available", inFipsJvm());
         Path configDir = env.configFile();
-        SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
+        NIOFSDirectory directory = new NIOFSDirectory(configDir);
         byte[] fileBytes = new byte[20];
         random().nextBytes(fileBytes);
         try (IndexOutput output = directory.createOutput("opensearch.keystore", IOContext.DEFAULT)) {

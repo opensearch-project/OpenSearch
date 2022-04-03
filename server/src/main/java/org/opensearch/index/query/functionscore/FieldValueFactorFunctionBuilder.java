@@ -33,6 +33,7 @@
 package org.opensearch.index.query.functionscore;
 
 import org.opensearch.OpenSearchException;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -63,10 +64,15 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldV
     private FieldValueFactorFunction.Modifier modifier = DEFAULT_MODIFIER;
 
     public FieldValueFactorFunctionBuilder(String fieldName) {
+        this(fieldName, null);
+    }
+
+    public FieldValueFactorFunctionBuilder(String fieldName, @Nullable String functionName) {
         if (fieldName == null) {
             throw new IllegalArgumentException("field_value_factor: field must not be null");
         }
         this.field = fieldName;
+        setFunctionName(functionName);
     }
 
     /**
@@ -144,10 +150,10 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldV
 
     @Override
     protected boolean doEquals(FieldValueFactorFunctionBuilder functionBuilder) {
-        return Objects.equals(this.field, functionBuilder.field) &&
-                Objects.equals(this.factor, functionBuilder.factor) &&
-                Objects.equals(this.missing, functionBuilder.missing) &&
-                Objects.equals(this.modifier, functionBuilder.modifier);
+        return Objects.equals(this.field, functionBuilder.field)
+            && Objects.equals(this.factor, functionBuilder.factor)
+            && Objects.equals(this.missing, functionBuilder.missing)
+            && Objects.equals(this.modifier, functionBuilder.modifier);
     }
 
     @Override
@@ -160,23 +166,23 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldV
         MappedFieldType fieldType = context.getMapperService().fieldType(field);
         IndexNumericFieldData fieldData = null;
         if (fieldType == null) {
-            if(missing == null) {
+            if (missing == null) {
                 throw new OpenSearchException("Unable to find a field mapper for field [" + field + "]. No 'missing' value defined.");
             }
         } else {
             fieldData = context.getForField(fieldType);
         }
-        return new FieldValueFactorFunction(field, factor, modifier, missing, fieldData);
+        return new FieldValueFactorFunction(field, factor, modifier, missing, fieldData, getFunctionName());
     }
 
-    public static FieldValueFactorFunctionBuilder fromXContent(XContentParser parser)
-            throws IOException, ParsingException {
+    public static FieldValueFactorFunctionBuilder fromXContent(XContentParser parser) throws IOException, ParsingException {
         String currentFieldName = null;
         String field = null;
         float boostFactor = FieldValueFactorFunctionBuilder.DEFAULT_FACTOR;
         FieldValueFactorFunction.Modifier modifier = FieldValueFactorFunction.Modifier.NONE;
         Double missing = null;
         XContentParser.Token token;
+        String functionName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -189,22 +195,27 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldV
                     modifier = FieldValueFactorFunction.Modifier.fromString(parser.text());
                 } else if ("missing".equals(currentFieldName)) {
                     missing = parser.doubleValue();
+                } else if (FunctionScoreQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    functionName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), NAME + " query does not support [" + currentFieldName + "]");
                 }
             } else if ("factor".equals(currentFieldName)
-                    && (token == XContentParser.Token.START_ARRAY || token == XContentParser.Token.START_OBJECT)) {
-                throw new ParsingException(parser.getTokenLocation(),
-                        "[" + NAME + "] field 'factor' does not support lists or objects");
-            }
+                && (token == XContentParser.Token.START_ARRAY || token == XContentParser.Token.START_OBJECT)) {
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[" + NAME + "] field 'factor' does not support lists or objects"
+                    );
+                }
         }
 
         if (field == null) {
             throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] required field 'field' missing");
         }
 
-        FieldValueFactorFunctionBuilder fieldValueFactorFunctionBuilder = new FieldValueFactorFunctionBuilder(field).factor(boostFactor)
-                .modifier(modifier);
+        FieldValueFactorFunctionBuilder fieldValueFactorFunctionBuilder = new FieldValueFactorFunctionBuilder(field, functionName).factor(
+            boostFactor
+        ).modifier(modifier);
         if (missing != null) {
             fieldValueFactorFunctionBuilder.missing(missing);
         }

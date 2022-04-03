@@ -202,8 +202,10 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(),
-                                    "[wildcard] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "[wildcard] query does not support [" + currentFieldName + "]"
+                            );
                         }
                     }
                 }
@@ -214,11 +216,10 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
             }
         }
 
-        return new WildcardQueryBuilder(fieldName, value)
-                .rewrite(rewrite)
-                .boost(boost)
-                .queryName(queryName)
-                .caseInsensitive(caseInsensitive);
+        return new WildcardQueryBuilder(fieldName, value).rewrite(rewrite)
+            .boost(boost)
+            .queryName(queryName)
+            .caseInsensitive(caseInsensitive);
     }
 
     @Override
@@ -238,7 +239,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
                 } else if (query instanceof MatchNoDocsQuery) {
                     return new MatchNoneQueryBuilder();
                 } else {
-                    assert false : "Constant fields must produce match-all or match-none queries, got " + query ;
+                    assert false : "Constant fields must produce match-all or match-none queries, got " + query;
                 }
             }
         }
@@ -254,8 +255,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
             throw new IllegalStateException("Rewrite first");
         }
 
-        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(
-            rewrite, null, LoggingDeprecationHandler.INSTANCE);
+        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
         return fieldType.wildcardQuery(value, method, caseInsensitive, context);
     }
 
@@ -266,9 +266,9 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
 
     @Override
     protected boolean doEquals(WildcardQueryBuilder other) {
-        return Objects.equals(fieldName, other.fieldName) &&
-                Objects.equals(value, other.value) &&
-                Objects.equals(rewrite, other.rewrite)&&
-                Objects.equals(caseInsensitive, other.caseInsensitive);
+        return Objects.equals(fieldName, other.fieldName)
+            && Objects.equals(value, other.value)
+            && Objects.equals(rewrite, other.rewrite)
+            && Objects.equals(caseInsensitive, other.caseInsensitive);
     }
 }

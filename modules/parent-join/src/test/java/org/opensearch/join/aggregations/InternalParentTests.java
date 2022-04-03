@@ -55,14 +55,19 @@ public class InternalParentTests extends InternalSingleBucketAggregationTestCase
     @Override
     protected List<Entry> getNamedXContents() {
         List<Entry> extendedNamedXContents = new ArrayList<>(super.getNamedXContents());
-        extendedNamedXContents.add(new Entry(Aggregation.class, new ParseField(ParentAggregationBuilder.NAME),
-                (p, c) -> ParsedParent.fromXContent(p, (String) c)));
-        return extendedNamedXContents ;
+        extendedNamedXContents.add(
+            new Entry(Aggregation.class, new ParseField(ParentAggregationBuilder.NAME), (p, c) -> ParsedParent.fromXContent(p, (String) c))
+        );
+        return extendedNamedXContents;
     }
 
     @Override
-    protected InternalParent createTestInstance(String name, long docCount, InternalAggregations aggregations,
-            Map<String, Object> metadata) {
+    protected InternalParent createTestInstance(
+        String name,
+        long docCount,
+        InternalAggregations aggregations,
+        Map<String, Object> metadata
+    ) {
         return new InternalParent(name, docCount, aggregations, metadata);
     }
 

@@ -170,7 +170,7 @@ public class CollectionUtils {
             return null;
         }
         if (value instanceof Map) {
-            Map<?,?> map = (Map<?,?>) value;
+            Map<?, ?> map = (Map<?, ?>) value;
             return () -> Iterators.concat(map.keySet().iterator(), map.values().iterator());
         } else if ((value instanceof Iterable) && (value instanceof Path == false)) {
             return (Iterable<?>) value;
@@ -181,8 +181,12 @@ public class CollectionUtils {
         }
     }
 
-    private static void ensureNoSelfReferences(final Iterable<?> value, Object originalReference, final Set<Object> ancestors,
-                                               String messageHint) {
+    private static void ensureNoSelfReferences(
+        final Iterable<?> value,
+        Object originalReference,
+        final Set<Object> ancestors,
+        String messageHint
+    ) {
         if (value != null) {
             if (ancestors.add(originalReference) == false) {
                 String suffix = Strings.isNullOrEmpty(messageHint) ? "" : String.format(Locale.ROOT, " (%s)", messageHint);
@@ -200,7 +204,7 @@ public class CollectionUtils {
      * @param map Map to copy
      * @return unmodifiable copy of the map
      */
-    public static <R,T> Map<R, T> copyMap(Map<R, T> map) {
+    public static <R, T> Map<R, T> copyMap(Map<R, T> map) {
         if (map.isEmpty()) {
             return Collections.emptyMap();
         } else {
@@ -243,14 +247,19 @@ public class CollectionUtils {
         sort(new BytesRefBuilder(), new BytesRefBuilder(), bytes, indices);
     }
 
-    private static void sort(final BytesRefBuilder scratch, final BytesRefBuilder scratch1,
-                             final BytesRefArray bytes, final int[] indices) {
+    private static void sort(
+        final BytesRefBuilder scratch,
+        final BytesRefBuilder scratch1,
+        final BytesRefArray bytes,
+        final int[] indices
+    ) {
 
         final int numValues = bytes.size();
         assert indices.length >= numValues;
         if (numValues > 1) {
             new InPlaceMergeSorter() {
                 final Comparator<BytesRef> comparator = Comparator.naturalOrder();
+
                 @Override
                 protected int compare(int i, int j) {
                     return comparator.compare(bytes.get(scratch, indices[i]), bytes.get(scratch1, indices[j]));
@@ -298,7 +307,7 @@ public class CollectionUtils {
             throw new NullPointerException("elements");
         }
         if (elements instanceof Collection) {
-            return new ArrayList<>((Collection)elements);
+            return new ArrayList<>((Collection) elements);
         } else {
             ArrayList<E> list = new ArrayList<>();
             for (E element : elements) {
@@ -325,7 +334,7 @@ public class CollectionUtils {
         return list;
     }
 
-    public static<E> ArrayList<E> asArrayList(E first, E second, E... other) {
+    public static <E> ArrayList<E> asArrayList(E first, E second, E... other) {
         if (other == null) {
             throw new NullPointerException("other");
         }

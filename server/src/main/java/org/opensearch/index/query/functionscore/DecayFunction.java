@@ -33,19 +33,20 @@
 package org.opensearch.index.query.functionscore;
 
 import org.apache.lucene.search.Explanation;
+import org.opensearch.common.Nullable;
 
 /**
  * Implement this interface to provide a decay function that is executed on a
  * distance. For example, this could be an exponential drop of, a triangle
  * function or something of the kind. This is used, for example, by
  * {@link GaussDecayFunctionBuilder}.
- * 
+ *
  */
 public interface DecayFunction {
 
     double evaluate(double value, double scale);
 
-    Explanation explainFunction(String valueString, double value, double scale);
+    Explanation explainFunction(String valueString, double value, double scale, @Nullable String functionName);
 
     /**
      * The final scale parameter is computed from the scale parameter given by
@@ -53,7 +54,7 @@ public interface DecayFunction {
      * should compute if document distance and user defined scale equal. The
      * scale parameter for the function must be adjusted accordingly in this
      * function
-     * 
+     *
      * @param scale
      *            the raw scale value given by the user
      * @param decay

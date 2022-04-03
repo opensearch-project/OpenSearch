@@ -53,15 +53,9 @@ public class CountResponseTests extends OpenSearchTestCase {
     // OpenSearchException. Best effort: try to check that the original message appears somewhere in the rendered xContent
     // For more see ShardSearchFailureTests.
     public void testFromXContent() throws IOException {
-        xContentTester(
-            this::createParser,
-            this::createTestInstance,
-            this::toXContent,
-            CountResponse::fromXContent)
-            .supportsUnknownFields(false)
-            .assertEqualsConsumer(this::assertEqualInstances)
-            .assertToXContentEquivalence(false)
-            .test();
+        xContentTester(this::createParser, this::createTestInstance, this::toXContent, CountResponse::fromXContent).supportsUnknownFields(
+            false
+        ).assertEqualsConsumer(this::assertEqualInstances).assertToXContentEquivalence(false).test();
     }
 
     private CountResponse createTestInstance() {
@@ -75,8 +69,12 @@ public class CountResponseTests extends OpenSearchTestCase {
         for (int i = 0; i < failures.length; i++) {
             failures[i] = createShardFailureTestItem();
         }
-        CountResponse.ShardStats shardStats = new CountResponse.ShardStats(successfulShards, totalShards, skippedShards,
-            randomBoolean() ? ShardSearchFailure.EMPTY_ARRAY : failures);
+        CountResponse.ShardStats shardStats = new CountResponse.ShardStats(
+            successfulShards,
+            totalShards,
+            skippedShards,
+            randomBoolean() ? ShardSearchFailure.EMPTY_ARRAY : failures
+        );
         return new CountResponse(count, terminatedEarly, shardStats);
     }
 
@@ -91,8 +89,15 @@ public class CountResponseTests extends OpenSearchTestCase {
     }
 
     private void toXContent(CountResponse.ShardStats stats, XContentBuilder builder, ToXContent.Params params) throws IOException {
-        RestActions.buildBroadcastShardsHeader(builder, params, stats.getTotalShards(), stats.getSuccessfulShards(), stats
-            .getSkippedShards(), stats.getShardFailures().length, stats.getShardFailures());
+        RestActions.buildBroadcastShardsHeader(
+            builder,
+            params,
+            stats.getTotalShards(),
+            stats.getSuccessfulShards(),
+            stats.getSkippedShards(),
+            stats.getShardFailures().length,
+            stats.getShardFailures()
+        );
     }
 
     @SuppressWarnings("Duplicates")
@@ -103,8 +108,12 @@ public class CountResponseTests extends OpenSearchTestCase {
         if (randomBoolean()) {
             String nodeId = randomAlphaOfLengthBetween(5, 10);
             String indexName = randomAlphaOfLengthBetween(5, 10);
-            searchShardTarget = new SearchShardTarget(nodeId,
-                new ShardId(new Index(indexName, IndexMetadata.INDEX_UUID_NA_VALUE), randomInt()), null, null);
+            searchShardTarget = new SearchShardTarget(
+                nodeId,
+                new ShardId(new Index(indexName, IndexMetadata.INDEX_UUID_NA_VALUE), randomInt()),
+                null,
+                null
+            );
         }
         return new ShardSearchFailure(ex, searchShardTarget);
     }
@@ -129,11 +138,15 @@ public class CountResponseTests extends OpenSearchTestCase {
             assertEquals(originalFailure.shard(), parsedFailure.shard());
             assertEquals(originalFailure.shardId(), parsedFailure.shardId());
             String originalMsg = originalFailure.getCause().getMessage();
-            assertEquals(parsedFailure.getCause().getMessage(), "OpenSearch exception [type=parsing_exception, reason=" +
-                originalMsg + "]");
+            assertEquals(
+                parsedFailure.getCause().getMessage(),
+                "OpenSearch exception [type=parsing_exception, reason=" + originalMsg + "]"
+            );
             String nestedMsg = originalFailure.getCause().getCause().getMessage();
-            assertEquals(parsedFailure.getCause().getCause().getMessage(),
-                "OpenSearch exception [type=illegal_argument_exception, reason=" + nestedMsg + "]");
+            assertEquals(
+                parsedFailure.getCause().getCause().getMessage(),
+                "OpenSearch exception [type=illegal_argument_exception, reason=" + nestedMsg + "]"
+            );
         }
     }
 }

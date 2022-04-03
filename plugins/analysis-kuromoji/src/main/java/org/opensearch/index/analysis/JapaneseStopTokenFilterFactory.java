@@ -32,7 +32,6 @@
 
 package org.opensearch.index.analysis;
 
-
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.TokenStream;
@@ -47,7 +46,7 @@ import java.util.Set;
 
 import static java.util.Collections.singletonMap;
 
-public class JapaneseStopTokenFilterFactory extends AbstractTokenFilterFactory{
+public class JapaneseStopTokenFilterFactory extends AbstractTokenFilterFactory {
     private static final Map<String, Set<?>> NAMED_STOP_WORDS = singletonMap("_japanese_", JapaneseAnalyzer.getDefaultStopSet());
 
     private final CharArraySet stopWords;
@@ -60,8 +59,14 @@ public class JapaneseStopTokenFilterFactory extends AbstractTokenFilterFactory{
         super(indexSettings, name, settings);
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
         this.removeTrailing = settings.getAsBoolean("remove_trailing", true);
-        this.stopWords = Analysis.parseWords(env, settings, "stopwords",
-                JapaneseAnalyzer.getDefaultStopSet(), NAMED_STOP_WORDS, ignoreCase);
+        this.stopWords = Analysis.parseWords(
+            env,
+            settings,
+            "stopwords",
+            JapaneseAnalyzer.getDefaultStopSet(),
+            NAMED_STOP_WORDS,
+            ignoreCase
+        );
     }
 
     @Override

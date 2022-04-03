@@ -90,9 +90,6 @@ public class PublishWithJoinResponse extends TransportResponse {
 
     @Override
     public String toString() {
-        return "PublishWithJoinResponse{" +
-            "publishResponse=" + publishResponse +
-            ", optionalJoin=" + optionalJoin +
-            '}';
+        return "PublishWithJoinResponse{" + "publishResponse=" + publishResponse + ", optionalJoin=" + optionalJoin + '}';
     }
 }

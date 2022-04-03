@@ -25,14 +25,12 @@
  * under the License.
  */
 
-
 /*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
  */
 
 package org.opensearch.search.aggregations.bucket.terms.heuristic;
-
 
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
@@ -52,8 +50,10 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
 
     protected static final ParseField INCLUDE_NEGATIVES_FIELD = new ParseField("include_negatives");
 
-    protected static final String SCORE_ERROR_MESSAGE = ", does your background filter not include all documents in the bucket? " +
-            "If so and it is intentional, set \"" + BACKGROUND_IS_SUPERSET.getPreferredName() + "\": false";
+    protected static final String SCORE_ERROR_MESSAGE = ", does your background filter not include all documents in the bucket? "
+        + "If so and it is intentional, set \""
+        + BACKGROUND_IS_SUPERSET.getPreferredName()
+        + "\": false";
 
     protected final boolean backgroundIsSuperset;
 
@@ -85,17 +85,12 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj)
-            return true;
-        if (obj == null)
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
+        if (this == obj) return true;
+        if (obj == null) return false;
+        if (getClass() != obj.getClass()) return false;
         NXYSignificanceHeuristic other = (NXYSignificanceHeuristic) obj;
-        if (backgroundIsSuperset != other.backgroundIsSuperset)
-            return false;
-        if (includeNegatives != other.includeNegatives)
-            return false;
+        if (backgroundIsSuperset != other.backgroundIsSuperset) return false;
+        if (includeNegatives != other.includeNegatives) return false;
         return true;
     }
 
@@ -114,42 +109,42 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
         checkFrequencies(subsetFreq, subsetSize, supersetFreq, supersetSize, scoreFunctionName);
         Frequencies frequencies = new Frequencies();
         if (backgroundIsSuperset) {
-            //documents not in class and do not contain term
+            // documents not in class and do not contain term
             frequencies.N00 = supersetSize - supersetFreq - (subsetSize - subsetFreq);
-            //documents in class and do not contain term
+            // documents in class and do not contain term
             frequencies.N01 = (subsetSize - subsetFreq);
             // documents not in class and do contain term
             frequencies.N10 = supersetFreq - subsetFreq;
             // documents in class and do contain term
             frequencies.N11 = subsetFreq;
-            //documents that do not contain term
+            // documents that do not contain term
             frequencies.N0_ = supersetSize - supersetFreq;
-            //documents that contain term
+            // documents that contain term
             frequencies.N1_ = supersetFreq;
-            //documents that are not in class
+            // documents that are not in class
             frequencies.N_0 = supersetSize - subsetSize;
-            //documents that are in class
+            // documents that are in class
             frequencies.N_1 = subsetSize;
-            //all docs
+            // all docs
             frequencies.N = supersetSize;
         } else {
-            //documents not in class and do not contain term
+            // documents not in class and do not contain term
             frequencies.N00 = supersetSize - supersetFreq;
-            //documents in class and do not contain term
+            // documents in class and do not contain term
             frequencies.N01 = subsetSize - subsetFreq;
             // documents not in class and do contain term
             frequencies.N10 = supersetFreq;
             // documents in class and do contain term
             frequencies.N11 = subsetFreq;
-            //documents that do not contain term
+            // documents that do not contain term
             frequencies.N0_ = supersetSize - supersetFreq + subsetSize - subsetFreq;
-            //documents that contain term
+            // documents that contain term
             frequencies.N1_ = supersetFreq + subsetFreq;
-            //documents that are not in class
+            // documents that are not in class
             frequencies.N_0 = supersetSize;
-            //documents that are in class
+            // documents that are in class
             frequencies.N_1 = subsetSize;
-            //all docs
+            // all docs
             frequencies.N = supersetSize + subsetSize;
         }
         return frequencies;
@@ -171,8 +166,8 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
     }
 
     protected void build(XContentBuilder builder) throws IOException {
-        builder.field(INCLUDE_NEGATIVES_FIELD.getPreferredName(), includeNegatives).field(BACKGROUND_IS_SUPERSET.getPreferredName(),
-                backgroundIsSuperset);
+        builder.field(INCLUDE_NEGATIVES_FIELD.getPreferredName(), includeNegatives)
+            .field(BACKGROUND_IS_SUPERSET.getPreferredName(), backgroundIsSuperset);
     }
 
     /**
@@ -205,8 +200,7 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
 
         protected void build(XContentBuilder builder) throws IOException {
             builder.field(INCLUDE_NEGATIVES_FIELD.getPreferredName(), includeNegatives)
-                    .field(BACKGROUND_IS_SUPERSET.getPreferredName(), backgroundIsSuperset);
+                .field(BACKGROUND_IS_SUPERSET.getPreferredName(), backgroundIsSuperset);
         }
     }
 }
-

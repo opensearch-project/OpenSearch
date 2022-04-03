@@ -32,7 +32,6 @@
 package org.opensearch.action.admin.indices.forcemerge;
 
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 
 public class ForceMergeRequestTests extends OpenSearchTestCase {
 

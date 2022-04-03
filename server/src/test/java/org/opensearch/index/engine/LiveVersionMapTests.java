@@ -136,14 +136,14 @@ public class LiveVersionMapTests extends OpenSearchTestCase {
             map.afterRefresh(randomBoolean());
             assertNull(map.getUnderLock(uid("test")));
 
-            map.putDeleteUnderLock(uid("test"), new DeleteVersionValue(1,1,1,1));
-            assertEquals(new DeleteVersionValue(1,1,1,1), map.getUnderLock(uid("test")));
+            map.putDeleteUnderLock(uid("test"), new DeleteVersionValue(1, 1, 1, 1));
+            assertEquals(new DeleteVersionValue(1, 1, 1, 1), map.getUnderLock(uid("test")));
             map.beforeRefresh();
-            assertEquals(new DeleteVersionValue(1,1,1,1), map.getUnderLock(uid("test")));
+            assertEquals(new DeleteVersionValue(1, 1, 1, 1), map.getUnderLock(uid("test")));
             map.afterRefresh(randomBoolean());
-            assertEquals(new DeleteVersionValue(1,1,1,1), map.getUnderLock(uid("test")));
+            assertEquals(new DeleteVersionValue(1, 1, 1, 1), map.getUnderLock(uid("test")));
             map.pruneTombstones(2, 0);
-            assertEquals(new DeleteVersionValue(1,1,1,1), map.getUnderLock(uid("test")));
+            assertEquals(new DeleteVersionValue(1, 1, 1, 1), map.getUnderLock(uid("test")));
             map.pruneTombstones(2, 1);
             assertNull(map.getUnderLock(uid("test")));
         }
@@ -182,22 +182,31 @@ public class LiveVersionMapTests extends OpenSearchTestCase {
                     for (int i = 0; i < randomValuesPerThread; ++i) {
                         BytesRef bytesRef = randomFrom(random(), keyList);
                         try (Releasable r = map.acquireLock(bytesRef)) {
-                            VersionValue versionValue = values.computeIfAbsent(bytesRef,
-                                v -> new IndexVersionValue(
-                                    randomTranslogLocation(), randomLong(), maxSeqNo.incrementAndGet(), randomLong()));
+                            VersionValue versionValue = values.computeIfAbsent(
+                                bytesRef,
+                                v -> new IndexVersionValue(randomTranslogLocation(), randomLong(), maxSeqNo.incrementAndGet(), randomLong())
+                            );
                             boolean isDelete = versionValue instanceof DeleteVersionValue;
                             if (isDelete) {
                                 map.removeTombstoneUnderLock(bytesRef);
                                 deletes.remove(bytesRef);
                             }
                             if (isDelete == false && rarely()) {
-                                versionValue = new DeleteVersionValue(versionValue.version + 1,
-                                    maxSeqNo.incrementAndGet(), versionValue.term, clock.getAndIncrement());
+                                versionValue = new DeleteVersionValue(
+                                    versionValue.version + 1,
+                                    maxSeqNo.incrementAndGet(),
+                                    versionValue.term,
+                                    clock.getAndIncrement()
+                                );
                                 deletes.put(bytesRef, (DeleteVersionValue) versionValue);
                                 map.putDeleteUnderLock(bytesRef, (DeleteVersionValue) versionValue);
                             } else {
-                                versionValue = new IndexVersionValue(randomTranslogLocation(),
-                                    versionValue.version + 1, maxSeqNo.incrementAndGet(), versionValue.term);
+                                versionValue = new IndexVersionValue(
+                                    randomTranslogLocation(),
+                                    versionValue.version + 1,
+                                    maxSeqNo.incrementAndGet(),
+                                    versionValue.term
+                                );
                                 map.putIndexUnderLock(bytesRef, (IndexVersionValue) versionValue);
                             }
                             values.put(bytesRef, versionValue);
@@ -254,13 +263,12 @@ public class LiveVersionMapTests extends OpenSearchTestCase {
             assertNotNull(versionValue);
             assertEquals(v, versionValue);
         });
-        Runnable assertTombstones = () ->
-            map.getAllTombstones().entrySet().forEach(e -> {
-                VersionValue versionValue = values.get(e.getKey());
-                assertNotNull(versionValue);
-                assertEquals(e.getValue(), versionValue);
-                assertTrue(versionValue instanceof DeleteVersionValue);
-            });
+        Runnable assertTombstones = () -> map.getAllTombstones().entrySet().forEach(e -> {
+            VersionValue versionValue = values.get(e.getKey());
+            assertNotNull(versionValue);
+            assertEquals(e.getValue(), versionValue);
+            assertTrue(versionValue instanceof DeleteVersionValue);
+        });
         assertTombstones.run();
         map.beforeRefresh();
         assertTombstones.run();
@@ -274,8 +282,10 @@ public class LiveVersionMapTests extends OpenSearchTestCase {
                 // have a timestamp that is smaller or equal to the maximum timestamp that we pruned on
                 final DeleteVersionValue delete = e.getValue();
                 if (value == null) {
-                    assertTrue(delete.time + " > " + lastPrunedTimestamp.get() + "," + delete.seqNo + " > " + lastPrunedSeqNo.get(),
-                        delete.time <= lastPrunedTimestamp.get() && delete.seqNo <= lastPrunedSeqNo.get());
+                    assertTrue(
+                        delete.time + " > " + lastPrunedTimestamp.get() + "," + delete.seqNo + " > " + lastPrunedSeqNo.get(),
+                        delete.time <= lastPrunedTimestamp.get() && delete.seqNo <= lastPrunedSeqNo.get()
+                    );
                 } else {
                     assertEquals(value, delete);
                 }
@@ -387,7 +397,7 @@ public class LiveVersionMapTests extends OpenSearchTestCase {
         });
         t.start();
         start.countDown();
-        while(done.get() == false) {
+        while (done.get() == false) {
             map.beforeRefresh();
             Thread.yield();
             map.afterRefresh(false);
@@ -410,16 +420,12 @@ public class LiveVersionMapTests extends OpenSearchTestCase {
             map.putDeleteUnderLock(uid, new DeleteVersionValue(0, 0, 0, 0));
             map.beforeRefresh(); // refresh otherwise we won't prune since it's tracked by the current map
             map.afterRefresh(false);
-            Thread thread = new Thread(() -> {
-                map.pruneTombstones(Long.MAX_VALUE, 0);
-            });
+            Thread thread = new Thread(() -> { map.pruneTombstones(Long.MAX_VALUE, 0); });
             thread.start();
             thread.join();
             assertEquals(1, map.getAllTombstones().size());
         }
-        Thread thread = new Thread(() -> {
-            map.pruneTombstones(Long.MAX_VALUE, 0);
-        });
+        Thread thread = new Thread(() -> { map.pruneTombstones(Long.MAX_VALUE, 0); });
         thread.start();
         thread.join();
         assertEquals(0, map.getAllTombstones().size());

@@ -69,8 +69,7 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
 
     long nowInMillis;
 
-    public ExplainRequest() {
-    }
+    public ExplainRequest() {}
 
     /**
      * @deprecated Types are in the process of being removed. Use {@link ExplainRequest(String, String) instead.}
@@ -172,7 +171,6 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
     public FetchSourceContext fetchSourceContext() {
         return fetchSourceContext;
     }
-
 
     public String[] storedFields() {
         return storedFields;

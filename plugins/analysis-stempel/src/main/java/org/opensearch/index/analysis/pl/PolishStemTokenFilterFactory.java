@@ -41,16 +41,14 @@ import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AbstractTokenFilterFactory;
 
-
-
-
 public class PolishStemTokenFilterFactory extends AbstractTokenFilterFactory {
 
     public PolishStemTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
     }
 
-    @Override public TokenStream create(TokenStream tokenStream) {
+    @Override
+    public TokenStream create(TokenStream tokenStream) {
         return new StempelFilter(tokenStream, new StempelStemmer(PolishAnalyzer.getDefaultTable()));
     }
 }

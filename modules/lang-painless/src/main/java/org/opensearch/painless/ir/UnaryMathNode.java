@@ -149,8 +149,9 @@ public class UnaryMathNode extends UnaryNode {
                     } else if (getUnaryType() == long.class) {
                         methodWriter.push(-1L);
                     } else {
-                        throw new IllegalStateException("unexpected unary math operation [" + operation + "] " +
-                                "for type [" + getExpressionCanonicalTypeName() + "]");
+                        throw new IllegalStateException(
+                            "unexpected unary math operation [" + operation + "] " + "for type [" + getExpressionCanonicalTypeName() + "]"
+                        );
                     }
 
                     methodWriter.math(MethodWriter.XOR, actualType);
@@ -168,8 +169,9 @@ public class UnaryMathNode extends UnaryNode {
                     methodWriter.invokeDefCall("plus", descriptor, DefBootstrap.UNARY_OPERATOR, defFlags);
                 }
             } else {
-                throw new IllegalStateException("unexpected unary math operation [" + operation + "] " +
-                        "for type [" + getExpressionCanonicalTypeName() + "]");
+                throw new IllegalStateException(
+                    "unexpected unary math operation [" + operation + "] " + "for type [" + getExpressionCanonicalTypeName() + "]"
+                );
             }
         }
     }

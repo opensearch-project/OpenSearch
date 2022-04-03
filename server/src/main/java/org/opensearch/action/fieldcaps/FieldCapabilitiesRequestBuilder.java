@@ -37,9 +37,7 @@ import org.opensearch.client.OpenSearchClient;
 import org.opensearch.index.query.QueryBuilder;
 
 public class FieldCapabilitiesRequestBuilder extends ActionRequestBuilder<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
-    public FieldCapabilitiesRequestBuilder(OpenSearchClient client,
-                                           FieldCapabilitiesAction action,
-                                           String... indices) {
+    public FieldCapabilitiesRequestBuilder(OpenSearchClient client, FieldCapabilitiesAction action, String... indices) {
         super(client, action, new FieldCapabilitiesRequest().indices(indices));
     }
 

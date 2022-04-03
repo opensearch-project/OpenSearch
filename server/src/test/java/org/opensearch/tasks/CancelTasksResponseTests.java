@@ -69,7 +69,7 @@ public class CancelTasksResponseTests extends AbstractXContentTestCase<CancelTas
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        //status and headers hold arbitrary content, we can't inject random fields in them
+        // status and headers hold arbitrary content, we can't inject random fields in them
         return field -> field.endsWith("status") || field.endsWith("headers");
     }
 
@@ -103,14 +103,23 @@ public class CancelTasksResponseTests extends AbstractXContentTestCase<CancelTas
      */
     public void testFromXContentWithFailures() throws IOException {
         Supplier<CancelTasksResponse> instanceSupplier = CancelTasksResponseTests::createTestInstanceWithFailures;
-        //with random fields insertion in the inner exceptions, some random stuff may be parsed back as metadata,
-        //but that does not bother our assertions, as we only want to test that we don't break.
+        // with random fields insertion in the inner exceptions, some random stuff may be parsed back as metadata,
+        // but that does not bother our assertions, as we only want to test that we don't break.
         boolean supportsUnknownFields = true;
-        //exceptions are not of the same type whenever parsed back
+        // exceptions are not of the same type whenever parsed back
         boolean assertToXContentEquivalence = false;
-        AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, instanceSupplier, supportsUnknownFields, Strings.EMPTY_ARRAY,
-            getRandomFieldsExcludeFilter(), this::createParser, this::doParseInstance,
-            this::assertEqualInstances, assertToXContentEquivalence, ToXContent.EMPTY_PARAMS);
+        AbstractXContentTestCase.testFromXContent(
+            NUMBER_OF_TEST_RUNS,
+            instanceSupplier,
+            supportsUnknownFields,
+            Strings.EMPTY_ARRAY,
+            getRandomFieldsExcludeFilter(),
+            this::createParser,
+            this::doParseInstance,
+            this::assertEqualInstances,
+            assertToXContentEquivalence,
+            ToXContent.EMPTY_PARAMS
+        );
     }
 
     private static CancelTasksResponse createTestInstanceWithFailures() {

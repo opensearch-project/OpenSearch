@@ -49,4 +49,3 @@ public class LangExpressionClientYamlTestSuiteIT extends OpenSearchClientYamlSui
         return OpenSearchClientYamlSuiteTestCase.createParameters();
     }
 }
-

@@ -58,8 +58,11 @@ public class Gateway {
 
     private final int minimumMasterNodes;
 
-    public Gateway(final Settings settings, final ClusterService clusterService,
-                   final TransportNodesListGatewayMetaState listGatewayMetaState) {
+    public Gateway(
+        final Settings settings,
+        final ClusterService clusterService,
+        final TransportNodesListGatewayMetaState listGatewayMetaState
+    ) {
         this.clusterService = clusterService;
         this.listGatewayMetaState = listGatewayMetaState;
         this.minimumMasterNodes = ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(settings);

@@ -82,9 +82,12 @@ public class IndexActionIT extends OpenSearchIntegTestCase {
                     logger.debug("running search with all types");
                     SearchResponse response = client().prepareSearch("test").get();
                     if (response.getHits().getTotalHits().value != numOfDocs) {
-                        final String message =
-                                "Count is " + response.getHits().getTotalHits().value + " but " + numOfDocs + " was expected. " +
-                                        OpenSearchAssertions.formatShardStatus(response);
+                        final String message = "Count is "
+                            + response.getHits().getTotalHits().value
+                            + " but "
+                            + numOfDocs
+                            + " was expected. "
+                            + OpenSearchAssertions.formatShardStatus(response);
                         logger.error("{}. search response: \n{}", message, response);
                         fail(message);
                     }
@@ -98,9 +101,12 @@ public class IndexActionIT extends OpenSearchIntegTestCase {
                     logger.debug("running search with a specific type");
                     SearchResponse response = client().prepareSearch("test").setTypes("type").get();
                     if (response.getHits().getTotalHits().value != numOfDocs) {
-                        final String message =
-                                "Count is " + response.getHits().getTotalHits().value + " but " + numOfDocs + " was expected. " +
-                                        OpenSearchAssertions.formatShardStatus(response);
+                        final String message = "Count is "
+                            + response.getHits().getTotalHits().value
+                            + " but "
+                            + numOfDocs
+                            + " was expected. "
+                            + OpenSearchAssertions.formatShardStatus(response);
                         logger.error("{}. search response: \n{}", message, response);
                         fail(message);
                     }
@@ -162,7 +168,7 @@ public class IndexActionIT extends OpenSearchIntegTestCase {
         ExecutorService threadPool = Executors.newFixedThreadPool(threadCount);
         List<Callable<Void>> tasks = new ArrayList<>(taskCount);
         final Random random = random();
-        for (int i=0;i< taskCount; i++ ) {
+        for (int i = 0; i < taskCount; i++) {
             tasks.add(new Callable<Void>() {
                 @Override
                 public Void call() throws Exception {
@@ -178,7 +184,7 @@ public class IndexActionIT extends OpenSearchIntegTestCase {
 
         threadPool.invokeAll(tasks);
 
-        for (int i=0;i<docCount;i++) {
+        for (int i = 0; i < docCount; i++) {
             assertThat(createdCounts.get(i), lessThanOrEqualTo(1));
         }
         terminate(threadPool);
@@ -188,8 +194,12 @@ public class IndexActionIT extends OpenSearchIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(123)
-                                              .setVersionType(VersionType.EXTERNAL).execute().actionGet();
+        IndexResponse indexResponse = client().prepareIndex("test", "type", "1")
+            .setSource("field1", "value1_1")
+            .setVersion(123)
+            .setVersionType(VersionType.EXTERNAL)
+            .execute()
+            .actionGet();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
     }
 
@@ -197,8 +207,10 @@ public class IndexActionIT extends OpenSearchIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        BulkResponse bulkResponse = client().prepareBulk().add(
-                client().prepareIndex("test", "type", "1").setSource("field1", "value1_1")).execute().actionGet();
+        BulkResponse bulkResponse = client().prepareBulk()
+            .add(client().prepareIndex("test", "type", "1").setSource("field1", "value1_1"))
+            .execute()
+            .actionGet();
         assertThat(bulkResponse.hasFailures(), equalTo(false));
         assertThat(bulkResponse.getItems().length, equalTo(1));
         IndexResponse indexResponse = bulkResponse.getItems()[0].getResponse();
@@ -212,27 +224,39 @@ public class IndexActionIT extends OpenSearchIntegTestCase {
             createIndex(randomAlphaOfLengthBetween(min, max).toLowerCase(Locale.ROOT));
             fail("exception should have been thrown on too-long index name");
         } catch (InvalidIndexNameException e) {
-            assertThat("exception contains message about index name too long: " + e.getMessage(),
-                    e.getMessage().contains("index name is too long,"), equalTo(true));
+            assertThat(
+                "exception contains message about index name too long: " + e.getMessage(),
+                e.getMessage().contains("index name is too long,"),
+                equalTo(true)
+            );
         }
 
         try {
             client().prepareIndex(randomAlphaOfLengthBetween(min, max).toLowerCase(Locale.ROOT), "mytype").setSource("foo", "bar").get();
             fail("exception should have been thrown on too-long index name");
         } catch (InvalidIndexNameException e) {
-            assertThat("exception contains message about index name too long: " + e.getMessage(),
-                    e.getMessage().contains("index name is too long,"), equalTo(true));
+            assertThat(
+                "exception contains message about index name too long: " + e.getMessage(),
+                e.getMessage().contains("index name is too long,"),
+                equalTo(true)
+            );
         }
 
         try {
             // Catch chars that are more than a single byte
-            client().prepareIndex(randomAlphaOfLength(MetadataCreateIndexService.MAX_INDEX_NAME_BYTES - 1).toLowerCase(Locale.ROOT) +
-                            "Ϟ".toLowerCase(Locale.ROOT),
-                    "mytype").setSource("foo", "bar").get();
+            client().prepareIndex(
+                randomAlphaOfLength(MetadataCreateIndexService.MAX_INDEX_NAME_BYTES - 1).toLowerCase(Locale.ROOT) + "Ϟ".toLowerCase(
+                    Locale.ROOT
+                ),
+                "mytype"
+            ).setSource("foo", "bar").get();
             fail("exception should have been thrown on too-long index name");
         } catch (InvalidIndexNameException e) {
-            assertThat("exception contains message about index name too long: " + e.getMessage(),
-                    e.getMessage().contains("index name is too long,"), equalTo(true));
+            assertThat(
+                "exception contains message about index name too long: " + e.getMessage(),
+                e.getMessage().contains("index name is too long,"),
+                equalTo(true)
+            );
         }
 
         // we can create an index of max length
@@ -244,26 +268,31 @@ public class IndexActionIT extends OpenSearchIntegTestCase {
             createIndex(".");
             fail("exception should have been thrown on dot index name");
         } catch (InvalidIndexNameException e) {
-            assertThat("exception contains message about index name is dot " + e.getMessage(),
-                    e.getMessage().contains("Invalid index name [.], must not be \'.\' or '..'"), equalTo(true));
+            assertThat(
+                "exception contains message about index name is dot " + e.getMessage(),
+                e.getMessage().contains("Invalid index name [.], must not be \'.\' or '..'"),
+                equalTo(true)
+            );
         }
 
         try {
             createIndex("..");
             fail("exception should have been thrown on dot index name");
         } catch (InvalidIndexNameException e) {
-            assertThat("exception contains message about index name is dot " + e.getMessage(),
-                    e.getMessage().contains("Invalid index name [..], must not be \'.\' or '..'"), equalTo(true));
+            assertThat(
+                "exception contains message about index name is dot " + e.getMessage(),
+                e.getMessage().contains("Invalid index name [..], must not be \'.\' or '..'"),
+                equalTo(true)
+            );
         }
     }
 
     public void testDocumentWithBlankFieldName() {
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
-                client().prepareIndex("test", "type", "1").setSource("", "value1_2").execute().actionGet();
-            }
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> { client().prepareIndex("test", "type", "1").setSource("", "value1_2").execute().actionGet(); }
         );
         assertThat(e.getMessage(), containsString("failed to parse"));
-        assertThat(e.getRootCause().getMessage(),
-                containsString("field name cannot be an empty string"));
+        assertThat(e.getRootCause().getMessage(), containsString("field name cannot be an empty string"));
     }
 }

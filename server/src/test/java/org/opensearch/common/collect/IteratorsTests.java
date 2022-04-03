@@ -74,7 +74,6 @@ public class IteratorsTests extends OpenSearchTestCase {
         assertSingleton(value, empty(), singletonIterator(value));
     }
 
-
     public void testEmptyAfterSingleton() {
         int value = randomInt();
         assertSingleton(value, singletonIterator(value), empty());
@@ -117,7 +116,7 @@ public class IteratorsTests extends OpenSearchTestCase {
 
     public void testNull() {
         try {
-            Iterators.concat((Iterator<?>)null);
+            Iterators.concat((Iterator<?>) null);
             fail("expected " + NullPointerException.class.getSimpleName());
         } catch (NullPointerException e) {
 

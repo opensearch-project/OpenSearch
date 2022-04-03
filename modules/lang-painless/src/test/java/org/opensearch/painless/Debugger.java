@@ -57,8 +57,7 @@ final class Debugger {
         PrintWriter outputWriter = new PrintWriter(output);
         Textifier textifier = new Textifier();
         try {
-            new Compiler(iface, null, null, LOOKUP)
-                    .compile("<debugging>", source, settings, textifier);
+            new Compiler(iface, null, null, LOOKUP).compile("<debugging>", source, settings, textifier);
         } catch (RuntimeException e) {
             textifier.print(outputWriter);
             e.addSuppressed(new Exception("current bytecode: \n" + output));

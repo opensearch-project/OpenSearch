@@ -54,13 +54,16 @@ public class MapXContentParser extends AbstractXContentParser {
     private TokenIterator iterator;
     private boolean closed;
 
-    public MapXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, Map<String, Object> map,
-                             XContentType xContentType) {
+    public MapXContentParser(
+        NamedXContentRegistry xContentRegistry,
+        DeprecationHandler deprecationHandler,
+        Map<String, Object> map,
+        XContentType xContentType
+    ) {
         super(xContentRegistry, deprecationHandler);
         this.xContentType = xContentType;
         this.iterator = new MapIterator(null, null, map);
     }
-
 
     @Override
     protected boolean doBooleanValue() throws IOException {

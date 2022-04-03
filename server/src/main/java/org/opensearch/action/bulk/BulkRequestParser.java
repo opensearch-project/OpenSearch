@@ -107,8 +107,12 @@ public final class BulkRequestParser {
      * Returns the sliced {@link BytesReference}. If the {@link XContentType} is JSON, the byte preceding the marker is checked to see
      * if it is a carriage return and if so, the BytesReference is sliced so that the carriage return is ignored
      */
-    private static BytesReference sliceTrimmingCarriageReturn(BytesReference bytesReference, int from, int nextMarker,
-                                                              XContentType xContentType) {
+    private static BytesReference sliceTrimmingCarriageReturn(
+        BytesReference bytesReference,
+        int from,
+        int nextMarker,
+        XContentType xContentType
+    ) {
         final int length;
         if (XContentType.JSON == xContentType && bytesReference.get(nextMarker - 1) == (byte) '\r') {
             length = nextMarker - from - 1;
@@ -124,15 +128,32 @@ public final class BulkRequestParser {
      * {@code updateRequestConsumer} and delete requests to the {@code deleteRequestConsumer}.
      */
     public void parse(
-            BytesReference data, @Nullable String defaultIndex,
-            @Nullable String defaultRouting, @Nullable FetchSourceContext defaultFetchSourceContext,
-            @Nullable String defaultPipeline, @Nullable Boolean defaultRequireAlias, boolean allowExplicitIndex,
-            XContentType xContentType,
-            Consumer<IndexRequest> indexRequestConsumer,
-            Consumer<UpdateRequest> updateRequestConsumer,
-            Consumer<DeleteRequest> deleteRequestConsumer) throws IOException {
-        parse(data, defaultIndex, null, defaultRouting, defaultFetchSourceContext, defaultPipeline,
-            defaultRequireAlias, allowExplicitIndex, xContentType, indexRequestConsumer, updateRequestConsumer, deleteRequestConsumer);
+        BytesReference data,
+        @Nullable String defaultIndex,
+        @Nullable String defaultRouting,
+        @Nullable FetchSourceContext defaultFetchSourceContext,
+        @Nullable String defaultPipeline,
+        @Nullable Boolean defaultRequireAlias,
+        boolean allowExplicitIndex,
+        XContentType xContentType,
+        Consumer<IndexRequest> indexRequestConsumer,
+        Consumer<UpdateRequest> updateRequestConsumer,
+        Consumer<DeleteRequest> deleteRequestConsumer
+    ) throws IOException {
+        parse(
+            data,
+            defaultIndex,
+            null,
+            defaultRouting,
+            defaultFetchSourceContext,
+            defaultPipeline,
+            defaultRequireAlias,
+            allowExplicitIndex,
+            xContentType,
+            indexRequestConsumer,
+            updateRequestConsumer,
+            deleteRequestConsumer
+        );
     }
 
     /**
@@ -144,13 +165,19 @@ public final class BulkRequestParser {
      */
     @Deprecated
     public void parse(
-            BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType,
-            @Nullable String defaultRouting, @Nullable FetchSourceContext defaultFetchSourceContext,
-            @Nullable String defaultPipeline, @Nullable Boolean defaultRequireAlias, boolean allowExplicitIndex,
-            XContentType xContentType,
-            Consumer<IndexRequest> indexRequestConsumer,
-            Consumer<UpdateRequest> updateRequestConsumer,
-            Consumer<DeleteRequest> deleteRequestConsumer) throws IOException {
+        BytesReference data,
+        @Nullable String defaultIndex,
+        @Nullable String defaultType,
+        @Nullable String defaultRouting,
+        @Nullable FetchSourceContext defaultFetchSourceContext,
+        @Nullable String defaultPipeline,
+        @Nullable Boolean defaultRequireAlias,
+        boolean allowExplicitIndex,
+        XContentType xContentType,
+        Consumer<IndexRequest> indexRequestConsumer,
+        Consumer<UpdateRequest> updateRequestConsumer,
+        Consumer<DeleteRequest> deleteRequestConsumer
+    ) throws IOException {
         XContent xContent = xContentType.xContent();
         int line = 0;
         int from = 0;
@@ -178,14 +205,28 @@ public final class BulkRequestParser {
                     continue;
                 }
                 if (token != XContentParser.Token.START_OBJECT) {
-                    throw new IllegalArgumentException("Malformed action/metadata line [" + line + "], expected "
-                            + XContentParser.Token.START_OBJECT + " but found [" + token + "]");
+                    throw new IllegalArgumentException(
+                        "Malformed action/metadata line ["
+                            + line
+                            + "], expected "
+                            + XContentParser.Token.START_OBJECT
+                            + " but found ["
+                            + token
+                            + "]"
+                    );
                 }
                 // Move to FIELD_NAME, that's the action
                 token = parser.nextToken();
                 if (token != XContentParser.Token.FIELD_NAME) {
-                    throw new IllegalArgumentException("Malformed action/metadata line [" + line + "], expected "
-                            + XContentParser.Token.FIELD_NAME + " but found [" + token + "]");
+                    throw new IllegalArgumentException(
+                        "Malformed action/metadata line ["
+                            + line
+                            + "], expected "
+                            + XContentParser.Token.FIELD_NAME
+                            + " but found ["
+                            + token
+                            + "]"
+                    );
                 }
                 String action = parser.currentName();
 
@@ -247,28 +288,57 @@ public final class BulkRequestParser {
                             } else if (REQUIRE_ALIAS.match(currentFieldName, parser.getDeprecationHandler())) {
                                 requireAlias = parser.booleanValue();
                             } else {
-                                throw new IllegalArgumentException("Action/metadata line [" + line + "] contains an unknown parameter ["
-                                        + currentFieldName + "]");
+                                throw new IllegalArgumentException(
+                                    "Action/metadata line [" + line + "] contains an unknown parameter [" + currentFieldName + "]"
+                                );
                             }
                         } else if (token == XContentParser.Token.START_ARRAY) {
-                            throw new IllegalArgumentException("Malformed action/metadata line [" + line +
-                                    "], expected a simple value for field [" + currentFieldName + "] but found [" + token + "]");
-                        } else if (token == XContentParser.Token.START_OBJECT && SOURCE.match(currentFieldName,
-                                parser.getDeprecationHandler())) {
-                            fetchSourceContext = FetchSourceContext.fromXContent(parser);
-                        } else if (token != XContentParser.Token.VALUE_NULL) {
-                            throw new IllegalArgumentException("Malformed action/metadata line [" + line
-                                    + "], expected a simple value for field [" + currentFieldName + "] but found [" + token + "]");
-                        }
+                            throw new IllegalArgumentException(
+                                "Malformed action/metadata line ["
+                                    + line
+                                    + "], expected a simple value for field ["
+                                    + currentFieldName
+                                    + "] but found ["
+                                    + token
+                                    + "]"
+                            );
+                        } else if (token == XContentParser.Token.START_OBJECT
+                            && SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
+                                fetchSourceContext = FetchSourceContext.fromXContent(parser);
+                            } else if (token != XContentParser.Token.VALUE_NULL) {
+                                throw new IllegalArgumentException(
+                                    "Malformed action/metadata line ["
+                                        + line
+                                        + "], expected a simple value for field ["
+                                        + currentFieldName
+                                        + "] but found ["
+                                        + token
+                                        + "]"
+                                );
+                            }
                     }
                 } else if (token != XContentParser.Token.END_OBJECT) {
-                    throw new IllegalArgumentException("Malformed action/metadata line [" + line + "], expected "
-                            + XContentParser.Token.START_OBJECT + " or " + XContentParser.Token.END_OBJECT + " but found [" + token + "]");
+                    throw new IllegalArgumentException(
+                        "Malformed action/metadata line ["
+                            + line
+                            + "], expected "
+                            + XContentParser.Token.START_OBJECT
+                            + " or "
+                            + XContentParser.Token.END_OBJECT
+                            + " but found ["
+                            + token
+                            + "]"
+                    );
                 }
 
                 if ("delete".equals(action)) {
-                    deleteRequestConsumer.accept(new DeleteRequest(index, type, id).routing(routing)
-                            .version(version).versionType(versionType).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm));
+                    deleteRequestConsumer.accept(
+                        new DeleteRequest(index, type, id).routing(routing)
+                            .version(version)
+                            .versionType(versionType)
+                            .setIfSeqNo(ifSeqNo)
+                            .setIfPrimaryTerm(ifPrimaryTerm)
+                    );
                 } else {
                     nextMarker = findNextMarker(marker, from, data);
                     if (nextMarker == -1) {
@@ -280,36 +350,59 @@ public final class BulkRequestParser {
                     // of index request.
                     if ("index".equals(action)) {
                         if (opType == null) {
-                            indexRequestConsumer.accept(new IndexRequest(index, type, id).routing(routing)
-                                    .version(version).versionType(versionType)
-                                    .setPipeline(pipeline).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
-                                    .source(sliceTrimmingCarriageReturn(data, from, nextMarker,xContentType), xContentType)
-                                    .setRequireAlias(requireAlias));
-                        } else {
-                            indexRequestConsumer.accept(new IndexRequest(index, type, id).routing(routing)
-                                    .version(version).versionType(versionType)
-                                    .create("create".equals(opType)).setPipeline(pipeline)
-                                    .setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
+                            indexRequestConsumer.accept(
+                                new IndexRequest(index, type, id).routing(routing)
+                                    .version(version)
+                                    .versionType(versionType)
+                                    .setPipeline(pipeline)
+                                    .setIfSeqNo(ifSeqNo)
+                                    .setIfPrimaryTerm(ifPrimaryTerm)
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
-                                    .setRequireAlias(requireAlias));
+                                    .setRequireAlias(requireAlias)
+                            );
+                        } else {
+                            indexRequestConsumer.accept(
+                                new IndexRequest(index, type, id).routing(routing)
+                                    .version(version)
+                                    .versionType(versionType)
+                                    .create("create".equals(opType))
+                                    .setPipeline(pipeline)
+                                    .setIfSeqNo(ifSeqNo)
+                                    .setIfPrimaryTerm(ifPrimaryTerm)
+                                    .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
+                                    .setRequireAlias(requireAlias)
+                            );
                         }
                     } else if ("create".equals(action)) {
-                        indexRequestConsumer.accept(new IndexRequest(index, type, id).routing(routing)
-                                .version(version).versionType(versionType)
-                                .create(true).setPipeline(pipeline).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
+                        indexRequestConsumer.accept(
+                            new IndexRequest(index, type, id).routing(routing)
+                                .version(version)
+                                .versionType(versionType)
+                                .create(true)
+                                .setPipeline(pipeline)
+                                .setIfSeqNo(ifSeqNo)
+                                .setIfPrimaryTerm(ifPrimaryTerm)
                                 .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
-                                .setRequireAlias(requireAlias));
+                                .setRequireAlias(requireAlias)
+                        );
                     } else if ("update".equals(action)) {
                         if (version != Versions.MATCH_ANY || versionType != VersionType.INTERNAL) {
-                            throw new IllegalArgumentException("Update requests do not support versioning. " +
-                                    "Please use `if_seq_no` and `if_primary_term` instead");
+                            throw new IllegalArgumentException(
+                                "Update requests do not support versioning. " + "Please use `if_seq_no` and `if_primary_term` instead"
+                            );
                         }
-                        UpdateRequest updateRequest = new UpdateRequest(index, type, id).routing(routing).retryOnConflict(retryOnConflict)
-                                .setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
-                                .setRequireAlias(requireAlias)
-                                .routing(routing);
-                        try (XContentParser sliceParser = createParser(
-                                sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContent)) {
+                        UpdateRequest updateRequest = new UpdateRequest(index, type, id).routing(routing)
+                            .retryOnConflict(retryOnConflict)
+                            .setIfSeqNo(ifSeqNo)
+                            .setIfPrimaryTerm(ifPrimaryTerm)
+                            .setRequireAlias(requireAlias)
+                            .routing(routing);
+                        try (
+                            XContentParser sliceParser = createParser(
+                                sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType),
+                                xContent
+                            )
+                        ) {
                             updateRequest.fromXContent(sliceParser);
                         }
                         if (fetchSourceContext != null) {
@@ -357,7 +450,12 @@ public final class BulkRequestParser {
     private static XContentParser parseBytesArray(XContent xContent, BytesArray array, int from, int nextMarker) throws IOException {
         final int offset = array.offset();
         // EMPTY is safe here because we never call namedObject
-        return xContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, array.array(),
-                offset + from, nextMarker - from);
+        return xContent.createParser(
+            NamedXContentRegistry.EMPTY,
+            LoggingDeprecationHandler.INSTANCE,
+            array.array(),
+            offset + from,
+            nextMarker - from
+        );
     }
 }

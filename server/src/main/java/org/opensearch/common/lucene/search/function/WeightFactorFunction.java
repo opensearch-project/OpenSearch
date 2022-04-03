@@ -34,6 +34,8 @@ package org.opensearch.common.lucene.search.function;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.Strings;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -45,9 +47,17 @@ public class WeightFactorFunction extends ScoreFunction {
     private float weight = 1.0f;
 
     public WeightFactorFunction(float weight, ScoreFunction scoreFunction) {
+        this(weight, scoreFunction, null);
+    }
+
+    public WeightFactorFunction(float weight, ScoreFunction scoreFunction, @Nullable String functionName) {
         super(CombineFunction.MULTIPLY);
         if (scoreFunction == null) {
-            this.scoreFunction = SCORE_ONE;
+            if (Strings.isNullOrEmpty(functionName)) {
+                this.scoreFunction = SCORE_ONE;
+            } else {
+                this.scoreFunction = new ScoreOne(CombineFunction.MULTIPLY, functionName);
+            }
         } else {
             this.scoreFunction = scoreFunction;
         }
@@ -55,9 +65,11 @@ public class WeightFactorFunction extends ScoreFunction {
     }
 
     public WeightFactorFunction(float weight) {
-        super(CombineFunction.MULTIPLY);
-        this.scoreFunction = SCORE_ONE;
-        this.weight = weight;
+        this(weight, null, null);
+    }
+
+    public WeightFactorFunction(float weight, @Nullable String functionName) {
+        this(weight, null, functionName);
     }
 
     @Override
@@ -73,8 +85,11 @@ public class WeightFactorFunction extends ScoreFunction {
             public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
                 Explanation functionExplanation = leafFunction.explainScore(docId, subQueryScore);
                 return Explanation.match(
-                        functionExplanation.getValue().floatValue() * (float) getWeight(), "product of:",
-                        functionExplanation, explainWeight());
+                    functionExplanation.getValue().floatValue() * (float) getWeight(),
+                    "product of:",
+                    functionExplanation,
+                    explainWeight()
+                );
             }
         };
     }
@@ -100,8 +115,7 @@ public class WeightFactorFunction extends ScoreFunction {
     @Override
     protected boolean doEquals(ScoreFunction other) {
         WeightFactorFunction weightFactorFunction = (WeightFactorFunction) other;
-        return this.weight == weightFactorFunction.weight &&
-                Objects.equals(this.scoreFunction, weightFactorFunction.scoreFunction);
+        return this.weight == weightFactorFunction.weight && Objects.equals(this.scoreFunction, weightFactorFunction.scoreFunction);
     }
 
     @Override
@@ -110,9 +124,15 @@ public class WeightFactorFunction extends ScoreFunction {
     }
 
     private static class ScoreOne extends ScoreFunction {
+        private final String functionName;
 
         protected ScoreOne(CombineFunction scoreCombiner) {
+            this(scoreCombiner, null);
+        }
+
+        protected ScoreOne(CombineFunction scoreCombiner, @Nullable String functionName) {
             super(scoreCombiner);
+            this.functionName = functionName;
         }
 
         @Override
@@ -125,7 +145,10 @@ public class WeightFactorFunction extends ScoreFunction {
 
                 @Override
                 public Explanation explainScore(int docId, Explanation subQueryScore) {
-                    return Explanation.match(1.0f, "constant score 1.0 - no function provided");
+                    return Explanation.match(
+                        1.0f,
+                        "constant score 1.0" + Functions.nameOrEmptyFunc(functionName) + " - no function provided"
+                    );
                 }
             };
         }

@@ -41,9 +41,12 @@ import org.opensearch.common.unit.TimeValue;
 /**
  * Base request builder for master node operations
  */
-public abstract class MasterNodeOperationRequestBuilder<Request extends MasterNodeRequest<Request>, Response extends ActionResponse,
-        RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder>>
-        extends ActionRequestBuilder<Request, Response> {
+public abstract class MasterNodeOperationRequestBuilder<
+    Request extends MasterNodeRequest<Request>,
+    Response extends ActionResponse,
+    RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder>> extends ActionRequestBuilder<
+        Request,
+        Response> {
 
     protected MasterNodeOperationRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);

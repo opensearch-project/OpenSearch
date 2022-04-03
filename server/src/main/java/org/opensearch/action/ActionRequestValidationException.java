@@ -34,5 +34,4 @@ package org.opensearch.action;
 
 import org.opensearch.common.ValidationException;
 
-public class ActionRequestValidationException extends ValidationException {
-}
+public class ActionRequestValidationException extends ValidationException {}

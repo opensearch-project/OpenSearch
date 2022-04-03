@@ -117,8 +117,11 @@ public class QueryRescorerBuilderTests extends OpenSearchTestCase {
     }
 
     private RescorerBuilder<?> copy(RescorerBuilder<?> original) throws IOException {
-        return copyWriteable(original, namedWriteableRegistry,
-                namedWriteableRegistry.getReader(RescorerBuilder.class, original.getWriteableName()));
+        return copyWriteable(
+            original,
+            namedWriteableRegistry,
+            namedWriteableRegistry.getReader(RescorerBuilder.class, original.getWriteableName())
+        );
     }
 
     /**
@@ -133,7 +136,6 @@ public class QueryRescorerBuilderTests extends OpenSearchTestCase {
             }
             rescoreBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
             XContentBuilder shuffled = shuffleXContent(builder);
-
 
             try (XContentParser parser = createParser(shuffled)) {
                 parser.nextToken();
@@ -151,13 +153,28 @@ public class QueryRescorerBuilderTests extends OpenSearchTestCase {
      */
     public void testBuildRescoreSearchContext() throws OpenSearchParseException, IOException {
         final long nowInMillis = randomNonNegativeLong();
-        Settings indexSettings = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in query rescorer
-        QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE,
-            null, null, null, null, null,
-            xContentRegistry(), namedWriteableRegistry, null, null, () -> nowInMillis, null, null, () -> true, null) {
+        QueryShardContext mockShardContext = new QueryShardContext(
+            0,
+            idxSettings,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null,
+            null,
+            null,
+            null,
+            null,
+            xContentRegistry(),
+            namedWriteableRegistry,
+            null,
+            null,
+            () -> nowInMillis,
+            null,
+            null,
+            () -> true,
+            null
+        ) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers());
@@ -168,8 +185,9 @@ public class QueryRescorerBuilderTests extends OpenSearchTestCase {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             QueryRescorerBuilder rescoreBuilder = randomRescoreBuilder();
             QueryRescoreContext rescoreContext = (QueryRescoreContext) rescoreBuilder.buildContext(mockShardContext);
-            int expectedWindowSize = rescoreBuilder.windowSize() == null ? RescorerBuilder.DEFAULT_WINDOW_SIZE :
-                rescoreBuilder.windowSize().intValue();
+            int expectedWindowSize = rescoreBuilder.windowSize() == null
+                ? RescorerBuilder.DEFAULT_WINDOW_SIZE
+                : rescoreBuilder.windowSize().intValue();
             assertEquals(expectedWindowSize, rescoreContext.getWindowSize());
             Query expectedQuery = Rewriteable.rewrite(rescoreBuilder.getRescoreQuery(), mockShardContext).toQuery(mockShardContext);
             assertEquals(expectedQuery, rescoreContext.query());
@@ -195,13 +213,28 @@ public class QueryRescorerBuilderTests extends OpenSearchTestCase {
     public void testRewritingKeepsSettings() throws IOException {
 
         final long nowInMillis = randomNonNegativeLong();
-        Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in query rescorer
-        QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE,
-                null, null, null, null, null,
-                xContentRegistry(), namedWriteableRegistry, null, null, () -> nowInMillis, null, null, () -> true, null) {
+        QueryShardContext mockShardContext = new QueryShardContext(
+            0,
+            idxSettings,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null,
+            null,
+            null,
+            null,
+            null,
+            xContentRegistry(),
+            namedWriteableRegistry,
+            null,
+            null,
+            () -> nowInMillis,
+            null,
+            null,
+            () -> true,
+            null
+        ) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers());
@@ -210,8 +243,9 @@ public class QueryRescorerBuilderTests extends OpenSearchTestCase {
         };
 
         QueryBuilder rewriteQb = new AlwaysRewriteQueryBuilder();
-        org.opensearch.search.rescore.QueryRescorerBuilder rescoreBuilder = new
-            org.opensearch.search.rescore.QueryRescorerBuilder(rewriteQb);
+        org.opensearch.search.rescore.QueryRescorerBuilder rescoreBuilder = new org.opensearch.search.rescore.QueryRescorerBuilder(
+            rewriteQb
+        );
 
         rescoreBuilder.setQueryWeight(randomFloat());
         rescoreBuilder.setRescoreQueryWeight(randomFloat());
@@ -230,26 +264,18 @@ public class QueryRescorerBuilderTests extends OpenSearchTestCase {
      */
     public void testUnknownFieldsExpection() throws IOException {
 
-        String rescoreElement = "{\n" +
-            "    \"window_size\" : 20,\n" +
-            "    \"bad_rescorer_name\" : { }\n" +
-            "}\n";
+        String rescoreElement = "{\n" + "    \"window_size\" : 20,\n" + "    \"bad_rescorer_name\" : { }\n" + "}\n";
         try (XContentParser parser = createParser(rescoreElement)) {
             Exception e = expectThrows(NamedObjectNotFoundException.class, () -> RescorerBuilder.parseFromXContent(parser));
             assertEquals("[3:27] unknown field [bad_rescorer_name]", e.getMessage());
         }
-        rescoreElement = "{\n" +
-            "    \"bad_fieldName\" : 20\n" +
-            "}\n";
+        rescoreElement = "{\n" + "    \"bad_fieldName\" : 20\n" + "}\n";
         try (XContentParser parser = createParser(rescoreElement)) {
             Exception e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser));
             assertEquals("rescore doesn't support [bad_fieldName]", e.getMessage());
         }
 
-        rescoreElement = "{\n" +
-            "    \"window_size\" : 20,\n" +
-            "    \"query\" : [ ]\n" +
-            "}\n";
+        rescoreElement = "{\n" + "    \"window_size\" : 20,\n" + "    \"query\" : [ ]\n" + "}\n";
         try (XContentParser parser = createParser(rescoreElement)) {
             Exception e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser));
             assertEquals("unexpected token [START_ARRAY] after [query]", e.getMessage());
@@ -261,27 +287,24 @@ public class QueryRescorerBuilderTests extends OpenSearchTestCase {
             assertEquals("missing rescore type", e.getMessage());
         }
 
-        rescoreElement = "{\n" +
-            "    \"window_size\" : 20,\n" +
-            "    \"query\" : { \"bad_fieldname\" : 1.0  } \n" +
-            "}\n";
+        rescoreElement = "{\n" + "    \"window_size\" : 20,\n" + "    \"query\" : { \"bad_fieldname\" : 1.0  } \n" + "}\n";
         try (XContentParser parser = createParser(rescoreElement)) {
             XContentParseException e = expectThrows(XContentParseException.class, () -> RescorerBuilder.parseFromXContent(parser));
             assertEquals("[3:17] [query] unknown field [bad_fieldname]", e.getMessage());
         }
 
-        rescoreElement = "{\n" +
-            "    \"window_size\" : 20,\n" +
-            "    \"query\" : { \"rescore_query\" : { \"unknown_queryname\" : { } } } \n" +
-            "}\n";
+        rescoreElement = "{\n"
+            + "    \"window_size\" : 20,\n"
+            + "    \"query\" : { \"rescore_query\" : { \"unknown_queryname\" : { } } } \n"
+            + "}\n";
         try (XContentParser parser = createParser(rescoreElement)) {
             Exception e = expectThrows(XContentParseException.class, () -> RescorerBuilder.parseFromXContent(parser));
             assertThat(e.getMessage(), containsString("[query] failed to parse field [rescore_query]"));
         }
 
-        rescoreElement = "{\n" +
-            "    \"window_size\" : 20,\n" +
-            "    \"query\" : { \"rescore_query\" : { \"match_all\" : { } } } \n"
+        rescoreElement = "{\n"
+            + "    \"window_size\" : 20,\n"
+            + "    \"query\" : { \"rescore_query\" : { \"match_all\" : { } } } \n"
             + "}\n";
         try (XContentParser parser = createParser(rescoreElement)) {
             RescorerBuilder.parseFromXContent(parser);
@@ -315,25 +338,25 @@ public class QueryRescorerBuilderTests extends OpenSearchTestCase {
         } else {
             QueryRescorerBuilder queryRescorer = (QueryRescorerBuilder) mutation;
             switch (randomIntBetween(0, 3)) {
-            case 0:
-                queryRescorer.setQueryWeight(queryRescorer.getQueryWeight() + 0.1f);
-                break;
-            case 1:
-                queryRescorer.setRescoreQueryWeight(queryRescorer.getRescoreQueryWeight() + 0.1f);
-                break;
-            case 2:
-                QueryRescoreMode other;
-                do {
-                    other = randomFrom(QueryRescoreMode.values());
-                } while (other == queryRescorer.getScoreMode());
-                queryRescorer.setScoreMode(other);
-                break;
-            case 3:
-                // only increase the boost to make it a slightly different query
-                queryRescorer.getRescoreQuery().boost(queryRescorer.getRescoreQuery().boost() + 0.1f);
-                break;
-            default:
-                throw new IllegalStateException("unexpected random mutation in test");
+                case 0:
+                    queryRescorer.setQueryWeight(queryRescorer.getQueryWeight() + 0.1f);
+                    break;
+                case 1:
+                    queryRescorer.setRescoreQueryWeight(queryRescorer.getRescoreQueryWeight() + 0.1f);
+                    break;
+                case 2:
+                    QueryRescoreMode other;
+                    do {
+                        other = randomFrom(QueryRescoreMode.values());
+                    } while (other == queryRescorer.getScoreMode());
+                    queryRescorer.setScoreMode(other);
+                    break;
+                case 3:
+                    // only increase the boost to make it a slightly different query
+                    queryRescorer.getRescoreQuery().boost(queryRescorer.getRescoreQuery().boost() + 0.1f);
+                    break;
+                default:
+                    throw new IllegalStateException("unexpected random mutation in test");
             }
         }
         return mutation;
@@ -343,10 +366,8 @@ public class QueryRescorerBuilderTests extends OpenSearchTestCase {
      * create random shape that is put under test
      */
     public static QueryRescorerBuilder randomRescoreBuilder() {
-        QueryBuilder queryBuilder = new MatchAllQueryBuilder().boost(randomFloat())
-                .queryName(randomAlphaOfLength(20));
-        org.opensearch.search.rescore.QueryRescorerBuilder rescorer = new
-                org.opensearch.search.rescore.QueryRescorerBuilder(queryBuilder);
+        QueryBuilder queryBuilder = new MatchAllQueryBuilder().boost(randomFloat()).queryName(randomAlphaOfLength(20));
+        org.opensearch.search.rescore.QueryRescorerBuilder rescorer = new org.opensearch.search.rescore.QueryRescorerBuilder(queryBuilder);
         if (randomBoolean()) {
             rescorer.setQueryWeight(randomFloat());
         }

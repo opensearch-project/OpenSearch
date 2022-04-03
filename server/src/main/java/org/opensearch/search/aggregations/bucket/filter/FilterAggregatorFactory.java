@@ -53,8 +53,14 @@ public class FilterAggregatorFactory extends AggregatorFactory {
     private Weight weight;
     private Query filter;
 
-    public FilterAggregatorFactory(String name, QueryBuilder filterBuilder, QueryShardContext queryShardContext,
-            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata) throws IOException {
+    public FilterAggregatorFactory(
+        String name,
+        QueryBuilder filterBuilder,
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, queryShardContext, parent, subFactoriesBuilder, metadata);
         filter = filterBuilder.toQuery(queryShardContext);
     }
@@ -81,10 +87,12 @@ public class FilterAggregatorFactory extends AggregatorFactory {
     }
 
     @Override
-    public Aggregator createInternal(SearchContext searchContext,
-                                        Aggregator parent,
-                                        CardinalityUpperBound cardinality,
-                                        Map<String, Object> metadata) throws IOException {
+    public Aggregator createInternal(
+        SearchContext searchContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         return new FilterAggregator(name, () -> this.getWeight(), factories, searchContext, parent, cardinality, metadata);
     }
 

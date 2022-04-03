@@ -51,8 +51,7 @@ public interface AutoDateHistogramAggregatorSupplier {
         AggregatorFactories factories,
         int numBuckets,
         AutoDateHistogramAggregationBuilder.RoundingInfo[] roundingInfos,
-        @Nullable
-        Function<Rounding, Rounding.Prepared> roundingPreparer,
+        @Nullable Function<Rounding, Rounding.Prepared> roundingPreparer,
         ValuesSourceConfig valuesSourceConfig,
         SearchContext aggregationContext,
         Aggregator parent,

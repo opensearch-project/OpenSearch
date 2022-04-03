@@ -53,30 +53,36 @@ public class CombineIntervalsSourceProviderTests extends AbstractSerializingTest
     @Override
     protected Combine mutateInstance(Combine instance) throws IOException {
         List<IntervalsSourceProvider> subSources = instance.getSubSources();
-        boolean ordered = instance.isOrdered();
+        IntervalMode mode = instance.getMode();
         int maxGaps = instance.getMaxGaps();
         IntervalsSourceProvider.IntervalFilter filter = instance.getFilter();
         switch (between(0, 3)) {
             case 0:
-                subSources = subSources == null ?
-                    IntervalQueryBuilderTests.createRandomSourceList(0, randomBoolean(), randomInt(5) + 1) :
-                    null;
+                subSources = subSources == null
+                    ? IntervalQueryBuilderTests.createRandomSourceList(0, randomBoolean(), randomInt(5) + 1)
+                    : null;
                 break;
             case 1:
-                ordered = !ordered;
+                if (mode == IntervalMode.ORDERED) {
+                    mode = randomBoolean() ? IntervalMode.UNORDERED : IntervalMode.UNORDERED_NO_OVERLAP;
+                } else if (mode == IntervalMode.UNORDERED) {
+                    mode = randomBoolean() ? IntervalMode.ORDERED : IntervalMode.UNORDERED_NO_OVERLAP;
+                } else {
+                    mode = randomBoolean() ? IntervalMode.UNORDERED : IntervalMode.ORDERED;
+                }
                 break;
             case 2:
                 maxGaps++;
                 break;
             case 3:
-                filter = filter == null ?
-                    IntervalQueryBuilderTests.createRandomNonNullFilter(0, randomBoolean()) :
-                    FilterIntervalsSourceProviderTests.mutateFilter(filter);
+                filter = filter == null
+                    ? IntervalQueryBuilderTests.createRandomNonNullFilter(0, randomBoolean())
+                    : FilterIntervalsSourceProviderTests.mutateFilter(filter);
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new Combine(subSources, ordered, maxGaps, filter);
+        return new Combine(subSources, mode, maxGaps, filter);
     }
 
     @Override

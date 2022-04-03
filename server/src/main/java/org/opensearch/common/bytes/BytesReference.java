@@ -47,7 +47,6 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 
-
 /**
  * A reference to bytes.
  */

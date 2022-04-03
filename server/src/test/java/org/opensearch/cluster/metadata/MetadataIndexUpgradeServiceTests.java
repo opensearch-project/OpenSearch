@@ -78,7 +78,8 @@ public class MetadataIndexUpgradeServiceTests extends OpenSearchTestCase {
         final MetadataIndexUpgradeService service = getMetadataIndexUpgradeService();
         final IndexMetadata initial = newIndexMeta(
             "foo",
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_UPGRADED, Version.CURRENT).put("index.refresh_interval", "-200").build());
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_UPGRADED, Version.CURRENT).put("index.refresh_interval", "-200").build()
+        );
         assertTrue(service.isUpgraded(initial));
         final IndexMetadata after = service.upgradeIndexMetadata(initial, Version.CURRENT.minimumIndexCompatibilityVersion());
         // the index does not need to be upgraded, but checking that it does should archive any broken settings
@@ -99,11 +100,13 @@ public class MetadataIndexUpgradeServiceTests extends OpenSearchTestCase {
 
     public void testUpgradeCustomSimilarity() {
         MetadataIndexUpgradeService service = getMetadataIndexUpgradeService();
-        IndexMetadata src = newIndexMeta("foo",
+        IndexMetadata src = newIndexMeta(
+            "foo",
             Settings.builder()
                 .put("index.similarity.my_similarity.type", "DFR")
                 .put("index.similarity.my_similarity.after_effect", "l")
-                .build());
+                .build()
+        );
         assertFalse(service.isUpgraded(src));
         src = service.upgradeIndexMetadata(src, Version.CURRENT.minimumIndexCompatibilityVersion());
         assertTrue(service.isUpgraded(src));
@@ -125,22 +128,41 @@ public class MetadataIndexUpgradeServiceTests extends OpenSearchTestCase {
         Version minCompat = Version.CURRENT.minimumIndexCompatibilityVersion();
         Version indexUpgraded = VersionUtils.randomVersionBetween(random(), minCompat, VersionUtils.getPreviousVersion(Version.CURRENT));
         Version indexCreated = LegacyESVersion.fromString((minCompat.major - 1) + "." + randomInt(5) + "." + randomInt(5));
-        final IndexMetadata metadata = newIndexMeta("foo", Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_UPGRADED, indexUpgraded)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated)
-            .build());
-        String message = expectThrows(IllegalStateException.class, () -> service.upgradeIndexMetadata(metadata,
-            Version.CURRENT.minimumIndexCompatibilityVersion())).getMessage();
-        assertEquals(message, "The index [[foo/BOOM]] was created with version [" + indexCreated + "] " +
-             "but the minimum compatible version is [" + minCompat + "]." +
-            " It should be re-indexed in OpenSearch " + minCompat.major + ".x before upgrading to " + Version.CURRENT.toString() + ".");
+        final IndexMetadata metadata = newIndexMeta(
+            "foo",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_UPGRADED, indexUpgraded)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated)
+                .build()
+        );
+        String message = expectThrows(
+            IllegalStateException.class,
+            () -> service.upgradeIndexMetadata(metadata, Version.CURRENT.minimumIndexCompatibilityVersion())
+        ).getMessage();
+        assertEquals(
+            message,
+            "The index [[foo/BOOM]] was created with version ["
+                + indexCreated
+                + "] "
+                + "but the minimum compatible version is ["
+                + minCompat
+                + "]."
+                + " It should be re-indexed in OpenSearch "
+                + minCompat.major
+                + ".x before upgrading to "
+                + Version.CURRENT.toString()
+                + "."
+        );
 
         indexCreated = VersionUtils.randomVersionBetween(random(), minCompat, Version.CURRENT);
         indexUpgraded = VersionUtils.randomVersionBetween(random(), indexCreated, Version.CURRENT);
-        IndexMetadata goodMeta = newIndexMeta("foo", Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_UPGRADED, indexUpgraded)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated)
-            .build());
+        IndexMetadata goodMeta = newIndexMeta(
+            "foo",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_UPGRADED, indexUpgraded)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated)
+                .build()
+        );
         service.upgradeIndexMetadata(goodMeta, Version.CURRENT.minimumIndexCompatibilityVersion());
     }
 
@@ -169,14 +191,16 @@ public class MetadataIndexUpgradeServiceTests extends OpenSearchTestCase {
             xContentRegistry(),
             new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            new SystemIndices(Collections.singletonMap("system-plugin",
-                Collections.singletonList(new SystemIndexDescriptor(".system", "a system index")))),
+            new SystemIndices(
+                Collections.singletonMap("system-plugin", Collections.singletonList(new SystemIndexDescriptor(".system", "a system index")))
+            ),
             null
         );
     }
 
     public static IndexMetadata newIndexMeta(String name, Settings indexSettings) {
-        Settings build = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+        Settings build = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_CREATION_DATE, 1)

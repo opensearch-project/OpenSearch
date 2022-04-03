@@ -36,7 +36,8 @@ import org.opensearch.common.xcontent.ObjectParser.ValueType;
 import org.opensearch.search.aggregations.ParsedAggregation;
 
 public abstract class ParsedSingleValueNumericMetricsAggregation extends ParsedAggregation
-        implements NumericMetricsAggregation.SingleValue {
+    implements
+        NumericMetricsAggregation.SingleValue {
 
     protected double value;
     protected String valueAsString;
@@ -63,11 +64,17 @@ public abstract class ParsedSingleValueNumericMetricsAggregation extends ParsedA
         this.valueAsString = valueAsString;
     }
 
-    protected static void declareSingleValueFields(ObjectParser<? extends ParsedSingleValueNumericMetricsAggregation, Void> objectParser,
-            double defaultNullValue) {
+    protected static void declareSingleValueFields(
+        ObjectParser<? extends ParsedSingleValueNumericMetricsAggregation, Void> objectParser,
+        double defaultNullValue
+    ) {
         declareAggregationFields(objectParser);
-        objectParser.declareField(ParsedSingleValueNumericMetricsAggregation::setValue,
-                (parser, context) -> parseDouble(parser, defaultNullValue), CommonFields.VALUE, ValueType.DOUBLE_OR_NULL);
+        objectParser.declareField(
+            ParsedSingleValueNumericMetricsAggregation::setValue,
+            (parser, context) -> parseDouble(parser, defaultNullValue),
+            CommonFields.VALUE,
+            ValueType.DOUBLE_OR_NULL
+        );
         objectParser.declareString(ParsedSingleValueNumericMetricsAggregation::setValueAsString, CommonFields.VALUE_AS_STRING);
     }
 }

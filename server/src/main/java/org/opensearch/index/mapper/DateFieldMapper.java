@@ -206,25 +206,38 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Float> boost = Parameter.boostParam();
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        private final Parameter<String> format
-            = Parameter.stringParam("format", false, m -> toType(m).format, DEFAULT_DATE_TIME_FORMATTER.pattern());
-        private final Parameter<Locale> locale = new Parameter<>("locale", false, () -> Locale.ROOT,
-            (n, c, o) -> LocaleUtils.parse(o.toString()), m -> toType(m).locale);
+        private final Parameter<String> format = Parameter.stringParam(
+            "format",
+            false,
+            m -> toType(m).format,
+            DEFAULT_DATE_TIME_FORMATTER.pattern()
+        );
+        private final Parameter<Locale> locale = new Parameter<>(
+            "locale",
+            false,
+            () -> Locale.ROOT,
+            (n, c, o) -> LocaleUtils.parse(o.toString()),
+            m -> toType(m).locale
+        );
 
-        private final Parameter<String> nullValue
-            = Parameter.stringParam("null_value", false, m -> toType(m).nullValueAsString, null).acceptsNull();
+        private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValueAsString, null)
+            .acceptsNull();
         private final Parameter<Boolean> ignoreMalformed;
 
         private final Resolution resolution;
         private final Version indexCreatedVersion;
 
-        public Builder(String name, Resolution resolution, DateFormatter dateFormatter,
-                       boolean ignoreMalformedByDefault, Version indexCreatedVersion) {
+        public Builder(
+            String name,
+            Resolution resolution,
+            DateFormatter dateFormatter,
+            boolean ignoreMalformedByDefault,
+            Version indexCreatedVersion
+        ) {
             super(name);
             this.resolution = resolution;
             this.indexCreatedVersion = indexCreatedVersion;
-            this.ignoreMalformed
-                = Parameter.boolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
+            this.ignoreMalformed = Parameter.boolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
             if (dateFormatter != null) {
                 this.format.setValue(dateFormatter.pattern());
                 this.locale.setValue(dateFormatter.locale());
@@ -255,20 +268,33 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             try {
                 return fieldType.parse(nullValue.getValue());
             } catch (Exception e) {
-                DEPRECATION_LOGGER.deprecate("date_mapper_null_field", "Error parsing [" + nullValue.getValue()
-                        + "] as date in [null_value] on field [" + name() + "]); [null_value] will be ignored");
+                DEPRECATION_LOGGER.deprecate(
+                    "date_mapper_null_field",
+                    "Error parsing ["
+                        + nullValue.getValue()
+                        + "] as date in [null_value] on field ["
+                        + name()
+                        + "]); [null_value] will be ignored"
+                );
                 return null;
             }
         }
 
         @Override
         public DateFieldMapper build(BuilderContext context) {
-            DateFieldType ft = new DateFieldType(buildFullName(context), index.getValue(), store.getValue(), docValues.getValue(),
-                buildFormatter(), resolution, nullValue.getValue(), meta.getValue());
+            DateFieldType ft = new DateFieldType(
+                buildFullName(context),
+                index.getValue(),
+                store.getValue(),
+                docValues.getValue(),
+                buildFormatter(),
+                resolution,
+                nullValue.getValue(),
+                meta.getValue()
+            );
             ft.setBoost(boost.getValue());
             Long nullTimestamp = parseNullValue(ft);
-            return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, context),
-                copyTo.build(), nullTimestamp, resolution, this);
+            return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), nullTimestamp, resolution, this);
         }
     }
 
@@ -288,9 +314,16 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         protected final Resolution resolution;
         protected final String nullValue;
 
-        public DateFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
-                             DateFormatter dateTimeFormatter, Resolution resolution, String nullValue,
-                             Map<String, String> meta) {
+        public DateFieldType(
+            String name,
+            boolean isSearchable,
+            boolean isStored,
+            boolean hasDocValues,
+            DateFormatter dateTimeFormatter,
+            Resolution resolution,
+            String nullValue,
+            Map<String, String> meta
+        ) {
             super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.dateTimeFormatter = dateTimeFormatter;
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
@@ -364,16 +397,21 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, ShapeRelation relation,
-                                @Nullable ZoneId timeZone, @Nullable DateMathParser forcedDateParser, QueryShardContext context) {
+        public Query rangeQuery(
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            ShapeRelation relation,
+            @Nullable ZoneId timeZone,
+            @Nullable DateMathParser forcedDateParser,
+            QueryShardContext context
+        ) {
             failIfNotIndexed();
             if (relation == ShapeRelation.DISJOINT) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
-                        "] does not support DISJOINT ranges");
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support DISJOINT ranges");
             }
-            DateMathParser parser = forcedDateParser == null
-                    ? dateMathParser
-                    : forcedDateParser;
+            DateMathParser parser = forcedDateParser == null ? dateMathParser : forcedDateParser;
             return dateRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context, resolution, (l, u) -> {
                 Query query = LongPoint.newRangeQuery(name(), l, u);
                 if (hasDocValues()) {
@@ -461,9 +499,16 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Relation isFieldWithinQuery(IndexReader reader,
-                                           Object from, Object to, boolean includeLower, boolean includeUpper,
-                                           ZoneId timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
+        public Relation isFieldWithinQuery(
+            IndexReader reader,
+            Object from,
+            Object to,
+            boolean includeLower,
+            boolean includeUpper,
+            ZoneId timeZone,
+            DateMathParser dateParser,
+            QueryRewriteContext context
+        ) throws IOException {
             if (dateParser == null) {
                 dateParser = this.dateMathParser;
             }
@@ -560,13 +605,14 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     private final Version indexCreatedVersion;
 
     private DateFieldMapper(
-            String simpleName,
-            MappedFieldType mappedFieldType,
-            MultiFields multiFields,
-            CopyTo copyTo,
-            Long nullValue,
-            Resolution resolution,
-            Builder builder) {
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        Long nullValue,
+        Resolution resolution,
+        Builder builder
+    ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.store = builder.store.getValue();
         this.indexed = builder.index.getValue();

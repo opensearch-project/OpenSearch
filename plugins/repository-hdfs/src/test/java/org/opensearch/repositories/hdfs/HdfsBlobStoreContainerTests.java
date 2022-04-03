@@ -60,14 +60,13 @@ import static org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositor
 import static org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositoryIntegTestCase.readBlobFully;
 import static org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositoryIntegTestCase.writeBlob;
 
-@ThreadLeakFilters(filters = {HdfsClientThreadLeakFilter.class})
+@ThreadLeakFilters(filters = { HdfsClientThreadLeakFilter.class })
 public class HdfsBlobStoreContainerTests extends OpenSearchTestCase {
 
     private FileContext createTestContext() {
         FileContext fileContext;
         try {
-            fileContext = AccessController.doPrivileged((PrivilegedExceptionAction<FileContext>)
-                () -> createContext(new URI("hdfs:///")));
+            fileContext = AccessController.doPrivileged((PrivilegedExceptionAction<FileContext>) () -> createContext(new URI("hdfs:///")));
         } catch (PrivilegedActionException e) {
             throw new RuntimeException(e.getCause());
         }
@@ -94,8 +93,7 @@ public class HdfsBlobStoreContainerTests extends OpenSearchTestCase {
 
         try {
             Principal principal = (Principal) ctor.newInstance(System.getProperty("user.name"));
-            subject = new Subject(false, Collections.singleton(principal),
-                    Collections.emptySet(), Collections.emptySet());
+            subject = new Subject(false, Collections.singleton(principal), Collections.emptySet(), Collections.emptySet());
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
             throw new RuntimeException(e);
         }

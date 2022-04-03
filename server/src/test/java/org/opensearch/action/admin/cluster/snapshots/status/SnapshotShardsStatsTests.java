@@ -36,7 +36,6 @@ import java.io.IOException;
 
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.test.AbstractXContentTestCase;
-import org.opensearch.action.admin.cluster.snapshots.status.SnapshotShardsStats;
 
 public class SnapshotShardsStatsTests extends AbstractXContentTestCase<SnapshotShardsStats> {
 

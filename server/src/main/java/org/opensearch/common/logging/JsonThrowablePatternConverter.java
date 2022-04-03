@@ -51,7 +51,7 @@ import java.util.StringJoiner;
  * LoggingEvent into a multiline string
  */
 @Plugin(name = "JsonThrowablePatternConverter", category = PatternConverter.CATEGORY)
-@ConverterKeys({"exceptionAsJson"})
+@ConverterKeys({ "exceptionAsJson" })
 public final class JsonThrowablePatternConverter extends ThrowablePatternConverter {
     private final ExtendedThrowablePatternConverter throwablePatternConverter;
 

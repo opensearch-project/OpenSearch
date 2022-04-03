@@ -52,15 +52,30 @@ public class QueryRewriteContext {
     protected final Client client;
     protected final LongSupplier nowInMillis;
     private final List<BiConsumer<Client, ActionListener<?>>> asyncActions = new ArrayList<>();
+    private final boolean validate;
 
     public QueryRewriteContext(
-            NamedXContentRegistry xContentRegistry, NamedWriteableRegistry writeableRegistry,Client client,
-            LongSupplier nowInMillis) {
+        NamedXContentRegistry xContentRegistry,
+        NamedWriteableRegistry writeableRegistry,
+        Client client,
+        LongSupplier nowInMillis
+    ) {
+        this(xContentRegistry, writeableRegistry, client, nowInMillis, false);
+    }
+
+    public QueryRewriteContext(
+        NamedXContentRegistry xContentRegistry,
+        NamedWriteableRegistry writeableRegistry,
+        Client client,
+        LongSupplier nowInMillis,
+        boolean validate
+    ) {
 
         this.xContentRegistry = xContentRegistry;
         this.writeableRegistry = writeableRegistry;
         this.client = client;
         this.nowInMillis = nowInMillis;
+        this.validate = validate;
     }
 
     /**
@@ -137,4 +152,7 @@ public class QueryRewriteContext {
         }
     }
 
+    public boolean validate() {
+        return validate;
+    }
 }

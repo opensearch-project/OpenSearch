@@ -86,8 +86,7 @@ interface State {
         }
 
         @Override
-        public MatcherAndConverter getConverter(String stringValue, TypeLiteral<?> type, Errors errors,
-                                                Object source) {
+        public MatcherAndConverter getConverter(String stringValue, TypeLiteral<?> type, Errors errors, Object source) {
             throw new UnsupportedOperationException();
         }
 
@@ -107,8 +106,7 @@ interface State {
         }
 
         @Override
-        public void blacklist(Key<?> key) {
-        }
+        public void blacklist(Key<?> key) {}
 
         @Override
         public boolean isBlacklisted(Key<?> key) {
@@ -116,12 +114,10 @@ interface State {
         }
 
         @Override
-        public void clearBlacklisted() {
-        }
+        public void clearBlacklisted() {}
 
         @Override
-        public void makeAllBindingsToEagerSingletons(Injector injector) {
-        }
+        public void makeAllBindingsToEagerSingletons(Injector injector) {}
 
         @Override
         public Object lock() {
@@ -155,8 +151,7 @@ interface State {
     /**
      * Returns the matching converter for {@code type}, or null if none match.
      */
-    MatcherAndConverter getConverter(
-            String stringValue, TypeLiteral<?> type, Errors errors, Object source);
+    MatcherAndConverter getConverter(String stringValue, TypeLiteral<?> type, Errors errors, Object source);
 
     /**
      * Returns all converters at this level only.
@@ -169,7 +164,7 @@ interface State {
 
     /**
      * Forbids the corresponding injector from creating a binding to {@code key}. Child injectors
-     * blacklist their bound keys on their parent injectors to prevent just-in-time bindings on the
+     * denylist their bound keys on their parent injectors to prevent just-in-time bindings on the
      * parent injector that would conflict.
      */
     void blacklist(Key<?> key);
@@ -182,11 +177,11 @@ interface State {
 
     /**
      * Returns the shared lock for all injector data. This is a low-granularity, high-contention lock
-     * to be used when reading mutable data (ie. just-in-time bindings, and binding blacklists).
+     * to be used when reading mutable data (ie. just-in-time bindings, and binding denylists).
      */
     Object lock();
 
-    // ES_GUICE: clean blacklist keys
+    // ES_GUICE: clean denylist keys
     void clearBlacklisted();
 
     void makeAllBindingsToEagerSingletons(Injector injector);

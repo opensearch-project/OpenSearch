@@ -35,7 +35,6 @@ package org.opensearch.action.admin.indices.settings.put;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.test.AbstractXContentTestCase;
-import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 
 import java.io.IOException;
 import java.util.function.Predicate;
@@ -87,8 +86,10 @@ public class UpdateSettingsRequestTests extends AbstractXContentTestCase<UpdateS
     protected void assertEqualInstances(UpdateSettingsRequest expectedInstance, UpdateSettingsRequest newInstance) {
         // here only the settings should be tested, as this test covers explicitly only the XContent parsing
         // the rest of the request fields are tested by the SerializingTests
-        super.assertEqualInstances(new UpdateSettingsRequest(expectedInstance.settings()),
-                new UpdateSettingsRequest(newInstance.settings()));
+        super.assertEqualInstances(
+            new UpdateSettingsRequest(expectedInstance.settings()),
+            new UpdateSettingsRequest(newInstance.settings())
+        );
     }
 
     @Override

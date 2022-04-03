@@ -38,6 +38,7 @@ import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.common.lucene.search.function.CombineFunction;
+import org.opensearch.common.lucene.search.function.Functions;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.plugins.Plugin;
@@ -72,6 +73,7 @@ import static org.opensearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.opensearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -88,12 +90,7 @@ public class ExplainableScriptIT extends OpenSearchIntegTestCase {
                 }
 
                 @Override
-                public <T> T compile(
-                    String scriptName,
-                    String scriptSource,
-                    ScriptContext<T> context,
-                    Map<String, String> params
-                ) {
+                public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
                     assert scriptSource.equals("explainable_script");
                     assert context == ScoreScript.CONTEXT;
                     ScoreScript.Factory factory = (params1, lookup) -> new ScoreScript.LeafFactory() {
@@ -126,8 +123,17 @@ public class ExplainableScriptIT extends OpenSearchIntegTestCase {
 
         @Override
         public Explanation explain(Explanation subQueryScore) throws IOException {
+            return explain(subQueryScore, null);
+        }
+
+        @Override
+        public Explanation explain(Explanation subQueryScore, String functionName) throws IOException {
             Explanation scoreExp = Explanation.match(subQueryScore.getValue(), "_score: ", subQueryScore);
-            return Explanation.match((float) (execute(null)), "This script returned " + execute(null), scoreExp);
+            return Explanation.match(
+                (float) (execute(null)),
+                "This script" + Functions.nameOrEmptyFunc(functionName) + " returned " + execute(null),
+                scoreExp
+            );
         }
 
         @Override
@@ -144,18 +150,27 @@ public class ExplainableScriptIT extends OpenSearchIntegTestCase {
     public void testExplainScript() throws InterruptedException, IOException, ExecutionException {
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
         for (int i = 0; i < 20; i++) {
-            indexRequests.add(client().prepareIndex("test", "type").setId(Integer.toString(i)).setSource(
-                    jsonBuilder().startObject().field("number_field", i).field("text", "text").endObject()));
+            indexRequests.add(
+                client().prepareIndex("test", "type")
+                    .setId(Integer.toString(i))
+                    .setSource(jsonBuilder().startObject().field("number_field", i).field("text", "text").endObject())
+            );
         }
         indexRandom(true, true, indexRequests);
         client().admin().indices().prepareRefresh().get();
         ensureYellow();
-        SearchResponse response = client().search(searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(true).query(
-                                functionScoreQuery(termQuery("text", "text"),
-                                        scriptFunction(
-                                            new Script(ScriptType.INLINE, "test", "explainable_script", Collections.emptyMap())))
-                                        .boostMode(CombineFunction.REPLACE)))).actionGet();
+        SearchResponse response = client().search(
+            searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
+                .source(
+                    searchSource().explain(true)
+                        .query(
+                            functionScoreQuery(
+                                termQuery("text", "text"),
+                                scriptFunction(new Script(ScriptType.INLINE, "test", "explainable_script", Collections.emptyMap()))
+                            ).boostMode(CombineFunction.REPLACE)
+                        )
+                )
+        ).actionGet();
 
         OpenSearchAssertions.assertNoFailures(response);
         SearchHits hits = response.getHits();
@@ -170,4 +185,36 @@ public class ExplainableScriptIT extends OpenSearchIntegTestCase {
             idCounter--;
         }
     }
+
+    public void testExplainScriptWithName() throws InterruptedException, IOException, ExecutionException {
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>();
+        indexRequests.add(
+            client().prepareIndex("test", "type")
+                .setId(Integer.toString(1))
+                .setSource(jsonBuilder().startObject().field("number_field", 1).field("text", "text").endObject())
+        );
+        indexRandom(true, true, indexRequests);
+        client().admin().indices().prepareRefresh().get();
+        ensureYellow();
+        SearchResponse response = client().search(
+            searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
+                .source(
+                    searchSource().explain(true)
+                        .query(
+                            functionScoreQuery(
+                                termQuery("text", "text"),
+                                scriptFunction(new Script(ScriptType.INLINE, "test", "explainable_script", Collections.emptyMap()), "func1")
+                            ).boostMode(CombineFunction.REPLACE)
+                        )
+                )
+        ).actionGet();
+
+        OpenSearchAssertions.assertNoFailures(response);
+        SearchHits hits = response.getHits();
+        assertThat(hits.getTotalHits().value, equalTo(1L));
+        assertThat(hits.getHits()[0].getId(), equalTo("1"));
+        assertThat(hits.getHits()[0].getExplanation().getDetails(), arrayWithSize(2));
+        assertThat(hits.getHits()[0].getExplanation().getDetails()[0].getDescription(), containsString("_name: func1"));
+    }
+
 }

@@ -75,8 +75,7 @@ public class GeoHashGridIT extends OpenSearchIntegTestCase {
         return false;
     }
 
-    private Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0,
-            Version.CURRENT);
+    private Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, Version.CURRENT);
 
     static ObjectIntMap<String> expectedDocCountsForGeoHash = null;
     static ObjectIntMap<String> multiValuedExpectedDocCountsForGeoHash = null;
@@ -103,21 +102,20 @@ public class GeoHashGridIT extends OpenSearchIntegTestCase {
 
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
 
-        assertAcked(prepareCreate("idx").setSettings(settings)
-                .addMapping("type", "location", "type=geo_point", "city", "type=keyword"));
+        assertAcked(prepareCreate("idx").setSettings(settings).addMapping("type", "location", "type=geo_point", "city", "type=keyword"));
 
         List<IndexRequestBuilder> cities = new ArrayList<>();
         Random random = random();
         expectedDocCountsForGeoHash = new ObjectIntHashMap<>(numDocs * 2);
         for (int i = 0; i < numDocs; i++) {
-            //generate random point
+            // generate random point
             double lat = (180d * random.nextDouble()) - 90d;
             double lng = (360d * random.nextDouble()) - 180d;
             String randomGeoHash = stringEncode(lng, lat, PRECISION);
-            //Index at the highest resolution
+            // Index at the highest resolution
             cities.add(indexCity("idx", randomGeoHash, lat + ", " + lng));
             expectedDocCountsForGeoHash.put(randomGeoHash, expectedDocCountsForGeoHash.getOrDefault(randomGeoHash, 0) + 1);
-            //Update expected doc counts for all resolutions..
+            // Update expected doc counts for all resolutions..
             for (int precision = PRECISION - 1; precision > 0; precision--) {
                 String hash = stringEncode(lng, lat, precision);
                 if ((smallestGeoHash == null) || (hash.length() < smallestGeoHash.length())) {
@@ -128,8 +126,9 @@ public class GeoHashGridIT extends OpenSearchIntegTestCase {
         }
         indexRandom(true, cities);
 
-        assertAcked(prepareCreate("multi_valued_idx").setSettings(settings)
-                .addMapping("type", "location", "type=geo_point", "city", "type=keyword"));
+        assertAcked(
+            prepareCreate("multi_valued_idx").setSettings(settings).addMapping("type", "location", "type=geo_point", "city", "type=keyword")
+        );
 
         cities = new ArrayList<>();
         multiValuedExpectedDocCountsForGeoHash = new ObjectIntHashMap<>(numDocs * 2);
@@ -160,18 +159,15 @@ public class GeoHashGridIT extends OpenSearchIntegTestCase {
     public void testSimple() throws Exception {
         for (int precision = 1; precision <= PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("idx")
-                    .addAggregation(geohashGrid("geohashgrid")
-                            .field("location")
-                            .precision(precision)
-                    )
-                    .get();
+                .addAggregation(geohashGrid("geohashgrid").field("location").precision(precision))
+                .get();
 
             assertSearchResponse(response);
 
             GeoGrid geoGrid = response.getAggregations().get("geohashgrid");
             List<? extends Bucket> buckets = geoGrid.getBuckets();
-            Object[] propertiesKeys = (Object[]) ((InternalAggregation)geoGrid).getProperty("_key");
-            Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)geoGrid).getProperty("_count");
+            Object[] propertiesKeys = (Object[]) ((InternalAggregation) geoGrid).getProperty("_key");
+            Object[] propertiesDocCounts = (Object[]) ((InternalAggregation) geoGrid).getProperty("_count");
             for (int i = 0; i < buckets.size(); i++) {
                 GeoGrid.Bucket cell = buckets.get(i);
                 String geohash = cell.getKeyAsString();
@@ -179,8 +175,7 @@ public class GeoHashGridIT extends OpenSearchIntegTestCase {
                 long bucketCount = cell.getDocCount();
                 int expectedBucketCount = expectedDocCountsForGeoHash.get(geohash);
                 assertNotSame(bucketCount, 0);
-                assertEquals("Geohash " + geohash + " has wrong doc count ",
-                        expectedBucketCount, bucketCount);
+                assertEquals("Geohash " + geohash + " has wrong doc count ", expectedBucketCount, bucketCount);
                 GeoPoint geoPoint = (GeoPoint) propertiesKeys[i];
                 assertThat(stringEncode(geoPoint.lon(), geoPoint.lat(), precision), equalTo(geohash));
                 assertThat((long) propertiesDocCounts[i], equalTo(bucketCount));
@@ -191,11 +186,8 @@ public class GeoHashGridIT extends OpenSearchIntegTestCase {
     public void testMultivalued() throws Exception {
         for (int precision = 1; precision <= PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("multi_valued_idx")
-                    .addAggregation(geohashGrid("geohashgrid")
-                            .field("location")
-                            .precision(precision)
-                    )
-                    .get();
+                .addAggregation(geohashGrid("geohashgrid").field("location").precision(precision))
+                .get();
 
             assertSearchResponse(response);
 
@@ -206,8 +198,7 @@ public class GeoHashGridIT extends OpenSearchIntegTestCase {
                 long bucketCount = cell.getDocCount();
                 int expectedBucketCount = multiValuedExpectedDocCountsForGeoHash.get(geohash);
                 assertNotSame(bucketCount, 0);
-                assertEquals("Geohash " + geohash + " has wrong doc count ",
-                        expectedBucketCount, bucketCount);
+                assertEquals("Geohash " + geohash + " has wrong doc count ", expectedBucketCount, bucketCount);
             }
         }
     }
@@ -217,15 +208,11 @@ public class GeoHashGridIT extends OpenSearchIntegTestCase {
         bbox.setCorners(smallestGeoHash).queryName("bbox");
         for (int precision = 1; precision <= PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("idx")
-                    .addAggregation(
-                            AggregationBuilders.filter("filtered", bbox)
-                                    .subAggregation(
-                                            geohashGrid("geohashgrid")
-                                                    .field("location")
-                                                    .precision(precision)
-                                    )
-                    )
-                    .get();
+                .addAggregation(
+                    AggregationBuilders.filter("filtered", bbox)
+                        .subAggregation(geohashGrid("geohashgrid").field("location").precision(precision))
+                )
+                .get();
 
             assertSearchResponse(response);
 
@@ -238,8 +225,7 @@ public class GeoHashGridIT extends OpenSearchIntegTestCase {
                 int expectedBucketCount = expectedDocCountsForGeoHash.get(geohash);
                 assertNotSame(bucketCount, 0);
                 assertTrue("Buckets must be filtered", geohash.startsWith(smallestGeoHash));
-                assertEquals("Geohash " + geohash + " has wrong doc count ",
-                        expectedBucketCount, bucketCount);
+                assertEquals("Geohash " + geohash + " has wrong doc count ", expectedBucketCount, bucketCount);
 
             }
         }
@@ -248,11 +234,8 @@ public class GeoHashGridIT extends OpenSearchIntegTestCase {
     public void testUnmapped() throws Exception {
         for (int precision = 1; precision <= PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("idx_unmapped")
-                    .addAggregation(geohashGrid("geohashgrid")
-                            .field("location")
-                            .precision(precision)
-                    )
-                    .get();
+                .addAggregation(geohashGrid("geohashgrid").field("location").precision(precision))
+                .get();
 
             assertSearchResponse(response);
 
@@ -265,11 +248,8 @@ public class GeoHashGridIT extends OpenSearchIntegTestCase {
     public void testPartiallyUnmapped() throws Exception {
         for (int precision = 1; precision <= PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
-                    .addAggregation(geohashGrid("geohashgrid")
-                            .field("location")
-                            .precision(precision)
-                    )
-                    .get();
+                .addAggregation(geohashGrid("geohashgrid").field("location").precision(precision))
+                .get();
 
             assertSearchResponse(response);
 
@@ -280,8 +260,7 @@ public class GeoHashGridIT extends OpenSearchIntegTestCase {
                 long bucketCount = cell.getDocCount();
                 int expectedBucketCount = expectedDocCountsForGeoHash.get(geohash);
                 assertNotSame(bucketCount, 0);
-                assertEquals("Geohash " + geohash + " has wrong doc count ",
-                        expectedBucketCount, bucketCount);
+                assertEquals("Geohash " + geohash + " has wrong doc count ", expectedBucketCount, bucketCount);
             }
         }
     }
@@ -289,18 +268,13 @@ public class GeoHashGridIT extends OpenSearchIntegTestCase {
     public void testTopMatch() throws Exception {
         for (int precision = 1; precision <= PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("idx")
-                    .addAggregation(geohashGrid("geohashgrid")
-                            .field("location")
-                            .size(1)
-                            .shardSize(100)
-                            .precision(precision)
-                    )
-                    .get();
+                .addAggregation(geohashGrid("geohashgrid").field("location").size(1).shardSize(100).precision(precision))
+                .get();
 
             assertSearchResponse(response);
 
             GeoGrid geoGrid = response.getAggregations().get("geohashgrid");
-            //Check we only have one bucket with the best match for that resolution
+            // Check we only have one bucket with the best match for that resolution
             assertThat(geoGrid.getBuckets().size(), equalTo(1));
             for (GeoGrid.Bucket cell : geoGrid.getBuckets()) {
                 String geohash = cell.getKeyAsString();
@@ -312,8 +286,7 @@ public class GeoHashGridIT extends OpenSearchIntegTestCase {
                     }
                 }
                 assertNotSame(bucketCount, 0);
-                assertEquals("Geohash " + geohash + " has wrong doc count ",
-                        expectedBucketCount, bucketCount);
+                assertEquals("Geohash " + geohash + " has wrong doc count ", expectedBucketCount, bucketCount);
             }
         }
     }
@@ -321,19 +294,24 @@ public class GeoHashGridIT extends OpenSearchIntegTestCase {
     public void testSizeIsZero() {
         final int size = 0;
         final int shardSize = 10000;
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> client().prepareSearch("idx")
-                        .addAggregation(geohashGrid("geohashgrid").field("location").size(size).shardSize(shardSize)).get());
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().prepareSearch("idx")
+                .addAggregation(geohashGrid("geohashgrid").field("location").size(size).shardSize(shardSize))
+                .get()
+        );
         assertThat(exception.getMessage(), containsString("[size] must be greater than 0. Found [0] in [geohashgrid]"));
     }
 
     public void testShardSizeIsZero() {
         final int size = 100;
         final int shardSize = 0;
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> client().prepareSearch("idx")
-                        .addAggregation(geohashGrid("geohashgrid").field("location").size(size).shardSize(shardSize))
-                        .get());
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().prepareSearch("idx")
+                .addAggregation(geohashGrid("geohashgrid").field("location").size(size).shardSize(shardSize))
+                .get()
+        );
         assertThat(exception.getMessage(), containsString("[shardSize] must be greater than 0. Found [0] in [geohashgrid]"));
     }
 

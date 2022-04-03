@@ -89,8 +89,11 @@ public class FsBlobContainerTests extends OpenSearchTestCase {
         final Path path = PathUtils.get(createTempDir().toString());
         Files.write(path.resolve(blobName), blobData);
 
-        final FsBlobContainer container =
-            new FsBlobContainer(new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false), BlobPath.cleanPath(), path);
+        final FsBlobContainer container = new FsBlobContainer(
+            new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false),
+            BlobPath.cleanPath(),
+            path
+        );
         assertThat(totalBytesRead.get(), equalTo(0L));
 
         final long start = randomLongBetween(0L, Math.max(0L, blobData.length - 1));

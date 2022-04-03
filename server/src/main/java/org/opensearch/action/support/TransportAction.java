@@ -31,6 +31,7 @@
  */
 
 package org.opensearch.action.support;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
@@ -171,7 +172,8 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
     protected abstract void doExecute(Task task, Request request, ActionListener<Response> listener);
 
     private static class RequestFilterChain<Request extends ActionRequest, Response extends ActionResponse>
-            implements ActionFilterChain<Request, Response> {
+        implements
+            ActionFilterChain<Request, Response> {
 
         private final TransportAction<Request, Response> action;
         private final AtomicInteger index = new AtomicInteger();
@@ -193,7 +195,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
                 } else {
                     listener.onFailure(new IllegalStateException("proceed was called too many times"));
                 }
-            } catch(Exception e) {
+            } catch (Exception e) {
                 logger.trace("Error during transport action execution.", e);
                 listener.onFailure(e);
             }

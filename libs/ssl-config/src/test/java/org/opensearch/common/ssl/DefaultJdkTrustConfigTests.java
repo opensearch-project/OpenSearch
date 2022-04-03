@@ -68,10 +68,8 @@ public class DefaultJdkTrustConfigTests extends OpenSearchTestCase {
         assertThat(trustManager.getAcceptedIssuers(), not(emptyArray()));
         // This is a sample of the CAs that we expect on every JRE.
         // We can safely change this list if the JRE's issuer list changes, but we want to assert something useful.
-        assertHasTrustedIssuer(trustManager, "VeriSign");
-        assertHasTrustedIssuer(trustManager, "GeoTrust");
+        // - https://bugs.openjdk.java.net/browse/JDK-8215012: VeriSign, GeoTrust" and "thawte" are gone
         assertHasTrustedIssuer(trustManager, "DigiCert");
-        assertHasTrustedIssuer(trustManager, "thawte");
         assertHasTrustedIssuer(trustManager, "COMODO");
     }
 

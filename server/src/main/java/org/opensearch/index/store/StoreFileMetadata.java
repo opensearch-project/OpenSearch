@@ -123,8 +123,9 @@ public class StoreFileMetadata implements Writeable {
     public boolean hashEqualsContents() {
         if (hash.length == length) {
             try {
-                final boolean checksumsMatch = Store.digestToString(CodecUtil.retrieveChecksum(
-                    new ByteArrayIndexInput("store_file", hash.bytes, hash.offset, hash.length))).equals(checksum);
+                final boolean checksumsMatch = Store.digestToString(
+                    CodecUtil.retrieveChecksum(new ByteArrayIndexInput("store_file", hash.bytes, hash.offset, hash.length))
+                ).equals(checksum);
                 assert checksumsMatch : "Checksums did not match for [" + this + "] which has a hash of [" + hash + "]";
                 return checksumsMatch;
             } catch (Exception e) {
@@ -151,7 +152,7 @@ public class StoreFileMetadata implements Writeable {
 
     @Override
     public String toString() {
-        return "name [" + name + "], length [" + length + "], checksum [" + checksum + "], writtenBy [" + writtenBy + "]" ;
+        return "name [" + name + "], length [" + length + "], checksum [" + checksum + "], writtenBy [" + writtenBy + "]";
     }
 
     /**

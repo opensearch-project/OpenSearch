@@ -64,27 +64,34 @@ public class PainlessContextInfo implements Writeable, ToXContentObject {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<PainlessContextInfo, Void> PARSER = new ConstructingObjectParser<>(
-            PainlessContextInfo.class.getCanonicalName(),
-            (v) ->
-                    new PainlessContextInfo(
-                            (String)v[0],
-                            (List<PainlessContextClassInfo>)v[1],
-                            (List<PainlessContextMethodInfo>)v[2],
-                            (List<PainlessContextClassBindingInfo>)v[3],
-                            (List<PainlessContextInstanceBindingInfo>)v[4]
-                    )
+        PainlessContextInfo.class.getCanonicalName(),
+        (v) -> new PainlessContextInfo(
+            (String) v[0],
+            (List<PainlessContextClassInfo>) v[1],
+            (List<PainlessContextMethodInfo>) v[2],
+            (List<PainlessContextClassBindingInfo>) v[3],
+            (List<PainlessContextInstanceBindingInfo>) v[4]
+        )
     );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
-                (p, c) -> PainlessContextClassInfo.fromXContent(p), CLASSES);
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
-                (p, c) -> PainlessContextMethodInfo.fromXContent(p), IMPORTED_METHODS);
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
-                (p, c) -> PainlessContextClassBindingInfo.fromXContent(p), CLASS_BINDINGS);
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
-                (p, c) -> PainlessContextInstanceBindingInfo.fromXContent(p), INSTANCE_BINDINGS);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> PainlessContextClassInfo.fromXContent(p), CLASSES);
+        PARSER.declareObjectArray(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> PainlessContextMethodInfo.fromXContent(p),
+            IMPORTED_METHODS
+        );
+        PARSER.declareObjectArray(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> PainlessContextClassBindingInfo.fromXContent(p),
+            CLASS_BINDINGS
+        );
+        PARSER.declareObjectArray(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> PainlessContextInstanceBindingInfo.fromXContent(p),
+            INSTANCE_BINDINGS
+        );
     }
 
     private final String name;
@@ -95,43 +102,59 @@ public class PainlessContextInfo implements Writeable, ToXContentObject {
 
     public PainlessContextInfo(ScriptContext<?> scriptContext, PainlessLookup painlessLookup) {
         this(
-                scriptContext.name,
-                painlessLookup.getClasses().stream().map(
-                        javaClass -> new PainlessContextClassInfo(
-                                javaClass,
-                                javaClass == painlessLookup.canonicalTypeNameToType(
-                                        javaClass.getName().substring(javaClass.getName().lastIndexOf('.') + 1).replace('$', '.')),
-                                painlessLookup.lookupPainlessClass(javaClass))
-                ).collect(Collectors.toList()),
-                painlessLookup.getImportedPainlessMethodsKeys().stream().map(importedPainlessMethodKey -> {
-                    String[] split = importedPainlessMethodKey.split("/");
-                    String importedPainlessMethodName = split[0];
-                    int importedPainlessMethodArity = Integer.parseInt(split[1]);
-                    PainlessMethod importedPainlessMethod =
-                            painlessLookup.lookupImportedPainlessMethod(importedPainlessMethodName, importedPainlessMethodArity);
-                    return new PainlessContextMethodInfo(importedPainlessMethod);
-                }).collect(Collectors.toList()),
-                painlessLookup.getPainlessClassBindingsKeys().stream().map(painlessClassBindingKey -> {
-                    String[] split = painlessClassBindingKey.split("/");
-                    String painlessClassBindingName = split[0];
-                    int painlessClassBindingArity = Integer.parseInt(split[1]);
-                    PainlessClassBinding painlessClassBinding =
-                            painlessLookup.lookupPainlessClassBinding(painlessClassBindingName, painlessClassBindingArity);
-                    return new PainlessContextClassBindingInfo(painlessClassBinding);
-                }).collect(Collectors.toList()),
-                painlessLookup.getPainlessInstanceBindingsKeys().stream().map(painlessInstanceBindingKey -> {
-                    String[] split = painlessInstanceBindingKey.split("/");
-                    String painlessInstanceBindingName = split[0];
-                    int painlessInstanceBindingArity = Integer.parseInt(split[1]);
-                    PainlessInstanceBinding painlessInstanceBinding =
-                            painlessLookup.lookupPainlessInstanceBinding(painlessInstanceBindingName, painlessInstanceBindingArity);
-                    return new PainlessContextInstanceBindingInfo(painlessInstanceBinding);
-                }).collect(Collectors.toList())
+            scriptContext.name,
+            painlessLookup.getClasses()
+                .stream()
+                .map(
+                    javaClass -> new PainlessContextClassInfo(
+                        javaClass,
+                        javaClass == painlessLookup.canonicalTypeNameToType(
+                            javaClass.getName().substring(javaClass.getName().lastIndexOf('.') + 1).replace('$', '.')
+                        ),
+                        painlessLookup.lookupPainlessClass(javaClass)
+                    )
+                )
+                .collect(Collectors.toList()),
+            painlessLookup.getImportedPainlessMethodsKeys().stream().map(importedPainlessMethodKey -> {
+                String[] split = importedPainlessMethodKey.split("/");
+                String importedPainlessMethodName = split[0];
+                int importedPainlessMethodArity = Integer.parseInt(split[1]);
+                PainlessMethod importedPainlessMethod = painlessLookup.lookupImportedPainlessMethod(
+                    importedPainlessMethodName,
+                    importedPainlessMethodArity
+                );
+                return new PainlessContextMethodInfo(importedPainlessMethod);
+            }).collect(Collectors.toList()),
+            painlessLookup.getPainlessClassBindingsKeys().stream().map(painlessClassBindingKey -> {
+                String[] split = painlessClassBindingKey.split("/");
+                String painlessClassBindingName = split[0];
+                int painlessClassBindingArity = Integer.parseInt(split[1]);
+                PainlessClassBinding painlessClassBinding = painlessLookup.lookupPainlessClassBinding(
+                    painlessClassBindingName,
+                    painlessClassBindingArity
+                );
+                return new PainlessContextClassBindingInfo(painlessClassBinding);
+            }).collect(Collectors.toList()),
+            painlessLookup.getPainlessInstanceBindingsKeys().stream().map(painlessInstanceBindingKey -> {
+                String[] split = painlessInstanceBindingKey.split("/");
+                String painlessInstanceBindingName = split[0];
+                int painlessInstanceBindingArity = Integer.parseInt(split[1]);
+                PainlessInstanceBinding painlessInstanceBinding = painlessLookup.lookupPainlessInstanceBinding(
+                    painlessInstanceBindingName,
+                    painlessInstanceBindingArity
+                );
+                return new PainlessContextInstanceBindingInfo(painlessInstanceBinding);
+            }).collect(Collectors.toList())
         );
     }
 
-    public PainlessContextInfo(String name, List<PainlessContextClassInfo> classes, List<PainlessContextMethodInfo> importedMethods,
-            List<PainlessContextClassBindingInfo> classBindings, List<PainlessContextInstanceBindingInfo> instanceBindings) {
+    public PainlessContextInfo(
+        String name,
+        List<PainlessContextClassInfo> classes,
+        List<PainlessContextMethodInfo> importedMethods,
+        List<PainlessContextClassBindingInfo> classBindings,
+        List<PainlessContextInstanceBindingInfo> instanceBindings
+    ) {
         this.name = Objects.requireNonNull(name);
         classes = new ArrayList<>(Objects.requireNonNull(classes));
         classes.sort(Comparator.comparing(PainlessContextClassInfo::getSortValue));
@@ -186,11 +209,11 @@ public class PainlessContextInfo implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PainlessContextInfo that = (PainlessContextInfo) o;
-        return Objects.equals(name, that.name) &&
-                Objects.equals(classes, that.classes) &&
-                Objects.equals(importedMethods, that.importedMethods) &&
-                Objects.equals(classBindings, that.classBindings) &&
-                Objects.equals(instanceBindings, that.instanceBindings);
+        return Objects.equals(name, that.name)
+            && Objects.equals(classes, that.classes)
+            && Objects.equals(importedMethods, that.importedMethods)
+            && Objects.equals(classBindings, that.classBindings)
+            && Objects.equals(instanceBindings, that.instanceBindings);
     }
 
     @Override
@@ -200,13 +223,19 @@ public class PainlessContextInfo implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return "PainlessContextInfo{" +
-                "name='" + name + '\'' +
-                ", classes=" + classes +
-                ", importedMethods=" + importedMethods +
-                ", classBindings=" + classBindings +
-                ", instanceBindings=" + instanceBindings +
-                '}';
+        return "PainlessContextInfo{"
+            + "name='"
+            + name
+            + '\''
+            + ", classes="
+            + classes
+            + ", importedMethods="
+            + importedMethods
+            + ", classBindings="
+            + classBindings
+            + ", instanceBindings="
+            + instanceBindings
+            + '}';
     }
 
     public String getName() {

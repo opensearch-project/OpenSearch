@@ -102,14 +102,13 @@ public class SimpleBlocksIT extends OpenSearchIntegTestCase {
         canIndexDocument("test1");
         canIndexExists("test1");
 
-
         // newly created an index has no blocks
         canCreateIndex("ro");
         canIndexDocument("ro");
         canIndexExists("ro");
 
         // adds index write and metadata block
-        setIndexReadOnly( "ro", "true");
+        setIndexReadOnly("ro", "true");
         canNotIndexDocument("ro");
         canIndexExists("ro");
 
@@ -127,13 +126,19 @@ public class SimpleBlocksIT extends OpenSearchIntegTestCase {
     public void testIndexReadWriteMetadataBlocks() {
         canCreateIndex("test1");
         canIndexDocument("test1");
-        client().admin().indices().prepareUpdateSettings("test1")
-                .setSettings(Settings.builder().put(SETTING_BLOCKS_WRITE, true))
-                .execute().actionGet();
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test1")
+            .setSettings(Settings.builder().put(SETTING_BLOCKS_WRITE, true))
+            .execute()
+            .actionGet();
         canNotIndexDocument("test1");
-        client().admin().indices().prepareUpdateSettings("test1")
-                .setSettings(Settings.builder().put(SETTING_BLOCKS_WRITE, false))
-                .execute().actionGet();
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test1")
+            .setSettings(Settings.builder().put(SETTING_BLOCKS_WRITE, false))
+            .execute()
+            .actionGet();
         canIndexDocument("test1");
     }
 
@@ -196,7 +201,6 @@ public class SimpleBlocksIT extends OpenSearchIntegTestCase {
         assertThat(settingsResponse, notNullValue());
     }
 
-
     public void testAddBlocksWhileExistingBlocks() {
         createIndex("test");
         ensureGreen("test");
@@ -211,8 +215,7 @@ public class SimpleBlocksIT extends OpenSearchIntegTestCase {
                     enableIndexBlock("test", block.settingName());
 
                     // Adding a block is not blocked
-                    AcknowledgedResponse addBlockResponse = client().admin().indices()
-                        .prepareAddBlock(otherBlock, "test").get();
+                    AcknowledgedResponse addBlockResponse = client().admin().indices().prepareAddBlock(otherBlock, "test").get();
                     assertAcked(addBlockResponse);
                 } finally {
                     disableIndexBlock("test", otherBlock.settingName());
@@ -225,8 +228,8 @@ public class SimpleBlocksIT extends OpenSearchIntegTestCase {
                 try {
                     enableIndexBlock("test", block.settingName());
                     // Adding a block is blocked when there is a metadata block and the new block to be added is not a metadata block
-                    if (block.getBlock().contains(ClusterBlockLevel.METADATA_WRITE) &&
-                        otherBlock.getBlock().contains(ClusterBlockLevel.METADATA_WRITE) == false) {
+                    if (block.getBlock().contains(ClusterBlockLevel.METADATA_WRITE)
+                        && otherBlock.getBlock().contains(ClusterBlockLevel.METADATA_WRITE) == false) {
                         assertBlocked(client().admin().indices().prepareAddBlock(otherBlock, "test"));
                     } else {
                         assertAcked(client().admin().indices().prepareAddBlock(otherBlock, "test"));
@@ -243,15 +246,19 @@ public class SimpleBlocksIT extends OpenSearchIntegTestCase {
     }
 
     public void testAddBlockToMissingIndex() {
-        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> client().admin().indices()
-            .prepareAddBlock(randomAddableBlock(), "test").get());
+        IndexNotFoundException e = expectThrows(
+            IndexNotFoundException.class,
+            () -> client().admin().indices().prepareAddBlock(randomAddableBlock(), "test").get()
+        );
         assertThat(e.getMessage(), is("no such index [test]"));
     }
 
     public void testAddBlockToOneMissingIndex() {
         createIndex("test1");
-        final IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
-            () -> client().admin().indices().prepareAddBlock(randomAddableBlock(), "test1", "test2").get());
+        final IndexNotFoundException e = expectThrows(
+            IndexNotFoundException.class,
+            () -> client().admin().indices().prepareAddBlock(randomAddableBlock(), "test1", "test2").get()
+        );
         assertThat(e.getMessage(), is("no such index [test2]"));
     }
 
@@ -259,8 +266,11 @@ public class SimpleBlocksIT extends OpenSearchIntegTestCase {
         createIndex("test1");
         final APIBlock block = randomAddableBlock();
         try {
-            assertBusy(() -> assertAcked(client().admin().indices().prepareAddBlock(block, "test1", "test2")
-                .setIndicesOptions(lenientExpandOpen())));
+            assertBusy(
+                () -> assertAcked(
+                    client().admin().indices().prepareAddBlock(block, "test1", "test2").setIndicesOptions(lenientExpandOpen())
+                )
+            );
             assertIndexHasBlock(block, "test1");
         } finally {
             disableIndexBlock("test1", block);
@@ -268,14 +278,15 @@ public class SimpleBlocksIT extends OpenSearchIntegTestCase {
     }
 
     public void testAddBlockNoIndex() {
-        final ActionRequestValidationException e = expectThrows(ActionRequestValidationException.class,
-            () -> client().admin().indices().prepareAddBlock(randomAddableBlock()).get());
+        final ActionRequestValidationException e = expectThrows(
+            ActionRequestValidationException.class,
+            () -> client().admin().indices().prepareAddBlock(randomAddableBlock()).get()
+        );
         assertThat(e.getMessage(), containsString("index is missing"));
     }
 
     public void testAddBlockNullIndex() {
-        expectThrows(NullPointerException.class,
-            () -> client().admin().indices().prepareAddBlock(randomAddableBlock(), (String[])null));
+        expectThrows(NullPointerException.class, () -> client().admin().indices().prepareAddBlock(randomAddableBlock(), (String[]) null));
     }
 
     public void testCannotAddReadOnlyAllowDeleteBlock() {
@@ -290,8 +301,14 @@ public class SimpleBlocksIT extends OpenSearchIntegTestCase {
         createIndex(indexName);
 
         final int nbDocs = randomIntBetween(0, 50);
-        indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, nbDocs)
-            .mapToObj(i -> client().prepareIndex(indexName, "zzz").setId(String.valueOf(i)).setSource("num", i)).collect(toList()));
+        indexRandom(
+            randomBoolean(),
+            false,
+            randomBoolean(),
+            IntStream.range(0, nbDocs)
+                .mapToObj(i -> client().prepareIndex(indexName, "zzz").setId(String.valueOf(i)).setSource("num", i))
+                .collect(toList())
+        );
 
         final APIBlock block = randomAddableBlock();
         try {
@@ -310,8 +327,14 @@ public class SimpleBlocksIT extends OpenSearchIntegTestCase {
         createIndex(indexName);
 
         if (randomBoolean()) {
-            indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, randomIntBetween(1, 10))
-                .mapToObj(i -> client().prepareIndex(indexName, "zzz").setId(String.valueOf(i)).setSource("num", i)).collect(toList()));
+            indexRandom(
+                randomBoolean(),
+                false,
+                randomBoolean(),
+                IntStream.range(0, randomIntBetween(1, 10))
+                    .mapToObj(i -> client().prepareIndex(indexName, "zzz").setId(String.valueOf(i)).setSource("num", i))
+                    .collect(toList())
+            );
         }
         final APIBlock block = randomAddableBlock();
         try {
@@ -327,9 +350,10 @@ public class SimpleBlocksIT extends OpenSearchIntegTestCase {
 
     public void testAddBlockToUnassignedIndex() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        assertAcked(prepareCreate(indexName)
-            .setWaitForActiveShards(ActiveShardCount.NONE)
-            .setSettings(Settings.builder().put("index.routing.allocation.include._name", "nothing").build()));
+        assertAcked(
+            prepareCreate(indexName).setWaitForActiveShards(ActiveShardCount.NONE)
+                .setSettings(Settings.builder().put("index.routing.allocation.include._name", "nothing").build())
+        );
 
         final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         assertThat(clusterState.metadata().indices().get(indexName).getState(), is(IndexMetadata.State.OPEN));
@@ -349,8 +373,14 @@ public class SimpleBlocksIT extends OpenSearchIntegTestCase {
         createIndex(indexName);
 
         final int nbDocs = randomIntBetween(10, 50);
-        indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, nbDocs)
-            .mapToObj(i -> client().prepareIndex(indexName,"zzz").setId(String.valueOf(i)).setSource("num", i)).collect(toList()));
+        indexRandom(
+            randomBoolean(),
+            false,
+            randomBoolean(),
+            IntStream.range(0, nbDocs)
+                .mapToObj(i -> client().prepareIndex(indexName, "zzz").setId(String.valueOf(i)).setSource("num", i))
+                .collect(toList())
+        );
         ensureYellowAndNoInitializingShards(indexName);
 
         final CountDownLatch startClosing = new CountDownLatch(1);
@@ -425,9 +455,14 @@ public class SimpleBlocksIT extends OpenSearchIntegTestCase {
             final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
             createIndex(indexName);
             if (randomBoolean()) {
-                indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, 10)
-                    .mapToObj(n -> client().prepareIndex(indexName, "zzz").setId(String.valueOf(n))
-                        .setSource("num", n)).collect(toList()));
+                indexRandom(
+                    randomBoolean(),
+                    false,
+                    randomBoolean(),
+                    IntStream.range(0, 10)
+                        .mapToObj(n -> client().prepareIndex(indexName, "zzz").setId(String.valueOf(n)).setSource("num", n))
+                        .collect(toList())
+                );
             }
             indices[i] = indexName;
         }
@@ -505,9 +540,16 @@ public class SimpleBlocksIT extends OpenSearchIntegTestCase {
             assertThat(indexSettings.hasValue(block.settingName()), is(true));
             assertThat(indexSettings.getAsBoolean(block.settingName(), false), is(true));
             assertThat(clusterState.blocks().hasIndexBlock(index, block.getBlock()), is(true));
-            assertThat("Index " + index + " must have only 1 block with [id=" + block.getBlock().id() + "]",
-                clusterState.blocks().indices().getOrDefault(index, emptySet()).stream()
-                    .filter(clusterBlock -> clusterBlock.id() == block.getBlock().id()).count(), equalTo(1L));
+            assertThat(
+                "Index " + index + " must have only 1 block with [id=" + block.getBlock().id() + "]",
+                clusterState.blocks()
+                    .indices()
+                    .getOrDefault(index, emptySet())
+                    .stream()
+                    .filter(clusterBlock -> clusterBlock.id() == block.getBlock().id())
+                    .count(),
+                equalTo(1L)
+            );
         }
     }
 

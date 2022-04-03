@@ -32,7 +32,6 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -51,14 +50,12 @@ import java.util.Map;
 public class LinearModel extends MovAvgModel {
     public static final String NAME = "linear";
 
-    public LinearModel() {
-    }
+    public LinearModel() {}
 
     /**
      * Read from a stream.
      */
-    public LinearModel(StreamInput in) {
-    }
+    public LinearModel(StreamInput in) {}
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {

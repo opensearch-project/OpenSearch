@@ -53,7 +53,7 @@ public class NoneCircuitBreakerService extends CircuitBreakerService {
 
     @Override
     public AllCircuitBreakerStats stats() {
-        return new AllCircuitBreakerStats(new CircuitBreakerStats[] {stats(CircuitBreaker.FIELDDATA)});
+        return new AllCircuitBreakerStats(new CircuitBreakerStats[] { stats(CircuitBreaker.FIELDDATA) });
     }
 
     @Override

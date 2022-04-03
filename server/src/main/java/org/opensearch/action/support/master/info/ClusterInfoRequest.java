@@ -42,15 +42,15 @@ import org.opensearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Request>> extends MasterNodeReadRequest<Request>
-        implements IndicesRequest.Replaceable {
+    implements
+        IndicesRequest.Replaceable {
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] types = Strings.EMPTY_ARRAY;
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
-    public ClusterInfoRequest() {
-    }
+    public ClusterInfoRequest() {}
 
     public ClusterInfoRequest(StreamInput in) throws IOException {
         super(in);

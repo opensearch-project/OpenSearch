@@ -53,6 +53,7 @@ export OPENSEARCH_JAVA_OPTS
 export JAVA_HOME
 export OPENSEARCH_PATH_CONF
 export OPENSEARCH_STARTUP_SLEEP_TIME
+export OPENSEARCH_JAVA_HOME
 
 lockfile=/var/lock/subsys/$prog
 

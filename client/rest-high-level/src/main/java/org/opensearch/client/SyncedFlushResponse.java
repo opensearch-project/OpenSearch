@@ -103,7 +103,7 @@ public class SyncedFlushResponse implements ToXContentObject {
         builder.startObject(SHARDS_FIELD);
         totalCounts.toXContent(builder, params);
         builder.endObject();
-        for (Map.Entry<String, IndexResult> entry: indexResults.entrySet()) {
+        for (Map.Entry<String, IndexResult> entry : indexResults.entrySet()) {
             String indexName = entry.getKey();
             IndexResult indexResult = entry.getValue();
             builder.startObject(indexName);
@@ -132,10 +132,7 @@ public class SyncedFlushResponse implements ToXContentObject {
         if (totalCounts != null) {
             return new SyncedFlushResponse(totalCounts, indexResults);
         } else {
-            throw new ParsingException(
-                startLoc,
-                "Unable to reconstruct object. Total counts for shards couldn't be parsed."
-            );
+            throw new ParsingException(startLoc, "Unable to reconstruct object. Total counts for shards couldn't be parsed.");
         }
     }
 
@@ -148,11 +145,10 @@ public class SyncedFlushResponse implements ToXContentObject {
         public static final String SUCCESSFUL_FIELD = "successful";
         public static final String FAILED_FIELD = "failed";
 
-        private static final ConstructingObjectParser<ShardCounts, Void> PARSER =
-            new ConstructingObjectParser<>(
-                "shardcounts",
-                a -> new ShardCounts((Integer) a[0], (Integer) a[1], (Integer) a[2])
-            );
+        private static final ConstructingObjectParser<ShardCounts, Void> PARSER = new ConstructingObjectParser<>(
+            "shardcounts",
+            a -> new ShardCounts((Integer) a[0], (Integer) a[1], (Integer) a[2])
+        );
         static {
             PARSER.declareInt(constructorArg(), new ParseField(TOTAL_FIELD));
             PARSER.declareInt(constructorArg(), new ParseField(SUCCESSFUL_FIELD));
@@ -162,7 +158,6 @@ public class SyncedFlushResponse implements ToXContentObject {
         private int total;
         private int successful;
         private int failed;
-
 
         ShardCounts(int total, int successful, int failed) {
             this.total = total;
@@ -184,10 +179,7 @@ public class SyncedFlushResponse implements ToXContentObject {
 
         public boolean equals(ShardCounts other) {
             if (other != null) {
-                return
-                    other.total == this.total &&
-                    other.successful == this.successful &&
-                    other.failed == this.failed;
+                return other.total == this.total && other.successful == this.successful && other.failed == this.failed;
             } else {
                 return false;
             }
@@ -207,11 +199,10 @@ public class SyncedFlushResponse implements ToXContentObject {
         public static final String FAILURES_FIELD = "failures";
 
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<IndexResult, Void> PARSER =
-            new ConstructingObjectParser<>(
-                "indexresult",
-                a -> new IndexResult((Integer) a[0], (Integer) a[1], (Integer) a[2], (List<ShardFailure>)a[3])
-            );
+        private static final ConstructingObjectParser<IndexResult, Void> PARSER = new ConstructingObjectParser<>(
+            "indexresult",
+            a -> new IndexResult((Integer) a[0], (Integer) a[1], (Integer) a[2], (List<ShardFailure>) a[3])
+        );
         static {
             PARSER.declareInt(constructorArg(), new ParseField(TOTAL_FIELD));
             PARSER.declareInt(constructorArg(), new ParseField(SUCCESSFUL_FIELD));
@@ -297,16 +288,12 @@ public class SyncedFlushResponse implements ToXContentObject {
         @SuppressWarnings("unchecked")
         static final ConstructingObjectParser<ShardFailure, Void> PARSER = new ConstructingObjectParser<>(
             "shardfailure",
-            a -> new ShardFailure((Integer)a[0], (String)a[1], (Map<String, Object>)a[2])
+            a -> new ShardFailure((Integer) a[0], (String) a[1], (Map<String, Object>) a[2])
         );
         static {
             PARSER.declareInt(constructorArg(), new ParseField(SHARD_ID_FIELD));
             PARSER.declareString(constructorArg(), new ParseField(FAILURE_REASON_FIELD));
-            PARSER.declareObject(
-                optionalConstructorArg(),
-                (parser, c) -> parser.map(),
-                new ParseField(ROUTING_FIELD)
-            );
+            PARSER.declareObject(optionalConstructorArg(), (parser, c) -> parser.map(), new ParseField(ROUTING_FIELD));
         }
 
         ShardFailure(int shardId, String failureReason, Map<String, Object> routing) {

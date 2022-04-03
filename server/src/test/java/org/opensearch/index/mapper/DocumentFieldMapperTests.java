@@ -101,8 +101,7 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         }
 
         @Override
-        protected void parseCreateField(ParseContext context) {
-        }
+        protected void parseCreateField(ParseContext context) {}
 
         @Override
         protected String contentType() {
@@ -129,7 +128,9 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
             Arrays.asList(fieldMapper1, fieldMapper2),
             Collections.emptyList(),
             Collections.emptyList(),
-            0, defaultIndex);
+            0,
+            defaultIndex
+        );
 
         assertAnalyzes(mappingLookup.indexAnalyzer(), "field1", "index");
 

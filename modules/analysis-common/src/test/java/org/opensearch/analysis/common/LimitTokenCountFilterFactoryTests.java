@@ -47,9 +47,9 @@ import java.io.StringReader;
 public class LimitTokenCountFilterFactoryTests extends OpenSearchTokenStreamTestCase {
     public void testDefault() throws IOException {
         Settings settings = Settings.builder()
-                .put("index.analysis.filter.limit_default.type", "limit")
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .build();
+            .put("index.analysis.filter.limit_default.type", "limit")
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
         OpenSearchTestCase.TestAnalysis analysis = createTestAnalysisFromSettings(settings);
         {
             TokenFilterFactory tokenFilter = analysis.tokenFilter.get("limit_default");
@@ -72,11 +72,11 @@ public class LimitTokenCountFilterFactoryTests extends OpenSearchTokenStreamTest
     public void testSettings() throws IOException {
         {
             Settings settings = Settings.builder()
-                    .put("index.analysis.filter.limit_1.type", "limit")
-                    .put("index.analysis.filter.limit_1.max_token_count", 3)
-                    .put("index.analysis.filter.limit_1.consume_all_tokens", true)
-                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                    .build();
+                .put("index.analysis.filter.limit_1.type", "limit")
+                .put("index.analysis.filter.limit_1.max_token_count", 3)
+                .put("index.analysis.filter.limit_1.consume_all_tokens", true)
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .build();
             OpenSearchTestCase.TestAnalysis analysis = createTestAnalysisFromSettings(settings);
             TokenFilterFactory tokenFilter = analysis.tokenFilter.get("limit_1");
             String source = "the quick brown fox";
@@ -87,11 +87,11 @@ public class LimitTokenCountFilterFactoryTests extends OpenSearchTokenStreamTest
         }
         {
             Settings settings = Settings.builder()
-                    .put("index.analysis.filter.limit_1.type", "limit")
-                    .put("index.analysis.filter.limit_1.max_token_count", 3)
-                    .put("index.analysis.filter.limit_1.consume_all_tokens", false)
-                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                    .build();
+                .put("index.analysis.filter.limit_1.type", "limit")
+                .put("index.analysis.filter.limit_1.max_token_count", 3)
+                .put("index.analysis.filter.limit_1.consume_all_tokens", false)
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .build();
             OpenSearchTestCase.TestAnalysis analysis = createTestAnalysisFromSettings(settings);
             TokenFilterFactory tokenFilter = analysis.tokenFilter.get("limit_1");
             String source = "the quick brown fox";
@@ -103,11 +103,11 @@ public class LimitTokenCountFilterFactoryTests extends OpenSearchTokenStreamTest
 
         {
             Settings settings = Settings.builder()
-                    .put("index.analysis.filter.limit_1.type", "limit")
-                    .put("index.analysis.filter.limit_1.max_token_count", 17)
-                    .put("index.analysis.filter.limit_1.consume_all_tokens", true)
-                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                    .build();
+                .put("index.analysis.filter.limit_1.type", "limit")
+                .put("index.analysis.filter.limit_1.max_token_count", 17)
+                .put("index.analysis.filter.limit_1.consume_all_tokens", true)
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .build();
             OpenSearchTestCase.TestAnalysis analysis = createTestAnalysisFromSettings(settings);
             TokenFilterFactory tokenFilter = analysis.tokenFilter.get("limit_1");
             String source = "the quick brown fox";

@@ -84,7 +84,11 @@ public abstract class SymbolicLinkPreservingUntarTransform implements UnpackTran
                     // copy the file from the archive using a small buffer to avoid heaping
                     Files.createFile(destination);
                     try (FileOutputStream fos = new FileOutputStream(destination.toFile())) {
-                        tar.transferTo(fos);
+                        byte[] buffer = new byte[4096];
+                        int len;
+                        while ((len = tar.read(buffer)) > 0) {
+                            fos.write(buffer, 0, len);
+                        }
                     }
                 }
                 if (entry.isSymbolicLink() == false) {
@@ -94,6 +98,5 @@ public abstract class SymbolicLinkPreservingUntarTransform implements UnpackTran
                 entry = tar.getNextTarEntry();
             }
         }
-
     }
 }

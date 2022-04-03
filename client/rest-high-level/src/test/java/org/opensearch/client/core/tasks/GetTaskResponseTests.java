@@ -52,15 +52,12 @@ import static org.opensearch.test.AbstractXContentTestCase.xContentTester;
 public class GetTaskResponseTests extends OpenSearchTestCase {
 
     public void testFromXContent() throws IOException {
-        xContentTester(
-            this::createParser,
-            this::createTestInstance,
-            this::toXContent,
-            GetTaskResponse::fromXContent)
-            .supportsUnknownFields(true)
+        xContentTester(this::createParser, this::createTestInstance, this::toXContent, GetTaskResponse::fromXContent).supportsUnknownFields(
+            true
+        )
             .assertEqualsConsumer(this::assertEqualInstances)
             .assertToXContentEquivalence(true)
-            .randomFieldsExcludeFilter(field ->field.endsWith("headers") || field.endsWith("status"))
+            .randomFieldsExcludeFilter(field -> field.endsWith("headers") || field.endsWith("status"))
             .test();
     }
 
@@ -94,9 +91,9 @@ public class GetTaskResponseTests extends OpenSearchTestCase {
         long runningTimeNanos = randomLong();
         boolean cancellable = randomBoolean();
         TaskId parentTaskId = randomBoolean() ? TaskId.EMPTY_TASK_ID : randomTaskId();
-        Map<String, String> headers = randomBoolean() ?
-                Collections.emptyMap() :
-                Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
+        Map<String, String> headers = randomBoolean()
+            ? Collections.emptyMap()
+            : Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
         return new TaskInfo(taskId, type, action, description, status, startTime, runningTimeNanos, cancellable, parentTaskId, headers);
     }
 

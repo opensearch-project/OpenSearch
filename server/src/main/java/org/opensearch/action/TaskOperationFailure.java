@@ -66,14 +66,17 @@ public final class TaskOperationFailure implements Writeable, ToXContentFragment
 
     private final RestStatus status;
 
-    private static final ConstructingObjectParser<TaskOperationFailure, Void> PARSER =
-            new ConstructingObjectParser<>("task_info", true, constructorObjects -> {
-                int i = 0;
-                String nodeId = (String) constructorObjects[i++];
-                long taskId = (long) constructorObjects[i++];
-                OpenSearchException reason = (OpenSearchException) constructorObjects[i];
-                return new TaskOperationFailure(nodeId, taskId, reason);
-            });
+    private static final ConstructingObjectParser<TaskOperationFailure, Void> PARSER = new ConstructingObjectParser<>(
+        "task_info",
+        true,
+        constructorObjects -> {
+            int i = 0;
+            String nodeId = (String) constructorObjects[i++];
+            long taskId = (long) constructorObjects[i++];
+            OpenSearchException reason = (OpenSearchException) constructorObjects[i];
+            return new TaskOperationFailure(nodeId, taskId, reason);
+        }
+    );
 
     static {
         PARSER.declareString(constructorArg(), new ParseField(NODE_ID));

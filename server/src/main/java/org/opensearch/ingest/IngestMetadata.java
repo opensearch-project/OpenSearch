@@ -60,10 +60,12 @@ public final class IngestMetadata implements Metadata.Custom {
     public static final String TYPE = "ingest";
     private static final ParseField PIPELINES_FIELD = new ParseField("pipeline");
     private static final ObjectParser<List<PipelineConfiguration>, Void> INGEST_METADATA_PARSER = new ObjectParser<>(
-            "ingest_metadata", ArrayList::new);
+        "ingest_metadata",
+        ArrayList::new
+    );
 
     static {
-        INGEST_METADATA_PARSER.declareObjectArray(List::addAll , PipelineConfiguration.getParser(), PIPELINES_FIELD);
+        INGEST_METADATA_PARSER.declareObjectArray(List::addAll, PipelineConfiguration.getParser(), PIPELINES_FIELD);
     }
 
     // We can't use Pipeline class directly in cluster state, because we don't have the processor factories around when
@@ -152,8 +154,12 @@ public final class IngestMetadata implements Metadata.Custom {
         }
 
         IngestMetadataDiff(StreamInput in) throws IOException {
-            pipelines = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), PipelineConfiguration::readFrom,
-                PipelineConfiguration::readDiffFrom);
+            pipelines = DiffableUtils.readJdkMapDiff(
+                in,
+                DiffableUtils.getStringKeySerializer(),
+                PipelineConfiguration::readFrom,
+                PipelineConfiguration::readDiffFrom
+            );
         }
 
         @Override

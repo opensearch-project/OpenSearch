@@ -49,8 +49,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
     // client side counter
     private transient int counter;
 
-    public FetchSearchResult() {
-    }
+    public FetchSearchResult() {}
 
     public FetchSearchResult(StreamInput in) throws IOException {
         super(in);

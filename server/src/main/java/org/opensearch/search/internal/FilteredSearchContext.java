@@ -381,7 +381,6 @@ public abstract class FilteredSearchContext extends SearchContext {
         return in.size(size);
     }
 
-
     @Override
     public boolean explain() {
         return in.explain();
@@ -493,7 +492,9 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public Map<Class<?>, Collector> queryCollectors() { return in.queryCollectors();}
+    public Map<Class<?>, Collector> queryCollectors() {
+        return in.queryCollectors();
+    }
 
     @Override
     public QueryShardContext getQueryShardContext() {

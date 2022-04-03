@@ -131,8 +131,8 @@ dependencies {
   api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
 
-  // repackaged jna with native bits linked against all supported platforms
-  api "org.elasticsearch:jna:${versions.jna}"
+  // jna
+  api "net.java.dev.jna:jna:${versions.jna}"
 
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
@@ -144,7 +144,9 @@ dependencies {
 }
 
 tasks.withType(JavaCompile).configureEach {
-    options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
+  options.compilerArgs -= '-Xlint:cast'
+  options.compilerArgs -= '-Xlint:rawtypes'
+  options.compilerArgs -= '-Xlint:unchecked'
 }
 
 tasks.named("internalClusterTest").configure {
@@ -225,7 +227,6 @@ tasks.named("thirdPartyAudit").configure {
             'com.fasterxml.jackson.databind.ObjectMapper',
 
             // from log4j
-            'com.conversantmedia.util.concurrent.DisruptorBlockingQueue',
             'com.conversantmedia.util.concurrent.SpinPolicy',
             'com.fasterxml.jackson.annotation.JsonInclude$Include',
             'com.fasterxml.jackson.databind.DeserializationContext',
@@ -249,8 +250,6 @@ tasks.named("thirdPartyAudit").configure {
             'com.fasterxml.jackson.databind.node.ObjectNode',
             'org.fusesource.jansi.Ansi',
             'org.fusesource.jansi.AnsiRenderer$Code',
-            'com.lmax.disruptor.BlockingWaitStrategy',
-            'com.lmax.disruptor.BusySpinWaitStrategy',
             'com.lmax.disruptor.EventFactory',
             'com.lmax.disruptor.EventTranslator',
             'com.lmax.disruptor.EventTranslatorTwoArg',
@@ -260,10 +259,7 @@ tasks.named("thirdPartyAudit").configure {
             'com.lmax.disruptor.RingBuffer',
             'com.lmax.disruptor.Sequence',
             'com.lmax.disruptor.SequenceReportingEventHandler',
-            'com.lmax.disruptor.SleepingWaitStrategy',
-            'com.lmax.disruptor.TimeoutBlockingWaitStrategy',
             'com.lmax.disruptor.WaitStrategy',
-            'com.lmax.disruptor.YieldingWaitStrategy',
             'com.lmax.disruptor.dsl.Disruptor',
             'com.lmax.disruptor.dsl.ProducerType',
             'javax.jms.Connection',
@@ -282,25 +278,17 @@ tasks.named("thirdPartyAudit").configure {
             'javax.mail.Transport',
             'javax.mail.internet.InternetAddress',
             'javax.mail.internet.InternetHeaders',
-            'javax.mail.internet.MimeBodyPart',
             'javax.mail.internet.MimeMessage',
             'javax.mail.internet.MimeMultipart',
             'javax.mail.internet.MimeUtility',
-            'javax.mail.util.ByteArrayDataSource',
             'org.apache.commons.compress.compressors.CompressorStreamFactory',
             'org.apache.commons.compress.utils.IOUtils',
             'org.apache.commons.csv.CSVFormat',
             'org.apache.commons.csv.QuoteMode',
-            'org.apache.kafka.clients.producer.Callback',
-            'org.apache.kafka.clients.producer.KafkaProducer',
             'org.apache.kafka.clients.producer.Producer',
-            'org.apache.kafka.clients.producer.ProducerRecord',
             'org.apache.kafka.clients.producer.RecordMetadata',
             'org.codehaus.stax2.XMLStreamWriter2',
-            'org.jctools.queues.MessagePassingQueue$Consumer',
             'org.jctools.queues.MpscArrayQueue',
-            'org.osgi.framework.AdaptPermission',
-            'org.osgi.framework.AdminPermission',
             'org.osgi.framework.Bundle',
             'org.osgi.framework.BundleActivator',
             'org.osgi.framework.BundleContext',
@@ -352,4 +340,10 @@ tasks.named("licenseHeaders").configure {
     excludes << 'org/apache/lucene/search/RegExp87*'
     excludes << 'org/apache/lucene/search/RegexpQuery87*'
     excludes << 'org/opensearch/client/documentation/placeholder.txt'
+}
+
+tasks.test {
+    if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
+        jvmArgs += ["--add-opens", "java.base/java.nio.file=ALL-UNNAMED"]
+    }
 }

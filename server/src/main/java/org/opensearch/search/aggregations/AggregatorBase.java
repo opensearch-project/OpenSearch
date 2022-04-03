@@ -80,8 +80,14 @@ public abstract class AggregatorBase extends Aggregator {
      * @param subAggregatorCardinality Upper bound of the number of buckets that sub aggregations will collect
      * @param metadata              The metadata associated with this aggregator
      */
-    protected AggregatorBase(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
-            CardinalityUpperBound subAggregatorCardinality, Map<String, Object> metadata) throws IOException {
+    protected AggregatorBase(
+        String name,
+        AggregatorFactories factories,
+        SearchContext context,
+        Aggregator parent,
+        CardinalityUpperBound subAggregatorCardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         this.name = name;
         this.metadata = metadata;
         this.parent = parent;
@@ -93,9 +99,10 @@ public abstract class AggregatorBase extends Aggregator {
         final SearchShardTarget shardTarget = context.shardTarget();
         // Register a safeguard to highlight any invalid construction logic (call to this constructor without subsequent preCollection call)
         collectableSubAggregators = new BucketCollector() {
-            void badState(){
+            void badState() {
                 throw new QueryPhaseExecutionException(shardTarget, "preCollection not called on new Aggregator before use", null);
             }
+
             @Override
             public LeafBucketCollector getLeafCollector(LeafReaderContext reader) {
                 badState();
@@ -112,6 +119,7 @@ public abstract class AggregatorBase extends Aggregator {
             public void postCollection() throws IOException {
                 badState();
             }
+
             @Override
             public ScoreMode scoreMode() {
                 badState();
@@ -156,17 +164,14 @@ public abstract class AggregatorBase extends Aggregator {
     protected long addRequestCircuitBreakerBytes(long bytes) {
         // Only use the potential to circuit break if bytes are being incremented
         if (bytes > 0) {
-            this.breakerService
-                    .getBreaker(CircuitBreaker.REQUEST)
-                    .addEstimateBytesAndMaybeBreak(bytes, "<agg [" + name + "]>");
+            this.breakerService.getBreaker(CircuitBreaker.REQUEST).addEstimateBytesAndMaybeBreak(bytes, "<agg [" + name + "]>");
         } else {
-            this.breakerService
-                    .getBreaker(CircuitBreaker.REQUEST)
-                    .addWithoutBreaking(bytes);
+            this.breakerService.getBreaker(CircuitBreaker.REQUEST).addWithoutBreaking(bytes);
         }
         this.requestBytesUsed += bytes;
         return requestBytesUsed;
     }
+
     /**
      * Most aggregators don't need scores, make sure to extend this method if
      * your aggregator needs them.
@@ -202,14 +207,12 @@ public abstract class AggregatorBase extends Aggregator {
      * Can be overridden by aggregator implementations that like the perform an operation before the leaf collectors
      * of children aggregators are instantiated for the next segment.
      */
-    protected void preGetSubLeafCollectors() throws IOException {
-    }
+    protected void preGetSubLeafCollectors() throws IOException {}
 
     /**
      * Can be overridden by aggregator implementation to be called back when the collection phase starts.
      */
-    protected void doPreCollection() throws IOException {
-    }
+    protected void doPreCollection() throws IOException {}
 
     @Override
     public final void preCollection() throws IOException {
@@ -290,8 +293,7 @@ public abstract class AggregatorBase extends Aggregator {
     /**
      * Can be overridden by aggregator implementation to be called back when the collection phase ends.
      */
-    protected void doPostCollection() throws IOException {
-    }
+    protected void doPostCollection() throws IOException {}
 
     protected final InternalAggregations buildEmptySubAggregations() {
         List<InternalAggregation> aggs = new ArrayList<>();

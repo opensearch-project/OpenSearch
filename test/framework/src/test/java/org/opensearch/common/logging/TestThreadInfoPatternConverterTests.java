@@ -49,8 +49,7 @@ public class TestThreadInfoPatternConverterTests extends OpenSearchTestCase {
     public void testThreadInfo() {
         // Threads that are part of a node get the node name
         String nodeName = randomAlphaOfLength(5);
-        String threadName = OpenSearchExecutors.threadName(nodeName, randomAlphaOfLength(20))
-                + "[T#" + between(0, 1000) + "]";
+        String threadName = OpenSearchExecutors.threadName(nodeName, randomAlphaOfLength(20)) + "[T#" + between(0, 1000) + "]";
         assertEquals(nodeName, threadInfo(threadName));
 
         // Test threads get the test name

@@ -48,12 +48,14 @@ import java.util.Map;
 
 class StatsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
-    StatsAggregatorFactory(String name,
-                            ValuesSourceConfig config,
-                            QueryShardContext queryShardContext,
-                            AggregatorFactory parent,
-                            AggregatorFactories.Builder subFactoriesBuilder,
-                            Map<String, Object> metadata) throws IOException {
+    StatsAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
@@ -62,13 +64,12 @@ class StatsAggregatorFactory extends ValuesSourceAggregatorFactory {
             StatsAggregationBuilder.REGISTRY_KEY,
             org.opensearch.common.collect.List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             StatsAggregator::new,
-                true);
+            true
+        );
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
         return new StatsAggregator(name, config, searchContext, parent, metadata);
     }
 

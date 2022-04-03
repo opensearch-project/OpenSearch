@@ -51,7 +51,7 @@ public class NoNodeAvailableException extends OpenSearchException {
         super(message, t);
     }
 
-    public NoNodeAvailableException(StreamInput in) throws IOException{
+    public NoNodeAvailableException(StreamInput in) throws IOException {
         super(in);
     }
 

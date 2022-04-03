@@ -44,8 +44,10 @@ import java.util.Map;
 /**
  * Builder for an update index settings request
  */
-public class UpdateSettingsRequestBuilder
-        extends AcknowledgedRequestBuilder<UpdateSettingsRequest, AcknowledgedResponse, UpdateSettingsRequestBuilder> {
+public class UpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<
+    UpdateSettingsRequest,
+    AcknowledgedResponse,
+    UpdateSettingsRequestBuilder> {
 
     public UpdateSettingsRequestBuilder(OpenSearchClient client, UpdateSettingsAction action, String... indices) {
         super(client, action, new UpdateSettingsRequest(indices));

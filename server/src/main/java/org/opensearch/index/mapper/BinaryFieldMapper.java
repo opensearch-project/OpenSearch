@@ -70,7 +70,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
-        private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues,  false);
+        private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, false);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
@@ -89,8 +89,13 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public BinaryFieldMapper build(BuilderContext context) {
-            return new BinaryFieldMapper(name, new BinaryFieldType(buildFullName(context), stored.getValue(),
-                hasDocValues.getValue(), meta.getValue()), multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new BinaryFieldMapper(
+                name,
+                new BinaryFieldType(buildFullName(context), stored.getValue(), hasDocValues.getValue(), meta.getValue()),
+                multiFieldsBuilder.build(this, context),
+                copyTo.build(),
+                this
+            );
         }
     }
 
@@ -155,8 +160,13 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
     private final boolean stored;
     private final boolean hasDocValues;
 
-    protected BinaryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
-                                MultiFields multiFields, CopyTo copyTo, Builder builder) {
+    protected BinaryFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        Builder builder
+    ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.stored = builder.stored.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
@@ -233,7 +243,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
                 final byte[] bytes = new byte[totalSize + (size + 1) * 5];
                 ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
                 out.writeVInt(size);  // write total number of values
-                for (int i = 0; i < size; i ++) {
+                for (int i = 0; i < size; i++) {
                     final byte[] value = bytesList.get(i);
                     int valueLength = value.length;
                     out.writeVInt(valueLength);

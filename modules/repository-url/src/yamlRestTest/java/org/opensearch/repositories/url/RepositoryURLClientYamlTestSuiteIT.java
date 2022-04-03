@@ -99,15 +99,17 @@ public class RepositoryURLClientYamlTestSuiteIT extends OpenSearchClientYamlSuit
 
         // Create a FS repository using the path.repo location
         Request createFsRepositoryRequest = new Request("PUT", "/_snapshot/repository-fs");
-        createFsRepositoryRequest.setEntity(buildRepositorySettings(FsRepository.TYPE,
-                Settings.builder().put("location", pathRepo).build()));
+        createFsRepositoryRequest.setEntity(
+            buildRepositorySettings(FsRepository.TYPE, Settings.builder().put("location", pathRepo).build())
+        );
         Response createFsRepositoryResponse = client().performRequest(createFsRepositoryRequest);
         assertThat(createFsRepositoryResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
 
         // Create a URL repository using the file://{path.repo} URL
         Request createFileRepositoryRequest = new Request("PUT", "/_snapshot/repository-file");
-        createFileRepositoryRequest.setEntity(buildRepositorySettings("url",
-                Settings.builder().put("url", pathRepoUri.toString()).build()));
+        createFileRepositoryRequest.setEntity(
+            buildRepositorySettings("url", Settings.builder().put("url", pathRepoUri.toString()).build())
+        );
         Response createFileRepositoryResponse = client().performRequest(createFileRepositoryRequest);
         assertThat(createFileRepositoryResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
 
@@ -119,8 +121,7 @@ public class RepositoryURLClientYamlTestSuiteIT extends OpenSearchClientYamlSuit
                 InetAddress inetAddress = InetAddress.getByName(new URL(allowedUrl).getHost());
                 if (inetAddress.isAnyLocalAddress() || inetAddress.isLoopbackAddress()) {
                     Request createUrlRepositoryRequest = new Request("PUT", "/_snapshot/repository-url");
-                    createUrlRepositoryRequest.setEntity(buildRepositorySettings("url",
-                            Settings.builder().put("url", allowedUrl).build()));
+                    createUrlRepositoryRequest.setEntity(buildRepositorySettings("url", Settings.builder().put("url", allowedUrl).build()));
                     Response createUrlRepositoryResponse = client().performRequest(createUrlRepositoryRequest);
                     assertThat(createUrlRepositoryResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
                     break;

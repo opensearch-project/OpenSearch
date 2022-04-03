@@ -54,7 +54,8 @@ public class ClusterSearchShardsRequestTests extends OpenSearchTestCase {
         }
         if (randomBoolean()) {
             request.indicesOptions(
-                    IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+                IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())
+            );
         }
         if (randomBoolean()) {
             request.preference(randomAlphaOfLengthBetween(3, 10));
@@ -91,8 +92,8 @@ public class ClusterSearchShardsRequestTests extends OpenSearchTestCase {
     public void testIndicesMustNotBeNull() {
         ClusterSearchShardsRequest request = new ClusterSearchShardsRequest();
         assertNotNull(request.indices());
-        expectThrows(NullPointerException.class, () -> request.indices((String[])null));
-        expectThrows(NullPointerException.class, () -> request.indices((String)null));
-        expectThrows(NullPointerException.class, () -> request.indices(new String[]{"index1", null, "index3"}));
+        expectThrows(NullPointerException.class, () -> request.indices((String[]) null));
+        expectThrows(NullPointerException.class, () -> request.indices((String) null));
+        expectThrows(NullPointerException.class, () -> request.indices(new String[] { "index1", null, "index3" }));
     }
 }

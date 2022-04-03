@@ -46,12 +46,11 @@ public class IngestGeoIpPluginTests extends OpenSearchTestCase {
         AbstractResponse response1 = mock(AbstractResponse.class);
         AbstractResponse response2 = mock(AbstractResponse.class);
 
-        //add a key
+        // add a key
         AbstractResponse cachedResponse = cache.putIfAbsent(InetAddresses.forString("127.0.0.1"), AbstractResponse.class, ip -> response1);
         assertSame(cachedResponse, response1);
         assertSame(cachedResponse, cache.putIfAbsent(InetAddresses.forString("127.0.0.1"), AbstractResponse.class, ip -> response1));
         assertSame(cachedResponse, cache.get(InetAddresses.forString("127.0.0.1"), AbstractResponse.class));
-
 
         // evict old key by adding another value
         cachedResponse = cache.putIfAbsent(InetAddresses.forString("127.0.0.2"), AbstractResponse.class, ip -> response2);
@@ -64,14 +63,19 @@ public class IngestGeoIpPluginTests extends OpenSearchTestCase {
 
     public void testThrowsFunctionsException() {
         GeoIpCache cache = new GeoIpCache(1);
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> cache.putIfAbsent(InetAddresses.forString("127.0.0.1"), AbstractResponse.class,
-                ip -> { throw new IllegalArgumentException("bad"); }));
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> cache.putIfAbsent(
+                InetAddresses.forString("127.0.0.1"),
+                AbstractResponse.class,
+                ip -> { throw new IllegalArgumentException("bad"); }
+            )
+        );
         assertEquals("bad", ex.getMessage());
     }
 
     public void testInvalidInit() {
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->  new GeoIpCache(-1));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new GeoIpCache(-1));
         assertEquals("geoip max cache size must be 0 or greater", ex.getMessage());
     }
 }

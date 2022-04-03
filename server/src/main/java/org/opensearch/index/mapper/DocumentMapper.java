@@ -63,7 +63,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
 
-
 public class DocumentMapper implements ToXContentFragment {
 
     public static class Builder {
@@ -84,18 +83,18 @@ public class DocumentMapper implements ToXContentFragment {
             final String type = rootObjectMapper.name();
             final DocumentMapper existingMapper = mapperService.documentMapper(type);
             final Version indexCreatedVersion = mapperService.getIndexSettings().getIndexVersionCreated();
-            final Map<String, TypeParser> metadataMapperParsers =
-                mapperService.mapperRegistry.getMetadataMapperParsers(indexCreatedVersion);
+            final Map<String, TypeParser> metadataMapperParsers = mapperService.mapperRegistry.getMetadataMapperParsers(
+                indexCreatedVersion
+            );
             for (Map.Entry<String, MetadataFieldMapper.TypeParser> entry : metadataMapperParsers.entrySet()) {
                 final String name = entry.getKey();
                 final MetadataFieldMapper existingMetadataMapper = existingMapper == null
-                        ? null
-                        : (MetadataFieldMapper) existingMapper.mappers().getMapper(name);
+                    ? null
+                    : (MetadataFieldMapper) existingMapper.mappers().getMapper(name);
                 final MetadataFieldMapper metadataMapper;
                 if (existingMetadataMapper == null) {
                     final TypeParser parser = entry.getValue();
-                    metadataMapper = parser.getDefault(mapperService.fieldType(name),
-                            mapperService.documentMapperParser().parserContext());
+                    metadataMapper = parser.getDefault(mapperService.fieldType(name), mapperService.documentMapperParser().parserContext());
                 } else {
                     metadataMapper = existingMetadataMapper;
                 }
@@ -117,10 +116,11 @@ public class DocumentMapper implements ToXContentFragment {
         public DocumentMapper build(MapperService mapperService) {
             Objects.requireNonNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
             Mapping mapping = new Mapping(
-                    mapperService.getIndexSettings().getIndexVersionCreated(),
-                    rootObjectMapper,
-                    metadataMappers.values().toArray(new MetadataFieldMapper[0]),
-                    meta);
+                mapperService.getIndexSettings().getIndexVersionCreated(),
+                rootObjectMapper,
+                metadataMappers.values().toArray(new MetadataFieldMapper[0]),
+                meta
+            );
             return new DocumentMapper(mapperService, mapping);
         }
     }
@@ -158,14 +158,26 @@ public class DocumentMapper implements ToXContentFragment {
             throw new OpenSearchGenerationException("failed to serialize source for type [" + type + "]", e);
         }
 
-        final Collection<String> deleteTombstoneMetadataFields = Arrays.asList(VersionFieldMapper.NAME, IdFieldMapper.NAME,
-            TypeFieldMapper.NAME, SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME, SeqNoFieldMapper.TOMBSTONE_NAME);
+        final Collection<String> deleteTombstoneMetadataFields = Arrays.asList(
+            VersionFieldMapper.NAME,
+            IdFieldMapper.NAME,
+            TypeFieldMapper.NAME,
+            SeqNoFieldMapper.NAME,
+            SeqNoFieldMapper.PRIMARY_TERM_NAME,
+            SeqNoFieldMapper.TOMBSTONE_NAME
+        );
         this.deleteTombstoneMetadataFieldMappers = Stream.of(mapping.metadataMappers)
-            .filter(field -> deleteTombstoneMetadataFields.contains(field.name())).toArray(MetadataFieldMapper[]::new);
+            .filter(field -> deleteTombstoneMetadataFields.contains(field.name()))
+            .toArray(MetadataFieldMapper[]::new);
         final Collection<String> noopTombstoneMetadataFields = Arrays.asList(
-            VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME, SeqNoFieldMapper.TOMBSTONE_NAME);
+            VersionFieldMapper.NAME,
+            SeqNoFieldMapper.NAME,
+            SeqNoFieldMapper.PRIMARY_TERM_NAME,
+            SeqNoFieldMapper.TOMBSTONE_NAME
+        );
         this.noopTombstoneMetadataFieldMappers = Stream.of(mapping.metadataMappers)
-            .filter(field -> noopTombstoneMetadataFields.contains(field.name())).toArray(MetadataFieldMapper[]::new);
+            .filter(field -> noopTombstoneMetadataFields.contains(field.name()))
+            .toArray(MetadataFieldMapper[]::new);
     }
 
     public Mapping mapping() {
@@ -299,8 +311,14 @@ public class DocumentMapper implements ToXContentFragment {
         this.mapping.validate(this.fieldMappers);
         if (settings.getIndexMetadata().isRoutingPartitionedIndex()) {
             if (routingFieldMapper().required() == false) {
-                throw new IllegalArgumentException("mapping type [" + type() + "] must have routing "
-                    + "required for partitioned index [" + settings.getIndex().getName() + "]");
+                throw new IllegalArgumentException(
+                    "mapping type ["
+                        + type()
+                        + "] must have routing "
+                        + "required for partitioned index ["
+                        + settings.getIndex().getName()
+                        + "]"
+                );
             }
         }
         if (settings.getIndexSortConfig().hasIndexSort() && hasNestedObjects()) {
@@ -318,18 +336,30 @@ public class DocumentMapper implements ToXContentFragment {
 
     @Override
     public String toString() {
-        return "DocumentMapper{" +
-            "mapperService=" + mapperService +
-            ", type='" + type + '\'' +
-            ", typeText=" + typeText +
-            ", mappingSource=" + mappingSource +
-            ", mapping=" + mapping +
-            ", documentParser=" + documentParser +
-            ", fieldMappers=" + fieldMappers +
-            ", objectMappers=" + objectMappers() +
-            ", hasNestedObjects=" + hasNestedObjects() +
-            ", deleteTombstoneMetadataFieldMappers=" + Arrays.toString(deleteTombstoneMetadataFieldMappers) +
-            ", noopTombstoneMetadataFieldMappers=" + Arrays.toString(noopTombstoneMetadataFieldMappers) +
-            '}';
+        return "DocumentMapper{"
+            + "mapperService="
+            + mapperService
+            + ", type='"
+            + type
+            + '\''
+            + ", typeText="
+            + typeText
+            + ", mappingSource="
+            + mappingSource
+            + ", mapping="
+            + mapping
+            + ", documentParser="
+            + documentParser
+            + ", fieldMappers="
+            + fieldMappers
+            + ", objectMappers="
+            + objectMappers()
+            + ", hasNestedObjects="
+            + hasNestedObjects()
+            + ", deleteTombstoneMetadataFieldMappers="
+            + Arrays.toString(deleteTombstoneMetadataFieldMappers)
+            + ", noopTombstoneMetadataFieldMappers="
+            + Arrays.toString(noopTombstoneMetadataFieldMappers)
+            + '}';
     }
 }

@@ -38,6 +38,7 @@ import org.opensearch.rest.RestRequest.Method;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -104,13 +105,69 @@ public interface RestHandler {
         return Collections.emptyList();
     }
 
-
     /**
      * Controls whether requests handled by this class are allowed to to access system indices by default.
      * @return {@code true} if requests handled by this class should be allowed to access system indices.
      */
     default boolean allowSystemIndexAccessByDefault() {
         return false;
+    }
+
+    static RestHandler wrapper(RestHandler delegate) {
+        return new Wrapper(delegate);
+    }
+
+    class Wrapper implements RestHandler {
+        private final RestHandler delegate;
+
+        public Wrapper(RestHandler delegate) {
+            this.delegate = Objects.requireNonNull(delegate, "RestHandler delegate can not be null");
+        }
+
+        @Override
+        public String toString() {
+            return delegate.toString();
+        }
+
+        @Override
+        public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+            delegate.handleRequest(request, channel, client);
+        }
+
+        @Override
+        public boolean canTripCircuitBreaker() {
+            return delegate.canTripCircuitBreaker();
+        }
+
+        @Override
+        public boolean supportsContentStream() {
+            return delegate.supportsContentStream();
+        }
+
+        @Override
+        public boolean allowsUnsafeBuffers() {
+            return delegate.allowsUnsafeBuffers();
+        }
+
+        @Override
+        public List<Route> routes() {
+            return delegate.routes();
+        }
+
+        @Override
+        public List<DeprecatedRoute> deprecatedRoutes() {
+            return delegate.deprecatedRoutes();
+        }
+
+        @Override
+        public List<ReplacedRoute> replacedRoutes() {
+            return delegate.replacedRoutes();
+        }
+
+        @Override
+        public boolean allowSystemIndexAccessByDefault() {
+            return delegate.allowSystemIndexAccessByDefault();
+        }
     }
 
     class Route {
@@ -208,9 +265,7 @@ public interface RestHandler {
      * @param deprecatedPrefix deprecated prefix
      * @return new list of API routes prefixed with the prefix string
      */
-    static List<ReplacedRoute> replaceRoutes(List<Route> routes, final String prefix, final String deprecatedPrefix){
-        return routes.stream()
-            .map(route -> new ReplacedRoute(route, prefix, deprecatedPrefix))
-            .collect(Collectors.toList());
+    static List<ReplacedRoute> replaceRoutes(List<Route> routes, final String prefix, final String deprecatedPrefix) {
+        return routes.stream().map(route -> new ReplacedRoute(route, prefix, deprecatedPrefix)).collect(Collectors.toList());
     }
 }

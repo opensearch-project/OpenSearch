@@ -57,6 +57,7 @@ public class NetworkServiceTests extends OpenSearchTestCase {
             assertTrue(e.getMessage().contains("invalid: multicast"));
         }
     }
+
     /**
      * ensure exception if we bind to multicast ipv6 address
      */
@@ -101,8 +102,7 @@ public class NetworkServiceTests extends OpenSearchTestCase {
      */
     public void testBindAnyLocalV4() throws Exception {
         NetworkService service = new NetworkService(Collections.emptyList());
-        assertEquals(InetAddress.getByName("0.0.0.0"), service.resolveBindHostAddresses(new String[] { "0.0.0.0" }
-        )[0]);
+        assertEquals(InetAddress.getByName("0.0.0.0"), service.resolveBindHostAddresses(new String[] { "0.0.0.0" })[0]);
     }
 
     /**
@@ -136,7 +136,7 @@ public class NetworkServiceTests extends OpenSearchTestCase {
      */
     public void testBindMultipleAddresses() throws Exception {
         NetworkService service = new NetworkService(Collections.emptyList());
-        InetAddress[] addresses = service.resolveBindHostAddresses(new String[]{"127.0.0.1", "127.0.0.2"});
+        InetAddress[] addresses = service.resolveBindHostAddresses(new String[] { "127.0.0.1", "127.0.0.2" });
         assertThat(addresses.length, is(2));
     }
 
@@ -146,7 +146,7 @@ public class NetworkServiceTests extends OpenSearchTestCase {
     public void testBindMultipleAddressesWithWildcard() throws Exception {
         NetworkService service = new NetworkService(Collections.emptyList());
         try {
-            service.resolveBindHostAddresses(new String[]{"0.0.0.0", "127.0.0.1"});
+            service.resolveBindHostAddresses(new String[] { "0.0.0.0", "127.0.0.1" });
             fail("should have hit exception");
         } catch (IllegalArgumentException e) {
             assertTrue(e.getMessage().contains("is wildcard, but multiple addresses specified"));

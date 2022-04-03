@@ -119,10 +119,13 @@ public abstract class AllocationDecider {
         Decision decision = canAllocate(shardRouting, node, allocation);
         if (decision.type() == Type.NO) {
             // On a NO decision, by default, we allow force allocating the primary.
-            return allocation.decision(Decision.YES,
-                                       decision.label(),
-                                       "primary shard [%s] allowed to force allocate on node [%s]",
-                                       shardRouting.shardId(), node.nodeId());
+            return allocation.decision(
+                Decision.YES,
+                decision.label(),
+                "primary shard [%s] allowed to force allocate on node [%s]",
+                shardRouting.shardId(),
+                node.nodeId()
+            );
         } else {
             // On a THROTTLE/YES decision, we use the same decision instead of forcing allocation
             return decision;

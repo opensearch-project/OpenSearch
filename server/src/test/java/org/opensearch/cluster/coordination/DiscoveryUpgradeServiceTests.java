@@ -35,15 +35,17 @@ import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.UUIDs;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.cluster.coordination.DiscoveryUpgradeService;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.lessThan;
 
 public class DiscoveryUpgradeServiceTests extends OpenSearchTestCase {
     public void testCreateDiscoveryNodeWithImpossiblyHighId() {
-        final DiscoveryNode discoveryNode
-            = new DiscoveryNode(UUIDs.randomBase64UUID(random()), buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode discoveryNode = new DiscoveryNode(
+            UUIDs.randomBase64UUID(random()),
+            buildNewFakeTransportAddress(),
+            Version.CURRENT
+        );
         final DiscoveryNode fakeNode = DiscoveryUpgradeService.createDiscoveryNodeWithImpossiblyHighId(discoveryNode);
         assertThat(discoveryNode.getId(), lessThan(fakeNode.getId()));
         assertThat(UUIDs.randomBase64UUID(random()), lessThan(fakeNode.getId()));

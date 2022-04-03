@@ -53,7 +53,7 @@ public class MatchIntervalsSourceProviderTests extends AbstractSerializingTestCa
     protected Match mutateInstance(Match instance) throws IOException {
         String query = instance.getQuery();
         int maxGaps = instance.getMaxGaps();
-        boolean isOrdered = instance.isOrdered();
+        IntervalMode mode = instance.getMode();
         String analyzer = instance.getAnalyzer();
         IntervalsSourceProvider.IntervalFilter filter = instance.getFilter();
         String useField = instance.getUseField();
@@ -65,15 +65,21 @@ public class MatchIntervalsSourceProviderTests extends AbstractSerializingTestCa
                 maxGaps++;
                 break;
             case 2:
-                isOrdered = !isOrdered;
+                if (mode == IntervalMode.ORDERED) {
+                    mode = randomBoolean() ? IntervalMode.UNORDERED : IntervalMode.UNORDERED_NO_OVERLAP;
+                } else if (mode == IntervalMode.UNORDERED) {
+                    mode = randomBoolean() ? IntervalMode.ORDERED : IntervalMode.UNORDERED_NO_OVERLAP;
+                } else {
+                    mode = randomBoolean() ? IntervalMode.UNORDERED : IntervalMode.ORDERED;
+                }
                 break;
             case 3:
                 analyzer = analyzer == null ? randomAlphaOfLength(5) : null;
                 break;
             case 4:
-                filter = filter == null ?
-                    IntervalQueryBuilderTests.createRandomNonNullFilter(0, randomBoolean()) :
-                    FilterIntervalsSourceProviderTests.mutateFilter(filter);
+                filter = filter == null
+                    ? IntervalQueryBuilderTests.createRandomNonNullFilter(0, randomBoolean())
+                    : FilterIntervalsSourceProviderTests.mutateFilter(filter);
                 break;
             case 5:
                 useField = useField == null ? randomAlphaOfLength(5) : (useField + "foo");
@@ -81,7 +87,7 @@ public class MatchIntervalsSourceProviderTests extends AbstractSerializingTestCa
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new Match(query, maxGaps, isOrdered, analyzer, filter, useField);
+        return new Match(query, maxGaps, mode, analyzer, filter, useField);
     }
 
     @Override

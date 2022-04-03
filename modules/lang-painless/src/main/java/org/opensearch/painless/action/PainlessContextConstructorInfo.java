@@ -60,12 +60,8 @@ public class PainlessContextConstructorInfo implements Writeable, ToXContentObje
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<PainlessContextConstructorInfo, Void> PARSER = new ConstructingObjectParser<>(
-            PainlessContextConstructorInfo.class.getCanonicalName(),
-            (v) ->
-                    new PainlessContextConstructorInfo(
-                            (String)v[0],
-                            (List<String>)v[1]
-                    )
+        PainlessContextConstructorInfo.class.getCanonicalName(),
+        (v) -> new PainlessContextConstructorInfo((String) v[0], (List<String>) v[1])
     );
 
     static {
@@ -74,9 +70,9 @@ public class PainlessContextConstructorInfo implements Writeable, ToXContentObje
     }
 
     public PainlessContextConstructorInfo(PainlessConstructor painlessConstructor) {
-        this (
-                painlessConstructor.javaConstructor.getDeclaringClass().getName(),
-                painlessConstructor.typeParameters.stream().map(Class::getName).collect(Collectors.toList())
+        this(
+            painlessConstructor.javaConstructor.getDeclaringClass().getName(),
+            painlessConstructor.typeParameters.stream().map(Class::getName).collect(Collectors.toList())
         );
     }
 
@@ -119,8 +115,7 @@ public class PainlessContextConstructorInfo implements Writeable, ToXContentObje
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PainlessContextConstructorInfo that = (PainlessContextConstructorInfo) o;
-        return Objects.equals(declaring, that.declaring) &&
-                Objects.equals(parameters, that.parameters);
+        return Objects.equals(declaring, that.declaring) && Objects.equals(parameters, that.parameters);
     }
 
     @Override
@@ -130,10 +125,7 @@ public class PainlessContextConstructorInfo implements Writeable, ToXContentObje
 
     @Override
     public String toString() {
-        return "PainlessContextConstructorInfo{" +
-                "declaring='" + declaring + '\'' +
-                ", parameters=" + parameters +
-                '}';
+        return "PainlessContextConstructorInfo{" + "declaring='" + declaring + '\'' + ", parameters=" + parameters + '}';
     }
 
     public String getDeclaring() {

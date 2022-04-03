@@ -52,7 +52,8 @@ public class DocFieldsPhaseTests extends ScriptTestCase {
         Compiler compiler = new Compiler(
             MockDocTestScript.CONTEXT.instanceClazz,
             MockDocTestScript.CONTEXT.factoryClazz,
-            MockDocTestScript.CONTEXT.statefulFactoryClazz, lookup
+            MockDocTestScript.CONTEXT.statefulFactoryClazz,
+            lookup
         );
 
         // Create our loader (which loads compiled code with no permissions).
@@ -63,19 +64,19 @@ public class DocFieldsPhaseTests extends ScriptTestCase {
             }
         });
 
-        return compiler.compile(loader,"test", script, new CompilerSettings());
+        return compiler.compile(loader, "test", script, new CompilerSettings());
     }
 
     public abstract static class MockDocTestScript {
-        public static final String[] PARAMETERS = {"doc", "other"};
+        public static final String[] PARAMETERS = { "doc", "other" };
+
         public abstract void execute(Map<String, Object> doc, Map<String, Object> other);
 
         public interface Factory {
             MockDocTestScript newInstance();
         }
 
-        public static final ScriptContext<Factory> CONTEXT =
-            new ScriptContext<>("test", MockDocTestScript.Factory.class);
+        public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("test", MockDocTestScript.Factory.class);
     }
 
     public void testArray() {

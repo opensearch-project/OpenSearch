@@ -61,7 +61,7 @@ public enum SearchType {
     /**
      * Non-deprecated types
      */
-    public static final SearchType [] CURRENTLY_SUPPORTED = {QUERY_THEN_FETCH, DFS_QUERY_THEN_FETCH};
+    public static final SearchType[] CURRENTLY_SUPPORTED = { QUERY_THEN_FETCH, DFS_QUERY_THEN_FETCH };
 
     private byte id;
 
@@ -82,8 +82,8 @@ public enum SearchType {
     public static SearchType fromId(byte id) {
         if (id == 0) {
             return DFS_QUERY_THEN_FETCH;
-        } else if (id == 1
-            || id == 3) { // TODO this bwc layer can be removed once this is back-ported to 5.3 QUERY_AND_FETCH is removed now
+        } else if (id == 1 || id == 3) { // TODO this bwc layer can be removed once this is back-ported to 5.3 QUERY_AND_FETCH is removed
+                                         // now
             return QUERY_THEN_FETCH;
         } else {
             throw new IllegalArgumentException("No search type for [" + id + "]");

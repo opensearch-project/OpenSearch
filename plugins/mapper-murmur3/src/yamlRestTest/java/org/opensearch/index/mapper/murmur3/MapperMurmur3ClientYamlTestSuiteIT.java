@@ -49,4 +49,3 @@ public class MapperMurmur3ClientYamlTestSuiteIT extends OpenSearchClientYamlSuit
         return createParameters();
     }
 }
-

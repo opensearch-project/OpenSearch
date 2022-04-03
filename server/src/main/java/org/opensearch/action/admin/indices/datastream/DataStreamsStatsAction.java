@@ -103,8 +103,16 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
         private final ByteSizeValue totalStoreSize;
         private final DataStreamStats[] dataStreams;
 
-        public Response(int totalShards, int successfulShards, int failedShards, List<DefaultShardOperationFailedException> shardFailures,
-                        int dataStreamCount, int backingIndices, ByteSizeValue totalStoreSize, DataStreamStats[] dataStreams) {
+        public Response(
+            int totalShards,
+            int successfulShards,
+            int failedShards,
+            List<DefaultShardOperationFailedException> shardFailures,
+            int dataStreamCount,
+            int backingIndices,
+            ByteSizeValue totalStoreSize,
+            DataStreamStats[] dataStreams
+        ) {
             super(totalShards, successfulShards, failedShards, shardFailures);
             this.dataStreamCount = dataStreamCount;
             this.backingIndices = backingIndices;
@@ -162,10 +170,10 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
                 return false;
             }
             Response response = (Response) obj;
-            return dataStreamCount == response.dataStreamCount &&
-                backingIndices == response.backingIndices &&
-                Objects.equals(totalStoreSize, response.totalStoreSize) &&
-                Arrays.equals(dataStreams, response.dataStreams);
+            return dataStreamCount == response.dataStreamCount
+                && backingIndices == response.backingIndices
+                && Objects.equals(totalStoreSize, response.totalStoreSize)
+                && Arrays.equals(dataStreams, response.dataStreams);
         }
 
         @Override
@@ -177,12 +185,16 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
 
         @Override
         public String toString() {
-            return "Response{" +
-                "dataStreamCount=" + dataStreamCount +
-                ", backingIndices=" + backingIndices +
-                ", totalStoreSize=" + totalStoreSize +
-                ", dataStreams=" + Arrays.toString(dataStreams) +
-                '}';
+            return "Response{"
+                + "dataStreamCount="
+                + dataStreamCount
+                + ", backingIndices="
+                + backingIndices
+                + ", totalStoreSize="
+                + totalStoreSize
+                + ", dataStreams="
+                + Arrays.toString(dataStreams)
+                + '}';
         }
     }
 
@@ -250,10 +262,10 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
                 return false;
             }
             DataStreamStats that = (DataStreamStats) obj;
-            return backingIndices == that.backingIndices &&
-                maximumTimestamp == that.maximumTimestamp &&
-                Objects.equals(dataStream, that.dataStream) &&
-                Objects.equals(storeSize, that.storeSize);
+            return backingIndices == that.backingIndices
+                && maximumTimestamp == that.maximumTimestamp
+                && Objects.equals(dataStream, that.dataStream)
+                && Objects.equals(storeSize, that.storeSize);
         }
 
         @Override
@@ -263,12 +275,17 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
 
         @Override
         public String toString() {
-            return "DataStreamStats{" +
-                "dataStream='" + dataStream + '\'' +
-                ", backingIndices=" + backingIndices +
-                ", storeSize=" + storeSize +
-                ", maximumTimestamp=" + maximumTimestamp +
-                '}';
+            return "DataStreamStats{"
+                + "dataStream='"
+                + dataStream
+                + '\''
+                + ", backingIndices="
+                + backingIndices
+                + ", storeSize="
+                + storeSize
+                + ", maximumTimestamp="
+                + maximumTimestamp
+                + '}';
         }
     }
 
@@ -322,10 +339,22 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
         private final IndexAbstractionResolver indexAbstractionResolver;
 
         @Inject
-        public TransportAction(ClusterService clusterService, TransportService transportService, IndicesService indicesService,
-                                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-            super(DataStreamsStatsAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                Request::new, ThreadPool.Names.MANAGEMENT);
+        public TransportAction(
+            ClusterService clusterService,
+            TransportService transportService,
+            IndicesService indicesService,
+            ActionFilters actionFilters,
+            IndexNameExpressionResolver indexNameExpressionResolver
+        ) {
+            super(
+                DataStreamsStatsAction.NAME,
+                clusterService,
+                transportService,
+                actionFilters,
+                indexNameExpressionResolver,
+                Request::new,
+                ThreadPool.Names.MANAGEMENT
+            );
             this.clusterService = clusterService;
             this.indicesService = indicesService;
             this.indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
@@ -350,10 +379,14 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
         protected ShardsIterator shards(ClusterState clusterState, Request request, String[] concreteIndices) {
             String[] requestIndices = request.indices();
             if (requestIndices == null || requestIndices.length == 0) {
-                requestIndices = new String[]{"*"};
+                requestIndices = new String[] { "*" };
             }
-            List<String> abstractionNames = indexAbstractionResolver.resolveIndexAbstractions(requestIndices, request.indicesOptions(),
-                clusterState.getMetadata(), true); // Always include data streams for data streams stats api
+            List<String> abstractionNames = indexAbstractionResolver.resolveIndexAbstractions(
+                requestIndices,
+                request.indicesOptions(),
+                clusterState.getMetadata(),
+                true
+            ); // Always include data streams for data streams stats api
             SortedMap<String, IndexAbstraction> indicesLookup = clusterState.getMetadata().getIndicesLookup();
 
             String[] concreteDatastreamIndices = abstractionNames.stream().flatMap(abstractionName -> {
@@ -392,11 +425,7 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
                     maxTimestamp = LongPoint.decodeDimension(maxPackedValue, 0);
                 }
             }
-            return new DataStreamShardStats(
-                indexShard.routingEntry(),
-                storeStats,
-                maxTimestamp
-            );
+            return new DataStreamShardStats(indexShard.routingEntry(), storeStats, maxTimestamp);
         }
 
         @Override
@@ -405,10 +434,15 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
         }
 
         @Override
-        protected Response newResponse(Request request, int totalShards, int successfulShards,
-                                                       int failedShards, List<DataStreamShardStats> dataStreamShardStats,
-                                                       List<DefaultShardOperationFailedException> shardFailures,
-                                                       ClusterState clusterState) {
+        protected Response newResponse(
+            Request request,
+            int totalShards,
+            int successfulShards,
+            int failedShards,
+            List<DataStreamShardStats> dataStreamShardStats,
+            List<DefaultShardOperationFailedException> shardFailures,
+            ClusterState clusterState
+        ) {
             Map<String, AggregatedStats> aggregatedDataStreamsStats = new HashMap<>();
             Set<String> allBackingIndices = new HashSet<>();
             long totalStoreSizeBytes = 0L;
@@ -431,12 +465,16 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
                 stats.backingIndices.add(indexName);
             }
 
-            DataStreamStats[] dataStreamStats = aggregatedDataStreamsStats.entrySet().stream()
-                .map(entry -> new DataStreamStats(
-                    entry.getKey(),
-                    entry.getValue().backingIndices.size(),
-                    new ByteSizeValue(entry.getValue().storageBytes),
-                    entry.getValue().maxTimestamp))
+            DataStreamStats[] dataStreamStats = aggregatedDataStreamsStats.entrySet()
+                .stream()
+                .map(
+                    entry -> new DataStreamStats(
+                        entry.getKey(),
+                        entry.getValue().backingIndices.size(),
+                        new ByteSizeValue(entry.getValue().storageBytes),
+                        entry.getValue().maxTimestamp
+                    )
+                )
                 .toArray(DataStreamStats[]::new);
 
             return new Response(

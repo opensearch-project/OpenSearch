@@ -41,7 +41,6 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-
 public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilder> {
 
     @Override
@@ -63,13 +62,7 @@ public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilde
     }
 
     public void testFromJson() throws IOException {
-        String json =
-                "{\n" +
-                "  \"type\" : {\n" +
-                "    \"value\" : \"my_type\",\n" +
-                "    \"boost\" : 1.0\n" +
-                "  }\n" +
-                "}";
+        String json = "{\n" + "  \"type\" : {\n" + "    \"value\" : \"my_type\",\n" + "    \"boost\" : 1.0\n" + "  }\n" + "}";
 
         TypeQueryBuilder parsed = (TypeQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

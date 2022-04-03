@@ -46,7 +46,7 @@ import org.opensearch.common.Strings;
  * It will only populate these if the event have message of type <code>OpenSearchLogMessage</code>.
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "OpenSearchMessageField")
-@ConverterKeys({"OpenSearchMessageField"})
+@ConverterKeys({ "OpenSearchMessageField" })
 public final class OpenSearchMessageFieldConverter extends LogEventPatternConverter {
 
     private String key;

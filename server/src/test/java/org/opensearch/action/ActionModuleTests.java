@@ -60,12 +60,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.usage.UsageService;
-import org.opensearch.action.ActionListener;
-import org.opensearch.action.ActionModule;
-import org.opensearch.action.ActionRequest;
-import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.ActionResponse;
-import org.opensearch.action.ActionType;
 
 import java.io.IOException;
 import java.util.List;
@@ -78,8 +72,10 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class ActionModuleTests extends OpenSearchTestCase {
     public void testSetupActionsContainsKnownBuiltin() {
-        assertThat(ActionModule.setupActions(emptyList()),
-                hasEntry(MainAction.INSTANCE.name(), new ActionHandler<>(MainAction.INSTANCE, TransportMainAction.class)));
+        assertThat(
+            ActionModule.setupActions(emptyList()),
+            hasEntry(MainAction.INSTANCE.name(), new ActionHandler<>(MainAction.INSTANCE, TransportMainAction.class))
+        );
     }
 
     public void testPluginCantOverwriteBuiltinAction() {
@@ -106,8 +102,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
             }
 
             @Override
-            protected void doExecute(Task task, FakeRequest request, ActionListener<ActionResponse> listener) {
-            }
+            protected void doExecute(Task task, FakeRequest request, ActionListener<ActionResponse> listener) {}
         }
         class FakeAction extends ActionType<ActionResponse> {
             protected FakeAction() {
@@ -121,39 +116,58 @@ public class ActionModuleTests extends OpenSearchTestCase {
                 return singletonList(new ActionHandler<>(action, FakeTransportAction.class));
             }
         };
-        assertThat(ActionModule.setupActions(singletonList(registersFakeAction)),
-                hasEntry("fake", new ActionHandler<>(action, FakeTransportAction.class)));
+        assertThat(
+            ActionModule.setupActions(singletonList(registersFakeAction)),
+            hasEntry("fake", new ActionHandler<>(action, FakeTransportAction.class))
+        );
     }
 
     public void testSetupRestHandlerContainsKnownBuiltin() {
         SettingsModule settings = new SettingsModule(Settings.EMPTY);
         UsageService usageService = new UsageService();
-        ActionModule actionModule = new ActionModule(false, settings.getSettings(),
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), settings.getIndexScopedSettings(),
-            settings.getClusterSettings(), settings.getSettingsFilter(), null, emptyList(), null,
-            null, usageService, null);
+        ActionModule actionModule = new ActionModule(
+            false,
+            settings.getSettings(),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            settings.getIndexScopedSettings(),
+            settings.getClusterSettings(),
+            settings.getSettingsFilter(),
+            null,
+            emptyList(),
+            null,
+            null,
+            usageService,
+            null
+        );
         actionModule.initRestHandlers(null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
-        Exception e = expectThrows(IllegalArgumentException.class, () ->
-            actionModule.getRestController().registerHandler(new RestHandler() {
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> actionModule.getRestController().registerHandler(new RestHandler() {
                 @Override
-                public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                }
+                public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {}
 
                 @Override
                 public List<Route> routes() {
                     return singletonList(new Route(Method.GET, "/"));
                 }
-            }));
+            })
+        );
         assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
     }
 
     public void testPluginCantOverwriteBuiltinRestHandler() throws IOException {
         ActionPlugin dupsMainAction = new ActionPlugin() {
             @Override
-            public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-                    IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-                    IndexNameExpressionResolver indexNameExpressionResolver, Supplier<DiscoveryNodes> nodesInCluster) {
+            public List<RestHandler> getRestHandlers(
+                Settings settings,
+                RestController restController,
+                ClusterSettings clusterSettings,
+                IndexScopedSettings indexScopedSettings,
+                SettingsFilter settingsFilter,
+                IndexNameExpressionResolver indexNameExpressionResolver,
+                Supplier<DiscoveryNodes> nodesInCluster
+            ) {
                 return singletonList(new RestMainAction() {
 
                     @Override
@@ -168,10 +182,20 @@ public class ActionModuleTests extends OpenSearchTestCase {
         ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             UsageService usageService = new UsageService();
-            ActionModule actionModule = new ActionModule(false, settings.getSettings(),
-                new IndexNameExpressionResolver(threadPool.getThreadContext()), settings.getIndexScopedSettings(),
-                settings.getClusterSettings(), settings.getSettingsFilter(), threadPool, singletonList(dupsMainAction),
-                null, null, usageService, null);
+            ActionModule actionModule = new ActionModule(
+                false,
+                settings.getSettings(),
+                new IndexNameExpressionResolver(threadPool.getThreadContext()),
+                settings.getIndexScopedSettings(),
+                settings.getClusterSettings(),
+                settings.getSettingsFilter(),
+                threadPool,
+                singletonList(dupsMainAction),
+                null,
+                null,
+                usageService,
+                null
+            );
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
         } finally {
@@ -187,14 +211,19 @@ public class ActionModuleTests extends OpenSearchTestCase {
             }
 
             @Override
-            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-            }
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {}
         }
         ActionPlugin registersFakeHandler = new ActionPlugin() {
             @Override
-            public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-                    IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-                    IndexNameExpressionResolver indexNameExpressionResolver, Supplier<DiscoveryNodes> nodesInCluster) {
+            public List<RestHandler> getRestHandlers(
+                Settings settings,
+                RestController restController,
+                ClusterSettings clusterSettings,
+                IndexScopedSettings indexScopedSettings,
+                SettingsFilter settingsFilter,
+                IndexNameExpressionResolver indexNameExpressionResolver,
+                Supplier<DiscoveryNodes> nodesInCluster
+            ) {
                 return singletonList(new FakeHandler());
             }
         };
@@ -203,23 +232,34 @@ public class ActionModuleTests extends OpenSearchTestCase {
         ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             UsageService usageService = new UsageService();
-            ActionModule actionModule = new ActionModule(false, settings.getSettings(),
-                new IndexNameExpressionResolver(threadPool.getThreadContext()), settings.getIndexScopedSettings(),
-                settings.getClusterSettings(), settings.getSettingsFilter(), threadPool, singletonList(registersFakeHandler),
-                null, null, usageService, null);
+            ActionModule actionModule = new ActionModule(
+                false,
+                settings.getSettings(),
+                new IndexNameExpressionResolver(threadPool.getThreadContext()),
+                settings.getIndexScopedSettings(),
+                settings.getClusterSettings(),
+                settings.getSettingsFilter(),
+                threadPool,
+                singletonList(registersFakeHandler),
+                null,
+                null,
+                usageService,
+                null
+            );
             actionModule.initRestHandlers(null);
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
-            Exception e = expectThrows(IllegalArgumentException.class, () ->
-                actionModule.getRestController().registerHandler(new RestHandler() {
+            Exception e = expectThrows(
+                IllegalArgumentException.class,
+                () -> actionModule.getRestController().registerHandler(new RestHandler() {
                     @Override
-                    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                    }
+                    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {}
 
                     @Override
                     public List<Route> routes() {
                         return singletonList(new Route(Method.GET, "/_dummy"));
                     }
-                }));
+                })
+            );
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/_dummy] for method: GET"));
         } finally {
             threadPool.shutdown();

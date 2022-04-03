@@ -75,3 +75,6 @@ ${error.file}
 
 # JDK 9+ GC logging
 9-:-Xlog:gc*,gc+age=trace,safepoint:file=${loggc}:utctime,pid,tags:filecount=32,filesize=64m
+
+# Explicitly allow security manager (https://bugs.openjdk.java.net/browse/JDK-8270380)
+18-:-Djava.security.manager=allow

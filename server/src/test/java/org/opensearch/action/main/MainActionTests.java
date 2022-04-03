@@ -64,29 +64,55 @@ public class MainActionTests extends OpenSearchTestCase {
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterName clusterName = new ClusterName("opensearch");
         final Settings settings = Settings.builder().put("node.name", "my-node").build();
-        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY,
-            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
         ClusterBlocks blocks;
         if (randomBoolean()) {
             if (randomBoolean()) {
                 blocks = ClusterBlocks.EMPTY_CLUSTER_BLOCK;
             } else {
                 blocks = ClusterBlocks.builder()
-                    .addGlobalBlock(new ClusterBlock(randomIntBetween(1, 16), "test global block 400", randomBoolean(), randomBoolean(),
-                        false, RestStatus.BAD_REQUEST, ClusterBlockLevel.ALL))
+                    .addGlobalBlock(
+                        new ClusterBlock(
+                            randomIntBetween(1, 16),
+                            "test global block 400",
+                            randomBoolean(),
+                            randomBoolean(),
+                            false,
+                            RestStatus.BAD_REQUEST,
+                            ClusterBlockLevel.ALL
+                        )
+                    )
                     .build();
             }
         } else {
             blocks = ClusterBlocks.builder()
-                .addGlobalBlock(new ClusterBlock(randomIntBetween(1, 16), "test global block 503", randomBoolean(), randomBoolean(),
-                    false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL))
+                .addGlobalBlock(
+                    new ClusterBlock(
+                        randomIntBetween(1, 16),
+                        "test global block 503",
+                        randomBoolean(),
+                        randomBoolean(),
+                        false,
+                        RestStatus.SERVICE_UNAVAILABLE,
+                        ClusterBlockLevel.ALL
+                    )
+                )
                 .build();
         }
         ClusterState state = ClusterState.builder(clusterName).blocks(blocks).build();
         when(clusterService.state()).thenReturn(state);
 
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null, TransportService
-            .NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
         TransportMainAction action = new TransportMainAction(settings, transportService, mock(ActionFilters.class), clusterService);
         AtomicReference<MainResponse> responseRef = new AtomicReference<>();
         action.doExecute(mock(Task.class), new MainRequest(), new ActionListener<MainResponse>() {
@@ -111,16 +137,21 @@ public class MainActionTests extends OpenSearchTestCase {
 
         final ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(state);
-        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY,
-            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
 
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
 
-        final Settings settings = Settings.builder()
-            .put("node.name", "my-node")
-            .put(OVERRIDE_MAIN_RESPONSE_VERSION_KEY, true)
-            .build();
+        final Settings settings = Settings.builder().put("node.name", "my-node").put(OVERRIDE_MAIN_RESPONSE_VERSION_KEY, true).build();
 
         TransportMainAction action = new TransportMainAction(settings, transportService, mock(ActionFilters.class), clusterService);
         AtomicReference<MainResponse> responseRef = new AtomicReference<>();

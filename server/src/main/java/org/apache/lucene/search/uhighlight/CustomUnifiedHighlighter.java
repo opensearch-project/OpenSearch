@@ -101,18 +101,22 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
      * @param maxAnalyzedOffset if the field is more than this long we'll refuse to use the ANALYZED
      *                          offset source for it because it'd be super slow
      */
-    public CustomUnifiedHighlighter(IndexSearcher searcher,
-                                    Analyzer analyzer,
-                                    OffsetSource offsetSource,
-                                    PassageFormatter passageFormatter,
-                                    @Nullable Locale breakIteratorLocale,
-                                    @Nullable BreakIterator breakIterator,
-                                    String index, String field, Query query,
-                                    int noMatchSize,
-                                    int maxPassages,
-                                    Predicate<String> fieldMatcher,
-                                    int keywordIgnoreAbove,
-                                    int maxAnalyzedOffset) throws IOException {
+    public CustomUnifiedHighlighter(
+        IndexSearcher searcher,
+        Analyzer analyzer,
+        OffsetSource offsetSource,
+        PassageFormatter passageFormatter,
+        @Nullable Locale breakIteratorLocale,
+        @Nullable BreakIterator breakIterator,
+        String index,
+        String field,
+        Query query,
+        int noMatchSize,
+        int maxPassages,
+        Predicate<String> fieldMatcher,
+        int keywordIgnoreAbove,
+        int maxAnalyzedOffset
+    ) throws IOException {
         super(searcher, analyzer);
         this.offsetSource = offsetSource;
         this.breakIterator = breakIterator;
@@ -186,13 +190,21 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         Set<HighlightFlag> highlightFlags = getFlags(field);
         PhraseHelper phraseHelper = getPhraseHelper(field, query, highlightFlags);
         LabelledCharArrayMatcher[] automata = getAutomata(field, query, highlightFlags);
-        UHComponents components = new UHComponents(field, fieldMatcher, query, terms, phraseHelper, automata, false , highlightFlags);
+        UHComponents components = new UHComponents(field, fieldMatcher, query, terms, phraseHelper, automata, false, highlightFlags);
         OffsetSource offsetSource = getOptimizedOffsetSource(components);
-        BreakIterator breakIterator = new SplittingBreakIterator(getBreakIterator(field),
-            UnifiedHighlighter.MULTIVAL_SEP_CHAR);
+        BreakIterator breakIterator = new SplittingBreakIterator(getBreakIterator(field), UnifiedHighlighter.MULTIVAL_SEP_CHAR);
         FieldOffsetStrategy strategy = getOffsetStrategy(offsetSource, components);
-        return new CustomFieldHighlighter(field, strategy, breakIteratorLocale, breakIterator,
-            getScorer(field), maxPassages, (noMatchSize > 0 ? 1 : 0), getFormatter(field), noMatchSize);
+        return new CustomFieldHighlighter(
+            field,
+            strategy,
+            breakIteratorLocale,
+            breakIterator,
+            getScorer(field),
+            maxPassages,
+            (noMatchSize > 0 ? 1 : 0),
+            getFormatter(field),
+            noMatchSize
+        );
     }
 
     @Override
@@ -232,13 +244,12 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
             // sum position increments beyond 1
             int positionGaps = 0;
             if (positions.length >= 2) {
-                // positions are in increasing order.   max(0,...) is just a safeguard.
+                // positions are in increasing order. max(0,...) is just a safeguard.
                 positionGaps = Math.max(0, positions[positions.length - 1] - positions[0] - positions.length + 1);
             }
-            //if original slop is 0 then require inOrder
+            // if original slop is 0 then require inOrder
             boolean inorder = (mpq.getSlop() == 0);
-            return Collections.singletonList(new SpanNearQuery(positionSpanQueries,
-                mpq.getSlop() + positionGaps, inorder));
+            return Collections.singletonList(new SpanNearQuery(positionSpanQueries, mpq.getSlop() + positionGaps, inorder));
         } else {
             return null;
         }

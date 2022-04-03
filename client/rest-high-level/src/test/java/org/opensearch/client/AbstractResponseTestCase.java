@@ -63,7 +63,8 @@ public abstract class AbstractResponseTestCase<S extends ToXContent, C> extends 
         final XContentParser parser = xContent.createParser(
             NamedXContentRegistry.EMPTY,
             LoggingDeprecationHandler.INSTANCE,
-            bytes.streamInput());
+            bytes.streamInput()
+        );
         final C clientInstance = doParseToClientInstance(parser);
         assertInstances(serverTestInstance, clientInstance);
     }

@@ -110,7 +110,7 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public String[] indices() {
-            return new String[]{name};
+            return new String[] { name };
         }
 
         @Override
@@ -124,9 +124,14 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         private final MetadataCreateDataStreamService metadataCreateDataStreamService;
 
         @Inject
-        public TransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               MetadataCreateDataStreamService metadataCreateDataStreamService) {
+        public TransportAction(
+            TransportService transportService,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ActionFilters actionFilters,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            MetadataCreateDataStreamService metadataCreateDataStreamService
+        ) {
             super(NAME, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver);
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;
         }
@@ -142,9 +147,9 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         }
 
         @Override
-        protected void masterOperation(Request request, ClusterState state,
-                                       ActionListener<AcknowledgedResponse> listener) throws Exception {
-            CreateDataStreamClusterStateUpdateRequest updateRequest =  new CreateDataStreamClusterStateUpdateRequest(
+        protected void masterOperation(Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
+            throws Exception {
+            CreateDataStreamClusterStateUpdateRequest updateRequest = new CreateDataStreamClusterStateUpdateRequest(
                 request.name,
                 request.masterNodeTimeout(),
                 request.timeout()

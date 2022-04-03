@@ -58,10 +58,18 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory 
     private final int shardSize;
     private final GeoBoundingBox geoBoundingBox;
 
-    GeoTileGridAggregatorFactory(String name, ValuesSourceConfig config, int precision, int requiredSize,
-                                 int shardSize, GeoBoundingBox geoBoundingBox, QueryShardContext queryShardContext,
-                                 AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                                 Map<String, Object> metadata) throws IOException {
+    GeoTileGridAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        int precision,
+        int requiredSize,
+        int shardSize,
+        GeoBoundingBox geoBoundingBox,
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.precision = precision;
         this.requiredSize = requiredSize;
@@ -70,9 +78,7 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory 
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
         final InternalAggregation aggregation = new InternalGeoTileGrid(name, requiredSize, Collections.emptyList(), metadata);
         return new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
             @Override
@@ -83,10 +89,12 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory 
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                          Aggregator parent,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metadata) throws IOException {
+    protected Aggregator doCreateInternal(
+        SearchContext searchContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         return queryShardContext.getValuesSourceRegistry()
             .getAggregator(GeoTileGridAggregationBuilder.REGISTRY_KEY, config)
             .build(
@@ -95,7 +103,13 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory 
                 config.getValuesSource(),
                 precision,
                 geoBoundingBox,
-            requiredSize, shardSize, searchContext, parent, cardinality, metadata);
+                requiredSize,
+                shardSize,
+                searchContext,
+                parent,
+                cardinality,
+                metadata
+            );
     }
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -132,6 +146,7 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory 
                     metadata
                 );
             },
-                true);
+            true
+        );
     }
 }

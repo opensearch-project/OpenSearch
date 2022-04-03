@@ -48,8 +48,7 @@ public class RequestCacheStats implements Writeable, ToXContentFragment {
     private long hitCount;
     private long missCount;
 
-    public RequestCacheStats() {
-    }
+    public RequestCacheStats() {}
 
     public RequestCacheStats(StreamInput in) throws IOException {
         memorySize = in.readVLong();

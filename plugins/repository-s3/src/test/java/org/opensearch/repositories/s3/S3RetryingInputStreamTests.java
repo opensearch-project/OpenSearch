@@ -103,11 +103,8 @@ public class S3RetryingInputStreamTests extends OpenSearchTestCase {
         assertThat(stream.isAborted(), is(true));
     }
 
-    private S3RetryingInputStream createInputStream(
-        final byte[] data,
-        @Nullable final Integer position,
-        @Nullable final Integer length
-    ) throws IOException {
+    private S3RetryingInputStream createInputStream(final byte[] data, @Nullable final Integer position, @Nullable final Integer length)
+        throws IOException {
         final S3Object s3Object = new S3Object();
         final AmazonS3 client = mock(AmazonS3.class);
         when(client.getObject(any(GetObjectRequest.class))).thenReturn(s3Object);

@@ -44,18 +44,22 @@ import org.opensearch.index.mapper.MappedFieldType;
 public class SimpleFragmentsBuilder extends org.apache.lucene.search.vectorhighlight.SimpleFragmentsBuilder {
     protected final MappedFieldType fieldType;
 
-    public SimpleFragmentsBuilder(MappedFieldType fieldType,
-                                  String[] preTags,
-                                  String[] postTags,
-                                  BoundaryScanner boundaryScanner) {
+    public SimpleFragmentsBuilder(MappedFieldType fieldType, String[] preTags, String[] postTags, BoundaryScanner boundaryScanner) {
         super(preTags, postTags, boundaryScanner);
         this.fieldType = fieldType;
     }
 
     @Override
-    protected String makeFragment( StringBuilder buffer, int[] index, Field[] values, WeightedFragInfo fragInfo,
-            String[] preTags, String[] postTags, Encoder encoder ){
+    protected String makeFragment(
+        StringBuilder buffer,
+        int[] index,
+        Field[] values,
+        WeightedFragInfo fragInfo,
+        String[] preTags,
+        String[] postTags,
+        Encoder encoder
+    ) {
         WeightedFragInfo weightedFragInfo = FragmentBuilderHelper.fixWeightedFragInfo(fieldType, values, fragInfo);
         return super.makeFragment(buffer, index, values, weightedFragInfo, preTags, postTags, encoder);
-   }
+    }
 }

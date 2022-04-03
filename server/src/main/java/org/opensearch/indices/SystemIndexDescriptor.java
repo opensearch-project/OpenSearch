@@ -53,16 +53,21 @@ public class SystemIndexDescriptor {
     public SystemIndexDescriptor(String indexPattern, String description) {
         Objects.requireNonNull(indexPattern, "system index pattern must not be null");
         if (indexPattern.length() < 2) {
-            throw new IllegalArgumentException("system index pattern provided as [" + indexPattern +
-                "] but must at least 2 characters in length");
+            throw new IllegalArgumentException(
+                "system index pattern provided as [" + indexPattern + "] but must at least 2 characters in length"
+            );
         }
         if (indexPattern.charAt(0) != '.') {
-            throw new IllegalArgumentException("system index pattern provided as [" + indexPattern +
-                "] but must start with the character [.]");
+            throw new IllegalArgumentException(
+                "system index pattern provided as [" + indexPattern + "] but must start with the character [.]"
+            );
         }
         if (indexPattern.charAt(1) == '*') {
-            throw new IllegalArgumentException("system index pattern provided as [" + indexPattern +
-                "] but must not start with the character sequence [.*] to prevent conflicts");
+            throw new IllegalArgumentException(
+                "system index pattern provided as ["
+                    + indexPattern
+                    + "] but must not start with the character sequence [.*] to prevent conflicts"
+            );
         }
         this.indexPattern = indexPattern;
         this.indexPatternAutomaton = new CharacterRunAutomaton(Regex.simpleMatchToAutomaton(indexPattern));

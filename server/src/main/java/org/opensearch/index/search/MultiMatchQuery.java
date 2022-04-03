@@ -70,10 +70,9 @@ public class MultiMatchQuery extends MatchQuery {
         this.groupTieBreaker = tieBreaker;
     }
 
-    public Query parse(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames,
-                       Object value, String minimumShouldMatch) throws IOException {
-        boolean hasMappedField = fieldNames.keySet().stream()
-            .anyMatch(k -> context.fieldMapper(k) != null);
+    public Query parse(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames, Object value, String minimumShouldMatch)
+        throws IOException {
+        boolean hasMappedField = fieldNames.keySet().stream().anyMatch(k -> context.fieldMapper(k) != null);
         if (hasMappedField == false) {
             // all query fields are unmapped
             return Queries.newUnmappedFieldsQuery(fieldNames.keySet());
@@ -109,8 +108,12 @@ public class MultiMatchQuery extends MatchQuery {
         return new DisjunctionMaxQuery(groupQuery, tieBreaker);
     }
 
-    private List<Query> buildFieldQueries(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames,
-                                          Object value, String minimumShouldMatch) throws IOException {
+    private List<Query> buildFieldQueries(
+        MultiMatchQueryBuilder.Type type,
+        Map<String, Float> fieldNames,
+        Object value,
+        String minimumShouldMatch
+    ) throws IOException {
         List<Query> queries = new ArrayList<>();
         for (String fieldName : fieldNames.keySet()) {
             if (context.fieldMapper(fieldName) == null) {
@@ -120,9 +123,7 @@ public class MultiMatchQuery extends MatchQuery {
             float boostValue = fieldNames.getOrDefault(fieldName, 1.0f);
             Query query = parse(type.matchQueryType(), fieldName, value);
             query = Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
-            if (query != null
-                    && boostValue != AbstractQueryBuilder.DEFAULT_BOOST
-                    && query instanceof MatchNoDocsQuery == false) {
+            if (query != null && boostValue != AbstractQueryBuilder.DEFAULT_BOOST && query instanceof MatchNoDocsQuery == false) {
                 query = new BoostQuery(query, boostValue);
             }
             if (query != null) {
@@ -132,8 +133,13 @@ public class MultiMatchQuery extends MatchQuery {
         return queries;
     }
 
-    private List<Query> buildCrossFieldQuery(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames,
-                                            Object value, String minimumShouldMatch, float tieBreaker) throws IOException {
+    private List<Query> buildCrossFieldQuery(
+        MultiMatchQueryBuilder.Type type,
+        Map<String, Float> fieldNames,
+        Object value,
+        String minimumShouldMatch,
+        float tieBreaker
+    ) throws IOException {
         Map<Analyzer, List<FieldAndBoost>> groups = new HashMap<>();
         List<Query> queries = new ArrayList<>();
         for (Map.Entry<String, Float> entry : fieldNames.entrySet()) {
@@ -151,11 +157,20 @@ public class MultiMatchQuery extends MatchQuery {
         for (Map.Entry<Analyzer, List<FieldAndBoost>> group : groups.entrySet()) {
             final MatchQueryBuilder builder;
             if (group.getValue().size() == 1) {
-                builder = new MatchQueryBuilder(group.getKey(), group.getValue().get(0).fieldType,
-                    enablePositionIncrements, autoGenerateSynonymsPhraseQuery);
+                builder = new MatchQueryBuilder(
+                    group.getKey(),
+                    group.getValue().get(0).fieldType,
+                    enablePositionIncrements,
+                    autoGenerateSynonymsPhraseQuery
+                );
             } else {
-                builder = new BlendedQueryBuilder(group.getKey(), group.getValue(), tieBreaker,
-                    enablePositionIncrements, autoGenerateSynonymsPhraseQuery);
+                builder = new BlendedQueryBuilder(
+                    group.getKey(),
+                    group.getValue(),
+                    tieBreaker,
+                    enablePositionIncrements,
+                    autoGenerateSynonymsPhraseQuery
+                );
             }
 
             /*
@@ -185,8 +200,13 @@ public class MultiMatchQuery extends MatchQuery {
         private final List<FieldAndBoost> blendedFields;
         private final float tieBreaker;
 
-        BlendedQueryBuilder(Analyzer analyzer, List<FieldAndBoost> blendedFields, float tieBreaker,
-                                boolean enablePositionIncrements, boolean autoGenerateSynonymsPhraseQuery) {
+        BlendedQueryBuilder(
+            Analyzer analyzer,
+            List<FieldAndBoost> blendedFields,
+            float tieBreaker,
+            boolean enablePositionIncrements,
+            boolean autoGenerateSynonymsPhraseQuery
+        ) {
             super(analyzer, blendedFields.get(0).fieldType, enablePositionIncrements, autoGenerateSynonymsPhraseQuery);
             this.blendedFields = blendedFields;
             this.tieBreaker = tieBreaker;
@@ -246,14 +266,26 @@ public class MultiMatchQuery extends MatchQuery {
         }
     }
 
-    static Query blendTerm(QueryShardContext context, BytesRef value, Float commonTermsCutoff, float tieBreaker,
-                           boolean lenient, List<FieldAndBoost> blendedFields) {
+    static Query blendTerm(
+        QueryShardContext context,
+        BytesRef value,
+        Float commonTermsCutoff,
+        float tieBreaker,
+        boolean lenient,
+        List<FieldAndBoost> blendedFields
+    ) {
 
-        return blendTerms(context, new BytesRef[] {value}, commonTermsCutoff, tieBreaker, lenient, blendedFields);
+        return blendTerms(context, new BytesRef[] { value }, commonTermsCutoff, tieBreaker, lenient, blendedFields);
     }
 
-    static Query blendTerms(QueryShardContext context, BytesRef[] values, Float commonTermsCutoff, float tieBreaker,
-                            boolean lenient, List<FieldAndBoost> blendedFields) {
+    static Query blendTerms(
+        QueryShardContext context,
+        BytesRef[] values,
+        Float commonTermsCutoff,
+        float tieBreaker,
+        boolean lenient,
+        List<FieldAndBoost> blendedFields
+    ) {
 
         List<Query> queries = new ArrayList<>();
         Term[] terms = new Term[blendedFields.size() * values.length];

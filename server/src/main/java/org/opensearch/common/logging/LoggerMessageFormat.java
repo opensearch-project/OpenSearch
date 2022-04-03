@@ -108,8 +108,7 @@ public class LoggerMessageFormat {
         return sbuf.toString();
     }
 
-    static boolean isEscapedDelimiter(String messagePattern,
-                                      int delimiterStartIndex) {
+    static boolean isEscapedDelimiter(String messagePattern, int delimiterStartIndex) {
 
         if (delimiterStartIndex == 0) {
             return false;
@@ -179,8 +178,7 @@ public class LoggerMessageFormat {
             final int len = a.length;
             for (int i = 0; i < len; i++) {
                 deeplyAppendParameter(sbuf, a[i], seen);
-                if (i != len - 1)
-                    sbuf.append(", ");
+                if (i != len - 1) sbuf.append(", ");
             }
             // allow repeats in siblings
             seen.remove(a);
@@ -195,8 +193,7 @@ public class LoggerMessageFormat {
         final int len = a.length;
         for (int i = 0; i < len; i++) {
             sbuf.append(a[i]);
-            if (i != len - 1)
-                sbuf.append(", ");
+            if (i != len - 1) sbuf.append(", ");
         }
         sbuf.append(']');
     }
@@ -206,8 +203,7 @@ public class LoggerMessageFormat {
         final int len = a.length;
         for (int i = 0; i < len; i++) {
             sbuf.append(a[i]);
-            if (i != len - 1)
-                sbuf.append(", ");
+            if (i != len - 1) sbuf.append(", ");
         }
         sbuf.append(']');
     }
@@ -217,8 +213,7 @@ public class LoggerMessageFormat {
         final int len = a.length;
         for (int i = 0; i < len; i++) {
             sbuf.append(a[i]);
-            if (i != len - 1)
-                sbuf.append(", ");
+            if (i != len - 1) sbuf.append(", ");
         }
         sbuf.append(']');
     }
@@ -228,8 +223,7 @@ public class LoggerMessageFormat {
         final int len = a.length;
         for (int i = 0; i < len; i++) {
             sbuf.append(a[i]);
-            if (i != len - 1)
-                sbuf.append(", ");
+            if (i != len - 1) sbuf.append(", ");
         }
         sbuf.append(']');
     }
@@ -239,8 +233,7 @@ public class LoggerMessageFormat {
         final int len = a.length;
         for (int i = 0; i < len; i++) {
             sbuf.append(a[i]);
-            if (i != len - 1)
-                sbuf.append(", ");
+            if (i != len - 1) sbuf.append(", ");
         }
         sbuf.append(']');
     }
@@ -250,8 +243,7 @@ public class LoggerMessageFormat {
         final int len = a.length;
         for (int i = 0; i < len; i++) {
             sbuf.append(a[i]);
-            if (i != len - 1)
-                sbuf.append(", ");
+            if (i != len - 1) sbuf.append(", ");
         }
         sbuf.append(']');
     }
@@ -261,8 +253,7 @@ public class LoggerMessageFormat {
         final int len = a.length;
         for (int i = 0; i < len; i++) {
             sbuf.append(a[i]);
-            if (i != len - 1)
-                sbuf.append(", ");
+            if (i != len - 1) sbuf.append(", ");
         }
         sbuf.append(']');
     }
@@ -272,8 +263,7 @@ public class LoggerMessageFormat {
         final int len = a.length;
         for (int i = 0; i < len; i++) {
             sbuf.append(a[i]);
-            if (i != len - 1)
-                sbuf.append(", ");
+            if (i != len - 1) sbuf.append(", ");
         }
         sbuf.append(']');
     }

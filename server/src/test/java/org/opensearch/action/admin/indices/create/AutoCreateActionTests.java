@@ -36,8 +36,6 @@ import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.opensearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemplate;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.action.admin.indices.create.AutoCreateAction;
-import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 
 import java.util.Collections;
 
@@ -53,20 +51,24 @@ public class AutoCreateActionTests extends OpenSearchTestCase {
             Metadata.Builder mdBuilder = new Metadata.Builder();
             DataStreamTemplate dataStreamTemplate = new DataStreamTemplate();
             mdBuilder.put("1", new ComposableIndexTemplate(Collections.singletonList("legacy-logs-*"), null, null, 10L, null, null, null));
-            mdBuilder.put("2", new ComposableIndexTemplate(Collections.singletonList("logs-*"),
-                null, null, 20L, null, null, dataStreamTemplate));
-            mdBuilder.put("3", new ComposableIndexTemplate(Collections.singletonList("logs-foobar"),
-                null, null, 30L, null, null, dataStreamTemplate));
+            mdBuilder.put(
+                "2",
+                new ComposableIndexTemplate(Collections.singletonList("logs-*"), null, null, 20L, null, null, dataStreamTemplate)
+            );
+            mdBuilder.put(
+                "3",
+                new ComposableIndexTemplate(Collections.singletonList("logs-foobar"), null, null, 30L, null, null, dataStreamTemplate)
+            );
             metadata = mdBuilder.build();
         }
 
         CreateIndexRequest request = new CreateIndexRequest("logs-foobar");
-        DataStreamTemplate result  = AutoCreateAction.resolveAutoCreateDataStream(request, metadata);
+        DataStreamTemplate result = AutoCreateAction.resolveAutoCreateDataStream(request, metadata);
         assertThat(result, notNullValue());
         assertThat(result.getTimestampField().getName(), equalTo("@timestamp"));
 
         request = new CreateIndexRequest("logs-barbaz");
-        result  = AutoCreateAction.resolveAutoCreateDataStream(request, metadata);
+        result = AutoCreateAction.resolveAutoCreateDataStream(request, metadata);
         assertThat(result, notNullValue());
         assertThat(result.getTimestampField().getName(), equalTo("@timestamp"));
 

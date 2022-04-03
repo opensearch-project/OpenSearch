@@ -52,8 +52,12 @@ class DateObjectValueSource extends FieldDataValueSource {
     final String methodName;
     final ToIntFunction<ReadableDateTime> function;
 
-    DateObjectValueSource(IndexFieldData<?> indexFieldData, MultiValueMode multiValueMode,
-                          String methodName, ToIntFunction<ReadableDateTime> function) {
+    DateObjectValueSource(
+        IndexFieldData<?> indexFieldData,
+        MultiValueMode multiValueMode,
+        String methodName,
+        ToIntFunction<ReadableDateTime> function
+    ) {
         super(indexFieldData, multiValueMode);
 
         Objects.requireNonNull(methodName);
@@ -70,7 +74,7 @@ class DateObjectValueSource extends FieldDataValueSource {
         return new DoubleValues() {
             @Override
             public double doubleValue() throws IOException {
-                joda.setMillis((long)docValues.doubleValue());
+                joda.setMillis((long) docValues.doubleValue());
                 return function.applyAsInt(joda);
             }
 

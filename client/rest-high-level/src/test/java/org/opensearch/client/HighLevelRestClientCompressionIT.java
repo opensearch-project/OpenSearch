@@ -52,9 +52,7 @@ public class HighLevelRestClientCompressionIT extends OpenSearchRestHighLevelCli
         client().performRequest(doc);
         client().performRequest(new Request(HttpPost.METHOD_NAME, "/_refresh"));
 
-        RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
-            .addHeader(HttpHeaders.ACCEPT_ENCODING, GZIP_ENCODING)
-            .build();
+        RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder().addHeader(HttpHeaders.ACCEPT_ENCODING, GZIP_ENCODING).build();
 
         SearchRequest searchRequest = new SearchRequest("company");
         SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync, requestOptions);

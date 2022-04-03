@@ -53,7 +53,7 @@ public class PointBuilder extends ShapeBuilder<Point, org.opensearch.geometry.Po
     }
 
     public PointBuilder(double lon, double lat) {
-        //super(new ArrayList<>(1));
+        // super(new ArrayList<>(1));
         super();
         this.coordinates.add(new Coordinate(lon, lat));
     }
@@ -88,11 +88,11 @@ public class PointBuilder extends ShapeBuilder<Point, org.opensearch.geometry.Po
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-       builder.startObject();
-       builder.field(ShapeParser.FIELD_TYPE.getPreferredName(), TYPE.shapeName());
-       builder.field(ShapeParser.FIELD_COORDINATES.getPreferredName());
-       toXContent(builder, coordinates.get(0));
-       return builder.endObject();
+        builder.startObject();
+        builder.field(ShapeParser.FIELD_TYPE.getPreferredName(), TYPE.shapeName());
+        builder.field(ShapeParser.FIELD_COORDINATES.getPreferredName());
+        toXContent(builder, coordinates.get(0));
+        return builder.endObject();
     }
 
     @Override

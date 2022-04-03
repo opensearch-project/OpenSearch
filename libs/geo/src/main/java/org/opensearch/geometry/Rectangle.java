@@ -82,6 +82,7 @@ public class Rectangle implements Geometry {
     public Rectangle(double minX, double maxX, double maxY, double minY) {
         this(minX, maxX, maxY, minY, Double.NaN, Double.NaN);
     }
+
     /**
      * Constructs a bounding box by first validating the provided latitude and longitude coordinates
      */
@@ -133,7 +134,6 @@ public class Rectangle implements Geometry {
         return minX;
     }
 
-
     public double getMinAlt() {
         return minZ;
     }
@@ -159,7 +159,6 @@ public class Rectangle implements Geometry {
     public String toString() {
         return WellKnownText.INSTANCE.toWKT(this);
     }
-
 
     @Override
     public boolean equals(Object o) {

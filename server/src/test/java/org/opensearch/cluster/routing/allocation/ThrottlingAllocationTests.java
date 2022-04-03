@@ -87,18 +87,24 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
     public void testPrimaryRecoveryThrottling() {
         TestGatewayAllocator gatewayAllocator = new TestGatewayAllocator();
         TestSnapshotsInfoService snapshotsInfoService = new TestSnapshotsInfoService();
-        AllocationService strategy = createAllocationService(Settings.builder()
+        AllocationService strategy = createAllocationService(
+            Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 3)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 3)
-                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(),
-                    randomIntBetween(3,10))
-                .build(), gatewayAllocator, snapshotsInfoService);
+                .put(
+                    ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(),
+                    randomIntBetween(3, 10)
+                )
+                .build(),
+            gatewayAllocator,
+            snapshotsInfoService
+        );
 
         logger.info("Building initial routing table");
 
         Metadata metadata = Metadata.builder()
-                .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(1))
-                .build();
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(1))
+            .build();
 
         ClusterState clusterState = createRecoveryStateAndInitializeAllocations(metadata, gatewayAllocator, snapshotsInfoService);
 
@@ -142,20 +148,22 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
     public void testReplicaAndPrimaryRecoveryThrottling() {
         TestGatewayAllocator gatewayAllocator = new TestGatewayAllocator();
         TestSnapshotsInfoService snapshotsInfoService = new TestSnapshotsInfoService();
-        AllocationService strategy = createAllocationService(Settings.builder()
+        AllocationService strategy = createAllocationService(
+            Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 3)
                 .put("cluster.routing.allocation.concurrent_source_recoveries", 3)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 3)
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(), 3)
                 .build(),
             gatewayAllocator,
-            snapshotsInfoService);
+            snapshotsInfoService
+        );
 
         logger.info("Building initial routing table");
 
         Metadata metadata = Metadata.builder()
-                .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
-                .build();
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
+            .build();
 
         ClusterState clusterState = createRecoveryStateAndInitializeAllocations(metadata, gatewayAllocator, snapshotsInfoService);
 
@@ -181,8 +189,7 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
         assertThat(clusterState.routingTable().shardsWithState(UNASSIGNED).size(), equalTo(5));
 
         logger.info("start another node, replicas should start being allocated");
-        clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2"))).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
         assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(5));
@@ -241,7 +248,8 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
 
         logger.info("start another 2 nodes, 5 shards should be relocating - at most 5 are allowed per node");
         clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2")).add(newNode("node3"))).build();
+            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2")).add(newNode("node3")))
+            .build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
         assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(4));
@@ -269,10 +277,14 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
     public void testOutgoingThrottlesAllocationOldIndex() {
         TestGatewayAllocator gatewayAllocator = new TestGatewayAllocator();
         TestSnapshotsInfoService snapshotsInfoService = new TestSnapshotsInfoService();
-        AllocationService strategy = createAllocationService(Settings.builder()
-            .put("cluster.routing.allocation.node_concurrent_outgoing_recoveries", 1)
-            .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(), 1)
-            .build(), gatewayAllocator, snapshotsInfoService);
+        AllocationService strategy = createAllocationService(
+            Settings.builder()
+                .put("cluster.routing.allocation.node_concurrent_outgoing_recoveries", 1)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(), 1)
+                .build(),
+            gatewayAllocator,
+            snapshotsInfoService
+        );
 
         logger.info("Building initial routing table");
 
@@ -297,8 +309,7 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
         assertThat(clusterState.routingTable().shardsWithState(UNASSIGNED).size(), equalTo(2));
 
         logger.info("start one more node, first non-primary should start being allocated");
-        clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2"))).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
         assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(1));
@@ -315,8 +326,7 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
         assertEquals(clusterState.getRoutingNodes().getOutgoingRecoveries("node1"), 0);
 
         logger.info("start one more node, initializing second non-primary");
-        clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
         assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(2));
@@ -326,24 +336,29 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
         assertEquals(clusterState.getRoutingNodes().getInitialOutgoingRecoveries("node1"), 0);
 
         logger.info("start one more node");
-        clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node4"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node4"))).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
         assertEquals(clusterState.getRoutingNodes().getOutgoingRecoveries("node1"), 1);
 
         logger.info("move started non-primary to new node");
-        AllocationService.CommandsResult commandsResult = strategy.reroute(clusterState, new AllocationCommands(
-            new MoveAllocationCommand("test", 0, "node2", "node4")), true, false);
+        AllocationService.CommandsResult commandsResult = strategy.reroute(
+            clusterState,
+            new AllocationCommands(new MoveAllocationCommand("test", 0, "node2", "node4")),
+            true,
+            false
+        );
         assertEquals(commandsResult.explanations().explanations().size(), 1);
         assertEquals(commandsResult.explanations().explanations().get(0).decisions().type(), Decision.Type.THROTTLE);
         boolean foundThrottledMessage = false;
         for (Decision decision : commandsResult.explanations().explanations().get(0).decisions().getDecisions()) {
             if (decision.label().equals(ThrottlingAllocationDecider.NAME)) {
-                assertEquals("reached the limit of outgoing shard recoveries [1] on the node [node1] which holds the primary, "
+                assertEquals(
+                    "reached the limit of outgoing shard recoveries [1] on the node [node1] which holds the primary, "
                         + "cluster setting [cluster.routing.allocation.node_concurrent_outgoing_recoveries=1] "
                         + "(can also be set via [cluster.routing.allocation.node_concurrent_recoveries])",
-                    decision.getExplanation());
+                    decision.getExplanation()
+                );
                 assertEquals(Decision.Type.THROTTLE, decision.type());
                 foundThrottledMessage = true;
             }
@@ -363,10 +378,14 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
     public void testOutgoingThrottlesAllocationNewIndex() {
         TestGatewayAllocator gatewayAllocator = new TestGatewayAllocator();
         TestSnapshotsInfoService snapshotsInfoService = new TestSnapshotsInfoService();
-        AllocationService strategy = createAllocationService(Settings.builder()
-            .put("cluster.routing.allocation.node_concurrent_outgoing_recoveries", 1)
-            .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(), 1)
-            .build(), gatewayAllocator, snapshotsInfoService);
+        AllocationService strategy = createAllocationService(
+            Settings.builder()
+                .put("cluster.routing.allocation.node_concurrent_outgoing_recoveries", 1)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(), 1)
+                .build(),
+            gatewayAllocator,
+            snapshotsInfoService
+        );
 
         logger.info("Building initial routing table");
 
@@ -391,8 +410,7 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
         assertThat(clusterState.routingTable().shardsWithState(UNASSIGNED).size(), equalTo(2));
 
         logger.info("start one more node, first non-primary should start being allocated");
-        clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2"))).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
         assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(1));
@@ -409,8 +427,7 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
         assertEquals(clusterState.getRoutingNodes().getOutgoingRecoveries("node1"), 0);
 
         logger.info("start one more node, initializing second non-primary");
-        clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
         assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(2));
@@ -420,16 +437,19 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
         assertEquals(clusterState.getRoutingNodes().getInitialOutgoingRecoveries("node1"), 1);
 
         logger.info("start one more node");
-        clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node4"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node4"))).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
         assertEquals(clusterState.getRoutingNodes().getOutgoingRecoveries("node1"), 0);
         assertEquals(clusterState.getRoutingNodes().getInitialOutgoingRecoveries("node1"), 1);
 
         logger.info("move started non-primary to new node");
-        AllocationService.CommandsResult commandsResult = strategy.reroute(clusterState, new AllocationCommands(
-            new MoveAllocationCommand("test", 0, "node2", "node4")), true, false);
+        AllocationService.CommandsResult commandsResult = strategy.reroute(
+            clusterState,
+            new AllocationCommands(new MoveAllocationCommand("test", 0, "node2", "node4")),
+            true,
+            false
+        );
         assertEquals(commandsResult.explanations().explanations().size(), 1);
         assertEquals(commandsResult.explanations().explanations().get(0).decisions().type(), Decision.Type.YES);
 
@@ -449,32 +469,43 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
         int replicas = randomIntBetween(1, 2);
         int replicasConcurrentRecoveries = randomIntBetween(1, 2);
         int newIndexInitializingAfterReroute = replicasConcurrentRecoveries * 2;
-        verifyNewIndexReplicaAllocation(primaries, replicas, newIndexInitializingAfterReroute,
+        verifyNewIndexReplicaAllocation(
+            primaries,
+            replicas,
+            newIndexInitializingAfterReroute,
             primaries * replicas - newIndexInitializingAfterReroute,
-            replicasConcurrentRecoveries, false);
+            replicasConcurrentRecoveries,
+            false
+        );
     }
 
     public void testNewIndexReplicaAllocationOutgoingLimitBreachedIncomingNotBreached() {
-        verifyNewIndexReplicaAllocation(5, 1,2, 3, 1, true);
+        verifyNewIndexReplicaAllocation(5, 1, 2, 3, 1, true);
     }
 
     public void testNewIndexReplicaAllocationLimitNotBreached() {
         int primaries = randomIntBetween(5, 30);
         int newIndexReplicas = 1;
         int replicasConcurrentRecoveries = primaries * newIndexReplicas + randomIntBetween(1, 10);
-        verifyNewIndexReplicaAllocation(primaries, newIndexReplicas, primaries * newIndexReplicas, 0,
-            replicasConcurrentRecoveries, false);
+        verifyNewIndexReplicaAllocation(primaries, newIndexReplicas, primaries * newIndexReplicas, 0, replicasConcurrentRecoveries, false);
     }
 
-    private void verifyNewIndexReplicaAllocation(int newIndexPrimaries, int newIndexReplicas,
-                                                 int newIndexInitializingAfterReroute, int newIndexUnassignedAfterReroute,
-                                                 int replicaConcurrentRecoveriesLimit,
-                                                 boolean additionalNodeAfterPrimaryAssignment) {
+    private void verifyNewIndexReplicaAllocation(
+        int newIndexPrimaries,
+        int newIndexReplicas,
+        int newIndexInitializingAfterReroute,
+        int newIndexUnassignedAfterReroute,
+        int replicaConcurrentRecoveriesLimit,
+        boolean additionalNodeAfterPrimaryAssignment
+    ) {
         TestGatewayAllocator gatewayAllocator = new TestGatewayAllocator();
-        Settings settings = Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 1)
+        Settings settings = Settings.builder()
+            .put("cluster.routing.allocation.node_concurrent_recoveries", 1)
             .put("cluster.routing.allocation.node_initial_primaries_recoveries", 20)
-            .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(),
-                replicaConcurrentRecoveriesLimit)
+            .put(
+                ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(),
+                replicaConcurrentRecoveriesLimit
+            )
             .build();
         AllocationService strategy = createAllocationService(settings, gatewayAllocator);
 
@@ -483,7 +514,7 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
 
         ClusterState clusterState = createPrimaryAndWaitForAllocation(strategy, node1, node2, settings);
 
-        String[] indices = {"test1", "test2"};
+        String[] indices = { "test1", "test2" };
         clusterState = increaseReplicaCountAndTriggerReroute(strategy, clusterState, indices, 1);
 
         logger.info("1 replica should be initializing now for the existing indices (we throttle to 1) on each node");
@@ -493,14 +524,14 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().getInitialIncomingRecoveries("node1"), equalTo(0));
         assertThat(clusterState.getRoutingNodes().getInitialIncomingRecoveries("node2"), equalTo(0));
 
-
         logger.info("create a new index");
         clusterState = createNewIndexAndStartAllPrimaries(newIndexPrimaries, newIndexReplicas, strategy, clusterState);
 
         if (additionalNodeAfterPrimaryAssignment) {
             clusterState = strategy.reroute(clusterState, "reroute");
             clusterState = ClusterState.builder(clusterState)
-                .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
+                .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3")))
+                .build();
         }
         clusterState = strategy.reroute(clusterState, "reroute");
 
@@ -508,9 +539,9 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
         assertThat(indexRouting.shardsWithState(UNASSIGNED).size(), equalTo(newIndexUnassignedAfterReroute));
         assertThat(indexRouting.shardsWithState(INITIALIZING).size(), equalTo(newIndexInitializingAfterReroute));
 
-        int totalIncomingRecoveriesNewIndex = clusterState.getRoutingNodes().getInitialIncomingRecoveries("node1") +
-            clusterState.getRoutingNodes().getInitialIncomingRecoveries("node2") +
-            clusterState.getRoutingNodes().getInitialIncomingRecoveries("node3");
+        int totalIncomingRecoveriesNewIndex = clusterState.getRoutingNodes().getInitialIncomingRecoveries("node1") + clusterState
+            .getRoutingNodes()
+            .getInitialIncomingRecoveries("node2") + clusterState.getRoutingNodes().getInitialIncomingRecoveries("node3");
 
         assertThat(totalIncomingRecoveriesNewIndex, equalTo(newIndexInitializingAfterReroute));
         assertThat(clusterState.getRoutingNodes().getIncomingRecoveries("node1"), equalTo(1));
@@ -536,16 +567,16 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
 
         Metadata metadata = Metadata.builder().persistentSettings(settings).build();
 
-        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metadata(metadata).nodes(DiscoveryNodes.builder()
-            .add(newNode("node1")).add(newNode("node2"))).build();
+        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
+            .build();
 
         logger.info("create a new index and start all primaries");
         clusterState = createNewIndexAndStartAllPrimaries(2, 2, strategy, clusterState);
 
         logger.info("Add a new node for all replica assignment. 4 replicas move to INIT after reroute.");
-        clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
 
         clusterState = strategy.reroute(clusterState, "reroute");
 
@@ -568,16 +599,17 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().getInitialOutgoingRecoveries("node2"), equalTo(2));
         assertThat(clusterState.getRoutingNodes().getInitialOutgoingRecoveries("node3"), equalTo(0));
 
-        logger.info("Exclude node1 and add node4. After this, primary shard on node1 moves to RELOCATING state and only " +
-            "non initial replica recoveries are impacted");
+        logger.info(
+            "Exclude node1 and add node4. After this, primary shard on node1 moves to RELOCATING state and only "
+                + "non initial replica recoveries are impacted"
+        );
         settings = Settings.builder()
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), 1)
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), 20)
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(), 2)
             .put("cluster.routing.allocation.exclude._id", "node1")
             .build();
-        clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node4"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node4"))).build();
         strategy = createAllocationService(settings, gatewayAllocator);
 
         clusterState = strategy.reroute(clusterState, "reroute");
@@ -607,9 +639,15 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
 
         logger.info("Start primary on node4. Now all replicas for that primary start getting accounted for from node4.");
 
-        clusterState = strategy.applyStartedShards(clusterState, clusterState.routingTable().index("new_index").
-            shardsWithState(INITIALIZING).stream().filter(routing->routing.primary() && routing.isRelocationTarget()).
-            collect(Collectors.toList()));
+        clusterState = strategy.applyStartedShards(
+            clusterState,
+            clusterState.routingTable()
+                .index("new_index")
+                .shardsWithState(INITIALIZING)
+                .stream()
+                .filter(routing -> routing.primary() && routing.isRelocationTarget())
+                .collect(Collectors.toList())
+        );
         assertThat(clusterState.routingTable().index("new_index").shardsWithState(UNASSIGNED).size(), equalTo(0));
         assertThat(clusterState.routingTable().index("new_index").shardsWithState(INITIALIZING).size(), equalTo(4));
         assertThat(clusterState.routingTable().index("new_index").shardsWithState(RELOCATING).size(), equalTo(0));
@@ -635,43 +673,54 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().getInitialOutgoingRecoveries("node4"), equalTo(2));
     }
 
-    private ClusterState createPrimaryAndWaitForAllocation(AllocationService strategy, DiscoveryNode node1,
-                                                           DiscoveryNode node2, Settings settings) {
-            Metadata metaData = Metadata.builder()
-                .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(0))
-                .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(0))
-                .persistentSettings(settings)
-                .build();
+    private ClusterState createPrimaryAndWaitForAllocation(
+        AllocationService strategy,
+        DiscoveryNode node1,
+        DiscoveryNode node2,
+        Settings settings
+    ) {
+        Metadata metaData = Metadata.builder()
+            .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(0))
+            .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(0))
+            .persistentSettings(settings)
+            .build();
 
-            RoutingTable initialRoutingTable = RoutingTable.builder()
-                .addAsNew(metaData.index("test1"))
-                .addAsNew(metaData.index("test2"))
-                .build();
+        RoutingTable initialRoutingTable = RoutingTable.builder()
+            .addAsNew(metaData.index("test1"))
+            .addAsNew(metaData.index("test2"))
+            .build();
 
-            ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING
-                .getDefault(Settings.EMPTY)).metadata(metaData).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metaData)
+            .routingTable(initialRoutingTable)
+            .build();
 
-            logger.info("adding two nodes and performing rerouting till all are allocated");
-            clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                .add(node1).add(node2)).build();
-            clusterState = strategy.reroute(clusterState, "reroute");
+        logger.info("adding two nodes and performing rerouting till all are allocated");
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(node1).add(node2)).build();
+        clusterState = strategy.reroute(clusterState, "reroute");
 
-            while (!clusterState.getRoutingNodes().shardsWithState(INITIALIZING).isEmpty()) {
-                clusterState = strategy.applyStartedShards(clusterState, clusterState.routingTable().shardsWithState(INITIALIZING));
-            }
-            return clusterState;
+        while (!clusterState.getRoutingNodes().shardsWithState(INITIALIZING).isEmpty()) {
+            clusterState = strategy.applyStartedShards(clusterState, clusterState.routingTable().shardsWithState(INITIALIZING));
         }
+        return clusterState;
+    }
 
-    private ClusterState createNewIndexAndStartAllPrimaries(int newIndexPrimaries, int newIndexReplicas, AllocationService strategy,
-                                                            ClusterState clusterState) {
+    private ClusterState createNewIndexAndStartAllPrimaries(
+        int newIndexPrimaries,
+        int newIndexReplicas,
+        AllocationService strategy,
+        ClusterState clusterState
+    ) {
         Metadata metadata = Metadata.builder(clusterState.metadata())
-            .put(IndexMetadata.builder("new_index").settings(settings(Version.CURRENT))
-                .numberOfShards(newIndexPrimaries).numberOfReplicas(newIndexReplicas))
+            .put(
+                IndexMetadata.builder("new_index")
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(newIndexPrimaries)
+                    .numberOfReplicas(newIndexReplicas)
+            )
             .build();
 
-        RoutingTable updatedRoutingTable = RoutingTable.builder(clusterState.routingTable())
-            .addAsNew(metadata.index("new_index"))
-            .build();
+        RoutingTable updatedRoutingTable = RoutingTable.builder(clusterState.routingTable()).addAsNew(metadata.index("new_index")).build();
 
         clusterState = ClusterState.builder(clusterState).metadata(metadata).routingTable(updatedRoutingTable).build();
 
@@ -679,17 +728,24 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
         clusterState = strategy.reroute(clusterState, "reroute");
 
         logger.info("Apply started shards for new index");
-        clusterState = strategy.applyStartedShards(clusterState, clusterState.routingTable().index("new_index").
-            shardsWithState(INITIALIZING));
+        clusterState = strategy.applyStartedShards(
+            clusterState,
+            clusterState.routingTable().index("new_index").shardsWithState(INITIALIZING)
+        );
         return clusterState;
     }
 
-    private ClusterState increaseReplicaCountAndTriggerReroute(AllocationService strategy, ClusterState clusterState,
-                                                               String[] indices, int replicaCount) {
+    private ClusterState increaseReplicaCountAndTriggerReroute(
+        AllocationService strategy,
+        ClusterState clusterState,
+        String[] indices,
+        int replicaCount
+    ) {
         Metadata metaData;
         logger.info("increasing the number of replicas to 1, and perform a reroute (to get the replicas allocation going)");
-        RoutingTable updatedRoutingTable =
-            RoutingTable.builder(clusterState.routingTable()).updateNumberOfReplicas(replicaCount, indices).build();
+        RoutingTable updatedRoutingTable = RoutingTable.builder(clusterState.routingTable())
+            .updateNumberOfReplicas(replicaCount, indices)
+            .build();
         metaData = Metadata.builder(clusterState.metadata()).updateNumberOfReplicas(replicaCount, indices).build();
         clusterState = ClusterState.builder(clusterState).routingTable(updatedRoutingTable).metadata(metaData).build();
 
@@ -709,19 +765,20 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
     private ClusterState createRecoveryStateAndInitializeAllocations(
         final Metadata metadata,
         final TestGatewayAllocator gatewayAllocator,
-        final TestSnapshotsInfoService snapshotsInfoService, final Integer inputRecoveryType
-        ) {
+        final TestSnapshotsInfoService snapshotsInfoService,
+        final Integer inputRecoveryType
+    ) {
         DiscoveryNode node1 = newNode("node1");
         Metadata.Builder metadataBuilder = new Metadata.Builder(metadata);
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         Snapshot snapshot = new Snapshot("repo", new SnapshotId("snap", "randomId"));
         Set<String> snapshotIndices = new HashSet<>();
         String restoreUUID = UUIDs.randomBase64UUID();
-        for (ObjectCursor<IndexMetadata> cursor: metadata.indices().values()) {
+        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
             Index index = cursor.value.getIndex();
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(cursor.value);
 
-            final int recoveryType = inputRecoveryType == null? randomInt(5): inputRecoveryType.intValue();
+            final int recoveryType = inputRecoveryType == null ? randomInt(5) : inputRecoveryType.intValue();
             if (recoveryType <= 4) {
                 addInSyncAllocationIds(index, indexMetadataBuilder, gatewayAllocator, node1);
             }
@@ -739,17 +796,28 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
                     break;
                 case 3:
                     snapshotIndices.add(index.getName());
-                    routingTableBuilder.addAsNewRestore(indexMetadata,
+                    routingTableBuilder.addAsNewRestore(
+                        indexMetadata,
                         new SnapshotRecoverySource(
-                            restoreUUID, snapshot, Version.CURRENT,
-                            new IndexId(indexMetadata.getIndex().getName(), UUIDs.randomBase64UUID(random()))), new IntHashSet());
+                            restoreUUID,
+                            snapshot,
+                            Version.CURRENT,
+                            new IndexId(indexMetadata.getIndex().getName(), UUIDs.randomBase64UUID(random()))
+                        ),
+                        new IntHashSet()
+                    );
                     break;
                 case 4:
                     snapshotIndices.add(index.getName());
-                    routingTableBuilder.addAsRestore(indexMetadata,
+                    routingTableBuilder.addAsRestore(
+                        indexMetadata,
                         new SnapshotRecoverySource(
-                            restoreUUID, snapshot, Version.CURRENT,
-                            new IndexId(indexMetadata.getIndex().getName(), UUIDs.randomBase64UUID(random()))));
+                            restoreUUID,
+                            snapshot,
+                            Version.CURRENT,
+                            new IndexId(indexMetadata.getIndex().getName(), UUIDs.randomBase64UUID(random()))
+                        )
+                    );
                     break;
                 case 5:
                     routingTableBuilder.addAsNew(indexMetadata);
@@ -776,8 +844,13 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
                 }
             }
 
-            RestoreInProgress.Entry restore = new RestoreInProgress.Entry(restoreUUID, snapshot, RestoreInProgress.State.INIT,
-                new ArrayList<>(snapshotIndices), restoreShards.build());
+            RestoreInProgress.Entry restore = new RestoreInProgress.Entry(
+                restoreUUID,
+                snapshot,
+                RestoreInProgress.State.INIT,
+                new ArrayList<>(snapshotIndices),
+                restoreShards.build()
+            );
             restores.put(RestoreInProgress.TYPE, new RestoreInProgress.Builder().add(restore).build());
         }
 
@@ -789,15 +862,19 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
             .build();
     }
 
-    private void addInSyncAllocationIds(Index index, IndexMetadata.Builder indexMetadata,
-                                        TestGatewayAllocator gatewayAllocator, DiscoveryNode node1) {
+    private void addInSyncAllocationIds(
+        Index index,
+        IndexMetadata.Builder indexMetadata,
+        TestGatewayAllocator gatewayAllocator,
+        DiscoveryNode node1
+    ) {
         for (int shard = 0; shard < indexMetadata.numberOfShards(); shard++) {
 
             final boolean primary = randomBoolean();
-            final ShardRouting unassigned = ShardRouting.newUnassigned(new ShardId(index, shard), primary,
-                primary ?
-                    RecoverySource.EmptyStoreRecoverySource.INSTANCE :
-                    RecoverySource.PeerRecoverySource.INSTANCE,
+            final ShardRouting unassigned = ShardRouting.newUnassigned(
+                new ShardId(index, shard),
+                primary,
+                primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test")
             );
             ShardRouting started = ShardRoutingHelper.moveToStarted(ShardRoutingHelper.initialize(unassigned, node1.getId()));
@@ -811,8 +888,8 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
         private volatile ImmutableOpenMap<InternalSnapshotsInfoService.SnapshotShard, Long> snapshotShardSizes = ImmutableOpenMap.of();
 
         synchronized void addSnapshotShardSize(Snapshot snapshot, IndexId index, ShardId shard, Long size) {
-            final ImmutableOpenMap.Builder<InternalSnapshotsInfoService.SnapshotShard, Long> newSnapshotShardSizes =
-                ImmutableOpenMap.builder(snapshotShardSizes);
+            final ImmutableOpenMap.Builder<InternalSnapshotsInfoService.SnapshotShard, Long> newSnapshotShardSizes = ImmutableOpenMap
+                .builder(snapshotShardSizes);
             boolean added = newSnapshotShardSizes.put(new InternalSnapshotsInfoService.SnapshotShard(snapshot, index, shard), size) == null;
             assert added : "cannot add snapshot shard size twice";
             this.snapshotShardSizes = newSnapshotShardSizes.build();

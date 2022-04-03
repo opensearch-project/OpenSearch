@@ -64,11 +64,7 @@ public class RemoveDuplicatesFilterFactoryTests extends OpenSearchTokenStreamTes
             new Token("d", 1, 4, 5)
         );
 
-        assertTokenStreamContents(tokenFilter.create(cts), new String[]{
-            "a", "b", "c", "d"
-        }, new int[]{
-             1,   1,   0,   1
-        });
+        assertTokenStreamContents(tokenFilter.create(cts), new String[] { "a", "b", "c", "d" }, new int[] { 1, 1, 0, 1 });
     }
 
 }

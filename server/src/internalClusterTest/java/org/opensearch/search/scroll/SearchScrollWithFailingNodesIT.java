@@ -66,34 +66,32 @@ public class SearchScrollWithFailingNodesIT extends OpenSearchIntegTestCase {
         internalCluster().startNode();
         internalCluster().startNode();
         assertAcked(
-                prepareCreate("test")
-                        // Enforces that only one shard can only be allocated to a single node
-                        .setSettings(Settings.builder().put(indexSettings())
-                                .put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1))
+            prepareCreate("test")
+                // Enforces that only one shard can only be allocated to a single node
+                .setSettings(
+                    Settings.builder()
+                        .put(indexSettings())
+                        .put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1)
+                )
         );
 
         List<IndexRequestBuilder> writes = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
-            writes.add(
-                    client().prepareIndex("test", "type1")
-                            .setSource(jsonBuilder().startObject().field("field", i).endObject())
-            );
+            writes.add(client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject().field("field", i).endObject()));
         }
         indexRandom(false, writes);
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .setSize(10)
-                .setScroll(TimeValue.timeValueMinutes(1))
-                .get();
+            .setQuery(matchAllQuery())
+            .setSize(10)
+            .setScroll(TimeValue.timeValueMinutes(1))
+            .get();
         assertAllSuccessful(searchResponse);
         long numHits = 0;
         do {
             numHits += searchResponse.getHits().getHits().length;
-            searchResponse = client()
-                    .prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(1))
-                    .get();
+            searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(1)).get();
             assertAllSuccessful(searchResponse);
         } while (searchResponse.getHits().getHits().length > 0);
         assertThat(numHits, equalTo(100L));
@@ -101,19 +99,13 @@ public class SearchScrollWithFailingNodesIT extends OpenSearchIntegTestCase {
 
         internalCluster().stopRandomNonMasterNode();
 
-        searchResponse = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .setSize(10)
-                .setScroll(TimeValue.timeValueMinutes(1))
-                .get();
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).setScroll(TimeValue.timeValueMinutes(1)).get();
         assertThat(searchResponse.getSuccessfulShards(), lessThan(searchResponse.getTotalShards()));
         numHits = 0;
         int numberOfSuccessfulShards = searchResponse.getSuccessfulShards();
         do {
             numHits += searchResponse.getHits().getHits().length;
-            searchResponse = client()
-                    .prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(1))
-                    .get();
+            searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(1)).get();
             assertThat(searchResponse.getSuccessfulShards(), equalTo(numberOfSuccessfulShards));
         } while (searchResponse.getHits().getHits().length > 0);
         assertThat(numHits, greaterThan(0L));

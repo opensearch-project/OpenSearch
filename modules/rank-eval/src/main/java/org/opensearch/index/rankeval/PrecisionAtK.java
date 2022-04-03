@@ -120,7 +120,8 @@ public class PrecisionAtK implements EvaluationMetric {
         return new PrecisionAtK(
             relevantRatingThreshold == null ? DEFAULT_RELEVANT_RATING_THRESHOLD : relevantRatingThreshold,
             ignoreUnlabeled == null ? DEFAULT_IGNORE_UNLABELED : ignoreUnlabeled,
-            k == null ? DEFAULT_K : k);
+            k == null ? DEFAULT_K : k
+        );
     });
 
     static {
@@ -201,8 +202,7 @@ public class PrecisionAtK implements EvaluationMetric {
      * @return precision at k for above {@link SearchResult} list.
      **/
     @Override
-    public EvalQueryQuality evaluate(String taskId, SearchHit[] hits,
-                                     List<RatedDocument> ratedDocs) {
+    public EvalQueryQuality evaluate(String taskId, SearchHit[] hits, List<RatedDocument> ratedDocs) {
 
         List<RatedSearchHit> ratedSearchHits = joinHitsWithRatings(hits, ratedDocs);
 
@@ -268,8 +268,11 @@ public class PrecisionAtK implements EvaluationMetric {
             this(in.readVInt(), in.readVInt());
         }
 
-        private static final ConstructingObjectParser<Detail, Void> PARSER =
-            new ConstructingObjectParser<>(NAME, true, args -> new Detail((Integer) args[0], (Integer) args[1]));
+        private static final ConstructingObjectParser<Detail, Void> PARSER = new ConstructingObjectParser<>(
+            NAME,
+            true,
+            args -> new Detail((Integer) args[0], (Integer) args[1])
+        );
 
         static {
             PARSER.declareInt(constructorArg(), RELEVANT_DOCS_RETRIEVED_FIELD);
@@ -287,8 +290,7 @@ public class PrecisionAtK implements EvaluationMetric {
         }
 
         @Override
-        public XContentBuilder innerToXContent(XContentBuilder builder, Params params)
-            throws IOException {
+        public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(RELEVANT_DOCS_RETRIEVED_FIELD.getPreferredName(), relevantRetrieved);
             builder.field(DOCS_RETRIEVED_FIELD.getPreferredName(), retrieved);
             return builder;
@@ -316,8 +318,7 @@ public class PrecisionAtK implements EvaluationMetric {
                 return false;
             }
             PrecisionAtK.Detail other = (PrecisionAtK.Detail) obj;
-            return Objects.equals(relevantRetrieved, other.relevantRetrieved)
-                    && Objects.equals(retrieved, other.retrieved);
+            return Objects.equals(relevantRetrieved, other.relevantRetrieved) && Objects.equals(retrieved, other.retrieved);
         }
 
         @Override

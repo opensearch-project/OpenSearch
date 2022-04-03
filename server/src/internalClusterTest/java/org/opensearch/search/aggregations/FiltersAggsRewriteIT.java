@@ -71,8 +71,10 @@ public class FiltersAggsRewriteIT extends OpenSearchSingleNodeTestCase {
             builder.endObject();
             bytesReference = BytesReference.bytes(builder);
         }
-        FiltersAggregationBuilder builder = new FiltersAggregationBuilder("titles", new FiltersAggregator.KeyedFilter("titleterms",
-                new WrapperQueryBuilder(bytesReference)));
+        FiltersAggregationBuilder builder = new FiltersAggregationBuilder(
+            "titles",
+            new FiltersAggregator.KeyedFilter("titleterms", new WrapperQueryBuilder(bytesReference))
+        );
         Map<String, Object> metadata = new HashMap<>();
         metadata.put(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         builder.setMetadata(metadata);

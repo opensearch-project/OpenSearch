@@ -47,7 +47,6 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.Index;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.cluster.coordination.OpenSearchNodeCommand;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -87,8 +86,13 @@ public class OpenSearchNodeCommandTests extends OpenSearchTestCase {
         builder.endObject();
 
         Metadata loadedMetadata;
-        try (XContentParser parser = createParser(hasMissingCustoms ? OpenSearchNodeCommand.namedXContentRegistry : xContentRegistry(),
-            JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+        try (
+            XContentParser parser = createParser(
+                hasMissingCustoms ? OpenSearchNodeCommand.namedXContentRegistry : xContentRegistry(),
+                JsonXContent.jsonXContent,
+                BytesReference.bytes(builder)
+            )
+        ) {
             loadedMetadata = Metadata.fromXContent(parser);
         }
         assertThat(loadedMetadata.clusterUUID(), not(equalTo("_na_")));
@@ -107,7 +111,7 @@ public class OpenSearchNodeCommandTests extends OpenSearchTestCase {
                 final Metadata reloadedMetadata = Metadata.FORMAT.loadLatestState(logger, xContentRegistry(), tempdir);
                 assertThat(reloadedMetadata.indexGraveyard(), equalTo(latestMetadata.indexGraveyard()));
             }
-        }  else {
+        } else {
             assertThat(loadedMetadata.indexGraveyard(), equalTo(latestMetadata.indexGraveyard()));
         }
     }
@@ -125,8 +129,7 @@ public class OpenSearchNodeCommandTests extends OpenSearchTestCase {
             for (int i = 0; i < numDataStreams; i++) {
                 String dataStreamName = "name" + 1;
                 IndexMetadata backingIndex = createFirstBackingIndex(dataStreamName).build();
-                mdBuilder.put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                    List.of(backingIndex.getIndex())));
+                mdBuilder.put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(backingIndex.getIndex())));
             }
         }
         mdBuilder.indexGraveyard(graveyard.build());
@@ -137,8 +140,8 @@ public class OpenSearchNodeCommandTests extends OpenSearchTestCase {
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(
             Stream.of(ClusterModule.getNamedXWriteables().stream(), IndicesModule.getNamedXContents().stream())
-            .flatMap(Function.identity())
-            .collect(Collectors.toList())
+                .flatMap(Function.identity())
+                .collect(Collectors.toList())
         );
     }
 }

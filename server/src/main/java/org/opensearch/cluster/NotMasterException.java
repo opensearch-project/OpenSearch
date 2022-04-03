@@ -31,7 +31,6 @@
 
 package org.opensearch.cluster;
 
-
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.io.stream.StreamInput;
 

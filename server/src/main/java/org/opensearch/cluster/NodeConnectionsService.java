@@ -84,8 +84,11 @@ import static org.opensearch.common.settings.Setting.positiveTimeSetting;
 public class NodeConnectionsService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(NodeConnectionsService.class);
 
-    public static final Setting<TimeValue> CLUSTER_NODE_RECONNECT_INTERVAL_SETTING =
-        positiveTimeSetting("cluster.nodes.reconnect_interval", TimeValue.timeValueSeconds(10), Property.NodeScope);
+    public static final Setting<TimeValue> CLUSTER_NODE_RECONNECT_INTERVAL_SETTING = positiveTimeSetting(
+        "cluster.nodes.reconnect_interval",
+        TimeValue.timeValueSeconds(10),
+        Property.NodeScope
+    );
 
     private final ThreadPool threadPool;
     private final TransportService transportService;
@@ -119,8 +122,10 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             return;
         }
 
-        final GroupedActionListener<Void> listener
-            = new GroupedActionListener<>(ActionListener.wrap(onCompletion), discoveryNodes.getSize());
+        final GroupedActionListener<Void> listener = new GroupedActionListener<>(
+            ActionListener.wrap(onCompletion),
+            discoveryNodes.getSize()
+        );
 
         final List<Runnable> runnables = new ArrayList<>(discoveryNodes.getSize());
         synchronized (mutex) {
@@ -186,7 +191,9 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                 runnables.add(onCompletion);
             } else {
                 final GroupedActionListener<Void> listener = new GroupedActionListener<>(
-                    ActionListener.wrap(onCompletion), connectionTargets.size());
+                    ActionListener.wrap(onCompletion),
+                    connectionTargets.size()
+                );
                 for (final ConnectionTarget connectionTarget : connectionTargets) {
                     runnables.add(connectionTarget.awaitCurrentActivity(listener));
                 }
@@ -209,7 +216,9 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             } else {
                 logger.trace("connectDisconnectedTargets: {}", targetsByNode);
                 final GroupedActionListener<Void> listener = new GroupedActionListener<>(
-                    ActionListener.wrap(onCompletion), connectionTargets.size());
+                    ActionListener.wrap(onCompletion),
+                    connectionTargets.size()
+                );
                 for (final ConnectionTarget connectionTarget : connectionTargets) {
                     runnables.add(connectionTarget.ensureConnected(listener));
                 }
@@ -256,8 +265,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
     }
 
     @Override
-    protected void doClose() {
-    }
+    protected void doClose() {}
 
     // for disruption tests, re-establish any disrupted connections
     public void reconnectToNodes(DiscoveryNodes discoveryNodes, Runnable onCompletion) {
@@ -351,8 +359,11 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                 final int currentFailureCount = consecutiveFailureCount.incrementAndGet();
                 // only warn every 6th failure
                 final Level level = currentFailureCount % 6 == 1 ? Level.WARN : Level.DEBUG;
-                logger.log(level, new ParameterizedMessage("failed to connect to {} (tried [{}] times)",
-                    discoveryNode, currentFailureCount), e);
+                logger.log(
+                    level,
+                    new ParameterizedMessage("failed to connect to {} (tried [{}] times)", discoveryNode, currentFailureCount),
+                    e
+                );
                 onCompletion(ActivityType.CONNECTING, e, disconnectActivity);
             }
 
@@ -388,13 +399,21 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         }
 
         Runnable connect(@Nullable ActionListener<Void> listener) {
-            return addListenerAndStartActivity(listener, ActivityType.CONNECTING, connectActivity,
-                "disconnection cancelled by reconnection");
+            return addListenerAndStartActivity(
+                listener,
+                ActivityType.CONNECTING,
+                connectActivity,
+                "disconnection cancelled by reconnection"
+            );
         }
 
         Runnable disconnect() {
-            return addListenerAndStartActivity(null, ActivityType.DISCONNECTING, disconnectActivity,
-                "connection cancelled by disconnection");
+            return addListenerAndStartActivity(
+                null,
+                ActivityType.DISCONNECTING,
+                disconnectActivity,
+                "connection cancelled by disconnection"
+            );
         }
 
         Runnable ensureConnected(@Nullable ActionListener<Void> listener) {
@@ -411,8 +430,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                 }
             } else {
                 addListener(listener);
-                return () -> {
-                };
+                return () -> {};
             }
         }
 
@@ -423,8 +441,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                 return () -> listener.onResponse(null);
             } else {
                 addListener(listener);
-                return () -> {
-                };
+                return () -> {};
             }
         }
 
@@ -443,8 +460,12 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             return drainedFuture;
         }
 
-        private Runnable addListenerAndStartActivity(@Nullable ActionListener<Void> listener, ActivityType newActivityType,
-                                                     Runnable activity, String cancellationMessage) {
+        private Runnable addListenerAndStartActivity(
+            @Nullable ActionListener<Void> listener,
+            ActivityType newActivityType,
+            Runnable activity,
+            String cancellationMessage
+        ) {
             assert Thread.holdsLock(mutex) : "mutex not held";
             assert newActivityType.equals(ActivityType.IDLE) == false;
 
@@ -456,8 +477,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
             if (activityType == newActivityType) {
                 addListener(listener);
-                return () -> {
-                };
+                return () -> {};
             }
 
             activityType = newActivityType;
@@ -497,10 +517,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         @Override
         public String toString() {
             synchronized (mutex) {
-                return "ConnectionTarget{" +
-                    "discoveryNode=" + discoveryNode +
-                    ", activityType=" + activityType +
-                    '}';
+                return "ConnectionTarget{" + "discoveryNode=" + discoveryNode + ", activityType=" + activityType + '}';
             }
         }
     }

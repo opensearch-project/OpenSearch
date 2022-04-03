@@ -57,7 +57,7 @@ public class IllegalIndexShardStateException extends OpenSearchException {
         return currentState;
     }
 
-    public IllegalIndexShardStateException(StreamInput in) throws IOException{
+    public IllegalIndexShardStateException(StreamInput in) throws IOException {
         super(in);
         currentState = IndexShardState.fromId(in.readByte());
     }

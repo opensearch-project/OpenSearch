@@ -60,10 +60,6 @@ import org.opensearch.transport.TransportService;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
-import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
-import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsResponse;
-import org.opensearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
 
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
@@ -109,23 +105,38 @@ public class TransportClearVotingConfigExclusionsActionTests extends OpenSearchT
     @Before
     public void setupForTest() {
         final MockTransport transport = new MockTransport();
-        transportService = transport.createTransportService(Settings.EMPTY, threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> localNode, null, emptySet());
+        transportService = transport.createTransportService(
+            Settings.EMPTY,
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundTransportAddress -> localNode,
+            null,
+            emptySet()
+        );
 
-        new TransportClearVotingConfigExclusionsAction(transportService, clusterService, threadPool, new ActionFilters(emptySet()),
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))); // registers action
+        new TransportClearVotingConfigExclusionsAction(
+            transportService,
+            clusterService,
+            threadPool,
+            new ActionFilters(emptySet()),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
+        ); // registers action
 
         transportService.start();
         transportService.acceptIncomingRequests();
 
-        final ClusterState.Builder builder = builder(new ClusterName("cluster"))
-            .nodes(new Builder().add(localNode).add(otherNode1).add(otherNode2)
-                .localNodeId(localNode.getId()).masterNodeId(localNode.getId()));
-        builder.metadata(Metadata.builder()
-                .coordinationMetadata(CoordinationMetadata.builder()
+        final ClusterState.Builder builder = builder(new ClusterName("cluster")).nodes(
+            new Builder().add(localNode).add(otherNode1).add(otherNode2).localNodeId(localNode.getId()).masterNodeId(localNode.getId())
+        );
+        builder.metadata(
+            Metadata.builder()
+                .coordinationMetadata(
+                    CoordinationMetadata.builder()
                         .addVotingConfigExclusion(otherNode1Exclusion)
                         .addVotingConfigExclusion(otherNode2Exclusion)
-                .build()));
+                        .build()
+                )
+        );
         setState(clusterService, builder);
     }
 
@@ -135,7 +146,9 @@ public class TransportClearVotingConfigExclusionsActionTests extends OpenSearchT
 
         final ClearVotingConfigExclusionsRequest clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest();
         clearVotingConfigExclusionsRequest.setWaitForRemoval(false);
-        transportService.sendRequest(localNode, ClearVotingConfigExclusionsAction.NAME,
+        transportService.sendRequest(
+            localNode,
+            ClearVotingConfigExclusionsAction.NAME,
             clearVotingConfigExclusionsRequest,
             expectSuccess(r -> {
                 responseHolder.set(r);
@@ -154,7 +167,9 @@ public class TransportClearVotingConfigExclusionsActionTests extends OpenSearchT
 
         final ClearVotingConfigExclusionsRequest clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest();
         clearVotingConfigExclusionsRequest.setTimeout(TimeValue.timeValueMillis(100));
-        transportService.sendRequest(localNode, ClearVotingConfigExclusionsAction.NAME,
+        transportService.sendRequest(
+            localNode,
+            ClearVotingConfigExclusionsAction.NAME,
             clearVotingConfigExclusionsRequest,
             expectError(e -> {
                 responseHolder.set(e);
@@ -163,19 +178,25 @@ public class TransportClearVotingConfigExclusionsActionTests extends OpenSearchT
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(),
-                containsInAnyOrder(otherNode1Exclusion, otherNode2Exclusion));
+        assertThat(
+            clusterService.getClusterApplierService().state().getVotingConfigExclusions(),
+            containsInAnyOrder(otherNode1Exclusion, otherNode2Exclusion)
+        );
         final Throwable rootCause = responseHolder.get().getRootCause();
         assertThat(rootCause, instanceOf(OpenSearchTimeoutException.class));
-        assertThat(rootCause.getMessage(),
-            startsWith("timed out waiting for removal of nodes; if nodes should not be removed, set waitForRemoval to false. ["));
+        assertThat(
+            rootCause.getMessage(),
+            startsWith("timed out waiting for removal of nodes; if nodes should not be removed, set waitForRemoval to false. [")
+        );
     }
 
     public void testSucceedsIfNodesAreRemovedWhileWaiting() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         final SetOnce<ClearVotingConfigExclusionsResponse> responseHolder = new SetOnce<>();
 
-        transportService.sendRequest(localNode, ClearVotingConfigExclusionsAction.NAME,
+        transportService.sendRequest(
+            localNode,
+            ClearVotingConfigExclusionsAction.NAME,
             new ClearVotingConfigExclusionsRequest(),
             expectSuccess(r -> {
                 responseHolder.set(r);
@@ -192,20 +213,19 @@ public class TransportClearVotingConfigExclusionsActionTests extends OpenSearchT
     }
 
     private TransportResponseHandler<ClearVotingConfigExclusionsResponse> expectSuccess(
-        Consumer<ClearVotingConfigExclusionsResponse> onResponse) {
-        return responseHandler(onResponse, e -> {
-            throw new AssertionError("unexpected", e);
-        });
+        Consumer<ClearVotingConfigExclusionsResponse> onResponse
+    ) {
+        return responseHandler(onResponse, e -> { throw new AssertionError("unexpected", e); });
     }
 
     private TransportResponseHandler<ClearVotingConfigExclusionsResponse> expectError(Consumer<TransportException> onException) {
-        return responseHandler(r -> {
-            assert false : r;
-        }, onException);
+        return responseHandler(r -> { assert false : r; }, onException);
     }
 
     private TransportResponseHandler<ClearVotingConfigExclusionsResponse> responseHandler(
-        Consumer<ClearVotingConfigExclusionsResponse> onResponse, Consumer<TransportException> onException) {
+        Consumer<ClearVotingConfigExclusionsResponse> onResponse,
+        Consumer<TransportException> onException
+    ) {
         return new TransportResponseHandler<ClearVotingConfigExclusionsResponse>() {
             @Override
             public void handleResponse(ClearVotingConfigExclusionsResponse response) {

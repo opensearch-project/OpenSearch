@@ -102,8 +102,10 @@ public class TermsLookupTests extends OpenSearchTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setVersion(LegacyESVersion.V_6_7_0);
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> termsLookup.writeTo(output));
-            assertEquals("Typeless [terms] lookup queries are not supported if any " +
-                "node is running a version before 7.0.", e.getMessage());
+            assertEquals(
+                "Typeless [terms] lookup queries are not supported if any " + "node is running a version before 7.0.",
+                e.getMessage()
+            );
         }
     }
 
@@ -121,8 +123,10 @@ public class TermsLookupTests extends OpenSearchTestCase {
     }
 
     public void testXContentParsingWithType() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent,
-            "{ \"index\" : \"index\", \"id\" : \"id\", \"type\" : \"type\", \"path\" : \"path\", \"routing\" : \"routing\" }");
+        XContentParser parser = createParser(
+            JsonXContent.jsonXContent,
+            "{ \"index\" : \"index\", \"id\" : \"id\", \"type\" : \"type\", \"path\" : \"path\", \"routing\" : \"routing\" }"
+        );
 
         TermsLookup tl = TermsLookup.parseTermsLookup(parser);
         assertEquals("index", tl.index());
@@ -135,8 +139,10 @@ public class TermsLookupTests extends OpenSearchTestCase {
     }
 
     public void testXContentParsing() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent,
-            "{ \"index\" : \"index\", \"id\" : \"id\", \"path\" : \"path\", \"routing\" : \"routing\" }");
+        XContentParser parser = createParser(
+            JsonXContent.jsonXContent,
+            "{ \"index\" : \"index\", \"id\" : \"id\", \"path\" : \"path\", \"routing\" : \"routing\" }"
+        );
 
         TermsLookup tl = TermsLookup.parseTermsLookup(parser);
         assertEquals("index", tl.index());
@@ -147,19 +153,17 @@ public class TermsLookupTests extends OpenSearchTestCase {
     }
 
     public static TermsLookup randomTermsLookup() {
-        return new TermsLookup(
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10).replace('.', '_')
-        ).routing(randomBoolean() ? randomAlphaOfLength(10) : null);
+        return new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10).replace('.', '_')).routing(
+            randomBoolean() ? randomAlphaOfLength(10) : null
+        );
     }
 
     public static TermsLookup randomTermsLookupWithTypes() {
         return new TermsLookup(
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10).replace('.', '_')
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10).replace('.', '_')
         ).routing(randomBoolean() ? randomAlphaOfLength(10) : null);
     }
 }

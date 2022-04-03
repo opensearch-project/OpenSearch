@@ -39,9 +39,11 @@ import java.io.IOException;
 import java.util.Map;
 
 public interface MetricAggregatorSupplier {
-    Aggregator build(String name,
-                     ValuesSourceConfig valuesSourceConfig,
-                     SearchContext context,
-                     Aggregator parent,
-                     Map<String, Object> metadata) throws IOException;
+    Aggregator build(
+        String name,
+        ValuesSourceConfig valuesSourceConfig,
+        SearchContext context,
+        Aggregator parent,
+        Map<String, Object> metadata
+    ) throws IOException;
 }

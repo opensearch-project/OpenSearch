@@ -59,6 +59,7 @@ public class SortBuilderTests extends OpenSearchTestCase {
     private static final int NUMBER_OF_RUNS = 20;
 
     private static NamedXContentRegistry xContentRegistry;
+    private Set<String> assertedWarnings = new HashSet<>();
 
     @BeforeClass
     public static void init() {
@@ -109,7 +110,7 @@ public class SortBuilderTests extends OpenSearchTestCase {
         sortBuilder = result.get(0);
         assertEquals(new FieldSortBuilder("_doc"), sortBuilder);
 
-        json = "{ \"sort\" : { \"_score\" : \"" + order +"\" }}";
+        json = "{ \"sort\" : { \"_score\" : \"" + order + "\" }}";
         result = parseSort(json);
         assertEquals(1, result.size());
         sortBuilder = result.get(0);
@@ -122,19 +123,14 @@ public class SortBuilderTests extends OpenSearchTestCase {
         assertEquals(new ScoreSortBuilder(), sortBuilder);
 
         // test two spellings for _geo_disctance
-        json = "{ \"sort\" : ["
-                + "{\"_geoDistance\" : {"
-                +       "\"pin.location\" : \"40,-70\" } }"
-          + "] }";
+        json = "{ \"sort\" : [" + "{\"_geoDistance\" : {" + "\"pin.location\" : \"40,-70\" } }" + "] }";
         result = parseSort(json);
         assertEquals(1, result.size());
         sortBuilder = result.get(0);
+        assertWarnings("Deprecated field [_geoDistance] used, expected [_geo_distance] instead");
         assertEquals(new GeoDistanceSortBuilder("pin.location", 40, -70), sortBuilder);
 
-        json = "{ \"sort\" : ["
-                + "{\"_geo_distance\" : {"
-                +       "\"pin.location\" : \"40,-70\" } }"
-          + "] }";
+        json = "{ \"sort\" : [" + "{\"_geo_distance\" : {" + "\"pin.location\" : \"40,-70\" } }" + "] }";
         result = parseSort(json);
         assertEquals(1, result.size());
         sortBuilder = result.get(0);
@@ -146,7 +142,7 @@ public class SortBuilderTests extends OpenSearchTestCase {
      */
     public void testRandomSortBuilders() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_RUNS; runs++) {
-            Set<String >expectedWarningHeaders = new HashSet<>();
+            Set<String> expectedWarningHeaders = new HashSet<>();
             List<SortBuilder<?>> testBuilders = randomSortBuilderList();
             XContentBuilder xContentBuilder = XContentFactory.jsonBuilder();
             xContentBuilder.startObject();
@@ -158,36 +154,38 @@ public class SortBuilderTests extends OpenSearchTestCase {
             for (SortBuilder<?> builder : testBuilders) {
                 if (builder instanceof GeoDistanceSortBuilder) {
                     GeoDistanceSortBuilder gdsb = (GeoDistanceSortBuilder) builder;
-                    if (gdsb.getNestedFilter() != null) {
-                        expectedWarningHeaders.add("[nested_filter] has been deprecated in favour of the [nested] parameter");
+                    String nestedFilterDeprecationWarning = "[nested_filter] has been deprecated in favour of the [nested] parameter";
+                    String nestedPathDeprecationWarning = "[nested_path] has been deprecated in favour of the [nested] parameter";
+                    if (gdsb.getNestedFilter() != null && !assertedWarnings.contains(nestedFilterDeprecationWarning)) {
+                        expectedWarningHeaders.add(nestedFilterDeprecationWarning);
                     }
-                    if (gdsb.getNestedPath() != null) {
-                        expectedWarningHeaders.add("[nested_path] has been deprecated in favour of the [nested] parameter");
+                    if (gdsb.getNestedPath() != null && !assertedWarnings.contains(nestedPathDeprecationWarning)) {
+                        expectedWarningHeaders.add(nestedPathDeprecationWarning);
                     }
                 }
 
                 if (builder instanceof ScoreSortBuilder || builder instanceof FieldSortBuilder) {
                     switch (randomIntBetween(0, 2)) {
-                    case 0:
-                        if (builder instanceof ScoreSortBuilder) {
-                            xContentBuilder.value("_score");
-                        } else {
-                            xContentBuilder.value(((FieldSortBuilder) builder).getFieldName());
-                        }
-                        break;
-                    case 1:
-                        xContentBuilder.startObject();
-                        if (builder instanceof ScoreSortBuilder) {
-                            xContentBuilder.field("_score");
-                        } else {
-                            xContentBuilder.field(((FieldSortBuilder) builder).getFieldName());
-                        }
-                        xContentBuilder.value(builder.order());
-                        xContentBuilder.endObject();
-                        break;
-                    case 2:
-                        builder.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
-                        break;
+                        case 0:
+                            if (builder instanceof ScoreSortBuilder) {
+                                xContentBuilder.value("_score");
+                            } else {
+                                xContentBuilder.value(((FieldSortBuilder) builder).getFieldName());
+                            }
+                            break;
+                        case 1:
+                            xContentBuilder.startObject();
+                            if (builder instanceof ScoreSortBuilder) {
+                                xContentBuilder.field("_score");
+                            } else {
+                                xContentBuilder.field(((FieldSortBuilder) builder).getFieldName());
+                            }
+                            xContentBuilder.value(builder.order());
+                            xContentBuilder.endObject();
+                            break;
+                        case 2:
+                            builder.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+                            break;
                     }
                 } else {
                     builder.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
@@ -205,6 +203,7 @@ public class SortBuilderTests extends OpenSearchTestCase {
             }
             if (expectedWarningHeaders.size() > 0) {
                 assertWarnings(expectedWarningHeaders.toArray(new String[expectedWarningHeaders.size()]));
+                assertedWarnings.addAll(expectedWarningHeaders);
             }
         }
     }
@@ -214,21 +213,21 @@ public class SortBuilderTests extends OpenSearchTestCase {
         List<SortBuilder<?>> list = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             switch (randomIntBetween(0, 3)) {
-            case 0:
-                list.add(new ScoreSortBuilder());
-                break;
-            case 1:
-                String fieldName = rarely() ? FieldSortBuilder.DOC_FIELD_NAME : randomAlphaOfLengthBetween(1, 10);
-                list.add(new FieldSortBuilder(fieldName));
-                break;
-            case 2:
-                list.add(GeoDistanceSortBuilderTests.randomGeoDistanceSortBuilder());
-                break;
-            case 3:
-                list.add(ScriptSortBuilderTests.randomScriptSortBuilder());
-                break;
-            default:
-                throw new IllegalStateException("unexpected randomization in tests");
+                case 0:
+                    list.add(new ScoreSortBuilder());
+                    break;
+                case 1:
+                    String fieldName = rarely() ? FieldSortBuilder.DOC_FIELD_NAME : randomAlphaOfLengthBetween(1, 10);
+                    list.add(new FieldSortBuilder(fieldName));
+                    break;
+                case 2:
+                    list.add(GeoDistanceSortBuilderTests.randomGeoDistanceSortBuilder());
+                    break;
+                case 3:
+                    list.add(ScriptSortBuilderTests.randomScriptSortBuilder());
+                    break;
+                default:
+                    throw new IllegalStateException("unexpected randomization in tests");
             }
         }
         return list;
@@ -240,15 +239,15 @@ public class SortBuilderTests extends OpenSearchTestCase {
      */
     public void testMultiFieldSort() throws IOException {
         String json = "{ \"sort\" : ["
-                          + "{ \"post_date\" : {\"order\" : \"asc\"}},"
-                          + "\"user\","
-                          + "{ \"name\" : \"desc\" },"
-                          + "{ \"age\" : \"desc\" },"
-                          + "{"
-                              + "\"_geo_distance\" : {"
-                              + "\"pin.location\" : \"40,-70\" } },"
-                          + "\"_score\""
-                    + "] }";
+            + "{ \"post_date\" : {\"order\" : \"asc\"}},"
+            + "\"user\","
+            + "{ \"name\" : \"desc\" },"
+            + "{ \"age\" : \"desc\" },"
+            + "{"
+            + "\"_geo_distance\" : {"
+            + "\"pin.location\" : \"40,-70\" } },"
+            + "\"_score\""
+            + "] }";
         List<SortBuilder<?>> result = parseSort(json);
         assertEquals(6, result.size());
         assertEquals(new FieldSortBuilder("post_date").order(SortOrder.ASC), result.get(0));

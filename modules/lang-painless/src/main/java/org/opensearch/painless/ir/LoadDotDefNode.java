@@ -76,9 +76,7 @@ public class LoadDotDefNode extends ExpressionNode {
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeDebugInfo(getLocation());
-        Type methodType = Type.getMethodType(
-                MethodWriter.getType(getExpressionType()),
-                MethodWriter.getType(def.class));
+        Type methodType = Type.getMethodType(MethodWriter.getType(getExpressionType()), MethodWriter.getType(def.class));
         methodWriter.invokeDefCall(value, methodType, DefBootstrap.LOAD);
     }
 }

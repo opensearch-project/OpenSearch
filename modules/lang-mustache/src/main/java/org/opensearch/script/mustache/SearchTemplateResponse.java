@@ -58,8 +58,7 @@ public class SearchTemplateResponse extends ActionResponse implements StatusToXC
     /** Contains the search response, if any **/
     private SearchResponse response;
 
-    SearchTemplateResponse() {
-    }
+    SearchTemplateResponse() {}
 
     SearchTemplateResponse(StreamInput in) throws IOException {
         super(in);
@@ -104,17 +103,13 @@ public class SearchTemplateResponse extends ActionResponse implements StatusToXC
 
         if (contentAsMap.containsKey(TEMPLATE_OUTPUT_FIELD.getPreferredName())) {
             Object source = contentAsMap.get(TEMPLATE_OUTPUT_FIELD.getPreferredName());
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)
-                .value(source);
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).value(source);
             searchTemplateResponse.setSource(BytesReference.bytes(builder));
         } else {
             XContentType contentType = parser.contentType();
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType)
-                .map(contentAsMap);
-            XContentParser searchResponseParser = contentType.xContent().createParser(
-                parser.getXContentRegistry(),
-                parser.getDeprecationHandler(),
-                BytesReference.bytes(builder).streamInput());
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType).map(contentAsMap);
+            XContentParser searchResponseParser = contentType.xContent()
+                .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), BytesReference.bytes(builder).streamInput());
 
             SearchResponse searchResponse = SearchResponse.fromXContent(searchResponseParser);
             searchTemplateResponse.setResponse(searchResponse);
@@ -128,7 +123,7 @@ public class SearchTemplateResponse extends ActionResponse implements StatusToXC
             response.toXContent(builder, params);
         } else {
             builder.startObject();
-            //we can assume the template is always json as we convert it before compiling it
+            // we can assume the template is always json as we convert it before compiling it
             try (InputStream stream = source.streamInput()) {
                 builder.rawField(TEMPLATE_OUTPUT_FIELD.getPreferredName(), stream, XContentType.JSON);
             }

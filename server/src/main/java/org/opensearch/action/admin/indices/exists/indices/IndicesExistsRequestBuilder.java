@@ -35,8 +35,10 @@ package org.opensearch.action.admin.indices.exists.indices;
 import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
-public class IndicesExistsRequestBuilder
-        extends MasterNodeReadOperationRequestBuilder<IndicesExistsRequest, IndicesExistsResponse, IndicesExistsRequestBuilder> {
+public class IndicesExistsRequestBuilder extends MasterNodeReadOperationRequestBuilder<
+    IndicesExistsRequest,
+    IndicesExistsResponse,
+    IndicesExistsRequestBuilder> {
 
     public IndicesExistsRequestBuilder(OpenSearchClient client, IndicesExistsAction action, String... indices) {
         super(client, action, new IndicesExistsRequest(indices));

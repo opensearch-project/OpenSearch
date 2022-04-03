@@ -64,7 +64,9 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  * </ul>
  */
 public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQueryRequest>
-    implements IndicesRequest.Replaceable, ToXContentObject {
+    implements
+        IndicesRequest.Replaceable,
+        ToXContentObject {
 
     public DeleteByQueryRequest() {
         this(new SearchRequest());
@@ -200,8 +202,8 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
         return b.toString();
     }
 
-    //delete by query deletes all documents that match a query. The indices and indices options that affect how
-    //indices are resolved depend entirely on the inner search request. That's why the following methods delegate to it.
+    // delete by query deletes all documents that match a query. The indices and indices options that affect how
+    // indices are resolved depend entirely on the inner search request. That's why the following methods delegate to it.
     @Override
     public IndicesRequest indices(String... indices) {
         assert getSearchRequest() != null;

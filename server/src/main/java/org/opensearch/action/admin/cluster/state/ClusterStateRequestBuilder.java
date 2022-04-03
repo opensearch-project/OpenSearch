@@ -37,8 +37,10 @@ import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilde
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
 
-public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBuilder<ClusterStateRequest,
-        ClusterStateResponse, ClusterStateRequestBuilder> {
+public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBuilder<
+    ClusterStateRequest,
+    ClusterStateResponse,
+    ClusterStateRequestBuilder> {
 
     public ClusterStateRequestBuilder(OpenSearchClient client, ClusterStateAction action) {
         super(client, action, new ClusterStateRequest());

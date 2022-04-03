@@ -58,8 +58,10 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Mi
         MissingAggregatorSupplier.class
     );
 
-    public static final ObjectParser<MissingAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, MissingAggregationBuilder::new);
+    public static final ObjectParser<MissingAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
+        NAME,
+        MissingAggregationBuilder::new
+    );
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
     }
@@ -72,9 +74,11 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Mi
         super(name);
     }
 
-    protected MissingAggregationBuilder(MissingAggregationBuilder clone,
-                                        AggregatorFactories.Builder factoriesBuilder,
-                                        Map<String, Object> metadata) {
+    protected MissingAggregationBuilder(
+        MissingAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
     }
 
@@ -111,10 +115,12 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Mi
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
-                                                       ValuesSourceConfig config,
-                                                       AggregatorFactory parent,
-                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+    protected ValuesSourceAggregatorFactory innerBuild(
+        QueryShardContext queryShardContext,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
         return new MissingAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 

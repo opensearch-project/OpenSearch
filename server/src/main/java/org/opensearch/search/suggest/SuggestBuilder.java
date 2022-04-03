@@ -67,8 +67,7 @@ public class SuggestBuilder implements Writeable, ToXContentObject {
     /**
      * Build an empty SuggestBuilder.
      */
-    public SuggestBuilder() {
-    }
+    public SuggestBuilder() {}
 
     /**
      * Read from a stream.
@@ -206,8 +205,7 @@ public class SuggestBuilder implements Writeable, ToXContentObject {
             return false;
         }
         SuggestBuilder o = (SuggestBuilder) other;
-        return Objects.equals(globalText, o.globalText) &&
-               Objects.equals(suggestions, o.suggestions);
+        return Objects.equals(globalText, o.globalText) && Objects.equals(suggestions, o.suggestions);
     }
 
     @Override

@@ -504,9 +504,8 @@ public class CommonStats implements Writeable, ToXContentFragment {
             size += this.getQueryCache().getMemorySizeInBytes();
         }
         if (this.getSegments() != null) {
-            size += this.getSegments().getMemoryInBytes() +
-                    this.getSegments().getIndexWriterMemoryInBytes() +
-                    this.getSegments().getVersionMapMemoryInBytes();
+            size += this.getSegments().getMemoryInBytes() + this.getSegments().getIndexWriterMemoryInBytes() + this.getSegments()
+                .getVersionMapMemoryInBytes();
         }
 
         return new ByteSizeValue(size);
@@ -515,11 +514,26 @@ public class CommonStats implements Writeable, ToXContentFragment {
     // note, requires a wrapping object
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        final Stream<ToXContent> stream = Arrays.stream(new ToXContent[] {
-            docs, store, indexing, get, search, merge, refresh, flush, warmer, queryCache,
-            fieldData, completion, segments, translog, requestCache, recoveryStats})
-            .filter(Objects::nonNull);
-        for (ToXContent toXContent : ((Iterable<ToXContent>)stream::iterator)) {
+        final Stream<ToXContent> stream = Arrays.stream(
+            new ToXContent[] {
+                docs,
+                store,
+                indexing,
+                get,
+                search,
+                merge,
+                refresh,
+                flush,
+                warmer,
+                queryCache,
+                fieldData,
+                completion,
+                segments,
+                translog,
+                requestCache,
+                recoveryStats }
+        ).filter(Objects::nonNull);
+        for (ToXContent toXContent : ((Iterable<ToXContent>) stream::iterator)) {
             toXContent.toXContent(builder, params);
         }
         return builder;

@@ -64,8 +64,12 @@ public final class FetchFieldsPhase implements FetchSubPhase {
         MapperService mapperService = fetchContext.mapperService();
         SearchLookup searchLookup = fetchContext.searchLookup();
         if (fetchContext.mapperService().documentMapper().sourceMapper().enabled() == false) {
-            throw new IllegalArgumentException("Unable to retrieve the requested [fields] since _source is disabled " +
-                "in the mappings for index [" + fetchContext.getIndexName() + "]");
+            throw new IllegalArgumentException(
+                "Unable to retrieve the requested [fields] since _source is disabled "
+                    + "in the mappings for index ["
+                    + fetchContext.getIndexName()
+                    + "]"
+            );
         }
 
         FieldFetcher fieldFetcher = FieldFetcher.create(mapperService, searchLookup, fetchFieldsContext.fields());

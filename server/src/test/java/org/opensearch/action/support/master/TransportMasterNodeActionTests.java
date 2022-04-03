@@ -107,15 +107,31 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
-        transportService = transport.createTransportService(clusterService.getSettings(), threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
+        transportService = transport.createTransportService(
+            clusterService.getSettings(),
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> clusterService.localNode(),
+            null,
+            Collections.emptySet()
+        );
         transportService.start();
         transportService.acceptIncomingRequests();
-        localNode = new DiscoveryNode("local_node", buildNewFakeTransportAddress(), Collections.emptyMap(),
-                Collections.singleton(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
-        remoteNode = new DiscoveryNode("remote_node", buildNewFakeTransportAddress(), Collections.emptyMap(),
-                Collections.singleton(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
-        allNodes = new DiscoveryNode[]{localNode, remoteNode};
+        localNode = new DiscoveryNode(
+            "local_node",
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
+        );
+        remoteNode = new DiscoveryNode(
+            "remote_node",
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
+        );
+        allNodes = new DiscoveryNode[] { localNode, remoteNode };
     }
 
     @After
@@ -183,10 +199,16 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
     }
 
     class Action extends TransportMasterNodeAction<Request, Response> {
-        Action(String actionName, TransportService transportService, ClusterService clusterService,
-               ThreadPool threadPool) {
-            super(actionName, transportService, clusterService, threadPool,
-                    new ActionFilters(new HashSet<>()), Request::new, new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+        Action(String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
+            super(
+                actionName,
+                transportService,
+                clusterService,
+                threadPool,
+                new ActionFilters(new HashSet<>()),
+                Request::new,
+                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
+            );
         }
 
         @Override
@@ -259,10 +281,10 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         Request request = new Request().masterNodeTimeout(TimeValue.timeValueSeconds(unblockBeforeTimeout ? 60 : 0));
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
-        ClusterBlock block = new ClusterBlock(1, "", retryableBlock, true,
-            false, randomFrom(RestStatus.values()), ClusterBlockLevel.ALL);
+        ClusterBlock block = new ClusterBlock(1, "", retryableBlock, true, false, randomFrom(RestStatus.values()), ClusterBlockLevel.ALL);
         ClusterState stateWithBlock = ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes))
-                .blocks(ClusterBlocks.builder().addGlobalBlock(block)).build();
+            .blocks(ClusterBlocks.builder().addGlobalBlock(block))
+            .build();
         setState(clusterService, stateWithBlock);
 
         new Action("internal:testAction", transportService, clusterService, threadPool) {
@@ -275,8 +297,12 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
 
         if (retryableBlock && unblockBeforeTimeout) {
             assertFalse(listener.isDone());
-            setState(clusterService, ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes))
-                    .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build());
+            setState(
+                clusterService,
+                ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes))
+                    .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+                    .build()
+            );
             assertTrue(listener.isDone());
             listener.get();
             return;
@@ -301,10 +327,10 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         Request request = new Request().masterNodeTimeout(TimeValue.timeValueSeconds(60));
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
-        ClusterBlock block = new ClusterBlock(1, "", true, true,
-            false, randomFrom(RestStatus.values()), ClusterBlockLevel.ALL);
+        ClusterBlock block = new ClusterBlock(1, "", true, true, false, randomFrom(RestStatus.values()), ClusterBlockLevel.ALL);
         ClusterState stateWithBlock = ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes))
-            .blocks(ClusterBlocks.builder().addGlobalBlock(block)).build();
+            .blocks(ClusterBlocks.builder().addGlobalBlock(block))
+            .build();
         setState(clusterService, stateWithBlock);
 
         new Action("internal:testAction", transportService, clusterService, threadPool) {
@@ -323,8 +349,12 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
             assertListenerThrows("checkBlock has thrown exception", listener, RuntimeException.class);
         } else {
             assertFalse(listener.isDone());
-            setState(clusterService, ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes))
-                .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build());
+            setState(
+                clusterService,
+                ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes))
+                    .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+                    .build()
+            );
             assertListenerThrows("checkBlock has thrown exception", listener, RuntimeException.class);
         }
     }
@@ -407,8 +437,10 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         assertThat(capturedRequest.action, equalTo("internal:testAction"));
 
         if (rejoinSameMaster) {
-            transport.handleRemoteError(capturedRequest.requestId,
-                randomBoolean() ? new ConnectTransportException(masterNode, "Fake error") : new NodeClosedException(masterNode));
+            transport.handleRemoteError(
+                capturedRequest.requestId,
+                randomBoolean() ? new ConnectTransportException(masterNode, "Fake error") : new NodeClosedException(masterNode)
+            );
             assertFalse(listener.isDone());
             if (randomBoolean()) {
                 // simulate master node removal
@@ -471,14 +503,14 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
 
         setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, allNodes));
 
-        new Action( "internal:testAction", transportService, clusterService, threadPool) {
+        new Action("internal:testAction", transportService, clusterService, threadPool) {
             @Override
             protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
                 // The other node has become master, simulate failures of this node while publishing cluster state through ZenDiscovery
                 setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
                 Exception failure = randomBoolean()
-                        ? new FailedToCommitClusterStateException("Fake error")
-                        : new NotMasterException("Fake error");
+                    ? new FailedToCommitClusterStateException("Fake error")
+                    : new NotMasterException("Fake error");
                 listener.onFailure(failure);
             }
         }.execute(request, listener);

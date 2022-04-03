@@ -61,16 +61,15 @@ public class GetMappingsResponseTests extends OpenSearchTestCase {
             this::createParser,
             GetMappingsResponseTests::createTestInstance,
             GetMappingsResponseTests::toXContent,
-            GetMappingsResponse::fromXContent)
-            .supportsUnknownFields(true)
+            GetMappingsResponse::fromXContent
+        ).supportsUnknownFields(true)
             .assertEqualsConsumer(GetMappingsResponseTests::assertEqualInstances)
             .randomFieldsExcludeFilter(randomFieldsExcludeFilter())
             .test();
     }
 
     private static GetMappingsResponse createTestInstance() {
-        Map<String, MappingMetadata> mappings = Collections.singletonMap(
-            "index-" + randomAlphaOfLength(5), randomMappingMetadata());
+        Map<String, MappingMetadata> mappings = Collections.singletonMap("index-" + randomAlphaOfLength(5), randomMappingMetadata());
         return new GetMappingsResponse(mappings);
     }
 
@@ -113,8 +112,7 @@ public class GetMappingsResponseTests extends OpenSearchTestCase {
     }
 
     private static void toXContent(GetMappingsResponse response, XContentBuilder builder) throws IOException {
-        Params params = new ToXContent.MapParams(
-            Collections.singletonMap(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, "false"));
+        Params params = new ToXContent.MapParams(Collections.singletonMap(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, "false"));
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetadata>> allMappings = ImmutableOpenMap.builder();
 
         for (Map.Entry<String, MappingMetadata> indexEntry : response.mappings().entrySet()) {

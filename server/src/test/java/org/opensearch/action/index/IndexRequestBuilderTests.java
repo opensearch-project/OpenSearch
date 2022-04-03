@@ -88,8 +88,10 @@ public class IndexRequestBuilderTests extends OpenSearchTestCase {
         XContentBuilder doc = XContentFactory.jsonBuilder(docOut).startObject().field("SomeKey", "SomeValue").endObject();
         doc.close();
         indexRequestBuilder.setSource(docOut.toByteArray(), XContentType.JSON);
-        assertEquals(EXPECTED_SOURCE, XContentHelper.convertToJson(indexRequestBuilder.request().source(), true,
-            indexRequestBuilder.request().getContentType()));
+        assertEquals(
+            EXPECTED_SOURCE,
+            XContentHelper.convertToJson(indexRequestBuilder.request().source(), true, indexRequestBuilder.request().getContentType())
+        );
 
         doc = XContentFactory.jsonBuilder().startObject().field("SomeKey", "SomeValue").endObject();
         doc.close();

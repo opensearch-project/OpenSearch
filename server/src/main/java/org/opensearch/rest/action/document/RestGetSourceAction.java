@@ -66,15 +66,18 @@ public class RestGetSourceAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetSourceAction.class);
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in get_source and exist_source"
-            + "requests is deprecated.";
+        + "requests is deprecated.";
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/{index}/_source/{id}"),
-            new Route(HEAD, "/{index}/_source/{id}"),
-            new Route(GET, "/{index}/{type}/{id}/_source"),
-            new Route(HEAD, "/{index}/{type}/{id}/_source")));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "/{index}/_source/{id}"),
+                new Route(HEAD, "/{index}/_source/{id}"),
+                new Route(GET, "/{index}/{type}/{id}/_source"),
+                new Route(HEAD, "/{index}/{type}/{id}/_source")
+            )
+        );
     }
 
     @Override

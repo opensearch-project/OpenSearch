@@ -76,7 +76,6 @@ public class PagedByteBuf extends UnpooledHeapByteBuf {
         return newByteBuf.slice(offset, buffer.remaining());
     }
 
-
     @Override
     protected void deallocate() {
         try {

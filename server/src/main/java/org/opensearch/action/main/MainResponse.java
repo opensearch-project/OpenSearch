@@ -82,8 +82,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         this.versionNumber = build.getQualifiedVersion();
     }
 
-    public MainResponse(String nodeName, Version version, ClusterName clusterName, String clusterUuid, Build build,
-                        String versionNumber) {
+    public MainResponse(String nodeName, Version version, ClusterName clusterName, String clusterUuid, Build build, String versionNumber) {
         this.nodeName = nodeName;
         this.version = version;
         this.clusterName = clusterName;
@@ -99,7 +98,6 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     public Version getVersion() {
         return version;
     }
-
 
     public ClusterName getClusterName() {
         return clusterName;
@@ -143,7 +141,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         if (isCompatibilityModeDisabled()) {
             builder.field("distribution", build.getDistribution());
         }
-            builder.field("number", versionNumber)
+        builder.field("number", versionNumber)
             .field("build_type", build.type().displayName())
             .field("build_hash", build.hash())
             .field("build_date", build.date())
@@ -163,8 +161,11 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         return build.getQualifiedVersion().equals(versionNumber);
     }
 
-    private static final ObjectParser<MainResponse, Void> PARSER = new ObjectParser<>(MainResponse.class.getName(), true,
-            MainResponse::new);
+    private static final ObjectParser<MainResponse, Void> PARSER = new ObjectParser<>(
+        MainResponse.class.getName(),
+        true,
+        MainResponse::new
+    );
 
     static {
         PARSER.declareString((response, value) -> response.nodeName = value, new ParseField("name"));
@@ -173,23 +174,20 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         PARSER.declareString((response, value) -> {}, new ParseField("tagline"));
         PARSER.declareObject((response, value) -> {
             final String buildType = (String) value.get("build_type");
-            response.build =
-                    new Build(
-                            /*
-                             * Be lenient when reading on the wire, the enumeration values from other versions might be different than what
-                             * we know.
-                             */
-                            buildType == null ? Build.Type.UNKNOWN : Build.Type.fromDisplayName(buildType, false),
-                            (String) value.get("build_hash"),
-                            (String) value.get("build_date"),
-                            (boolean) value.get("build_snapshot"),
-                            (String) value.get("number"),
-                            (String) value.get("distribution")
-                    );
+            response.build = new Build(
+                /*
+                 * Be lenient when reading on the wire, the enumeration values from other versions might be different than what
+                 * we know.
+                 */
+                buildType == null ? Build.Type.UNKNOWN : Build.Type.fromDisplayName(buildType, false),
+                (String) value.get("build_hash"),
+                (String) value.get("build_date"),
+                (boolean) value.get("build_snapshot"),
+                (String) value.get("number"),
+                (String) value.get("distribution")
+            );
             response.version = Version.fromString(
-                ((String) value.get("number"))
-                    .replace("-SNAPSHOT", "")
-                    .replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", "")
+                ((String) value.get("number")).replace("-SNAPSHOT", "").replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", "")
             );
             response.versionNumber = response.version.toString();
         }, (parser, context) -> parser.map(), new ParseField("version"));
@@ -208,11 +206,11 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
             return false;
         }
         MainResponse other = (MainResponse) o;
-        return Objects.equals(nodeName, other.nodeName) &&
-                Objects.equals(version, other.version) &&
-                Objects.equals(clusterUuid, other.clusterUuid) &&
-                Objects.equals(build, other.build) &&
-                Objects.equals(clusterName, other.clusterName);
+        return Objects.equals(nodeName, other.nodeName)
+            && Objects.equals(version, other.version)
+            && Objects.equals(clusterUuid, other.clusterUuid)
+            && Objects.equals(build, other.build)
+            && Objects.equals(clusterName, other.clusterName);
     }
 
     @Override
@@ -222,12 +220,19 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
 
     @Override
     public String toString() {
-        return "MainResponse{" +
-            "nodeName='" + nodeName + '\'' +
-            ", version=" + version +
-            ", clusterName=" + clusterName +
-            ", clusterUuid='" + clusterUuid + '\'' +
-            ", build=" + build +
-            '}';
+        return "MainResponse{"
+            + "nodeName='"
+            + nodeName
+            + '\''
+            + ", version="
+            + version
+            + ", clusterName="
+            + clusterName
+            + ", clusterUuid='"
+            + clusterUuid
+            + '\''
+            + ", build="
+            + build
+            + '}';
     }
 }

@@ -118,7 +118,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * Sets the name of the index template.
      */
     public PutIndexTemplateRequest name(String name) {
-        if(name == null) {
+        if (name == null) {
             throw new IllegalArgumentException("Name cannot be null");
         }
         this.name = name;
@@ -237,8 +237,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * @param source The mapping source
      */
     public PutIndexTemplateRequest mapping(XContentBuilder source) {
-        internalMapping(XContentHelper.convertToMap(BytesReference.bytes(source),
-                true, source.contentType()).v2());
+        internalMapping(XContentHelper.convertToMap(BytesReference.bytes(source), true, source.contentType()).v2());
         return this;
     }
 
@@ -268,8 +267,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             builder.map(source);
             Objects.requireNonNull(builder.contentType());
             try {
-                mappings = new BytesArray(
-                        XContentHelper.convertToJson(BytesReference.bytes(builder), false, false,  builder.contentType()));
+                mappings = new BytesArray(XContentHelper.convertToJson(BytesReference.bytes(builder), false, false, builder.contentType()));
                 return this;
             } catch (IOException e) {
                 throw new UncheckedIOException("failed to convert source to json", e);
@@ -303,11 +301,11 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         for (Map.Entry<String, Object> entry : source.entrySet()) {
             String name = entry.getKey();
             if (name.equals("template")) {
-                if(entry.getValue() instanceof String) {
+                if (entry.getValue() instanceof String) {
                     this.template = (String) entry.getValue();
                 }
             } else if (name.equals("index_patterns")) {
-                if(entry.getValue() instanceof String) {
+                if (entry.getValue() instanceof String) {
                     patterns(Collections.singletonList((String) entry.getValue()));
                 } else if (entry.getValue() instanceof List) {
                     List<String> elements = ((List<?>) entry.getValue()).stream().map(Object::toString).collect(Collectors.toList());
@@ -321,7 +319,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                 if ((entry.getValue() instanceof Integer) == false) {
                     throw new IllegalArgumentException("Malformed [version] value, should be an integer");
                 }
-                version((Integer)entry.getValue());
+                version((Integer) entry.getValue());
             } else if (name.equals("settings")) {
                 if ((entry.getValue() instanceof Map) == false) {
                     throw new IllegalArgumentException("Malformed [settings] section, should include an inner object");
@@ -367,7 +365,6 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         return source(XContentHelper.convertToMap(source, true, xContentType).v2());
     }
 
-
     public Set<Alias> aliases() {
         return this.aliases;
     }
@@ -404,15 +401,20 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      */
     public PutIndexTemplateRequest aliases(BytesReference source) {
         // EMPTY is safe here because we never call namedObject
-        try (XContentParser parser = XContentHelper
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, source)) {
-            //move to the first alias
+        try (
+            XContentParser parser = XContentHelper.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                source
+            )
+        ) {
+            // move to the first alias
             parser.nextToken();
             while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 alias(Alias.fromXContent(parser));
             }
             return this;
-        } catch(IOException e) {
+        } catch (IOException e) {
             throw new OpenSearchParseException("Failed to parse aliases", e);
         }
     }
@@ -457,8 +459,13 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
         if (mappings != null) {
             builder.field("mappings");
-            try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION, mappings.utf8ToString())) {
+            try (
+                XContentParser parser = JsonXContent.jsonXContent.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    mappings.utf8ToString()
+                )
+            ) {
                 builder.copyCurrentStructure(parser);
             }
         }

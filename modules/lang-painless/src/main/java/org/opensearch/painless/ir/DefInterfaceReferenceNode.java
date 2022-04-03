@@ -77,7 +77,7 @@ public class DefInterfaceReferenceNode extends ReferenceNode {
 
         // place holder for functional interface receiver
         // which is resolved and replace at runtime
-        methodWriter.push((String)null);
+        methodWriter.push((String) null);
 
         for (String capture : getCaptures()) {
             WriteScope.Variable variable = writeScope.getVariable(capture);

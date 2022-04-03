@@ -45,9 +45,6 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.action.bulk.BulkItemRequest;
-import org.opensearch.action.bulk.BulkPrimaryExecutionContext;
-import org.opensearch.action.bulk.BulkShardRequest;
 
 import java.util.ArrayList;
 
@@ -70,9 +67,8 @@ public class BulkPrimaryExecutionContextTests extends OpenSearchTestCase {
         }
 
         ArrayList<DocWriteRequest<?>> visitedRequests = new ArrayList<>();
-        for (BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(shardRequest, null);
-             context.hasMoreOperationsToExecute();
-             ) {
+        for (BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(shardRequest, null); context
+            .hasMoreOperationsToExecute();) {
             visitedRequests.add(context.getCurrent());
             context.setRequestToExecute(context.getCurrent());
             // using failures prevents caring about types
@@ -105,8 +101,7 @@ public class BulkPrimaryExecutionContextTests extends OpenSearchTestCase {
             }
             items[i] = new BulkItemRequest(i, request);
         }
-        return new BulkShardRequest(new ShardId("index", "_na_", 0),
-            randomFrom(WriteRequest.RefreshPolicy.values()), items);
+        return new BulkShardRequest(new ShardId("index", "_na_", 0), randomFrom(WriteRequest.RefreshPolicy.values()), items);
     }
 
     public void testTranslogLocation() {

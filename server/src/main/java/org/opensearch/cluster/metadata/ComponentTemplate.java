@@ -60,9 +60,11 @@ public class ComponentTemplate extends AbstractDiffable<ComponentTemplate> imple
     private static final ParseField METADATA = new ParseField("_meta");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<ComponentTemplate, Void> PARSER =
-        new ConstructingObjectParser<>("component_template", false,
-            a -> new ComponentTemplate((Template) a[0], (Long) a[1], (Map<String, Object>) a[2]));
+    public static final ConstructingObjectParser<ComponentTemplate, Void> PARSER = new ConstructingObjectParser<>(
+        "component_template",
+        false,
+        a -> new ComponentTemplate((Template) a[0], (Long) a[1], (Map<String, Object>) a[2])
+    );
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), Template.PARSER, TEMPLATE);
@@ -140,9 +142,9 @@ public class ComponentTemplate extends AbstractDiffable<ComponentTemplate> imple
             return false;
         }
         ComponentTemplate other = (ComponentTemplate) obj;
-        return Objects.equals(template, other.template) &&
-            Objects.equals(version, other.version) &&
-            Objects.equals(metadata, other.metadata);
+        return Objects.equals(template, other.template)
+            && Objects.equals(version, other.version)
+            && Objects.equals(metadata, other.metadata);
     }
 
     @Override

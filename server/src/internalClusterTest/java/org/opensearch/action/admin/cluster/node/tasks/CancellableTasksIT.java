@@ -195,11 +195,20 @@ public class CancellableTasksIT extends OpenSearchIntegTestCase {
         ActionFuture<TestResponse> rootTaskFuture = client().execute(TransportTestAction.ACTION, rootRequest);
         Set<TestRequest> pendingRequests = allowPartialRequest(rootRequest);
         TaskId rootTaskId = getRootTaskId(rootRequest);
-        ActionFuture<CancelTasksResponse> cancelFuture = client().admin().cluster().prepareCancelTasks()
-            .setTaskId(rootTaskId).waitForCompletion(true).execute();
+        ActionFuture<CancelTasksResponse> cancelFuture = client().admin()
+            .cluster()
+            .prepareCancelTasks()
+            .setTaskId(rootTaskId)
+            .waitForCompletion(true)
+            .execute();
         if (randomBoolean()) {
-            List<TaskInfo> runningTasks = client().admin().cluster().prepareListTasks()
-                .setActions(TransportTestAction.ACTION.name()).setDetailed(true).get().getTasks();
+            List<TaskInfo> runningTasks = client().admin()
+                .cluster()
+                .prepareListTasks()
+                .setActions(TransportTestAction.ACTION.name())
+                .setDetailed(true)
+                .get()
+                .getTasks();
             for (TaskInfo subTask : randomSubsetOf(runningTasks)) {
                 client().admin().cluster().prepareCancelTasks().setTaskId(subTask.getTaskId()).waitForCompletion(false).get();
             }
@@ -210,7 +219,9 @@ public class CancellableTasksIT extends OpenSearchIntegTestCase {
                 Set<TaskId> expectedBans = new HashSet<>();
                 for (TestRequest req : pendingRequests) {
                     if (req.node.equals(node)) {
-                        List<Task> childTasks = taskManager.getTasks().values().stream()
+                        List<Task> childTasks = taskManager.getTasks()
+                            .values()
+                            .stream()
                             .filter(t -> t.getParentTaskId() != null && t.getDescription().equals(req.taskDescription()))
                             .collect(Collectors.toList());
                         assertThat(childTasks, hasSize(1));
@@ -237,15 +248,23 @@ public class CancellableTasksIT extends OpenSearchIntegTestCase {
         CancelTasksResponse resp = client().admin().cluster().prepareCancelTasks().setTaskId(taskId).waitForCompletion(false).get();
         assertThat(resp.getTaskFailures(), empty());
         assertThat(resp.getNodeFailures(), empty());
-        ActionFuture<CancelTasksResponse> cancelFuture = client().admin().cluster().prepareCancelTasks().setTaskId(taskId)
-            .waitForCompletion(true).execute();
+        ActionFuture<CancelTasksResponse> cancelFuture = client().admin()
+            .cluster()
+            .prepareCancelTasks()
+            .setTaskId(taskId)
+            .waitForCompletion(true)
+            .execute();
         assertFalse(cancelFuture.isDone());
         allowEntireRequest(rootRequest);
         assertThat(cancelFuture.actionGet().getTaskFailures(), empty());
         assertThat(cancelFuture.actionGet().getTaskFailures(), empty());
         waitForRootTask(mainTaskFuture);
-        CancelTasksResponse cancelError = client().admin().cluster().prepareCancelTasks()
-            .setTaskId(taskId).waitForCompletion(randomBoolean()).get();
+        CancelTasksResponse cancelError = client().admin()
+            .cluster()
+            .prepareCancelTasks()
+            .setTaskId(taskId)
+            .waitForCompletion(randomBoolean())
+            .get();
         assertThat(cancelError.getNodeFailures(), hasSize(1));
         final Throwable notFound = ExceptionsHelper.unwrap(cancelError.getNodeFailures().get(0), ResourceNotFoundException.class);
         assertThat(notFound.getMessage(), equalTo("task [" + taskId + "] is not found"));
@@ -261,8 +280,12 @@ public class CancellableTasksIT extends OpenSearchIntegTestCase {
             allowPartialRequest(rootRequest);
         }
         boolean waitForCompletion = randomBoolean();
-        ActionFuture<CancelTasksResponse> cancelFuture = client().admin().cluster().prepareCancelTasks().setTaskId(taskId)
-            .waitForCompletion(waitForCompletion).execute();
+        ActionFuture<CancelTasksResponse> cancelFuture = client().admin()
+            .cluster()
+            .prepareCancelTasks()
+            .setTaskId(taskId)
+            .waitForCompletion(waitForCompletion)
+            .execute();
         if (waitForCompletion) {
             assertFalse(cancelFuture.isDone());
         } else {
@@ -323,9 +346,14 @@ public class CancellableTasksIT extends OpenSearchIntegTestCase {
     static TaskId getRootTaskId(TestRequest request) throws Exception {
         SetOnce<TaskId> taskId = new SetOnce<>();
         assertBusy(() -> {
-            ListTasksResponse listTasksResponse = client().admin().cluster().prepareListTasks()
-                .setActions(TransportTestAction.ACTION.name()).setDetailed(true).get();
-            List<TaskInfo> tasks = listTasksResponse.getTasks().stream()
+            ListTasksResponse listTasksResponse = client().admin()
+                .cluster()
+                .prepareListTasks()
+                .setActions(TransportTestAction.ACTION.name())
+                .setDetailed(true)
+                .get();
+            List<TaskInfo> tasks = listTasksResponse.getTasks()
+                .stream()
                 .filter(t -> t.getDescription().equals(request.taskDescription()))
                 .collect(Collectors.toList());
             assertThat(tasks, hasSize(1));
@@ -339,10 +367,14 @@ public class CancellableTasksIT extends OpenSearchIntegTestCase {
             rootTask.actionGet();
         } catch (Exception e) {
             final Throwable cause = ExceptionsHelper.unwrap(e, TaskCancelledException.class);
-            assertThat(cause.getMessage(), anyOf(
-                equalTo("The parent task was cancelled, shouldn't start any child tasks"),
-                containsString("Task cancelled before it started:"),
-                equalTo("Task was cancelled while executing")));
+            assertThat(
+                cause.getMessage(),
+                anyOf(
+                    equalTo("The parent task was cancelled, shouldn't start any child tasks"),
+                    containsString("Task cancelled before it started:"),
+                    equalTo("Task was cancelled while executing")
+                )
+            );
         }
     }
 
@@ -451,8 +483,10 @@ public class CancellableTasksIT extends OpenSearchIntegTestCase {
         protected void doExecute(Task task, TestRequest request, ActionListener<TestResponse> listener) {
             arrivedLatches.get(request).countDown();
             List<TestRequest> subRequests = request.subRequests;
-            GroupedActionListener<TestResponse> groupedListener =
-                new GroupedActionListener<>(ActionListener.map(listener, r -> new TestResponse()), subRequests.size() + 1);
+            GroupedActionListener<TestResponse> groupedListener = new GroupedActionListener<>(
+                ActionListener.map(listener, r -> new TestResponse()),
+                subRequests.size() + 1
+            );
             transportService.getThreadPool().generic().execute(ActionRunnable.supply(groupedListener, () -> {
                 beforeExecuteLatches.get(request).await();
                 if (((CancellableTask) task).isCancelled()) {
@@ -486,7 +520,10 @@ public class CancellableTasksIT extends OpenSearchIntegTestCase {
                             latchedListener.onFailure(new TransportException(e));
                         }
                     } else {
-                        transportService.sendRequest(subRequest.node, ACTION.name(), subRequest,
+                        transportService.sendRequest(
+                            subRequest.node,
+                            ACTION.name(),
+                            subRequest,
                             new TransportResponseHandler<TestResponse>() {
                                 @Override
                                 public void handleResponse(TestResponse response) {
@@ -507,13 +544,13 @@ public class CancellableTasksIT extends OpenSearchIntegTestCase {
                                 public TestResponse read(StreamInput in) throws IOException {
                                     return new TestResponse(in);
                                 }
-                            });
+                            }
+                        );
                     }
                 }
             });
         }
     }
-
 
     public static class TaskPlugin extends Plugin implements ActionPlugin {
         @Override

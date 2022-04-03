@@ -271,13 +271,25 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
             if (updatedSnapshots.addAll(newSnapshots) == false) {
                 return this;
             }
-            return new Entry(Collections.unmodifiableList(new ArrayList<>(updatedSnapshots)), repository(), startTime, repositoryStateId,
-                    State.WAITING, uuid);
+            return new Entry(
+                Collections.unmodifiableList(new ArrayList<>(updatedSnapshots)),
+                repository(),
+                startTime,
+                repositoryStateId,
+                State.WAITING,
+                uuid
+            );
         }
 
         public Entry withSnapshots(Collection<SnapshotId> snapshots) {
-            return new Entry(Collections.unmodifiableList(new ArrayList<>(snapshots)), repository(), startTime, repositoryStateId, state,
-                    uuid);
+            return new Entry(
+                Collections.unmodifiableList(new ArrayList<>(snapshots)),
+                repository(),
+                startTime,
+                repositoryStateId,
+                state,
+                uuid
+            );
         }
 
         public Entry withRepoGen(long repoGen) {
@@ -313,11 +325,11 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
             }
             Entry that = (Entry) o;
             return repoName.equals(that.repoName)
-                       && snapshots.equals(that.snapshots)
-                       && startTime == that.startTime
-                       && repositoryStateId == that.repositoryStateId
-                       && state == that.state
-                       && uuid.equals(that.uuid);
+                && snapshots.equals(that.snapshots)
+                && startTime == that.startTime
+                && repositoryStateId == that.repositoryStateId
+                && state == that.state
+                && uuid.equals(that.uuid);
         }
 
         @Override
@@ -331,8 +343,10 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
                 out.writeString(repoName);
                 out.writeCollection(snapshots);
             } else {
-                assert snapshots.size() == 1 : "Only single deletion allowed in mixed version cluster containing [" + out.getVersion() +
-                        "] but saw " + snapshots;
+                assert snapshots.size() == 1 : "Only single deletion allowed in mixed version cluster containing ["
+                    + out.getVersion()
+                    + "] but saw "
+                    + snapshots;
                 new Snapshot(repoName, snapshots.get(0)).writeTo(out);
             }
             out.writeVLong(startTime);

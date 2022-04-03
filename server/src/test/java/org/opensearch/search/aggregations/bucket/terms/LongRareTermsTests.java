@@ -47,10 +47,12 @@ import java.util.Map;
 public class LongRareTermsTests extends InternalRareTermsTestCase {
 
     @Override
-    protected InternalRareTerms<?, ?> createTestInstance(String name,
-                                                         Map<String, Object> metadata,
-                                                         InternalAggregations aggregations,
-                                                         long maxDocCount) {
+    protected InternalRareTerms<?, ?> createTestInstance(
+        String name,
+        Map<String, Object> metadata,
+        InternalAggregations aggregations,
+        long maxDocCount
+    ) {
         BucketOrder order = BucketOrder.count(false);
         DocValueFormat format = randomNumericDocValueFormat();
         List<LongRareTerms.Bucket> buckets = new ArrayList<>();

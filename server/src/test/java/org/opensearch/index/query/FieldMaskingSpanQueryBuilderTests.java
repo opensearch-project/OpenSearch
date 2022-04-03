@@ -38,6 +38,7 @@ import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
+import static org.opensearch.index.query.FieldMaskingSpanQueryBuilder.SPAN_FIELD_MASKING_FIELD;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
@@ -55,9 +56,8 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
     }
 
     @Override
-    protected void doAssertLuceneQuery(FieldMaskingSpanQueryBuilder queryBuilder,
-                                       Query query,
-                                       QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(FieldMaskingSpanQueryBuilder queryBuilder, Query query, QueryShardContext context)
+        throws IOException {
         String fieldInQuery = expectedFieldName(queryBuilder.fieldName());
         assertThat(query, instanceOf(FieldMaskingSpanQuery.class));
         FieldMaskingSpanQuery fieldMaskingSpanQuery = (FieldMaskingSpanQuery) query;
@@ -73,25 +73,47 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
     }
 
     public void testFromJson() throws IOException {
-        String json =
-                "{\n" +
-                "  \"field_masking_span\" : {\n" +
-                "    \"query\" : {\n" +
-                "      \"span_term\" : {\n" +
-                "        \"value\" : {\n" +
-                "          \"value\" : 0.5,\n" +
-                "          \"boost\" : 0.23\n" +
-                "        }\n" +
-                "      }\n" +
-                "    },\n" +
-                "    \"field\" : \"mapped_geo_shape\",\n" +
-                "    \"boost\" : 42.0,\n" +
-                "    \"_name\" : \"KPI\"\n" +
-                "  }\n" +
-                "}";
+        String json = "{\n"
+            + "  \""
+            + SPAN_FIELD_MASKING_FIELD.getPreferredName()
+            + "\" : {\n"
+            + "    \"query\" : {\n"
+            + "      \"span_term\" : {\n"
+            + "        \"value\" : {\n"
+            + "          \"value\" : 0.5,\n"
+            + "          \"boost\" : 0.23\n"
+            + "        }\n"
+            + "      }\n"
+            + "    },\n"
+            + "    \"field\" : \"mapped_geo_shape\",\n"
+            + "    \"boost\" : 42.0,\n"
+            + "    \"_name\" : \"KPI\"\n"
+            + "  }\n"
+            + "}";
         FieldMaskingSpanQueryBuilder parsed = (FieldMaskingSpanQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, 42.0, parsed.boost(), 0.00001);
         assertEquals(json, 0.23, parsed.innerQuery().boost(), 0.00001);
+    }
+
+    public void testDeprecatedName() throws IOException {
+        String json = "{\n"
+            + "  \"field_masking_span\" : {\n"
+            + "    \"query\" : {\n"
+            + "      \"span_term\" : {\n"
+            + "        \"value\" : {\n"
+            + "          \"value\" : \"foo\"\n"
+            + "        }\n"
+            + "      }\n"
+            + "    },\n"
+            + "    \"field\" : \"mapped_geo_shape\",\n"
+            + "    \"boost\" : 42.0,\n"
+            + "    \"_name\" : \"KPI\"\n"
+            + "  }\n"
+            + "}";
+        FieldMaskingSpanQueryBuilder parsed = (FieldMaskingSpanQueryBuilder) parseQuery(json);
+        assertWarnings(
+            "Deprecated field [field_masking_span] used, expected [" + SPAN_FIELD_MASKING_FIELD.getPreferredName() + "] instead"
+        );
     }
 }

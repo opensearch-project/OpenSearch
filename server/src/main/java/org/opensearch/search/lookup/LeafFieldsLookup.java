@@ -78,7 +78,6 @@ public class LeafFieldsLookup implements Map {
         clearCache();
     }
 
-
     @Override
     public Object get(Object key) {
         return loadFieldData(key.toString());

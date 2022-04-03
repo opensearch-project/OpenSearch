@@ -40,8 +40,10 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.Priority;
 import org.opensearch.common.unit.TimeValue;
 
-public class ClusterHealthRequestBuilder
-        extends MasterNodeReadOperationRequestBuilder<ClusterHealthRequest, ClusterHealthResponse, ClusterHealthRequestBuilder> {
+public class ClusterHealthRequestBuilder extends MasterNodeReadOperationRequestBuilder<
+    ClusterHealthRequest,
+    ClusterHealthResponse,
+    ClusterHealthRequestBuilder> {
 
     public ClusterHealthRequestBuilder(OpenSearchClient client, ClusterHealthAction action) {
         super(client, action, new ClusterHealthRequest());

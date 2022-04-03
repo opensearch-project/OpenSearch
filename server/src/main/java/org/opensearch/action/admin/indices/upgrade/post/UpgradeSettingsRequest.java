@@ -56,8 +56,7 @@ public class UpgradeSettingsRequest extends AcknowledgedRequest<UpgradeSettingsR
         versions = in.readMap(StreamInput::readString, i -> new Tuple<>(Version.readVersion(i), i.readString()));
     }
 
-    public UpgradeSettingsRequest() {
-    }
+    public UpgradeSettingsRequest() {}
 
     /**
      * Constructs a new request to update minimum compatible version settings for one or more indices
@@ -68,7 +67,6 @@ public class UpgradeSettingsRequest extends AcknowledgedRequest<UpgradeSettingsR
         this.versions = versions;
     }
 
-
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -77,7 +75,6 @@ public class UpgradeSettingsRequest extends AcknowledgedRequest<UpgradeSettingsR
         }
         return validationException;
     }
-
 
     Map<String, Tuple<Version, String>> versions() {
         return versions;

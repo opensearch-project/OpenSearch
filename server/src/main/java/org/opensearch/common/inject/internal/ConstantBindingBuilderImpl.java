@@ -45,9 +45,10 @@ import static java.util.Collections.emptySet;
  *
  * @author jessewilson@google.com (Jesse Wilson)
  */
-public final class ConstantBindingBuilderImpl<T>
-        extends AbstractBindingBuilder<T>
-        implements AnnotatedConstantBindingBuilder, ConstantBindingBuilder {
+public final class ConstantBindingBuilderImpl<T> extends AbstractBindingBuilder<T>
+    implements
+        AnnotatedConstantBindingBuilder,
+        ConstantBindingBuilder {
 
     @SuppressWarnings("unchecked") // constant bindings start out with T unknown
     public ConstantBindingBuilderImpl(Binder binder, List<Element> elements, Object source) {
@@ -142,8 +143,7 @@ public final class ConstantBindingBuilderImpl<T>
             binder.addError(BINDING_TO_NULL);
         }
 
-        setBinding(new InstanceBindingImpl<>(
-                base.getSource(), key, base.getScoping(), emptySet(), instanceAsT));
+        setBinding(new InstanceBindingImpl<>(base.getSource(), key, base.getScoping(), emptySet(), instanceAsT));
     }
 
     @Override

@@ -70,21 +70,28 @@ public class SimpleGetMappingsIT extends OpenSearchIntegTestCase {
     }
 
     private XContentBuilder getMappingForType(String type) throws IOException {
-        return jsonBuilder().startObject().startObject(type).startObject("properties")
-                .startObject("field1").field("type", "text").endObject()
-                .endObject().endObject().endObject();
+        return jsonBuilder().startObject()
+            .startObject(type)
+            .startObject("properties")
+            .startObject("field1")
+            .field("type", "text")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
     }
 
     public void testSimpleGetMappings() throws Exception {
-        client().admin().indices().prepareCreate("indexa")
-                .addMapping("typeA", getMappingForType("typeA"))
-                .execute().actionGet();
-        client().admin().indices().prepareCreate("indexb")
-                .addMapping("typeA", getMappingForType("typeA"))
-                .execute().actionGet();
+        client().admin().indices().prepareCreate("indexa").addMapping("typeA", getMappingForType("typeA")).execute().actionGet();
+        client().admin().indices().prepareCreate("indexb").addMapping("typeA", getMappingForType("typeA")).execute().actionGet();
 
-        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth()
-            .setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        ClusterHealthResponse clusterHealth = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForGreenStatus()
+            .execute()
+            .actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
         // Get all mappings
@@ -137,9 +144,7 @@ public class SimpleGetMappingsIT extends OpenSearchIntegTestCase {
     }
 
     public void testGetMappingsWithBlocks() throws IOException {
-        client().admin().indices().prepareCreate("test")
-                .addMapping("_doc", getMappingForType("_doc"))
-                .execute().actionGet();
+        client().admin().indices().prepareCreate("test").addMapping("_doc", getMappingForType("_doc")).execute().actionGet();
         ensureGreen();
 
         for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY)) {

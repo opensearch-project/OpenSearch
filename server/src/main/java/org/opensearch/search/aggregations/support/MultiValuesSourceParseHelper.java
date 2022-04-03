@@ -41,32 +41,51 @@ import org.opensearch.common.xcontent.XContentParser;
 public final class MultiValuesSourceParseHelper {
 
     public static <T> void declareCommon(
-            AbstractObjectParser<? extends MultiValuesSourceAggregationBuilder<?>, T> objectParser, boolean formattable,
-            ValueType expectedValueType) {
+        AbstractObjectParser<? extends MultiValuesSourceAggregationBuilder<?>, T> objectParser,
+        boolean formattable,
+        ValueType expectedValueType
+    ) {
 
         objectParser.declareField(MultiValuesSourceAggregationBuilder::userValueTypeHint, p -> {
             ValueType valueType = ValueType.lenientParse(p.text());
             if (expectedValueType != null && valueType.isNotA(expectedValueType)) {
-                throw new ParsingException(p.getTokenLocation(),
-                    "Aggregation [" + objectParser.getName() + "] was configured with an incompatible value type ["
-                        + valueType + "].  It can only work on value off type ["
-                        + expectedValueType + "]");
+                throw new ParsingException(
+                    p.getTokenLocation(),
+                    "Aggregation ["
+                        + objectParser.getName()
+                        + "] was configured with an incompatible value type ["
+                        + valueType
+                        + "].  It can only work on value off type ["
+                        + expectedValueType
+                        + "]"
+                );
             }
             return valueType;
         }, ValueType.VALUE_TYPE, ObjectParser.ValueType.STRING);
 
         if (formattable) {
-            objectParser.declareField(MultiValuesSourceAggregationBuilder::format, XContentParser::text,
-                ParseField.CommonFields.FORMAT, ObjectParser.ValueType.STRING);
+            objectParser.declareField(
+                MultiValuesSourceAggregationBuilder::format,
+                XContentParser::text,
+                ParseField.CommonFields.FORMAT,
+                ObjectParser.ValueType.STRING
+            );
         }
     }
 
-    public static <VS extends ValuesSource, T> void declareField(String fieldName,
+    public static <VS extends ValuesSource, T> void declareField(
+        String fieldName,
         AbstractObjectParser<? extends MultiValuesSourceAggregationBuilder<?>, T> objectParser,
-        boolean scriptable, boolean timezoneAware, boolean filterable) {
+        boolean scriptable,
+        boolean timezoneAware,
+        boolean filterable
+    ) {
 
-        objectParser.declareField((o, fieldConfig) -> o.field(fieldName, fieldConfig.build()),
+        objectParser.declareField(
+            (o, fieldConfig) -> o.field(fieldName, fieldConfig.build()),
             (p, c) -> MultiValuesSourceFieldConfig.PARSER.apply(scriptable, timezoneAware, filterable).parse(p, null),
-            new ParseField(fieldName), ObjectParser.ValueType.OBJECT);
+            new ParseField(fieldName),
+            ObjectParser.ValueType.OBJECT
+        );
     }
 }

@@ -66,7 +66,6 @@ public class Queries {
         return new MatchNoDocsQuery(reason);
     }
 
-
     public static Query newUnmappedFieldQuery(String field) {
         return newUnmappedFieldsQuery(Collections.singletonList(field));
     }
@@ -92,10 +91,7 @@ public class Queries {
         if (indexVersionCreated.onOrAfter(LegacyESVersion.V_6_1_0)) {
             return new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME);
         } else {
-            return new BooleanQuery.Builder()
-                .add(new MatchAllDocsQuery(), Occur.FILTER)
-                .add(newNestedFilter(), Occur.MUST_NOT)
-                .build();
+            return new BooleanQuery.Builder().add(new MatchAllDocsQuery(), Occur.FILTER).add(newNestedFilter(), Occur.MUST_NOT).build();
         }
     }
 
@@ -112,10 +108,7 @@ public class Queries {
 
     /** Return a query that matches all documents but those that match the given query. */
     public static Query not(Query q) {
-        return new BooleanQuery.Builder()
-            .add(new MatchAllDocsQuery(), Occur.MUST)
-            .add(q, Occur.MUST_NOT)
-            .build();
+        return new BooleanQuery.Builder().add(new MatchAllDocsQuery(), Occur.MUST).add(q, Occur.MUST_NOT).build();
     }
 
     static boolean isNegativeQuery(Query q) {
@@ -123,8 +116,7 @@ public class Queries {
             return false;
         }
         List<BooleanClause> clauses = ((BooleanQuery) q).clauses();
-        return clauses.isEmpty() == false &&
-                clauses.stream().allMatch(BooleanClause::isProhibited);
+        return clauses.isEmpty() == false && clauses.stream().allMatch(BooleanClause::isProhibited);
     }
 
     public static Query fixNegativeQueryIfNeeded(Query q) {
@@ -172,7 +164,7 @@ public class Queries {
         if (query instanceof BooleanQuery) {
             return applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
         } else if (query instanceof ExtendedCommonTermsQuery) {
-            ((ExtendedCommonTermsQuery)query).setLowFreqMinimumNumberShouldMatch(minimumShouldMatch);
+            ((ExtendedCommonTermsQuery) query).setLowFreqMinimumNumberShouldMatch(minimumShouldMatch);
         }
         return query;
     }
@@ -194,8 +186,7 @@ public class Queries {
                 if (optionalClauseCount <= upperBound) {
                     return result;
                 } else {
-                    result = calculateMinShouldMatch
-                            (optionalClauseCount, parts[1]);
+                    result = calculateMinShouldMatch(optionalClauseCount, parts[1]);
                 }
             }
             return result;

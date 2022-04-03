@@ -87,12 +87,10 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    protected void doClose() {
-    }
+    protected void doClose() {}
 
     @Override
-    public void preProcess(boolean rewrite) {
-    }
+    public void preProcess(boolean rewrite) {}
 
     @Override
     public Query buildFilteredQuery(Query query) {

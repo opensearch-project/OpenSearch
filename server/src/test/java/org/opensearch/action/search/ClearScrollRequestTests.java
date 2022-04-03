@@ -54,13 +54,14 @@ public class ClearScrollRequestTests extends OpenSearchTestCase {
     public void testFromXContent() throws Exception {
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         if (randomBoolean()) {
-            //test that existing values get overridden
+            // test that existing values get overridden
             clearScrollRequest = createClearScrollRequest();
         }
-        try (XContentParser parser = createParser(XContentFactory.jsonBuilder()
-                .startObject()
-                .array("scroll_id", "value_1", "value_2")
-                .endObject())) {
+        try (
+            XContentParser parser = createParser(
+                XContentFactory.jsonBuilder().startObject().array("scroll_id", "value_1", "value_2").endObject()
+            )
+        ) {
             clearScrollRequest.fromXContent(parser);
         }
         assertThat(clearScrollRequest.scrollIds(), contains("value_1", "value_2"));
@@ -69,24 +70,19 @@ public class ClearScrollRequestTests extends OpenSearchTestCase {
     public void testFromXContentWithoutArray() throws Exception {
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         if (randomBoolean()) {
-            //test that existing values get overridden
+            // test that existing values get overridden
             clearScrollRequest = createClearScrollRequest();
         }
-        try (XContentParser parser = createParser(XContentFactory.jsonBuilder()
-                .startObject()
-                .field("scroll_id", "value_1")
-                .endObject())) {
+        try (XContentParser parser = createParser(XContentFactory.jsonBuilder().startObject().field("scroll_id", "value_1").endObject())) {
             clearScrollRequest.fromXContent(parser);
         }
         assertThat(clearScrollRequest.scrollIds(), contains("value_1"));
     }
 
     public void testFromXContentWithUnknownParamThrowsException() throws Exception {
-        XContentParser invalidContent = createParser(XContentFactory.jsonBuilder()
-                .startObject()
-                .array("scroll_id", "value_1", "value_2")
-                .field("unknown", "keyword")
-                .endObject());
+        XContentParser invalidContent = createParser(
+            XContentFactory.jsonBuilder().startObject().array("scroll_id", "value_1", "value_2").field("unknown", "keyword").endObject()
+        );
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> clearScrollRequest.fromXContent(invalidContent));

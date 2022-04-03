@@ -46,7 +46,7 @@ public abstract class SmoothingModel implements NamedWriteable, ToXContentFragme
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getWriteableName());
-        innerToXContent(builder,params);
+        innerToXContent(builder, params);
         builder.endObject();
         return builder;
     }
@@ -94,8 +94,10 @@ public abstract class SmoothingModel implements NamedWriteable, ToXContentFragme
                     throw new IllegalArgumentException("suggester[phrase] doesn't support object field [" + fieldName + "]");
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(),
-                        "[smoothing] unknown token [" + token + "] after [" + fieldName + "]");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "[smoothing] unknown token [" + token + "] after [" + fieldName + "]"
+                );
             }
         }
         return model;

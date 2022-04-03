@@ -69,8 +69,8 @@ public class GetIndexResponseTests extends OpenSearchTestCase {
             this::createParser,
             GetIndexResponseTests::createTestInstance,
             GetIndexResponseTests::toXContent,
-            GetIndexResponse::fromXContent)
-            .supportsUnknownFields(false)
+            GetIndexResponse::fromXContent
+        ).supportsUnknownFields(false)
             .assertToXContentEquivalence(false)
             .assertEqualsConsumer(GetIndexResponseTests::assertEqualInstances)
             .test();
@@ -93,12 +93,12 @@ public class GetIndexResponseTests extends OpenSearchTestCase {
         Map<String, String> dataStreams = new HashMap<>();
         IndexScopedSettings indexScopedSettings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS;
         boolean includeDefaults = randomBoolean();
-        for (String index: indices) {
+        for (String index : indices) {
             mappings.put(index, createMappingsForIndex());
 
             List<AliasMetadata> aliasMetadataList = new ArrayList<>();
             int aliasesNum = randomIntBetween(0, 3);
-            for (int i=0; i<aliasesNum; i++) {
+            for (int i = 0; i < aliasesNum; i++) {
                 aliasMetadataList.add(GetAliasesResponseTests.createAliasMetadata());
             }
             CollectionUtil.timSort(aliasMetadataList, Comparator.comparing(AliasMetadata::alias));
@@ -199,8 +199,8 @@ public class GetIndexResponseTests extends OpenSearchTestCase {
             defaultSettings.put(index, response.getDefaultSettings().get(index));
         }
 
-        org.opensearch.action.admin.indices.get.GetIndexResponse serverResponse
-            = new org.opensearch.action.admin.indices.get.GetIndexResponse(
+        org.opensearch.action.admin.indices.get.GetIndexResponse serverResponse =
+            new org.opensearch.action.admin.indices.get.GetIndexResponse(
                 response.getIndices(),
                 allMappings.build(),
                 aliases.build(),

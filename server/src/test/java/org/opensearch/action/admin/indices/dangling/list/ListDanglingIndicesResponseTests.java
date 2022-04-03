@@ -33,11 +33,9 @@
 package org.opensearch.action.admin.indices.dangling.list;
 
 import org.opensearch.action.admin.indices.dangling.DanglingIndexInfo;
-import org.opensearch.action.admin.indices.dangling.list.ListDanglingIndicesResponse;
 import org.opensearch.action.admin.indices.dangling.list.ListDanglingIndicesResponse.AggregatedDanglingIndexInfo;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.action.admin.indices.dangling.list.NodeListDanglingIndicesResponse;
 
 import java.util.ArrayList;
 import java.util.List;

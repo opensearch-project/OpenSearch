@@ -58,8 +58,12 @@ final class OpenSearchTieredMergePolicy extends FilterMergePolicy {
     }
 
     @Override
-    public MergeSpecification findForcedMerges(SegmentInfos infos, int maxSegmentCount,
-            Map<SegmentCommitInfo, Boolean> segmentsToMerge, MergeContext mergeContext) throws IOException {
+    public MergeSpecification findForcedMerges(
+        SegmentInfos infos,
+        int maxSegmentCount,
+        Map<SegmentCommitInfo, Boolean> segmentsToMerge,
+        MergeContext mergeContext
+    ) throws IOException {
         return forcedMergePolicy.findForcedMerges(infos, maxSegmentCount, segmentsToMerge, mergeContext);
     }
 
@@ -95,11 +99,13 @@ final class OpenSearchTieredMergePolicy extends FilterMergePolicy {
         return regularMergePolicy.getMaxMergeAtOnce();
     }
 
+    @Deprecated
     public void setMaxMergeAtOnceExplicit(int maxMergeAtOnceExplicit) {
         regularMergePolicy.setMaxMergeAtOnceExplicit(maxMergeAtOnceExplicit);
         forcedMergePolicy.setMaxMergeAtOnceExplicit(maxMergeAtOnceExplicit);
     }
 
+    @Deprecated
     public int getMaxMergeAtOnceExplicit() {
         return forcedMergePolicy.getMaxMergeAtOnceExplicit();
     }

@@ -72,15 +72,26 @@ public class IndexReaderWrapperTests extends OpenSearchTestCase {
         IndexSearcher searcher = new IndexSearcher(open);
         assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
         final AtomicInteger closeCalls = new AtomicInteger(0);
-        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper =
-            reader -> new FieldMaskingReader("field", reader, closeCalls);
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = reader -> new FieldMaskingReader(
+            "field",
+            reader,
+            closeCalls
+        );
         final int sourceRefCount = open.getRefCount();
         final AtomicInteger count = new AtomicInteger();
         final AtomicInteger outerCount = new AtomicInteger();
         final AtomicBoolean closeCalled = new AtomicBoolean(false);
-        final Engine.Searcher wrap =  IndexShard.wrapSearcher(new Engine.Searcher("foo", open,
-            IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(),
-            () -> closeCalled.set(true)), wrapper);
+        final Engine.Searcher wrap = IndexShard.wrapSearcher(
+            new Engine.Searcher(
+                "foo",
+                open,
+                IndexSearcher.getDefaultSimilarity(),
+                IndexSearcher.getDefaultQueryCache(),
+                IndexSearcher.getDefaultQueryCachingPolicy(),
+                () -> closeCalled.set(true)
+            ),
+            wrapper
+        );
         assertEquals(1, wrap.getIndexReader().getRefCount());
         OpenSearchDirectoryReader.addReaderCloseListener(wrap.getDirectoryReader(), key -> {
             if (key == open.getReaderCacheHelper().getKey()) {
@@ -115,16 +126,27 @@ public class IndexReaderWrapperTests extends OpenSearchTestCase {
         assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
         searcher.setSimilarity(iwc.getSimilarity());
         final AtomicInteger closeCalls = new AtomicInteger(0);
-        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper =
-            reader -> new FieldMaskingReader("field", reader, closeCalls);
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = reader -> new FieldMaskingReader(
+            "field",
+            reader,
+            closeCalls
+        );
         final ConcurrentHashMap<Object, TopDocs> cache = new ConcurrentHashMap<>();
         AtomicBoolean closeCalled = new AtomicBoolean(false);
-        try (Engine.Searcher wrap =  IndexShard.wrapSearcher(new Engine.Searcher("foo", open,
-                IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(),
-                () -> closeCalled.set(true)), wrapper)) {
-            OpenSearchDirectoryReader.addReaderCloseListener(wrap.getDirectoryReader(), key -> {
-                cache.remove(key);
-            });
+        try (
+            Engine.Searcher wrap = IndexShard.wrapSearcher(
+                new Engine.Searcher(
+                    "foo",
+                    open,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    () -> closeCalled.set(true)
+                ),
+                wrapper
+            )
+        ) {
+            OpenSearchDirectoryReader.addReaderCloseListener(wrap.getDirectoryReader(), key -> { cache.remove(key); });
             TopDocs search = wrap.search(new TermQuery(new Term("field", "doc")), 1);
             cache.put(wrap.getIndexReader().getReaderCacheHelper().getKey(), search);
         }
@@ -150,9 +172,19 @@ public class IndexReaderWrapperTests extends OpenSearchTestCase {
         assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
         searcher.setSimilarity(iwc.getSimilarity());
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = directoryReader -> directoryReader;
-        try (Engine.Searcher engineSearcher =  IndexShard.wrapSearcher(new Engine.Searcher("foo", open,
-                IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(),
-                open::close), wrapper)) {
+        try (
+            Engine.Searcher engineSearcher = IndexShard.wrapSearcher(
+                new Engine.Searcher(
+                    "foo",
+                    open,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    open::close
+                ),
+                wrapper
+            )
+        ) {
             final Engine.Searcher wrap = IndexShard.wrapSearcher(engineSearcher, wrapper);
             assertSame(wrap, engineSearcher);
         }

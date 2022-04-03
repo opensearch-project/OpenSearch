@@ -88,8 +88,7 @@ import static org.hamcrest.Matchers.instanceOf;
 @OpenSearchIntegTestCase.ClusterScope(scope = TEST)
 public class ClusterStateIT extends OpenSearchIntegTestCase {
 
-    public abstract static
-    class Custom implements Metadata.Custom {
+    public abstract static class Custom implements Metadata.Custom {
 
         private static final ParseField VALUE = new ParseField("value");
 
@@ -205,7 +204,10 @@ public class ClusterStateIT extends OpenSearchIntegTestCase {
         }
 
         protected <T extends Metadata.Custom> void registerMetadataCustom(
-                final String name, final Writeable.Reader<T> reader, final CheckedFunction<XContentParser, T, IOException> parser) {
+            final String name,
+            final Writeable.Reader<T> reader,
+            final CheckedFunction<XContentParser, T, IOException> parser
+        ) {
             namedWritables.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, name, reader));
             namedXContents.add(new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(name), parser));
         }
@@ -240,7 +242,8 @@ public class ClusterStateIT extends OpenSearchIntegTestCase {
             final NodeEnvironment nodeEnvironment,
             final NamedWriteableRegistry namedWriteableRegistry,
             final IndexNameExpressionResolver indexNameExpressionResolver,
-            final Supplier<RepositoriesService> repositoriesServiceSupplier) {
+            final Supplier<RepositoriesService> repositoriesServiceSupplier
+        ) {
             clusterService.addListener(event -> {
                 final ClusterState state = event.state();
                 if (state.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)) {
@@ -290,11 +293,10 @@ public class ClusterStateIT extends OpenSearchIntegTestCase {
         @Override
         protected void registerBuiltinWritables() {
             registerMetadataCustom(
-                    NodeCustom.TYPE,
-                    NodeCustom::new,
-                    parser -> {
-                        throw new IOException(new UnsupportedOperationException());
-                    });
+                NodeCustom.TYPE,
+                NodeCustom::new,
+                parser -> { throw new IOException(new UnsupportedOperationException()); }
+            );
         }
 
         @Override
@@ -321,11 +323,10 @@ public class ClusterStateIT extends OpenSearchIntegTestCase {
         @Override
         protected void registerBuiltinWritables() {
             registerMetadataCustom(
-                    NodeAndTransportClientCustom.TYPE,
-                    NodeAndTransportClientCustom::new,
-                    parser -> {
-                        throw new IOException(new UnsupportedOperationException());
-                    });
+                NodeAndTransportClientCustom.TYPE,
+                NodeAndTransportClientCustom::new,
+                parser -> { throw new IOException(new UnsupportedOperationException()); }
+            );
         }
 
         @Override
@@ -362,7 +363,7 @@ public class ClusterStateIT extends OpenSearchIntegTestCase {
         assertThat(keys, hasItem(NodeAndTransportClientCustom.TYPE));
         final Metadata.Custom actual = customs.get(NodeAndTransportClientCustom.TYPE);
         assertThat(actual, instanceOf(NodeAndTransportClientCustom.class));
-        assertThat(((NodeAndTransportClientCustom)actual).value(), equalTo(NodeAndTransportClientPlugin.VALUE));
+        assertThat(((NodeAndTransportClientCustom) actual).value(), equalTo(NodeAndTransportClientPlugin.VALUE));
     }
 
 }

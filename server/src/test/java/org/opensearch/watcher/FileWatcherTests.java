@@ -34,8 +34,6 @@ package org.opensearch.watcher;
 import org.opensearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.watcher.FileChangesListener;
-import org.opensearch.watcher.FileWatcher;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -144,11 +142,14 @@ public class FileWatcherTests extends OpenSearchTestCase {
         FileWatcher fileWatcher = new FileWatcher(testDir);
         fileWatcher.addListener(changes);
         fileWatcher.init();
-        assertThat(changes.notifications(), contains(
+        assertThat(
+            changes.notifications(),
+            contains(
                 equalTo("onDirectoryInit: test-dir/"),
                 equalTo("onFileInit: test-dir/test.txt"),
                 equalTo("onFileInit: test-dir/test0.txt")
-        ));
+            )
+        );
 
         changes.notifications().clear();
         fileWatcher.checkAndNotify();
@@ -161,12 +162,15 @@ public class FileWatcherTests extends OpenSearchTestCase {
         append("Test", testDir.resolve("test0.txt"), Charset.defaultCharset());
 
         fileWatcher.checkAndNotify();
-        assertThat(changes.notifications(), contains(
+        assertThat(
+            changes.notifications(),
+            contains(
                 equalTo("onFileChanged: test-dir/test0.txt"),
                 equalTo("onFileCreated: test-dir/test1.txt"),
                 equalTo("onFileCreated: test-dir/test2.txt"),
                 equalTo("onFileCreated: test-dir/test3.txt")
-        ));
+            )
+        );
 
         changes.notifications().clear();
         fileWatcher.checkAndNotify();
@@ -176,10 +180,10 @@ public class FileWatcherTests extends OpenSearchTestCase {
         Files.delete(testDir.resolve("test2.txt"));
 
         fileWatcher.checkAndNotify();
-        assertThat(changes.notifications(), contains(
-                equalTo("onFileDeleted: test-dir/test1.txt"),
-                equalTo("onFileDeleted: test-dir/test2.txt")
-        ));
+        assertThat(
+            changes.notifications(),
+            contains(equalTo("onFileDeleted: test-dir/test1.txt"), equalTo("onFileDeleted: test-dir/test2.txt"))
+        );
 
         changes.notifications().clear();
         fileWatcher.checkAndNotify();
@@ -190,23 +194,24 @@ public class FileWatcherTests extends OpenSearchTestCase {
         touch(testDir.resolve("test4.txt"));
         fileWatcher.checkAndNotify();
 
-        assertThat(changes.notifications(), contains(
+        assertThat(
+            changes.notifications(),
+            contains(
                 equalTo("onFileDeleted: test-dir/test0.txt"),
                 equalTo("onFileCreated: test-dir/test2.txt"),
                 equalTo("onFileCreated: test-dir/test4.txt")
-        ));
-
+            )
+        );
 
         changes.notifications().clear();
 
         Files.delete(testDir.resolve("test3.txt"));
         Files.delete(testDir.resolve("test4.txt"));
         fileWatcher.checkAndNotify();
-        assertThat(changes.notifications(), contains(
-                equalTo("onFileDeleted: test-dir/test3.txt"),
-                equalTo("onFileDeleted: test-dir/test4.txt")
-        ));
-
+        assertThat(
+            changes.notifications(),
+            contains(equalTo("onFileDeleted: test-dir/test3.txt"), equalTo("onFileDeleted: test-dir/test4.txt"))
+        );
 
         changes.notifications().clear();
         if (Files.exists(testDir)) {
@@ -214,11 +219,14 @@ public class FileWatcherTests extends OpenSearchTestCase {
         }
         fileWatcher.checkAndNotify();
 
-        assertThat(changes.notifications(), contains(
+        assertThat(
+            changes.notifications(),
+            contains(
                 equalTo("onFileDeleted: test-dir/test.txt"),
                 equalTo("onFileDeleted: test-dir/test2.txt"),
                 equalTo("onDirectoryDeleted: test-dir")
-        ));
+            )
+        );
 
     }
 
@@ -234,12 +242,15 @@ public class FileWatcherTests extends OpenSearchTestCase {
         FileWatcher fileWatcher = new FileWatcher(testDir);
         fileWatcher.addListener(changes);
         fileWatcher.init();
-        assertThat(changes.notifications(), contains(
+        assertThat(
+            changes.notifications(),
+            contains(
                 equalTo("onDirectoryInit: test-dir/"),
                 equalTo("onDirectoryInit: test-dir/sub-dir/"),
                 equalTo("onFileInit: test-dir/sub-dir/test0.txt"),
                 equalTo("onFileInit: test-dir/test.txt")
-        ));
+            )
+        );
 
         changes.notifications().clear();
         fileWatcher.checkAndNotify();
@@ -248,9 +259,7 @@ public class FileWatcherTests extends OpenSearchTestCase {
         // Create new file in subdirectory
         touch(testDir.resolve("sub-dir/test1.txt"));
         fileWatcher.checkAndNotify();
-        assertThat(changes.notifications(), contains(
-                equalTo("onFileCreated: test-dir/sub-dir/test1.txt")
-        ));
+        assertThat(changes.notifications(), contains(equalTo("onFileCreated: test-dir/sub-dir/test1.txt")));
 
         changes.notifications().clear();
         fileWatcher.checkAndNotify();
@@ -262,12 +271,15 @@ public class FileWatcherTests extends OpenSearchTestCase {
         Files.createDirectories(testDir.resolve("first-level/second-level"));
         touch(testDir.resolve("first-level/second-level/file2.txt"));
         fileWatcher.checkAndNotify();
-        assertThat(changes.notifications(), contains(
+        assertThat(
+            changes.notifications(),
+            contains(
                 equalTo("onDirectoryCreated: test-dir/first-level/"),
                 equalTo("onFileCreated: test-dir/first-level/file1.txt"),
                 equalTo("onDirectoryCreated: test-dir/first-level/second-level/"),
                 equalTo("onFileCreated: test-dir/first-level/second-level/file2.txt")
-        ));
+            )
+        );
 
         changes.notifications().clear();
         fileWatcher.checkAndNotify();
@@ -279,12 +291,15 @@ public class FileWatcherTests extends OpenSearchTestCase {
             IOUtils.rm(path);
         }
         fileWatcher.checkAndNotify();
-        assertThat(changes.notifications(), contains(
+        assertThat(
+            changes.notifications(),
+            contains(
                 equalTo("onFileDeleted: test-dir/first-level/file1.txt"),
                 equalTo("onFileDeleted: test-dir/first-level/second-level/file2.txt"),
                 equalTo("onDirectoryDeleted: test-dir/first-level/second-level"),
                 equalTo("onDirectoryDeleted: test-dir/first-level")
-        ));
+            )
+        );
     }
 
     public void testFileReplacingDirectory() throws IOException {
@@ -300,12 +315,15 @@ public class FileWatcherTests extends OpenSearchTestCase {
         FileWatcher fileWatcher = new FileWatcher(testDir);
         fileWatcher.addListener(changes);
         fileWatcher.init();
-        assertThat(changes.notifications(), contains(
+        assertThat(
+            changes.notifications(),
+            contains(
                 equalTo("onDirectoryInit: test-dir/"),
                 equalTo("onDirectoryInit: test-dir/sub-dir/"),
                 equalTo("onFileInit: test-dir/sub-dir/test0.txt"),
                 equalTo("onFileInit: test-dir/sub-dir/test1.txt")
-        ));
+            )
+        );
 
         changes.notifications().clear();
 
@@ -314,12 +332,15 @@ public class FileWatcherTests extends OpenSearchTestCase {
         }
         touch(subDir);
         fileWatcher.checkAndNotify();
-        assertThat(changes.notifications(), contains(
+        assertThat(
+            changes.notifications(),
+            contains(
                 equalTo("onFileDeleted: test-dir/sub-dir/test0.txt"),
                 equalTo("onFileDeleted: test-dir/sub-dir/test1.txt"),
                 equalTo("onDirectoryDeleted: test-dir/sub-dir"),
                 equalTo("onFileCreated: test-dir/sub-dir")
-        ));
+            )
+        );
 
         changes.notifications().clear();
 
@@ -327,10 +348,10 @@ public class FileWatcherTests extends OpenSearchTestCase {
         Files.createDirectories(subDir);
 
         fileWatcher.checkAndNotify();
-        assertThat(changes.notifications(), contains(
-                equalTo("onFileDeleted: test-dir/sub-dir/"),
-                equalTo("onDirectoryCreated: test-dir/sub-dir/")
-        ));
+        assertThat(
+            changes.notifications(),
+            contains(equalTo("onFileDeleted: test-dir/sub-dir/"), equalTo("onDirectoryCreated: test-dir/sub-dir/"))
+        );
     }
 
     public void testEmptyDirectory() throws IOException {
@@ -349,10 +370,10 @@ public class FileWatcherTests extends OpenSearchTestCase {
         Files.delete(testDir.resolve("test0.txt"));
         Files.delete(testDir.resolve("test1.txt"));
         fileWatcher.checkAndNotify();
-        assertThat(changes.notifications(), contains(
-                equalTo("onFileDeleted: test-dir/test0.txt"),
-                equalTo("onFileDeleted: test-dir/test1.txt")
-        ));
+        assertThat(
+            changes.notifications(),
+            contains(equalTo("onFileDeleted: test-dir/test0.txt"), equalTo("onFileDeleted: test-dir/test1.txt"))
+        );
     }
 
     public void testNoDirectoryOnInit() throws IOException {
@@ -371,11 +392,14 @@ public class FileWatcherTests extends OpenSearchTestCase {
         touch(testDir.resolve("test1.txt"));
 
         fileWatcher.checkAndNotify();
-        assertThat(changes.notifications(), contains(
+        assertThat(
+            changes.notifications(),
+            contains(
                 equalTo("onDirectoryCreated: test-dir/"),
                 equalTo("onFileCreated: test-dir/test0.txt"),
                 equalTo("onFileCreated: test-dir/test1.txt")
-        ));
+            )
+        );
     }
 
     public void testNoFileOnInit() throws IOException {
@@ -392,9 +416,7 @@ public class FileWatcherTests extends OpenSearchTestCase {
         touch(testFile);
 
         fileWatcher.checkAndNotify();
-        assertThat(changes.notifications(), contains(
-                equalTo("onFileCreated: testfile.txt")
-        ));
+        assertThat(changes.notifications(), contains(equalTo("onFileCreated: testfile.txt")));
     }
 
     static void touch(Path path) throws IOException {

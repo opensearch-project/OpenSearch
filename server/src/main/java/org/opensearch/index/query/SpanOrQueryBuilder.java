@@ -72,7 +72,7 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
      */
     public SpanOrQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        for (QueryBuilder clause: readQueries(in)) {
+        for (QueryBuilder clause : readQueries(in)) {
             clauses.add((SpanQueryBuilder) clause);
         }
     }

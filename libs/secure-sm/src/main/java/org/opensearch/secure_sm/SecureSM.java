@@ -52,7 +52,7 @@ import java.util.Objects;
  *       a thread must have {@code modifyThread} to even terminate its own pool, leaving
  *       system threads unprotected.
  * </ul>
- * This class throws exception on {@code exitVM} calls, and provides a whitelist where calls
+ * This class throws exception on {@code exitVM} calls, and provides an allowlist where calls
  * from exit are allowed.
  * <p>
  * Additionally it enforces threadgroup security with the following rules:
@@ -121,8 +121,7 @@ public class SecureSM extends SecurityManager {
         // intellij test runner (before IDEA version 2019.3)
         "com\\.intellij\\.rt\\.execution\\.junit\\..*",
         // intellij test runner (since IDEA version 2019.3)
-        "com\\.intellij\\.rt\\.junit\\..*"
-    };
+        "com\\.intellij\\.rt\\.junit\\..*" };
 
     // java.security.debug support
     private static final boolean DEBUG = AccessController.doPrivileged(new PrivilegedAction<Boolean>() {
@@ -230,15 +229,12 @@ public class SecureSM extends SecurityManager {
         AccessController.doPrivileged(new PrivilegedAction<Void>() {
             @Override
             public Void run() {
-                final String systemClassName = System.class.getName(),
-                        runtimeClassName = Runtime.class.getName();
+                final String systemClassName = System.class.getName(), runtimeClassName = Runtime.class.getName();
                 String exitMethodHit = null;
                 for (final StackTraceElement se : Thread.currentThread().getStackTrace()) {
                     final String className = se.getClassName(), methodName = se.getMethodName();
-                    if (
-                        ("exit".equals(methodName) || "halt".equals(methodName)) &&
-                        (systemClassName.equals(className) || runtimeClassName.equals(className))
-                    ) {
+                    if (("exit".equals(methodName) || "halt".equals(methodName))
+                        && (systemClassName.equals(className) || runtimeClassName.equals(className))) {
                         exitMethodHit = className + '#' + methodName + '(' + status + ')';
                         continue;
                     }

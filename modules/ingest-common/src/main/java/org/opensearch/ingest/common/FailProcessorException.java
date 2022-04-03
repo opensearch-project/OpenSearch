@@ -48,4 +48,3 @@ public class FailProcessorException extends RuntimeException {
         super(message);
     }
 }
-

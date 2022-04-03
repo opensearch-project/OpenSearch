@@ -1,4 +1,4 @@
-# Sanity integration test to make sure the custom context and whitelist work for moving_fn pipeline agg
+# Sanity integration test to make sure the custom context and allowlist work for moving_fn pipeline agg
 #
 setup:
   - skip:

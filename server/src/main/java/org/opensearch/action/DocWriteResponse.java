@@ -102,9 +102,9 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             return lowercase;
         }
 
-        public static Result readFrom(StreamInput in) throws IOException{
+        public static Result readFrom(StreamInput in) throws IOException {
             Byte opcode = in.readByte();
-            switch(opcode){
+            switch (opcode) {
                 case 0:
                     return CREATED;
                 case 1:
@@ -337,9 +337,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         ReplicationResponse.ShardInfo shardInfo = getShardInfo();
         builder.field(_INDEX, shardId.getIndexName());
         builder.field(_TYPE, type);
-        builder.field(_ID, id)
-                .field(_VERSION, version)
-                .field(RESULT, getResult().getLowercase());
+        builder.field(_ID, id).field(_VERSION, version).field(RESULT, getResult().getLowercase());
         if (forcedRefresh) {
             builder.field(FORCED_REFRESH, true);
         }
@@ -377,7 +375,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
                 context.setVersion(parser.longValue());
             } else if (RESULT.equals(currentFieldName)) {
                 String result = parser.text();
-                for (Result r :  Result.values()) {
+                for (Result r : Result.values()) {
                     if (r.getLowercase().equals(result)) {
                         context.setResult(r);
                         break;

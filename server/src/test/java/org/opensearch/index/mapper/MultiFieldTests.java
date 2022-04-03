@@ -72,12 +72,10 @@ public class MultiFieldTests extends OpenSearchSingleNodeTestCase {
         IndexService indexService = createIndex("test");
         MapperService mapperService = indexService.mapperService();
 
-        indexService.mapperService().merge("person", new CompressedXContent(mapping),
-            MapperService.MergeReason.MAPPING_UPDATE);
+        indexService.mapperService().merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/opensearch/index/mapper/multifield/test-data.json"));
-        Document doc = mapperService.documentMapper().parse(
-            new SourceToParse("test", "person", "1", json, XContentType.JSON)).rootDoc();
+        Document doc = mapperService.documentMapper().parse(new SourceToParse("test", "person", "1", json, XContentType.JSON)).rootDoc();
 
         IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));
@@ -140,17 +138,20 @@ public class MultiFieldTests extends OpenSearchSingleNodeTestCase {
 
     public void testBuildThenParse() throws Exception {
         IndexService indexService = createIndex("test");
-        DocumentMapper builderDocMapper = new DocumentMapper.Builder(new RootObjectMapper.Builder("person").add(
+        DocumentMapper builderDocMapper = new DocumentMapper.Builder(
+            new RootObjectMapper.Builder("person").add(
                 new TextFieldMapper.Builder("name", createDefaultIndexAnalyzers()).store(true)
-                        .addMultiField(new TextFieldMapper.Builder("indexed", createDefaultIndexAnalyzers()).index(true))
-                        .addMultiField(new TextFieldMapper.Builder("not_indexed", createDefaultIndexAnalyzers()).index(false).store(true))
-        ), indexService.mapperService()).build(indexService.mapperService());
+                    .addMultiField(new TextFieldMapper.Builder("indexed", createDefaultIndexAnalyzers()).index(true))
+                    .addMultiField(new TextFieldMapper.Builder("not_indexed", createDefaultIndexAnalyzers()).index(false).store(true))
+            ),
+            indexService.mapperService()
+        ).build(indexService.mapperService());
 
         String builtMapping = builderDocMapper.mappingSource().string();
         // reparse it
-        DocumentMapper docMapper = indexService.mapperService().documentMapperParser()
+        DocumentMapper docMapper = indexService.mapperService()
+            .documentMapperParser()
             .parse("person", new CompressedXContent(builtMapping));
-
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/opensearch/index/mapper/multifield/test-data.json"));
         Document doc = docMapper.parse(new SourceToParse("test", "person", "1", json, XContentType.JSON)).rootDoc();
@@ -184,22 +185,32 @@ public class MultiFieldTests extends OpenSearchSingleNodeTestCase {
             multiFieldNames[i] = randomValueOtherThanMany(s -> !seenFields.add(s), () -> randomAlphaOfLength(4));
         }
 
-        XContentBuilder builder = jsonBuilder().startObject().startObject("type").startObject("properties")
-                .startObject("my_field").field("type", "text").startObject("fields");
+        XContentBuilder builder = jsonBuilder().startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("my_field")
+            .field("type", "text")
+            .startObject("fields");
         for (String multiFieldName : multiFieldNames) {
             builder = builder.startObject(multiFieldName).field("type", "text").endObject();
         }
         builder = builder.endObject().endObject().endObject().endObject().endObject();
         String mapping = Strings.toString(builder);
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
+        DocumentMapper docMapper = createIndex("test").mapperService()
+            .documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
         Arrays.sort(multiFieldNames);
 
-        Map<String, Object> sourceAsMap =
-            XContentHelper.convertToMap(docMapper.mappingSource().compressedReference(), true, builder.contentType()).v2();
+        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(
+            docMapper.mappingSource().compressedReference(),
+            true,
+            builder.contentType()
+        ).v2();
         @SuppressWarnings("unchecked")
-        Map<String, Object> multiFields =
-            (Map<String, Object>) XContentMapValues.extractValue("type.properties.my_field.fields", sourceAsMap);
+        Map<String, Object> multiFields = (Map<String, Object>) XContentMapValues.extractValue(
+            "type.properties.my_field.fields",
+            sourceAsMap
+        );
         assertThat(multiFields.size(), equalTo(multiFieldNames.length));
 
         int i = 0;
@@ -210,10 +221,22 @@ public class MultiFieldTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testObjectFieldNotAllowed() throws Exception {
-        String mapping = Strings.toString(jsonBuilder().startObject().startObject("type").startObject("properties").startObject("my_field")
-            .field("type", "text").startObject("fields").startObject("multi").field("type", "object")
-            .endObject().endObject()
-            .endObject().endObject().endObject().endObject());
+        String mapping = Strings.toString(
+            jsonBuilder().startObject()
+                .startObject("type")
+                .startObject("properties")
+                .startObject("my_field")
+                .field("type", "text")
+                .startObject("fields")
+                .startObject("multi")
+                .field("type", "object")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
         final DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         try {
             parser.parse("type", new CompressedXContent(mapping));
@@ -224,10 +247,22 @@ public class MultiFieldTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testNestedFieldNotAllowed() throws Exception {
-        String mapping = Strings.toString(jsonBuilder().startObject().startObject("type").startObject("properties").startObject("my_field")
-            .field("type", "text").startObject("fields").startObject("multi").field("type", "nested")
-            .endObject().endObject()
-            .endObject().endObject().endObject().endObject());
+        String mapping = Strings.toString(
+            jsonBuilder().startObject()
+                .startObject("type")
+                .startObject("properties")
+                .startObject("my_field")
+                .field("type", "text")
+                .startObject("fields")
+                .startObject("multi")
+                .field("type", "nested")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
         final DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         try {
             parser.parse("type", new CompressedXContent(mapping));
@@ -240,20 +275,20 @@ public class MultiFieldTests extends OpenSearchSingleNodeTestCase {
     public void testMultiFieldWithDot() throws IOException {
         XContentBuilder mapping = jsonBuilder();
         mapping.startObject()
-                .startObject("my_type")
-                .startObject("properties")
-                .startObject("city")
-                .field("type", "text")
-                .startObject("fields")
-                .startObject("raw.foo")
-                .field("type", "text")
-                .field("index", "not_analyzed")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject();
+            .startObject("my_type")
+            .startObject("properties")
+            .startObject("city")
+            .field("type", "text")
+            .startObject("fields")
+            .startObject("raw.foo")
+            .field("type", "text")
+            .field("index", "not_analyzed")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
 
         MapperService mapperService = createIndex("test").mapperService();
         try {

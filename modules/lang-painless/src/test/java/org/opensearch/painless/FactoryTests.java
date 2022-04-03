@@ -82,8 +82,8 @@ public class FactoryTests extends ScriptTestCase {
         private final int y;
 
         public StatefulFactoryTestScript(int x, int y, int a, int b) {
-            this.x = x*a;
-            this.y = y*b;
+            this.x = x * a;
+            this.y = y * b;
         }
 
         public int getX() {
@@ -91,7 +91,7 @@ public class FactoryTests extends ScriptTestCase {
         }
 
         public int getY() {
-            return y*2;
+            return y * 2;
         }
 
         public int getC() {
@@ -102,22 +102,31 @@ public class FactoryTests extends ScriptTestCase {
             return 2;
         }
 
-        public static final String[] PARAMETERS = new String[] {"test"};
+        public static final String[] PARAMETERS = new String[] { "test" };
+
         public abstract Object execute(int test);
 
         public abstract boolean needsTest();
+
         public abstract boolean needsNothing();
+
         public abstract boolean needsX();
+
         public abstract boolean needsC();
+
         public abstract boolean needsD();
 
         public interface StatefulFactory {
             StatefulFactoryTestScript newInstance(int a, int b);
 
             boolean needsTest();
+
             boolean needsNothing();
+
             boolean needsX();
+
             boolean needsC();
+
             boolean needsD();
         }
 
@@ -125,19 +134,29 @@ public class FactoryTests extends ScriptTestCase {
             StatefulFactory newFactory(int x, int y);
 
             boolean needsTest();
+
             boolean needsNothing();
+
             boolean needsX();
+
             boolean needsC();
+
             boolean needsD();
         }
 
-        public static final ScriptContext<StatefulFactoryTestScript.Factory> CONTEXT =
-            new ScriptContext<>("test", StatefulFactoryTestScript.Factory.class);
+        public static final ScriptContext<StatefulFactoryTestScript.Factory> CONTEXT = new ScriptContext<>(
+            "test",
+            StatefulFactoryTestScript.Factory.class
+        );
     }
 
     public void testStatefulFactory() {
         StatefulFactoryTestScript.Factory factory = getEngine().compile(
-            "stateful_factory_test", "test + x + y + d", StatefulFactoryTestScript.CONTEXT, Collections.emptyMap());
+            "stateful_factory_test",
+            "test + x + y + d",
+            StatefulFactoryTestScript.CONTEXT,
+            Collections.emptyMap()
+        );
         StatefulFactoryTestScript.StatefulFactory statefulFactory = factory.newFactory(1, 2);
         StatefulFactoryTestScript script = statefulFactory.newInstance(3, 4);
         assertEquals(24, script.execute(3));
@@ -171,18 +190,19 @@ public class FactoryTests extends ScriptTestCase {
             return params;
         }
 
-        public static final String[] PARAMETERS = new String[] {"test"};
+        public static final String[] PARAMETERS = new String[] { "test" };
+
         public abstract Object execute(int test);
 
         public interface Factory {
             FactoryTestScript newInstance(Map<String, Object> params);
 
             boolean needsTest();
+
             boolean needsNothing();
         }
 
-        public static final ScriptContext<FactoryTestScript.Factory> CONTEXT =
-            new ScriptContext<>("test", FactoryTestScript.Factory.class);
+        public static final ScriptContext<FactoryTestScript.Factory> CONTEXT = new ScriptContext<>("test", FactoryTestScript.Factory.class);
     }
 
     public abstract static class DeterministicFactoryTestScript {
@@ -196,23 +216,31 @@ public class FactoryTests extends ScriptTestCase {
             return params;
         }
 
-        public static final String[] PARAMETERS = new String[] {"test"};
+        public static final String[] PARAMETERS = new String[] { "test" };
+
         public abstract Object execute(int test);
 
-        public interface Factory extends ScriptFactory{
+        public interface Factory extends ScriptFactory {
             FactoryTestScript newInstance(Map<String, Object> params);
 
             boolean needsTest();
+
             boolean needsNothing();
         }
 
-        public static final ScriptContext<DeterministicFactoryTestScript.Factory> CONTEXT =
-            new ScriptContext<>("test", DeterministicFactoryTestScript.Factory.class);
+        public static final ScriptContext<DeterministicFactoryTestScript.Factory> CONTEXT = new ScriptContext<>(
+            "test",
+            DeterministicFactoryTestScript.Factory.class
+        );
     }
 
     public void testFactory() {
-        FactoryTestScript.Factory factory =
-            getEngine().compile("factory_test", "test + params.get('test')", FactoryTestScript.CONTEXT, Collections.emptyMap());
+        FactoryTestScript.Factory factory = getEngine().compile(
+            "factory_test",
+            "test + params.get('test')",
+            FactoryTestScript.CONTEXT,
+            Collections.emptyMap()
+        );
         FactoryTestScript script = factory.newInstance(Collections.singletonMap("test", 2));
         assertEquals(4, script.execute(2));
         assertEquals(5, script.execute(3));
@@ -226,41 +254,50 @@ public class FactoryTests extends ScriptTestCase {
     }
 
     public void testDeterministic() {
-        DeterministicFactoryTestScript.Factory factory =
-            getEngine().compile("deterministic_test", "Integer.parseInt('123')",
-                DeterministicFactoryTestScript.CONTEXT, Collections.emptyMap());
+        DeterministicFactoryTestScript.Factory factory = getEngine().compile(
+            "deterministic_test",
+            "Integer.parseInt('123')",
+            DeterministicFactoryTestScript.CONTEXT,
+            Collections.emptyMap()
+        );
         assertTrue(factory.isResultDeterministic());
         assertEquals(123, factory.newInstance(Collections.emptyMap()).execute(0));
     }
 
     public void testNotDeterministic() {
-        DeterministicFactoryTestScript.Factory factory =
-            getEngine().compile("not_deterministic_test", "Math.random()",
-                DeterministicFactoryTestScript.CONTEXT, Collections.emptyMap());
+        DeterministicFactoryTestScript.Factory factory = getEngine().compile(
+            "not_deterministic_test",
+            "Math.random()",
+            DeterministicFactoryTestScript.CONTEXT,
+            Collections.emptyMap()
+        );
         assertFalse(factory.isResultDeterministic());
-        Double d = (Double)factory.newInstance(Collections.emptyMap()).execute(0);
+        Double d = (Double) factory.newInstance(Collections.emptyMap()).execute(0);
         assertTrue(d >= 0.0 && d <= 1.0);
     }
 
     public void testMixedDeterministicIsNotDeterministic() {
-        DeterministicFactoryTestScript.Factory factory =
-            getEngine().compile("not_deterministic_test", "Integer.parseInt('123') + Math.random()",
-                DeterministicFactoryTestScript.CONTEXT, Collections.emptyMap());
+        DeterministicFactoryTestScript.Factory factory = getEngine().compile(
+            "not_deterministic_test",
+            "Integer.parseInt('123') + Math.random()",
+            DeterministicFactoryTestScript.CONTEXT,
+            Collections.emptyMap()
+        );
         assertFalse(factory.isResultDeterministic());
-        Double d = (Double)factory.newInstance(Collections.emptyMap()).execute(0);
+        Double d = (Double) factory.newInstance(Collections.emptyMap()).execute(0);
         assertTrue(d >= 123.0 && d <= 124.0);
     }
 
     public abstract static class EmptyTestScript {
         public static final String[] PARAMETERS = {};
+
         public abstract Object execute();
 
         public interface Factory {
             EmptyTestScript newInstance();
         }
 
-        public static final ScriptContext<EmptyTestScript.Factory> CONTEXT =
-            new ScriptContext<>("test", EmptyTestScript.Factory.class);
+        public static final ScriptContext<EmptyTestScript.Factory> CONTEXT = new ScriptContext<>("test", EmptyTestScript.Factory.class);
     }
 
     public void testEmpty() {
@@ -274,8 +311,12 @@ public class FactoryTests extends ScriptTestCase {
     }
 
     public void testTemplate() {
-        TemplateScript.Factory factory =
-            getEngine().compile("template_test", "params['test']", TemplateScript.CONTEXT, Collections.emptyMap());
+        TemplateScript.Factory factory = getEngine().compile(
+            "template_test",
+            "params['test']",
+            TemplateScript.CONTEXT,
+            Collections.emptyMap()
+        );
         TemplateScript script = factory.newInstance(Collections.singletonMap("test", "abc"));
         assertEquals("abc", script.execute());
         assertEquals("abc", script.execute());
@@ -285,30 +326,37 @@ public class FactoryTests extends ScriptTestCase {
     }
 
     public void testGetterInLambda() {
-        FactoryTestScript.Factory factory =
-            getEngine().compile("template_test",
-                "IntSupplier createLambda(IntSupplier s) { return s; } createLambda(() -> params['x'] + test).getAsInt()",
-                FactoryTestScript.CONTEXT, Collections.emptyMap());
+        FactoryTestScript.Factory factory = getEngine().compile(
+            "template_test",
+            "IntSupplier createLambda(IntSupplier s) { return s; } createLambda(() -> params['x'] + test).getAsInt()",
+            FactoryTestScript.CONTEXT,
+            Collections.emptyMap()
+        );
         FactoryTestScript script = factory.newInstance(Collections.singletonMap("x", 1));
         assertEquals(2, script.execute(1));
     }
 
     public abstract static class VoidReturnTestScript {
-        public static final String[] PARAMETERS = {"map"};
+        public static final String[] PARAMETERS = { "map" };
+
         public abstract void execute(Map<Object, Object> map);
 
         public interface Factory {
             VoidReturnTestScript newInstance();
         }
 
-        public static final ScriptContext<VoidReturnTestScript.Factory> CONTEXT =
-                new ScriptContext<>("test", VoidReturnTestScript.Factory.class);
+        public static final ScriptContext<VoidReturnTestScript.Factory> CONTEXT = new ScriptContext<>(
+            "test",
+            VoidReturnTestScript.Factory.class
+        );
     }
 
     public void testVoidReturn() {
         getEngine().compile("void_return_test", "int x = 1 + 1; return;", VoidReturnTestScript.CONTEXT, Collections.emptyMap());
-        IllegalArgumentException iae = expectScriptThrows(IllegalArgumentException.class, () ->
-                getEngine().compile("void_return_test", "1 + 1", VoidReturnTestScript.CONTEXT, Collections.emptyMap()));
+        IllegalArgumentException iae = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> getEngine().compile("void_return_test", "1 + 1", VoidReturnTestScript.CONTEXT, Collections.emptyMap())
+        );
         assertEquals(iae.getMessage(), "not a statement: result not used from addition operation [+]");
     }
 
@@ -323,27 +371,30 @@ public class FactoryTests extends ScriptTestCase {
             return params;
         }
 
-        public static final String[] PARAMETERS = new String[] {"test"};
+        public static final String[] PARAMETERS = new String[] { "test" };
+
         public abstract long[] execute(int test);
 
         public interface Factory {
             FactoryTestConverterScript newInstance(Map<String, Object> params);
         }
 
-        public static final ScriptContext<FactoryTestConverterScript.Factory> CONTEXT =
-            new ScriptContext<>("test", FactoryTestConverterScript.Factory.class);
+        public static final ScriptContext<FactoryTestConverterScript.Factory> CONTEXT = new ScriptContext<>(
+            "test",
+            FactoryTestConverterScript.Factory.class
+        );
 
         public static long[] convertFromInt(int i) {
-            return new long[]{i};
+            return new long[] { i };
         }
 
         public static long[] convertFromString(String s) {
-            return new long[]{Long.parseLong(s)};
+            return new long[] { Long.parseLong(s) };
         }
 
         public static long[] convertFromList(List<?> l) {
             long[] converted = new long[l.size()];
-            for (int i=0; i < l.size(); i++) {
+            for (int i = 0; i < l.size(); i++) {
                 Object o = l.get(i);
                 if (o instanceof Long) {
                     converted[i] = (Long) o;
@@ -358,7 +409,7 @@ public class FactoryTests extends ScriptTestCase {
 
         public static long[] convertFromDef(Object def) {
             if (def instanceof String) {
-                return convertFromString((String)def);
+                return convertFromString((String) def);
             } else if (def instanceof Integer) {
                 return convertFromInt(((Integer) def).intValue());
             } else if (def instanceof List) {
@@ -366,120 +417,126 @@ public class FactoryTests extends ScriptTestCase {
             } else {
                 return (long[]) def;
             }
-            //throw new ClassCastException("Cannot convert [" + def + "] to long[]");
+            // throw new ClassCastException("Cannot convert [" + def + "] to long[]");
         }
     }
 
-
     public void testConverterFactory() {
-        FactoryTestConverterScript.Factory factory =
-            getEngine().compile("converter_test",
-                "return test;",
-                FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
+        FactoryTestConverterScript.Factory factory = getEngine().compile(
+            "converter_test",
+            "return test;",
+            FactoryTestConverterScript.CONTEXT,
+            Collections.emptyMap()
+        );
         FactoryTestConverterScript script = factory.newInstance(Collections.singletonMap("test", 2));
-        assertArrayEquals(new long[]{2}, script.execute(2));
+        assertArrayEquals(new long[] { 2 }, script.execute(2));
         script = factory.newInstance(Collections.singletonMap("test", 3));
-        assertArrayEquals(new long[]{3}, script.execute(3));
+        assertArrayEquals(new long[] { 3 }, script.execute(3));
 
-        factory = getEngine().compile("converter_test",
-            "return test + 1;",
-            FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
+        factory = getEngine().compile("converter_test", "return test + 1;", FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
         script = factory.newInstance(Collections.singletonMap("test", 2));
-        assertArrayEquals(new long[]{1001}, script.execute(1000));
+        assertArrayEquals(new long[] { 1001 }, script.execute(1000));
 
-        factory = getEngine().compile("converter_test",
-            "return '100';",
-            FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
+        factory = getEngine().compile("converter_test", "return '100';", FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
         script = factory.newInstance(Collections.singletonMap("test", 2));
-        assertArrayEquals(new long[]{100}, script.execute(1000));
+        assertArrayEquals(new long[] { 100 }, script.execute(1000));
 
-        factory = getEngine().compile("converter_test",
+        factory = getEngine().compile(
+            "converter_test",
             "long[] a = new long[]{test, 123}; return a;",
-            FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
+            FactoryTestConverterScript.CONTEXT,
+            Collections.emptyMap()
+        );
         script = factory.newInstance(Collections.singletonMap("test", 2));
-        assertArrayEquals(new long[]{1000, 123}, script.execute(1000));
+        assertArrayEquals(new long[] { 1000, 123 }, script.execute(1000));
 
-        factory = getEngine().compile("converter_test",
-            "return [test, 123];",
-            FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
+        factory = getEngine().compile("converter_test", "return [test, 123];", FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
         script = factory.newInstance(Collections.singletonMap("test", 2));
-        assertArrayEquals(new long[]{1000, 123}, script.execute(1000));
+        assertArrayEquals(new long[] { 1000, 123 }, script.execute(1000));
 
-        factory = getEngine().compile("converter_test",
+        factory = getEngine().compile(
+            "converter_test",
             "ArrayList a = new ArrayList(); a.add(test); a.add(456); a.add('789'); return a;",
-            FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
+            FactoryTestConverterScript.CONTEXT,
+            Collections.emptyMap()
+        );
         script = factory.newInstance(Collections.singletonMap("test", 2));
-        assertArrayEquals(new long[]{123, 456, 789}, script.execute(123));
+        assertArrayEquals(new long[] { 123, 456, 789 }, script.execute(123));
 
         // autoreturn, no converter
-        factory = getEngine().compile("converter_test",
-            "new long[]{test}",
-            FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
+        factory = getEngine().compile("converter_test", "new long[]{test}", FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
         script = factory.newInstance(Collections.singletonMap("test", 2));
-        assertArrayEquals(new long[]{123}, script.execute(123));
+        assertArrayEquals(new long[] { 123 }, script.execute(123));
 
         // autoreturn, converter
-        factory = getEngine().compile("converter_test",
-            "test",
-            FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
+        factory = getEngine().compile("converter_test", "test", FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
         script = factory.newInstance(Collections.singletonMap("test", 2));
-        assertArrayEquals(new long[]{456}, script.execute(456));
+        assertArrayEquals(new long[] { 456 }, script.execute(456));
 
-        factory = getEngine().compile("converter_test",
-            "'1001'",
-            FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
+        factory = getEngine().compile("converter_test", "'1001'", FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
         script = factory.newInstance(Collections.singletonMap("test", 2));
-        assertArrayEquals(new long[]{1001}, script.execute(456));
+        assertArrayEquals(new long[] { 1001 }, script.execute(456));
 
         // def tests
-        factory = getEngine().compile("converter_test",
+        factory = getEngine().compile(
+            "converter_test",
             "def a = new long[]{test, 123}; return a;",
-            FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
+            FactoryTestConverterScript.CONTEXT,
+            Collections.emptyMap()
+        );
         script = factory.newInstance(Collections.singletonMap("test", 2));
-        assertArrayEquals(new long[]{1000, 123}, script.execute(1000));
+        assertArrayEquals(new long[] { 1000, 123 }, script.execute(1000));
 
-        factory = getEngine().compile("converter_test",
+        factory = getEngine().compile(
+            "converter_test",
             "def l = [test, 123]; l;",
-            FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
+            FactoryTestConverterScript.CONTEXT,
+            Collections.emptyMap()
+        );
         script = factory.newInstance(Collections.singletonMap("test", 2));
-        assertArrayEquals(new long[]{1000, 123}, script.execute(1000));
+        assertArrayEquals(new long[] { 1000, 123 }, script.execute(1000));
 
-        factory = getEngine().compile("converter_test",
+        factory = getEngine().compile(
+            "converter_test",
             "def a = new ArrayList(); a.add(test); a.add(456); a.add('789'); return a;",
-            FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
+            FactoryTestConverterScript.CONTEXT,
+            Collections.emptyMap()
+        );
         script = factory.newInstance(Collections.singletonMap("test", 2));
-        assertArrayEquals(new long[]{123, 456, 789}, script.execute(123));
+        assertArrayEquals(new long[] { 123, 456, 789 }, script.execute(123));
 
         // autoreturn, no converter
-        factory = getEngine().compile("converter_test",
+        factory = getEngine().compile(
+            "converter_test",
             "def a = new long[]{test}; a;",
-            FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
+            FactoryTestConverterScript.CONTEXT,
+            Collections.emptyMap()
+        );
         script = factory.newInstance(Collections.singletonMap("test", 2));
-        assertArrayEquals(new long[]{123}, script.execute(123));
+        assertArrayEquals(new long[] { 123 }, script.execute(123));
 
         // autoreturn, converter
-        factory = getEngine().compile("converter_test",
-            "def a = '1001'; a",
-            FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
+        factory = getEngine().compile("converter_test", "def a = '1001'; a", FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
         script = factory.newInstance(Collections.singletonMap("test", 2));
-        assertArrayEquals(new long[]{1001}, script.execute(456));
+        assertArrayEquals(new long[] { 1001 }, script.execute(456));
 
-        factory = getEngine().compile("converter_test",
-            "int x = 1",
-            FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
+        factory = getEngine().compile("converter_test", "int x = 1", FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
         script = factory.newInstance(Collections.singletonMap("test", 2));
         assertArrayEquals(null, script.execute(123));
 
-        factory = getEngine().compile("converter_test",
+        factory = getEngine().compile(
+            "converter_test",
             "short x = 1; return x",
-            FactoryTestConverterScript.CONTEXT, Collections.emptyMap());
+            FactoryTestConverterScript.CONTEXT,
+            Collections.emptyMap()
+        );
         script = factory.newInstance(Collections.singletonMap("test", 2));
-        assertArrayEquals(new long[]{1}, script.execute(123));
+        assertArrayEquals(new long[] { 1 }, script.execute(123));
 
-        ClassCastException cce = expectScriptThrows(ClassCastException.class, () ->
-            getEngine().compile("converter_test",
-                "return true;",
-                FactoryTestConverterScript.CONTEXT, Collections.emptyMap()));
+        ClassCastException cce = expectScriptThrows(
+            ClassCastException.class,
+            () -> getEngine().compile("converter_test", "return true;", FactoryTestConverterScript.CONTEXT, Collections.emptyMap())
+        );
         assertEquals(cce.getMessage(), "Cannot cast from [boolean] to [long[]].");
     }
 
@@ -494,27 +551,28 @@ public class FactoryTests extends ScriptTestCase {
             return params;
         }
 
-        public static final String[] PARAMETERS = new String[] {"test"};
+        public static final String[] PARAMETERS = new String[] { "test" };
+
         public abstract long[] execute(int test);
 
         public interface Factory {
             FactoryTestConverterScriptBadDef newInstance(Map<String, Object> params);
         }
 
-        public static final ScriptContext<FactoryTestConverterScriptBadDef.Factory> CONTEXT =
-            new ScriptContext<>("test", FactoryTestConverterScriptBadDef.Factory.class);
+        public static final ScriptContext<FactoryTestConverterScriptBadDef.Factory> CONTEXT = new ScriptContext<>(
+            "test",
+            FactoryTestConverterScriptBadDef.Factory.class
+        );
 
         public static long[] convertFromDef(int def) {
-            return new long[]{def};
+            return new long[] { def };
         }
     }
 
     public void testConverterFactoryBadDef() {
         IllegalStateException ise = null;
         try {
-            getEngine().compile("converter_def",
-                "return test;",
-                FactoryTestConverterScriptBadDef.CONTEXT, Collections.emptyMap());
+            getEngine().compile("converter_def", "return test;", FactoryTestConverterScriptBadDef.CONTEXT, Collections.emptyMap());
         } catch (ScriptException e) {
             ise = (IllegalStateException) e.getCause();
         }
@@ -547,8 +605,12 @@ public class FactoryTests extends ScriptTestCase {
     }
 
     public void testDocFields() {
-        DocFieldsTestScript.Factory f =
-                getEngine().compile("test", "doc['cat'] + doc['dog']", DocFieldsTestScript.CONTEXT, Collections.emptyMap());
+        DocFieldsTestScript.Factory f = getEngine().compile(
+            "test",
+            "doc['cat'] + doc['dog']",
+            DocFieldsTestScript.CONTEXT,
+            Collections.emptyMap()
+        );
         assertThat(f.docFields(), equalTo(Arrays.asList("cat", "dog")));
         assertThat(f.newInstance().execute(), equalTo("meowwoof"));
     }

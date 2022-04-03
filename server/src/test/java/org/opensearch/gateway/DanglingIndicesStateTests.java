@@ -67,10 +67,10 @@ import static org.mockito.Mockito.when;
 public class DanglingIndicesStateTests extends OpenSearchTestCase {
 
     private static Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .build();
+        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+        .build();
 
     // The setting AUTO_IMPORT_DANGLING_INDICES_SETTING is deprecated, so we must disable
     // warning checks or all the tests will fail.
@@ -283,12 +283,7 @@ public class DanglingIndicesStateTests extends OpenSearchTestCase {
             final ClusterService clusterServiceMock = mock(ClusterService.class);
             when(clusterServiceMock.getSettings()).thenReturn(allocateSettings);
 
-            new DanglingIndicesState(
-                env,
-                metaStateService,
-                localAllocateDangledIndices,
-                clusterServiceMock
-            );
+            new DanglingIndicesState(env, metaStateService, localAllocateDangledIndices, clusterServiceMock);
 
             verify(clusterServiceMock, never()).addListener(any());
         }
@@ -309,7 +304,8 @@ public class DanglingIndicesStateTests extends OpenSearchTestCase {
             DanglingIndicesState danglingIndicesState = new DanglingIndicesState(
                 env,
                 metaStateService,
-                localAllocateDangledIndices, clusterServiceMock
+                localAllocateDangledIndices,
+                clusterServiceMock
             );
 
             assertTrue("Expected dangling imports to be enabled", danglingIndicesState.isAutoImportDanglingIndicesEnabled());

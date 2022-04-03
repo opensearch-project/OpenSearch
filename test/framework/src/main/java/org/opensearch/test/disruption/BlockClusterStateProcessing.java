@@ -50,7 +50,6 @@ public class BlockClusterStateProcessing extends SingleNodeDisruption {
         this.disruptedNode = disruptedNode;
     }
 
-
     @Override
     public void startDisrupting() {
         final String disruptionNodeCopy = disruptedNode;
@@ -65,23 +64,20 @@ public class BlockClusterStateProcessing extends SingleNodeDisruption {
         boolean success = disruptionLatch.compareAndSet(null, new CountDownLatch(1));
         assert success : "startDisrupting called without waiting on stopDisrupting to complete";
         final CountDownLatch started = new CountDownLatch(1);
-        clusterService.getClusterApplierService().runOnApplierThread("service_disruption_block",
-            currentState -> {
-                started.countDown();
-                CountDownLatch latch = disruptionLatch.get();
-                if (latch != null) {
-                    try {
-                        latch.await();
-                    } catch (InterruptedException e) {
-                        Throwables.rethrow(e);
-                    }
+        clusterService.getClusterApplierService().runOnApplierThread("service_disruption_block", currentState -> {
+            started.countDown();
+            CountDownLatch latch = disruptionLatch.get();
+            if (latch != null) {
+                try {
+                    latch.await();
+                } catch (InterruptedException e) {
+                    Throwables.rethrow(e);
                 }
-            }, (source, e) -> logger.error("unexpected error during disruption", e),
-            Priority.IMMEDIATE);
+            }
+        }, (source, e) -> logger.error("unexpected error during disruption", e), Priority.IMMEDIATE);
         try {
             started.await();
-        } catch (InterruptedException e) {
-        }
+        } catch (InterruptedException e) {}
     }
 
     @Override

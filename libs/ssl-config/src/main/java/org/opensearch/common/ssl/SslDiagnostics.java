@@ -78,7 +78,8 @@ public class SslDiagnostics {
     }
 
     public enum PeerType {
-        CLIENT, SERVER
+        CLIENT,
+        SERVER
     }
 
     private static class IssuerTrust {
@@ -169,12 +170,16 @@ public class SslDiagnostics {
      * @param trustedIssuers A Map of DN to Certificate, for the issuers that were trusted in the context in which this failure occurred
      *                       (see {@link javax.net.ssl.X509TrustManager#getAcceptedIssuers()})
      */
-    public static String getTrustDiagnosticFailure(X509Certificate[] chain, PeerType peerType, SSLSession session,
-                                                   String contextName, @Nullable Map<String, List<X509Certificate>> trustedIssuers) {
+    public static String getTrustDiagnosticFailure(
+        X509Certificate[] chain,
+        PeerType peerType,
+        SSLSession session,
+        String contextName,
+        @Nullable Map<String, List<X509Certificate>> trustedIssuers
+    ) {
         final String peerAddress = Optional.ofNullable(session).map(SSLSession::getPeerHost).orElse("<unknown host>");
 
-        final StringBuilder message = new StringBuilder("failed to establish trust with ")
-            .append(peerType.name().toLowerCase(Locale.ROOT))
+        final StringBuilder message = new StringBuilder("failed to establish trust with ").append(peerType.name().toLowerCase(Locale.ROOT))
             .append(" at [")
             .append(peerAddress)
             .append("]; ");
@@ -214,8 +219,7 @@ public class SslDiagnostics {
         }
 
         if (isSelfIssued(peerCert)) {
-            message.append("; the certificate is ")
-                .append(describeSelfIssuedCertificate(peerCert, contextName, trustedIssuers));
+            message.append("; the certificate is ").append(describeSelfIssuedCertificate(peerCert, contextName, trustedIssuers));
         } else {
             final String issuerName = peerCert.getIssuerX500Principal().getName();
             message.append("; the certificate is issued by [").append(issuerName).append("]");
@@ -223,7 +227,7 @@ public class SslDiagnostics {
                 message.append(" but the ")
                     .append(peerType.name().toLowerCase(Locale.ROOT))
                     .append(" did not provide a copy of the issuing certificate in the certificate chain")
-                .append(describeIssuerTrust(contextName, trustedIssuers, peerCert, issuerName));
+                    .append(describeIssuerTrust(contextName, trustedIssuers, peerCert, issuerName));
             }
         }
 
@@ -258,8 +262,12 @@ public class SslDiagnostics {
         return message.toString();
     }
 
-    private static CharSequence describeIssuerTrust(String contextName, @Nullable Map<String, List<X509Certificate>> trustedIssuers,
-                                                    X509Certificate certificate, String issuerName) {
+    private static CharSequence describeIssuerTrust(
+        String contextName,
+        @Nullable Map<String, List<X509Certificate>> trustedIssuers,
+        X509Certificate certificate,
+        String issuerName
+    ) {
         if (trustedIssuers == null) {
             return "";
         }
@@ -267,11 +275,11 @@ public class SslDiagnostics {
         final IssuerTrust trust = checkIssuerTrust(trustedIssuers, certificate);
         if (trust.isVerified()) {
             message.append("; the issuing ")
-                .append(trust.issuerCerts.size() == 1 ? "certificate": "certificates")
+                .append(trust.issuerCerts.size() == 1 ? "certificate" : "certificates")
                 .append(" with ")
                 .append(fingerprintDescription(trust.issuerCerts))
                 .append(" ")
-                .append(trust.issuerCerts.size() == 1 ? "is": "are")
+                .append(trust.issuerCerts.size() == 1 ? "is" : "are")
                 .append(" trusted in this ssl context ([")
                 .append(contextName)
                 .append("])");
@@ -280,27 +288,33 @@ public class SslDiagnostics {
                 .append(contextName)
                 .append("]) trusts [")
                 .append(trust.issuerCerts.size())
-                .append("] ").append(trust.issuerCerts.size() == 1 ? "certificate" : "certificates")
+                .append("] ")
+                .append(trust.issuerCerts.size() == 1 ? "certificate" : "certificates")
                 .append(" with subject name [")
                 .append(issuerName)
                 .append("] and ")
                 .append(fingerprintDescription(trust.issuerCerts))
                 .append(" but the signatures do not match");
         } else {
-            message.append("; this ssl context ([")
-                .append(contextName)
-                .append("]) is not configured to trust that issuer");
+            message.append("; this ssl context ([").append(contextName).append("]) is not configured to trust that issuer");
         }
         return message;
     }
 
-    private static CharSequence describeSelfIssuedCertificate(X509Certificate certificate, String contextName,
-                                                              @Nullable Map<String, List<X509Certificate>> trustedIssuers) {
+    private static CharSequence describeSelfIssuedCertificate(
+        X509Certificate certificate,
+        String contextName,
+        @Nullable Map<String, List<X509Certificate>> trustedIssuers
+    ) {
         final StringBuilder message = new StringBuilder();
         final CertificateTrust trust = resolveCertificateTrust(trustedIssuers, certificate);
-        message.append("self-issued; the [").append(certificate.getIssuerX500Principal().getName()).append("] certificate ")
+        message.append("self-issued; the [")
+            .append(certificate.getIssuerX500Principal().getName())
+            .append("] certificate ")
             .append(trust.isTrusted() ? "is" : "is not")
-            .append(" trusted in this ssl context ([").append(contextName).append("])");
+            .append(" trusted in this ssl context ([")
+            .append(contextName)
+            .append("])");
         if (trust.isTrusted()) {
             if (trust.isSameCertificate() == false) {
                 if (trust.trustedCertificates.size() == 1) {

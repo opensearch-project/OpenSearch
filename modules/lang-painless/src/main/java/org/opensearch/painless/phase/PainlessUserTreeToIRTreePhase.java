@@ -90,12 +90,12 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
         // the main "execute" block with several exceptions.
         if ("execute".equals(functionName)) {
             ScriptClassInfo scriptClassInfo = scriptScope.getScriptClassInfo();
-            LocalFunction localFunction =
-                    scriptScope.getFunctionTable().getFunction(functionName, scriptClassInfo.getExecuteArguments().size());
+            LocalFunction localFunction = scriptScope.getFunctionTable()
+                .getFunction(functionName, scriptClassInfo.getExecuteArguments().size());
             Class<?> returnType = localFunction.getReturnType();
 
             boolean methodEscape = scriptScope.getCondition(userFunctionNode, MethodEscape.class);
-            BlockNode irBlockNode = (BlockNode)visit(userFunctionNode.getBlockNode(), scriptScope);
+            BlockNode irBlockNode = (BlockNode) visit(userFunctionNode.getBlockNode(), scriptScope);
 
             if (methodEscape == false) {
                 ExpressionNode irExpressionNode;
@@ -110,19 +110,19 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                         if (returnType == boolean.class) {
                             irConstantNode.setConstant(false);
                         } else if (returnType == byte.class
-                                || returnType == char.class
-                                || returnType == short.class
-                                || returnType == int.class) {
-                            irConstantNode.setConstant(0);
-                        } else if (returnType == long.class) {
-                            irConstantNode.setConstant(0L);
-                        } else if (returnType == float.class) {
-                            irConstantNode.setConstant(0f);
-                        } else if (returnType == double.class) {
-                            irConstantNode.setConstant(0d);
-                        } else {
-                            throw userFunctionNode.createError(new IllegalStateException("illegal tree structure"));
-                        }
+                            || returnType == char.class
+                            || returnType == short.class
+                            || returnType == int.class) {
+                                irConstantNode.setConstant(0);
+                            } else if (returnType == long.class) {
+                                irConstantNode.setConstant(0L);
+                            } else if (returnType == float.class) {
+                                irConstantNode.setConstant(0f);
+                            } else if (returnType == double.class) {
+                                irConstantNode.setConstant(0d);
+                            } else {
+                                throw userFunctionNode.createError(new IllegalStateException("illegal tree structure"));
+                            }
 
                         irExpressionNode = irConstantNode;
                     } else {
@@ -292,8 +292,9 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
 
                 InvokeCallMemberNode irInvokeCallMemberNode = new InvokeCallMemberNode(internalLocation);
                 irInvokeCallMemberNode.setExpressionType(irDeclarationNode.getDeclarationType());
-                irInvokeCallMemberNode.setLocalFunction(new LocalFunction(
-                        getMethod.getName(), returnType, Collections.emptyList(), true, false));
+                irInvokeCallMemberNode.setLocalFunction(
+                    new LocalFunction(getMethod.getName(), returnType, Collections.emptyList(), true, false)
+                );
                 irDeclarationNode.setExpressionNode(irInvokeCallMemberNode);
             }
         }
@@ -338,11 +339,11 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
     // decorate the execute method with nodes to wrap the user statements with
     // the sandboxed errors as follows:
     // } catch (PainlessExplainError e) {
-    //     throw this.convertToScriptException(e, e.getHeaders($DEFINITION))
+    // throw this.convertToScriptException(e, e.getHeaders($DEFINITION))
     // }
     // and
     // } catch (PainlessError | BootstrapMethodError | OutOfMemoryError | StackOverflowError | Exception e) {
-    //     throw this.convertToScriptException(e, e.getHeaders())
+    // throw this.convertToScriptException(e, e.getHeaders())
     // }
     protected void injectSandboxExceptions(FunctionNode irFunctionNode) {
         try {
@@ -370,13 +371,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             InvokeCallMemberNode irInvokeCallMemberNode = new InvokeCallMemberNode(internalLocation);
             irInvokeCallMemberNode.setExpressionType(ScriptException.class);
             irInvokeCallMemberNode.setLocalFunction(
-                    new LocalFunction(
-                            "convertToScriptException",
-                            ScriptException.class,
-                            Arrays.asList(Throwable.class, Map.class),
-                            true,
-                            false
-                    )
+                new LocalFunction("convertToScriptException", ScriptException.class, Arrays.asList(Throwable.class, Map.class), true, false)
             );
 
             irThrowNode.setExpressionNode(irInvokeCallMemberNode);
@@ -402,17 +397,15 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             irInvokeCallNode.setExpressionType(Map.class);
             irInvokeCallNode.setBox(PainlessExplainError.class);
             irInvokeCallNode.setMethod(
-                    new PainlessMethod(
-                            PainlessExplainError.class.getMethod(
-                                    "getHeaders",
-                                    PainlessLookup.class),
-                            PainlessExplainError.class,
-                            null,
-                            Collections.emptyList(),
-                            null,
-                            null,
-                            null
-                    )
+                new PainlessMethod(
+                    PainlessExplainError.class.getMethod("getHeaders", PainlessLookup.class),
+                    PainlessExplainError.class,
+                    null,
+                    Collections.emptyList(),
+                    null,
+                    null,
+                    null
+                )
             );
 
             irBinaryImplNode.setRightNode(irInvokeCallNode);
@@ -425,7 +418,11 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             irInvokeCallNode.addArgumentNode(irLoadFieldMemberNode);
 
             for (Class<?> throwable : new Class<?>[] {
-                    PainlessError.class, BootstrapMethodError.class, OutOfMemoryError.class, StackOverflowError.class, Exception.class}) {
+                PainlessError.class,
+                BootstrapMethodError.class,
+                OutOfMemoryError.class,
+                StackOverflowError.class,
+                Exception.class }) {
 
                 String name = throwable.getSimpleName();
                 name = "#" + Character.toLowerCase(name.charAt(0)) + name.substring(1);
@@ -448,13 +445,13 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                 irInvokeCallMemberNode = new InvokeCallMemberNode(internalLocation);
                 irInvokeCallMemberNode.setExpressionType(ScriptException.class);
                 irInvokeCallMemberNode.setLocalFunction(
-                        new LocalFunction(
-                                "convertToScriptException",
-                                ScriptException.class,
-                                Arrays.asList(Throwable.class, Map.class),
-                                true,
-                                false
-                        )
+                    new LocalFunction(
+                        "convertToScriptException",
+                        ScriptException.class,
+                        Arrays.asList(Throwable.class, Map.class),
+                        true,
+                        false
+                    )
                 );
 
                 irThrowNode.setExpressionNode(irInvokeCallMemberNode);
@@ -479,15 +476,15 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                 irInvokeCallNode.setExpressionType(Map.class);
                 irInvokeCallNode.setBox(Collections.class);
                 irInvokeCallNode.setMethod(
-                        new PainlessMethod(
-                                Collections.class.getMethod("emptyMap"),
-                                Collections.class,
-                                null,
-                                Collections.emptyList(),
-                                null,
-                                null,
-                                null
-                        )
+                    new PainlessMethod(
+                        Collections.class.getMethod("emptyMap"),
+                        Collections.class,
+                        null,
+                        Collections.emptyList(),
+                        null,
+                        null,
+                        null
+                    )
                 );
 
                 irBinaryImplNode.setRightNode(irInvokeCallNode);

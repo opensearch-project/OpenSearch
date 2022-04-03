@@ -216,8 +216,8 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
         @Override
         public boolean next() {
             if (pos < end) {
-               value = lc.values.get(pos++);
-               return true;
+                value = lc.values.get(pos++);
+                return true;
             }
             return false;
         }

@@ -50,7 +50,7 @@ public class QueryRescoreModeTests extends OpenSearchTestCase {
         float secondary = randomFloat();
         assertEquals(0, QueryRescoreMode.Avg.ordinal());
         assertEquals("avg", QueryRescoreMode.Avg.toString());
-        assertEquals((primary + secondary)/2.0f, QueryRescoreMode.Avg.combine(primary, secondary), Float.MIN_VALUE);
+        assertEquals((primary + secondary) / 2.0f, QueryRescoreMode.Avg.combine(primary, secondary), Float.MIN_VALUE);
 
         assertEquals(1, QueryRescoreMode.Max.ordinal());
         assertEquals("max", QueryRescoreMode.Max.toString());

@@ -40,8 +40,10 @@ import static org.hamcrest.Matchers.containsString;
 public class CacheBuilderTests extends OpenSearchTestCase {
 
     public void testSettingExpireAfterAccess() {
-        IllegalArgumentException iae =
-            expectThrows(IllegalArgumentException.class, () -> CacheBuilder.builder().setExpireAfterAccess(TimeValue.MINUS_ONE));
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> CacheBuilder.builder().setExpireAfterAccess(TimeValue.MINUS_ONE)
+        );
         assertThat(iae.getMessage(), containsString("expireAfterAccess <="));
         iae = expectThrows(IllegalArgumentException.class, () -> CacheBuilder.builder().setExpireAfterAccess(TimeValue.ZERO));
         assertThat(iae.getMessage(), containsString("expireAfterAccess <="));
@@ -51,8 +53,10 @@ public class CacheBuilderTests extends OpenSearchTestCase {
     }
 
     public void testSettingExpireAfterWrite() {
-        IllegalArgumentException iae =
-            expectThrows(IllegalArgumentException.class, () -> CacheBuilder.builder().setExpireAfterWrite(TimeValue.MINUS_ONE));
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> CacheBuilder.builder().setExpireAfterWrite(TimeValue.MINUS_ONE)
+        );
         assertThat(iae.getMessage(), containsString("expireAfterWrite <="));
         iae = expectThrows(IllegalArgumentException.class, () -> CacheBuilder.builder().setExpireAfterWrite(TimeValue.ZERO));
         assertThat(iae.getMessage(), containsString("expireAfterWrite <="));

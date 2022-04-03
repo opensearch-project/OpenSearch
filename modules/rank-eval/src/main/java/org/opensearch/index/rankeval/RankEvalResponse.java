@@ -67,10 +67,9 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
     /** exceptions for specific ranking evaluation queries, keyed by their id */
     private Map<String, Exception> failures;
 
-    public RankEvalResponse(double metricScore, Map<String, EvalQueryQuality> partialResults,
-            Map<String, Exception> failures) {
+    public RankEvalResponse(double metricScore, Map<String, EvalQueryQuality> partialResults, Map<String, Exception> failures) {
         this.metricScore = metricScore;
-        this.details =  new HashMap<>(partialResults);
+        this.details = new HashMap<>(partialResults);
         this.failures = new HashMap<>(failures);
     }
 
@@ -147,15 +146,22 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
     private static final ParseField DETAILS_FIELD = new ParseField("details");
     private static final ParseField FAILURES_FIELD = new ParseField("failures");
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<RankEvalResponse, Void> PARSER = new ConstructingObjectParser<>("rank_eval_response",
-            true,
-            a -> new RankEvalResponse((Double) a[0],
-                    ((List<EvalQueryQuality>) a[1]).stream().collect(Collectors.toMap(EvalQueryQuality::getId, Function.identity())),
-                    ((List<Tuple<String, Exception>>) a[2]).stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2))));
+    private static final ConstructingObjectParser<RankEvalResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "rank_eval_response",
+        true,
+        a -> new RankEvalResponse(
+            (Double) a[0],
+            ((List<EvalQueryQuality>) a[1]).stream().collect(Collectors.toMap(EvalQueryQuality::getId, Function.identity())),
+            ((List<Tuple<String, Exception>>) a[2]).stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2))
+        )
+    );
     static {
         PARSER.declareDouble(ConstructingObjectParser.constructorArg(), EvalQueryQuality.METRIC_SCORE_FIELD);
-        PARSER.declareNamedObjects(ConstructingObjectParser.optionalConstructorArg(), (p, c, n) -> EvalQueryQuality.fromXContent(p, n),
-                DETAILS_FIELD);
+        PARSER.declareNamedObjects(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c, n) -> EvalQueryQuality.fromXContent(p, n),
+            DETAILS_FIELD
+        );
         PARSER.declareNamedObjects(ConstructingObjectParser.optionalConstructorArg(), (p, c, n) -> {
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, p.nextToken(), p);
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, p.nextToken(), p);

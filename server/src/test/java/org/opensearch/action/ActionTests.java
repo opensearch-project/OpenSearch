@@ -33,8 +33,6 @@
 package org.opensearch.action;
 
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.action.ActionResponse;
-import org.opensearch.action.ActionType;
 
 public class ActionTests extends OpenSearchTestCase {
 

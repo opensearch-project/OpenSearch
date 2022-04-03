@@ -56,10 +56,7 @@ public class LegacyGeoShapeFieldQueryTests extends GeoShapeQueryBuilderTests {
     protected Settings createTestIndexSettings() {
         // force the legacy shape impl
         Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, LegacyESVersion.V_6_5_0);
-        return Settings.builder()
-                .put(super.createTestIndexSettings())
-                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
-                .build();
+        return Settings.builder().put(super.createTestIndexSettings()).put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
     }
 
     @Override

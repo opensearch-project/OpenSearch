@@ -89,8 +89,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
                 break;
         }
 
-        return new IndexFieldCapabilities(fieldName, randomAlphaOfLengthBetween(5, 20),
-            randomBoolean(), randomBoolean(), meta);
+        return new IndexFieldCapabilities(fieldName, randomAlphaOfLengthBetween(5, 20), randomBoolean(), randomBoolean(), meta);
     }
 
     @Override
@@ -102,9 +101,10 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         switch (mutation) {
             case 0:
                 String toAdd = randomAlphaOfLength(10);
-                mutatedResponses.put(toAdd, Collections.singletonMap(
-                    randomAlphaOfLength(10),
-                    FieldCapabilitiesTests.randomFieldCaps(toAdd)));
+                mutatedResponses.put(
+                    toAdd,
+                    Collections.singletonMap(randomAlphaOfLength(10), FieldCapabilitiesTests.randomFieldCaps(toAdd))
+                );
                 break;
             case 1:
                 String toRemove = randomFrom(mutatedResponses.keySet());
@@ -112,9 +112,10 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
                 break;
             case 2:
                 String toReplace = randomFrom(mutatedResponses.keySet());
-                mutatedResponses.put(toReplace, Collections.singletonMap(
-                    randomAlphaOfLength(10),
-                    FieldCapabilitiesTests.randomFieldCaps(toReplace)));
+                mutatedResponses.put(
+                    toReplace,
+                    Collections.singletonMap(randomAlphaOfLength(10), FieldCapabilitiesTests.randomFieldCaps(toReplace))
+                );
                 break;
         }
         return new FieldCapabilitiesResponse(null, mutatedResponses);

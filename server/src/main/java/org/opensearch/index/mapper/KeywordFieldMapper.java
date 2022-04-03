@@ -94,24 +94,40 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).fieldType.stored(), false);
 
-        private final Parameter<String> nullValue
-            = Parameter.stringParam("null_value", false, m -> toType(m).nullValue, null).acceptsNull();
+        private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValue, null)
+            .acceptsNull();
 
-        private final Parameter<Boolean> eagerGlobalOrdinals
-            = Parameter.boolParam("eager_global_ordinals", true, m -> toType(m).eagerGlobalOrdinals, false);
-        private final Parameter<Integer> ignoreAbove
-            = Parameter.intParam("ignore_above", true, m -> toType(m).ignoreAbove, Integer.MAX_VALUE);
+        private final Parameter<Boolean> eagerGlobalOrdinals = Parameter.boolParam(
+            "eager_global_ordinals",
+            true,
+            m -> toType(m).eagerGlobalOrdinals,
+            false
+        );
+        private final Parameter<Integer> ignoreAbove = Parameter.intParam(
+            "ignore_above",
+            true,
+            m -> toType(m).ignoreAbove,
+            Integer.MAX_VALUE
+        );
 
-        private final Parameter<String> indexOptions
-            = Parameter.restrictedStringParam("index_options", false, m -> toType(m).indexOptions, "docs", "freqs");
+        private final Parameter<String> indexOptions = Parameter.restrictedStringParam(
+            "index_options",
+            false,
+            m -> toType(m).indexOptions,
+            "docs",
+            "freqs"
+        );
         private final Parameter<Boolean> hasNorms = TextParams.norms(false, m -> toType(m).fieldType.omitNorms() == false);
         private final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> toType(m).similarity);
 
-        private final Parameter<String> normalizer
-            = Parameter.stringParam("normalizer", false, m -> toType(m).normalizerName, "default");
+        private final Parameter<String> normalizer = Parameter.stringParam("normalizer", false, m -> toType(m).normalizerName, "default");
 
-        private final Parameter<Boolean> splitQueriesOnWhitespace
-            = Parameter.boolParam("split_queries_on_whitespace", true, m -> toType(m).splitQueriesOnWhitespace, false);
+        private final Parameter<Boolean> splitQueriesOnWhitespace = Parameter.boolParam(
+            "split_queries_on_whitespace",
+            true,
+            m -> toType(m).splitQueriesOnWhitespace,
+            false
+        );
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<Float> boost = Parameter.boostParam();
@@ -149,8 +165,21 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(indexed, hasDocValues, stored, nullValue, eagerGlobalOrdinals, ignoreAbove,
-                indexOptions, hasNorms, similarity, normalizer, splitQueriesOnWhitespace, boost, meta);
+            return Arrays.asList(
+                indexed,
+                hasDocValues,
+                stored,
+                nullValue,
+                eagerGlobalOrdinals,
+                ignoreAbove,
+                indexOptions,
+                hasNorms,
+                similarity,
+                normalizer,
+                splitQueriesOnWhitespace,
+                boost,
+                meta
+            );
         }
 
         private KeywordFieldType buildFieldType(BuilderContext context, FieldType fieldType) {
@@ -168,8 +197,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 } else {
                     searchAnalyzer = normalizer;
                 }
-            }
-            else if (splitQueriesOnWhitespace.getValue()) {
+            } else if (splitQueriesOnWhitespace.getValue()) {
                 searchAnalyzer = Lucene.WHITESPACE_ANALYZER;
             }
             return new KeywordFieldType(buildFullName(context), fieldType, normalizer, searchAnalyzer, this);
@@ -181,27 +209,33 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             fieldtype.setOmitNorms(this.hasNorms.getValue() == false);
             fieldtype.setIndexOptions(TextParams.toIndexOptions(this.indexed.getValue(), this.indexOptions.getValue()));
             fieldtype.setStored(this.stored.getValue());
-            return new KeywordFieldMapper(name, fieldtype, buildFieldType(context, fieldtype),
-                    multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new KeywordFieldMapper(
+                name,
+                fieldtype,
+                buildFieldType(context, fieldtype),
+                multiFieldsBuilder.build(this, context),
+                copyTo.build(),
+                this
+            );
         }
     }
 
-    public static final TypeParser PARSER
-        = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers()));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers()));
 
     public static final class KeywordFieldType extends StringFieldType {
 
         private final int ignoreAbove;
         private final String nullValue;
 
-        public KeywordFieldType(String name, FieldType fieldType,
-                                NamedAnalyzer normalizer, NamedAnalyzer searchAnalyzer, Builder builder) {
-            super(name,
+        public KeywordFieldType(String name, FieldType fieldType, NamedAnalyzer normalizer, NamedAnalyzer searchAnalyzer, Builder builder) {
+            super(
+                name,
                 fieldType.indexOptions() != IndexOptions.NONE,
                 fieldType.stored(),
                 builder.hasDocValues.getValue(),
                 new TextSearchInfo(fieldType, builder.similarity.getValue(), searchAnalyzer, searchAnalyzer),
-                builder.meta.getValue());
+                builder.meta.getValue()
+            );
             setEagerGlobalOrdinals(builder.eagerGlobalOrdinals.getValue());
             setIndexAnalyzer(normalizer);
             setBoost(builder.boost.getValue());
@@ -221,10 +255,14 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         }
 
         public KeywordFieldType(String name, FieldType fieldType) {
-            super(name, fieldType.indexOptions() != IndexOptions.NONE,
-                false, false,
+            super(
+                name,
+                fieldType.indexOptions() != IndexOptions.NONE,
+                false,
+                false,
                 new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
-                Collections.emptyMap());
+                Collections.emptyMap()
+            );
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
         }
@@ -322,8 +360,14 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
     private final IndexAnalyzers indexAnalyzers;
 
-    protected KeywordFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
-                                 MultiFields multiFields, CopyTo copyTo, Builder builder) {
+    protected KeywordFieldMapper(
+        String simpleName,
+        FieldType fieldType,
+        MappedFieldType mappedFieldType,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        Builder builder
+    ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
         this.indexed = builder.indexed.getValue();
@@ -366,7 +410,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
                 value = nullValue;
             } else {
-                value =  parser.textOrNull();
+                value = parser.textOrNull();
             }
         }
 
@@ -381,7 +425,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
-        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored())  {
+        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
             context.doc().add(field);
 
@@ -400,15 +444,25 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
             ts.reset();
             if (ts.incrementToken() == false) {
-                throw new IllegalStateException("The normalization token stream is "
-                    + "expected to produce exactly 1 token, but got 0 for analyzer "
-                    + normalizer + " and input \"" + value + "\"");
+                throw new IllegalStateException(
+                    "The normalization token stream is "
+                        + "expected to produce exactly 1 token, but got 0 for analyzer "
+                        + normalizer
+                        + " and input \""
+                        + value
+                        + "\""
+                );
             }
             final String newValue = termAtt.toString();
             if (ts.incrementToken()) {
-                throw new IllegalStateException("The normalization token stream is "
-                    + "expected to produce exactly 1 token, but got 2+ for analyzer "
-                    + normalizer + " and input \"" + value + "\"");
+                throw new IllegalStateException(
+                    "The normalization token stream is "
+                        + "expected to produce exactly 1 token, but got 2+ for analyzer "
+                        + normalizer
+                        + " and input \""
+                        + value
+                        + "\""
+                );
             }
             ts.end();
             return newValue;

@@ -49,6 +49,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexingPressureService;
 import org.opensearch.node.Node;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -60,8 +61,10 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     private final ClusterApplierService clusterApplierService;
 
-    public static final org.opensearch.common.settings.Setting.AffixSetting<String> USER_DEFINED_METADATA =
-        Setting.prefixKeySetting("cluster.metadata.", (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope));
+    public static final org.opensearch.common.settings.Setting.AffixSetting<String> USER_DEFINED_METADATA = Setting.prefixKeySetting(
+        "cluster.metadata.",
+        (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope)
+    );
 
     /**
      * The node's settings.
@@ -78,13 +81,23 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     private RerouteService rerouteService;
 
+    private IndexingPressureService indexingPressureService;
+
     public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
-        this(settings, clusterSettings, new MasterService(settings, clusterSettings, threadPool),
-            new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool));
+        this(
+            settings,
+            clusterSettings,
+            new MasterService(settings, clusterSettings, threadPool),
+            new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool)
+        );
     }
 
-    public ClusterService(Settings settings, ClusterSettings clusterSettings, MasterService masterService,
-                          ClusterApplierService clusterApplierService) {
+    public ClusterService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        MasterService masterService,
+        ClusterApplierService clusterApplierService
+    ) {
         this.settings = settings;
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.masterService = masterService;
@@ -104,6 +117,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         assert this.rerouteService == null : "RerouteService is already set";
         this.rerouteService = rerouteService;
     }
+
     public RerouteService getRerouteService() {
         assert this.rerouteService != null : "RerouteService not set";
         return rerouteService;
@@ -203,14 +217,28 @@ public class ClusterService extends AbstractLifecycleComponent {
         return masterService;
     }
 
+    /**
+     * Getter and Setter for IndexingPressureService, This method exposes IndexingPressureService stats to other plugins for usage.
+     * Although Indexing Pressure instances can be accessed via Node and NodeService class but none of them are
+     * present in the createComponents signature of Plugin interface currently. {@link org.opensearch.plugins.Plugin#createComponents}
+     * Going forward, IndexingPressureService will have required constructs for exposing listeners/interfaces for plugin development.(#478)
+     */
+    public void setIndexingPressureService(IndexingPressureService indexingPressureService) {
+        this.indexingPressureService = indexingPressureService;
+    }
+
+    public IndexingPressureService getIndexingPressureService() {
+        return indexingPressureService;
+    }
+
     public ClusterApplierService getClusterApplierService() {
         return clusterApplierService;
     }
 
     public static boolean assertClusterOrMasterStateThread() {
-        assert Thread.currentThread().getName().contains(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME) ||
-            Thread.currentThread().getName().contains(MasterService.MASTER_UPDATE_THREAD_NAME) :
-            "not called from the master/cluster state update thread";
+        assert Thread.currentThread().getName().contains(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME)
+            || Thread.currentThread().getName().contains(MasterService.MASTER_UPDATE_THREAD_NAME)
+            : "not called from the master/cluster state update thread";
         return true;
     }
 
@@ -245,8 +273,10 @@ public class ClusterService extends AbstractLifecycleComponent {
      *                   task
      *
      */
-    public <T extends ClusterStateTaskConfig & ClusterStateTaskExecutor<T> & ClusterStateTaskListener>
-        void submitStateUpdateTask(String source, T updateTask) {
+    public <T extends ClusterStateTaskConfig & ClusterStateTaskExecutor<T> & ClusterStateTaskListener> void submitStateUpdateTask(
+        String source,
+        T updateTask
+    ) {
         submitStateUpdateTask(source, updateTask, updateTask, updateTask, updateTask);
     }
 
@@ -269,10 +299,13 @@ public class ClusterService extends AbstractLifecycleComponent {
      * @param <T>      the type of the cluster state update task state
      *
      */
-    public <T> void submitStateUpdateTask(String source, T task,
-                                          ClusterStateTaskConfig config,
-                                          ClusterStateTaskExecutor<T> executor,
-                                          ClusterStateTaskListener listener) {
+    public <T> void submitStateUpdateTask(
+        String source,
+        T task,
+        ClusterStateTaskConfig config,
+        ClusterStateTaskExecutor<T> executor,
+        ClusterStateTaskListener listener
+    ) {
         submitStateUpdateTasks(source, Collections.singletonMap(task, listener), config, executor);
     }
 
@@ -289,9 +322,12 @@ public class ClusterService extends AbstractLifecycleComponent {
      * @param <T>      the type of the cluster state update task state
      *
      */
-    public <T> void submitStateUpdateTasks(final String source,
-                                           final Map<T, ClusterStateTaskListener> tasks, final ClusterStateTaskConfig config,
-                                           final ClusterStateTaskExecutor<T> executor) {
+    public <T> void submitStateUpdateTasks(
+        final String source,
+        final Map<T, ClusterStateTaskListener> tasks,
+        final ClusterStateTaskConfig config,
+        final ClusterStateTaskExecutor<T> executor
+    ) {
         masterService.submitStateUpdateTasks(source, tasks, config, executor);
     }
 }

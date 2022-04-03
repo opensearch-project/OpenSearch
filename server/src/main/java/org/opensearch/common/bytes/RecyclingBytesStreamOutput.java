@@ -78,8 +78,13 @@ public class RecyclingBytesStreamOutput extends BytesStream {
     private void ensureCapacity(int size) {
         final int overflowSize = size - buffer.length;
         assert overflowSize > 0 : "no need to ensureCapacity(" + size + ") with buffer of size [" + buffer.length + "]";
-        assert position >= buffer.length
-                : "no need to ensureCapacity(" + size + ") with buffer of size [" + buffer.length + "] at position [" + position + "]";
+        assert position >= buffer.length : "no need to ensureCapacity("
+            + size
+            + ") with buffer of size ["
+            + buffer.length
+            + "] at position ["
+            + position
+            + "]";
         if (overflow == null) {
             overflow = bigArrays.newByteArray(overflowSize, false);
         } else if (overflowSize > overflow.size()) {
@@ -106,8 +111,7 @@ public class RecyclingBytesStreamOutput extends BytesStream {
     }
 
     @Override
-    public void flush() {
-    }
+    public void flush() {}
 
     @Override
     public void close() throws IOException {
@@ -154,8 +158,9 @@ public class RecyclingBytesStreamOutput extends BytesStream {
             return new BytesArray(buffer, 0, position);
         } else {
             return CompositeBytesReference.of(
-                    new BytesArray(buffer, 0, buffer.length),
-                    BytesReference.fromByteArray(overflow, position - buffer.length));
+                new BytesArray(buffer, 0, buffer.length),
+                BytesReference.fromByteArray(overflow, position - buffer.length)
+            );
         }
     }
 }

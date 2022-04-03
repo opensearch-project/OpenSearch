@@ -544,7 +544,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
-
     /**
      * Sets if this request should allow partial results.  (If method is not called,
      * will default to the cluster level setting).
@@ -624,6 +623,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setPreFilterShardSize(int preFilterShardSize) {
         this.request.setPreFilterShardSize(preFilterShardSize);
+        return this;
+    }
+
+    /**
+     * Request level time interval to control how long search is allowed to execute after which it is cancelled.
+     */
+    public SearchRequestBuilder setCancelAfterTimeInterval(TimeValue cancelAfterTimeInterval) {
+        this.request.setCancelAfterTimeInterval(cancelAfterTimeInterval);
         return this;
     }
 }

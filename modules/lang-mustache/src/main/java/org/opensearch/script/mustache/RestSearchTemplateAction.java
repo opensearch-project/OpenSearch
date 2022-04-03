@@ -63,14 +63,17 @@ public class RestSearchTemplateAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_search/template"),
-            new Route(POST, "/_search/template"),
-            new Route(GET, "/{index}/_search/template"),
-            new Route(POST, "/{index}/_search/template"),
-            // Deprecated typed endpoints.
-            new Route(GET, "/{index}/{type}/_search/template"),
-            new Route(POST, "/{index}/{type}/_search/template")));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "/_search/template"),
+                new Route(POST, "/_search/template"),
+                new Route(GET, "/{index}/_search/template"),
+                new Route(POST, "/{index}/_search/template"),
+                // Deprecated typed endpoints.
+                new Route(GET, "/{index}/{type}/_search/template"),
+                new Route(POST, "/{index}/{type}/_search/template")
+            )
+        );
     }
 
     @Override
@@ -83,7 +86,12 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         // Creates the search request with all required params
         SearchRequest searchRequest = new SearchRequest();
         RestSearchAction.parseSearchRequest(
-            searchRequest, request, null, client.getNamedWriteableRegistry(), size -> searchRequest.source().size(size));
+            searchRequest,
+            request,
+            null,
+            client.getNamedWriteableRegistry(),
+            size -> searchRequest.source().size(size)
+        );
 
         // Creates the search template request
         SearchTemplateRequest searchTemplateRequest;

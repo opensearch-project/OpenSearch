@@ -60,20 +60,16 @@ public class ScriptProcessorTests extends OpenSearchTestCase {
     @Before
     public void setupScripting() {
         String scriptName = "script";
-        scriptService = new ScriptService(Settings.builder().build(),
+        scriptService = new ScriptService(
+            Settings.builder().build(),
             Collections.singletonMap(
-                Script.DEFAULT_SCRIPT_LANG, new MockScriptEngine(
-                    Script.DEFAULT_SCRIPT_LANG,
-                    Collections.singletonMap(
-                        scriptName, ctx -> {
-                            Integer bytesIn = (Integer) ctx.get("bytes_in");
-                            Integer bytesOut = (Integer) ctx.get("bytes_out");
-                            ctx.put("bytes_total", bytesIn + bytesOut);
-                            return null;
-                        }
-                    ),
-                    Collections.emptyMap()
-                )
+                Script.DEFAULT_SCRIPT_LANG,
+                new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Collections.singletonMap(scriptName, ctx -> {
+                    Integer bytesIn = (Integer) ctx.get("bytes_in");
+                    Integer bytesOut = (Integer) ctx.get("bytes_out");
+                    ctx.put("bytes_total", bytesIn + bytesOut);
+                    return null;
+                }), Collections.emptyMap())
             ),
             new HashMap<>(ScriptModule.CORE_CONTEXTS)
         );
@@ -112,20 +108,16 @@ public class ScriptProcessorTests extends OpenSearchTestCase {
 
     public void testTypeDeprecation() throws Exception {
         String scriptName = "script";
-        ScriptService scriptService = new ScriptService(Settings.builder().build(),
-                Collections.singletonMap(
-                        Script.DEFAULT_SCRIPT_LANG, new MockScriptEngine(
-                                Script.DEFAULT_SCRIPT_LANG,
-                                Collections.singletonMap(
-                                        scriptName, ctx -> {
-                                            ctx.get("_type");
-                                            return null;
-                                        }
-                                ),
-                                Collections.emptyMap()
-                        )
-                ),
-                new HashMap<>(ScriptModule.CORE_CONTEXTS)
+        ScriptService scriptService = new ScriptService(
+            Settings.builder().build(),
+            Collections.singletonMap(
+                Script.DEFAULT_SCRIPT_LANG,
+                new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Collections.singletonMap(scriptName, ctx -> {
+                    ctx.get("_type");
+                    return null;
+                }), Collections.emptyMap())
+            ),
+            new HashMap<>(ScriptModule.CORE_CONTEXTS)
         );
         Script script = new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Collections.emptyMap());
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());

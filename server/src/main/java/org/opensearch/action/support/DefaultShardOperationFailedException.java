@@ -56,7 +56,10 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
     private static final String REASON = "reason";
 
     public static final ConstructingObjectParser<DefaultShardOperationFailedException, Void> PARSER = new ConstructingObjectParser<>(
-        "failures", true, arg -> new DefaultShardOperationFailedException((String) arg[0], (int) arg[1] ,(Throwable) arg[2]));
+        "failures",
+        true,
+        arg -> new DefaultShardOperationFailedException((String) arg[0], (int) arg[1], (Throwable) arg[2])
+    );
 
     protected static <T extends DefaultShardOperationFailedException> void declareFields(ConstructingObjectParser<T, Void> objectParser) {
         objectParser.declareString(constructorArg(), new ParseField(INDEX));
@@ -75,8 +78,13 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
     }
 
     public DefaultShardOperationFailedException(OpenSearchException e) {
-        super(e.getIndex() == null ? null : e.getIndex().getName(), e.getShardId() == null ? -1 : e.getShardId().getId(),
-            detailedMessage(e), e.status(), e);
+        super(
+            e.getIndex() == null ? null : e.getIndex().getName(),
+            e.getShardId() == null ? -1 : e.getShardId().getId(),
+            detailedMessage(e),
+            e.status(),
+            e
+        );
     }
 
     public DefaultShardOperationFailedException(String index, int shardId, Throwable cause) {

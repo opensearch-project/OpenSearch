@@ -40,5 +40,6 @@ import org.opensearch.search.aggregations.Aggregation;
  */
 public interface GeoCentroid extends Aggregation {
     GeoPoint centroid();
+
     long count();
 }

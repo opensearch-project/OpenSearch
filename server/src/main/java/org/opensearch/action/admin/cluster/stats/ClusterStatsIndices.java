@@ -60,9 +60,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
     private AnalysisStats analysis;
     private MappingStats mappings;
 
-    public ClusterStatsIndices(List<ClusterStatsNodeResponse> nodeResponses,
-            MappingStats mappingStats,
-            AnalysisStats analysisStats) {
+    public ClusterStatsIndices(List<ClusterStatsNodeResponse> nodeResponses, MappingStats mappingStats, AnalysisStats analysisStats) {
         ObjectObjectHashMap<String, ShardStats> countsPerIndex = new ObjectObjectHashMap<>();
 
         this.docs = new DocsStats();
@@ -184,8 +182,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
         double totalIndexReplication = 0;
         double maxIndexReplication = -1;
 
-        public ShardStats() {
-        }
+        public ShardStats() {}
 
         /**
          * number of indices in the cluster

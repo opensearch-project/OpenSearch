@@ -148,21 +148,33 @@ public class ZenFaultDetectionTests extends OpenSearchTestCase {
 
     protected MockTransportService build(Settings settings, Version version) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
-        MockTransportService transportService =
-            new MockTransportService(
-                Settings.builder()
-                    .put(settings)
-                    // trace zenfd actions but keep the default otherwise
-                    .putList(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.getKey(), TransportLivenessAction.NAME)
-                    .build(),
-                new MockNioTransport(settings, version, threadPool, new NetworkService(Collections.emptyList()),
-                    PageCacheRecycler.NON_RECYCLING_INSTANCE, namedWriteableRegistry, circuitBreakerService),
+        MockTransportService transportService = new MockTransportService(
+            Settings.builder()
+                .put(settings)
+                // trace zenfd actions but keep the default otherwise
+                .putList(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.getKey(), TransportLivenessAction.NAME)
+                .build(),
+            new MockNioTransport(
+                settings,
+                version,
                 threadPool,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                (boundAddress) ->
-                    new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), boundAddress.publishAddress(),
-                        Node.NODE_ATTRIBUTES.getAsMap(settings), DiscoveryNode.getRolesFromSettings(settings), version),
-                null, Collections.emptySet());
+                new NetworkService(Collections.emptyList()),
+                PageCacheRecycler.NON_RECYCLING_INSTANCE,
+                namedWriteableRegistry,
+                circuitBreakerService
+            ),
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            (boundAddress) -> new DiscoveryNode(
+                Node.NODE_NAME_SETTING.get(settings),
+                boundAddress.publishAddress(),
+                Node.NODE_ATTRIBUTES.getAsMap(settings),
+                DiscoveryNode.getRolesFromSettings(settings),
+                version
+            ),
+            null,
+            Collections.emptySet()
+        );
         transportService.start();
         transportService.acceptIncomingRequests();
         return transportService;
@@ -191,14 +203,27 @@ public class ZenFaultDetectionTests extends OpenSearchTestCase {
         // make sure we don't ping again after the initial ping
         final Settings pingSettings = Settings.builder()
             .put(FaultDetection.CONNECT_ON_NETWORK_DISCONNECT_SETTING.getKey(), shouldRetry)
-            .put(FaultDetection.PING_INTERVAL_SETTING.getKey(), "5m").build();
-        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).version(randomNonNegativeLong())
-            .nodes(buildNodesForA(true)).build();
-        NodesFaultDetection nodesFDA = new NodesFaultDetection(Settings.builder().put(settingsA).put(pingSettings).build(),
-            threadPool, serviceA, () -> clusterState, clusterState.getClusterName());
+            .put(FaultDetection.PING_INTERVAL_SETTING.getKey(), "5m")
+            .build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+            .version(randomNonNegativeLong())
+            .nodes(buildNodesForA(true))
+            .build();
+        NodesFaultDetection nodesFDA = new NodesFaultDetection(
+            Settings.builder().put(settingsA).put(pingSettings).build(),
+            threadPool,
+            serviceA,
+            () -> clusterState,
+            clusterState.getClusterName()
+        );
         nodesFDA.setLocalNode(nodeA);
-        NodesFaultDetection nodesFDB = new NodesFaultDetection(Settings.builder().put(settingsB).put(pingSettings).build(),
-            threadPool, serviceB, () -> clusterState, clusterState.getClusterName());
+        NodesFaultDetection nodesFDB = new NodesFaultDetection(
+            Settings.builder().put(settingsB).put(pingSettings).build(),
+            threadPool,
+            serviceB,
+            () -> clusterState,
+            clusterState.getClusterName()
+        );
         nodesFDB.setLocalNode(nodeB);
         final CountDownLatch pingSent = new CountDownLatch(1);
         nodesFDB.addListener(new NodesFaultDetection.Listener() {
@@ -241,10 +266,11 @@ public class ZenFaultDetectionTests extends OpenSearchTestCase {
         assertThat(failureReason[0], matcher);
 
         assertWarnings(
-            "[discovery.zen.fd.connect_on_network_disconnect] setting was deprecated in OpenSearch and will be removed in a future " +
-                "release! See the breaking changes documentation for the next major version.",
-            "[discovery.zen.fd.ping_interval] setting was deprecated in OpenSearch and will be removed in a future " +
-                "release! See the breaking changes documentation for the next major version.");
+            "[discovery.zen.fd.connect_on_network_disconnect] setting was deprecated in OpenSearch and will be removed in a future "
+                + "release! See the breaking changes documentation for the next major version.",
+            "[discovery.zen.fd.ping_interval] setting was deprecated in OpenSearch and will be removed in a future "
+                + "release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testMasterFaultDetectionConnectOnDisconnect() throws InterruptedException {
@@ -254,12 +280,19 @@ public class ZenFaultDetectionTests extends OpenSearchTestCase {
 
         // make sure we don't ping
         settings.put(FaultDetection.CONNECT_ON_NETWORK_DISCONNECT_SETTING.getKey(), shouldRetry)
-                .put(FaultDetection.PING_INTERVAL_SETTING.getKey(), "5m").put("cluster.name", clusterName.value());
+            .put(FaultDetection.PING_INTERVAL_SETTING.getKey(), "5m")
+            .put("cluster.name", clusterName.value());
 
         final ClusterState state = ClusterState.builder(clusterName).nodes(buildNodesForA(false)).build();
         AtomicReference<ClusterState> clusterStateSupplier = new AtomicReference<>(state);
-        MasterFaultDetection masterFD = new MasterFaultDetection(settings.build(), threadPool, serviceA,
-            clusterStateSupplier::get, null, clusterName);
+        MasterFaultDetection masterFD = new MasterFaultDetection(
+            settings.build(),
+            threadPool,
+            serviceA,
+            clusterStateSupplier::get,
+            null,
+            clusterName
+        );
         masterFD.restart(nodeB, "test");
 
         final String[] failureReason = new String[1];
@@ -286,10 +319,11 @@ public class ZenFaultDetectionTests extends OpenSearchTestCase {
         assertThat(failureReason[0], matcher);
 
         assertWarnings(
-            "[discovery.zen.fd.connect_on_network_disconnect] setting was deprecated in OpenSearch and will be removed in a future " +
-                "release! See the breaking changes documentation for the next major version.",
-            "[discovery.zen.fd.ping_interval] setting was deprecated in OpenSearch and will be removed in a future " +
-                "release! See the breaking changes documentation for the next major version.");
+            "[discovery.zen.fd.connect_on_network_disconnect] setting was deprecated in OpenSearch and will be removed in a future "
+                + "release! See the breaking changes documentation for the next major version.",
+            "[discovery.zen.fd.ping_interval] setting was deprecated in OpenSearch and will be removed in a future "
+                + "release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testMasterFaultDetectionNotSizeLimited() throws InterruptedException {
@@ -298,7 +332,8 @@ public class ZenFaultDetectionTests extends OpenSearchTestCase {
         final Settings settings = Settings.builder()
             .put(FaultDetection.CONNECT_ON_NETWORK_DISCONNECT_SETTING.getKey(), shouldRetry)
             .put(FaultDetection.PING_INTERVAL_SETTING.getKey(), "1s")
-            .put("cluster.name", clusterName.value()).build();
+            .put("cluster.name", clusterName.value())
+            .build();
         final ClusterState stateNodeA = ClusterState.builder(clusterName).nodes(buildNodesForA(false)).build();
         AtomicReference<ClusterState> clusterStateSupplierA = new AtomicReference<>(stateNodeA);
 
@@ -310,15 +345,27 @@ public class ZenFaultDetectionTests extends OpenSearchTestCase {
         serviceA.addMessageListener(pingProbeA);
         serviceB.addMessageListener(pingProbeB);
 
-        MasterFaultDetection masterFDNodeA = new MasterFaultDetection(Settings.builder().put(settingsA).put(settings).build(),
-            threadPool, serviceA, clusterStateSupplierA::get, null, clusterName);
+        MasterFaultDetection masterFDNodeA = new MasterFaultDetection(
+            Settings.builder().put(settingsA).put(settings).build(),
+            threadPool,
+            serviceA,
+            clusterStateSupplierA::get,
+            null,
+            clusterName
+        );
         masterFDNodeA.restart(nodeB, "test");
 
         final ClusterState stateNodeB = ClusterState.builder(clusterName).nodes(buildNodesForB(true)).build();
         AtomicReference<ClusterState> clusterStateSupplierB = new AtomicReference<>(stateNodeB);
 
-        MasterFaultDetection masterFDNodeB = new MasterFaultDetection(Settings.builder().put(settingsB).put(settings).build(),
-            threadPool, serviceB, clusterStateSupplierB::get, null, clusterName);
+        MasterFaultDetection masterFDNodeB = new MasterFaultDetection(
+            Settings.builder().put(settingsB).put(settings).build(),
+            threadPool,
+            serviceB,
+            clusterStateSupplierB::get,
+            null,
+            clusterName
+        );
         masterFDNodeB.restart(nodeB, "test");
 
         // let's do a few pings
@@ -331,10 +378,11 @@ public class ZenFaultDetectionTests extends OpenSearchTestCase {
         assertThat(pingProbeB.completedPings(), greaterThanOrEqualTo(minExpectedPings));
 
         assertWarnings(
-            "[discovery.zen.fd.connect_on_network_disconnect] setting was deprecated in OpenSearch and will be removed in a future " +
-                "release! See the breaking changes documentation for the next major version.",
-            "[discovery.zen.fd.ping_interval] setting was deprecated in OpenSearch and will be removed in a future " +
-                "release! See the breaking changes documentation for the next major version.");
+            "[discovery.zen.fd.connect_on_network_disconnect] setting was deprecated in OpenSearch and will be removed in a future "
+                + "release! See the breaking changes documentation for the next major version.",
+            "[discovery.zen.fd.ping_interval] setting was deprecated in OpenSearch and will be removed in a future "
+                + "release! See the breaking changes documentation for the next major version."
+        );
     }
 
     private static class PingProbe implements TransportMessageListener {
@@ -347,8 +395,13 @@ public class ZenFaultDetectionTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void onRequestSent(DiscoveryNode node, long requestId, String action, TransportRequest request,
-                                  TransportRequestOptions options) {
+        public void onRequestSent(
+            DiscoveryNode node,
+            long requestId,
+            String action,
+            TransportRequest request,
+            TransportRequestOptions options
+        ) {
             if (MasterFaultDetection.MASTER_PING_ACTION_NAME.equals(action)) {
                 inflightPings.add(Tuple.tuple(node, requestId));
             }

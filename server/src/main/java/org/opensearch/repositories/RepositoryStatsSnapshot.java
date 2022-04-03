@@ -49,10 +49,7 @@ public final class RepositoryStatsSnapshot implements Writeable, ToXContentObjec
     private final long clusterVersion;
     private final boolean archived;
 
-    public RepositoryStatsSnapshot(RepositoryInfo repositoryInfo,
-                                   RepositoryStats repositoryStats,
-                                   long clusterVersion,
-                                   boolean archived) {
+    public RepositoryStatsSnapshot(RepositoryInfo repositoryInfo, RepositoryStats repositoryStats, long clusterVersion, boolean archived) {
         assert archived != (clusterVersion == UNKNOWN_CLUSTER_VERSION);
         this.repositoryInfo = repositoryInfo;
         this.repositoryStats = repositoryStats;
@@ -109,10 +106,10 @@ public final class RepositoryStatsSnapshot implements Writeable, ToXContentObjec
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RepositoryStatsSnapshot that = (RepositoryStatsSnapshot) o;
-        return repositoryInfo.equals(that.repositoryInfo) &&
-            repositoryStats.equals(that.repositoryStats) &&
-            clusterVersion == that.clusterVersion &&
-            archived == that.archived;
+        return repositoryInfo.equals(that.repositoryInfo)
+            && repositoryStats.equals(that.repositoryStats)
+            && clusterVersion == that.clusterVersion
+            && archived == that.archived;
     }
 
     @Override

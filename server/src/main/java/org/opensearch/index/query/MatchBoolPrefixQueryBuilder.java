@@ -79,7 +79,7 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
 
     private int prefixLength = FuzzyQuery.defaultPrefixLength;
 
-    private int  maxExpansions = FuzzyQuery.defaultMaxExpansions;
+    private int maxExpansions = FuzzyQuery.defaultMaxExpansions;
 
     private boolean fuzzyTranspositions = FuzzyQuery.defaultTranspositions;
 
@@ -190,7 +190,7 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
      * @throws IllegalArgumentException in case the prefix is negative
      */
     public MatchBoolPrefixQueryBuilder prefixLength(int prefixLength) {
-        if (prefixLength < 0 ) {
+        if (prefixLength < 0) {
             throw new IllegalArgumentException("[" + NAME + "] requires prefix length to be non-negative.");
         }
         this.prefixLength = prefixLength;
@@ -208,7 +208,7 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
      * When using fuzzy or prefix type query, the number of term expansions to use.
      */
     public MatchBoolPrefixQueryBuilder maxExpansions(int maxExpansions) {
-        if (maxExpansions <= 0 ) {
+        if (maxExpansions <= 0) {
             throw new IllegalArgumentException("[" + NAME + "] requires maxExpansions to be positive.");
         }
         this.maxExpansions = maxExpansions;
@@ -327,12 +327,16 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(),
-                                "[" + NAME + "] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "[" + NAME + "] query does not support [" + currentFieldName + "]"
+                            );
                         }
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(),
-                            "[" + NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "[" + NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]"
+                        );
                     }
                 }
             } else {
@@ -381,22 +385,32 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
 
     @Override
     protected boolean doEquals(MatchBoolPrefixQueryBuilder other) {
-        return Objects.equals(fieldName, other.fieldName) &&
-            Objects.equals(value, other.value) &&
-            Objects.equals(analyzer, other.analyzer) &&
-            Objects.equals(operator, other.operator) &&
-            Objects.equals(minimumShouldMatch, other.minimumShouldMatch) &&
-            Objects.equals(fuzziness, other.fuzziness) &&
-            Objects.equals(prefixLength, other.prefixLength) &&
-            Objects.equals(maxExpansions, other.maxExpansions) &&
-            Objects.equals(fuzzyTranspositions, other.fuzzyTranspositions) &&
-            Objects.equals(fuzzyRewrite, other.fuzzyRewrite);
+        return Objects.equals(fieldName, other.fieldName)
+            && Objects.equals(value, other.value)
+            && Objects.equals(analyzer, other.analyzer)
+            && Objects.equals(operator, other.operator)
+            && Objects.equals(minimumShouldMatch, other.minimumShouldMatch)
+            && Objects.equals(fuzziness, other.fuzziness)
+            && Objects.equals(prefixLength, other.prefixLength)
+            && Objects.equals(maxExpansions, other.maxExpansions)
+            && Objects.equals(fuzzyTranspositions, other.fuzzyTranspositions)
+            && Objects.equals(fuzzyRewrite, other.fuzzyRewrite);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, value, analyzer, operator, minimumShouldMatch, fuzziness, prefixLength, maxExpansions,
-            fuzzyTranspositions, fuzzyRewrite);
+        return Objects.hash(
+            fieldName,
+            value,
+            analyzer,
+            operator,
+            minimumShouldMatch,
+            fuzziness,
+            prefixLength,
+            maxExpansions,
+            fuzzyTranspositions,
+            fuzzyRewrite
+        );
     }
 
     @Override

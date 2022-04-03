@@ -51,7 +51,7 @@ public class IndexShardSnapshotException extends OpenSearchException {
         setShard(shardId);
     }
 
-    public IndexShardSnapshotException(StreamInput in) throws IOException{
+    public IndexShardSnapshotException(StreamInput in) throws IOException {
         super(in);
     }
 }

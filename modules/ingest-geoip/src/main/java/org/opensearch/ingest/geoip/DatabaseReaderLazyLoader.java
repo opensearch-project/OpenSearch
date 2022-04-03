@@ -86,7 +86,7 @@ class DatabaseReaderLazyLoader implements Closeable {
                     if (fileSize <= 512) {
                         throw new IOException("unexpected file length [" + fileSize + "] for [" + databasePath + "]");
                     }
-                    final int[] databaseTypeMarker = {'d', 'a', 't', 'a', 'b', 'a', 's', 'e', '_', 't', 'y', 'p', 'e'};
+                    final int[] databaseTypeMarker = { 'd', 'a', 't', 'a', 'b', 'a', 's', 'e', '_', 't', 'y', 'p', 'e' };
                     try (InputStream in = databaseInputStream()) {
                         // read the last 512 bytes
                         final long skipped = in.skip(fileSize - 512);

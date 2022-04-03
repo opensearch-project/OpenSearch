@@ -52,11 +52,15 @@ import java.util.Objects;
 
 public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<GeoBoundsAggregationBuilder> {
     public static final String NAME = "geo_bounds";
-    public static final ValuesSourceRegistry.RegistryKey<GeoBoundsAggregatorSupplier> REGISTRY_KEY =
-        new ValuesSourceRegistry.RegistryKey<>(NAME, GeoBoundsAggregatorSupplier.class);
+    public static final ValuesSourceRegistry.RegistryKey<GeoBoundsAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
+        NAME,
+        GeoBoundsAggregatorSupplier.class
+    );
 
-    public static final ObjectParser<GeoBoundsAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, GeoBoundsAggregationBuilder::new);
+    public static final ObjectParser<GeoBoundsAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
+        NAME,
+        GeoBoundsAggregationBuilder::new
+    );
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, false, false, false);
         PARSER.declareBoolean(GeoBoundsAggregationBuilder::wrapLongitude, GeoBoundsAggregator.WRAP_LONGITUDE_FIELD);
@@ -72,9 +76,11 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
         super(name);
     }
 
-    protected GeoBoundsAggregationBuilder(GeoBoundsAggregationBuilder clone,
-                                          AggregatorFactories.Builder factoriesBuilder,
-                                          Map<String, Object> metadata) {
+    protected GeoBoundsAggregationBuilder(
+        GeoBoundsAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
         this.wrapLongitude = clone.wrapLongitude;
     }
@@ -123,9 +129,12 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     @Override
-    protected GeoBoundsAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
-                                                    AggregatorFactory parent,
-                                                    AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+    protected GeoBoundsAggregatorFactory innerBuild(
+        QueryShardContext queryShardContext,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
         return new GeoBoundsAggregatorFactory(name, config, wrapLongitude, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 

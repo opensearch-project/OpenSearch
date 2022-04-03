@@ -51,8 +51,9 @@ public class LegacyDynamicMappingTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testTypeNotCreatedOnIndexFailure() throws IOException {
-        final Settings settings =
-            Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), LegacyESVersion.V_6_3_0).build();
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), LegacyESVersion.V_6_3_0)
+            .build();
         try (XContentBuilder mapping = jsonBuilder()) {
             mapping.startObject();
             {
@@ -66,12 +67,10 @@ public class LegacyDynamicMappingTests extends OpenSearchSingleNodeTestCase {
             createIndex("test", settings, "_default_", mapping);
         }
         try (XContentBuilder sourceBuilder = jsonBuilder().startObject().field("test", "test").endObject()) {
-            expectThrows(StrictDynamicMappingException.class, () -> client()
-                    .prepareIndex()
-                    .setIndex("test")
-                    .setType("type")
-                    .setSource(sourceBuilder)
-                    .get());
+            expectThrows(
+                StrictDynamicMappingException.class,
+                () -> client().prepareIndex().setIndex("test").setType("type").setSource(sourceBuilder).get()
+            );
 
             GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").get();
             assertNull(getMappingsResponse.getMappings().get("test").get("type"));

@@ -72,7 +72,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     public static final String NAME = "query_string";
 
-    public static final int DEFAULT_MAX_DETERMINED_STATES = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
+    public static final int DEFAULT_DETERMINIZE_WORK_LIMIT = Operations.DEFAULT_DETERMINIZE_WORK_LIMIT;
     public static final boolean DEFAULT_ENABLE_POSITION_INCREMENTS = true;
     public static final boolean DEFAULT_ESCAPE = false;
     public static final int DEFAULT_FUZZY_PREFIX_LENGTH = FuzzyQuery.defaultPrefixLength;
@@ -160,7 +160,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     private ZoneId timeZone;
 
     /** To limit effort spent determinizing regexp queries. */
-    private int maxDeterminizedStates = DEFAULT_MAX_DETERMINED_STATES;
+    private int maxDeterminizedStates = DEFAULT_DETERMINIZE_WORK_LIMIT;
 
     private boolean autoGenerateSynonymsPhraseQuery = true;
 
@@ -605,8 +605,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         if (tieBreaker != null) {
             builder.field(TIE_BREAKER_FIELD.getPreferredName(), this.tieBreaker);
         }
-        builder.field(DEFAULT_OPERATOR_FIELD.getPreferredName(),
-                this.defaultOperator.name().toLowerCase(Locale.ROOT));
+        builder.field(DEFAULT_OPERATOR_FIELD.getPreferredName(), this.defaultOperator.name().toLowerCase(Locale.ROOT));
         if (this.analyzer != null) {
             builder.field(ANALYZER_FIELD.getPreferredName(), this.analyzer);
         }
@@ -659,7 +658,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         String quoteAnalyzer = null;
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
-        int maxDeterminizedStates = QueryStringQueryBuilder.DEFAULT_MAX_DETERMINED_STATES;
+        int determinizeWorkLimit = QueryStringQueryBuilder.DEFAULT_DETERMINIZE_WORK_LIMIT;
         boolean enablePositionIncrements = QueryStringQueryBuilder.DEFAULT_ENABLE_POSITION_INCREMENTS;
         boolean escape = QueryStringQueryBuilder.DEFAULT_ESCAPE;
         int fuzzyPrefixLength = QueryStringQueryBuilder.DEFAULT_FUZZY_PREFIX_LENGTH;
@@ -692,8 +691,10 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                     }
                     fieldsAndWeights = QueryParserHelper.parseFieldsAndWeights(fields);
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME +
-                            "] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[" + QueryStringQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]"
+                    );
                 }
             } else if (token.isValue()) {
                 if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -709,7 +710,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 } else if (ALLOW_LEADING_WILDCARD_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     allowLeadingWildcard = parser.booleanValue();
                 } else if (MAX_DETERMINIZED_STATES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    maxDeterminizedStates = parser.intValue();
+                    determinizeWorkLimit = parser.intValue();
                 } else if (ENABLE_POSITION_INCREMENTS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     enablePositionIncrements = parser.booleanValue();
                 } else if (ESCAPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -741,13 +742,15 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 } else if (LENIENT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     lenient = parser.booleanValue();
                 } else if (MAX_DETERMINIZED_STATES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    maxDeterminizedStates = parser.intValue();
+                    determinizeWorkLimit = parser.intValue();
                 } else if (TIME_ZONE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         timeZone = parser.text();
                     } catch (IllegalArgumentException e) {
-                        throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME +
-                                "] time_zone [" + parser.text() + "] is unknown");
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "[" + QueryStringQueryBuilder.NAME + "] time_zone [" + parser.text() + "] is unknown"
+                        );
                     }
                 } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     queryName = parser.text();
@@ -756,12 +759,16 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 } else if (FUZZY_TRANSPOSITIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     fuzzyTranspositions = parser.booleanValue();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME +
-                            "] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[" + QueryStringQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]"
+                    );
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME +
-                        "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "[" + QueryStringQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]"
+                );
             }
         }
         if (queryString == null) {
@@ -777,7 +784,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         queryStringQuery.analyzer(analyzer);
         queryStringQuery.quoteAnalyzer(quoteAnalyzer);
         queryStringQuery.allowLeadingWildcard(allowLeadingWildcard);
-        queryStringQuery.maxDeterminizedStates(maxDeterminizedStates);
+        queryStringQuery.maxDeterminizedStates(determinizeWorkLimit);
         queryStringQuery.enablePositionIncrements(enablePositionIncrements);
         queryStringQuery.escape(escape);
         queryStringQuery.fuzzyPrefixLength(fuzzyPrefixLength);
@@ -809,43 +816,62 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     @Override
     protected boolean doEquals(QueryStringQueryBuilder other) {
-        return Objects.equals(queryString, other.queryString) &&
-                Objects.equals(defaultField, other.defaultField) &&
-                Objects.equals(fieldsAndWeights, other.fieldsAndWeights) &&
-                Objects.equals(defaultOperator, other.defaultOperator) &&
-                Objects.equals(analyzer, other.analyzer) &&
-                Objects.equals(quoteAnalyzer, other.quoteAnalyzer) &&
-                Objects.equals(quoteFieldSuffix, other.quoteFieldSuffix) &&
-                Objects.equals(allowLeadingWildcard, other.allowLeadingWildcard) &&
-                Objects.equals(enablePositionIncrements, other.enablePositionIncrements) &&
-                Objects.equals(analyzeWildcard, other.analyzeWildcard) &&
-                Objects.equals(fuzziness, other.fuzziness) &&
-                Objects.equals(fuzzyPrefixLength, other.fuzzyPrefixLength) &&
-                Objects.equals(fuzzyMaxExpansions, other.fuzzyMaxExpansions) &&
-                Objects.equals(fuzzyRewrite, other.fuzzyRewrite) &&
-                Objects.equals(phraseSlop, other.phraseSlop) &&
-                Objects.equals(type, other.type) &&
-                Objects.equals(tieBreaker, other.tieBreaker) &&
-                Objects.equals(rewrite, other.rewrite) &&
-                Objects.equals(minimumShouldMatch, other.minimumShouldMatch) &&
-                Objects.equals(lenient, other.lenient) &&
-                Objects.equals(
-                        timeZone == null ? null : timeZone.getId(),
-                        other.timeZone == null ? null : other.timeZone.getId()) &&
-                Objects.equals(escape, other.escape) &&
-                Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates) &&
-                Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery) &&
-                Objects.equals(fuzzyTranspositions, other.fuzzyTranspositions);
+        return Objects.equals(queryString, other.queryString)
+            && Objects.equals(defaultField, other.defaultField)
+            && Objects.equals(fieldsAndWeights, other.fieldsAndWeights)
+            && Objects.equals(defaultOperator, other.defaultOperator)
+            && Objects.equals(analyzer, other.analyzer)
+            && Objects.equals(quoteAnalyzer, other.quoteAnalyzer)
+            && Objects.equals(quoteFieldSuffix, other.quoteFieldSuffix)
+            && Objects.equals(allowLeadingWildcard, other.allowLeadingWildcard)
+            && Objects.equals(enablePositionIncrements, other.enablePositionIncrements)
+            && Objects.equals(analyzeWildcard, other.analyzeWildcard)
+            && Objects.equals(fuzziness, other.fuzziness)
+            && Objects.equals(fuzzyPrefixLength, other.fuzzyPrefixLength)
+            && Objects.equals(fuzzyMaxExpansions, other.fuzzyMaxExpansions)
+            && Objects.equals(fuzzyRewrite, other.fuzzyRewrite)
+            && Objects.equals(phraseSlop, other.phraseSlop)
+            && Objects.equals(type, other.type)
+            && Objects.equals(tieBreaker, other.tieBreaker)
+            && Objects.equals(rewrite, other.rewrite)
+            && Objects.equals(minimumShouldMatch, other.minimumShouldMatch)
+            && Objects.equals(lenient, other.lenient)
+            && Objects.equals(timeZone == null ? null : timeZone.getId(), other.timeZone == null ? null : other.timeZone.getId())
+            && Objects.equals(escape, other.escape)
+            && Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates)
+            && Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery)
+            && Objects.equals(fuzzyTranspositions, other.fuzzyTranspositions);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(queryString, defaultField, fieldsAndWeights, defaultOperator, analyzer, quoteAnalyzer,
-                quoteFieldSuffix, allowLeadingWildcard, analyzeWildcard,
-                enablePositionIncrements, fuzziness, fuzzyPrefixLength,
-                fuzzyMaxExpansions, fuzzyRewrite, phraseSlop, type, tieBreaker, rewrite, minimumShouldMatch, lenient,
-                timeZone == null ? 0 : timeZone.getId(), escape, maxDeterminizedStates, autoGenerateSynonymsPhraseQuery,
-                fuzzyTranspositions);
+        return Objects.hash(
+            queryString,
+            defaultField,
+            fieldsAndWeights,
+            defaultOperator,
+            analyzer,
+            quoteAnalyzer,
+            quoteFieldSuffix,
+            allowLeadingWildcard,
+            analyzeWildcard,
+            enablePositionIncrements,
+            fuzziness,
+            fuzzyPrefixLength,
+            fuzzyMaxExpansions,
+            fuzzyRewrite,
+            phraseSlop,
+            type,
+            tieBreaker,
+            rewrite,
+            minimumShouldMatch,
+            lenient,
+            timeZone == null ? 0 : timeZone.getId(),
+            escape,
+            maxDeterminizedStates,
+            autoGenerateSynonymsPhraseQuery,
+            fuzzyTranspositions
+        );
     }
 
     @Override
@@ -875,8 +901,10 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             if (QueryParserHelper.hasAllFieldsWildcard(defaultFields)) {
                 queryParser = new QueryStringQueryParser(context, lenient == null ? true : lenient);
             } else {
-                final Map<String, Float> resolvedFields = QueryParserHelper.resolveMappingFields(context,
-                    QueryParserHelper.parseFieldsAndWeights(defaultFields));
+                final Map<String, Float> resolvedFields = QueryParserHelper.resolveMappingFields(
+                    context,
+                    QueryParserHelper.parseFieldsAndWeights(defaultFields)
+                );
                 queryParser = new QueryStringQueryParser(context, resolvedFields, isLenient);
             }
         }
@@ -906,8 +934,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         }
         queryParser.setPhraseSlop(phraseSlop);
         queryParser.setQuoteFieldSuffix(quoteFieldSuffix);
-        queryParser.setAllowLeadingWildcard(allowLeadingWildcard == null ?
-            context.queryStringAllowLeadingWildcard() : allowLeadingWildcard);
+        queryParser.setAllowLeadingWildcard(
+            allowLeadingWildcard == null ? context.queryStringAllowLeadingWildcard() : allowLeadingWildcard
+        );
         queryParser.setAnalyzeWildcard(analyzeWildcard == null ? context.queryStringAnalyzeWildcard() : analyzeWildcard);
         queryParser.setEnablePositionIncrements(enablePositionIncrements);
         queryParser.setFuzziness(fuzziness);
@@ -916,7 +945,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         queryParser.setFuzzyRewriteMethod(QueryParsers.parseRewriteMethod(this.fuzzyRewrite, LoggingDeprecationHandler.INSTANCE));
         queryParser.setMultiTermRewriteMethod(QueryParsers.parseRewriteMethod(this.rewrite, LoggingDeprecationHandler.INSTANCE));
         queryParser.setTimeZone(timeZone);
-        queryParser.setMaxDeterminizedStates(maxDeterminizedStates);
+        queryParser.setDeterminizeWorkLimit(maxDeterminizedStates);
         queryParser.setAutoGenerateMultiTermSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
         queryParser.setFuzzyTranspositions(fuzzyTranspositions);
 
@@ -931,9 +960,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             return null;
         }
 
-        //save the BoostQuery wrapped structure if present
+        // save the BoostQuery wrapped structure if present
         List<Float> boosts = new ArrayList<>();
-        while(query instanceof BoostQuery) {
+        while (query instanceof BoostQuery) {
             BoostQuery boostQuery = (BoostQuery) query;
             boosts.add(boostQuery.getBoost());
             query = boostQuery.getQuery();
@@ -942,7 +971,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         query = Queries.fixNegativeQueryIfNeeded(query);
         query = Queries.maybeApplyMinimumShouldMatch(query, this.minimumShouldMatch);
 
-        //restore the previous BoostQuery wrapping
+        // restore the previous BoostQuery wrapping
         for (int i = boosts.size() - 1; i >= 0; i--) {
             query = new BoostQuery(query, boosts.get(i));
         }

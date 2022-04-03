@@ -46,13 +46,27 @@ public class DeprecationLoggerTests extends OpenSearchTestCase {
         DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DeprecationLoggerTests.class);
         int numberOfLoggersBefore = context.getLoggers().size();
 
-        class LoggerTest{
-        }
+        class LoggerTest {}
         DeprecationLogger deprecationLogger2 = DeprecationLogger.getLogger(LoggerTest.class);
 
         context = (LoggerContext) LogManager.getContext(false);
         int numberOfLoggersAfter = context.getLoggers().size();
 
-        assertThat(numberOfLoggersAfter, equalTo(numberOfLoggersBefore+1));
+        assertThat(numberOfLoggersAfter, equalTo(numberOfLoggersBefore + 1));
+    }
+
+    public void testDuplicateLogMessages() {
+        DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DeprecationLoggerTests.class);
+        deprecationLogger.deprecate("deprecated-message-1", "Deprecated message 1");
+        deprecationLogger.deprecate("deprecated-message-2", "Deprecated message 2");
+        deprecationLogger.deprecate("deprecated-message-3", "Deprecated message 3");
+        deprecationLogger.deprecate("deprecated-message-2", "Deprecated message 2");
+        deprecationLogger.deprecate("deprecated-message-1", "Deprecated message 1");
+        deprecationLogger.deprecate("deprecated-message-3", "Deprecated message 3");
+        deprecationLogger.deprecate("deprecated-message-1", "Deprecated message 1");
+        deprecationLogger.deprecate("deprecated-message-3", "Deprecated message 3");
+        deprecationLogger.deprecate("deprecated-message-2", "Deprecated message 2");
+        // assert that only unique warnings are logged
+        assertWarnings("Deprecated message 1", "Deprecated message 2", "Deprecated message 3");
     }
 }

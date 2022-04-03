@@ -42,14 +42,22 @@ import static org.hamcrest.Matchers.greaterThan;
 public class FieldDataLoadingIT extends OpenSearchIntegTestCase {
 
     public void testEagerGlobalOrdinalsFieldDataLoading() throws Exception {
-        assertAcked(prepareCreate("test")
-                .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
-                        .startObject("name")
-                        .field("type", "text")
-                        .field("fielddata", true)
-                        .field("eager_global_ordinals", true)
-                        .endObject()
-                        .endObject().endObject().endObject()));
+        assertAcked(
+            prepareCreate("test").addMapping(
+                "type",
+                jsonBuilder().startObject()
+                    .startObject("type")
+                    .startObject("properties")
+                    .startObject("name")
+                    .field("type", "text")
+                    .field("fielddata", true)
+                    .field("eager_global_ordinals", true)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
         ensureGreen();
 
         client().prepareIndex("test", "type", "1").setSource("name", "name").get();

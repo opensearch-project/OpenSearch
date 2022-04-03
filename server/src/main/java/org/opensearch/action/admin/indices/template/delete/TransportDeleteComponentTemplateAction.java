@@ -51,19 +51,32 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class TransportDeleteComponentTemplateAction
-    extends TransportMasterNodeAction<DeleteComponentTemplateAction.Request, AcknowledgedResponse> {
+public class TransportDeleteComponentTemplateAction extends TransportMasterNodeAction<
+    DeleteComponentTemplateAction.Request,
+    AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportDeleteComponentTemplateAction.class);
 
     private final MetadataIndexTemplateService indexTemplateService;
 
     @Inject
-    public TransportDeleteComponentTemplateAction(TransportService transportService, ClusterService clusterService,
-                                                  ThreadPool threadPool, MetadataIndexTemplateService indexTemplateService,
-                                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(DeleteComponentTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            DeleteComponentTemplateAction.Request::new, indexNameExpressionResolver);
+    public TransportDeleteComponentTemplateAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        MetadataIndexTemplateService indexTemplateService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            DeleteComponentTemplateAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            DeleteComponentTemplateAction.Request::new,
+            indexNameExpressionResolver
+        );
         this.indexTemplateService = indexTemplateService;
     }
 
@@ -84,8 +97,11 @@ public class TransportDeleteComponentTemplateAction
     }
 
     @Override
-    protected void masterOperation(final DeleteComponentTemplateAction.Request request, final ClusterState state,
-                                   final ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(
+        final DeleteComponentTemplateAction.Request request,
+        final ClusterState state,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
         indexTemplateService.removeComponentTemplate(request.name(), request.masterNodeTimeout(), listener);
     }
 }

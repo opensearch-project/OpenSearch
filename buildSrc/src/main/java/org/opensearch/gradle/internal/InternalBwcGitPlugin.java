@@ -109,7 +109,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
         });
 
         TaskProvider<LoggedExec> fetchLatestTaskProvider = tasks.register("fetchLatest", LoggedExec.class, fetchLatest -> {
-            var gitFetchLatest = project.getProviders()
+            Provider<Object> gitFetchLatest = project.getProviders()
                 .systemProperty("tests.bwc.git_fetch_latest")
                 .forUseAtConfigurationTime()
                 .orElse("true")
@@ -122,7 +122,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
                     }
                     throw new GradleException("tests.bwc.git_fetch_latest must be [true] or [false] but was [" + fetchProp + "]");
                 });
-            fetchLatest.onlyIf(t -> project.getGradle().getStartParameter().isOffline() == false && gitFetchLatest.get());
+            fetchLatest.onlyIf(t -> project.getGradle().getStartParameter().isOffline() == false && gitFetchLatest.get() != null);
             fetchLatest.dependsOn(addRemoteTaskProvider);
             fetchLatest.setWorkingDir(gitExtension.getCheckoutDir().get());
             fetchLatest.setCommandLine(asList("git", "fetch", "--all"));

@@ -43,7 +43,7 @@ public class ParseFieldTests extends OpenSearchTestCase {
     public void testParse() {
         String name = "foo_bar";
         ParseField field = new ParseField(name);
-        String[] deprecated = new String[]{"barFoo", "bar_foo", "Foobar"};
+        String[] deprecated = new String[] { "barFoo", "bar_foo", "Foobar" };
         ParseField withDeprecations = field.withDeprecation(deprecated);
         assertThat(field, not(sameInstance(withDeprecations)));
         assertThat(field.match(name, LoggingDeprecationHandler.INSTANCE), is(true));
@@ -62,7 +62,7 @@ public class ParseFieldTests extends OpenSearchTestCase {
 
     public void testAllDeprecated() {
         String name = "like_text";
-        String[] deprecated = new String[]{"text", "same_as_text"};
+        String[] deprecated = new String[] { "text", "same_as_text" };
         ParseField field = new ParseField(name).withDeprecation(deprecated).withAllDeprecated("like");
         assertFalse(field.match("not a field name", LoggingDeprecationHandler.INSTANCE));
         assertTrue(field.match("text", LoggingDeprecationHandler.INSTANCE));
@@ -75,7 +75,7 @@ public class ParseFieldTests extends OpenSearchTestCase {
 
     public void testDeprecatedWithNoReplacement() {
         String name = "dep";
-        String[] alternatives = new String[]{"old_dep", "new_dep"};
+        String[] alternatives = new String[] { "old_dep", "new_dep" };
         ParseField field = new ParseField(name).withDeprecation(alternatives).withAllDeprecated();
         assertFalse(field.match("not a field name", LoggingDeprecationHandler.INSTANCE));
         assertTrue(field.match("dep", LoggingDeprecationHandler.INSTANCE));
@@ -84,7 +84,6 @@ public class ParseFieldTests extends OpenSearchTestCase {
         assertWarnings("Deprecated field [old_dep] used, this field is unused and will be removed entirely");
         assertTrue(field.match("new_dep", LoggingDeprecationHandler.INSTANCE));
         assertWarnings("Deprecated field [new_dep] used, this field is unused and will be removed entirely");
-
 
     }
 

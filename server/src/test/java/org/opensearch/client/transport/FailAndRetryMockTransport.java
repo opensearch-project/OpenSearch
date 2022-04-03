@@ -102,7 +102,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
             @Override
             public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
                 throws TransportException {
-                //we make sure that nodes get added to the connected ones when calling addTransportAddress, by returning proper nodes info
+                // we make sure that nodes get added to the connected ones when calling addTransportAddress, by returning proper nodes info
                 if (connectMode) {
                     if (TransportLivenessAction.NAME.equals(action)) {
                         TransportResponseHandler transportResponseHandler = responseHandlers.onResponseReceived(requestId, listener);
@@ -123,7 +123,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
                     return;
                 }
 
-                //once nodes are connected we'll just return errors for each sendRequest call
+                // once nodes are connected we'll just return errors for each sendRequest call
                 triedNodes.add(node);
 
                 if (random.nextInt(100) > 10) {
@@ -132,7 +132,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
                 } else {
                     if (random.nextBoolean()) {
                         failures.incrementAndGet();
-                        //throw whatever exception that is not a subclass of ConnectTransportException
+                        // throw whatever exception that is not a subclass of ConnectTransportException
                         throw new IllegalStateException();
                     } else {
                         TransportResponseHandler transportResponseHandler = responseHandlers.onResponseReceived(requestId, listener);
@@ -170,7 +170,6 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     public Set<DiscoveryNode> triedNodes() {
         return triedNodes;
     }
-
 
     @Override
     public BoundTransportAddress boundAddress() {

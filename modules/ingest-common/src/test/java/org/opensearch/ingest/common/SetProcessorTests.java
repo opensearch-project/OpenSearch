@@ -59,7 +59,7 @@ public class SetProcessorTests extends OpenSearchTestCase {
 
     public void testSetNewFields() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
-        //used to verify that there are no conflicts between subsequent fields going to be added
+        // used to verify that there are no conflicts between subsequent fields going to be added
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
         String fieldName = RandomDocumentPicks.addRandomField(random(), testIngestDocument, fieldValue);
@@ -76,9 +76,11 @@ public class SetProcessorTests extends OpenSearchTestCase {
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
-        } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("cannot set [inner] with parent object of type [java.lang.String] as " +
-                    "part of path [field.inner]"));
+        } catch (IllegalArgumentException e) {
+            assertThat(
+                e.getMessage(),
+                equalTo("cannot set [inner] with parent object of type [java.lang.String] as " + "part of path [field.inner]")
+            );
         }
     }
 
@@ -154,7 +156,13 @@ public class SetProcessorTests extends OpenSearchTestCase {
     }
 
     private static Processor createSetProcessor(String fieldName, Object fieldValue, boolean overrideEnabled, boolean ignoreEmptyValue) {
-        return new SetProcessor(randomAlphaOfLength(10), null, new TestTemplateService.MockTemplateScript.Factory(fieldName),
-                ValueSource.wrap(fieldValue, TestTemplateService.instance()), overrideEnabled, ignoreEmptyValue);
+        return new SetProcessor(
+            randomAlphaOfLength(10),
+            null,
+            new TestTemplateService.MockTemplateScript.Factory(fieldName),
+            ValueSource.wrap(fieldValue, TestTemplateService.instance()),
+            overrideEnabled,
+            ignoreEmptyValue
+        );
     }
 }

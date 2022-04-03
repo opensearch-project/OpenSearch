@@ -80,7 +80,7 @@ public class DateProcessorFactoryTests extends OpenSearchTestCase {
         try {
             factory.create(null, null, null, config);
             fail("processor creation should have failed");
-        } catch(OpenSearchParseException e) {
+        } catch (OpenSearchParseException e) {
             assertThat(e.getMessage(), containsString("[field] required property is missing"));
         }
     }
@@ -95,7 +95,7 @@ public class DateProcessorFactoryTests extends OpenSearchTestCase {
         try {
             factory.create(null, null, null, config);
             fail("processor creation should have failed");
-        } catch(OpenSearchParseException e) {
+        } catch (OpenSearchParseException e) {
             assertThat(e.getMessage(), containsString("[formats] required property is missing"));
         }
     }
@@ -143,7 +143,7 @@ public class DateProcessorFactoryTests extends OpenSearchTestCase {
         try {
             factory.create(null, null, null, config);
             fail("processor creation should have failed");
-        } catch(OpenSearchParseException e) {
+        } catch (OpenSearchParseException e) {
             assertThat(e.getMessage(), containsString("[formats] property isn't a list, but of type [java.lang.String]"));
         }
     }

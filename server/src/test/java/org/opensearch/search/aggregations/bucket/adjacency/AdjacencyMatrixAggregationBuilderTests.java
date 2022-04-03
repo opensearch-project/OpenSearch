@@ -80,11 +80,19 @@ public class AdjacencyMatrixAggregationBuilderTests extends OpenSearchTestCase {
             filters.put("filter" + i, queryBuilder);
         }
         AdjacencyMatrixAggregationBuilder builder = new AdjacencyMatrixAggregationBuilder("dummy", filters);
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> builder.doBuild(context.getQueryShardContext(), null, new AggregatorFactories.Builder()));
-        assertThat(ex.getMessage(), equalTo("Number of filters is too large, must be less than or equal to: [2] but was [3]."
-            + "This limit can be set by changing the [" + IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey()
-            + "] index level setting."));
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> builder.doBuild(context.getQueryShardContext(), null, new AggregatorFactories.Builder())
+        );
+        assertThat(
+            ex.getMessage(),
+            equalTo(
+                "Number of filters is too large, must be less than or equal to: [2] but was [3]."
+                    + "This limit can be set by changing the ["
+                    + IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey()
+                    + "] index level setting."
+            )
+        );
 
         // filter size not grater than max size should return an instance of AdjacencyMatrixAggregatorFactory
         Map<String, QueryBuilder> emptyFilters = Collections.emptyMap();
@@ -93,7 +101,9 @@ public class AdjacencyMatrixAggregationBuilderTests extends OpenSearchTestCase {
         AggregatorFactory factory = aggregationBuilder.doBuild(context.getQueryShardContext(), null, new AggregatorFactories.Builder());
         assertThat(factory instanceof AdjacencyMatrixAggregatorFactory, is(true));
         assertThat(factory.name(), equalTo("dummy"));
-        assertWarnings("[index.max_adjacency_matrix_filters] setting was deprecated in OpenSearch and will be "
-                + "removed in a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(
+            "[index.max_adjacency_matrix_filters] setting was deprecated in OpenSearch and will be "
+                + "removed in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 }

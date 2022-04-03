@@ -31,7 +31,6 @@
 
 package org.opensearch.search.aggregations;
 
-
 import org.opensearch.common.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.NamedWriteable;
@@ -51,7 +50,11 @@ import java.util.Map;
  * A factory that knows how to create an {@link Aggregator} of a specific type.
  */
 public abstract class AggregationBuilder
-        implements NamedWriteable, ToXContentFragment, BaseAggregationBuilder, Rewriteable<AggregationBuilder> {
+    implements
+        NamedWriteable,
+        ToXContentFragment,
+        BaseAggregationBuilder,
+        Rewriteable<AggregationBuilder> {
 
     protected final String name;
     protected AggregatorFactories.Builder factoriesBuilder = AggregatorFactories.builder();
@@ -163,8 +166,11 @@ public abstract class AggregationBuilder
      * instead of <strong>per parent bucket</strong>.
      */
     public enum BucketCardinality {
-        NONE, ONE, MANY;
+        NONE,
+        ONE,
+        MANY;
     }
+
     /**
      * A rough count of the number of buckets that {@link Aggregator}s built
      * by this builder will contain per owning parent bucket.

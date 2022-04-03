@@ -6,7 +6,10 @@ So you want to contribute code to OpenSearch? Excellent! We're glad you're here.
   - [Getting Started](#getting-started)
     - [Git Clone OpenSearch Repo](#git-clone-opensearch-repo)
     - [Install Prerequisites](#install-prerequisites)
-      - [JDK 14](#jdk-14)
+      - [JDK 11](#jdk-11)
+      - [JDK 8 and 11](#jdk-8-and-11)
+      - [Runtime JDK](#runtime-jdk)
+      - [Windows](#windows)
       - [Docker](#docker)
     - [Run Tests](#run-tests)
     - [Run OpenSearch](#run-opensearch)
@@ -44,26 +47,28 @@ Fork [opensearch-project/OpenSearch](https://github.com/opensearch-project/OpenS
 
 ### Install Prerequisites
 
-#### JDK 14
+#### JDK 11
 
-OpenSearch builds using Java 14 at a minimum. This means you must have a JDK 14 installed with the environment variable `JAVA_HOME` referencing the path to Java home for your JDK 14 installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-14`.
+OpenSearch builds using Java 11 at a minimum. This means you must have a JDK 11 installed with the environment variable `JAVA_HOME` referencing the path to Java home for your JDK 11 installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-11`.
 
-One easy way to get Java 14 on *nix is to use [sdkman](https://sdkman.io/). 
+#### JDK 8 and 11
+By default, tests use the same runtime as `JAVA_HOME`. However, since OpenSearch supports JDK 8, the build supports compiling with JDK 11 and testing on a different version of JDK runtime. To do this, set `RUNTIME_JAVA_HOME` pointing to the Java home of another JDK installation, e.g. `RUNTIME_JAVA_HOME=/usr/lib/jvm/jdk-8`.
 
-```bash
-curl -s "https://get.sdkman.io" | bash
-source ~/.sdkman/bin/sdkman-init.sh
-sdk install java 14.0.2-open
-sdk use java 14.0.2-open
-```
+To run the full suite of tests, download and install [JDK 8](https://adoptium.net/releases.html?variant=openjdk8) and [11](https://adoptium.net/releases.html?variant=openjdk11) and set `JAVA8_HOME`, `JAVA11_HOME`, and `JAVA14_HOME`. They are required by the [backwards compatibility test](./TESTING.md#testing-backwards-compatibility).
 
-By default, tests use the same runtime as `JAVA_HOME`. However, since OpenSearch supports JDK 8, the build supports compiling with JDK 14 and testing on a different version of JDK runtime. To do this, set `RUNTIME_JAVA_HOME` pointing to the Java home of another JDK installation, e.g. `RUNTIME_JAVA_HOME=/usr/lib/jvm/jdk-8`.
+#### Runtime JDK
 
-To run the full suite of tests you will also need `JAVA8_HOME`, `JAVA9_HOME`, `JAVA10_HOME`, `JAVA11_HOME`, and `JAVA12_HOME`.
+By default, the test tasks use bundled JDK runtime, configured in `buildSrc/version.properties` and set to JDK 11 (LTS). Other kind of test tasks (integration, cluster, ... ) use the same runtime as `JAVA_HOME`. However, since OpenSearch supports JDK 8 as the runtime, the build supports compiling with JDK 11 and testing on a different version of JDK runtime. To do this, set `RUNTIME_JAVA_HOME` pointing to the Java home of another JDK installation, e.g. `RUNTIME_JAVA_HOME=/usr/lib/jvm/jdk-8`. Alternatively, the runtime JDK version could be provided as the command line argument, using combination of `runtime.java=<major JDK version>` property and `JAVA<major JDK version>_HOME` environment variable, for example `./gradlew -Druntime.java=17 ...` (in this case, the tooling expects `JAVA17_HOME` environment variable to be set).
+
+#### Windows
+
+On Windows, set `_JAVA_OPTIONS: -Xmx4096M`. You may also need to set `LongPathsEnabled=0x1` under `Computer\HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\FileSystem`.
 
 #### Docker
 
-[Docker](https://docs.docker.com/install/) is required for building some OpenSearch artifacts and executing certain test suites.
+Download and install [Docker](https://docs.docker.com/install/), required for building OpenSearch artifacts, and executing certain test suites.
+
+On Windows, uncheck support for Hyper-V during installation, run `"C:\Program Files\Docker\Docker\DockerCli.exe" -SwitchDaemon` to fix the ` In the default daemon configuration on Windows, the docker client must be run with elevated privileges to connect.` error, run Docker Desktop once, review and accept license agreement, and ensure that the Docker daemon is running.
 
 ### Run Tests
 
@@ -236,7 +241,7 @@ Please follow these formatting guidelines:
 
 ### Editor / IDE Support
 
-IntelliJ IDEs can [import](https://blog.jetbrains.com/idea/2014/01/intellij-idea-13-importing-code-formatter-settings-from-eclipse/) the same settings file, and / or use the [Eclipse Code Formatter](https://plugins.jetbrains.com/plugin/6546-eclipse-code-formatter)
+IntelliJ IDEs can [import](https://blog.jetbrains.com/idea/2014/01/intellij-idea-13-importing-code-formatter-settings-from-eclipse/) the [settings file](buildSrc/formatterConfig.xml), and / or use the [Eclipse Code Formatter](https://plugins.jetbrains.com/plugin/6546-eclipse-code-formatter)
 plugin.
 
 You can also tell Spotless to [format a specific file](https://github.com/diffplug/spotless/tree/master/plugin-gradle#can-i-apply-spotless-to-specific-files) from the command line.

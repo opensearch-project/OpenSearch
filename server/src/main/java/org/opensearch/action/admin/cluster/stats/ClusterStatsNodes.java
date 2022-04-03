@@ -98,8 +98,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
             this.plugins.addAll(nodeResponse.nodeInfo().getInfo(PluginsAndModules.class).getPluginInfos());
 
             // now do the stats that should be deduped by hardware (implemented by ip deduping)
-            TransportAddress publishAddress =
-                    nodeResponse.nodeInfo().getInfo(TransportInfo.class).address().publishAddress();
+            TransportAddress publishAddress = nodeResponse.nodeInfo().getInfo(TransportInfo.class).address().publishAddress();
             final InetAddress inetAddress = publishAddress.address().getAddress();
             if (!seenAddresses.add(inetAddress)) {
                 continue;
@@ -245,8 +244,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params)
-                throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(Fields.TOTAL, total);
             for (Map.Entry<String, Integer> entry : new TreeMap<>(roles).entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
@@ -324,8 +322,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params)
-                throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(Fields.AVAILABLE_PROCESSORS, availableProcessors);
             builder.field(Fields.ALLOCATED_PROCESSORS, allocatedProcessors);
             builder.startArray(Fields.NAMES);
@@ -437,8 +434,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params)
-                throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(Fields.CPU).field(Fields.PERCENT, cpuPercent).endObject();
             if (count > 0) {
                 builder.startObject(Fields.OPEN_FILE_DESCRIPTORS);
@@ -544,8 +540,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params)
-                throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.humanReadableField(Fields.MAX_UPTIME_IN_MILLIS, Fields.MAX_UPTIME, new TimeValue(maxUptime));
             builder.startArray(Fields.VERSIONS);
             for (ObjectIntCursor<JvmVersion> v : versions) {
@@ -617,19 +612,16 @@ public class ClusterStatsNodes implements ToXContentFragment {
             final Map<String, AtomicInteger> httpTypes = new HashMap<>();
             for (final NodeInfo nodeInfo : nodeInfos) {
                 final Settings settings = nodeInfo.getSettings();
-                final String transportType =
-                    settings.get(NetworkModule.TRANSPORT_TYPE_KEY,
-                            NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING.get(settings));
-                final String httpType =
-                    settings.get(NetworkModule.HTTP_TYPE_KEY,
-                            NetworkModule.HTTP_DEFAULT_TYPE_SETTING.get(settings));
+                final String transportType = settings.get(
+                    NetworkModule.TRANSPORT_TYPE_KEY,
+                    NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING.get(settings)
+                );
+                final String httpType = settings.get(NetworkModule.HTTP_TYPE_KEY, NetworkModule.HTTP_DEFAULT_TYPE_SETTING.get(settings));
                 if (Strings.hasText(transportType)) {
-                    transportTypes.computeIfAbsent(transportType,
-                            k -> new AtomicInteger()).incrementAndGet();
+                    transportTypes.computeIfAbsent(transportType, k -> new AtomicInteger()).incrementAndGet();
                 }
                 if (Strings.hasText(httpType)) {
-                    httpTypes.computeIfAbsent(httpType,
-                            k -> new AtomicInteger()).incrementAndGet();
+                    httpTypes.computeIfAbsent(httpType, k -> new AtomicInteger()).incrementAndGet();
                 }
             }
             this.transportTypes = Collections.unmodifiableMap(transportTypes);
@@ -720,9 +712,9 @@ public class ClusterStatsNodes implements ToXContentFragment {
             SortedMap<String, long[]> stats = new TreeMap<>();
             for (NodeStats nodeStat : nodeStats) {
                 if (nodeStat.getIngestStats() != null) {
-                    for (Map.Entry<String,
-                            List<org.opensearch.ingest.IngestStats.ProcessorStat>> processorStats : nodeStat.getIngestStats()
-                            .getProcessorStats().entrySet()) {
+                    for (Map.Entry<String, List<org.opensearch.ingest.IngestStats.ProcessorStat>> processorStats : nodeStat.getIngestStats()
+                        .getProcessorStats()
+                        .entrySet()) {
                         pipelineIds.add(processorStats.getKey());
                         for (org.opensearch.ingest.IngestStats.ProcessorStat stat : processorStats.getValue()) {
                             stats.compute(stat.getType(), (k, v) -> {
@@ -732,8 +724,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
                                         nodeIngestStats.getIngestCount(),
                                         nodeIngestStats.getIngestFailedCount(),
                                         nodeIngestStats.getIngestCurrent(),
-                                        nodeIngestStats.getIngestTimeInMillis()
-                                    };
+                                        nodeIngestStats.getIngestTimeInMillis() };
                                 } else {
                                     v[0] += nodeIngestStats.getIngestCount();
                                     v[1] += nodeIngestStats.getIngestFailedCount();
@@ -762,8 +753,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
                     builder.field("count", statValues[0]);
                     builder.field("failed", statValues[1]);
                     builder.field("current", statValues[2]);
-                    builder.humanReadableField("time_in_millis", "time",
-                        new TimeValue(statValues[3], TimeUnit.MILLISECONDS));
+                    builder.humanReadableField("time_in_millis", "time", new TimeValue(statValues[3], TimeUnit.MILLISECONDS));
                     builder.endObject();
                 }
                 builder.endObject();

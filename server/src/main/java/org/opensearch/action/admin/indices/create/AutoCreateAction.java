@@ -79,10 +79,15 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
         private final MetadataCreateDataStreamService metadataCreateDataStreamService;
 
         @Inject
-        public TransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               MetadataCreateIndexService createIndexService,
-                               MetadataCreateDataStreamService metadataCreateDataStreamService) {
+        public TransportAction(
+            TransportService transportService,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ActionFilters actionFilters,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            MetadataCreateIndexService createIndexService,
+            MetadataCreateDataStreamService metadataCreateDataStreamService
+        ) {
             super(NAME, transportService, clusterService, threadPool, actionFilters, CreateIndexRequest::new, indexNameExpressionResolver);
             this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
             this.createIndexService = createIndexService;
@@ -100,57 +105,57 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
         }
 
         @Override
-        protected void masterOperation(CreateIndexRequest request,
-                                       ClusterState state,
-                                       ActionListener<CreateIndexResponse> finalListener) {
+        protected void masterOperation(CreateIndexRequest request, ClusterState state, ActionListener<CreateIndexResponse> finalListener) {
             AtomicReference<String> indexNameRef = new AtomicReference<>();
-            ActionListener<ClusterStateUpdateResponse> listener = ActionListener.wrap(
-                response -> {
-                    String indexName = indexNameRef.get();
-                    assert indexName != null;
-                    if (response.isAcknowledged()) {
-                        activeShardsObserver.waitForActiveShards(
-                            new String[]{indexName},
-                            ActiveShardCount.DEFAULT,
-                            request.timeout(),
-                            shardsAcked -> {
-                                finalListener.onResponse(new CreateIndexResponse(true, shardsAcked, indexName));
-                            },
-                            finalListener::onFailure
-                        );
-                    } else {
-                        finalListener.onResponse(new CreateIndexResponse(false, false, indexName));
-                    }
-                },
-                finalListener::onFailure
-            );
-            clusterService.submitStateUpdateTask("auto create [" + request.index() + "]",
+            ActionListener<ClusterStateUpdateResponse> listener = ActionListener.wrap(response -> {
+                String indexName = indexNameRef.get();
+                assert indexName != null;
+                if (response.isAcknowledged()) {
+                    activeShardsObserver.waitForActiveShards(
+                        new String[] { indexName },
+                        ActiveShardCount.DEFAULT,
+                        request.timeout(),
+                        shardsAcked -> { finalListener.onResponse(new CreateIndexResponse(true, shardsAcked, indexName)); },
+                        finalListener::onFailure
+                    );
+                } else {
+                    finalListener.onResponse(new CreateIndexResponse(false, false, indexName));
+                }
+            }, finalListener::onFailure);
+            clusterService.submitStateUpdateTask(
+                "auto create [" + request.index() + "]",
                 new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
 
-                @Override
-                protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                    return new ClusterStateUpdateResponse(acknowledged);
-                }
+                    @Override
+                    protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+                        return new ClusterStateUpdateResponse(acknowledged);
+                    }
 
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    DataStreamTemplate dataStreamTemplate = resolveAutoCreateDataStream(request, currentState.metadata());
-                    if (dataStreamTemplate != null) {
-                        CreateDataStreamClusterStateUpdateRequest createRequest = new CreateDataStreamClusterStateUpdateRequest(
-                            request.index(), request.masterNodeTimeout(), request.timeout());
-                        ClusterState clusterState =  metadataCreateDataStreamService.createDataStream(createRequest, currentState);
-                        indexNameRef.set(clusterState.metadata().dataStreams().get(request.index()).getIndices().get(0).getName());
-                        return clusterState;
-                    } else {
-                        String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
-                        indexNameRef.set(indexName);
-                        CreateIndexClusterStateUpdateRequest updateRequest =
-                            new CreateIndexClusterStateUpdateRequest(request.cause(), indexName, request.index())
-                                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
-                        return createIndexService.applyCreateIndexRequest(currentState, updateRequest, false);
+                    @Override
+                    public ClusterState execute(ClusterState currentState) throws Exception {
+                        DataStreamTemplate dataStreamTemplate = resolveAutoCreateDataStream(request, currentState.metadata());
+                        if (dataStreamTemplate != null) {
+                            CreateDataStreamClusterStateUpdateRequest createRequest = new CreateDataStreamClusterStateUpdateRequest(
+                                request.index(),
+                                request.masterNodeTimeout(),
+                                request.timeout()
+                            );
+                            ClusterState clusterState = metadataCreateDataStreamService.createDataStream(createRequest, currentState);
+                            indexNameRef.set(clusterState.metadata().dataStreams().get(request.index()).getIndices().get(0).getName());
+                            return clusterState;
+                        } else {
+                            String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
+                            indexNameRef.set(indexName);
+                            CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(
+                                request.cause(),
+                                indexName,
+                                request.index()
+                            ).ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
+                            return createIndexService.applyCreateIndexRequest(currentState, updateRequest, false);
+                        }
                     }
                 }
-            });
+            );
         }
 
         @Override

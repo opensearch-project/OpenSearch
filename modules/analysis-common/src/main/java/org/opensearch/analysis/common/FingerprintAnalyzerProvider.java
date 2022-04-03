@@ -41,7 +41,6 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AbstractIndexAnalyzerProvider;
 import org.opensearch.index.analysis.Analysis;
 
-
 /**
  * Builds an OpenRefine Fingerprint analyzer.  Uses the default settings from the various components
  * (Standard Tokenizer and lowercase + stop + fingerprint + ascii-folding filters)
@@ -53,7 +52,7 @@ public class FingerprintAnalyzerProvider extends AbstractIndexAnalyzerProvider<A
 
     public static int DEFAULT_MAX_OUTPUT_SIZE = 255;
     public static CharArraySet DEFAULT_STOP_WORDS = CharArraySet.EMPTY_SET;
-    public static final char DEFAULT_SEPARATOR  = ' ';
+    public static final char DEFAULT_SEPARATOR = ' ';
 
     private final FingerprintAnalyzer analyzer;
 
@@ -61,7 +60,7 @@ public class FingerprintAnalyzerProvider extends AbstractIndexAnalyzerProvider<A
         super(indexSettings, name, settings);
 
         char separator = parseSeparator(settings);
-        int maxOutputSize = settings.getAsInt(MAX_OUTPUT_SIZE.getPreferredName(),DEFAULT_MAX_OUTPUT_SIZE);
+        int maxOutputSize = settings.getAsInt(MAX_OUTPUT_SIZE.getPreferredName(), DEFAULT_MAX_OUTPUT_SIZE);
         CharArraySet stopWords = Analysis.parseStopWords(env, settings, DEFAULT_STOP_WORDS);
 
         this.analyzer = new FingerprintAnalyzer(stopWords, separator, maxOutputSize);
@@ -80,7 +79,8 @@ public class FingerprintAnalyzerProvider extends AbstractIndexAnalyzerProvider<A
             return customSeparator.charAt(0);
         }
 
-        throw new IllegalArgumentException("Setting [separator] must be a single, non-null character. ["
-                + customSeparator + "] was provided.");
+        throw new IllegalArgumentException(
+            "Setting [separator] must be a single, non-null character. [" + customSeparator + "] was provided."
+        );
     }
 }

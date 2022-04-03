@@ -39,7 +39,6 @@ import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.snapshots.SnapshotInfoTests;
 import org.opensearch.snapshots.SnapshotShardFailure;
 import org.opensearch.test.AbstractXContentTestCase;
-import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -77,15 +76,27 @@ public class CreateSnapshotResponseTests extends AbstractXContentTestCase<Create
         List<SnapshotShardFailure> shardFailures = new ArrayList<>();
 
         for (int count = successfulShards; count < totalShards; ++count) {
-            shardFailures.add(new SnapshotShardFailure(
-                "node-id", new ShardId("index-" + count, UUID.randomUUID().toString(), randomInt()), "reason"));
+            shardFailures.add(
+                new SnapshotShardFailure("node-id", new ShardId("index-" + count, UUID.randomUUID().toString(), randomInt()), "reason")
+            );
         }
 
         boolean globalState = randomBoolean();
 
         return new CreateSnapshotResponse(
-            new SnapshotInfo(snapshotId, indices, dataStreams, startTime, reason, endTime, totalShards, shardFailures,
-                globalState, SnapshotInfoTests.randomUserMetadata()));
+            new SnapshotInfo(
+                snapshotId,
+                indices,
+                dataStreams,
+                startTime,
+                reason,
+                endTime,
+                totalShards,
+                shardFailures,
+                globalState,
+                SnapshotInfoTests.randomUserMetadata()
+            )
+        );
     }
 
     @Override

@@ -67,8 +67,10 @@ public interface ActionListener<Response> {
      * @param <Response> the type of the response
      * @return a listener that listens for responses and invokes the consumer when received
      */
-    static <Response> ActionListener<Response> wrap(CheckedConsumer<Response, ? extends Exception> onResponse,
-            Consumer<Exception> onFailure) {
+    static <Response> ActionListener<Response> wrap(
+        CheckedConsumer<Response, ? extends Exception> onResponse,
+        Consumer<Exception> onFailure
+    ) {
         return new ActionListener<Response>() {
             @Override
             public void onResponse(Response response) {

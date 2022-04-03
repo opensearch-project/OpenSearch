@@ -48,21 +48,26 @@ public class PercolateWithNestedQueryBuilderTests extends PercolateQueryBuilderT
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         super.initializeAdditionalMappings(mapperService);
-        mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(
-                "_doc", "some_nested_object", "type=nested"))), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(
+            "_doc",
+            new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc", "some_nested_object", "type=nested"))),
+            MapperService.MergeReason.MAPPING_UPDATE
+        );
     }
 
     public void testDetectsNestedDocuments() throws IOException {
         QueryShardContext shardContext = createShardContext();
 
-        PercolateQueryBuilder builder = new PercolateQueryBuilder(queryField,
-                new BytesArray("{ \"foo\": \"bar\" }"), XContentType.JSON);
+        PercolateQueryBuilder builder = new PercolateQueryBuilder(queryField, new BytesArray("{ \"foo\": \"bar\" }"), XContentType.JSON);
         QueryBuilder rewrittenBuilder = rewriteAndFetch(builder, shardContext);
         PercolateQuery query = (PercolateQuery) rewrittenBuilder.toQuery(shardContext);
         assertFalse(query.excludesNestedDocs());
 
-        builder = new PercolateQueryBuilder(queryField,
-                new BytesArray("{ \"foo\": \"bar\", \"some_nested_object\": [ { \"baz\": 42 } ] }"), XContentType.JSON);
+        builder = new PercolateQueryBuilder(
+            queryField,
+            new BytesArray("{ \"foo\": \"bar\", \"some_nested_object\": [ { \"baz\": 42 } ] }"),
+            XContentType.JSON
+        );
         rewrittenBuilder = rewriteAndFetch(builder, shardContext);
         query = (PercolateQuery) rewrittenBuilder.toQuery(shardContext);
         assertTrue(query.excludesNestedDocs());

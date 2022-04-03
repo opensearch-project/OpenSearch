@@ -1,0 +1,95 @@
+name: Increment Version
+
+on:
+  push:
+    tags:
+      - '*.*.*'
+
+jobs:  
+  build:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Fetch Tag and Version Information
+        run: |
+          TAG=$(echo "${GITHUB_REF#refs/*/}")
+          CURRENT_VERSION_ARRAY=($(echo "$TAG" | tr . '\n'))
+          BASE=$(IFS=. ; echo "${CURRENT_VERSION_ARRAY[*]:0:2}")
+          BASE_X=$(IFS=. ; echo "${CURRENT_VERSION_ARRAY[*]:0:1}.x")
+          CURRENT_VERSION=$(IFS=. ; echo "${CURRENT_VERSION_ARRAY[*]:0:3}")
+          CURRENT_VERSION_UNDERSCORE=$(IFS=_ ; echo "V_${CURRENT_VERSION_ARRAY[*]:0:3}")
+          CURRENT_VERSION_ARRAY[2]=$((CURRENT_VERSION_ARRAY[2]+1))
+          NEXT_VERSION=$(IFS=. ; echo "${CURRENT_VERSION_ARRAY[*]:0:3}")
+          NEXT_VERSION_UNDERSCORE=$(IFS=_ ; echo "V_${CURRENT_VERSION_ARRAY[*]:0:3}")
+          NEXT_VERSION_ID=$(IFS=0 ; echo "${CURRENT_VERSION_ARRAY[*]:0:3}99")
+          echo "TAG=$TAG" >> $GITHUB_ENV
+          echo "BASE=$BASE" >> $GITHUB_ENV
+          echo "BASE_X=$BASE_X" >> $GITHUB_ENV
+          echo "CURRENT_VERSION=$CURRENT_VERSION" >> $GITHUB_ENV
+          echo "CURRENT_VERSION_UNDERSCORE=$CURRENT_VERSION_UNDERSCORE" >> $GITHUB_ENV
+          echo "NEXT_VERSION=$NEXT_VERSION" >> $GITHUB_ENV
+          echo "NEXT_VERSION_UNDERSCORE=$NEXT_VERSION_UNDERSCORE" >> $GITHUB_ENV
+          echo "NEXT_VERSION_ID=$NEXT_VERSION_ID" >> $GITHUB_ENV
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ env.BASE }}
+      - name: Increment Patch Version
+        run: |
+          echo Incrementing $CURRENT_VERSION to $NEXT_VERSION
+          echo "  - \"$CURRENT_VERSION\"" >> .ci/bwcVersions
+          sed -i "s/opensearch        = $CURRENT_VERSION/opensearch        = $NEXT_VERSION/g" buildSrc/version.properties
+          echo Adding $NEXT_VERSION_UNDERSCORE after $CURRENT_VERSION_UNDERSCORE
+          sed -i "s/public static final Version $CURRENT_VERSION_UNDERSCORE = new Version(\([[:digit:]]\+\)\(.*\));/\0\n    public static final Version $NEXT_VERSION_UNDERSCORE = new Version($NEXT_VERSION_ID\2);/g" server/src/main/java/org/opensearch/Version.java
+          sed -i "s/CURRENT = $CURRENT_VERSION_UNDERSCORE;/CURRENT = $NEXT_VERSION_UNDERSCORE;/g" server/src/main/java/org/opensearch/Version.java
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v3
+        with:
+          base: ${{ env.BASE }}
+          branch: 'create-pull-request/patch-${{ env.BASE }}'
+          commit-message: Incremented version to ${{ env.NEXT_VERSION }}
+          delete-branch: true
+          title: '[AUTO] Incremented version to ${{ env.NEXT_VERSION }}.'
+          body: |
+            I've noticed that a new tag ${{ env.TAG }} was pushed, and incremented the version from ${{ env.CURRENT_VERSION }} to ${{ env.NEXT_VERSION }}.
+
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ env.BASE_X }}
+      - name: Add bwc version to .X branch
+        run: |
+          echo Adding bwc version $NEXT_VERSION after $CURRENT_VERSION
+          sed -i "s/- \"$CURRENT_VERSION\"/\0\n  - \"$NEXT_VERSION\"/g" .ci/bwcVersions
+          echo Adding $NEXT_VERSION_UNDERSCORE after $CURRENT_VERSION_UNDERSCORE
+          sed -i "s/public static final Version $CURRENT_VERSION_UNDERSCORE = new Version(\([[:digit:]]\+\)\(.*\));/\0\n    public static final Version $NEXT_VERSION_UNDERSCORE = new Version($NEXT_VERSION_ID\2);/g" server/src/main/java/org/opensearch/Version.java
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v3
+        with:
+          base: ${{ env.BASE_X }}
+          branch: 'create-pull-request/patch-${{ env.BASE_X }}'
+          commit-message: Added bwc version ${{ env.NEXT_VERSION }}
+          delete-branch: true
+          title: '[AUTO] [${{ env.BASE_X }}] Added bwc version ${{ env.NEXT_VERSION }}.'
+          body: |
+            I've noticed that a new tag ${{ env.TAG }} was pushed, and added a bwc version ${{ env.NEXT_VERSION }}.
+
+      - uses: actions/checkout@v2
+        with:
+          ref: main
+      - name: Add bwc version to main branch
+        run: |
+          echo Adding bwc version $NEXT_VERSION after $CURRENT_VERSION
+          sed -i "s/- \"$CURRENT_VERSION\"/\0\n  - \"$NEXT_VERSION\"/g" .ci/bwcVersions
+          echo Adding $NEXT_VERSION_UNDERSCORE after $CURRENT_VERSION_UNDERSCORE
+          sed -i "s/public static final Version $CURRENT_VERSION_UNDERSCORE = new Version(\([[:digit:]]\+\)\(.*\));/\0\n    public static final Version $NEXT_VERSION_UNDERSCORE = new Version($NEXT_VERSION_ID\2);/g" server/src/main/java/org/opensearch/Version.java
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v3
+        with:
+          base: main
+          branch: 'create-pull-request/patch-main'
+          commit-message: Added bwc version ${{ env.NEXT_VERSION }}
+          delete-branch: true
+          title: '[AUTO] [main] Added bwc version ${{ env.NEXT_VERSION }}.'
+          body: |
+            I've noticed that a new tag ${{ env.TAG }} was pushed, and added a bwc version ${{ env.NEXT_VERSION }}.

@@ -36,8 +36,9 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.index.reindex.ScrollableHitSource.Hit;
 
-public class UpdateByQueryMetadataTests
-    extends AbstractAsyncBulkByScrollActionMetadataTestCase<UpdateByQueryRequest, BulkByScrollResponse> {
+public class UpdateByQueryMetadataTests extends AbstractAsyncBulkByScrollActionMetadataTestCase<
+    UpdateByQueryRequest,
+    BulkByScrollResponse> {
 
     public void testRoutingIsCopied() {
         IndexRequest index = new IndexRequest();
@@ -57,13 +58,23 @@ public class UpdateByQueryMetadataTests
 
     private class TestAction extends TransportUpdateByQueryAction.AsyncIndexBySearchAction {
         TestAction() {
-            super(UpdateByQueryMetadataTests.this.task, UpdateByQueryMetadataTests.this.logger, null,
-                UpdateByQueryMetadataTests.this.threadPool, null, request(), ClusterState.EMPTY_STATE, listener());
+            super(
+                UpdateByQueryMetadataTests.this.task,
+                UpdateByQueryMetadataTests.this.logger,
+                null,
+                UpdateByQueryMetadataTests.this.threadPool,
+                null,
+                request(),
+                ClusterState.EMPTY_STATE,
+                listener()
+            );
         }
 
         @Override
-        public AbstractAsyncBulkByScrollAction.RequestWrapper<?> copyMetadata(AbstractAsyncBulkByScrollAction.RequestWrapper<?> request,
-                                                                              Hit doc) {
+        public AbstractAsyncBulkByScrollAction.RequestWrapper<?> copyMetadata(
+            AbstractAsyncBulkByScrollAction.RequestWrapper<?> request,
+            Hit doc
+        ) {
             return super.copyMetadata(request, doc);
         }
     }

@@ -69,7 +69,7 @@ final class CountedCollector<R extends SearchPhaseResult> {
      * Sets the result to the given array index and then runs {@link #countDown()}
      */
     void onResult(R result) {
-        resultConsumer.consumeResult(result,  this::countDown);
+        resultConsumer.consumeResult(result, this::countDown);
     }
 
     /**

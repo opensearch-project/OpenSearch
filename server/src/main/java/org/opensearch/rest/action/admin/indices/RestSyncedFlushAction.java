@@ -56,11 +56,14 @@ public class RestSyncedFlushAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_flush/synced"),
-            new Route(POST, "/_flush/synced"),
-            new Route(GET, "/{index}/_flush/synced"),
-            new Route(POST, "/{index}/_flush/synced")));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "/_flush/synced"),
+                new Route(POST, "/_flush/synced"),
+                new Route(GET, "/{index}/_flush/synced"),
+                new Route(POST, "/{index}/_flush/synced")
+            )
+        );
     }
 
     @Override

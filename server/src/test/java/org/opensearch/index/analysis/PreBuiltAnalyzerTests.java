@@ -74,38 +74,56 @@ public class PreBuiltAnalyzerTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testThatInstancesAreTheSameAlwaysForKeywordAnalyzer() {
-        assertThat(PreBuiltAnalyzers.KEYWORD.getAnalyzer(Version.CURRENT),
-                is(PreBuiltAnalyzers.KEYWORD.getAnalyzer(LegacyESVersion.V_6_0_0)));
+        assertThat(
+            PreBuiltAnalyzers.KEYWORD.getAnalyzer(Version.CURRENT),
+            is(PreBuiltAnalyzers.KEYWORD.getAnalyzer(LegacyESVersion.V_6_0_0))
+        );
     }
 
     public void testThatInstancesAreCachedAndReused() {
-        assertSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.CURRENT),
-                PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.CURRENT));
+        assertSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.CURRENT), PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.CURRENT));
         // same es version should be cached
-        assertSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(LegacyESVersion.V_6_2_1),
-                PreBuiltAnalyzers.STANDARD.getAnalyzer(LegacyESVersion.V_6_2_1));
-        assertNotSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(LegacyESVersion.V_6_0_0),
-                PreBuiltAnalyzers.STANDARD.getAnalyzer(LegacyESVersion.V_6_0_1));
+        assertSame(
+            PreBuiltAnalyzers.STANDARD.getAnalyzer(LegacyESVersion.V_6_2_1),
+            PreBuiltAnalyzers.STANDARD.getAnalyzer(LegacyESVersion.V_6_2_1)
+        );
+        assertNotSame(
+            PreBuiltAnalyzers.STANDARD.getAnalyzer(LegacyESVersion.V_6_0_0),
+            PreBuiltAnalyzers.STANDARD.getAnalyzer(LegacyESVersion.V_6_0_1)
+        );
 
         // Same Lucene version should be cached:
-        assertSame(PreBuiltAnalyzers.STOP.getAnalyzer(LegacyESVersion.V_6_2_1),
-            PreBuiltAnalyzers.STOP.getAnalyzer(LegacyESVersion.V_6_2_2));
+        assertSame(
+            PreBuiltAnalyzers.STOP.getAnalyzer(LegacyESVersion.V_6_2_1),
+            PreBuiltAnalyzers.STOP.getAnalyzer(LegacyESVersion.V_6_2_2)
+        );
     }
 
     public void testThatAnalyzersAreUsedInMapping() throws IOException {
-        int randomInt = randomInt(PreBuiltAnalyzers.values().length-1);
+        int randomInt = randomInt(PreBuiltAnalyzers.values().length - 1);
         PreBuiltAnalyzers randomPreBuiltAnalyzer = PreBuiltAnalyzers.values()[randomInt];
         String analyzerName = randomPreBuiltAnalyzer.name().toLowerCase(Locale.ROOT);
 
         Version randomVersion = randomVersion(random());
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, randomVersion).build();
 
-        NamedAnalyzer namedAnalyzer = new PreBuiltAnalyzerProvider(analyzerName, AnalyzerScope.INDEX,
-            randomPreBuiltAnalyzer.getAnalyzer(randomVersion)).get();
+        NamedAnalyzer namedAnalyzer = new PreBuiltAnalyzerProvider(
+            analyzerName,
+            AnalyzerScope.INDEX,
+            randomPreBuiltAnalyzer.getAnalyzer(randomVersion)
+        ).get();
 
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "text")
-                .field("analyzer", analyzerName).endObject().endObject().endObject().endObject();
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "text")
+            .field("analyzer", analyzerName)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
         MapperService mapperService = createIndex("test", indexSettings, "type", mapping).mapperService();
 
         MappedFieldType fieldType = mapperService.fieldType("field");
