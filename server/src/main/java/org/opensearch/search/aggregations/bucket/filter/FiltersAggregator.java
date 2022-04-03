@@ -123,8 +123,7 @@ public class FiltersAggregator extends BucketsAggregator {
                 return false;
             }
             KeyedFilter other = (KeyedFilter) obj;
-            return Objects.equals(key, other.key)
-                    && Objects.equals(filter, other.filter);
+            return Objects.equals(key, other.key) && Objects.equals(filter, other.filter);
         }
     }
 
@@ -135,9 +134,18 @@ public class FiltersAggregator extends BucketsAggregator {
     private final String otherBucketKey;
     private final int totalNumKeys;
 
-    public FiltersAggregator(String name, AggregatorFactories factories, String[] keys, Supplier<Weight[]> filters, boolean keyed,
-            String otherBucketKey, SearchContext context, Aggregator parent, CardinalityUpperBound cardinality,
-            Map<String, Object> metadata) throws IOException {
+    public FiltersAggregator(
+        String name,
+        AggregatorFactories factories,
+        String[] keys,
+        Supplier<Weight[]> filters,
+        boolean keyed,
+        String otherBucketKey,
+        SearchContext context,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, factories, context, parent, cardinality.multiply(keys.length + (otherBucketKey == null ? 0 : 1)), metadata);
         this.keyed = keyed;
         this.keys = keys;
@@ -152,8 +160,7 @@ public class FiltersAggregator extends BucketsAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         // no need to provide deleted docs to the filter
         Weight[] filters = this.filters.get();
         final Bits[] bits = new Bits[filters.length];
@@ -179,14 +186,17 @@ public class FiltersAggregator extends BucketsAggregator {
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        return buildAggregationsForFixedBucketCount(owningBucketOrds, keys.length + (showOtherBucket ? 1 : 0),
+        return buildAggregationsForFixedBucketCount(
+            owningBucketOrds,
+            keys.length + (showOtherBucket ? 1 : 0),
             (offsetInOwningOrd, docCount, subAggregationResults) -> {
                 if (offsetInOwningOrd < keys.length) {
-                    return new InternalFilters.InternalBucket(keys[offsetInOwningOrd], docCount,
-                            subAggregationResults, keyed);
+                    return new InternalFilters.InternalBucket(keys[offsetInOwningOrd], docCount, subAggregationResults, keyed);
                 }
                 return new InternalFilters.InternalBucket(otherBucketKey, docCount, subAggregationResults, keyed);
-            }, buckets -> new InternalFilters(name, buckets, keyed, metadata()));
+            },
+            buckets -> new InternalFilters(name, buckets, keyed, metadata())
+        );
     }
 
     @Override

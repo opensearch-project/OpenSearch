@@ -44,6 +44,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Table;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.monitor.process.ProcessInfo;
 import org.opensearch.rest.RestRequest;
@@ -68,11 +69,11 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 
 public class RestThreadPoolAction extends AbstractCatAction {
 
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestThreadPoolAction.class);
+
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_cat/thread_pool"),
-            new Route(GET, "/_cat/thread_pool/{thread_pool_patterns}")));
+        return unmodifiableList(asList(new Route(GET, "/_cat/thread_pool"), new Route(GET, "/_cat/thread_pool/{thread_pool_patterns}")));
     }
 
     @Override
@@ -91,16 +92,16 @@ public class RestThreadPoolAction extends AbstractCatAction {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
+        clusterStateRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", clusterStateRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(clusterStateRequest, request, deprecationLogger, getName());
 
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
                 nodesInfoRequest.timeout(request.param("timeout"));
-                nodesInfoRequest.clear().addMetrics(
-                        NodesInfoRequest.Metric.PROCESS.metricName(),
-                        NodesInfoRequest.Metric.THREAD_POOL.metricName());
+                nodesInfoRequest.clear()
+                    .addMetrics(NodesInfoRequest.Metric.PROCESS.metricName(), NodesInfoRequest.Metric.THREAD_POOL.metricName());
                 client.admin().cluster().nodesInfo(nodesInfoRequest, new RestActionListener<NodesInfoResponse>(channel) {
                     @Override
                     public void processResponse(final NodesInfoResponse nodesInfoResponse) {
@@ -111,7 +112,9 @@ public class RestThreadPoolAction extends AbstractCatAction {
                             @Override
                             public RestResponse buildResponse(NodesStatsResponse nodesStatsResponse) throws Exception {
                                 return RestTable.buildResponse(
-                                    buildTable(request, clusterStateResponse, nodesInfoResponse, nodesStatsResponse), channel);
+                                    buildTable(request, clusterStateResponse, nodesInfoResponse, nodesStatsResponse),
+                                    channel
+                                );
                             }
                         });
                     }
@@ -249,7 +252,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
                 }
 
                 table.addCell(entry.getKey());
-                table.addCell(poolInfo == null  ? null : poolInfo.getThreadPoolType().getType());
+                table.addCell(poolInfo == null ? null : poolInfo.getThreadPoolType().getType());
                 table.addCell(poolStats == null ? null : poolStats.getActive());
                 table.addCell(poolStats == null ? null : poolStats.getThreads());
                 table.addCell(poolStats == null ? null : poolStats.getQueue());

@@ -31,7 +31,6 @@
 
 package org.opensearch.common.unit;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
@@ -82,8 +81,9 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
     private Fuzziness(String fuzziness, int lowDistance, int highDistance) {
         this(fuzziness);
         if (lowDistance < 0 || highDistance < 0 || lowDistance > highDistance) {
-            throw new IllegalArgumentException("fuzziness wrongly configured, must be: lowDistance > 0, highDistance" +
-                " > 0 and lowDistance <= highDistance ");
+            throw new IllegalArgumentException(
+                "fuzziness wrongly configured, must be: lowDistance > 0, highDistance" + " > 0 and lowDistance <= highDistance "
+            );
         }
         this.lowDistance = lowDistance;
         this.highDistance = highDistance;
@@ -94,7 +94,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
      */
     public Fuzziness(StreamInput in) throws IOException {
         fuzziness = in.readString();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_1_0) && in.readBoolean()) {
+        if (in.readBoolean()) {
             lowDistance = in.readVInt();
             highDistance = in.readVInt();
         }
@@ -103,17 +103,15 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fuzziness);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
-            // we cannot serialize the low/high bounds since the other node does not know about them.
-            // This is a best-effort to not fail queries in case the cluster is being upgraded and users
-            // start using features that are not available on all nodes.
-            if (isAutoWithCustomValues()) {
-                out.writeBoolean(true);
-                out.writeVInt(lowDistance);
-                out.writeVInt(highDistance);
-            } else {
-                out.writeBoolean(false);
-            }
+        // we cannot serialize the low/high bounds since the other node does not know about them.
+        // This is a best-effort to not fail queries in case the cluster is being upgraded and users
+        // start using features that are not available on all nodes.
+        if (isAutoWithCustomValues()) {
+            out.writeBoolean(true);
+            out.writeVInt(lowDistance);
+            out.writeVInt(highDistance);
+        } else {
+            out.writeBoolean(false);
         }
     }
 
@@ -139,7 +137,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
         return new Fuzziness(string);
     }
 
-    private static Fuzziness parseCustomAuto( final String string) {
+    private static Fuzziness parseCustomAuto(final String string) {
         assert string.toUpperCase(Locale.ROOT).startsWith(AUTO.asString() + ":");
         String[] fuzzinessLimit = string.substring(AUTO.asString().length() + 1).split(",");
         if (fuzzinessLimit.length == 2) {
@@ -148,8 +146,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
                 int highLimit = Integer.parseInt(fuzzinessLimit[1]);
                 return new Fuzziness("AUTO", lowerLimit, highLimit);
             } catch (NumberFormatException e) {
-                throw new OpenSearchParseException("failed to parse [{}] as a \"auto:int,int\"", e,
-                    string);
+                throw new OpenSearchParseException("failed to parse [{}] as a \"auto:int,int\"", e, string);
             }
         } else {
             throw new OpenSearchParseException("failed to find low and high distance values");
@@ -199,7 +196,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
     }
 
     public int asDistance(String text) {
-        if (this.equals(AUTO) || isAutoWithCustomValues()) { //AUTO
+        if (this.equals(AUTO) || isAutoWithCustomValues()) { // AUTO
             final int len = termLen(text);
             if (len < lowDistance) {
                 return 0;
@@ -231,8 +228,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
     }
 
     private boolean isAutoWithCustomValues() {
-        return fuzziness.startsWith("AUTO") && (lowDistance != DEFAULT_LOW_DISTANCE ||
-            highDistance != DEFAULT_HIGH_DISTANCE);
+        return fuzziness.startsWith("AUTO") && (lowDistance != DEFAULT_LOW_DISTANCE || highDistance != DEFAULT_HIGH_DISTANCE);
     }
 
     @Override
@@ -244,9 +240,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
             return false;
         }
         Fuzziness other = (Fuzziness) obj;
-        return Objects.equals(fuzziness, other.fuzziness) &&
-                lowDistance == other.lowDistance &&
-                highDistance == other.highDistance;
+        return Objects.equals(fuzziness, other.fuzziness) && lowDistance == other.lowDistance && highDistance == other.highDistance;
     }
 
     @Override

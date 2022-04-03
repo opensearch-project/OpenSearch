@@ -44,7 +44,6 @@ import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.flush.FlushResponse;
-import org.opensearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.opensearch.action.admin.indices.open.OpenIndexRequest;
@@ -69,7 +68,6 @@ import org.opensearch.client.OpenSearchRestHighLevelClientTestCase;
 import org.opensearch.client.GetAliasesResponse;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.RestHighLevelClient;
-import org.opensearch.client.SyncedFlushResponse;
 import org.opensearch.client.indices.AnalyzeRequest;
 import org.opensearch.client.indices.AnalyzeResponse;
 import org.opensearch.client.indices.CloseIndexRequest;
@@ -158,8 +156,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
         RestHighLevelClient client = highLevelClient();
 
         {
-            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("twitter"),
-                RequestOptions.DEFAULT);
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("twitter"), RequestOptions.DEFAULT);
             assertTrue(createIndexResponse.isAcknowledged());
         }
 
@@ -219,6 +216,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
+
     public void testDeleteIndex() throws IOException {
         RestHighLevelClient client = highLevelClient();
 
@@ -587,9 +585,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
             CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("twitter"), RequestOptions.DEFAULT);
             assertTrue(createIndexResponse.isAcknowledged());
             PutMappingRequest request = new PutMappingRequest("twitter");
-            request.source("{ \"properties\": { \"message\": { \"type\": \"text\" } } }",
-                XContentType.JSON
-            );
+            request.source("{ \"properties\": { \"message\": { \"type\": \"text\" } } }", XContentType.JSON);
             AcknowledgedResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
             assertTrue(putMappingResponse.isAcknowledged());
         }
@@ -635,9 +631,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
             CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("twitter"), RequestOptions.DEFAULT);
             assertTrue(createIndexResponse.isAcknowledged());
             PutMappingRequest request = new PutMappingRequest("twitter");
-            request.source("{ \"properties\": { \"message\": { \"type\": \"text\" } } }",
-                XContentType.JSON
-            );
+            request.source("{ \"properties\": { \"message\": { \"type\": \"text\" } } }", XContentType.JSON);
             AcknowledgedResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
             assertTrue(putMappingResponse.isAcknowledged());
         }
@@ -699,17 +693,18 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
             assertTrue(createIndexResponse.isAcknowledged());
             PutMappingRequest request = new PutMappingRequest("twitter");
             request.source(
-                "{\n" +
-                    "  \"properties\": {\n" +
-                    "    \"message\": {\n" +
-                    "      \"type\": \"text\"\n" +
-                    "    },\n" +
-                    "    \"timestamp\": {\n" +
-                    "      \"type\": \"date\"\n" +
-                    "    }\n" +
-                    "  }\n" +
-                    "}", // <1>
-                XContentType.JSON);
+                "{\n"
+                    + "  \"properties\": {\n"
+                    + "    \"message\": {\n"
+                    + "      \"type\": \"text\"\n"
+                    + "    },\n"
+                    + "    \"timestamp\": {\n"
+                    + "      \"type\": \"date\"\n"
+                    + "    }\n"
+                    + "  }\n"
+                    + "}", // <1>
+                XContentType.JSON
+            );
             AcknowledgedResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
             assertTrue(putMappingResponse.isAcknowledged());
         }
@@ -767,10 +762,8 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
             final CountDownLatch latch = new CountDownLatch(1);
             final ActionListener<GetFieldMappingsResponse> latchListener = new LatchedActionListener<>(listener, latch);
             listener = ActionListener.wrap(r -> {
-                final Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mappings =
-                    r.mappings();
-                final Map<String, GetFieldMappingsResponse.FieldMappingMetadata> fieldMappings =
-                    mappings.get("twitter");
+                final Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mappings = r.mappings();
+                final Map<String, GetFieldMappingsResponse.FieldMappingMetadata> fieldMappings = mappings.get("twitter");
                 final GetFieldMappingsResponse.FieldMappingMetadata metadata1 = fieldMappings.get("message");
 
                 final String fullName = metadata1.fullName();
@@ -788,9 +781,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
 
-
     }
-
 
     public void testOpenIndex() throws Exception {
         RestHighLevelClient client = highLevelClient();
@@ -1019,101 +1010,13 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
         }
     }
 
-    @SuppressWarnings("unused")
-    public void testSyncedFlushIndex() throws Exception {
-        RestHighLevelClient client = highLevelClient();
-
-        {
-            createIndex("index1", Settings.EMPTY);
-        }
-
-        {
-            // tag::flush-synced-request
-            SyncedFlushRequest request = new SyncedFlushRequest("index1"); // <1>
-            SyncedFlushRequest requestMultiple = new SyncedFlushRequest("index1", "index2"); // <2>
-            SyncedFlushRequest requestAll = new SyncedFlushRequest(); // <3>
-            // end::flush-synced-request
-
-            // tag::flush-synced-request-indicesOptions
-            request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
-            // end::flush-synced-request-indicesOptions
-
-            // tag::flush-synced-execute
-            SyncedFlushResponse flushSyncedResponse = client.indices().flushSynced(request, expectWarnings(
-                "Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead."
-            ));
-            // end::flush-synced-execute
-
-            // tag::flush-synced-response
-            int totalShards = flushSyncedResponse.totalShards(); // <1>
-            int successfulShards = flushSyncedResponse.successfulShards(); // <2>
-            int failedShards = flushSyncedResponse.failedShards(); // <3>
-
-            for (Map.Entry<String, SyncedFlushResponse.IndexResult> responsePerIndexEntry:
-                flushSyncedResponse.getIndexResults().entrySet()) {
-                String indexName = responsePerIndexEntry.getKey(); // <4>
-                SyncedFlushResponse.IndexResult indexResult = responsePerIndexEntry.getValue();
-                int totalShardsForIndex = indexResult.totalShards(); // <5>
-                int successfulShardsForIndex = indexResult.successfulShards(); // <6>
-                int failedShardsForIndex = indexResult.failedShards(); // <7>
-                if (failedShardsForIndex > 0) {
-                    for (SyncedFlushResponse.ShardFailure failureEntry: indexResult.failures()) {
-                        int shardId = failureEntry.getShardId(); // <8>
-                        String failureReason = failureEntry.getFailureReason(); // <9>
-                        Map<String, Object> routing = failureEntry.getRouting(); // <10>
-                    }
-                }
-            }
-            // end::flush-synced-response
-
-            // tag::flush-synced-execute-listener
-            ActionListener<SyncedFlushResponse> listener = new ActionListener<SyncedFlushResponse>() {
-                @Override
-                public void onResponse(SyncedFlushResponse refreshResponse) {
-                    // <1>
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    // <2>
-                }
-            };
-            // end::flush-synced-execute-listener
-
-            // Replace the empty listener by a blocking listener in test
-            final CountDownLatch latch = new CountDownLatch(1);
-            listener = new LatchedActionListener<>(listener, latch);
-
-            // tag::flush-synced-execute-async
-            client.indices().flushSyncedAsync(request, expectWarnings(
-                "Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead."
-            ), listener); // <1>
-            // end::flush-synced-execute-async
-
-            assertTrue(latch.await(30L, TimeUnit.SECONDS));
-        }
-
-        {
-            // tag::flush-synced-notfound
-            try {
-                SyncedFlushRequest request = new SyncedFlushRequest("does_not_exist");
-                client.indices().flushSynced(request, RequestOptions.DEFAULT);
-            } catch (OpenSearchException exception) {
-                if (exception.status() == RestStatus.NOT_FOUND) {
-                    // <1>
-                }
-            }
-            // end::flush-synced-notfound
-        }
-    }
-
     public void testGetSettings() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
         {
             Settings settings = Settings.builder().put("number_of_shards", 3).build();
-            CreateIndexResponse createIndexResponse = client.indices().create(
-                new CreateIndexRequest("index").settings(settings), RequestOptions.DEFAULT);
+            CreateIndexResponse createIndexResponse = client.indices()
+                .create(new CreateIndexRequest("index").settings(settings), RequestOptions.DEFAULT);
             assertTrue(createIndexResponse.isAcknowledged());
         }
 
@@ -1142,8 +1045,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
         assertEquals("3", numberOfShardsString);
         assertEquals(Integer.valueOf(3), numberOfShards);
 
-        assertNull("refresh_interval returned but was never set!",
-            getSettingsResponse.getSetting("index", "index.refresh_interval"));
+        assertNull("refresh_interval returned but was never set!", getSettingsResponse.getSetting("index", "index.refresh_interval"));
 
         // tag::get-settings-execute-listener
         ActionListener<GetSettingsResponse> listener =
@@ -1176,8 +1078,8 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
 
         {
             Settings settings = Settings.builder().put("number_of_shards", 3).build();
-            CreateIndexResponse createIndexResponse = client.indices().create(
-                new CreateIndexRequest("index").settings(settings), RequestOptions.DEFAULT);
+            CreateIndexResponse createIndexResponse = client.indices()
+                .create(new CreateIndexRequest("index").settings(settings), RequestOptions.DEFAULT);
             assertTrue(createIndexResponse.isAcknowledged());
         }
 
@@ -1203,16 +1105,13 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
         assertNotNull("with defaults enabled we should get a value for refresh_interval!", refreshInterval);
 
         assertEquals(refreshInterval, indexDefaultSettings.get("index.refresh_interval"));
-        ActionListener<GetSettingsResponse> listener =
-            new ActionListener<GetSettingsResponse>() {
-                @Override
-                public void onResponse(GetSettingsResponse GetSettingsResponse) {
-                }
+        ActionListener<GetSettingsResponse> listener = new ActionListener<GetSettingsResponse>() {
+            @Override
+            public void onResponse(GetSettingsResponse GetSettingsResponse) {}
 
-                @Override
-                public void onFailure(Exception e) {
-                }
-            };
+            @Override
+            public void onFailure(Exception e) {}
+        };
 
         // Replace the empty listener by a blocking listener in test
         final CountDownLatch latch = new CountDownLatch(1);
@@ -1228,11 +1127,8 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
         {
             Settings settings = Settings.builder().put("number_of_shards", 3).build();
             String mappings = "{\"properties\":{\"field-1\":{\"type\":\"integer\"}}}";
-            CreateIndexRequest createIndexRequest = new CreateIndexRequest("index")
-                .settings(settings)
-                .mapping(mappings, XContentType.JSON);
-            CreateIndexResponse createIndexResponse = client.indices().create(
-                createIndexRequest, RequestOptions.DEFAULT);
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("index").settings(settings).mapping(mappings, XContentType.JSON);
+            CreateIndexResponse createIndexResponse = client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
             assertTrue(createIndexResponse.isAcknowledged());
         }
 
@@ -1264,8 +1160,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
         // end::get-index-response
 
         assertEquals(
-            Collections.singletonMap("properties",
-                Collections.singletonMap("field-1", Collections.singletonMap("type", "integer"))),
+            Collections.singletonMap("properties", Collections.singletonMap("field-1", Collections.singletonMap("type", "integer"))),
             indexTypeMappings
         );
         assertTrue(indexAliases.isEmpty());
@@ -1526,8 +1421,8 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
         RestHighLevelClient client = highLevelClient();
 
         {
-            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index")
-                    .alias(new Alias("alias")), RequestOptions.DEFAULT);
+            CreateIndexResponse createIndexResponse = client.indices()
+                .create(new CreateIndexRequest("index").alias(new Alias("alias")), RequestOptions.DEFAULT);
             assertTrue(createIndexResponse.isAcknowledged());
         }
 
@@ -1690,8 +1585,10 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
             @SuppressWarnings("unchecked")
             String firstNode = ((Map<String, Object>) nodes.get("nodes")).keySet().iterator().next();
             createIndex("source_index", Settings.builder().put("index.number_of_shards", 4).put("index.number_of_replicas", 0).build());
-            updateIndexSettings("source_index", Settings.builder().put("index.routing.allocation.require._name", firstNode)
-                    .put("index.blocks.write", true));
+            updateIndexSettings(
+                "source_index",
+                Settings.builder().put("index.routing.allocation.require._name", firstNode).put("index.blocks.write", true)
+            );
         }
 
         // tag::shrink-index-request
@@ -1759,8 +1656,14 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
         RestHighLevelClient client = highLevelClient();
 
         {
-            createIndex("source_index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0)
-                    .put("index.number_of_routing_shards", 4).build());
+            createIndex(
+                "source_index",
+                Settings.builder()
+                    .put("index.number_of_shards", 2)
+                    .put("index.number_of_replicas", 0)
+                    .put("index.number_of_routing_shards", 4)
+                    .build()
+            );
             updateIndexSettings("source_index", Settings.builder().put("index.blocks.write", true));
         }
 
@@ -1984,8 +1887,8 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
         RestHighLevelClient client = highLevelClient();
 
         {
-            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index").alias(new Alias("alias")),
-                    RequestOptions.DEFAULT);
+            CreateIndexResponse createIndexResponse = client.indices()
+                .create(new CreateIndexRequest("index").alias(new Alias("alias")), RequestOptions.DEFAULT);
             assertTrue(createIndexResponse.isAcknowledged());
         }
 
@@ -2317,9 +2220,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
             PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("my-template");
             putRequest.patterns(Arrays.asList("pattern-1", "log-*"));
             putRequest.settings(Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 1));
-            putRequest.mapping("{ \"properties\": { \"message\": { \"type\": \"text\" } } }",
-                XContentType.JSON
-            );
+            putRequest.mapping("{ \"properties\": { \"message\": { \"type\": \"text\" } } }", XContentType.JSON);
             assertTrue(client.indices().putTemplate(putRequest, RequestOptions.DEFAULT).isAcknowledged());
         }
 
@@ -2374,14 +2275,13 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
     public void testGetIndexTemplatesV2() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
-            Template template = new Template(Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 1).build(),
+            Template template = new Template(
+                Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 1).build(),
                 new CompressedXContent("{ \"properties\": { \"message\": { \"type\": \"text\" } } }"),
-                null);
-            PutComposableIndexTemplateRequest putRequest = new PutComposableIndexTemplateRequest()
-                .name("my-template")
-                .indexTemplate(
-                    new ComposableIndexTemplate(Arrays.asList("pattern-1", "log-*"), template, null, null, null, null)
-                );
+                null
+            );
+            PutComposableIndexTemplateRequest putRequest = new PutComposableIndexTemplateRequest().name("my-template")
+                .indexTemplate(new ComposableIndexTemplate(Arrays.asList("pattern-1", "log-*"), template, null, null, null, null));
             assertTrue(client.indices().putIndexTemplate(putRequest, RequestOptions.DEFAULT).isAcknowledged());
         }
 
@@ -2504,8 +2404,11 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
         {
             Template template = new Template(Settings.builder().put("index.number_of_replicas", 3).build(), null, null);
             ComponentTemplate componentTemplate = new ComponentTemplate(template, null, null);
-            client.cluster().putComponentTemplate(new PutComponentTemplateRequest().name("ct1").componentTemplate(componentTemplate),
-                RequestOptions.DEFAULT);
+            client.cluster()
+                .putComponentTemplate(
+                    new PutComponentTemplateRequest().name("ct1").componentTemplate(componentTemplate),
+                    RequestOptions.DEFAULT
+                );
 
             // tag::put-index-template-v2-request-component-template
             PutComposableIndexTemplateRequest request = new PutComposableIndexTemplateRequest()
@@ -2590,10 +2493,15 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
     public void testDeleteIndexTemplateV2() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
-            PutComposableIndexTemplateRequest request = new PutComposableIndexTemplateRequest()
-                .name("my-template");
-            ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(Arrays.asList("pattern-1", "log-*"),
-                null, null, null, null, null); // <2>
+            PutComposableIndexTemplateRequest request = new PutComposableIndexTemplateRequest().name("my-template");
+            ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(
+                Arrays.asList("pattern-1", "log-*"),
+                null,
+                null,
+                null,
+                null,
+                null
+            ); // <2>
             request.indexTemplate(composableIndexTemplate);
             assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
         }
@@ -2616,10 +2524,15 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
         assertThat(acknowledged, equalTo(true));
 
         {
-            PutComposableIndexTemplateRequest request = new PutComposableIndexTemplateRequest()
-                .name("my-template");
-            ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(Arrays.asList("pattern-1", "log-*"),
-                null, null, null, null, null); // <2>
+            PutComposableIndexTemplateRequest request = new PutComposableIndexTemplateRequest().name("my-template");
+            ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(
+                Arrays.asList("pattern-1", "log-*"),
+                null,
+                null,
+                null,
+                null,
+                null
+            ); // <2>
             request.indexTemplate(composableIndexTemplate);
             assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
         }
@@ -2653,11 +2566,16 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
         RestHighLevelClient client = highLevelClient();
 
         {
-            PutComposableIndexTemplateRequest request = new PutComposableIndexTemplateRequest()
-                .name("my-template"); // <1>
+            PutComposableIndexTemplateRequest request = new PutComposableIndexTemplateRequest().name("my-template"); // <1>
             Template template = new Template(Settings.builder().put("index.number_of_replicas", 3).build(), null, null);
-            ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(Arrays.asList("pattern-1", "log-*"),
-                template, null, null, null, null);
+            ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(
+                Arrays.asList("pattern-1", "log-*"),
+                template,
+                null,
+                null,
+                null,
+                null
+            );
             request.indexTemplate(composableIndexTemplate);
             assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
         }
@@ -2896,15 +2814,17 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
         CreateIndexResponse resp = client.indices().create(req, RequestOptions.DEFAULT);
         assertTrue(resp.isAcknowledged());
 
-        PutMappingRequest pmReq = new PutMappingRequest("my_index")
-            .source(XContentFactory.jsonBuilder().startObject()
+        PutMappingRequest pmReq = new PutMappingRequest("my_index").source(
+            XContentFactory.jsonBuilder()
+                .startObject()
                 .startObject("properties")
-                    .startObject("my_field")
-                        .field("type", "text")
-                        .field("analyzer", "english")
-                    .endObject()
+                .startObject("my_field")
+                .field("type", "text")
+                .field("analyzer", "english")
                 .endObject()
-            .endObject());
+                .endObject()
+                .endObject()
+        );
         AcknowledgedResponse pmResp = client.indices().putMapping(pmReq, RequestOptions.DEFAULT);
         assertTrue(pmResp.isAcknowledged());
 
@@ -3032,24 +2952,16 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
         }
         {
             IndicesAliasesRequest request = new IndicesAliasesRequest();
-            AliasActions aliasAction =
-                new AliasActions(AliasActions.Type.ADD)
-                    .index("index1")
-                    .alias("alias1");
+            AliasActions aliasAction = new AliasActions(AliasActions.Type.ADD).index("index1").alias("alias1");
             request.addAliasAction(aliasAction);
-            AcknowledgedResponse indicesAliasesResponse =
-                client.indices().updateAliases(request, RequestOptions.DEFAULT);
+            AcknowledgedResponse indicesAliasesResponse = client.indices().updateAliases(request, RequestOptions.DEFAULT);
             assertTrue(indicesAliasesResponse.isAcknowledged());
         }
         {
             IndicesAliasesRequest request = new IndicesAliasesRequest();
-            AliasActions aliasAction =
-                new AliasActions(AliasActions.Type.ADD)
-                    .index("index1")
-                    .alias("alias2");
+            AliasActions aliasAction = new AliasActions(AliasActions.Type.ADD).index("index1").alias("alias2");
             request.addAliasAction(aliasAction);
-            AcknowledgedResponse indicesAliasesResponse =
-                client.indices().updateAliases(request, RequestOptions.DEFAULT);
+            AcknowledgedResponse indicesAliasesResponse = client.indices().updateAliases(request, RequestOptions.DEFAULT);
             assertTrue(indicesAliasesResponse.isAcknowledged());
         }
         {

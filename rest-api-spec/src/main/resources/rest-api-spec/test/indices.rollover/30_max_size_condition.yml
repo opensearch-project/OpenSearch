@@ -1,10 +1,5 @@
 ---
 "Rollover with max_size condition":
-
-  - skip:
-      version: " - 6.0.99"
-      reason: max_size condition is introduced in 6.1.0
-
   # create index with alias and replica
   - do:
       indices.create:
@@ -18,7 +13,6 @@
   - do:
       index:
         index: logs-1
-        type:  doc
         id:    "1"
         body:  { "foo": "hello world" }
         refresh: true

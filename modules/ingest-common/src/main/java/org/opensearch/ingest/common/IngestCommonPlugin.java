@@ -62,13 +62,18 @@ import java.util.function.Supplier;
 
 public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPlugin {
 
-    static final Setting<TimeValue> WATCHDOG_INTERVAL =
-        Setting.timeSetting("ingest.grok.watchdog.interval", TimeValue.timeValueSeconds(1), Setting.Property.NodeScope);
-    static final Setting<TimeValue> WATCHDOG_MAX_EXECUTION_TIME =
-        Setting.timeSetting("ingest.grok.watchdog.max_execution_time", TimeValue.timeValueSeconds(1), Setting.Property.NodeScope);
+    static final Setting<TimeValue> WATCHDOG_INTERVAL = Setting.timeSetting(
+        "ingest.grok.watchdog.interval",
+        TimeValue.timeValueSeconds(1),
+        Setting.Property.NodeScope
+    );
+    static final Setting<TimeValue> WATCHDOG_MAX_EXECUTION_TIME = Setting.timeSetting(
+        "ingest.grok.watchdog.max_execution_time",
+        TimeValue.timeValueSeconds(1),
+        Setting.Property.NodeScope
+    );
 
-    public IngestCommonPlugin() {
-    }
+    public IngestCommonPlugin() {}
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
@@ -110,10 +115,15 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-                                             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                             Supplier<DiscoveryNodes> nodesInCluster) {
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
         return Collections.singletonList(new GrokProcessorGetAction.RestAction());
     }
 
@@ -125,8 +135,12 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
     private static MatcherWatchdog createGrokThreadWatchdog(Processor.Parameters parameters) {
         long intervalMillis = WATCHDOG_INTERVAL.get(parameters.env.settings()).getMillis();
         long maxExecutionTimeMillis = WATCHDOG_MAX_EXECUTION_TIME.get(parameters.env.settings()).getMillis();
-        return MatcherWatchdog.newInstance(intervalMillis, maxExecutionTimeMillis,
-            parameters.relativeTimeSupplier, parameters.scheduler::apply);
+        return MatcherWatchdog.newInstance(
+            intervalMillis,
+            maxExecutionTimeMillis,
+            parameters.relativeTimeSupplier,
+            parameters.scheduler::apply
+        );
     }
 
 }

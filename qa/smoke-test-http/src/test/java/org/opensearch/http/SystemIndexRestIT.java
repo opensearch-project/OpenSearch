@@ -57,8 +57,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.opensearch.test.rest.OpenSearchRestTestCase.entityAsMap;
@@ -67,6 +69,8 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 
 public class SystemIndexRestIT extends HttpSmokeTestCase {
+
+    private Set<String> assertedWarnings = new HashSet<>();
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -126,15 +130,20 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
         searchRequest.setJsonEntity("{\"query\": {\"match\":  {\"some_field\":  \"some_value\"}}}");
         // Disallow no indices to cause an exception if this resolves to zero indices, so that we're sure it resolved the index
         searchRequest.addParameter("allow_no_indices", "false");
-        searchRequest.setOptions(expectWarnings(expectedWarning));
-
+        if (!assertedWarnings.contains(expectedWarning)) {
+            searchRequest.setOptions(expectWarnings(expectedWarning));
+            assertedWarnings.add(expectedWarning);
+        }
         Response response = getRestClient().performRequest(searchRequest);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
     }
 
     private RequestOptions expectWarnings(String expectedWarning) {
         final RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
-        builder.setWarningsHandler(w -> w.contains(expectedWarning) == false || w.size() != 1);
+        if (!assertedWarnings.contains(expectedWarning)) {
+            builder.setWarningsHandler(w -> w.contains(expectedWarning) == false || w.size() != 1);
+            assertedWarnings.add(expectedWarning);
+        }
         return builder.build();
     }
 

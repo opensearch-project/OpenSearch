@@ -37,8 +37,7 @@ import java.util.Locale;
 import java.util.Objects;
 
 public final class Cidrs {
-    private Cidrs() {
-    }
+    private Cidrs() {}
 
     /**
      * Parses an IPv4 address block in CIDR notation into a pair of
@@ -53,15 +52,24 @@ public final class Cidrs {
         String[] fields = cidr.split("/");
         if (fields.length != 2) {
             throw new IllegalArgumentException(
-                    String.format(Locale.ROOT, "invalid IPv4/CIDR; expected [a.b.c.d, e] but was [%s] after splitting on \"/\" in [%s]",
-                        Arrays.toString(fields), cidr)
+                String.format(
+                    Locale.ROOT,
+                    "invalid IPv4/CIDR; expected [a.b.c.d, e] but was [%s] after splitting on \"/\" in [%s]",
+                    Arrays.toString(fields),
+                    cidr
+                )
             );
         }
         // do not try to parse IPv4-mapped IPv6 address
         if (fields[0].contains(":")) {
             throw new IllegalArgumentException(
-                    String.format(Locale.ROOT, "invalid IPv4/CIDR; expected [a.b.c.d, e] where a, b, c, d are decimal octets " +
-                        "but was [%s] after splitting on \"/\" in [%s]", Arrays.toString(fields), cidr)
+                String.format(
+                    Locale.ROOT,
+                    "invalid IPv4/CIDR; expected [a.b.c.d, e] where a, b, c, d are decimal octets "
+                        + "but was [%s] after splitting on \"/\" in [%s]",
+                    Arrays.toString(fields),
+                    cidr
+                )
             );
         }
         byte[] addressBytes;
@@ -69,26 +77,24 @@ public final class Cidrs {
             addressBytes = InetAddresses.forString(fields[0]).getAddress();
         } catch (Exception e) {
             throw new IllegalArgumentException(
-                    String.format(Locale.ROOT, "invalid IPv4/CIDR; unable to parse [%s] as an IP address literal", fields[0]), e
+                String.format(Locale.ROOT, "invalid IPv4/CIDR; unable to parse [%s] as an IP address literal", fields[0]),
+                e
             );
         }
-        long accumulator =
-                ((addressBytes[0] & 0xFFL) << 24) +
-                        ((addressBytes[1] & 0xFFL) << 16) +
-                        ((addressBytes[2] & 0xFFL) << 8) +
-                        ((addressBytes[3] & 0xFFL));
+        long accumulator = ((addressBytes[0] & 0xFFL) << 24) + ((addressBytes[1] & 0xFFL) << 16) + ((addressBytes[2] & 0xFFL) << 8)
+            + ((addressBytes[3] & 0xFFL));
         int networkMask;
         try {
             networkMask = Integer.parseInt(fields[1]);
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException(
-                    String.format(Locale.ROOT, "invalid IPv4/CIDR; invalid network mask [%s] in [%s]", fields[1], cidr),
-                    e
+                String.format(Locale.ROOT, "invalid IPv4/CIDR; invalid network mask [%s] in [%s]", fields[1], cidr),
+                e
             );
         }
         if (networkMask < 0 || networkMask > 32) {
             throw new IllegalArgumentException(
-                    String.format(Locale.ROOT, "invalid IPv4/CIDR; invalid network mask [%s], out of range in [%s]", fields[1], cidr)
+                String.format(Locale.ROOT, "invalid IPv4/CIDR; invalid network mask [%s], out of range in [%s]", fields[1], cidr)
             );
         }
 
@@ -96,12 +102,12 @@ public final class Cidrs {
         // validation
         if ((accumulator & (blockSize - 1)) != 0) {
             throw new IllegalArgumentException(
-                    String.format(
-                            Locale.ROOT,
-                            "invalid IPv4/CIDR; invalid address/network mask combination in [%s]; perhaps [%s] was intended?",
-                            cidr,
-                            octetsToCIDR(longToOctets(accumulator - (accumulator & (blockSize - 1))), networkMask)
-                    )
+                String.format(
+                    Locale.ROOT,
+                    "invalid IPv4/CIDR; invalid address/network mask combination in [%s]; perhaps [%s] was intended?",
+                    cidr,
+                    octetsToCIDR(longToOctets(accumulator - (accumulator & (blockSize - 1))), networkMask)
+                )
             );
         }
         return new long[] { accumulator, accumulator + blockSize };
@@ -110,10 +116,10 @@ public final class Cidrs {
     static int[] longToOctets(long value) {
         assert value >= 0 && value <= (1L << 32) : value;
         int[] octets = new int[4];
-        octets[0] = (int)((value >> 24) & 0xFF);
-        octets[1] = (int)((value >> 16) & 0xFF);
-        octets[2] = (int)((value >> 8) & 0xFF);
-        octets[3] = (int)(value & 0xFF);
+        octets[0] = (int) ((value >> 24) & 0xFF);
+        octets[1] = (int) ((value >> 16) & 0xFF);
+        octets[2] = (int) ((value >> 8) & 0xFF);
+        octets[3] = (int) (value & 0xFF);
         return octets;
     }
 

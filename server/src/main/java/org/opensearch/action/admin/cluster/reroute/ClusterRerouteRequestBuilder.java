@@ -39,8 +39,10 @@ import org.opensearch.cluster.routing.allocation.command.AllocationCommand;
 /**
  * Builder for a cluster reroute request
  */
-public class ClusterRerouteRequestBuilder
-        extends AcknowledgedRequestBuilder<ClusterRerouteRequest, ClusterRerouteResponse, ClusterRerouteRequestBuilder> {
+public class ClusterRerouteRequestBuilder extends AcknowledgedRequestBuilder<
+    ClusterRerouteRequest,
+    ClusterRerouteResponse,
+    ClusterRerouteRequestBuilder> {
     public ClusterRerouteRequestBuilder(OpenSearchClient client, ClusterRerouteAction action) {
         super(client, action, new ClusterRerouteRequest());
     }

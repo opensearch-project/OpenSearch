@@ -39,7 +39,6 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.opensearch.index.mapper.FieldMapper;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.mapper.StringFieldType;
 import org.opensearch.index.mapper.TextSearchInfo;
@@ -111,7 +110,7 @@ public class MetaJoinFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for metadata field [" + typeName() + "].");
         }
 
@@ -149,8 +148,7 @@ public class MetaJoinFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-    }
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {}
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {

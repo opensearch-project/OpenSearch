@@ -38,7 +38,6 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 
 import java.io.IOException;
 import java.util.HashMap;

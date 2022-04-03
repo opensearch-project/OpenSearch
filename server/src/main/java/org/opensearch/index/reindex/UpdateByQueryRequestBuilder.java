@@ -37,16 +37,15 @@ import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
-public class UpdateByQueryRequestBuilder extends
-        AbstractBulkIndexByScrollRequestBuilder<UpdateByQueryRequest, UpdateByQueryRequestBuilder> {
+public class UpdateByQueryRequestBuilder extends AbstractBulkIndexByScrollRequestBuilder<
+    UpdateByQueryRequest,
+    UpdateByQueryRequestBuilder> {
 
     public UpdateByQueryRequestBuilder(OpenSearchClient client, ActionType<BulkByScrollResponse> action) {
         this(client, action, new SearchRequestBuilder(client, SearchAction.INSTANCE));
     }
 
-    private UpdateByQueryRequestBuilder(OpenSearchClient client,
-                                        ActionType<BulkByScrollResponse> action,
-                                        SearchRequestBuilder search) {
+    private UpdateByQueryRequestBuilder(OpenSearchClient client, ActionType<BulkByScrollResponse> action, SearchRequestBuilder search) {
         super(client, action, search, new UpdateByQueryRequest(search.request()));
     }
 

@@ -32,7 +32,6 @@
 
 package org.opensearch.client.core;
 
-
 import java.util.Locale;
 
 /**

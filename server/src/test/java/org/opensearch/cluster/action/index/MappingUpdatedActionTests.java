@@ -60,8 +60,8 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -117,24 +117,26 @@ public class MappingUpdatedActionTests extends OpenSearchTestCase {
 
     public void testMappingUpdatedActionBlocks() throws Exception {
         List<ActionListener<Void>> inFlightListeners = new CopyOnWriteArrayList<>();
-        final MappingUpdatedAction mua = new MappingUpdatedAction(Settings.builder()
-            .put(MappingUpdatedAction.INDICES_MAX_IN_FLIGHT_UPDATES_SETTING.getKey(), 1).build(),
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null) {
+        final MappingUpdatedAction mua = new MappingUpdatedAction(
+            Settings.builder().put(MappingUpdatedAction.INDICES_MAX_IN_FLIGHT_UPDATES_SETTING.getKey(), 1).build(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            null
+        ) {
 
             @Override
-            protected void sendUpdateMapping(Index index, String type, Mapping mappingUpdate, ActionListener<Void> listener) {
+            protected void sendUpdateMapping(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {
                 inFlightListeners.add(listener);
             }
         };
 
         PlainActionFuture<Void> fut1 = new PlainActionFuture<>();
-        mua.updateMappingOnMaster(null, "test", null, fut1);
+        mua.updateMappingOnMaster(null, null, fut1);
         assertEquals(1, inFlightListeners.size());
         assertEquals(0, mua.blockedThreads());
 
         PlainActionFuture<Void> fut2 = new PlainActionFuture<>();
         Thread thread = new Thread(() -> {
-            mua.updateMappingOnMaster(null, "test", null, fut2); // blocked
+            mua.updateMappingOnMaster(null, null, fut2); // blocked
         });
         thread.start();
         assertBusy(() -> assertEquals(1, mua.blockedThreads()));
@@ -166,8 +168,11 @@ public class MappingUpdatedActionTests extends OpenSearchTestCase {
         Client client = mock(Client.class);
         when(client.admin()).thenReturn(adminClient);
 
-        MappingUpdatedAction mua = new MappingUpdatedAction(Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), clusterService);
+        MappingUpdatedAction mua = new MappingUpdatedAction(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            clusterService
+        );
         mua.setClient(client);
 
         Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build();
@@ -175,7 +180,7 @@ public class MappingUpdatedActionTests extends OpenSearchTestCase {
         RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder("name").build(context);
         Mapping update = new Mapping(LegacyESVersion.V_7_8_0, rootObjectMapper, new MetadataFieldMapper[0], Map.of());
 
-        mua.sendUpdateMapping(new Index("name", "uuid"), "type", update, ActionListener.wrap(() -> {}));
+        mua.sendUpdateMapping(new Index("name", "uuid"), update, ActionListener.wrap(() -> {}));
         verify(indicesAdminClient).putMapping(any(), any());
     }
 
@@ -193,8 +198,11 @@ public class MappingUpdatedActionTests extends OpenSearchTestCase {
         Client client = mock(Client.class);
         when(client.admin()).thenReturn(adminClient);
 
-        MappingUpdatedAction mua = new MappingUpdatedAction(Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), clusterService);
+        MappingUpdatedAction mua = new MappingUpdatedAction(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            clusterService
+        );
         mua.setClient(client);
 
         Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build();
@@ -202,7 +210,7 @@ public class MappingUpdatedActionTests extends OpenSearchTestCase {
         RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder("name").build(context);
         Mapping update = new Mapping(LegacyESVersion.V_7_9_0, rootObjectMapper, new MetadataFieldMapper[0], Map.of());
 
-        mua.sendUpdateMapping(new Index("name", "uuid"), "type", update, ActionListener.wrap(() -> {}));
+        mua.sendUpdateMapping(new Index("name", "uuid"), update, ActionListener.wrap(() -> {}));
         verify(indicesAdminClient).execute(eq(AutoPutMappingAction.INSTANCE), any(), any());
     }
 }

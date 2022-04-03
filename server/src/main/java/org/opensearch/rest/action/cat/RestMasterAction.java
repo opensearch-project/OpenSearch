@@ -38,6 +38,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Table;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
@@ -49,19 +50,22 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 
 public class RestMasterAction extends AbstractCatAction {
 
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestMasterAction.class);
+
     @Override
-    public List<Route> routes() {
-        return singletonList(new Route(GET, "/_cat/master"));
+    public List<ReplacedRoute> replacedRoutes() {
+        // The deprecated path will be removed in a future major version.
+        return singletonList(new ReplacedRoute(GET, "/_cat/cluster_manager", "/_cat/master"));
     }
 
     @Override
     public String getName() {
-        return "cat_master_action";
+        return "cat_cluster_manager_action";
     }
 
     @Override
     protected void documentation(StringBuilder sb) {
-        sb.append("/_cat/master\n");
+        sb.append("/_cat/cluster_manager\n");
     }
 
     @Override
@@ -69,7 +73,8 @@ public class RestMasterAction extends AbstractCatAction {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
+        clusterStateRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", clusterStateRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(clusterStateRequest, request, deprecationLogger, getName());
 
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestResponseListener<ClusterStateResponse>(channel) {
             @Override
@@ -80,14 +85,19 @@ public class RestMasterAction extends AbstractCatAction {
     }
 
     @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
+
+    @Override
     protected Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders()
-                .addCell("id", "desc:node id")
-                .addCell("host", "alias:h;desc:host name")
-                .addCell("ip", "desc:ip address ")
-                .addCell("node", "alias:n;desc:node name")
-                .endHeaders();
+            .addCell("id", "desc:node id")
+            .addCell("host", "alias:h;desc:host name")
+            .addCell("ip", "desc:ip address ")
+            .addCell("node", "alias:n;desc:node name")
+            .endHeaders();
         return table;
     }
 

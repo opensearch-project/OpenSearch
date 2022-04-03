@@ -57,8 +57,7 @@ import static org.hamcrest.core.IsNull.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class GrokProcessorGetActionTests extends OpenSearchTestCase {
-    private static final Map<String, String> TEST_PATTERNS =
-        org.opensearch.common.collect.Map.of("PATTERN2", "foo2", "PATTERN1", "foo1");
+    private static final Map<String, String> TEST_PATTERNS = org.opensearch.common.collect.Map.of("PATTERN2", "foo2", "PATTERN1", "foo1");
 
     public void testRequest() throws Exception {
         GrokProcessorGetAction.Request request = new GrokProcessorGetAction.Request(false);
@@ -82,8 +81,11 @@ public class GrokProcessorGetActionTests extends OpenSearchTestCase {
     public void testResponseSorting() {
         List<String> sortedKeys = new ArrayList<>(TEST_PATTERNS.keySet());
         Collections.sort(sortedKeys);
-        GrokProcessorGetAction.TransportAction transportAction =
-            new GrokProcessorGetAction.TransportAction(mock(TransportService.class), mock(ActionFilters.class), TEST_PATTERNS);
+        GrokProcessorGetAction.TransportAction transportAction = new GrokProcessorGetAction.TransportAction(
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            TEST_PATTERNS
+        );
         GrokProcessorGetAction.Response[] receivedResponse = new GrokProcessorGetAction.Response[1];
         transportAction.doExecute(null, new GrokProcessorGetAction.Request(true), new ActionListener<GrokProcessorGetAction.Response>() {
             @Override

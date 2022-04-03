@@ -33,6 +33,8 @@
 package org.opensearch.action.admin.indices.stats;
 
 import org.opensearch.LegacyESVersion;
+import org.opensearch.Version;
+import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -47,12 +49,13 @@ public class CommonStatsFlags implements Writeable, Cloneable {
     public static final CommonStatsFlags NONE = new CommonStatsFlags().clear();
 
     private EnumSet<Flag> flags = EnumSet.allOf(Flag.class);
-    private String[] types = null;
     private String[] groups = null;
     private String[] fieldDataFields = null;
     private String[] completionDataFields = null;
     private boolean includeSegmentFileSizes = false;
     private boolean includeUnloadedSegments = false;
+    private boolean includeAllShardIndexingPressureTrackers = false;
+    private boolean includeOnlyTopIndexingPressureMetrics = false;
 
     /**
      * @param flags flags to set. If no flags are supplied, default flags will be set.
@@ -72,13 +75,19 @@ public class CommonStatsFlags implements Writeable, Cloneable {
                 flags.add(flag);
             }
         }
-        types = in.readStringArray();
+        if (in.getVersion().before(Version.V_2_0_0)) {
+            in.readStringArray();
+        }
         groups = in.readStringArray();
         fieldDataFields = in.readStringArray();
         completionDataFields = in.readStringArray();
         includeSegmentFileSizes = in.readBoolean();
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
             includeUnloadedSegments = in.readBoolean();
+        }
+        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
+            includeAllShardIndexingPressureTrackers = in.readBoolean();
+            includeOnlyTopIndexingPressureMetrics = in.readBoolean();
         }
     }
 
@@ -90,13 +99,19 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         }
         out.writeLong(longFlags);
 
-        out.writeStringArrayNullable(types);
+        if (out.getVersion().before(Version.V_2_0_0)) {
+            out.writeStringArrayNullable(Strings.EMPTY_ARRAY);
+        }
         out.writeStringArrayNullable(groups);
         out.writeStringArrayNullable(fieldDataFields);
         out.writeStringArrayNullable(completionDataFields);
         out.writeBoolean(includeSegmentFileSizes);
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
             out.writeBoolean(includeUnloadedSegments);
+        }
+        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
+            out.writeBoolean(includeAllShardIndexingPressureTrackers);
+            out.writeBoolean(includeOnlyTopIndexingPressureMetrics);
         }
     }
 
@@ -105,12 +120,13 @@ public class CommonStatsFlags implements Writeable, Cloneable {
      */
     public CommonStatsFlags all() {
         flags = EnumSet.allOf(Flag.class);
-        types = null;
         groups = null;
         fieldDataFields = null;
         completionDataFields = null;
         includeSegmentFileSizes = false;
         includeUnloadedSegments = false;
+        includeAllShardIndexingPressureTrackers = false;
+        includeOnlyTopIndexingPressureMetrics = false;
         return this;
     }
 
@@ -119,12 +135,13 @@ public class CommonStatsFlags implements Writeable, Cloneable {
      */
     public CommonStatsFlags clear() {
         flags = EnumSet.noneOf(Flag.class);
-        types = null;
         groups = null;
         fieldDataFields = null;
         completionDataFields = null;
         includeSegmentFileSizes = false;
         includeUnloadedSegments = false;
+        includeAllShardIndexingPressureTrackers = false;
+        includeOnlyTopIndexingPressureMetrics = false;
         return this;
     }
 
@@ -134,23 +151,6 @@ public class CommonStatsFlags implements Writeable, Cloneable {
 
     public Flag[] getFlags() {
         return flags.toArray(new Flag[flags.size()]);
-    }
-
-    /**
-     * Document types to return stats for. Mainly affects {@link Flag#Indexing} when
-     * enabled, returning specific indexing stats for those types.
-     */
-    public CommonStatsFlags types(String... types) {
-        this.types = types;
-        return this;
-    }
-
-    /**
-     * Document types to return stats for. Mainly affects {@link Flag#Indexing} when
-     * enabled, returning specific indexing stats for those types.
-     */
-    public String[] types() {
-        return this.types;
     }
 
     /**
@@ -198,8 +198,26 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         return this;
     }
 
+    public CommonStatsFlags includeAllShardIndexingPressureTrackers(boolean includeAllShardPressureTrackers) {
+        this.includeAllShardIndexingPressureTrackers = includeAllShardPressureTrackers;
+        return this;
+    }
+
+    public CommonStatsFlags includeOnlyTopIndexingPressureMetrics(boolean includeOnlyTopIndexingPressureMetrics) {
+        this.includeOnlyTopIndexingPressureMetrics = includeOnlyTopIndexingPressureMetrics;
+        return this;
+    }
+
     public boolean includeUnloadedSegments() {
         return this.includeUnloadedSegments;
+    }
+
+    public boolean includeAllShardIndexingPressureTrackers() {
+        return this.includeAllShardIndexingPressureTrackers;
+    }
+
+    public boolean includeOnlyTopIndexingPressureMetrics() {
+        return this.includeOnlyTopIndexingPressureMetrics;
     }
 
     public boolean includeSegmentFileSizes() {

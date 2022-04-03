@@ -35,6 +35,7 @@ package org.opensearch.index.mapper;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
@@ -42,23 +43,17 @@ import java.util.List;
 
 // this sucks how much must be overridden just do get a dummy field mapper...
 public class MockFieldMapper extends ParametrizedFieldMapper {
-    static Settings DEFAULT_SETTINGS = Settings.builder()
-        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
-        .build();
+    static Settings DEFAULT_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
 
     public MockFieldMapper(String fullName) {
         this(new FakeFieldType(fullName));
     }
 
     public MockFieldMapper(MappedFieldType fieldType) {
-        super(findSimpleName(fieldType.name()), fieldType,
-            MultiFields.empty(), new CopyTo.Builder().build());
+        super(findSimpleName(fieldType.name()), fieldType, MultiFields.empty(), new CopyTo.Builder().build());
     }
 
-    public MockFieldMapper(String fullName,
-                           MappedFieldType fieldType,
-                           MultiFields multifields,
-                           CopyTo copyTo) {
+    public MockFieldMapper(String fullName, MappedFieldType fieldType, MultiFields multifields, CopyTo copyTo) {
         super(findSimpleName(fullName), fieldType, multifields, copyTo);
     }
 
@@ -83,7 +78,7 @@ public class MockFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             throw new UnsupportedOperationException();
         }
     }
@@ -94,8 +89,7 @@ public class MockFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) {
-    }
+    protected void parseCreateField(ParseContext context) {}
 
     public static class Builder extends ParametrizedFieldMapper.Builder {
         private final MappedFieldType fieldType;

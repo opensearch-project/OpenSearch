@@ -119,7 +119,7 @@ import static org.hamcrest.Matchers.startsWith;
  * <p>
  * We need at least 2 nodes so we have a master node a non-master node
  */
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, minNumDataNodes = 2, transportClientRatio = 0.0)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, minNumDataNodes = 2)
 public class TasksIT extends OpenSearchIntegTestCase {
 
     private Map<Tuple<String, String>, RecordingTaskManagerListener> listeners = new HashMap<>();
@@ -137,11 +137,6 @@ public class TasksIT extends OpenSearchIntegTestCase {
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
-    }
-
-    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
@@ -151,8 +146,11 @@ public class TasksIT extends OpenSearchIntegTestCase {
 
     public void testTaskCounts() {
         // Run only on data nodes
-        ListTasksResponse response = client().admin().cluster().prepareListTasks("data:true").setActions(ListTasksAction.NAME + "[n]")
-                .get();
+        ListTasksResponse response = client().admin()
+            .cluster()
+            .prepareListTasks("data:true")
+            .setActions(ListTasksAction.NAME + "[n]")
+            .get();
         assertThat(response.getTasks().size(), greaterThanOrEqualTo(cluster().numDataNodes()));
     }
 
@@ -183,8 +181,8 @@ public class TasksIT extends OpenSearchIntegTestCase {
     public void testTransportReplicationAllShardsTasks() {
         registerTaskManagerListeners(ValidateQueryAction.NAME); // main task
         registerTaskManagerListeners(ValidateQueryAction.NAME + "[s]"); // shard
-                                                                       // level
-                                                                // tasks
+                                                                        // level
+        // tasks
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated
         client().admin().indices().prepareValidateQuery("test").setAllShards(true).get();
@@ -230,7 +228,6 @@ public class TasksIT extends OpenSearchIntegTestCase {
         assertParentTask(findEvents(ValidateQueryAction.NAME + "[s]", Tuple::v1), findEvents(ValidateQueryAction.NAME, Tuple::v1).get(0));
     }
 
-
     public void testTransportBroadcastReplicationTasks() {
         registerTaskManagerListeners(RefreshAction.NAME);  // main task
         registerTaskManagerListeners(RefreshAction.NAME + "[s]"); // shard level tasks
@@ -271,9 +268,12 @@ public class TasksIT extends OpenSearchIntegTestCase {
                 String description = taskInfo.getDescription();
                 // This shard level task runs on another node - it should have a corresponding shard level task on the node where main task
                 // is running
-                List<TaskInfo> sTasksOnRequestingNode = findEvents(RefreshAction.NAME + "[s]",
-                        event -> event.v1() && mainTask.getTaskId().getNodeId().equals(event.v2().getTaskId().getNodeId())
-                                && description.equals(event.v2().getDescription()));
+                List<TaskInfo> sTasksOnRequestingNode = findEvents(
+                    RefreshAction.NAME + "[s]",
+                    event -> event.v1()
+                        && mainTask.getTaskId().getNodeId().equals(event.v2().getTaskId().getNodeId())
+                        && description.equals(event.v2().getDescription())
+                );
                 // There should be only one parent task
                 assertEquals(1, sTasksOnRequestingNode.size());
                 assertParentTask(Collections.singletonList(taskInfo), sTasksOnRequestingNode.get(0));
@@ -289,15 +289,20 @@ public class TasksIT extends OpenSearchIntegTestCase {
             List<TaskInfo> sTask;
             if (taskInfo.getAction().endsWith("[s][p]")) {
                 // A [s][p] level task should have a corresponding [s] level task on the same node
-                sTask = findEvents(RefreshAction.NAME + "[s]",
-                        event -> event.v1() && taskInfo.getTaskId().getNodeId().equals(event.v2().getTaskId().getNodeId())
-                                && taskInfo.getDescription().equals(event.v2().getDescription()));
+                sTask = findEvents(
+                    RefreshAction.NAME + "[s]",
+                    event -> event.v1()
+                        && taskInfo.getTaskId().getNodeId().equals(event.v2().getTaskId().getNodeId())
+                        && taskInfo.getDescription().equals(event.v2().getDescription())
+                );
             } else {
                 // A [s][r] level task should have a corresponding [s] level task on the a different node (where primary is located)
-                sTask = findEvents(RefreshAction.NAME + "[s]",
-                    event -> event.v1() && taskInfo.getParentTaskId().getNodeId().equals(event.v2().getTaskId().getNodeId()) && taskInfo
-                        .getDescription()
-                        .equals(event.v2().getDescription()));
+                sTask = findEvents(
+                    RefreshAction.NAME + "[s]",
+                    event -> event.v1()
+                        && taskInfo.getParentTaskId().getNodeId().equals(event.v2().getTaskId().getNodeId())
+                        && taskInfo.getDescription().equals(event.v2().getDescription())
+                );
             }
             // There should be only one parent task
             assertEquals(1, sTask.size());
@@ -313,9 +318,8 @@ public class TasksIT extends OpenSearchIntegTestCase {
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated to catch replication tasks
         // ensures the mapping is available on all nodes so we won't retry the request (in case replicas don't have the right mapping).
-        client().admin().indices().preparePutMapping("test").setType("doc").setSource("foo", "type=keyword").get();
-        client().prepareBulk().add(client().prepareIndex("test", "doc", "test_id")
-            .setSource("{\"foo\": \"bar\"}", XContentType.JSON)).get();
+        client().admin().indices().preparePutMapping("test").setSource("foo", "type=keyword").get();
+        client().prepareBulk().add(client().prepareIndex("test").setId("test_id").setSource("{\"foo\": \"bar\"}", XContentType.JSON)).get();
 
         // the bulk operation should produce one main task
         List<TaskInfo> topTask = findEvents(BulkAction.NAME, Tuple::v1);
@@ -337,7 +341,7 @@ public class TasksIT extends OpenSearchIntegTestCase {
         } else {
             if (shardTasks.get(0).getParentTaskId().equals(shardTasks.get(1).getTaskId())) {
                 // task 1 is the parent of task 0, that means that task 0 will control [s][p] and [s][r] tasks
-                 shardTask = shardTasks.get(0);
+                shardTask = shardTasks.get(0);
                 // in turn the parent of the task 1 should be the main task
                 assertParentTask(shardTasks.get(1), findEvents(BulkAction.NAME, Tuple::v1).get(0));
             } else {
@@ -364,20 +368,22 @@ public class TasksIT extends OpenSearchIntegTestCase {
         registerTaskManagerListeners(SearchAction.NAME + "[*]");  // shard task
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated to catch replication tasks
-        client().prepareIndex("test", "doc", "test_id").setSource("{\"foo\": \"bar\"}", XContentType.JSON)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        client().prepareIndex("test")
+            .setId("test_id")
+            .setSource("{\"foo\": \"bar\"}", XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
 
         Map<String, String> headers = new HashMap<>();
         headers.put(Task.X_OPAQUE_ID, "my_id");
         headers.put("Foo-Header", "bar");
         headers.put("Custom-Task-Header", "my_value");
-        assertSearchResponse(
-            client().filterWithHeader(headers).prepareSearch("test").setTypes("doc").setQuery(QueryBuilders.matchAllQuery()).get());
+        assertSearchResponse(client().filterWithHeader(headers).prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).get());
 
         // the search operation should produce one main task
         List<TaskInfo> mainTask = findEvents(SearchAction.NAME, Tuple::v1);
         assertEquals(1, mainTask.size());
-        assertThat(mainTask.get(0).getDescription(), startsWith("indices[test], types[doc], search_type["));
+        assertThat(mainTask.get(0).getDescription(), startsWith("indices[test], search_type["));
         assertThat(mainTask.get(0).getDescription(), containsString("\"query\":{\"match_all\""));
         assertTaskHeaders(mainTask.get(0));
 
@@ -396,8 +402,10 @@ public class TasksIT extends OpenSearchIntegTestCase {
                     assertTrue(taskInfo.getDescription(), Regex.simpleMatch("id[*], indices[test]", taskInfo.getDescription()));
                     break;
                 case SearchTransportService.FETCH_ID_ACTION_NAME:
-                    assertTrue(taskInfo.getDescription(), Regex.simpleMatch("id[*], size[1], lastEmittedDoc[null]",
-                        taskInfo.getDescription()));
+                    assertTrue(
+                        taskInfo.getDescription(),
+                        Regex.simpleMatch("id[*], size[1], lastEmittedDoc[null]", taskInfo.getDescription())
+                    );
                     break;
                 case SearchTransportService.QUERY_CAN_MATCH_NAME:
                     assertTrue(taskInfo.getDescription(), Regex.simpleMatch("shardId[[test][*]]", taskInfo.getDescription()));
@@ -458,24 +466,26 @@ public class TasksIT extends OpenSearchIntegTestCase {
                     }
 
                     @Override
-                    public void onTaskUnregistered(Task task) {
-                    }
+                    public void onTaskUnregistered(Task task) {}
 
                     @Override
-                    public void waitForTaskCompletion(Task task) {
-                    }
+                    public void waitForTaskCompletion(Task task) {}
                 });
             }
             // Need to run the task in a separate thread because node client's .execute() is blocked by our task listener
             index = new Thread(() -> {
-                IndexResponse indexResponse = client().prepareIndex("test", "test").setSource("test", "test").get();
+                IndexResponse indexResponse = client().prepareIndex("test").setSource("test", "test").get();
                 assertArrayEquals(ReplicationResponse.EMPTY, indexResponse.getShardInfo().getFailures());
             });
             index.start();
             assertTrue(taskRegistered.await(10, TimeUnit.SECONDS)); // waiting for at least one task to be registered
 
-            ListTasksResponse listResponse = client().admin().cluster().prepareListTasks().setActions("indices:data/write/index*")
-                    .setDetailed(true).get();
+            ListTasksResponse listResponse = client().admin()
+                .cluster()
+                .prepareListTasks()
+                .setActions("indices:data/write/index*")
+                .setDetailed(true)
+                .get();
             assertThat(listResponse.getTasks(), not(empty()));
             for (TaskInfo task : listResponse.getTasks()) {
                 assertNotNull(task.getStatus());
@@ -497,10 +507,14 @@ public class TasksIT extends OpenSearchIntegTestCase {
             if (index != null) {
                 index.join();
             }
-            assertBusy(() -> {
-                assertEquals(emptyList(),
-                        client().admin().cluster().prepareListTasks().setActions("indices:data/write/index*").get().getTasks());
-            });
+            assertBusy(
+                () -> {
+                    assertEquals(
+                        emptyList(),
+                        client().admin().cluster().prepareListTasks().setActions("indices:data/write/index*").get().getTasks()
+                    );
+                }
+            );
         }
     }
 
@@ -513,19 +527,28 @@ public class TasksIT extends OpenSearchIntegTestCase {
         logger.info("--> started test tasks");
 
         // Wait for the task to start on all nodes
-        assertBusy(() -> assertEquals(internalCluster().size(),
-            client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()));
+        assertBusy(
+            () -> assertEquals(
+                internalCluster().size(),
+                client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()
+            )
+        );
 
         logger.info("--> cancelling the main test task");
-        CancelTasksResponse cancelTasksResponse = client().admin().cluster().prepareCancelTasks()
-                .setActions(TestTaskPlugin.TestTaskAction.NAME).get();
+        CancelTasksResponse cancelTasksResponse = client().admin()
+            .cluster()
+            .prepareCancelTasks()
+            .setActions(TestTaskPlugin.TestTaskAction.NAME)
+            .get();
         assertEquals(1, cancelTasksResponse.getTasks().size());
 
         future.get();
 
         logger.info("--> checking that test tasks are not running");
-        assertEquals(0,
-                client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "*").get().getTasks().size());
+        assertEquals(
+            0,
+            client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "*").get().getTasks().size()
+        );
     }
 
     public void testTasksUnblocking() throws Exception {
@@ -533,20 +556,31 @@ public class TasksIT extends OpenSearchIntegTestCase {
         TestTaskPlugin.NodesRequest request = new TestTaskPlugin.NodesRequest("test");
         ActionFuture<TestTaskPlugin.NodesResponse> future = client().execute(TestTaskPlugin.TestTaskAction.INSTANCE, request);
         // Wait for the task to start on all nodes
-        assertBusy(() -> assertEquals(internalCluster().size(),
-            client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()));
+        assertBusy(
+            () -> assertEquals(
+                internalCluster().size(),
+                client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()
+            )
+        );
 
         new TestTaskPlugin.UnblockTestTasksRequestBuilder(client(), TestTaskPlugin.UnblockTestTasksAction.INSTANCE).get();
 
         future.get();
-        assertEquals(0, client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get()
-                .getTasks().size());
+        assertEquals(
+            0,
+            client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()
+        );
     }
 
     public void testListTasksWaitForCompletion() throws Exception {
-        waitForCompletionTestCase(randomBoolean(),
-            id -> client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME)
-                    .setWaitForCompletion(true).execute(),
+        waitForCompletionTestCase(
+            randomBoolean(),
+            id -> client().admin()
+                .cluster()
+                .prepareListTasks()
+                .setActions(TestTaskPlugin.TestTaskAction.NAME)
+                .setWaitForCompletion(true)
+                .execute(),
             response -> {
                 assertThat(response.getNodeFailures(), empty());
                 assertThat(response.getTaskFailures(), empty());
@@ -558,13 +592,14 @@ public class TasksIT extends OpenSearchIntegTestCase {
     }
 
     public void testGetTaskWaitForCompletionWithoutStoringResult() throws Exception {
-        waitForCompletionTestCase(false,
+        waitForCompletionTestCase(
+            false,
             id -> client().admin().cluster().prepareGetTask(id).setWaitForCompletion(true).execute(),
             response -> {
                 assertTrue(response.getTask().isCompleted());
-                //We didn't store the result so it won't come back when we wait
+                // We didn't store the result so it won't come back when we wait
                 assertNull(response.getTask().getResponse());
-                //But the task's details should still be there because we grabbed a reference to the task before waiting for it to complete
+                // But the task's details should still be there because we grabbed a reference to the task before waiting for it to complete
                 assertNotNull(response.getTask().getTask());
                 assertEquals(TestTaskPlugin.TestTaskAction.NAME, response.getTask().getTask().getAction());
             }
@@ -572,7 +607,8 @@ public class TasksIT extends OpenSearchIntegTestCase {
     }
 
     public void testGetTaskWaitForCompletionWithStoringResult() throws Exception {
-        waitForCompletionTestCase(true,
+        waitForCompletionTestCase(
+            true,
             id -> client().admin().cluster().prepareGetTask(id).setWaitForCompletion(true).execute(),
             response -> {
                 assertTrue(response.getTask().isCompleted());
@@ -592,7 +628,7 @@ public class TasksIT extends OpenSearchIntegTestCase {
      * @param validator validate the response and return the task ids that were found
      */
     private <T> void waitForCompletionTestCase(boolean storeResult, Function<TaskId, ActionFuture<T>> wait, Consumer<T> validator)
-            throws Exception {
+        throws Exception {
         // Start blocking test task
         TestTaskPlugin.NodesRequest request = new TestTaskPlugin.NodesRequest("test");
         request.setShouldStoreResult(storeResult);
@@ -616,12 +652,10 @@ public class TasksIT extends OpenSearchIntegTestCase {
                     }
 
                     @Override
-                    public void onTaskRegistered(Task task) {
-                    }
+                    public void onTaskRegistered(Task task) {}
 
                     @Override
-                    public void onTaskUnregistered(Task task) {
-                    }
+                    public void onTaskUnregistered(Task task) {}
                 });
             }
 
@@ -647,9 +681,13 @@ public class TasksIT extends OpenSearchIntegTestCase {
 
     public void testListTasksWaitForTimeout() throws Exception {
         waitForTimeoutTestCase(id -> {
-            ListTasksResponse response = client().admin().cluster().prepareListTasks()
-                    .setActions(TestTaskPlugin.TestTaskAction.NAME).setWaitForCompletion(true).setTimeout(timeValueMillis(100))
-                    .get();
+            ListTasksResponse response = client().admin()
+                .cluster()
+                .prepareListTasks()
+                .setActions(TestTaskPlugin.TestTaskAction.NAME)
+                .setWaitForCompletion(true)
+                .setTimeout(timeValueMillis(100))
+                .get();
             assertThat(response.getNodeFailures(), not(empty()));
             return response.getNodeFailures();
         });
@@ -657,8 +695,10 @@ public class TasksIT extends OpenSearchIntegTestCase {
 
     public void testGetTaskWaitForTimeout() throws Exception {
         waitForTimeoutTestCase(id -> {
-            Exception e = expectThrows(Exception.class,
-                    () -> client().admin().cluster().prepareGetTask(id).setWaitForCompletion(true).setTimeout(timeValueMillis(100)).get());
+            Exception e = expectThrows(
+                Exception.class,
+                () -> client().admin().cluster().prepareGetTask(id).setWaitForCompletion(true).setTimeout(timeValueMillis(100)).get()
+            );
             return singleton(e);
         });
     }
@@ -682,8 +722,7 @@ public class TasksIT extends OpenSearchIntegTestCase {
             Iterable<? extends Throwable> failures = wait.apply(taskId);
 
             for (Throwable failure : failures) {
-                assertNotNull(
-                        ExceptionsHelper.unwrap(failure, OpenSearchTimeoutException.class, ReceiveTimeoutTransportException.class));
+                assertNotNull(ExceptionsHelper.unwrap(failure, OpenSearchTimeoutException.class, ReceiveTimeoutTransportException.class));
             }
         } finally {
             // Now we can unblock those requests
@@ -697,8 +736,12 @@ public class TasksIT extends OpenSearchIntegTestCase {
      */
     private TaskId waitForTestTaskStartOnAllNodes() throws Exception {
         assertBusy(() -> {
-            List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]")
-                    .get().getTasks();
+            List<TaskInfo> tasks = client().admin()
+                .cluster()
+                .prepareListTasks()
+                .setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]")
+                .get()
+                .getTasks();
             assertEquals(internalCluster().size(), tasks.size());
         });
         List<TaskInfo> task = client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME).get().getTasks();
@@ -708,9 +751,13 @@ public class TasksIT extends OpenSearchIntegTestCase {
 
     public void testTasksListWaitForNoTask() throws Exception {
         // Spin up a request to wait for no matching tasks
-        ActionFuture<ListTasksResponse> waitResponseFuture = client().admin().cluster().prepareListTasks()
-                .setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").setWaitForCompletion(true).setTimeout(timeValueMillis(10))
-                .execute();
+        ActionFuture<ListTasksResponse> waitResponseFuture = client().admin()
+            .cluster()
+            .prepareListTasks()
+            .setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]")
+            .setWaitForCompletion(true)
+            .setTimeout(timeValueMillis(10))
+            .execute();
 
         // It should finish quickly and without complaint
         assertThat(waitResponseFuture.get().getTasks(), empty());
@@ -718,9 +765,12 @@ public class TasksIT extends OpenSearchIntegTestCase {
 
     public void testTasksGetWaitForNoTask() throws Exception {
         // Spin up a request to wait for no matching tasks
-        ActionFuture<GetTaskResponse> waitResponseFuture = client().admin().cluster().prepareGetTask("notfound:1")
-                .setWaitForCompletion(true).setTimeout(timeValueMillis(10))
-                .execute();
+        ActionFuture<GetTaskResponse> waitResponseFuture = client().admin()
+            .cluster()
+            .prepareGetTask("notfound:1")
+            .setWaitForCompletion(true)
+            .setTimeout(timeValueMillis(10))
+            .execute();
 
         // It should finish quickly and without complaint
         expectNotFound(waitResponseFuture::get);
@@ -728,8 +778,12 @@ public class TasksIT extends OpenSearchIntegTestCase {
 
     public void testTasksWaitForAllTask() throws Exception {
         // Spin up a request to wait for all tasks in the cluster to make sure it doesn't cause an infinite loop
-        ListTasksResponse response = client().admin().cluster().prepareListTasks().setWaitForCompletion(true)
-            .setTimeout(timeValueSeconds(10)).get();
+        ListTasksResponse response = client().admin()
+            .cluster()
+            .prepareListTasks()
+            .setWaitForCompletion(true)
+            .setTimeout(timeValueSeconds(10))
+            .get();
 
         // It should finish quickly and without complaint and list the list tasks themselves
         assertThat(response.getNodeFailures(), emptyCollectionOf(OpenSearchException.class));
@@ -755,8 +809,7 @@ public class TasksIT extends OpenSearchIntegTestCase {
         TaskInfo taskInfo = events.get(0);
         TaskId taskId = taskInfo.getTaskId();
 
-        TaskResult taskResult = client().admin().cluster()
-                .getTask(new GetTaskRequest().setTaskId(taskId)).get().getTask();
+        TaskResult taskResult = client().admin().cluster().getTask(new GetTaskRequest().setTaskId(taskId)).get().getTask();
         assertTrue(taskResult.isCompleted());
         assertNull(taskResult.getError());
 
@@ -773,21 +826,25 @@ public class TasksIT extends OpenSearchIntegTestCase {
         assertNoFailures(client().admin().indices().prepareRefresh(TaskResultsService.TASK_INDEX).get());
 
         SearchResponse searchResponse = client().prepareSearch(TaskResultsService.TASK_INDEX)
-            .setTypes(TaskResultsService.TASK_TYPE)
             .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("task.action", taskInfo.getAction())))
             .get();
 
         assertEquals(1L, searchResponse.getHits().getTotalHits().value);
 
-        searchResponse = client().prepareSearch(TaskResultsService.TASK_INDEX).setTypes(TaskResultsService.TASK_TYPE)
-                .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("task.node", taskInfo.getTaskId().getNodeId())))
-                .get();
+        searchResponse = client().prepareSearch(TaskResultsService.TASK_INDEX)
+            .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("task.node", taskInfo.getTaskId().getNodeId())))
+            .get();
 
         assertEquals(1L, searchResponse.getHits().getTotalHits().value);
 
         GetTaskResponse getResponse = expectFinishedTask(taskId);
         assertEquals(result, getResponse.getTask().getResponseAsMap());
         assertNull(getResponse.getTask().getError());
+
+        // run it again to check that the tasks index has been successfully created and can be re-used
+        client().execute(TestTaskPlugin.TestTaskAction.INSTANCE, request).get();
+        events = findEvents(TestTaskPlugin.TestTaskAction.NAME, Tuple::v1);
+        assertEquals(2, events.size());
     }
 
     public void testTaskStoringFailureResult() throws Exception {
@@ -799,18 +856,14 @@ public class TasksIT extends OpenSearchIntegTestCase {
         request.setShouldBlock(false);
 
         // Start non-blocking test task that should fail
-        assertFutureThrows(
-            client().execute(TestTaskPlugin.TestTaskAction.INSTANCE, request),
-            IllegalStateException.class
-        );
+        assertFutureThrows(client().execute(TestTaskPlugin.TestTaskAction.INSTANCE, request), IllegalStateException.class);
 
         List<TaskInfo> events = findEvents(TestTaskPlugin.TestTaskAction.NAME, Tuple::v1);
         assertEquals(1, events.size());
         TaskInfo failedTaskInfo = events.get(0);
         TaskId failedTaskId = failedTaskInfo.getTaskId();
 
-        TaskResult taskResult = client().admin().cluster()
-                .getTask(new GetTaskRequest().setTaskId(failedTaskId)).get().getTask();
+        TaskResult taskResult = client().admin().cluster().getTask(new GetTaskRequest().setTaskId(failedTaskId)).get().getTask();
         assertTrue(taskResult.isCompleted());
         assertNull(taskResult.getResponse());
 
@@ -841,9 +894,24 @@ public class TasksIT extends OpenSearchIntegTestCase {
         // Save a fake task that looks like it is from a node that isn't part of the cluster
         CyclicBarrier b = new CyclicBarrier(2);
         TaskResultsService resultsService = internalCluster().getInstance(TaskResultsService.class);
-        resultsService.storeResult(new TaskResult(
-                new TaskInfo(new TaskId("fake", 1), "test", "test", "", null, 0, 0, false, TaskId.EMPTY_TASK_ID, Collections.emptyMap()),
-                new RuntimeException("test")),
+        resultsService.storeResult(
+            new TaskResult(
+                new TaskInfo(
+                    new TaskId("fake", 1),
+                    "test",
+                    "test",
+                    "",
+                    null,
+                    0,
+                    0,
+                    false,
+                    false,
+                    TaskId.EMPTY_TASK_ID,
+                    Collections.emptyMap(),
+                    null
+                ),
+                new RuntimeException("test")
+            ),
             new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void response) {
@@ -858,7 +926,8 @@ public class TasksIT extends OpenSearchIntegTestCase {
                 public void onFailure(Exception e) {
                     throw new RuntimeException(e);
                 }
-            });
+            }
+        );
         b.await();
 
         // Now we can find it!
@@ -871,8 +940,9 @@ public class TasksIT extends OpenSearchIntegTestCase {
     @Override
     public void tearDown() throws Exception {
         for (Map.Entry<Tuple<String, String>, RecordingTaskManagerListener> entry : listeners.entrySet()) {
-            ((MockTaskManager) internalCluster().getInstance(TransportService.class, entry.getKey().v1()).getTaskManager())
-                    .removeListener(entry.getValue());
+            ((MockTaskManager) internalCluster().getInstance(TransportService.class, entry.getKey().v1()).getTaskManager()).removeListener(
+                entry.getValue()
+            );
         }
         listeners.clear();
         super.tearDown();

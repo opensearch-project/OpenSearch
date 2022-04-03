@@ -50,16 +50,19 @@ import org.opensearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 import java.util.Map;
 
-public class GeoCentroidAggregationBuilder
-        extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.GeoPoint, GeoCentroidAggregationBuilder> {
+public class GeoCentroidAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<
+    ValuesSource.GeoPoint,
+    GeoCentroidAggregationBuilder> {
     public static final String NAME = "geo_centroid";
     public static final ValuesSourceRegistry.RegistryKey<MetricAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
         NAME,
         MetricAggregatorSupplier.class
     );
 
-    public static final ObjectParser<GeoCentroidAggregationBuilder, String> PARSER =
-        ObjectParser.fromBuilder(NAME, GeoCentroidAggregationBuilder::new);
+    public static final ObjectParser<GeoCentroidAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
+        NAME,
+        GeoCentroidAggregationBuilder::new
+    );
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, false, false);
     }
@@ -72,9 +75,11 @@ public class GeoCentroidAggregationBuilder
         super(name);
     }
 
-    protected GeoCentroidAggregationBuilder(GeoCentroidAggregationBuilder clone,
-                                            AggregatorFactories.Builder factoriesBuilder,
-                                            Map<String, Object> metadata) {
+    protected GeoCentroidAggregationBuilder(
+        GeoCentroidAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
     }
 
@@ -101,9 +106,12 @@ public class GeoCentroidAggregationBuilder
     }
 
     @Override
-    protected GeoCentroidAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
-                                                      AggregatorFactory parent,
-                                                      AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+    protected GeoCentroidAggregatorFactory innerBuild(
+        QueryShardContext queryShardContext,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
         return new GeoCentroidAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 

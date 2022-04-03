@@ -57,12 +57,13 @@ public final class PainlessLookup {
     private final Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings;
 
     PainlessLookup(
-            Map<String, Class<?>> javaClassNamesToClasses,
-            Map<String, Class<?>> canonicalClassNamesToClasses,
-            Map<Class<?>, PainlessClass> classesToPainlessClasses,
-            Map<String, PainlessMethod> painlessMethodKeysToImportedPainlessMethods,
-            Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings,
-            Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings) {
+        Map<String, Class<?>> javaClassNamesToClasses,
+        Map<String, Class<?>> canonicalClassNamesToClasses,
+        Map<Class<?>, PainlessClass> classesToPainlessClasses,
+        Map<String, PainlessMethod> painlessMethodKeysToImportedPainlessMethods,
+        Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings,
+        Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings
+    ) {
 
         Objects.requireNonNull(javaClassNamesToClasses);
         Objects.requireNonNull(canonicalClassNamesToClasses);
@@ -175,9 +176,7 @@ public final class PainlessLookup {
             return null;
         }
 
-        return isStatic ?
-                targetPainlessClass.staticMethods.get(painlessMethodKey) :
-                targetPainlessClass.methods.get(painlessMethodKey);
+        return isStatic ? targetPainlessClass.staticMethods.get(painlessMethodKey) : targetPainlessClass.methods.get(painlessMethodKey);
     }
 
     public PainlessField lookupPainlessField(String targetCanonicalClassName, boolean isStatic, String fieldName) {
@@ -203,9 +202,9 @@ public final class PainlessLookup {
             return null;
         }
 
-        PainlessField painlessField = isStatic ?
-                targetPainlessClass.staticFields.get(painlessFieldKey) :
-                targetPainlessClass.fields.get(painlessFieldKey);
+        PainlessField painlessField = isStatic
+            ? targetPainlessClass.staticFields.get(painlessFieldKey)
+            : targetPainlessClass.fields.get(painlessFieldKey);
 
         if (painlessField == null) {
             return null;
@@ -253,8 +252,9 @@ public final class PainlessLookup {
         Objects.requireNonNull(methodName);
 
         String painlessMethodKey = buildPainlessMethodKey(methodName, methodArity);
-        Function<PainlessClass, PainlessMethod> objectLookup =
-                targetPainlessClass -> targetPainlessClass.runtimeMethods.get(painlessMethodKey);
+        Function<PainlessClass, PainlessMethod> objectLookup = targetPainlessClass -> targetPainlessClass.runtimeMethods.get(
+            painlessMethodKey
+        );
 
         return lookupRuntimePainlessObject(originalTargetClass, objectLookup);
     }

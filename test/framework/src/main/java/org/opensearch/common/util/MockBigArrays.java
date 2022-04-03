@@ -37,7 +37,7 @@ import com.carrotsearch.randomizedtesting.SeedUtils;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.indices.breaker.CircuitBreakerService;
@@ -79,8 +79,10 @@ public class MockBigArrays extends BigArrays {
                 if (!masterCopy.isEmpty()) {
                     Iterator<Object> causes = masterCopy.values().iterator();
                     Object firstCause = causes.next();
-                    RuntimeException exception = new RuntimeException(masterCopy.size() + " arrays have not been released",
-                            firstCause instanceof Throwable ? (Throwable) firstCause : null);
+                    RuntimeException exception = new RuntimeException(
+                        masterCopy.size() + " arrays have not been released",
+                        firstCause instanceof Throwable ? (Throwable) firstCause : null
+                    );
                     while (causes.hasNext()) {
                         Object cause = causes.next();
                         if (cause instanceof Throwable) {
@@ -113,7 +115,6 @@ public class MockBigArrays extends BigArrays {
         }
         random = new Random(seed);
     }
-
 
     @Override
     public BigArrays withCircuitBreaking() {
@@ -276,9 +277,12 @@ public class MockBigArrays extends BigArrays {
         AbstractArrayWrapper(boolean clearOnResize) {
             this.clearOnResize = clearOnResize;
             this.originalRelease = new AtomicReference<>();
-            ACQUIRED_ARRAYS.put(this,
-                    TRACK_ALLOCATIONS ? new RuntimeException("Unreleased array from test: " + LuceneTestCase.getTestClass().getName())
-                            : Boolean.TRUE);
+            ACQUIRED_ARRAYS.put(
+                this,
+                TRACK_ALLOCATIONS
+                    ? new RuntimeException("Unreleased array from test: " + LuceneTestCase.getTestClass().getName())
+                    : Boolean.TRUE
+            );
         }
 
         protected abstract BigArray getDelegate();

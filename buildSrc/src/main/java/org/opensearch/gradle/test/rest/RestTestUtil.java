@@ -94,6 +94,12 @@ public class RestTestUtil {
         } else {
             project.getDependencies()
                 .add(sourceSet.getImplementationConfigurationName(), "org.opensearch.test:framework:" + VersionProperties.getOpenSearch());
+            // The log4j-core is optional dependency of the org.opensearch.test:framework. needs explicit introduction
+            project.getDependencies()
+                .add(
+                    sourceSet.getImplementationConfigurationName(),
+                    "org.apache.logging.log4j:log4j-core:" + VersionProperties.getVersions().get("log4j")
+                );
         }
 
     }

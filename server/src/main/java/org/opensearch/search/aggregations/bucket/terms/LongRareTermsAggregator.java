@@ -75,16 +75,7 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        super(
-            name,
-            factories,
-            aggregationContext,
-            parent,
-            metadata,
-            maxDocCount,
-            precision,
-            format
-        );
+        super(name, factories, aggregationContext, parent, metadata, maxDocCount, precision, format);
         this.valuesSource = valuesSource;
         this.filter = filter;
         this.bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);

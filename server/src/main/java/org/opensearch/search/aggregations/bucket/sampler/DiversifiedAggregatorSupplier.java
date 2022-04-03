@@ -50,5 +50,6 @@ public interface DiversifiedAggregatorSupplier {
         Map<String, Object> metadata,
         ValuesSourceConfig valuesSourceConfig,
         int maxDocsPerValue,
-        String executionHint) throws IOException;
+        String executionHint
+    ) throws IOException;
 }

@@ -67,7 +67,7 @@ public class FailProcessorFactoryTests extends OpenSearchTestCase {
         try {
             factory.create(null, null, null, config);
             fail("factory create should have failed");
-        } catch(OpenSearchParseException e) {
+        } catch (OpenSearchParseException e) {
             assertThat(e.getMessage(), equalTo("[message] required property is missing"));
         }
     }
@@ -77,8 +77,7 @@ public class FailProcessorFactoryTests extends OpenSearchTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("message", "{{error}}");
         String processorTag = randomAlphaOfLength(10);
-        OpenSearchException exception = expectThrows(OpenSearchException.class, () -> factory.create(null, processorTag,
-            null, config));
+        OpenSearchException exception = expectThrows(OpenSearchException.class, () -> factory.create(null, processorTag, null, config));
         assertThat(exception.getMessage(), equalTo("java.lang.RuntimeException: could not compile script"));
         assertThat(exception.getMetadata("opensearch.processor_tag").get(0), equalTo(processorTag));
     }

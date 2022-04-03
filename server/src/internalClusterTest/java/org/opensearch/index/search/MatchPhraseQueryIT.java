@@ -59,7 +59,8 @@ public class MatchPhraseQueryIT extends OpenSearchIntegTestCase {
             Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer.standard_stopwords.type", "standard")
-                .putList("index.analysis.analyzer.standard_stopwords.stopwords", "of", "the", "who"));
+                .putList("index.analysis.analyzer.standard_stopwords.stopwords", "of", "the", "who")
+        );
         assertAcked(createIndexRequest);
         ensureGreen();
     }
@@ -68,8 +69,7 @@ public class MatchPhraseQueryIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> indexRequests = getIndexRequests();
         indexRandom(true, false, indexRequests);
 
-        MatchPhraseQueryBuilder baseQuery = matchPhraseQuery("name", "the who")
-            .analyzer("standard_stopwords");
+        MatchPhraseQueryBuilder baseQuery = matchPhraseQuery("name", "the who").analyzer("standard_stopwords");
 
         MatchPhraseQueryBuilder matchNoneQuery = baseQuery.zeroTermsQuery(ZeroTermsQuery.NONE);
         SearchResponse matchNoneResponse = client().prepareSearch(INDEX).setQuery(matchNoneQuery).get();
@@ -82,8 +82,8 @@ public class MatchPhraseQueryIT extends OpenSearchIntegTestCase {
 
     private List<IndexRequestBuilder> getIndexRequests() {
         List<IndexRequestBuilder> requests = new ArrayList<>();
-        requests.add(client().prepareIndex(INDEX, "band").setSource("name", "the beatles"));
-        requests.add(client().prepareIndex(INDEX, "band").setSource("name", "led zeppelin"));
+        requests.add(client().prepareIndex(INDEX).setSource("name", "the beatles"));
+        requests.add(client().prepareIndex(INDEX).setSource("name", "led zeppelin"));
         return requests;
     }
 }

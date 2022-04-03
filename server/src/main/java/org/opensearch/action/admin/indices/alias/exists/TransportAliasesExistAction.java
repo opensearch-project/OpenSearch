@@ -50,11 +50,22 @@ import java.io.IOException;
 public class TransportAliasesExistAction extends TransportMasterNodeReadAction<GetAliasesRequest, AliasesExistResponse> {
 
     @Inject
-    public TransportAliasesExistAction(TransportService transportService, ClusterService clusterService,
-                                       ThreadPool threadPool, ActionFilters actionFilters,
-                                       IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(AliasesExistAction.NAME, transportService, clusterService, threadPool, actionFilters, GetAliasesRequest::new,
-            indexNameExpressionResolver);
+    public TransportAliasesExistAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            AliasesExistAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            GetAliasesRequest::new,
+            indexNameExpressionResolver
+        );
     }
 
     @Override
@@ -70,8 +81,8 @@ public class TransportAliasesExistAction extends TransportMasterNodeReadAction<G
 
     @Override
     protected ClusterBlockException checkBlock(GetAliasesRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
-            indexNameExpressionResolver.concreteIndexNames(state, request));
+        return state.blocks()
+            .indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override

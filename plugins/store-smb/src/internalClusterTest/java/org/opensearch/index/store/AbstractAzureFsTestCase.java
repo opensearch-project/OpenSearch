@@ -42,7 +42,7 @@ import java.util.Collection;
 
 import static org.hamcrest.Matchers.is;
 
-public abstract  class AbstractAzureFsTestCase extends OpenSearchIntegTestCase {
+public abstract class AbstractAzureFsTestCase extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(SMBStorePlugin.class);

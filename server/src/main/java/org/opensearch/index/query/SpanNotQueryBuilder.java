@@ -32,9 +32,9 @@
 
 package org.opensearch.index.query;
 
+import org.apache.lucene.queries.spans.SpanNotQuery;
+import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanNotQuery;
-import org.apache.lucene.search.spans.SpanQuery;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
@@ -182,7 +182,7 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
         SpanQueryBuilder exclude = null;
 
         Integer dist = null;
-        Integer pre  = null;
+        Integer pre = null;
         Integer post = null;
 
         String queryName = null;
@@ -269,10 +269,10 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
 
     @Override
     protected boolean doEquals(SpanNotQueryBuilder other) {
-        return Objects.equals(include, other.include) &&
-               Objects.equals(exclude, other.exclude) &&
-               (pre == other.pre) &&
-               (post == other.post);
+        return Objects.equals(include, other.include)
+            && Objects.equals(exclude, other.exclude)
+            && (pre == other.pre)
+            && (post == other.post);
     }
 
     @Override

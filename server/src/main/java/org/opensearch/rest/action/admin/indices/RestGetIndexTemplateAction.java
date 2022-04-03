@@ -36,16 +36,13 @@ import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesRequest
 import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.set.Sets;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -61,18 +58,11 @@ import static org.opensearch.rest.RestStatus.OK;
  */
 public class RestGetIndexTemplateAction extends BaseRestHandler {
 
-    private static final Set<String> RESPONSE_PARAMETERS = Collections.unmodifiableSet(Sets.union(
-        Collections.singleton(INCLUDE_TYPE_NAME_PARAMETER), Settings.FORMAT_PARAMS));
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetIndexTemplateAction.class);
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
-            " Specifying include_type_name in get index template requests is deprecated.";
-
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_template"),
-            new Route(GET, "/_template/{name}"),
-            new Route(HEAD, "/_template/{name}")));
+        return unmodifiableList(
+            asList(new Route(GET, "/_template"), new Route(GET, "/_template/{name}"), new Route(HEAD, "/_template/{name}"))
+        );
     }
 
     @Override
@@ -85,29 +75,25 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
         final String[] names = Strings.splitStringByCommaToArray(request.param("name"));
 
         final GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(names);
-        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
-            deprecationLogger.deprecate("get_index_template_include_type_name", TYPES_DEPRECATION_MESSAGE);
-        }
         getIndexTemplatesRequest.local(request.paramAsBoolean("local", getIndexTemplatesRequest.local()));
         getIndexTemplatesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexTemplatesRequest.masterNodeTimeout()));
 
         final boolean implicitAll = getIndexTemplatesRequest.names().length == 0;
 
-        return channel ->
-                client.admin()
-                        .indices()
-                        .getTemplates(getIndexTemplatesRequest, new RestToXContentListener<GetIndexTemplatesResponse>(channel) {
-                            @Override
-                            protected RestStatus getStatus(final GetIndexTemplatesResponse response) {
-                                final boolean templateExists = response.getIndexTemplates().isEmpty() == false;
-                                return (templateExists || implicitAll) ? OK : NOT_FOUND;
-                            }
-                        });
+        return channel -> client.admin()
+            .indices()
+            .getTemplates(getIndexTemplatesRequest, new RestToXContentListener<GetIndexTemplatesResponse>(channel) {
+                @Override
+                protected RestStatus getStatus(final GetIndexTemplatesResponse response) {
+                    final boolean templateExists = response.getIndexTemplates().isEmpty() == false;
+                    return (templateExists || implicitAll) ? OK : NOT_FOUND;
+                }
+            });
     }
 
     @Override
     protected Set<String> responseParams() {
-        return RESPONSE_PARAMETERS;
+        return Settings.FORMAT_PARAMS;
     }
 
 }

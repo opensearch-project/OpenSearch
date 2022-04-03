@@ -64,7 +64,6 @@ import java.util.regex.Pattern;
 /**
  * A wrapper around gradle's Exec task to capture output and log on error.
  */
-@SuppressWarnings("unchecked")
 public class LoggedExec extends Exec implements FileSystemOperationsAware {
 
     private static final Logger LOGGER = Logging.getLogger(LoggedExec.class);
@@ -82,7 +81,7 @@ public class LoggedExec extends Exec implements FileSystemOperationsAware {
             doLast(new Action<Task>() {
                 @Override
                 public void execute(Task task) {
-                    if (LoggedExec.this.getExecResult().getExitValue() != 0) {
+                    if (LoggedExec.this.getExecutionResult().get().getExitValue() != 0) {
                         try {
                             LoggedExec.this.getLogger().error("Output for " + LoggedExec.this.getExecutable() + ":");
                             outputLogger.accept(LoggedExec.this.getLogger());
@@ -94,7 +93,7 @@ public class LoggedExec extends Exec implements FileSystemOperationsAware {
                                 "Process '%s %s' finished with non-zero exit value %d",
                                 LoggedExec.this.getExecutable(),
                                 LoggedExec.this.getArgs(),
-                                LoggedExec.this.getExecResult().getExitValue()
+                                LoggedExec.this.getExecutionResult().get().getExitValue()
                             )
                         );
                     }

@@ -43,51 +43,12 @@ public final class Uid {
     public static final char DELIMITER = '#';
     public static final byte DELIMITER_BYTE = 0x23;
 
-    private final String type;
-
-    private final String id;
-
-    public Uid(String type, String id) {
-        this.type = type;
-        this.id = id;
-    }
-
-    public String type() {
-        return type;
-    }
-
-    public String id() {
-        return id;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        Uid uid = (Uid) o;
-
-        if (id != null ? !id.equals(uid.id) : uid.id != null) return false;
-        if (type != null ? !type.equals(uid.type) : uid.type != null) return false;
-
-        return true;
-    }
-
-    @Override
-    public int hashCode() {
-        int result = type != null ? type.hashCode() : 0;
-        result = 31 * result + (id != null ? id.hashCode() : 0);
-        return result;
-    }
-
-    @Override
-    public String toString() {
-        return type + "#" + id;
-    }
-
     private static final int UTF8 = 0xff;
     private static final int NUMERIC = 0xfe;
     private static final int BASE64_ESCAPE = 0xfd;
+
+    // non-instantiable
+    private Uid() {}
 
     static boolean isURLBase64WithoutPadding(String id) {
         // We are not lenient about padding chars ('=') otherwise
@@ -110,9 +71,22 @@ public final class Uid {
                 // The last 3 symbols (18 bits) are encoding 2 bytes (16 bits)
                 // so the last symbol only actually uses 16-12=4 bits and can only take 16 values
                 last = id.charAt(length - 1);
-                if (last != 'A' && last != 'E' && last != 'I' && last != 'M' && last != 'Q'&& last != 'U'&& last != 'Y'
-                    && last != 'c'&& last != 'g'&& last != 'k' && last != 'o' && last != 's' && last != 'w'
-                    && last != '0' && last != '4' && last != '8') {
+                if (last != 'A'
+                    && last != 'E'
+                    && last != 'I'
+                    && last != 'M'
+                    && last != 'Q'
+                    && last != 'U'
+                    && last != 'Y'
+                    && last != 'c'
+                    && last != 'g'
+                    && last != 'k'
+                    && last != 'o'
+                    && last != 's'
+                    && last != 'w'
+                    && last != '0'
+                    && last != '4'
+                    && last != '8') {
                     return false;
                 }
                 break;
@@ -122,11 +96,7 @@ public final class Uid {
         }
         for (int i = 0; i < length; ++i) {
             final char c = id.charAt(i);
-            final boolean allowed =
-                (c >= '0' && c <= '9') ||
-                    (c >= 'A' && c <= 'Z') ||
-                    (c >= 'a' && c <= 'z') ||
-                    c == '-' || c == '_';
+            final boolean allowed = (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '-' || c == '_';
             if (allowed == false) {
                 return false;
             }
@@ -157,7 +127,7 @@ public final class Uid {
             } else {
                 b2 = id.charAt(i + 1) - '0';
             }
-            b[1 + i/2] = (byte) ((b1 << 4) | b2);
+            b[1 + i / 2] = (byte) ((b1 << 4) | b2);
         }
         return new BytesRef(b);
     }

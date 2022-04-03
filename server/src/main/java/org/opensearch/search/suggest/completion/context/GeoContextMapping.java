@@ -227,7 +227,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                     if (field instanceof StringField) {
                         spare.resetFromString(field.stringValue());
                         geohashes.add(spare.geohash());
-                    }  else if (field instanceof LatLonPoint || field instanceof LatLonDocValuesField) {
+                    } else if (field instanceof LatLonPoint || field instanceof LatLonDocValuesField) {
                         spare.resetFromIndexableField(field);
                         geohashes.add(spare.geohash());
                     }
@@ -287,7 +287,8 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
             if (queryContext.getNeighbours().isEmpty() && geoHash.length() == this.precision) {
                 addNeighbors(geoHash, locations);
             } else if (queryContext.getNeighbours().isEmpty() == false) {
-                queryContext.getNeighbours().stream()
+                queryContext.getNeighbours()
+                    .stream()
                     .filter(neighbourPrecision -> neighbourPrecision < geoHash.length())
                     .forEach(neighbourPrecision -> {
                         String truncatedGeoHash = geoHash.substring(0, neighbourPrecision);
@@ -298,7 +299,8 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
             internalQueryContextList.addAll(
                 locations.stream()
                     .map(location -> new InternalQueryContext(location, queryContext.getBoost(), location.length() < this.precision))
-                    .collect(Collectors.toList()));
+                    .collect(Collectors.toList())
+            );
         }
         return internalQueryContextList;
     }
@@ -309,21 +311,35 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
             MappedFieldType mappedFieldType = fieldResolver.apply(fieldName);
             if (mappedFieldType == null) {
                 if (indexVersionCreated.before(LegacyESVersion.V_7_0_0)) {
-                    deprecationLogger.deprecate("geo_context_mapping",
-                        "field [{}] referenced in context [{}] is not defined in the mapping", fieldName, name);
+                    deprecationLogger.deprecate(
+                        "geo_context_mapping",
+                        "field [{}] referenced in context [{}] is not defined in the mapping",
+                        fieldName,
+                        name
+                    );
                 } else {
                     throw new OpenSearchParseException(
-                        "field [{}] referenced in context [{}] is not defined in the mapping", fieldName, name);
+                        "field [{}] referenced in context [{}] is not defined in the mapping",
+                        fieldName,
+                        name
+                    );
                 }
             } else if (GeoPointFieldMapper.CONTENT_TYPE.equals(mappedFieldType.typeName()) == false) {
                 if (indexVersionCreated.before(LegacyESVersion.V_7_0_0)) {
-                    deprecationLogger.deprecate("geo_context_mapping",
+                    deprecationLogger.deprecate(
+                        "geo_context_mapping",
                         "field [{}] referenced in context [{}] must be mapped to geo_point, found [{}]",
-                        fieldName, name, mappedFieldType.typeName());
+                        fieldName,
+                        name,
+                        mappedFieldType.typeName()
+                    );
                 } else {
                     throw new OpenSearchParseException(
                         "field [{}] referenced in context [{}] must be mapped to geo_point, found [{}]",
-                        fieldName, name, mappedFieldType.typeName());
+                        fieldName,
+                        name,
+                        mappedFieldType.typeName()
+                    );
                 }
             }
         }
@@ -390,7 +406,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
             int level = GeoUtils.geoHashLevelsForPrecision(meters);
             // Ceiling precision: we might return more results
             if (GeoUtils.geoHashCellSize(level) < meters) {
-               level = Math.max(1, level - 1);
+                level = Math.max(1, level - 1);
             }
             return precision(level);
         }

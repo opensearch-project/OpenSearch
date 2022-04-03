@@ -47,15 +47,14 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
-                Request extends AbstractBulkIndexByScrollRequest<Request>,
-                Response extends BulkByScrollResponse>
-        extends AbstractAsyncBulkByScrollActionTestCase<Request, Response> {
+    Request extends AbstractBulkIndexByScrollRequest<Request>,
+    Response extends BulkByScrollResponse> extends AbstractAsyncBulkByScrollActionTestCase<Request, Response> {
 
     protected ScriptService scriptService;
 
@@ -66,8 +65,8 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
 
     @SuppressWarnings("unchecked")
     protected <T extends ActionRequest> T applyScript(Consumer<Map<String, Object>> scriptBody) {
-        IndexRequest index = new IndexRequest("index", "type", "1").source(singletonMap("foo", "bar"));
-        ScrollableHitSource.Hit doc = new ScrollableHitSource.BasicHit("test", "type", "id", 0);
+        IndexRequest index = new IndexRequest("index").id("1").source(singletonMap("foo", "bar"));
+        ScrollableHitSource.Hit doc = new ScrollableHitSource.BasicHit("test", "id", 0);
         UpdateScript.Factory factory = (params, ctx) -> new UpdateScript(Collections.emptyMap(), ctx) {
             @Override
             public void execute() {
@@ -78,11 +77,6 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
         AbstractAsyncBulkByScrollAction<Request, ?> action = action(scriptService, request().setScript(mockScript("")));
         RequestWrapper<?> result = action.buildScriptApplier().apply(AbstractAsyncBulkByScrollAction.wrap(index), doc);
         return (result != null) ? (T) result.self() : null;
-    }
-
-    public void testTypeDeprecation() {
-        applyScript((Map<String, Object> ctx) -> ctx.get("_type"));
-        assertWarnings("[types removal] Looking up doc types [_type] in scripts is deprecated.");
     }
 
     public void testScriptAddingJunkToCtxIsError() {
@@ -103,22 +97,17 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
         assertEquals("cat", index.sourceAsMap().get("bar"));
     }
 
-    public void testSetOpTypeNoop() throws Exception {
-        assertThat(task.getStatus().getNoops(), equalTo(0L));
-        assertNull(applyScript((Map<String, Object> ctx) -> ctx.put("op", OpType.NOOP.toString())));
-        assertThat(task.getStatus().getNoops(), equalTo(1L));
-    }
-
     public void testSetOpTypeDelete() throws Exception {
         DeleteRequest delete = applyScript((Map<String, Object> ctx) -> ctx.put("op", OpType.DELETE.toString()));
         assertThat(delete.index(), equalTo("index"));
-        assertThat(delete.type(), equalTo("type"));
         assertThat(delete.id(), equalTo("1"));
     }
 
     public void testSetOpTypeUnknown() throws Exception {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> applyScript((Map<String, Object> ctx) -> ctx.put("op", "unknown")));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> applyScript((Map<String, Object> ctx) -> ctx.put("op", "unknown"))
+        );
         assertThat(e.getMessage(), equalTo("Operation type [unknown] not allowed, only [noop, index, delete] are allowed"));
     }
 

@@ -37,7 +37,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
@@ -81,8 +81,11 @@ public class BestDocsDeferringCollectorTests extends AggregatorTestCase {
 
         final AtomicLong bytes = new AtomicLong(0);
 
-        BestDocsDeferringCollector collector = new BestDocsDeferringCollector(numDocs,
-            new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()), bytes::addAndGet);
+        BestDocsDeferringCollector collector = new BestDocsDeferringCollector(
+            numDocs,
+            new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
+            bytes::addAndGet
+        );
         Set<Integer> deferredCollectedDocIds = new HashSet<>();
         collector.setDeferredCollector(Collections.singleton(testCollector(deferredCollectedDocIds)));
         collector.preCollection();

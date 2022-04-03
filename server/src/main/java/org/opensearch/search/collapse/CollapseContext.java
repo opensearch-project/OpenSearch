@@ -48,9 +48,7 @@ public class CollapseContext {
     private final MappedFieldType fieldType;
     private final List<InnerHitBuilder> innerHits;
 
-    public CollapseContext(String fieldName,
-                           MappedFieldType fieldType,
-                           List<InnerHitBuilder> innerHits) {
+    public CollapseContext(String fieldName, MappedFieldType fieldType, List<InnerHitBuilder> innerHits) {
         this.fieldName = fieldName;
         this.fieldType = fieldType;
         this.innerHits = innerHits;
@@ -79,8 +77,7 @@ public class CollapseContext {
         } else if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
             return CollapsingTopDocsCollector.createNumeric(fieldName, fieldType, sort, topN);
         } else {
-            throw new IllegalStateException("unknown type for collapse field " + fieldName +
-                ", only keywords and numbers are accepted");
+            throw new IllegalStateException("unknown type for collapse field " + fieldName + ", only keywords and numbers are accepted");
         }
     }
 }

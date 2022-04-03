@@ -35,7 +35,6 @@ package org.opensearch.action.admin.indices.validate.query;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.test.AbstractSerializingTestCase;
-import org.opensearch.action.admin.indices.validate.query.QueryExplanation;
 
 import java.io.IOException;
 

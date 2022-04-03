@@ -73,8 +73,7 @@ class InjectionRequestProcessor extends AbstractProcessor {
             injectionPoints = e.getPartialValue();
         }
 
-        initializer.requestInjection(
-                injector, request.getInstance(), request.getSource(), injectionPoints);
+        initializer.requestInjection(injector, request.getInstance(), request.getSource(), injectionPoints);
         return true;
     }
 
@@ -114,8 +113,7 @@ class InjectionRequestProcessor extends AbstractProcessor {
                 errors.merge(e.getErrorMessages());
                 injectionPoints = e.getPartialValue();
             }
-            memberInjectors = injector.membersInjectorStore.getInjectors(
-                    injectionPoints, errorsForMember);
+            memberInjectors = injector.membersInjectorStore.getInjectors(injectionPoints, errorsForMember);
         }
 
         void injectMembers() {

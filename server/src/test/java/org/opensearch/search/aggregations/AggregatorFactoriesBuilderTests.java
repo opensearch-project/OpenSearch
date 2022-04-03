@@ -62,7 +62,7 @@ public class AggregatorFactoriesBuilderTests extends AbstractSerializingTestCase
         super.setUp();
 
         // register aggregations as NamedWriteable
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
         namedXContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
@@ -151,14 +151,14 @@ public class AggregatorFactoriesBuilderTests extends AbstractSerializingTestCase
         // just a couple of aggregations, sufficient for the purpose of this test
         final int randomAggregatorPoolSize = 4;
         switch (randomIntBetween(1, randomAggregatorPoolSize)) {
-        case 1:
-            return AggregationBuilders.avg(randomAlphaOfLengthBetween(3, 10)).field("foo");
-        case 2:
-            return AggregationBuilders.min(randomAlphaOfLengthBetween(3, 10)).field("foo");
-        case 3:
-            return AggregationBuilders.max(randomAlphaOfLengthBetween(3, 10)).field("foo");
-        case 4:
-            return AggregationBuilders.sum(randomAlphaOfLengthBetween(3, 10)).field("foo");
+            case 1:
+                return AggregationBuilders.avg(randomAlphaOfLengthBetween(3, 10)).field("foo");
+            case 2:
+                return AggregationBuilders.min(randomAlphaOfLengthBetween(3, 10)).field("foo");
+            case 3:
+                return AggregationBuilders.max(randomAlphaOfLengthBetween(3, 10)).field("foo");
+            case 4:
+                return AggregationBuilders.sum(randomAlphaOfLengthBetween(3, 10)).field("foo");
         }
 
         // never reached

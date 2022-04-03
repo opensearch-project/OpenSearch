@@ -36,9 +36,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
+import org.opensearch.OpenSearchParseException;
+import org.opensearch.action.support.master.MasterNodeRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.plugins.ActionPlugin;
@@ -50,6 +53,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -66,8 +70,11 @@ import java.util.stream.Collectors;
  */
 public abstract class BaseRestHandler implements RestHandler {
 
-    public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX =
-        Setting.boolSetting("rest.action.multi.allow_explicit_index", true, Property.NodeScope);
+    public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX = Setting.boolSetting(
+        "rest.action.multi.allow_explicit_index",
+        true,
+        Property.NodeScope
+    );
 
     private final LongAdder usageCount = new LongAdder();
     /**
@@ -75,13 +82,6 @@ public abstract class BaseRestHandler implements RestHandler {
      */
     @Deprecated
     protected Logger logger = LogManager.getLogger(getClass());
-
-    /**
-     * Parameter that controls whether certain REST apis should include type names in their requests or responses.
-     * Note: Support for this parameter will be removed after the transition period to typeless APIs.
-     */
-    public static final String INCLUDE_TYPE_NAME_PARAMETER = "include_type_name";
-    public static final boolean DEFAULT_INCLUDE_TYPE_NAME_POLICY = false;
 
     public final long getUsageCount() {
         return usageCount.sum();
@@ -102,8 +102,10 @@ public abstract class BaseRestHandler implements RestHandler {
 
         // validate unconsumed params, but we must exclude params used to format the response
         // use a sorted set so the unconsumed parameters appear in a reliable sorted order
-        final SortedSet<String> unconsumedParams =
-            request.unconsumedParams().stream().filter(p -> !responseParams().contains(p)).collect(Collectors.toCollection(TreeSet::new));
+        final SortedSet<String> unconsumedParams = request.unconsumedParams()
+            .stream()
+            .filter(p -> !responseParams().contains(p))
+            .collect(Collectors.toCollection(TreeSet::new));
 
         // validate the non-response params
         if (!unconsumedParams.isEmpty()) {
@@ -126,13 +128,11 @@ public abstract class BaseRestHandler implements RestHandler {
         final RestRequest request,
         final Set<String> invalids,
         final Set<String> candidates,
-        final String detail) {
-        StringBuilder message = new StringBuilder(String.format(
-            Locale.ROOT,
-            "request [%s] contains unrecognized %s%s: ",
-            request.path(),
-            detail,
-            invalids.size() > 1 ? "s" : ""));
+        final String detail
+    ) {
+        StringBuilder message = new StringBuilder(
+            String.format(Locale.ROOT, "request [%s] contains unrecognized %s%s: ", request.path(), detail, invalids.size() > 1 ? "s" : "")
+        );
         boolean first = true;
         for (final String invalid : invalids) {
             final LevenshteinDistance ld = new LevenshteinDistance();
@@ -174,8 +174,7 @@ public abstract class BaseRestHandler implements RestHandler {
      * the request against a channel.
      */
     @FunctionalInterface
-    protected interface RestChannelConsumer extends CheckedConsumer<RestChannel, Exception> {
-    }
+    protected interface RestChannelConsumer extends CheckedConsumer<RestChannel, Exception> {}
 
     /**
      * Prepare the request for execution. Implementations should consume all request params before
@@ -204,12 +203,40 @@ public abstract class BaseRestHandler implements RestHandler {
         return Collections.emptySet();
     }
 
+    /**
+     * Parse the deprecated request parameter 'master_timeout', and add deprecated log if the parameter is used.
+     * It also validates whether the two parameters 'master_timeout' and 'cluster_manager_timeout' are not assigned together.
+     * The method is temporarily added in 2.0 duing applying inclusive language. Remove the method along with MASTER_ROLE.
+     * @param mnr the action request
+     * @param request the REST request to handle
+     * @param logger the logger that logs deprecation notices
+     * @param logMsgKeyPrefix the key prefix of a deprecation message to avoid duplicate messages.
+     */
+    public static void parseDeprecatedMasterTimeoutParameter(
+        MasterNodeRequest mnr,
+        RestRequest request,
+        DeprecationLogger logger,
+        String logMsgKeyPrefix
+    ) {
+        final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
+            "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
+        final String DUPLICATE_PARAMETER_ERROR_MESSAGE =
+            "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
+        if (request.hasParam("master_timeout")) {
+            logger.deprecate(logMsgKeyPrefix + "_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+            if (request.hasParam("cluster_manager_timeout")) {
+                throw new OpenSearchParseException(DUPLICATE_PARAMETER_ERROR_MESSAGE);
+            }
+            mnr.masterNodeTimeout(request.paramAsTime("master_timeout", mnr.masterNodeTimeout()));
+        }
+    }
+
     public static class Wrapper extends BaseRestHandler {
 
         protected final BaseRestHandler delegate;
 
         public Wrapper(BaseRestHandler delegate) {
-            this.delegate = delegate;
+            this.delegate = Objects.requireNonNull(delegate, "BaseRestHandler delegate can not be null");
         }
 
         @Override
@@ -255,6 +282,11 @@ public abstract class BaseRestHandler implements RestHandler {
         @Override
         public boolean allowsUnsafeBuffers() {
             return delegate.allowsUnsafeBuffers();
+        }
+
+        @Override
+        public boolean allowSystemIndexAccessByDefault() {
+            return delegate.allowSystemIndexAccessByDefault();
         }
     }
 }

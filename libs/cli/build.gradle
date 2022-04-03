@@ -32,7 +32,7 @@ apply plugin: 'nebula.optional-base'
 apply plugin: 'opensearch.publish'
 
 dependencies {
-  api 'net.sf.jopt-simple:jopt-simple:5.0.2'
+  api 'net.sf.jopt-simple:jopt-simple:5.0.4'
   api project(':libs:opensearch-core')
 }
 

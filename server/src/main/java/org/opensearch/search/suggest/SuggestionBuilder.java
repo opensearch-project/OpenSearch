@@ -124,7 +124,6 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
 
     protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
-
     /**
      * Same as in {@link SuggestBuilder#setGlobalText(String)}, but in the suggestion scope.
      */
@@ -181,7 +180,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
     @SuppressWarnings("unchecked")
     public T analyzer(String analyzer) {
         this.analyzer = analyzer;
-        return (T)this;
+        return (T) this;
     }
 
     /**
@@ -200,7 +199,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
             throw new IllegalArgumentException("size must be positive");
         }
         this.size = size;
-        return (T)this;
+        return (T) this;
     }
 
     /**
@@ -225,7 +224,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
     @SuppressWarnings("unchecked")
     public T shardSize(Integer shardSize) {
         this.shardSize = shardSize;
-        return (T)this;
+        return (T) this;
     }
 
     /**
@@ -365,7 +364,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
     }
 
     private String getSuggesterName() {
-        //default impl returns the same as writeable name, but we keep the distinction between the two just to make sure
+        // default impl returns the same as writeable name, but we keep the distinction between the two just to make sure
         return getWriteableName();
     }
 
@@ -379,14 +378,14 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
         }
         @SuppressWarnings("unchecked")
         T other = (T) obj;
-        return Objects.equals(text, other.text()) &&
-               Objects.equals(prefix, other.prefix()) &&
-               Objects.equals(regex, other.regex()) &&
-               Objects.equals(field, other.field()) &&
-               Objects.equals(analyzer, other.analyzer()) &&
-               Objects.equals(size, other.size()) &&
-               Objects.equals(shardSize, other.shardSize()) &&
-               doEquals(other);
+        return Objects.equals(text, other.text())
+            && Objects.equals(prefix, other.prefix())
+            && Objects.equals(regex, other.regex())
+            && Objects.equals(field, other.field())
+            && Objects.equals(analyzer, other.analyzer())
+            && Objects.equals(size, other.size())
+            && Objects.equals(shardSize, other.shardSize())
+            && doEquals(other);
     }
 
     /**

@@ -51,20 +51,24 @@ public class SimulateIndexTemplateResponse {
     private static final ParseField INDEX_PATTERNS = new ParseField("index_patterns");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<SimulateIndexTemplateResponse, Void> PARSER =
-        new ConstructingObjectParser<>("simulate_index_templates_response", false,
-            a -> new SimulateIndexTemplateResponse(
-                a[0] != null ? (Template) a[0] : null,
-                a[1] != null ?
-                    ((List<IndexTemplateAndPatterns>) a[1]).stream()
-                        .collect(Collectors.toMap(IndexTemplateAndPatterns::name, IndexTemplateAndPatterns::indexPatterns)) : null
-            )
-        );
+    private static final ConstructingObjectParser<SimulateIndexTemplateResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "simulate_index_templates_response",
+        false,
+        a -> new SimulateIndexTemplateResponse(
+            a[0] != null ? (Template) a[0] : null,
+            a[1] != null
+                ? ((List<IndexTemplateAndPatterns>) a[1]).stream()
+                    .collect(Collectors.toMap(IndexTemplateAndPatterns::name, IndexTemplateAndPatterns::indexPatterns))
+                : null
+        )
+    );
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<IndexTemplateAndPatterns, Void> INNER_PARSER =
-        new ConstructingObjectParser<>("index_template_and_patterns", false,
-            a -> new IndexTemplateAndPatterns((String) a[0], (List<String>) a[1]));
+    private static final ConstructingObjectParser<IndexTemplateAndPatterns, Void> INNER_PARSER = new ConstructingObjectParser<>(
+        "index_template_and_patterns",
+        false,
+        a -> new IndexTemplateAndPatterns((String) a[0], (List<String>) a[1])
+    );
 
     private static class IndexTemplateAndPatterns {
         String name;
@@ -136,7 +140,11 @@ public class SimulateIndexTemplateResponse {
 
     @Override
     public String toString() {
-        return "SimulateIndexTemplateResponse{" + "resolved template=" + resolvedTemplate + ", overlapping templates="
-            + String.join("|", overlappingTemplates.keySet()) + "}";
+        return "SimulateIndexTemplateResponse{"
+            + "resolved template="
+            + resolvedTemplate
+            + ", overlapping templates="
+            + String.join("|", overlappingTemplates.keySet())
+            + "}";
     }
 }

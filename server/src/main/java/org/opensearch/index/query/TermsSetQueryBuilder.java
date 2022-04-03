@@ -34,8 +34,8 @@ package org.opensearch.index.query;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.sandbox.search.CoveringQuery;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.CoveringQuery;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LongValues;
@@ -190,15 +190,19 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
                 if (TERMS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     values = TermsQueryBuilder.parseValues(parser);
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] query does not support ["
-                            + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[" + NAME + "] query does not support [" + currentFieldName + "]"
+                    );
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (MINIMUM_SHOULD_MATCH_SCRIPT.match(currentFieldName, parser.getDeprecationHandler())) {
                     minimumShouldMatchScript = Script.parse(parser);
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] query does not support ["
-                            + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[" + NAME + "] query does not support [" + currentFieldName + "]"
+                    );
                 }
             } else if (token.isValue()) {
                 if (MINIMUM_SHOULD_MATCH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -208,12 +212,16 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
                 } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] query does not support ["
-                            + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[" + NAME + "] query does not support [" + currentFieldName + "]"
+                    );
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] unknown token [" + token +
-                        "] after [" + currentFieldName + "]");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "[" + NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]"
+                );
             }
         }
 
@@ -222,8 +230,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
             throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] unknown token [" + token + "]");
         }
 
-        TermsSetQueryBuilder queryBuilder = new TermsSetQueryBuilder(fieldName, values)
-                .queryName(queryName).boost(boost);
+        TermsSetQueryBuilder queryBuilder = new TermsSetQueryBuilder(fieldName, values).queryName(queryName).boost(boost);
         if (minimumShouldMatchField != null) {
             queryBuilder.setMinimumShouldMatchField(minimumShouldMatchField);
         }
@@ -275,8 +282,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
             IndexNumericFieldData fieldData = context.getForField(msmFieldType);
             longValuesSource = new FieldValuesSource(fieldData);
         } else if (minimumShouldMatchScript != null) {
-            TermsSetQueryScript.Factory factory = context.compile(minimumShouldMatchScript,
-                TermsSetQueryScript.CONTEXT);
+            TermsSetQueryScript.Factory factory = context.compile(minimumShouldMatchScript, TermsSetQueryScript.CONTEXT);
             Map<String, Object> params = new HashMap<>();
             params.putAll(minimumShouldMatchScript.getParams());
             params.put("num_terms", values.size());

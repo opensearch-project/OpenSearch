@@ -41,7 +41,6 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.script.StoredScriptSource;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -49,8 +48,13 @@ import java.util.Collections;
 public class PutStoredScriptRequestTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
-        PutStoredScriptRequest storedScriptRequest = new PutStoredScriptRequest("bar", "context", new BytesArray("{}"), XContentType.JSON,
-                new StoredScriptSource("foo", "bar", Collections.emptyMap()));
+        PutStoredScriptRequest storedScriptRequest = new PutStoredScriptRequest(
+            "bar",
+            "context",
+            new BytesArray("{}"),
+            XContentType.JSON,
+            new StoredScriptSource("foo", "bar", Collections.emptyMap())
+        );
 
         assertEquals(XContentType.JSON, storedScriptRequest.xContentType());
         try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -69,10 +73,7 @@ public class PutStoredScriptRequestTests extends OpenSearchTestCase {
         XContentType xContentType = randomFrom(XContentType.values());
         XContentBuilder builder = XContentBuilder.builder(xContentType.xContent());
         builder.startObject();
-        builder.startObject("script")
-            .field("lang", "painless")
-            .field("source", "Math.log(_score * 2) + params.multiplier")
-            .endObject();
+        builder.startObject("script").field("lang", "painless").field("source", "Math.log(_score * 2) + params.multiplier").endObject();
         builder.endObject();
 
         BytesReference expectedRequestBody = BytesReference.bytes(builder);

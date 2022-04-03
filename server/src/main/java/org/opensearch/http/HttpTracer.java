@@ -78,8 +78,17 @@ class HttpTracer {
     @Nullable
     HttpTracer maybeTraceRequest(RestRequest restRequest, @Nullable Exception e) {
         if (logger.isTraceEnabled() && TransportService.shouldTraceAction(restRequest.uri(), tracerLogInclude, tracerLogExclude)) {
-            logger.trace(new ParameterizedMessage("[{}][{}][{}][{}] received request from [{}]", restRequest.getRequestId(),
-                restRequest.header(Task.X_OPAQUE_ID), restRequest.method(), restRequest.uri(), restRequest.getHttpChannel()), e);
+            logger.trace(
+                new ParameterizedMessage(
+                    "[{}][{}][{}][{}] received request from [{}]",
+                    restRequest.getRequestId(),
+                    restRequest.header(Task.X_OPAQUE_ID),
+                    restRequest.method(),
+                    restRequest.uri(),
+                    restRequest.getHttpChannel()
+                ),
+                e
+            );
             return this;
         }
         return null;
@@ -95,10 +104,26 @@ class HttpTracer {
      * @param requestId     Request id as returned by {@link RestRequest#getRequestId()}
      * @param success       Whether the response was successfully sent
      */
-    void traceResponse(RestResponse restResponse, HttpChannel httpChannel, String contentLength, String opaqueHeader, long requestId,
-                       boolean success) {
-        logger.trace(new ParameterizedMessage("[{}][{}][{}][{}][{}] sent response to [{}] success [{}]", requestId,
-            opaqueHeader, restResponse.status(), restResponse.contentType(), contentLength, httpChannel, success));
+    void traceResponse(
+        RestResponse restResponse,
+        HttpChannel httpChannel,
+        String contentLength,
+        String opaqueHeader,
+        long requestId,
+        boolean success
+    ) {
+        logger.trace(
+            new ParameterizedMessage(
+                "[{}][{}][{}][{}][{}] sent response to [{}] success [{}]",
+                requestId,
+                opaqueHeader,
+                restResponse.status(),
+                restResponse.contentType(),
+                contentLength,
+                httpChannel,
+                success
+            )
+        );
     }
 
     private void setTracerLogInclude(List<String> tracerLogInclude) {

@@ -39,9 +39,8 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.JoinHelper;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.discovery.DiscoverySettings;
+import org.opensearch.node.Node.DiscoverySettings;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.MockHttpTransport;
@@ -58,22 +57,16 @@ import java.util.function.Function;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-@OpenSearchIntegTestCase.ClusterScope(
-        scope = OpenSearchIntegTestCase.Scope.TEST,
-        numDataNodes = 1,
-        numClientNodes = 0,
-        supportsDedicatedMasters = false,
-        autoManageMasterNodes = false)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false, autoManageMasterNodes = false)
 public class SingleNodeDiscoveryIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings
-                .builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("discovery.type", "single-node")
-                .put("transport.port", getPortRange())
-                .build();
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put("discovery.type", "single-node")
+            .put("transport.port", getPortRange())
+            .build();
     }
 
     public void testSingleNodesDoNotDiscoverEachOther() throws IOException, InterruptedException {
@@ -82,81 +75,9 @@ public class SingleNodeDiscoveryIT extends OpenSearchIntegTestCase {
         final NodeConfigurationSource configurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
-                return Settings
-                        .builder()
-                        .put("discovery.type", "single-node")
-                        .put("transport.type", getTestTransportType())
-                        /*
-                         * We align the port ranges of the two as then with zen discovery these two
-                         * nodes would find each other.
-                         */
-                        .put("transport.port", port + "-" + (port + 5 - 1))
-                        .build();
-            }
-
-            @Override
-            public Path nodeConfigPath(int nodeOrdinal) {
-                return null;
-            }
-        };
-        try (InternalTestCluster other =
-                new InternalTestCluster(
-                        randomLong(),
-                        createTempDir(),
-                        false,
-                        false,
-                        1,
-                        1,
-                        internalCluster().getClusterName(),
-                        configurationSource,
-                        0,
-                        "other",
-                        Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
-                        Function.identity())) {
-            other.beforeTest(random(), 0);
-            final ClusterState first = internalCluster().getInstance(ClusterService.class).state();
-            final ClusterState second = other.getInstance(ClusterService.class).state();
-            assertThat(first.nodes().getSize(), equalTo(1));
-            assertThat(second.nodes().getSize(), equalTo(1));
-            assertThat(
-                    first.nodes().getMasterNodeId(),
-                    not(equalTo(second.nodes().getMasterNodeId())));
-            assertThat(
-                    first.metadata().clusterUUID(),
-                    not(equalTo(second.metadata().clusterUUID())));
-        }
-    }
-
-    public void testCannotJoinNodeWithSingleNodeDiscovery() throws Exception {
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test",
-                JoinHelper.class.getCanonicalName(),
-                Level.INFO,
-                "failed to join") {
-
-                @Override
-                public boolean innerMatch(final LogEvent event) {
-                    return event.getThrown() != null
-                        && event.getThrown().getClass() == RemoteTransportException.class
-                        && event.getThrown().getCause() != null
-                        && event.getThrown().getCause().getClass() == IllegalStateException.class
-                        && event.getThrown().getCause().getMessage().contains(
-                            "cannot join node with [discovery.type] set to [single-node]");
-                }
-            });
-        final TransportService service = internalCluster().getInstance(TransportService.class);
-        final int port = service.boundAddress().publishAddress().getPort();
-        final NodeConfigurationSource configurationSource = new NodeConfigurationSource() {
-            @Override
-            public Settings nodeSettings(int nodeOrdinal) {
-                return Settings
-                    .builder()
-                    .put("discovery.type", "zen")
+                return Settings.builder()
+                    .put("discovery.type", "single-node")
                     .put("transport.type", getTestTransportType())
-                    .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s")
                     /*
                      * We align the port ranges of the two as then with zen discovery these two
                      * nodes would find each other.
@@ -170,31 +91,93 @@ public class SingleNodeDiscoveryIT extends OpenSearchIntegTestCase {
                 return null;
             }
         };
-        try (InternalTestCluster other =
-                 new InternalTestCluster(
-                     randomLong(),
-                     createTempDir(),
-                     false,
-                     false,
-                     1,
-                     1,
-                     internalCluster().getClusterName(),
-                     configurationSource,
-                     0,
-                     "other",
-                     Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
-                     Function.identity())) {
+        try (
+            InternalTestCluster other = new InternalTestCluster(
+                randomLong(),
+                createTempDir(),
+                false,
+                false,
+                1,
+                1,
+                internalCluster().getClusterName(),
+                configurationSource,
+                0,
+                "other",
+                Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
+                Function.identity()
+            )
+        ) {
+            other.beforeTest(random());
+            final ClusterState first = internalCluster().getInstance(ClusterService.class).state();
+            final ClusterState second = other.getInstance(ClusterService.class).state();
+            assertThat(first.nodes().getSize(), equalTo(1));
+            assertThat(second.nodes().getSize(), equalTo(1));
+            assertThat(first.nodes().getMasterNodeId(), not(equalTo(second.nodes().getMasterNodeId())));
+            assertThat(first.metadata().clusterUUID(), not(equalTo(second.metadata().clusterUUID())));
+        }
+    }
 
-            Logger clusterLogger = LogManager.getLogger(JoinHelper.class);
-            Loggers.addAppender(clusterLogger, mockAppender);
-            try {
-                other.beforeTest(random(), 0);
+    public void testCannotJoinNodeWithSingleNodeDiscovery() throws Exception {
+        Logger clusterLogger = LogManager.getLogger(JoinHelper.class);
+        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(clusterLogger)) {
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation("test", JoinHelper.class.getCanonicalName(), Level.INFO, "failed to join") {
+
+                    @Override
+                    public boolean innerMatch(final LogEvent event) {
+                        return event.getThrown() != null
+                            && event.getThrown().getClass() == RemoteTransportException.class
+                            && event.getThrown().getCause() != null
+                            && event.getThrown().getCause().getClass() == IllegalStateException.class
+                            && event.getThrown()
+                                .getCause()
+                                .getMessage()
+                                .contains("cannot join node with [discovery.type] set to [single-node]");
+                    }
+                }
+            );
+            final TransportService service = internalCluster().getInstance(TransportService.class);
+            final int port = service.boundAddress().publishAddress().getPort();
+            final NodeConfigurationSource configurationSource = new NodeConfigurationSource() {
+                @Override
+                public Settings nodeSettings(int nodeOrdinal) {
+                    return Settings.builder()
+                        .put("discovery.type", "zen")
+                        .put("transport.type", getTestTransportType())
+                        .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s")
+                        /*
+                         * We align the port ranges of the two as then with zen discovery these two
+                         * nodes would find each other.
+                         */
+                        .put("transport.port", port + "-" + (port + 5 - 1))
+                        .build();
+                }
+
+                @Override
+                public Path nodeConfigPath(int nodeOrdinal) {
+                    return null;
+                }
+            };
+            try (
+                InternalTestCluster other = new InternalTestCluster(
+                    randomLong(),
+                    createTempDir(),
+                    false,
+                    false,
+                    1,
+                    1,
+                    internalCluster().getClusterName(),
+                    configurationSource,
+                    0,
+                    "other",
+                    Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
+                    Function.identity()
+                )
+            ) {
+                other.beforeTest(random());
                 final ClusterState first = internalCluster().getInstance(ClusterService.class).state();
                 assertThat(first.nodes().getSize(), equalTo(1));
                 assertBusy(() -> mockAppender.assertAllExpectationsMatched());
-            } finally {
-                Loggers.removeAppender(clusterLogger, mockAppender);
-                mockAppender.stop();
             }
         }
     }

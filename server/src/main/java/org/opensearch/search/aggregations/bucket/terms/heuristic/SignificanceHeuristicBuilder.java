@@ -25,7 +25,6 @@
  * under the License.
  */
 
-
 /*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
@@ -35,6 +34,4 @@ package org.opensearch.search.aggregations.bucket.terms.heuristic;
 
 import org.opensearch.common.xcontent.ToXContentFragment;
 
-
-public interface SignificanceHeuristicBuilder extends ToXContentFragment {
-}
+public interface SignificanceHeuristicBuilder extends ToXContentFragment {}

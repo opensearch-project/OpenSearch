@@ -63,15 +63,14 @@ public class ClusterGetSettingsResponse extends ActionResponse implements ToXCon
     static final String TRANSIENT_FIELD = "transient";
     static final String DEFAULTS_FIELD = "defaults";
 
-    private static final ConstructingObjectParser<ClusterGetSettingsResponse, Void> PARSER =
-        new ConstructingObjectParser<>(
-            "cluster_get_settings_response",
-            true,
-            a -> {
-                Settings defaultSettings = a[2] == null ? Settings.EMPTY : (Settings) a[2];
-                return new ClusterGetSettingsResponse((Settings) a[0], (Settings) a[1], defaultSettings);
-            }
-        );
+    private static final ConstructingObjectParser<ClusterGetSettingsResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "cluster_get_settings_response",
+        true,
+        a -> {
+            Settings defaultSettings = a[2] == null ? Settings.EMPTY : (Settings) a[2];
+            return new ClusterGetSettingsResponse((Settings) a[0], (Settings) a[1], defaultSettings);
+        }
+    );
     static {
         PARSER.declareObject(constructorArg(), (p, c) -> Settings.fromXContent(p), new ParseField(PERSISTENT_FIELD));
         PARSER.declareObject(constructorArg(), (p, c) -> Settings.fromXContent(p), new ParseField(TRANSIENT_FIELD));
@@ -162,9 +161,9 @@ public class ClusterGetSettingsResponse extends ActionResponse implements ToXCon
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ClusterGetSettingsResponse that = (ClusterGetSettingsResponse) o;
-        return Objects.equals(transientSettings, that.transientSettings) &&
-            Objects.equals(persistentSettings, that.persistentSettings) &&
-            Objects.equals(defaultSettings, that.defaultSettings);
+        return Objects.equals(transientSettings, that.transientSettings)
+            && Objects.equals(persistentSettings, that.persistentSettings)
+            && Objects.equals(defaultSettings, that.defaultSettings);
     }
 
     @Override

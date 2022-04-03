@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.cluster.settings;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
@@ -56,9 +55,10 @@ public class ClusterUpdateSettingsResponse extends AcknowledgedResponse {
     private static final ParseField TRANSIENT = new ParseField("transient");
 
     private static final ConstructingObjectParser<ClusterUpdateSettingsResponse, Void> PARSER = new ConstructingObjectParser<>(
-            "cluster_update_settings_response", true, args -> {
-                return new ClusterUpdateSettingsResponse((boolean) args[0], (Settings) args[1], (Settings) args[2]);
-            });
+        "cluster_update_settings_response",
+        true,
+        args -> { return new ClusterUpdateSettingsResponse((boolean) args[0], (Settings) args[1], (Settings) args[2]); }
+    );
     static {
         declareAcknowledgedField(PARSER);
         PARSER.declareObject(constructorArg(), (p, c) -> Settings.fromXContent(p), TRANSIENT);
@@ -69,15 +69,9 @@ public class ClusterUpdateSettingsResponse extends AcknowledgedResponse {
     final Settings persistentSettings;
 
     ClusterUpdateSettingsResponse(StreamInput in) throws IOException {
-        super(in, in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0));
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            transientSettings = Settings.readSettingsFromStream(in);
-            persistentSettings = Settings.readSettingsFromStream(in);
-        } else {
-            transientSettings = Settings.readSettingsFromStream(in);
-            persistentSettings = Settings.readSettingsFromStream(in);
-            acknowledged = in.readBoolean();
-        }
+        super(in);
+        transientSettings = Settings.readSettingsFromStream(in);
+        persistentSettings = Settings.readSettingsFromStream(in);
     }
 
     ClusterUpdateSettingsResponse(boolean acknowledged, Settings transientSettings, Settings persistentSettings) {
@@ -96,15 +90,9 @@ public class ClusterUpdateSettingsResponse extends AcknowledgedResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            super.writeTo(out);
-            Settings.writeSettingsToStream(transientSettings, out);
-            Settings.writeSettingsToStream(persistentSettings, out);
-        } else {
-            Settings.writeSettingsToStream(transientSettings, out);
-            Settings.writeSettingsToStream(persistentSettings, out);
-            out.writeBoolean(acknowledged);
-        }
+        super.writeTo(out);
+        Settings.writeSettingsToStream(transientSettings, out);
+        Settings.writeSettingsToStream(persistentSettings, out);
     }
 
     @Override
@@ -125,8 +113,7 @@ public class ClusterUpdateSettingsResponse extends AcknowledgedResponse {
     public boolean equals(Object o) {
         if (super.equals(o)) {
             ClusterUpdateSettingsResponse that = (ClusterUpdateSettingsResponse) o;
-            return Objects.equals(transientSettings, that.transientSettings) &&
-                    Objects.equals(persistentSettings, that.persistentSettings);
+            return Objects.equals(transientSettings, that.transientSettings) && Objects.equals(persistentSettings, that.persistentSettings);
         }
         return false;
     }

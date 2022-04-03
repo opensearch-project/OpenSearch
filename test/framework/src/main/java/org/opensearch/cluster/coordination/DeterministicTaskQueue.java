@@ -514,10 +514,7 @@ public class DeterministicTaskQueue {
 
         @Override
         public String toString() {
-            return "DeferredTask{" +
-                "executionTimeMillis=" + executionTimeMillis +
-                ", task=" + task +
-                '}';
+            return "DeferredTask{" + "executionTimeMillis=" + executionTimeMillis + ", task=" + task + '}';
         }
     }
 }

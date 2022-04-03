@@ -40,7 +40,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -98,19 +98,16 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         SearchHits searchHits = ((TopHits) result).getHits();
         assertEquals(3L, searchHits.getTotalHits().value);
         assertEquals("3", searchHits.getAt(0).getId());
-        assertEquals("type", searchHits.getAt(0).getType());
         assertEquals("2", searchHits.getAt(1).getId());
-        assertEquals("type", searchHits.getAt(1).getType());
         assertEquals("1", searchHits.getAt(2).getId());
-        assertEquals("type", searchHits.getAt(2).getType());
-        assertTrue(AggregationInspectionHelper.hasValue(((InternalTopHits)result)));
+        assertTrue(AggregationInspectionHelper.hasValue(((InternalTopHits) result)));
     }
 
     public void testNoResults() throws Exception {
         TopHits result = (TopHits) testCase(new MatchNoDocsQuery(), topHits("_name").sort("string", SortOrder.DESC));
         SearchHits searchHits = ((TopHits) result).getHits();
         assertEquals(0L, searchHits.getTotalHits().value);
-        assertFalse(AggregationInspectionHelper.hasValue(((InternalTopHits)result)));
+        assertFalse(AggregationInspectionHelper.hasValue(((InternalTopHits) result)));
     }
 
     /**
@@ -120,14 +117,13 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
     public void testInsideTerms() throws Exception {
         Aggregation result;
         if (randomBoolean()) {
-            result = testCase(new MatchAllDocsQuery(),
-                    terms("term").field("string")
-                        .subAggregation(topHits("top").sort("string", SortOrder.DESC)));
+            result = testCase(
+                new MatchAllDocsQuery(),
+                terms("term").field("string").subAggregation(topHits("top").sort("string", SortOrder.DESC))
+            );
         } else {
             Query query = new QueryParser("string", new KeywordAnalyzer()).parse("d^1000 c^100 b^10 a^1");
-            result = testCase(query,
-                    terms("term").field("string")
-                        .subAggregation(topHits("top")));
+            result = testCase(query, terms("term").field("string").subAggregation(topHits("top")));
         }
         Terms terms = (Terms) result;
 
@@ -191,9 +187,12 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
 
     public void testSetScorer() throws Exception {
         Directory directory = newDirectory();
-        IndexWriter w = new IndexWriter(directory, newIndexWriterConfig()
+        IndexWriter w = new IndexWriter(
+            directory,
+            newIndexWriterConfig()
                 // only merge adjacent segments
-                .setMergePolicy(newLogMergePolicy()));
+                .setMergePolicy(newLogMergePolicy())
+        );
         // first window (see BooleanScorer) has matches on one clause only
         for (int i = 0; i < 2048; ++i) {
             Document doc = new Document();
@@ -221,10 +220,9 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         w.close();
 
         IndexSearcher searcher = new IndexSearcher(reader);
-        Query query = new BooleanQuery.Builder()
-                .add(new TermQuery(new Term("string", "bar")), Occur.SHOULD)
-                .add(new TermQuery(new Term("string", "baz")), Occur.SHOULD)
-                .build();
+        Query query = new BooleanQuery.Builder().add(new TermQuery(new Term("string", "bar")), Occur.SHOULD)
+            .add(new TermQuery(new Term("string", "baz")), Occur.SHOULD)
+            .build();
         AggregationBuilder agg = AggregationBuilders.topHits("top_hits");
         TopHits result = searchAndReduce(searcher, query, agg, STRING_FIELD_TYPE);
         assertEquals(3, result.getHits().getTotalHits().value);

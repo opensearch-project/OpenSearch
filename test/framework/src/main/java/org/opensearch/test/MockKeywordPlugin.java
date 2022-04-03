@@ -31,7 +31,7 @@
 
 package org.opensearch.test;
 
-import org.apache.lucene.analysis.MockTokenizer;
+import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.opensearch.index.analysis.TokenizerFactory;
 import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.plugins.AnalysisPlugin;
@@ -52,7 +52,12 @@ public class MockKeywordPlugin extends Plugin implements AnalysisPlugin {
 
     @Override
     public Map<String, AnalysisModule.AnalysisProvider<TokenizerFactory>> getTokenizers() {
-        return singletonMap("keyword", (indexSettings, environment, name, settings) ->
-            TokenizerFactory.newFactory(name, () -> new MockTokenizer(MockTokenizer.KEYWORD, false)));
+        return singletonMap(
+            "keyword",
+            (indexSettings, environment, name, settings) -> TokenizerFactory.newFactory(
+                name,
+                () -> new MockTokenizer(MockTokenizer.KEYWORD, false)
+            )
+        );
     }
 }

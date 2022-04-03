@@ -57,8 +57,8 @@ import org.apache.lucene.util.RamUsageEstimator;
  * directly into the densely packed array using a byte value. The third level in
  * the tree holds {@link LightweightTreeNode} nodes that have few children
  * (typically much less than 256) and so use a dynamically-grown array to hold
- * child nodes as simple int primitives. These ints represent the final 3 bytes 
- * of a sequence and also hold a count of the number of times the entire sequence 
+ * child nodes as simple int primitives. These ints represent the final 3 bytes
+ * of a sequence and also hold a count of the number of times the entire sequence
  * path has been visited (count is a single byte).
  * <p>
  * The Trie grows indefinitely as more content is added and while theoretically
@@ -113,7 +113,7 @@ public class DuplicateByteSequenceSpotter {
      * Reset the sequence detection logic to avoid any continuation of the
      * immediately previous bytes. A minimum of dupSequenceSize bytes need to be
      * added before any new duplicate sequences will be reported.
-     * Hit counts are not reset by calling this method. 
+     * Hit counts are not reset by calling this method.
      */
     public void startNewSequence() {
         sequenceBufferFilled = false;
@@ -125,8 +125,8 @@ public class DuplicateByteSequenceSpotter {
      * @param b
      *            the next byte in a sequence
      * @return number of times this byte and the preceding 6 bytes have been
-     *         seen before as a sequence (only counts up to 255) 
-     * 
+     *         seen before as a sequence (only counts up to 255)
+     *
      */
     public short addByte(byte b) {
         // Add latest byte to circular buffer
@@ -155,7 +155,6 @@ public class DuplicateByteSequenceSpotter {
         // The final 3 bytes in the sequence are represented in an int
         // where the 4th byte will contain a hit count.
 
-        
         p = nextBufferPos(p);
         int sequence = 0xFF & sequenceBuffer[p];
         p = nextBufferPos(p);
@@ -188,7 +187,7 @@ public class DuplicateByteSequenceSpotter {
         public abstract TreeNode add(byte b, int depth);
 
         /**
-         * 
+         *
          * @param byteSequence
          *            a sequence of bytes encoded as an int
          * @return the number of times the full sequence has been seen (counting
@@ -245,7 +244,7 @@ public class DuplicateByteSequenceSpotter {
     // sacrifices speed for space.
     final class LightweightTreeNode extends TreeNode {
 
-        // An array dynamically resized but frequently only sized 1 as most 
+        // An array dynamically resized but frequently only sized 1 as most
         // sequences leading to end leaves are one-off paths.
         // It is scanned for matches sequentially and benchmarks showed
         // that sorting contents on insertion didn't improve performance.
@@ -261,10 +260,10 @@ public class DuplicateByteSequenceSpotter {
         public short add(int byteSequence) {
             if (children == null) {
                 // Create array adding new child with the byte sequence combined with hitcount of 1.
-                // Most nodes at this level we expect to have only 1 child so we start with the  
+                // Most nodes at this level we expect to have only 1 child so we start with the
                 // smallest possible child array.
                 children = new int[1];
-                bytesAllocated += RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + Integer.BYTES;                
+                bytesAllocated += RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + Integer.BYTES;
                 children[0] = byteSequence + 1;
                 return 1;
             }

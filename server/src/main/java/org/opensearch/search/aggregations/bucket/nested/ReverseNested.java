@@ -37,5 +37,4 @@ import org.opensearch.search.aggregations.bucket.SingleBucketAggregation;
 /**
  * A {@code reverse nested} aggregation. Defines a single bucket that holds all the parent documents for a specific nested path.
  */
-public interface ReverseNested extends SingleBucketAggregation {
-}
+public interface ReverseNested extends SingleBucketAggregation {}

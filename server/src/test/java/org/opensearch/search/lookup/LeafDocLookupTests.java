@@ -39,9 +39,8 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
-import static org.opensearch.search.lookup.LeafDocLookup.TYPES_DEPRECATION_MESSAGE;
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
-import static org.mockito.Matchers.anyObject;
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -56,20 +55,16 @@ public class LeafDocLookupTests extends OpenSearchTestCase {
 
         MappedFieldType fieldType = mock(MappedFieldType.class);
         when(fieldType.name()).thenReturn("field");
-        when(fieldType.valueForDisplay(anyObject())).then(returnsFirstArg());
+        when(fieldType.valueForDisplay(any())).then(returnsFirstArg());
 
         MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fieldType("_type")).thenReturn(fieldType);
         when(mapperService.fieldType("field")).thenReturn(fieldType);
         when(mapperService.fieldType("alias")).thenReturn(fieldType);
 
         docValues = mock(ScriptDocValues.class);
         IndexFieldData<?> fieldData = createFieldData(docValues);
 
-        docLookup = new LeafDocLookup(mapperService,
-            ignored -> fieldData,
-            new String[] { "type" },
-            null);
+        docLookup = new LeafDocLookup(mapperService, ignored -> fieldData, null);
     }
 
     public void testBasicLookup() {
@@ -82,19 +77,13 @@ public class LeafDocLookupTests extends OpenSearchTestCase {
         assertEquals(docValues, fetchedDocValues);
     }
 
-    public void testTypesDeprecation() {
-        ScriptDocValues<?> fetchedDocValues = docLookup.get("_type");
-        assertEquals(docValues, fetchedDocValues);
-        assertWarnings(TYPES_DEPRECATION_MESSAGE);
-    }
-
     private IndexFieldData<?> createFieldData(ScriptDocValues scriptDocValues) {
         LeafFieldData leafFieldData = mock(LeafFieldData.class);
         doReturn(scriptDocValues).when(leafFieldData).getScriptValues();
 
         IndexFieldData<?> fieldData = mock(IndexFieldData.class);
         when(fieldData.getFieldName()).thenReturn("field");
-        doReturn(leafFieldData).when(fieldData).load(anyObject());
+        doReturn(leafFieldData).when(fieldData).load(any());
 
         return fieldData;
     }

@@ -42,6 +42,7 @@ public class AnalysisSmartChineseFactoryTests extends AnalysisFactoryTestCase {
     public AnalysisSmartChineseFactoryTests() {
         super(new AnalysisSmartChinesePlugin());
     }
+
     @Override
     protected Map<String, Class<?>> getTokenizers() {
         Map<String, Class<?>> tokenizers = new HashMap<>(super.getTokenizers());

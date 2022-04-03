@@ -33,7 +33,6 @@
 package org.opensearch.cluster;
 
 import org.opensearch.Version;
-import org.opensearch.client.transport.TransportClient;
 import org.opensearch.cluster.ClusterState.FeatureAware;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -41,13 +40,11 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
-import org.opensearch.cluster.Diff;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.Optional;
 
 import static org.opensearch.test.VersionUtils.randomVersionBetween;
@@ -134,8 +131,11 @@ public class FeatureAwareTests extends OpenSearchTestCase {
             }
             {
                 final BytesStreamOutput out = new BytesStreamOutput();
-                final Version beforeVersion =
-                        randomVersionBetween(random(), VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion(version));
+                final Version beforeVersion = randomVersionBetween(
+                    random(),
+                    VersionUtils.getFirstVersion(),
+                    VersionUtils.getPreviousVersion(version)
+                );
                 out.setVersion(beforeVersion);
                 if (custom.getRequiredFeature().isPresent() && randomBoolean()) {
                     out.setFeatures(Collections.singleton(custom.getRequiredFeature().get()));
@@ -149,41 +149,21 @@ public class FeatureAwareTests extends OpenSearchTestCase {
         final Version version = VersionUtils.randomVersion(random());
         final Version afterVersion = randomVersionBetween(random(), version, Version.CURRENT);
         final Custom custom = new RequiredFeatureCustom(version);
-        {
-            // the feature is present and the client is not a transport client
-            final BytesStreamOutput out = new BytesStreamOutput();
-            out.setVersion(afterVersion);
-            assertTrue(custom.getRequiredFeature().isPresent());
-            out.setFeatures(Collections.singleton(custom.getRequiredFeature().get()));
-            assertTrue(FeatureAware.shouldSerialize(out, custom));
-        }
-        {
-            // the feature is present and the client is a transport client
-            final BytesStreamOutput out = new BytesStreamOutput();
-            out.setVersion(afterVersion);
-            assertTrue(custom.getRequiredFeature().isPresent());
-            out.setFeatures(new HashSet<>(Arrays.asList(custom.getRequiredFeature().get(), TransportClient.TRANSPORT_CLIENT_FEATURE)));
-            assertTrue(FeatureAware.shouldSerialize(out, custom));
-        }
+        // the feature is present
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(afterVersion);
+        assertTrue(custom.getRequiredFeature().isPresent());
+        out.setFeatures(Collections.singleton(custom.getRequiredFeature().get()));
+        assertTrue(FeatureAware.shouldSerialize(out, custom));
     }
 
     public void testMissingFeature() {
         final Version version = VersionUtils.randomVersion(random());
         final Version afterVersion = randomVersionBetween(random(), version, Version.CURRENT);
         final Custom custom = new RequiredFeatureCustom(version);
-        {
-            // the feature is missing but we should serialize it anyway because the client is not a transport client
-            final BytesStreamOutput out = new BytesStreamOutput();
-            out.setVersion(afterVersion);
-            assertTrue(FeatureAware.shouldSerialize(out, custom));
-        }
-        {
-            // the feature is missing and we should not serialize it because the client is a transport client
-            final BytesStreamOutput out = new BytesStreamOutput();
-            out.setVersion(afterVersion);
-            out.setFeatures(Collections.singleton(TransportClient.TRANSPORT_CLIENT_FEATURE));
-            assertFalse(FeatureAware.shouldSerialize(out, custom));
-        }
+        // the feature is missing
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(afterVersion);
+        assertTrue(FeatureAware.shouldSerialize(out, custom));
     }
-
 }

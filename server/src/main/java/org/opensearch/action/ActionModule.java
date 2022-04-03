@@ -140,9 +140,7 @@ import org.opensearch.action.admin.indices.exists.indices.TransportIndicesExists
 import org.opensearch.action.admin.indices.exists.types.TransportTypesExistsAction;
 import org.opensearch.action.admin.indices.exists.types.TypesExistsAction;
 import org.opensearch.action.admin.indices.flush.FlushAction;
-import org.opensearch.action.admin.indices.flush.SyncedFlushAction;
 import org.opensearch.action.admin.indices.flush.TransportFlushAction;
-import org.opensearch.action.admin.indices.flush.TransportSyncedFlushAction;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.opensearch.action.admin.indices.forcemerge.TransportForceMergeAction;
 import org.opensearch.action.admin.indices.get.GetIndexAction;
@@ -430,7 +428,6 @@ public class ActionModule extends AbstractModule {
 
     private static final Logger logger = LogManager.getLogger(ActionModule.class);
 
-    private final boolean transportClient;
     private final Settings settings;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final IndexScopedSettings indexScopedSettings;
@@ -446,11 +443,19 @@ public class ActionModule extends AbstractModule {
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ThreadPool threadPool;
 
-    public ActionModule(boolean transportClient, Settings settings, IndexNameExpressionResolver indexNameExpressionResolver,
-                        IndexScopedSettings indexScopedSettings, ClusterSettings clusterSettings, SettingsFilter settingsFilter,
-                        ThreadPool threadPool, List<ActionPlugin> actionPlugins, NodeClient nodeClient,
-                        CircuitBreakerService circuitBreakerService, UsageService usageService, SystemIndices systemIndices) {
-        this.transportClient = transportClient;
+    public ActionModule(
+        Settings settings,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        IndexScopedSettings indexScopedSettings,
+        ClusterSettings clusterSettings,
+        SettingsFilter settingsFilter,
+        ThreadPool threadPool,
+        List<ActionPlugin> actionPlugins,
+        NodeClient nodeClient,
+        CircuitBreakerService circuitBreakerService,
+        UsageService usageService,
+        SystemIndices systemIndices
+    ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indexScopedSettings = indexScopedSettings;
@@ -460,9 +465,7 @@ public class ActionModule extends AbstractModule {
         this.threadPool = threadPool;
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
-        autoCreateIndex = transportClient
-            ? null
-            : new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);
+        autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Set<RestHeaderDefinition> headers = Stream.concat(
             actionPlugins.stream().flatMap(p -> p.getRestHeaders().stream()),
@@ -480,17 +483,14 @@ public class ActionModule extends AbstractModule {
             }
         }
         mappingRequestValidators = new RequestValidators<>(
-            actionPlugins.stream().flatMap(p -> p.mappingRequestValidators().stream()).collect(Collectors.toList()));
+            actionPlugins.stream().flatMap(p -> p.mappingRequestValidators().stream()).collect(Collectors.toList())
+        );
         indicesAliasesRequestRequestValidators = new RequestValidators<>(
-                actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).collect(Collectors.toList()));
+            actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).collect(Collectors.toList())
+        );
 
-        if (transportClient) {
-            restController = null;
-        } else {
-            restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService);
-        }
+        restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService);
     }
-
 
     public Map<String, ActionHandler<?, ?>> getActions() {
         return actions;
@@ -508,8 +508,10 @@ public class ActionModule extends AbstractModule {
             }
 
             public <Request extends ActionRequest, Response extends ActionResponse> void register(
-                ActionType<Response> action, Class<? extends TransportAction<Request, Response>> transportAction,
-                Class<?>... supportTransportActions) {
+                ActionType<Response> action,
+                Class<? extends TransportAction<Request, Response>> transportAction,
+                Class<?>... supportTransportActions
+            ) {
                 register(new ActionHandler<>(action, transportAction, supportTransportActions));
             }
         }
@@ -561,8 +563,11 @@ public class ActionModule extends AbstractModule {
         actions.register(TypesExistsAction.INSTANCE, TransportTypesExistsAction.class);
         actions.register(AddIndexBlockAction.INSTANCE, TransportAddIndexBlockAction.class);
         actions.register(GetMappingsAction.INSTANCE, TransportGetMappingsAction.class);
-        actions.register(GetFieldMappingsAction.INSTANCE, TransportGetFieldMappingsAction.class,
-                TransportGetFieldMappingsIndexAction.class);
+        actions.register(
+            GetFieldMappingsAction.INSTANCE,
+            TransportGetFieldMappingsAction.class,
+            TransportGetFieldMappingsIndexAction.class
+        );
         actions.register(PutMappingAction.INSTANCE, TransportPutMappingAction.class);
         actions.register(AutoPutMappingAction.INSTANCE, TransportAutoPutMappingAction.class);
         actions.register(IndicesAliasesAction.INSTANCE, TransportIndicesAliasesAction.class);
@@ -582,7 +587,6 @@ public class ActionModule extends AbstractModule {
         actions.register(ValidateQueryAction.INSTANCE, TransportValidateQueryAction.class);
         actions.register(RefreshAction.INSTANCE, TransportRefreshAction.class);
         actions.register(FlushAction.INSTANCE, TransportFlushAction.class);
-        actions.register(SyncedFlushAction.INSTANCE, TransportSyncedFlushAction.class);
         actions.register(ForceMergeAction.INSTANCE, TransportForceMergeAction.class);
         actions.register(UpgradeAction.INSTANCE, TransportUpgradeAction.class);
         actions.register(UpgradeStatusAction.INSTANCE, TransportUpgradeStatusAction.class);
@@ -595,14 +599,15 @@ public class ActionModule extends AbstractModule {
         actions.register(IndexAction.INSTANCE, TransportIndexAction.class);
         actions.register(GetAction.INSTANCE, TransportGetAction.class);
         actions.register(TermVectorsAction.INSTANCE, TransportTermVectorsAction.class);
-        actions.register(MultiTermVectorsAction.INSTANCE, TransportMultiTermVectorsAction.class,
-                TransportShardMultiTermsVectorAction.class);
+        actions.register(
+            MultiTermVectorsAction.INSTANCE,
+            TransportMultiTermVectorsAction.class,
+            TransportShardMultiTermsVectorAction.class
+        );
         actions.register(DeleteAction.INSTANCE, TransportDeleteAction.class);
         actions.register(UpdateAction.INSTANCE, TransportUpdateAction.class);
-        actions.register(MultiGetAction.INSTANCE, TransportMultiGetAction.class,
-                TransportShardMultiGetAction.class);
-        actions.register(BulkAction.INSTANCE, TransportBulkAction.class,
-                TransportShardBulkAction.class);
+        actions.register(MultiGetAction.INSTANCE, TransportMultiGetAction.class, TransportShardMultiGetAction.class);
+        actions.register(BulkAction.INSTANCE, TransportBulkAction.class, TransportShardBulkAction.class);
         actions.register(SearchAction.INSTANCE, TransportSearchAction.class);
         actions.register(SearchScrollAction.INSTANCE, TransportSearchScrollAction.class);
         actions.register(MultiSearchAction.INSTANCE, TransportMultiSearchAction.class);
@@ -612,15 +617,18 @@ public class ActionModule extends AbstractModule {
         actions.register(NodesReloadSecureSettingsAction.INSTANCE, TransportNodesReloadSecureSettingsAction.class);
         actions.register(AutoCreateAction.INSTANCE, AutoCreateAction.TransportAction.class);
 
-        //Indexed scripts
+        // Indexed scripts
         actions.register(PutStoredScriptAction.INSTANCE, TransportPutStoredScriptAction.class);
         actions.register(GetStoredScriptAction.INSTANCE, TransportGetStoredScriptAction.class);
         actions.register(DeleteStoredScriptAction.INSTANCE, TransportDeleteStoredScriptAction.class);
         actions.register(GetScriptContextAction.INSTANCE, TransportGetScriptContextAction.class);
         actions.register(GetScriptLanguageAction.INSTANCE, TransportGetScriptLanguageAction.class);
 
-        actions.register(FieldCapabilitiesAction.INSTANCE, TransportFieldCapabilitiesAction.class,
-            TransportFieldCapabilitiesIndexAction.class);
+        actions.register(
+            FieldCapabilitiesAction.INSTANCE,
+            TransportFieldCapabilitiesAction.class,
+            TransportFieldCapabilitiesIndexAction.class
+        );
 
         actions.register(PutPipelineAction.INSTANCE, PutPipelineTransportAction.class);
         actions.register(GetPipelineAction.INSTANCE, GetPipelineTransportAction.class);
@@ -658,7 +666,8 @@ public class ActionModule extends AbstractModule {
 
     private ActionFilters setupActionFilters(List<ActionPlugin> actionPlugins) {
         return new ActionFilters(
-            Collections.unmodifiableSet(actionPlugins.stream().flatMap(p -> p.getActionFilters().stream()).collect(Collectors.toSet())));
+            Collections.unmodifiableSet(actionPlugins.stream().flatMap(p -> p.getActionFilters().stream()).collect(Collectors.toSet()))
+        );
     }
 
     public void initRestHandlers(Supplier<DiscoveryNodes> nodesInCluster) {
@@ -824,8 +833,15 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestSnapshotAction());
         registerHandler.accept(new RestTemplatesAction());
         for (ActionPlugin plugin : actionPlugins) {
-            for (RestHandler handler : plugin.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings,
-                    settingsFilter, indexNameExpressionResolver, nodesInCluster)) {
+            for (RestHandler handler : plugin.getRestHandlers(
+                settings,
+                restController,
+                clusterSettings,
+                indexScopedSettings,
+                settingsFilter,
+                indexNameExpressionResolver,
+                nodesInCluster
+            )) {
                 registerHandler.accept(handler);
             }
         }
@@ -836,25 +852,28 @@ public class ActionModule extends AbstractModule {
     protected void configure() {
         bind(ActionFilters.class).toInstance(actionFilters);
         bind(DestructiveOperations.class).toInstance(destructiveOperations);
-        bind(new TypeLiteral<RequestValidators<PutMappingRequest>>() {}).toInstance(mappingRequestValidators);
-        bind(new TypeLiteral<RequestValidators<IndicesAliasesRequest>>() {}).toInstance(indicesAliasesRequestRequestValidators);
+        bind(new TypeLiteral<RequestValidators<PutMappingRequest>>() {
+        }).toInstance(mappingRequestValidators);
+        bind(new TypeLiteral<RequestValidators<IndicesAliasesRequest>>() {
+        }).toInstance(indicesAliasesRequestRequestValidators);
 
-        if (false == transportClient) {
-            // Supporting classes only used when not a transport client
-            bind(AutoCreateIndex.class).toInstance(autoCreateIndex);
-            bind(TransportLivenessAction.class).asEagerSingleton();
+        // Supporting classes
+        bind(AutoCreateIndex.class).toInstance(autoCreateIndex);
+        bind(TransportLivenessAction.class).asEagerSingleton();
 
-            // register ActionType -> transportAction Map used by NodeClient
-            @SuppressWarnings("rawtypes")
-            MapBinder<ActionType, TransportAction> transportActionsBinder
-                    = MapBinder.newMapBinder(binder(), ActionType.class, TransportAction.class);
-            for (ActionHandler<?, ?> action : actions.values()) {
-                // bind the action as eager singleton, so the map binder one will reuse it
-                bind(action.getTransportAction()).asEagerSingleton();
-                transportActionsBinder.addBinding(action.getAction()).to(action.getTransportAction()).asEagerSingleton();
-                for (Class<?> supportAction : action.getSupportTransportActions()) {
-                    bind(supportAction).asEagerSingleton();
-                }
+        // register ActionType -> transportAction Map used by NodeClient
+        @SuppressWarnings("rawtypes")
+        MapBinder<ActionType, TransportAction> transportActionsBinder = MapBinder.newMapBinder(
+            binder(),
+            ActionType.class,
+            TransportAction.class
+        );
+        for (ActionHandler<?, ?> action : actions.values()) {
+            // bind the action as eager singleton, so the map binder one will reuse it
+            bind(action.getTransportAction()).asEagerSingleton();
+            transportActionsBinder.addBinding(action.getAction()).to(action.getTransportAction()).asEagerSingleton();
+            for (Class<?> supportAction : action.getSupportTransportActions()) {
+                bind(supportAction).asEagerSingleton();
             }
         }
     }

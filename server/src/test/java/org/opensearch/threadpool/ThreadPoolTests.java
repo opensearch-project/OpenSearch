@@ -107,14 +107,18 @@ public class ThreadPoolTests extends OpenSearchTestCase {
     public void testAssertCurrentMethodIsNotCalledRecursively() {
         expectThrows(AssertionError.class, () -> factorial(between(2, 10)));
         assertThat(factorial(1), equalTo(1)); // is not called recursively
-        assertThat(expectThrows(AssertionError.class, () -> factorial(between(2, 10))).getMessage(),
-            equalTo("org.opensearch.threadpool.ThreadPoolTests#factorial is called recursively"));
+        assertThat(
+            expectThrows(AssertionError.class, () -> factorial(between(2, 10))).getMessage(),
+            equalTo("org.opensearch.threadpool.ThreadPoolTests#factorial is called recursively")
+        );
         TestThreadPool threadPool = new TestThreadPool("test");
         assertThat(factorialForked(1, threadPool.generic()), equalTo(1));
         assertThat(factorialForked(10, threadPool.generic()), equalTo(3628800));
-        assertThat(expectThrows(AssertionError.class,
-            () -> factorialForked(between(2, 10), OpenSearchExecutors.newDirectExecutorService())).getMessage(),
-            equalTo("org.opensearch.threadpool.ThreadPoolTests#factorialForked is called recursively"));
+        assertThat(
+            expectThrows(AssertionError.class, () -> factorialForked(between(2, 10), OpenSearchExecutors.newDirectExecutorService()))
+                .getMessage(),
+            equalTo("org.opensearch.threadpool.ThreadPoolTests#factorialForked is called recursively")
+        );
         terminate(threadPool);
     }
 

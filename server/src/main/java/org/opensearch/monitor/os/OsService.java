@@ -52,9 +52,12 @@ public class OsService implements ReportingService<OsInfo> {
     private final OsInfo info;
     private final SingleObjectCache<OsStats> osStatsCache;
 
-    public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING =
-        Setting.timeSetting("monitor.os.refresh_interval", TimeValue.timeValueSeconds(1), TimeValue.timeValueSeconds(1),
-                Property.NodeScope);
+    public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING = Setting.timeSetting(
+        "monitor.os.refresh_interval",
+        TimeValue.timeValueSeconds(1),
+        TimeValue.timeValueSeconds(1),
+        Property.NodeScope
+    );
 
     public OsService(Settings settings) throws IOException {
         this.probe = OsProbe.getInstance();

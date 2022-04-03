@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.cluster.snapshots.status;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -70,18 +69,20 @@ public class SnapshotStats implements Writeable, ToXContentObject {
         incrementalSize = in.readVLong();
         processedSize = in.readVLong();
 
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            totalFileCount = in.readVInt();
-            totalSize = in.readVLong();
-        } else {
-            totalFileCount = incrementalFileCount;
-            totalSize = incrementalSize;
-        }
+        totalFileCount = in.readVInt();
+        totalSize = in.readVLong();
     }
 
-    SnapshotStats(long startTime, long time,
-                  int incrementalFileCount, int totalFileCount, int processedFileCount,
-                  long incrementalSize, long totalSize, long processedSize) {
+    SnapshotStats(
+        long startTime,
+        long time,
+        int incrementalFileCount,
+        int totalFileCount,
+        int processedFileCount,
+        long incrementalSize,
+        long totalSize,
+        long processedSize
+    ) {
         this.startTime = startTime;
         this.time = time;
         assert time >= 0 : "Tried to initialize snapshot stats with negative total time [" + time + "]";
@@ -160,10 +161,8 @@ public class SnapshotStats implements Writeable, ToXContentObject {
         out.writeVLong(incrementalSize);
         out.writeVLong(processedSize);
 
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            out.writeVInt(totalFileCount);
-            out.writeVLong(totalSize);
-        }
+        out.writeVInt(totalFileCount);
+        out.writeVLong(totalSize);
     }
 
     static final class Fields {
@@ -306,8 +305,16 @@ public class SnapshotStats implements Writeable, ToXContentObject {
                 }
             }
         }
-        return new SnapshotStats(startTime, time, incrementalFileCount, totalFileCount, processedFileCount, incrementalSize, totalSize,
-            processedSize);
+        return new SnapshotStats(
+            startTime,
+            time,
+            incrementalFileCount,
+            totalFileCount,
+            processedFileCount,
+            incrementalSize,
+            totalSize,
+            processedSize
+        );
     }
 
     /**
@@ -338,8 +345,13 @@ public class SnapshotStats implements Writeable, ToXContentObject {
             // Update duration
             time = endTime - startTime;
         }
-        assert time >= 0
-            : "Update with [" + Strings.toString(stats) + "][" + updateTimestamps + "] resulted in negative total time [" + time + "]";
+        assert time >= 0 : "Update with ["
+            + Strings.toString(stats)
+            + "]["
+            + updateTimestamps
+            + "] resulted in negative total time ["
+            + time
+            + "]";
     }
 
     @Override

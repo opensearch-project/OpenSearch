@@ -94,6 +94,5 @@ public abstract class SymbolicLinkPreservingUntarTransform implements UnpackTran
                 entry = tar.getNextTarEntry();
             }
         }
-
     }
 }

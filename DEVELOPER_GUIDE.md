@@ -3,7 +3,11 @@
     - [Git Clone OpenSearch Repo](#git-clone-opensearch-repo)
     - [Install Prerequisites](#install-prerequisites)
       - [JDK 11](#jdk-11)
+      - [JDK 14](#jdk-14)
+      - [Runtime JDK](#runtime-jdk)
+      - [Windows](#windows)
       - [Docker](#docker)
+    - [Build](#build)
     - [Run Tests](#run-tests)
     - [Run OpenSearch](#run-opensearch)
   - [Use an Editor](#use-an-editor)
@@ -29,9 +33,21 @@
       - [runtimeOnly](#runtimeonly)
       - [compileOnly](#compileonly)
       - [testImplementation](#testimplementation)
+    - [Gradle Plugins](#gradle-plugins)
+      - [Distribution Download Plugin](#distribution-download-plugin)
   - [Misc](#misc)
     - [git-secrets](#git-secrets)
+      - [Installation](#installation)
+      - [Configuration](#configuration)
+  - [Components](#components)
+    - [Build libraries & interfaces](#build-libraries--interfaces)
+    - [Clients & Libraries](#clients--libraries)
+    - [Plugins](#plugins-1)
+    - [Indexing & search](#indexing--search)
+    - [Aggregations](#aggregations)
+    - [Distributed Framework](#distributed-framework)
   - [Submitting Changes](#submitting-changes)
+  - [Backports](#backports)
 
 # Developer Guide
 
@@ -47,15 +63,64 @@ Fork [opensearch-project/OpenSearch](https://github.com/opensearch-project/OpenS
 
 #### JDK 11
 
-OpenSearch builds using Java 11 at a minimum. This means you must have a JDK 11 installed with the environment variable `JAVA_HOME` referencing the path to Java home for your JDK 11 installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-11`.
+OpenSearch builds using Java 11 at a minimum, using the Adoptium distribution. This means you must have a JDK 11 installed with the environment variable `JAVA_HOME` referencing the path to Java home for your JDK 11 installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-11`. This is configured in [buildSrc/build.gradle](buildSrc/build.gradle) and [distribution/tools/java-version-checker/build.gradle](distribution/tools/java-version-checker/build.gradle).
 
-By default, tests use the same runtime as `JAVA_HOME`. However, since OpenSearch supports JDK 8, the build supports compiling with JDK 11 and testing on a different version of JDK runtime. To do this, set `RUNTIME_JAVA_HOME` pointing to the Java home of another JDK installation, e.g. `RUNTIME_JAVA_HOME=/usr/lib/jvm/jdk-8`.
+```
+allprojects {
+  targetCompatibility = JavaVersion.VERSION_11
+  sourceCompatibility = JavaVersion.VERSION_11
+}
+```
 
-To run the full suite of tests you will also need `JAVA8_HOME`, `JAVA9_HOME`, `JAVA10_HOME`, `JAVA11_HOME`, and `JAVA12_HOME`.
+```
+sourceCompatibility = JavaVersion.VERSION_11
+targetCompatibility = JavaVersion.VERSION_11
+```
+
+Download Java 11 from [here](https://adoptium.net/releases.html?variant=openjdk11).
+
+#### JDK 14
+
+To run the full suite of tests, download and install [JDK 14](https://jdk.java.net/archive/) and set `JAVA11_HOME`, and `JAVA14_HOME`. They are required by the [backwards compatibility test](./TESTING.md#testing-backwards-compatibility).
+
+#### JDK 17
+
+By default, the test tasks use bundled JDK runtime, configured in [buildSrc/version.properties](buildSrc/version.properties), and set to JDK 17 (LTS).
+
+```
+bundled_jdk_vendor = adoptium
+bundled_jdk = 17.0.2+8
+```
+
+#### Custom Runtime JDK
+
+Other kind of test tasks (integration, cluster, etc.) use the same runtime as `JAVA_HOME`. However, the build also supports compiling with one version of JDK, and testing on a different version. To do this, set `RUNTIME_JAVA_HOME` pointing to the Java home of another JDK installation, e.g. `RUNTIME_JAVA_HOME=/usr/lib/jvm/jdk-14`. Alternatively, the runtime JDK version could be provided as the command line argument, using combination of `runtime.java=<major JDK version>` property and `JAVA<major JDK version>_HOME` environment variable, for example `./gradlew -Druntime.java=17 ...` (in this case, the tooling expects `JAVA17_HOME` environment variable to be set).
+
+#### Windows
+
+On Windows, set `_JAVA_OPTIONS: -Xmx4096M`. You may also need to set `LongPathsEnabled=0x1` under `Computer\HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\FileSystem`.
 
 #### Docker
 
-[Docker](https://docs.docker.com/install/) is required for building some OpenSearch artifacts and executing certain test suites.
+Download and install [Docker](https://docs.docker.com/install/), required for building OpenSearch artifacts, and executing certain test suites.
+
+On Windows, [use Docker Desktop 3.6](https://docs.docker.com/desktop/windows/release-notes/3.x/). See [OpenSearch#1425](https://github.com/opensearch-project/OpenSearch/issues/1425) for workarounds and issues with Docker Desktop 4.1.1.
+
+### Build
+
+To build all distributions of OpenSearch, run:
+
+```
+./gradlew assemble
+```
+
+To build a distribution to run on your local platform, run:
+
+```
+./gradlew localDistro
+```
+
+All distributions built will be under `distributions/archives`.
 
 ### Run Tests
 
@@ -70,8 +135,8 @@ Start by running the test suite with `gradlew check`. This should complete witho
 OpenSearch Build Hamster says Hello!
   Gradle Version        : 6.6.1
   OS Info               : Linux 5.4.0-1037-aws (amd64)
-  JDK Version           : 14 (JDK)
-  JAVA_HOME             : /usr/lib/jvm/java-14-openjdk-amd64
+  JDK Version           : 11 (JDK)
+  JAVA_HOME             : /usr/lib/jvm/java-11-openjdk-amd64
 =======================================
 
 ...
@@ -133,7 +198,7 @@ Use `-Dtests.opensearch.` to pass additional settings to the running instance. F
 
 ### IntelliJ IDEA
 
-When importing into IntelliJ you will need to define an appropriate JDK. The convention is that **this SDK should be named "14"**, and the project import will detect it automatically. For more details on defining an SDK in IntelliJ please refer to [this documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk). Note that SDK definitions are global, so you can add the JDK from any project, or after project import. Importing with a missing JDK will still work, IntelliJ will report a problem and will refuse to build until resolved.
+When importing into IntelliJ you will need to define an appropriate JDK. The convention is that **this SDK should be named "11"**, and the project import will detect it automatically. For more details on defining an SDK in IntelliJ please refer to [this documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk). Note that SDK definitions are global, so you can add the JDK from any project, or after project import. Importing with a missing JDK will still work, IntelliJ will report a problem and will refuse to build until resolved.
 
 You can import the OpenSearch project into IntelliJ IDEA as follows.
 
@@ -141,13 +206,33 @@ You can import the OpenSearch project into IntelliJ IDEA as follows.
 2. In the subsequent dialog navigate to the root `build.gradle` file
 3. In the subsequent dialog select **Open as Project**
 
+#### Remote development using JetBrains Gateway
+
+[JetBrains Gateway](https://www.jetbrains.com/remote-development/gateway/) enables development, testing and debugging on remote machines like development servers.
+
+1. On the local development machine, download and install the latest thin client from the [JetBrains Gateway page](https://www.jetbrains.com/remote-development/gateway/).
+2. Create a new connection to the remote server and install an IntelliJ server support using [these instructions](https://www.jetbrains.com/help/idea/remote-development-starting-page.html#connect_to_rd_ij).
+
+Follow the [IntelliJ IDEA instructions](#intellij-idea) post a successful connection.
+
 ### Visual Studio Code
 
 Follow links in the [Java Tutorial](https://code.visualstudio.com/docs/java/java-tutorial) to install the coding pack and extensions for Java, Gradle tasks, etc. Open the source code directory.
 
 ### Eclipse
 
-We would like to support Eclipse, but few of us use it and has fallen into disrepair. Please [contribute](CONTRIBUTING.md).
+When importing to Eclipse, you need to have [Eclipse Buildship](https://projects.eclipse.org/projects/tools.buildship) plugin installed and, preferably, have JDK 11 set as default JRE in **Preferences -> Java -> Installed JREs**. Once this is done, generate Eclipse projects using Gradle wrapper:
+
+    ./gradlew eclipse
+
+You can now import the OpenSearch project into Eclipse as follows.
+
+1. Select **File > Import -> Existing Gradle Project**
+2. In the subsequent dialog navigate to the root of `build.gradle` file
+3. In the subsequent dialog, if JDK 11 is not set as default JRE, please make sure to check **[Override workspace settings]**, keep **[Gradle Wrapper]** and provide the correct path to JDK11 using **[Java Home]** property under **[Advanced Options]**. Otherwise, you may run into cryptic import failures and only top level project is going to be imported.
+4. In the subsequent dialog, you should see **[Gradle project structure]** populated, please click **[Finish]** to complete the import
+
+**Note:** it may look non-intuitive why one needs to use Gradle wrapper and then import existing Gradle project (in general, **File > Import -> Existing Gradle Project** should be enough). Practically, as it stands now, Eclipse Buildship plugin does not import OpenSearch project dependencies correctly but does work in conjunction with Gradle wrapper.
 
 ## Project Layout
 
@@ -234,7 +319,7 @@ Please follow these formatting guidelines:
 
 ### Editor / IDE Support
 
-IntelliJ IDEs can [import](https://blog.jetbrains.com/idea/2014/01/intellij-idea-13-importing-code-formatter-settings-from-eclipse/) the same settings file, and / or use the [Eclipse Code Formatter](https://plugins.jetbrains.com/plugin/6546-eclipse-code-formatter)
+IntelliJ IDEs can [import](https://blog.jetbrains.com/idea/2014/01/intellij-idea-13-importing-code-formatter-settings-from-eclipse/) the [settings file](buildSrc/formatterConfig.xml), and / or use the [Eclipse Code Formatter](https://plugins.jetbrains.com/plugin/6546-eclipse-code-formatter)
 plugin.
 
 You can also tell Spotless to [format a specific file](https://github.com/diffplug/spotless/tree/master/plugin-gradle#can-i-apply-spotless-to-specific-files) from the command line.
@@ -278,18 +363,112 @@ somehow. OpenSearch plugins use this configuration to include dependencies that 
 Code that is on the classpath for compiling tests that are part of this project but not production code. The canonical example
 of this is `junit`.
 
+### Gradle Plugins
+
+#### Distribution Download Plugin
+
+The Distribution Download plugin downloads the latest version of OpenSearch by default, and supports overriding this behavior by setting `customDistributionUrl`.
+```
+./gradlew integTest -PcustomDistributionUrl="https://ci.opensearch.org/ci/dbc/bundle-build/1.2.0/1127/linux/x64/dist/opensearch-1.2.0-linux-x64.tar.gz"
+```
+
+
 ## Misc
 
 ### git-secrets
 
-Security is our top priority. Avoid checking in credentials, install [awslabs/git-secrets](https://github.com/awslabs/git-secrets).
+Security is our top priority. Avoid checking in credentials.
 
+#### Installation
+Install [awslabs/git-secrets](https://github.com/awslabs/git-secrets) by running the following commands.
 ```
 git clone https://github.com/awslabs/git-secrets.git
 cd git-secrets
 make install
 ```
 
+#### Configuration
+You can configure git secrets per repository, you need to change the directory to the root of the repository and run the following command.
+```
+git secrets --install
+✓ Installed commit-msg hook to .git/hooks/commit-msg
+✓ Installed pre-commit hook to .git/hooks/pre-commit
+✓ Installed prepare-commit-msg hook to .git/hooks/prepare-commit-msg
+```
+Then, you need to apply patterns for git-secrets, you can install the AWS standard patterns by running the following command.
+```
+git secrets --register-aws
+```
+
+## Components
+As you work in the OpenSearch repo you may notice issues getting labeled with component labels.  It's a housekeeping task to help group together similar pieces of work.  You can pretty much ignore it, but if you're curious, here's what the different labels mean:
+
+### Build libraries & interfaces
+Tasks to make sure the build tasks are useful and packaging and distribution are easy.
+
+Includes:
+
+- Gradle for the Core tasks
+- Groovy scripts
+- build-tools
+- Versioning interfaces
+- Compatibility
+- Javadoc enforcement
+
+
+### Clients & Libraries
+APIs and communication mechanisms for external connections to OpenSearch.  This includes the “library” directory in OpenSearch (a set of common functions).
+
+Includes:
+
+- Transport layer
+- High Level and low level Rest Client
+- CLI
+
+### Plugins
+Anything touching the plugin infrastructure within core OpenSearch.
+
+Includes:
+
+- API
+- SPI
+- Plugin interfaces
+
+
+### Indexing & search
+The critical path of indexing and search, including:  Measure index and search, performance, Improving the performance of indexing and search, ensure synchronization OpenSearch APIs with upstream Lucene change (e.g. new field types, changing doc values and codex).
+
+Includes:
+
+- Lucene Structures
+- FieldMappers
+- QueryBuilders
+- DocValues
+
+### Aggregations
+Making sure OpenSearch can be used as a compute engine.
+
+Includes:
+
+- APIs (suggest supporting a formal API)
+- Framework
+
+### Distributed Framework
+Work to make sure that OpenSearch can scale in a distributed manner.
+
+Includes:
+
+- Nodes (Master, Data, Compute, Ingest, Discovery, etc.)
+- Replication & Merge Policies (Document, Segment level)
+- Snapshot/Restore (repositories; S3, Azure, GCP, NFS)
+- Translog (e.g., OpenSearch, Kafka, Kinesis)
+- Shard Strategies
+- Circuit Breakers
+
 ## Submitting Changes
 
 See [CONTRIBUTING](CONTRIBUTING.md).
+
+## Backports
+
+The Github workflow in [`backport.yml`](.github/workflows/backport.yml) creates backport PRs automatically when the original PR with an appropriate label `backport <backport-branch-name>` is merged to main with the backport workflow run successfully on the PR. For example, if a PR on main needs to be backported to `1.x` branch, add a label `backport 1.x` to the PR and make sure the backport workflow runs on the PR along with other checks. Once this PR is merged to main, the workflow will create a backport PR to the `1.x` branch.

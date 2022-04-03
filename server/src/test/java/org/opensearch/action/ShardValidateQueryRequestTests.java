@@ -56,7 +56,7 @@ public class ShardValidateQueryRequestTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(indicesModule.getNamedWriteables());
         entries.addAll(searchModule.getNamedWriteables());
@@ -69,14 +69,15 @@ public class ShardValidateQueryRequestTests extends OpenSearchTestCase {
             validateQueryRequest.query(QueryBuilders.termQuery("field", "value"));
             validateQueryRequest.rewrite(true);
             validateQueryRequest.explain(false);
-            validateQueryRequest.types("type1", "type2");
-            ShardValidateQueryRequest request = new ShardValidateQueryRequest(new ShardId("index", "foobar", 1),
-                new AliasFilter(QueryBuilders.termQuery("filter_field", "value"), new String[] {"alias0", "alias1"}), validateQueryRequest);
+            ShardValidateQueryRequest request = new ShardValidateQueryRequest(
+                new ShardId("index", "foobar", 1),
+                new AliasFilter(QueryBuilders.termQuery("filter_field", "value"), "alias0", "alias1"),
+                validateQueryRequest
+            );
             request.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 ShardValidateQueryRequest readRequest = new ShardValidateQueryRequest(in);
                 assertEquals(request.filteringAliases(), readRequest.filteringAliases());
-                assertArrayEquals(request.types(), readRequest.types());
                 assertEquals(request.explain(), readRequest.explain());
                 assertEquals(request.query(), readRequest.query());
                 assertEquals(request.rewrite(), readRequest.rewrite());

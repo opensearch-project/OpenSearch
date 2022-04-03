@@ -33,8 +33,6 @@ package org.opensearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.common.Nullable;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -43,7 +41,6 @@ import org.opensearch.index.mapper.MapperService;
 import java.io.IOException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -52,28 +49,17 @@ import java.util.function.Function;
 
 public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(LeafDocLookup.class);
-    static final String TYPES_DEPRECATION_KEY = "type-field-doc-lookup";
-    static final String TYPES_DEPRECATION_MESSAGE =
-            "[types removal] Looking up doc types [_type] in scripts is deprecated.";
-
     private final Map<String, ScriptDocValues<?>> localCacheFieldData = new HashMap<>(4);
 
     private final MapperService mapperService;
     private final Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup;
-
-    @Nullable
-    private final String[] types;
-
     private final LeafReaderContext reader;
 
     private int docId = -1;
 
-    LeafDocLookup(MapperService mapperService, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup, @Nullable String[] types,
-                  LeafReaderContext reader) {
+    LeafDocLookup(MapperService mapperService, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup, LeafReaderContext reader) {
         this.mapperService = mapperService;
         this.fieldDataLookup = fieldDataLookup;
-        this.types = types;
         this.reader = reader;
     }
 
@@ -87,18 +73,13 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     @Override
     public ScriptDocValues<?> get(Object key) {
-        // deprecate _type
-        if ("_type".equals(key)) {
-            DEPRECATION_LOGGER.deprecate(TYPES_DEPRECATION_KEY, TYPES_DEPRECATION_MESSAGE);
-        }
         // assume its a string...
         String fieldName = key.toString();
         ScriptDocValues<?> scriptValues = localCacheFieldData.get(fieldName);
         if (scriptValues == null) {
             final MappedFieldType fieldType = mapperService.fieldType(fieldName);
             if (fieldType == null) {
-                throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping with types " +
-                        Arrays.toString(types));
+                throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping");
             }
             // load fielddata on behalf of the script: otherwise it would need additional permissions
             // to deal with pagedbytes/ramusagestimator/etc

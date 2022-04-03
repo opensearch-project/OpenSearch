@@ -32,7 +32,6 @@
 
 package org.opensearch.common.unit;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
@@ -65,23 +64,14 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     private final ByteSizeUnit unit;
 
     public ByteSizeValue(StreamInput in) throws IOException {
-        if (in.getVersion().before(LegacyESVersion.V_6_2_0)) {
-            size = in.readVLong();
-            unit = ByteSizeUnit.BYTES;
-        } else {
-            size = in.readZLong();
-            unit = ByteSizeUnit.readFrom(in);
-        }
+        size = in.readZLong();
+        unit = ByteSizeUnit.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().before(LegacyESVersion.V_6_2_0)) {
-            out.writeVLong(getBytes());
-        } else {
-            out.writeZLong(size);
-            unit.writeTo(out);
-        }
+        out.writeZLong(size);
+        unit.writeTo(out);
     }
 
     public ByteSizeValue(long bytes) {
@@ -94,7 +84,8 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         }
         if (size > Long.MAX_VALUE / unit.toBytes(1)) {
             throw new IllegalArgumentException(
-                    "Values greater than " + Long.MAX_VALUE + " bytes are not supported: " + size + unit.getSuffix());
+                "Values greater than " + Long.MAX_VALUE + " bytes are not supported: " + size + unit.getSuffix()
+            );
         }
         this.size = size;
         this.unit = unit;
@@ -207,7 +198,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     }
 
     public static ByteSizeValue parseBytesSizeValue(String sValue, ByteSizeValue defaultValue, String settingName)
-            throws OpenSearchParseException {
+        throws OpenSearchParseException {
         settingName = Objects.requireNonNull(settingName);
         if (sValue == null) {
             return defaultValue;
@@ -244,13 +235,20 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         } else {
             // Missing units:
             throw new OpenSearchParseException(
-                    "failed to parse setting [{}] with value [{}] as a size in bytes: unit is missing or unrecognized", settingName,
-                    sValue);
+                "failed to parse setting [{}] with value [{}] as a size in bytes: unit is missing or unrecognized",
+                settingName,
+                sValue
+            );
         }
     }
 
-    private static ByteSizeValue parse(final String initialInput, final String normalized, final String suffix, ByteSizeUnit unit,
-            final String settingName) {
+    private static ByteSizeValue parse(
+        final String initialInput,
+        final String normalized,
+        final String suffix,
+        ByteSizeUnit unit,
+        final String settingName
+    ) {
         final String s = normalized.substring(0, normalized.length() - suffix.length()).trim();
         try {
             try {
@@ -258,18 +256,24 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
             } catch (final NumberFormatException e) {
                 try {
                     final double doubleValue = Double.parseDouble(s);
-                    DeprecationLoggerHolder.deprecationLogger
-                        .deprecate("fractional_byte_values",
-                         "Fractional bytes values are deprecated. Use non-fractional bytes values instead: [{}] found for setting [{}]",
-                         initialInput, settingName);
+                    DeprecationLoggerHolder.deprecationLogger.deprecate(
+                        "fractional_byte_values",
+                        "Fractional bytes values are deprecated. Use non-fractional bytes values instead: [{}] found for setting [{}]",
+                        initialInput,
+                        settingName
+                    );
                     return new ByteSizeValue((long) (doubleValue * unit.toBytes(1)));
                 } catch (final NumberFormatException ignored) {
                     throw new OpenSearchParseException("failed to parse [{}]", e, initialInput);
                 }
             }
         } catch (IllegalArgumentException e) {
-            throw new OpenSearchParseException("failed to parse setting [{}] with value [{}] as a size in bytes", e, settingName,
-                    initialInput);
+            throw new OpenSearchParseException(
+                "failed to parse setting [{}] with value [{}] as a size in bytes",
+                e,
+                settingName,
+                initialInput
+            );
         }
     }
 

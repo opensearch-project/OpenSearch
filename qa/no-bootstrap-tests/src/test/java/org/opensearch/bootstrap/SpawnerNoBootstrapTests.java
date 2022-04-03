@@ -33,7 +33,7 @@
 package org.opensearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.Version;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
@@ -213,33 +213,6 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         assertThat(
                 e.getMessage(),
                 equalTo("module [test_plugin] does not have permission to fork native controller"));
-    }
-
-    public void testSpawnerHandlingOfDesktopServicesStoreFiles() throws IOException {
-        final Path esHome = createTempDir().resolve("home");
-        final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), esHome.toString()).build();
-
-        final Environment environment = TestEnvironment.newEnvironment(settings);
-
-        Files.createDirectories(environment.modulesFile());
-        Files.createDirectories(environment.pluginsFile());
-
-        final Path desktopServicesStore = environment.modulesFile().resolve(".DS_Store");
-        Files.createFile(desktopServicesStore);
-
-        final Spawner spawner = new Spawner();
-        if (Constants.MAC_OS_X) {
-            // if the spawner were not skipping the Desktop Services Store files on macOS this would explode
-            spawner.spawnNativeControllers(environment, false);
-        } else {
-            // we do not ignore these files on non-macOS systems
-            final FileSystemException e = expectThrows(FileSystemException.class, () -> spawner.spawnNativeControllers(environment, false));
-            if (Constants.WINDOWS) {
-                assertThat(e, instanceOf(NoSuchFileException.class));
-            } else {
-                assertThat(e, hasToString(containsString("Not a directory")));
-            }
-        }
     }
 
     private void createControllerProgram(final Path outputFile) throws IOException {

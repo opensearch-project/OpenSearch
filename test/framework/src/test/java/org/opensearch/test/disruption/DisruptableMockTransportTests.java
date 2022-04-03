@@ -114,7 +114,9 @@ public class DisruptableMockTransportTests extends OpenSearchTestCase {
         List<DisruptableMockTransport> transports = new ArrayList<>();
 
         deterministicTaskQueue = new DeterministicTaskQueue(
-            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "dummy").build(), random());
+            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "dummy").build(),
+            random()
+        );
 
         final DisruptableMockTransport transport1 = new DisruptableMockTransport(node1, logger, deterministicTaskQueue) {
             @Override
@@ -153,10 +155,22 @@ public class DisruptableMockTransportTests extends OpenSearchTestCase {
         transports.add(transport1);
         transports.add(transport2);
 
-        service1 = transport1.createTransportService(Settings.EMPTY, deterministicTaskQueue.getThreadPool(),
-            NOOP_TRANSPORT_INTERCEPTOR, a -> node1, null, Collections.emptySet());
-        service2 = transport2.createTransportService(Settings.EMPTY, deterministicTaskQueue.getThreadPool(),
-            NOOP_TRANSPORT_INTERCEPTOR, a -> node2, null, Collections.emptySet());
+        service1 = transport1.createTransportService(
+            Settings.EMPTY,
+            deterministicTaskQueue.getThreadPool(),
+            NOOP_TRANSPORT_INTERCEPTOR,
+            a -> node1,
+            null,
+            Collections.emptySet()
+        );
+        service2 = transport2.createTransportService(
+            Settings.EMPTY,
+            deterministicTaskQueue.getThreadPool(),
+            NOOP_TRANSPORT_INTERCEPTOR,
+            a -> node2,
+            null,
+            Collections.emptySet()
+        );
 
         service1.start();
         service2.start();
@@ -171,9 +185,7 @@ public class DisruptableMockTransportTests extends OpenSearchTestCase {
     }
 
     private TransportRequestHandler<TransportRequest.Empty> requestHandlerShouldNotBeCalled() {
-        return (request, channel, task) -> {
-            throw new AssertionError("should not be called");
-        };
+        return (request, channel, task) -> { throw new AssertionError("should not be called"); };
     }
 
     private TransportRequestHandler<TransportRequest.Empty> requestHandlerRepliesNormally() {
@@ -273,8 +285,11 @@ public class DisruptableMockTransportTests extends OpenSearchTestCase {
         transportService.registerRequestHandler("internal:dummy", ThreadPool.Names.GENERIC, TransportRequest.Empty::new, handler);
     }
 
-    private void send(TransportService transportService, DiscoveryNode destinationNode,
-                      TransportResponseHandler<TransportResponse> responseHandler) {
+    private void send(
+        TransportService transportService,
+        DiscoveryNode destinationNode,
+        TransportResponseHandler<TransportResponse> responseHandler
+    ) {
         transportService.sendRequest(destinationNode, "internal:dummy", TransportRequest.Empty.INSTANCE, responseHandler);
     }
 
@@ -432,22 +447,30 @@ public class DisruptableMockTransportTests extends OpenSearchTestCase {
         service1.disconnectFromNode(node2);
 
         disconnectedLinks.add(Tuple.tuple(node1, node2));
-        assertThat(expectThrows(ConnectTransportException.class, () -> service1.connectToNode(node2)).getMessage(),
-            endsWith("is [DISCONNECTED] not [CONNECTED]"));
+        assertThat(
+            expectThrows(ConnectTransportException.class, () -> service1.connectToNode(node2)).getMessage(),
+            endsWith("is [DISCONNECTED] not [CONNECTED]")
+        );
         disconnectedLinks.clear();
 
         blackholedLinks.add(Tuple.tuple(node1, node2));
-        assertThat(expectThrows(ConnectTransportException.class, () -> service1.connectToNode(node2)).getMessage(),
-            endsWith("is [BLACK_HOLE] not [CONNECTED]"));
+        assertThat(
+            expectThrows(ConnectTransportException.class, () -> service1.connectToNode(node2)).getMessage(),
+            endsWith("is [BLACK_HOLE] not [CONNECTED]")
+        );
         blackholedLinks.clear();
 
         blackholedRequestLinks.add(Tuple.tuple(node1, node2));
-        assertThat(expectThrows(ConnectTransportException.class, () -> service1.connectToNode(node2)).getMessage(),
-            endsWith("is [BLACK_HOLE_REQUESTS_ONLY] not [CONNECTED]"));
+        assertThat(
+            expectThrows(ConnectTransportException.class, () -> service1.connectToNode(node2)).getMessage(),
+            endsWith("is [BLACK_HOLE_REQUESTS_ONLY] not [CONNECTED]")
+        );
         blackholedRequestLinks.clear();
 
         final DiscoveryNode node3 = new DiscoveryNode("node3", buildNewFakeTransportAddress(), Version.CURRENT);
-        assertThat(expectThrows(ConnectTransportException.class, () -> service1.connectToNode(node3)).getMessage(),
-            endsWith("does not exist"));
+        assertThat(
+            expectThrows(ConnectTransportException.class, () -> service1.connectToNode(node3)).getMessage(),
+            endsWith("does not exist")
+        );
     }
 }

@@ -37,8 +37,10 @@ import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilde
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.util.ArrayUtils;
 
-public class GetSettingsRequestBuilder
-        extends MasterNodeReadOperationRequestBuilder<GetSettingsRequest, GetSettingsResponse, GetSettingsRequestBuilder> {
+public class GetSettingsRequestBuilder extends MasterNodeReadOperationRequestBuilder<
+    GetSettingsRequest,
+    GetSettingsResponse,
+    GetSettingsRequestBuilder> {
 
     public GetSettingsRequestBuilder(OpenSearchClient client, GetSettingsAction action, String... indices) {
         super(client, action, new GetSettingsRequest().indices(indices));

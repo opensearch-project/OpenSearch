@@ -25,7 +25,6 @@
  * under the License.
  */
 
-
 /*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
@@ -164,7 +163,7 @@ public class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geom
 
             @Override
             public Geometry visit(Point point) {
-                double[] latlon = new double[]{point.getX(), point.getY()};
+                double[] latlon = new double[] { point.getX(), point.getY() };
                 normalizePoint(latlon);
                 return new Point(latlon[0], latlon[1]);
             }
@@ -247,7 +246,7 @@ public class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geom
 
         @Override
         public Void visit(MultiPoint multiPoint) {
-            for(Point point : multiPoint) {
+            for (Point point : multiPoint) {
                 visit(point);
             }
             return null;
@@ -255,7 +254,7 @@ public class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geom
 
         @Override
         public Void visit(MultiPolygon multiPolygon) {
-            for(Polygon polygon : multiPolygon) {
+            for (Polygon polygon : multiPolygon) {
                 visit(polygon);
             }
             return null;

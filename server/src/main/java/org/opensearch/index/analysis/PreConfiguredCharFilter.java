@@ -49,41 +49,66 @@ public class PreConfiguredCharFilter extends PreConfiguredAnalysisComponent<Char
      * Create a pre-configured char filter that may not vary at all.
      */
     public static PreConfiguredCharFilter singleton(String name, boolean useFilterForMultitermQueries, Function<Reader, Reader> create) {
-        return new PreConfiguredCharFilter(name, CachingStrategy.ONE, useFilterForMultitermQueries,
-                (reader, version) -> create.apply(reader));
+        return new PreConfiguredCharFilter(
+            name,
+            CachingStrategy.ONE,
+            useFilterForMultitermQueries,
+            (reader, version) -> create.apply(reader)
+        );
     }
 
     /**
      * Create a pre-configured char filter that may not vary at all, provide access to the openearch version
      */
-    public static PreConfiguredCharFilter singletonWithVersion(String name, boolean useFilterForMultitermQueries,
-            BiFunction<Reader, org.opensearch.Version, Reader> create) {
-        return new PreConfiguredCharFilter(name, CachingStrategy.ONE, useFilterForMultitermQueries,
-                (reader, version) -> create.apply(reader, version));
+    public static PreConfiguredCharFilter singletonWithVersion(
+        String name,
+        boolean useFilterForMultitermQueries,
+        BiFunction<Reader, org.opensearch.Version, Reader> create
+    ) {
+        return new PreConfiguredCharFilter(
+            name,
+            CachingStrategy.ONE,
+            useFilterForMultitermQueries,
+            (reader, version) -> create.apply(reader, version)
+        );
     }
 
     /**
      * Create a pre-configured token filter that may vary based on the Lucene version.
      */
-    public static PreConfiguredCharFilter luceneVersion(String name, boolean useFilterForMultitermQueries,
-            BiFunction<Reader, org.apache.lucene.util.Version, Reader> create) {
-        return new PreConfiguredCharFilter(name, CachingStrategy.LUCENE, useFilterForMultitermQueries,
-                (reader, version) -> create.apply(reader, version.luceneVersion));
+    public static PreConfiguredCharFilter luceneVersion(
+        String name,
+        boolean useFilterForMultitermQueries,
+        BiFunction<Reader, org.apache.lucene.util.Version, Reader> create
+    ) {
+        return new PreConfiguredCharFilter(
+            name,
+            CachingStrategy.LUCENE,
+            useFilterForMultitermQueries,
+            (reader, version) -> create.apply(reader, version.luceneVersion)
+        );
     }
 
     /**
      * Create a pre-configured token filter that may vary based on the OpenSearch version.
      */
-    public static PreConfiguredCharFilter openSearchVersion(String name, boolean useFilterForMultitermQueries,
-            BiFunction<Reader, org.opensearch.Version, Reader> create) {
+    public static PreConfiguredCharFilter openSearchVersion(
+        String name,
+        boolean useFilterForMultitermQueries,
+        BiFunction<Reader, org.opensearch.Version, Reader> create
+    ) {
         return new PreConfiguredCharFilter(name, CachingStrategy.OPENSEARCH, useFilterForMultitermQueries, create);
     }
 
     private final boolean useFilterForMultitermQueries;
     private final BiFunction<Reader, Version, Reader> create;
 
-    protected PreConfiguredCharFilter(String name, CachingStrategy cache, boolean useFilterForMultitermQueries,
-            BiFunction<Reader, org.opensearch.Version, Reader> create) {
+    protected PreConfiguredCharFilter(
+        String name,
+        CachingStrategy cache,
+        boolean useFilterForMultitermQueries,
+        BiFunction<Reader, org.opensearch.Version, Reader> create
+    ) {
         super(name, cache);
         this.useFilterForMultitermQueries = useFilterForMultitermQueries;
         this.create = create;

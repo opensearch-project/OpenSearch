@@ -50,13 +50,15 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
 
     private final double compression;
 
-    MedianAbsoluteDeviationAggregatorFactory(String name,
-                                             ValuesSourceConfig config,
-                                             QueryShardContext queryShardContext,
-                                             AggregatorFactory parent,
-                                             AggregatorFactories.Builder subFactoriesBuilder,
-                                             Map<String, Object> metadata,
-                                             double compression) throws IOException {
+    MedianAbsoluteDeviationAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata,
+        double compression
+    ) throws IOException {
 
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.compression = compression;
@@ -67,23 +69,14 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
             MedianAbsoluteDeviationAggregationBuilder.REGISTRY_KEY,
             CoreValuesSourceType.NUMERIC,
             MedianAbsoluteDeviationAggregator::new,
-                true);
+            true
+        );
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                        Aggregator parent,
-                                        Map<String, Object> metadata) throws IOException {
+    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
 
-        return new MedianAbsoluteDeviationAggregator(
-            name,
-            null,
-            config.format(),
-            searchContext,
-            parent,
-            metadata,
-            compression
-        );
+        return new MedianAbsoluteDeviationAggregator(name, null, config.format(), searchContext, parent, metadata, compression);
     }
 
     @Override

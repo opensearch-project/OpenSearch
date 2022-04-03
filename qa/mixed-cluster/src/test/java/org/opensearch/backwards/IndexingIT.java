@@ -35,25 +35,29 @@ import org.apache.http.HttpHost;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.client.Request;
+import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
+import org.opensearch.client.ResponseException;
 import org.opensearch.client.RestClient;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.seqno.SeqNoStats;
-import org.opensearch.rest.action.document.RestGetAction;
-import org.opensearch.rest.action.document.RestIndexAction;
+import org.opensearch.rest.RestStatus;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.opensearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndexingIT extends OpenSearchRestTestCase {
@@ -61,9 +65,8 @@ public class IndexingIT extends OpenSearchRestTestCase {
     private int indexDocs(String index, final int idStart, final int numDocs) throws IOException {
         for (int i = 0; i < numDocs; i++) {
             final int id = idStart + i;
-            Request request = new Request("PUT", index + "/doc/" + id);
+            Request request = new Request("PUT", index + "/_doc/" + id);
             request.setJsonEntity("{\"test\": \"test_" + randomAlphaOfLength(2) + "\"}");
-            request.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
             assertOK(client().performRequest(request));
         }
         return numDocs;
@@ -199,7 +202,8 @@ public class IndexingIT extends OpenSearchRestTestCase {
             final int numberOfInitialDocs = 1 + randomInt(5);
             logger.info("indexing [{}] docs initially", numberOfInitialDocs);
             numDocs += indexDocs(index, 0, numberOfInitialDocs);
-            assertSeqNoOnShards(index, nodes, nodes.getBWCVersion().onOrAfter(LegacyESVersion.V_6_0_0) ? numDocs : 0, newNodeClient);
+            boolean compat = nodes.getBWCVersion().compareTo(LegacyESVersion.fromId(6000000)) >= 0;
+            assertSeqNoOnShards(index, nodes, compat ? numDocs : 0, newNodeClient);
             logger.info("allowing shards on all nodes");
             updateIndexSettings(index, Settings.builder().putNull("index.routing.allocation.include._name"));
             ensureGreen(index);
@@ -210,7 +214,8 @@ public class IndexingIT extends OpenSearchRestTestCase {
             final int numberOfDocsAfterAllowingShardsOnAllNodes = 1 + randomInt(5);
             logger.info("indexing [{}] docs after allowing shards on all nodes", numberOfDocsAfterAllowingShardsOnAllNodes);
             numDocs += indexDocs(index, numDocs, numberOfDocsAfterAllowingShardsOnAllNodes);
-            assertSeqNoOnShards(index, nodes, nodes.getBWCVersion().onOrAfter(LegacyESVersion.V_6_0_0) ? numDocs : 0, newNodeClient);
+            compat = nodes.getBWCVersion().compareTo(LegacyESVersion.fromId(6000000)) >= 0;
+            assertSeqNoOnShards(index, nodes, compat ? numDocs : 0, newNodeClient);
             Shard primary = buildShards(index, nodes, newNodeClient).stream().filter(Shard::isPrimary).findFirst().get();
             logger.info("moving primary to new node by excluding {}", primary.getNode().getNodeName());
             updateIndexSettings(index, Settings.builder().put("index.routing.allocation.exclude._name", primary.getNode().getNodeName()));
@@ -220,8 +225,8 @@ public class IndexingIT extends OpenSearchRestTestCase {
             logger.info("indexing [{}] docs after moving primary", numberOfDocsAfterMovingPrimary);
             numDocsOnNewPrimary += indexDocs(index, numDocs, numberOfDocsAfterMovingPrimary);
             numDocs += numberOfDocsAfterMovingPrimary;
-            assertSeqNoOnShards(index, nodes,
-                nodes.getBWCVersion().onOrAfter(LegacyESVersion.V_6_0_0) ? numDocs : numDocsOnNewPrimary, newNodeClient);
+            compat = nodes.getBWCVersion().compareTo(LegacyESVersion.fromId(6000000)) >= 0;
+            assertSeqNoOnShards(index, nodes, compat ? numDocs : numDocsOnNewPrimary, newNodeClient);
             /*
              * Dropping the number of replicas to zero, and then increasing it to one triggers a recovery thus exercising any BWC-logic in
              * the recovery code.
@@ -240,8 +245,8 @@ public class IndexingIT extends OpenSearchRestTestCase {
             for (Shard shard : buildShards(index, nodes, newNodeClient)) {
                 assertCount(index, "_only_nodes:" + shard.node.nodeName, numDocs);
             }
-            assertSeqNoOnShards(index, nodes,
-                nodes.getBWCVersion().onOrAfter(LegacyESVersion.V_6_0_0) ? numDocs : numDocsOnNewPrimary, newNodeClient);
+            compat = nodes.getBWCVersion().compareTo(LegacyESVersion.fromId(6000000)) >= 0;
+            assertSeqNoOnShards(index, nodes, compat ? numDocs : numDocsOnNewPrimary, newNodeClient);
         }
     }
 
@@ -293,6 +298,59 @@ public class IndexingIT extends OpenSearchRestTestCase {
         request.setJsonEntity("{\"indices\": \"" + index + "\"}");
     }
 
+    public void testSyncedFlushTransition() throws Exception {
+        Nodes nodes = buildNodeAndVersions();
+        assumeTrue("bwc version is on 1.x or Legacy 7.x", nodes.getBWCVersion().before(Version.V_2_0_0));
+        assumeFalse("no new node found", nodes.getNewNodes().isEmpty());
+        assumeFalse("no bwc node found", nodes.getBWCNodes().isEmpty());
+        // Allocate shards to new nodes then verify synced flush requests processed by old nodes/new nodes
+        String newNodes = nodes.getNewNodes().stream().map(Node::getNodeName).collect(Collectors.joining(","));
+        int numShards = randomIntBetween(1, 10);
+        int numOfReplicas = randomIntBetween(0, nodes.getNewNodes().size() - 1);
+        int totalShards = numShards * (numOfReplicas + 1);
+        final String index = "test_synced_flush";
+        createIndex(index, Settings.builder()
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), numShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
+            .put("index.routing.allocation.include._name", newNodes).build());
+        ensureGreen(index);
+        indexDocs(index, randomIntBetween(0, 100), between(1, 100));
+        try (RestClient oldNodeClient = buildClient(restClientSettings(),
+            nodes.getBWCNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
+            Request request = new Request("POST", index + "/_flush/synced");
+            assertBusy(() -> {
+                ResponseException responseException = expectThrows(ResponseException.class, () -> oldNodeClient.performRequest(request));
+                assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.CONFLICT.getStatus()));
+                assertThat(responseException.getResponse().getWarnings(),
+                    contains("Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead."));
+                Map<String, Object> result = ObjectPath.createFromResponse(responseException.getResponse()).evaluate("_shards");
+                assertThat(result.get("total"), equalTo(totalShards));
+                assertThat(result.get("successful"), equalTo(0));
+                assertThat(result.get("failed"), equalTo(totalShards));
+            });
+            Map<String, Object> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
+            assertThat(XContentMapValues.extractValue("indices." + index + ".total.translog.uncommitted_operations", stats), equalTo(0));
+        }
+        indexDocs(index, randomIntBetween(0, 100), between(1, 100));
+        try (RestClient newNodeClient = buildClient(restClientSettings(),
+            nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
+            Request request = new Request("POST", index + "/_flush/synced");
+            List<String> warningMsg = Arrays.asList("Synced flush was removed and a normal flush was performed instead. " +
+                "This transition will be removed in a future version.");
+            RequestOptions.Builder requestOptionsBuilder = RequestOptions.DEFAULT.toBuilder();
+            requestOptionsBuilder.setWarningsHandler(warnings -> warnings.equals(warningMsg) == false);
+            request.setOptions(requestOptionsBuilder);
+            assertBusy(() -> {
+                Map<String, Object> result = ObjectPath.createFromResponse(newNodeClient.performRequest(request)).evaluate("_shards");
+                assertThat(result.get("total"), equalTo(totalShards));
+                assertThat(result.get("successful"), equalTo(totalShards));
+                assertThat(result.get("failed"), equalTo(0));
+            });
+            Map<String, Object> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
+            assertThat(XContentMapValues.extractValue("indices." + index + ".total.translog.uncommitted_operations", stats), equalTo(0));
+        }
+    }
+
     private void assertCount(final String index, final String preference, final int expectedCount) throws IOException {
         Request request = new Request("GET", index + "/_count");
         request.addParameter("preference", preference);
@@ -303,9 +361,8 @@ public class IndexingIT extends OpenSearchRestTestCase {
     }
 
     private void assertVersion(final String index, final int docId, final String preference, final int expectedVersion) throws IOException {
-        Request request = new Request("GET", index + "/doc/" + docId);
+        Request request = new Request("GET", index + "/_doc/" + docId);
         request.addParameter("preference", preference);
-        request.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
 
         final Response response = client().performRequest(request);
         assertOK(response);

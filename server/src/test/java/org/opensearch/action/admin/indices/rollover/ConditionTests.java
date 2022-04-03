@@ -37,10 +37,6 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.EqualsHashCodeTestUtils;
-import org.opensearch.action.admin.indices.rollover.Condition;
-import org.opensearch.action.admin.indices.rollover.MaxAgeCondition;
-import org.opensearch.action.admin.indices.rollover.MaxDocsCondition;
-import org.opensearch.action.admin.indices.rollover.MaxSizeCondition;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -77,31 +73,51 @@ public class ConditionTests extends OpenSearchTestCase {
     public void testMaxSize() {
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomIntBetween(10, 20), ByteSizeUnit.MB));
 
-        Condition.Result result = maxSizeCondition.evaluate(new Condition.Stats(randomNonNegativeLong(), randomNonNegativeLong(),
-            new ByteSizeValue(0, ByteSizeUnit.MB)));
+        Condition.Result result = maxSizeCondition.evaluate(
+            new Condition.Stats(randomNonNegativeLong(), randomNonNegativeLong(), new ByteSizeValue(0, ByteSizeUnit.MB))
+        );
         assertThat(result.matched, equalTo(false));
 
-        result = maxSizeCondition.evaluate(new Condition.Stats(randomNonNegativeLong(), randomNonNegativeLong(),
-            new ByteSizeValue(randomIntBetween(0, 9), ByteSizeUnit.MB)));
+        result = maxSizeCondition.evaluate(
+            new Condition.Stats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                new ByteSizeValue(randomIntBetween(0, 9), ByteSizeUnit.MB)
+            )
+        );
         assertThat(result.matched, equalTo(false));
 
-        result = maxSizeCondition.evaluate(new Condition.Stats(randomNonNegativeLong(), randomNonNegativeLong(),
-            new ByteSizeValue(randomIntBetween(20, 1000), ByteSizeUnit.MB)));
+        result = maxSizeCondition.evaluate(
+            new Condition.Stats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                new ByteSizeValue(randomIntBetween(20, 1000), ByteSizeUnit.MB)
+            )
+        );
         assertThat(result.matched, equalTo(true));
     }
 
     public void testEqualsAndHashCode() {
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(randomLong());
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(maxDocsCondition, condition -> new MaxDocsCondition(condition.value),
-                condition -> new MaxDocsCondition(randomLong()));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            maxDocsCondition,
+            condition -> new MaxDocsCondition(condition.value),
+            condition -> new MaxDocsCondition(randomLong())
+        );
 
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(randomByteSize());
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(maxSizeCondition, condition -> new MaxSizeCondition(condition.value),
-                condition -> new MaxSizeCondition(randomByteSize()));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            maxSizeCondition,
+            condition -> new MaxSizeCondition(condition.value),
+            condition -> new MaxSizeCondition(randomByteSize())
+        );
 
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(new TimeValue(randomNonNegativeLong()));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(maxAgeCondition, condition -> new MaxAgeCondition(condition.value),
-                condition -> new MaxAgeCondition(new TimeValue(randomNonNegativeLong())));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            maxAgeCondition,
+            condition -> new MaxAgeCondition(condition.value),
+            condition -> new MaxAgeCondition(new TimeValue(randomNonNegativeLong()))
+        );
     }
 
     private static ByteSizeValue randomByteSize() {

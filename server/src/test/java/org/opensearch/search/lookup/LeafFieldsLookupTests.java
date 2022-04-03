@@ -36,6 +36,7 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.test.OpenSearchTestCase;
@@ -44,9 +45,8 @@ import org.junit.Before;
 import java.util.Collections;
 import java.util.List;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyObject;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -61,15 +61,29 @@ public class LeafFieldsLookupTests extends OpenSearchTestCase {
         MappedFieldType fieldType = mock(MappedFieldType.class);
         when(fieldType.name()).thenReturn("field");
         // Add 10 when valueForDisplay is called so it is easy to be sure it *was* called
-        when(fieldType.valueForDisplay(anyObject())).then(invocation ->
-                (Double) invocation.getArguments()[0] + 10);
+        when(fieldType.valueForDisplay(any())).then(invocation -> (Double) invocation.getArguments()[0] + 10);
 
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.fieldType("field")).thenReturn(fieldType);
         when(mapperService.fieldType("alias")).thenReturn(fieldType);
 
-        FieldInfo mockFieldInfo = new FieldInfo("field", 1, false, false, true,
-            IndexOptions.NONE, DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, false);
+        FieldInfo mockFieldInfo = new FieldInfo(
+            "field",
+            1,
+            false,
+            false,
+            true,
+            IndexOptions.NONE,
+            DocValuesType.NONE,
+            -1,
+            Collections.emptyMap(),
+            0,
+            0,
+            0,
+            0,
+            VectorSimilarityFunction.EUCLIDEAN,
+            false
+        );
 
         LeafReader leafReader = mock(LeafReader.class);
         doAnswer(invocation -> {
@@ -79,9 +93,7 @@ public class LeafFieldsLookupTests extends OpenSearchTestCase {
             return null;
         }).when(leafReader).document(anyInt(), any(StoredFieldVisitor.class));
 
-        fieldsLookup = new LeafFieldsLookup(mapperService,
-            new String[] { "type" },
-            leafReader);
+        fieldsLookup = new LeafFieldsLookup(mapperService, leafReader);
     }
 
     public void testBasicLookup() {

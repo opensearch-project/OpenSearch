@@ -99,7 +99,7 @@ public class ShapeRelationTests extends OpenSearchTestCase {
             try (StreamInput in = out.bytes().streamInput()) {
                 ShapeRelation.readFromStream(in);
                 fail("Expected IOException");
-            } catch(IOException e) {
+            } catch (IOException e) {
                 assertThat(e.getMessage(), containsString("Unknown ShapeRelation ordinal ["));
             }
 

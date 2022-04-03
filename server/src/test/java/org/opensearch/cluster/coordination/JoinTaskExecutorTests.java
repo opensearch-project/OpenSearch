@@ -53,16 +53,14 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 
-import static org.mockito.Matchers.anyBoolean;
-import static org.opensearch.test.VersionUtils.getPreviousVersion;
-import static org.opensearch.test.VersionUtils.incompatibleFutureVersion;
 import static org.opensearch.test.VersionUtils.maxCompatibleVersion;
 import static org.opensearch.test.VersionUtils.randomCompatibleVersion;
 import static org.opensearch.test.VersionUtils.randomVersion;
 import static org.opensearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -74,29 +72,29 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
-            .numberOfReplicas(1).build();
+            .numberOfReplicas(1)
+            .build();
         metaBuilder.put(indexMetadata, false);
         Metadata metadata = metaBuilder.build();
         JoinTaskExecutor.ensureIndexCompatibility(Version.CURRENT, metadata);
 
-        expectThrows(IllegalStateException.class, () ->
-        JoinTaskExecutor.ensureIndexCompatibility(VersionUtils.getPreviousVersion(Version.CURRENT),
-            metadata));
+        expectThrows(
+            IllegalStateException.class,
+            () -> JoinTaskExecutor.ensureIndexCompatibility(VersionUtils.getPreviousVersion(Version.CURRENT), metadata)
+        );
     }
 
     public void testPreventJoinClusterWithUnsupportedIndices() {
         Settings.builder().build();
         Metadata.Builder metaBuilder = Metadata.builder();
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(settings(VersionUtils.getPreviousVersion(Version.CURRENT
-                .minimumIndexCompatibilityVersion())))
+            .settings(settings(Version.fromString("5.8.0")))
             .numberOfShards(1)
-            .numberOfReplicas(1).build();
+            .numberOfReplicas(1)
+            .build();
         metaBuilder.put(indexMetadata, false);
         Metadata metadata = metaBuilder.build();
-        expectThrows(IllegalStateException.class, () ->
-            JoinTaskExecutor.ensureIndexCompatibility(Version.CURRENT,
-                metadata));
+        expectThrows(IllegalStateException.class, () -> JoinTaskExecutor.ensureIndexCompatibility(Version.CURRENT, metadata));
     }
 
     public void testPreventJoinClusterWithUnsupportedNodeVersions() {
@@ -109,7 +107,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         final Version maxNodeVersion = nodes.getMaxNodeVersion();
         final Version minNodeVersion = nodes.getMinNodeVersion();
         if (maxNodeVersion.onOrAfter(LegacyESVersion.V_7_0_0)) {
-            final Version tooLow = getPreviousVersion(maxNodeVersion.minimumCompatibilityVersion());
+            final Version tooLow = LegacyESVersion.fromString("6.7.0");
             expectThrows(IllegalStateException.class, () -> {
                 if (randomBoolean()) {
                     JoinTaskExecutor.ensureNodesCompatibility(tooLow, nodes);
@@ -119,26 +117,14 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             });
         }
 
-        if (minNodeVersion.before(LegacyESVersion.V_6_0_0)) {
-            Version tooHigh = incompatibleFutureVersion(minNodeVersion);
-            expectThrows(IllegalStateException.class, () -> {
-                if (randomBoolean()) {
-                    JoinTaskExecutor.ensureNodesCompatibility(tooHigh, nodes);
-                } else {
-                    JoinTaskExecutor.ensureNodesCompatibility(tooHigh, minNodeVersion, maxNodeVersion);
-                }
-            });
-        }
-
         if (minNodeVersion.onOrAfter(LegacyESVersion.V_7_0_0)) {
-            Version oldMajor = LegacyESVersion.V_6_4_0.minimumCompatibilityVersion();
+            Version oldMajor = minNodeVersion.minimumCompatibilityVersion();
             expectThrows(IllegalStateException.class, () -> JoinTaskExecutor.ensureMajorVersionBarrier(oldMajor, minNodeVersion));
         }
 
-        final Version minGoodVersion = maxNodeVersion.major == minNodeVersion.major ?
-            // we have to stick with the same major
-            minNodeVersion :
-            maxNodeVersion.minimumCompatibilityVersion();
+        final Version minGoodVersion = maxNodeVersion.compareMajor(minNodeVersion) == 0 ?
+        // we have to stick with the same major
+            minNodeVersion : maxNodeVersion.minimumCompatibilityVersion();
         final Version justGood = randomVersionBetween(random(), minGoodVersion, maxCompatibleVersion(minNodeVersion));
 
         if (randomBoolean()) {
@@ -152,20 +138,23 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         Settings.builder().build();
         Metadata.Builder metaBuilder = Metadata.builder();
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(settings(VersionUtils.randomVersionBetween(random(),
-                Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT)))
+            .settings(
+                settings(VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT))
+            )
             .numberOfShards(1)
-            .numberOfReplicas(1).build();
+            .numberOfReplicas(1)
+            .build();
         metaBuilder.put(indexMetadata, false);
         indexMetadata = IndexMetadata.builder("test1")
-            .settings(settings(VersionUtils.randomVersionBetween(random(),
-                Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT)))
+            .settings(
+                settings(VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT))
+            )
             .numberOfShards(1)
-            .numberOfReplicas(1).build();
+            .numberOfReplicas(1)
+            .build();
         metaBuilder.put(indexMetadata, false);
         Metadata metadata = metaBuilder.build();
-            JoinTaskExecutor.ensureIndexCompatibility(Version.CURRENT,
-                metadata);
+        JoinTaskExecutor.ensureIndexCompatibility(Version.CURRENT, metadata);
     }
 
     public void testUpdatesNodeWithNewRoles() throws Exception {
@@ -182,18 +171,25 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         final DiscoveryNode masterNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
 
         final DiscoveryNode actualNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
-        final DiscoveryNode bwcNode = new DiscoveryNode(actualNode.getName(), actualNode.getId(), actualNode.getEphemeralId(),
-                actualNode.getHostName(), actualNode.getHostAddress(), actualNode.getAddress(), actualNode.getAttributes(),
-                new HashSet<>(randomSubsetOf(actualNode.getRoles())), actualNode.getVersion());
-        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(DiscoveryNodes.builder()
-                .add(masterNode)
-                .localNodeId(masterNode.getId())
-                .masterNodeId(masterNode.getId())
-                .add(bwcNode)
-        ).build();
+        final DiscoveryNode bwcNode = new DiscoveryNode(
+            actualNode.getName(),
+            actualNode.getId(),
+            actualNode.getEphemeralId(),
+            actualNode.getHostName(),
+            actualNode.getHostAddress(),
+            actualNode.getAddress(),
+            actualNode.getAttributes(),
+            new HashSet<>(randomSubsetOf(actualNode.getRoles())),
+            actualNode.getVersion()
+        );
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).add(bwcNode))
+            .build();
 
-        final ClusterStateTaskExecutor.ClusterTasksResult<JoinTaskExecutor.Task> result
-                = joinTaskExecutor.execute(clusterState, List.of(new JoinTaskExecutor.Task(actualNode, "test")));
+        final ClusterStateTaskExecutor.ClusterTasksResult<JoinTaskExecutor.Task> result = joinTaskExecutor.execute(
+            clusterState,
+            List.of(new JoinTaskExecutor.Task(actualNode, "test"))
+        );
         assertThat(result.executionResults.entrySet(), hasSize(1));
         final ClusterStateTaskExecutor.TaskResult taskResult = result.executionResults.values().iterator().next();
         assertTrue(taskResult.isSuccess());
@@ -209,7 +205,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         final AllocationService allocationService = mock(AllocationService.class);
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
         when(allocationService.disassociateDeadNodes(any(), anyBoolean(), any())).then(
-            invocationOnMock -> invocationOnMock.getArguments()[0]);
+            invocationOnMock -> invocationOnMock.getArguments()[0]
+        );
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
         Map<String, Version> channelVersions = new HashMap<>();
         String node_1 = UUIDs.base64UUID();  // OpenSearch node running BWC version
@@ -219,10 +216,10 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         String node_5 = UUIDs.base64UUID();  // ES node 7.10.2 in cluster but missing channel version
         String node_6 = UUIDs.base64UUID();  // ES node 7.9.0
         String node_7 = UUIDs.base64UUID();  // ES node 7.9.0 in cluster but missing channel version
-        channelVersions.put(node_1, LegacyESVersion.CURRENT);
-        channelVersions.put(node_2, LegacyESVersion.CURRENT);
+        channelVersions.put(node_1, Version.CURRENT);
+        channelVersions.put(node_2, Version.CURRENT);
         channelVersions.put(node_4, LegacyESVersion.V_7_10_2);
-        channelVersions.put(node_6, LegacyESVersion.V_7_9_0);
+        channelVersions.put(node_6, LegacyESVersion.V_7_10_0);
 
         final TransportService transportService = mock(TransportService.class);
         when(transportService.getChannelVersion(any())).thenReturn(channelVersions);
@@ -232,29 +229,47 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         nodes.add(new DiscoveryNode(node_3, buildNewFakeTransportAddress(), LegacyESVersion.V_7_10_2));
         nodes.add(new DiscoveryNode(node_4, buildNewFakeTransportAddress(), LegacyESVersion.V_7_10_2));
         nodes.add(new DiscoveryNode(node_5, buildNewFakeTransportAddress(), LegacyESVersion.V_7_10_2));
-        nodes.add(new DiscoveryNode(node_6, buildNewFakeTransportAddress(), LegacyESVersion.V_7_9_0));
-        nodes.add(new DiscoveryNode(node_7, buildNewFakeTransportAddress(), LegacyESVersion.V_7_9_0));
+        nodes.add(new DiscoveryNode(node_6, buildNewFakeTransportAddress(), LegacyESVersion.V_7_10_1));
+        nodes.add(new DiscoveryNode(node_7, buildNewFakeTransportAddress(), LegacyESVersion.V_7_10_0));
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).build();
-        final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(Settings.EMPTY, allocationService, logger,
-            rerouteService, transportService);
+        final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(
+            Settings.EMPTY,
+            allocationService,
+            logger,
+            rerouteService,
+            transportService
+        );
         final DiscoveryNode existing_node_3 = clusterState.nodes().get(node_3);
-        final DiscoveryNode node_3_new_join = new DiscoveryNode(existing_node_3.getName(), existing_node_3.getId(),
-            existing_node_3.getEphemeralId(), existing_node_3.getHostName(), existing_node_3.getHostAddress(),
-            existing_node_3.getAddress(), existing_node_3.getAttributes(), existing_node_3.getRoles(), Version.CURRENT);
+        final DiscoveryNode node_3_new_join = new DiscoveryNode(
+            existing_node_3.getName(),
+            existing_node_3.getId(),
+            existing_node_3.getEphemeralId(),
+            existing_node_3.getHostName(),
+            existing_node_3.getHostAddress(),
+            existing_node_3.getAddress(),
+            existing_node_3.getAttributes(),
+            existing_node_3.getRoles(),
+            Version.CURRENT
+        );
 
-        final ClusterStateTaskExecutor.ClusterTasksResult<JoinTaskExecutor.Task> result
-            = joinTaskExecutor.execute(clusterState, List.of(new JoinTaskExecutor.Task(node_3_new_join, "test"),
-            JoinTaskExecutor.newBecomeMasterTask(), JoinTaskExecutor.newFinishElectionTask()));
+        final ClusterStateTaskExecutor.ClusterTasksResult<JoinTaskExecutor.Task> result = joinTaskExecutor.execute(
+            clusterState,
+            List.of(
+                new JoinTaskExecutor.Task(node_3_new_join, "test"),
+                JoinTaskExecutor.newBecomeMasterTask(),
+                JoinTaskExecutor.newFinishElectionTask()
+            )
+        );
         final ClusterStateTaskExecutor.TaskResult taskResult = result.executionResults.values().iterator().next();
         assertTrue(taskResult.isSuccess());
         DiscoveryNodes resultNodes = result.resultingState.getNodes();
-        assertEquals(resultNodes.get(node_1).getVersion(), Version.CURRENT);
-        assertEquals(resultNodes.get(node_2).getVersion(), Version.CURRENT);
-        assertEquals(resultNodes.get(node_3).getVersion(), Version.CURRENT); // 7.10.2 in old state but sent new join and processed
-        assertEquals(resultNodes.get(node_4).getVersion(), LegacyESVersion.V_7_10_2);
+        assertEquals(Version.CURRENT, resultNodes.get(node_1).getVersion());
+        assertEquals(Version.CURRENT, resultNodes.get(node_2).getVersion());
+        assertEquals(Version.CURRENT, resultNodes.get(node_3).getVersion()); // 7.10.2 in old state but sent new join and processed
+        assertEquals(LegacyESVersion.V_7_10_2, resultNodes.get(node_4).getVersion());
         assertFalse(resultNodes.nodeExists(node_5));  // 7.10.2 node without active channel will be removed and should rejoin
-        assertEquals(resultNodes.get(node_6).getVersion(), LegacyESVersion.V_7_9_0);
+        assertEquals(LegacyESVersion.V_7_10_0, resultNodes.get(node_6).getVersion());
         // 7.9.0 node without active channel but shouldn't get removed
-        assertEquals(resultNodes.get(node_7).getVersion(), LegacyESVersion.V_7_9_0);
+        assertEquals(LegacyESVersion.V_7_10_0, resultNodes.get(node_7).getVersion());
     }
 }

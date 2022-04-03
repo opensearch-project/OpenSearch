@@ -35,7 +35,7 @@ package org.opensearch.painless;
 import java.util.List;
 import java.util.function.Function;
 
-/** Currently just a dummy class for testing a few features not yet exposed by whitelist! */
+/** Currently just a dummy class for testing a few features not yet exposed by allowlist! */
 public class FeatureTestObject {
     /** static method that returns true */
     public static boolean overloadedStatic() {
@@ -47,7 +47,7 @@ public class FeatureTestObject {
         return whatToReturn;
     }
 
-    /** static method only whitelisted as a static */
+    /** static method only allowlisted as a static */
     public static float staticAddFloatsTest(float x, float y) {
         return x + y;
     }
@@ -68,8 +68,7 @@ public class FeatureTestObject {
     private Integer i;
 
     /** empty ctor */
-    public FeatureTestObject() {
-    }
+    public FeatureTestObject() {}
 
     /** ctor with params */
     public FeatureTestObject(int x, int y) {
@@ -116,7 +115,7 @@ public class FeatureTestObject {
     }
 
     public int injectWithLambda(int injected, Function<Short, Integer> fn, short arg) {
-        return this.x*fn.apply(arg)*injected;
+        return this.x * fn.apply(arg) * injected;
     }
 
     public int injectMultiTimesX(int inject1, int inject2, int inject3, short user) {
@@ -124,15 +123,15 @@ public class FeatureTestObject {
     }
 
     public int injectMultiWithLambda(int inject1, int inject2, int inject3, Function<Short, Integer> fn, short arg) {
-        return this.x*fn.apply(arg)*(inject1 + inject2 + inject3);
+        return this.x * fn.apply(arg) * (inject1 + inject2 + inject3);
     }
 
     public Double mixedAdd(int i, Byte b, char c, Float f) {
-        return (double)(i + b + c + f);
+        return (double) (i + b + c + f);
     }
 
     /** method taking two functions! */
-    public Object twoFunctionsOfX(Function<Object,Object> f, Function<Object,Object> g) {
+    public Object twoFunctionsOfX(Function<Object, Object> f, Function<Object, Object> g) {
         return f.apply(g.apply(x));
     }
 

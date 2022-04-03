@@ -39,6 +39,7 @@ import org.apache.lucene.search.ScoreMode;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -50,7 +51,7 @@ import java.util.List;
  *
  * InternalProfiler facilitates the linking of the Collector graph
  */
-public class InternalProfileCollector implements Collector {
+public class InternalProfileCollector implements Collector, InternalProfileComponent {
 
     /**
      * A more friendly representation of the Collector's class name
@@ -68,9 +69,9 @@ public class InternalProfileCollector implements Collector {
     /**
      * A list of "embedded" children collectors
      */
-    private final List<InternalProfileCollector> children;
+    private final List<? extends InternalProfileComponent> children;
 
-    public InternalProfileCollector(Collector collector, String reason, List<InternalProfileCollector> children) {
+    public InternalProfileCollector(Collector collector, String reason, List<? extends InternalProfileComponent> children) {
         this.collector = new ProfileCollector(collector);
         this.reason = reason;
         this.collectorName = deriveCollectorName(collector);
@@ -96,6 +97,13 @@ public class InternalProfileCollector implements Collector {
      */
     public String getName() {
         return this.collectorName;
+    }
+
+    /**
+     * @return the underlying collector instance being profiled
+     */
+    public Collector getCollector() {
+        return collector.getDelegate();
     }
 
     /**
@@ -134,13 +142,19 @@ public class InternalProfileCollector implements Collector {
         return collector.scoreMode();
     }
 
+    @Override
+    public Collection<? extends InternalProfileComponent> children() {
+        return children;
+    }
+
+    @Override
     public CollectorResult getCollectorTree() {
         return InternalProfileCollector.doGetCollectorTree(this);
     }
 
-    private static CollectorResult doGetCollectorTree(InternalProfileCollector collector) {
-        List<CollectorResult> childResults = new ArrayList<>(collector.children.size());
-        for (InternalProfileCollector child : collector.children) {
+    static CollectorResult doGetCollectorTree(InternalProfileComponent collector) {
+        List<CollectorResult> childResults = new ArrayList<>(collector.children().size());
+        for (InternalProfileComponent child : collector.children()) {
             CollectorResult result = doGetCollectorTree(child);
             childResults.add(result);
         }

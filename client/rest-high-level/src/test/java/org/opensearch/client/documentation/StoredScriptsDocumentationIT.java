@@ -85,10 +85,11 @@ public class StoredScriptsDocumentationIT extends OpenSearchRestHighLevelClientT
     public void testGetStoredScript() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
-        final StoredScriptSource scriptSource =
-            new StoredScriptSource("painless",
-                "Math.log(_score * 2) + params.my_modifier",
-                Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()));
+        final StoredScriptSource scriptSource = new StoredScriptSource(
+            "painless",
+            "Math.log(_score * 2) + params.my_modifier",
+            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType())
+        );
 
         putStoredScript("calculate-score", scriptSource);
 
@@ -148,10 +149,11 @@ public class StoredScriptsDocumentationIT extends OpenSearchRestHighLevelClientT
     public void testDeleteStoredScript() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
-        final StoredScriptSource scriptSource =
-            new StoredScriptSource("painless",
-                "Math.log(_score * 2) + params.my_modifier",
-                Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()));
+        final StoredScriptSource scriptSource = new StoredScriptSource(
+            "painless",
+            "Math.log(_score * 2) + params.my_modifier",
+            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType())
+        );
 
         putStoredScript("calculate-score", scriptSource);
 
@@ -256,7 +258,6 @@ public class StoredScriptsDocumentationIT extends OpenSearchRestHighLevelClientT
             request.content(BytesReference.bytes(builder), XContentType.JSON); // <1>
             // end::put-stored-script-content-painless
 
-
             // tag::put-stored-script-execute
             AcknowledgedResponse putStoredScriptResponse = client.putScript(request, RequestOptions.DEFAULT);
             // end::put-stored-script-execute
@@ -321,8 +322,7 @@ public class StoredScriptsDocumentationIT extends OpenSearchRestHighLevelClientT
     }
 
     private void putStoredScript(String id, StoredScriptSource scriptSource) throws IOException {
-        PutStoredScriptRequest request =
-            new PutStoredScriptRequest(id, "score", new BytesArray("{}"), XContentType.JSON, scriptSource);
+        PutStoredScriptRequest request = new PutStoredScriptRequest(id, "score", new BytesArray("{}"), XContentType.JSON, scriptSource);
         assertAcked(execute(request, highLevelClient()::putScript, highLevelClient()::putScriptAsync));
     }
 }

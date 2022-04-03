@@ -54,8 +54,12 @@ public class AcknowledgedResponse extends ActionResponse implements ToXContentOb
     private static final ParseField ACKNOWLEDGED = new ParseField("acknowledged");
 
     protected static <T extends AcknowledgedResponse> void declareAcknowledgedField(ConstructingObjectParser<T, Void> objectParser) {
-        objectParser.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), ACKNOWLEDGED,
-            ObjectParser.ValueType.BOOLEAN);
+        objectParser.declareField(
+            constructorArg(),
+            (parser, context) -> parser.booleanValue(),
+            ACKNOWLEDGED,
+            ObjectParser.ValueType.BOOLEAN
+        );
     }
 
     protected boolean acknowledged;
@@ -106,11 +110,18 @@ public class AcknowledgedResponse extends ActionResponse implements ToXContentOb
      * A generic parser that simply parses the acknowledged flag
      */
     private static final ConstructingObjectParser<Boolean, Void> ACKNOWLEDGED_FLAG_PARSER = new ConstructingObjectParser<>(
-            "acknowledged_flag", true, args -> (Boolean) args[0]);
+        "acknowledged_flag",
+        true,
+        args -> (Boolean) args[0]
+    );
 
     static {
-        ACKNOWLEDGED_FLAG_PARSER.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), ACKNOWLEDGED,
-                ObjectParser.ValueType.BOOLEAN);
+        ACKNOWLEDGED_FLAG_PARSER.declareField(
+            constructorArg(),
+            (parser, context) -> parser.booleanValue(),
+            ACKNOWLEDGED,
+            ObjectParser.ValueType.BOOLEAN
+        );
     }
 
     public static AcknowledgedResponse fromXContent(XContentParser parser) throws IOException {

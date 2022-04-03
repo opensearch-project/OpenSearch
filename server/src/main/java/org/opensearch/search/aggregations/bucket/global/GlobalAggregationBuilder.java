@@ -85,7 +85,7 @@ public class GlobalAggregationBuilder extends AbstractAggregationBuilder<GlobalA
 
     @Override
     protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent, Builder subFactoriesBuilder)
-            throws IOException {
+        throws IOException {
         return new GlobalAggregatorFactory(name, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 

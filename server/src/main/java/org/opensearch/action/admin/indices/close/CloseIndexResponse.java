@@ -57,7 +57,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
     private final List<IndexResult> indices;
 
     CloseIndexResponse(StreamInput in) throws IOException {
-        super(in, in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0), true);
+        super(in, in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0));
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
             indices = unmodifiableList(in.readList(IndexResult::new));
         } else {

@@ -136,8 +136,10 @@ public class XContentBuilderTests extends OpenSearchTestCase {
             xContentBuilder.rawField("foo", new BytesArray("{\"test\":\"value\"}").streamInput());
             xContentBuilder.field("test1", "value1");
             xContentBuilder.endObject();
-            assertThat(Strings.toString(xContentBuilder),
-                equalTo("{\"test\":\"value\",\"foo\":{\"test\":\"value\"},\"test1\":\"value1\"}"));
+            assertThat(
+                Strings.toString(xContentBuilder),
+                equalTo("{\"test\":\"value\",\"foo\":{\"test\":\"value\"},\"test1\":\"value1\"}")
+            );
         }
         {
             XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -147,8 +149,10 @@ public class XContentBuilderTests extends OpenSearchTestCase {
             xContentBuilder.rawField("foo1", new BytesArray("{\"test\":\"value\"}").streamInput());
             xContentBuilder.field("test1", "value1");
             xContentBuilder.endObject();
-            assertThat(Strings.toString(xContentBuilder),
-                equalTo("{\"test\":\"value\",\"foo\":{\"test\":\"value\"},\"foo1\":{\"test\":\"value\"},\"test1\":\"value1\"}"));
+            assertThat(
+                Strings.toString(xContentBuilder),
+                equalTo("{\"test\":\"value\",\"foo\":{\"test\":\"value\"},\"foo1\":{\"test\":\"value\"},\"test1\":\"value1\"}")
+            );
         }
     }
 
@@ -186,7 +190,7 @@ public class XContentBuilderTests extends OpenSearchTestCase {
 
     public void testByteConversion() throws Exception {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        builder.startObject().field("test_name", (Byte)(byte)120).endObject();
+        builder.startObject().field("test_name", (Byte) (byte) 120).endObject();
         assertThat(BytesReference.bytes(builder).utf8ToString(), equalTo("{\"test_name\":120}"));
     }
 
@@ -218,10 +222,7 @@ public class XContentBuilderTests extends OpenSearchTestCase {
 
     public void testCopyCurrentStructure() throws Exception {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        builder.startObject()
-                .field("test", "test field")
-                .startObject("filter")
-                .startObject("terms");
+        builder.startObject().field("test", "test field").startObject("filter").startObject("terms");
 
         // up to 20k random terms
         int numTerms = randomInt(20000) + 1;
@@ -323,34 +324,21 @@ public class XContentBuilderTests extends OpenSearchTestCase {
 
     public void testIndentIsPlatformIndependent() throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
-        builder.startObject().field("test","foo").startObject("foo").field("foobar", "boom").endObject().endObject();
+        builder.startObject().field("test", "foo").startObject("foo").field("foobar", "boom").endObject().endObject();
         String string = Strings.toString(builder);
-        assertEquals("{\n" +
-                "  \"test\" : \"foo\",\n" +
-                "  \"foo\" : {\n" +
-                "    \"foobar\" : \"boom\"\n" +
-                "  }\n" +
-                "}", string);
+        assertEquals("{\n" + "  \"test\" : \"foo\",\n" + "  \"foo\" : {\n" + "    \"foobar\" : \"boom\"\n" + "  }\n" + "}", string);
 
         builder = XContentFactory.contentBuilder(XContentType.YAML).prettyPrint();
-        builder.startObject().field("test","foo").startObject("foo").field("foobar", "boom").endObject().endObject();
+        builder.startObject().field("test", "foo").startObject("foo").field("foobar", "boom").endObject().endObject();
         string = Strings.toString(builder);
-        assertEquals("---\n" +
-                "test: \"foo\"\n" +
-                "foo:\n" +
-                "  foobar: \"boom\"\n", string);
+        assertEquals("---\n" + "test: \"foo\"\n" + "foo:\n" + "  foobar: \"boom\"\n", string);
     }
 
     public void testRenderGeoPoint() throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
-        builder.startObject().field("foo").value(new GeoPoint(1,2)).endObject();
+        builder.startObject().field("foo").value(new GeoPoint(1, 2)).endObject();
         String string = Strings.toString(builder);
-        assertEquals("{\n" +
-                "  \"foo\" : {\n" +
-                "    \"lat\" : 1.0,\n" +
-                "    \"lon\" : 2.0\n" +
-                "  }\n" +
-                "}", string.trim());
+        assertEquals("{\n" + "  \"foo\" : {\n" + "    \"lat\" : 1.0,\n" + "    \"lon\" : 2.0\n" + "  }\n" + "}", string.trim());
     }
 
     public void testWriteMapWithNullKeys() throws IOException {
@@ -358,7 +346,7 @@ public class XContentBuilderTests extends OpenSearchTestCase {
         try {
             builder.map(Collections.singletonMap(null, "test"));
             fail("write map should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Field name cannot be null"));
         }
     }
@@ -368,7 +356,7 @@ public class XContentBuilderTests extends OpenSearchTestCase {
         try {
             builder.map(Collections.singletonMap(null, "test"));
             fail("write map should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Field name cannot be null"));
         }
     }
@@ -379,7 +367,7 @@ public class XContentBuilderTests extends OpenSearchTestCase {
             builder.startObject();
             builder.field("map", Collections.singletonMap(null, "test"));
             fail("write map should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Field name cannot be null"));
         }
     }

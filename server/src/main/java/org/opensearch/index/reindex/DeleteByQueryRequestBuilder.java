@@ -37,16 +37,13 @@ import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
-public class DeleteByQueryRequestBuilder extends
-        AbstractBulkByScrollRequestBuilder<DeleteByQueryRequest, DeleteByQueryRequestBuilder> {
+public class DeleteByQueryRequestBuilder extends AbstractBulkByScrollRequestBuilder<DeleteByQueryRequest, DeleteByQueryRequestBuilder> {
 
     public DeleteByQueryRequestBuilder(OpenSearchClient client, ActionType<BulkByScrollResponse> action) {
         this(client, action, new SearchRequestBuilder(client, SearchAction.INSTANCE));
     }
 
-    private DeleteByQueryRequestBuilder(OpenSearchClient client,
-                                        ActionType<BulkByScrollResponse> action,
-                                        SearchRequestBuilder search) {
+    private DeleteByQueryRequestBuilder(OpenSearchClient client, ActionType<BulkByScrollResponse> action, SearchRequestBuilder search) {
         super(client, action, search, new DeleteByQueryRequest(search.request()));
     }
 

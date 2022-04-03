@@ -49,8 +49,12 @@ public class SimulatePipelineRequestBuilder extends ActionRequestBuilder<Simulat
     /**
      * Create a new builder for {@link SimulatePipelineRequest}s
      */
-    public SimulatePipelineRequestBuilder(OpenSearchClient client, SimulatePipelineAction action, BytesReference source,
-                                          XContentType xContentType) {
+    public SimulatePipelineRequestBuilder(
+        OpenSearchClient client,
+        SimulatePipelineAction action,
+        BytesReference source,
+        XContentType xContentType
+    ) {
         super(client, action, new SimulatePipelineRequest(source, xContentType));
     }
 

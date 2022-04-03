@@ -62,7 +62,9 @@ import java.util.Objects;
  * Implementation of {@link Histogram}.
  */
 public final class InternalDateHistogram extends InternalMultiBucketAggregation<InternalDateHistogram, InternalDateHistogram.Bucket>
-        implements Histogram, HistogramFactory {
+    implements
+        Histogram,
+        HistogramFactory {
 
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Histogram.Bucket, KeyComparable<Bucket> {
 
@@ -72,8 +74,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         private final transient boolean keyed;
         protected final transient DocValueFormat format;
 
-        public Bucket(long key, long docCount, boolean keyed, DocValueFormat format,
-                InternalAggregations aggregations) {
+        public Bucket(long key, long docCount, boolean keyed, DocValueFormat format, InternalAggregations aggregations) {
             this.format = format;
             this.keyed = keyed;
             this.key = key;
@@ -100,9 +101,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
             InternalDateHistogram.Bucket that = (InternalDateHistogram.Bucket) obj;
             // No need to take the keyed and format parameters into account,
             // they are already stored and tested on the InternalDateHistogram object
-            return key == that.key
-                    && docCount == that.docCount
-                    && Objects.equals(aggregations, that.aggregations);
+            return key == that.key && docCount == that.docCount && Objects.equals(aggregations, that.aggregations);
         }
 
         @Override
@@ -204,8 +203,8 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
             }
             EmptyBucketInfo that = (EmptyBucketInfo) obj;
             return Objects.equals(rounding, that.rounding)
-                    && Objects.equals(bounds, that.bounds)
-                    && Objects.equals(subAggregations, that.subAggregations);
+                && Objects.equals(bounds, that.bounds)
+                && Objects.equals(subAggregations, that.subAggregations);
         }
 
         @Override
@@ -222,8 +221,17 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     private final long offset;
     final EmptyBucketInfo emptyBucketInfo;
 
-    InternalDateHistogram(String name, List<Bucket> buckets, BucketOrder order, long minDocCount, long offset,
-            EmptyBucketInfo emptyBucketInfo, DocValueFormat formatter, boolean keyed, Map<String, Object> metadata) {
+    InternalDateHistogram(
+        String name,
+        List<Bucket> buckets,
+        BucketOrder order,
+        long minDocCount,
+        long offset,
+        EmptyBucketInfo emptyBucketInfo,
+        DocValueFormat formatter,
+        boolean keyed,
+        Map<String, Object> metadata
+    ) {
         super(name, metadata);
         this.buckets = buckets;
         this.order = order;
@@ -380,8 +388,10 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         ListIterator<Bucket> iter = list.listIterator();
 
         // first adding all the empty buckets *before* the actual data (based on th extended_bounds.min the user requested)
-        InternalAggregations reducedEmptySubAggs = InternalAggregations.reduce(Collections.singletonList(emptyBucketInfo.subAggregations),
-                reduceContext);
+        InternalAggregations reducedEmptySubAggs = InternalAggregations.reduce(
+            Collections.singletonList(emptyBucketInfo.subAggregations),
+            reduceContext
+        );
         if (bounds != null) {
             Bucket firstBucket = iter.hasNext() ? list.get(iter.nextIndex()) : null;
             if (firstBucket == null) {
@@ -444,7 +454,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
                 List<Bucket> reverse = new ArrayList<>(reducedBuckets);
                 Collections.reverse(reverse);
                 reducedBuckets = reverse;
-            } else if (InternalOrder.isKeyAsc(order) == false){
+            } else if (InternalOrder.isKeyAsc(order) == false) {
                 // nothing to do when sorting by key ascending, as data is already sorted since shards return
                 // sorted buckets and the merge-sort performed by reduceBuckets maintains order.
                 // otherwise, sorted by compound order or sub-aggregation, we need to fall back to a costly n*log(n) sort
@@ -452,8 +462,17 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
             }
         }
         reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
-        return new InternalDateHistogram(getName(), reducedBuckets, order, minDocCount, offset, emptyBucketInfo,
-                format, keyed, getMetadata());
+        return new InternalDateHistogram(
+            getName(),
+            reducedBuckets,
+            order,
+            minDocCount,
+            offset,
+            emptyBucketInfo,
+            format,
+            keyed,
+            getMetadata()
+        );
     }
 
     @Override
@@ -510,12 +529,12 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
 
         InternalDateHistogram that = (InternalDateHistogram) obj;
         return Objects.equals(buckets, that.buckets)
-                && Objects.equals(order, that.order)
-                && Objects.equals(format, that.format)
-                && Objects.equals(keyed, that.keyed)
-                && Objects.equals(minDocCount, that.minDocCount)
-                && Objects.equals(offset, that.offset)
-                && Objects.equals(emptyBucketInfo, that.emptyBucketInfo);
+            && Objects.equals(order, that.order)
+            && Objects.equals(format, that.format)
+            && Objects.equals(keyed, that.keyed)
+            && Objects.equals(minDocCount, that.minDocCount)
+            && Objects.equals(offset, that.offset)
+            && Objects.equals(emptyBucketInfo, that.emptyBucketInfo);
     }
 
     @Override

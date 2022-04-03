@@ -80,17 +80,22 @@ public class RatedDocumentTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
         RatedDocument original = createRatedDocument();
-        RatedDocument deserialized = OpenSearchTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()),
-                RatedDocument::new);
+        RatedDocument deserialized = OpenSearchTestCase.copyWriteable(
+            original,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            RatedDocument::new
+        );
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());
         assertNotSame(deserialized, original);
     }
 
     public void testEqualsAndHash() throws IOException {
-        checkEqualsAndHashCode(createRatedDocument(), original -> {
-            return new RatedDocument(original.getIndex(), original.getDocID(), original.getRating());
-        }, RatedDocumentTests::mutateTestItem);
+        checkEqualsAndHashCode(
+            createRatedDocument(),
+            original -> { return new RatedDocument(original.getIndex(), original.getDocID(), original.getRating()); },
+            RatedDocumentTests::mutateTestItem
+        );
     }
 
     private static RatedDocument mutateTestItem(RatedDocument original) {
@@ -99,17 +104,17 @@ public class RatedDocumentTests extends OpenSearchTestCase {
         String docId = original.getDocID();
 
         switch (randomIntBetween(0, 2)) {
-        case 0:
-            rating = randomValueOtherThan(rating, () -> randomInt());
-            break;
-        case 1:
-            index = randomValueOtherThan(index, () -> randomAlphaOfLength(10));
-            break;
-        case 2:
-            docId = randomValueOtherThan(docId, () -> randomAlphaOfLength(10));
-            break;
-        default:
-            throw new IllegalStateException("The test should only allow two parameters mutated");
+            case 0:
+                rating = randomValueOtherThan(rating, () -> randomInt());
+                break;
+            case 1:
+                index = randomValueOtherThan(index, () -> randomAlphaOfLength(10));
+                break;
+            case 2:
+                docId = randomValueOtherThan(docId, () -> randomAlphaOfLength(10));
+                break;
+            default:
+                throw new IllegalStateException("The test should only allow two parameters mutated");
         }
         return new RatedDocument(index, docId, rating);
     }

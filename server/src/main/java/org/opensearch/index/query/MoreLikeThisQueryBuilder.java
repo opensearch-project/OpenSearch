@@ -39,6 +39,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.Version;
 import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.termvectors.MultiTermVectorsItemResponse;
 import org.opensearch.action.termvectors.MultiTermVectorsRequest;
@@ -54,7 +55,6 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.lucene.search.MoreLikeThisQuery;
 import org.opensearch.common.lucene.search.XMoreLikeThis;
 import org.opensearch.common.lucene.uid.Versions;
@@ -67,7 +67,6 @@ import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.TextFieldMapper.TextFieldType;
 
 import java.io.IOException;
@@ -81,7 +80,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Stream;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 
@@ -92,10 +90,8 @@ import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
  */
 public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQueryBuilder> {
     public static final String NAME = "more_like_this";
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MoreLikeThisQueryBuilder.class);
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Types are deprecated in [more_like_this] " +
-        "queries. The type should no longer be specified in the [like] and [unlike] sections.";
-
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Types are deprecated in [more_like_this] "
+        + "queries. The type should no longer be specified in the [like] and [unlike] sections.";
 
     public static final int DEFAULT_MAX_QUERY_TERMS = XMoreLikeThis.DEFAULT_MAX_QUERY_TERMS;
     public static final int DEFAULT_MIN_TERM_FREQ = XMoreLikeThis.DEFAULT_MIN_TERM_FREQ;
@@ -109,7 +105,8 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     public static final boolean DEFAULT_FAIL_ON_UNSUPPORTED_FIELDS = true;
 
     private static final Set<Class<? extends MappedFieldType>> SUPPORTED_FIELD_TYPES = new HashSet<>(
-            Arrays.asList(TextFieldType.class, KeywordFieldType.class));
+        Arrays.asList(TextFieldType.class, KeywordFieldType.class)
+    );
 
     private static final ParseField FIELDS = new ParseField("fields");
     private static final ParseField LIKE = new ParseField("like");
@@ -128,14 +125,12 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     private static final ParseField FAIL_ON_UNSUPPORTED_FIELD = new ParseField("fail_on_unsupported_field");
 
     private static final ParseField INDEX = new ParseField("_index");
-    private static final ParseField TYPE = new ParseField("_type");
     private static final ParseField ID = new ParseField("_id");
     public static final ParseField DOC = new ParseField("doc");
     private static final ParseField PER_FIELD_ANALYZER = new ParseField("per_field_analyzer");
     private static final ParseField ROUTING = new ParseField("routing");
     private static final ParseField VERSION = new ParseField("version");
     private static final ParseField VERSION_TYPE = new ParseField("version_type");
-
 
     // document inputs
     private final String[] fields;
@@ -169,7 +164,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         public static final Item[] EMPTY_ARRAY = new Item[0];
 
         private String index;
-        private String type;
         private String id;
         private BytesReference doc;
         private XContentType xContentType;
@@ -179,15 +173,13 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
 
-        public Item() {
-        }
+        public Item() {}
 
         Item(Item copy) {
             if (copy.id == null && copy.doc == null) {
                 throw new IllegalArgumentException("Item requires either id or doc to be non-null");
             }
             this.index = copy.index;
-            this.type = copy.type;
             this.id = copy.id;
             this.routing = copy.routing;
             this.doc = copy.doc;
@@ -228,50 +220,14 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         }
 
         /**
-         * Constructor for a given item / document request
-         *
-         * @param index the index where the document is located
-         * @param type the type of the document
-         * @param id and its id
-         *
-         * @deprecated Types are in the process of being removed, use {@link Item(String, String)} instead.
-         */
-        @Deprecated
-        public Item(@Nullable String index, @Nullable String type, String id) {
-            if (id == null) {
-                throw new IllegalArgumentException("Item requires id to be non-null");
-            }
-            this.index = index;
-            this.type = type;
-            this.id = id;
-        }
-
-        /**
-         * Constructor for an artificial document request, that is not present in the index.
-         *
-         * @param index the index to be used for parsing the doc
-         * @param type the type to be used for parsing the doc
-         * @param doc the document specification
-         *
-         * @deprecated Types are in the process of being removed, use {@link Item(String, XContentBuilder)} instead.
-         */
-        @Deprecated
-        public Item(@Nullable String index, @Nullable String type, XContentBuilder doc) {
-            if (doc == null) {
-                throw new IllegalArgumentException("Item requires doc to be non-null");
-            }
-            this.index = index;
-            this.type = type;
-            this.doc = BytesReference.bytes(doc);
-            this.xContentType = doc.contentType();
-        }
-
-        /**
          * Read from a stream.
          */
         Item(StreamInput in) throws IOException {
             index = in.readOptionalString();
-            type = in.readOptionalString();
+            if (in.getVersion().before(Version.V_2_0_0)) {
+                // types no longer supported so ignore
+                in.readOptionalString();
+            }
             if (in.readBoolean()) {
                 doc = (BytesReference) in.readGenericValue();
                 xContentType = in.readEnum(XContentType.class);
@@ -288,7 +244,10 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(index);
-            out.writeOptionalString(type);
+            if (out.getVersion().before(Version.V_2_0_0)) {
+                // types not supported so send an empty array to previous versions
+                out.writeOptionalString(null);
+            }
             out.writeBoolean(doc != null);
             if (doc != null) {
                 out.writeGenericValue(doc);
@@ -309,23 +268,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
         public Item index(String index) {
             this.index = index;
-            return this;
-        }
-
-        /**
-         * @deprecated Types are in the process of being removed.
-         */
-        @Deprecated
-        public String type() {
-            return type;
-        }
-
-        /**
-         * @deprecated Types are in the process of being removed.
-         */
-        @Deprecated
-        public Item type(String type) {
-            this.type = type;
             return this;
         }
 
@@ -393,17 +335,16 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
          * Convert this to a {@link TermVectorsRequest} for fetching the terms of the document.
          */
         TermVectorsRequest toTermVectorsRequest() {
-            TermVectorsRequest termVectorsRequest = new TermVectorsRequest(index, type, id)
-                    .selectedFields(fields)
-                    .routing(routing)
-                    .version(version)
-                    .versionType(versionType)
-                    .perFieldAnalyzer(perFieldAnalyzer)
-                    .positions(false)  // ensures these following parameters are never set
-                    .offsets(false)
-                    .payloads(false)
-                    .fieldStatistics(false)
-                    .termStatistics(false);
+            TermVectorsRequest termVectorsRequest = new TermVectorsRequest(index, id).selectedFields(fields)
+                .routing(routing)
+                .version(version)
+                .versionType(versionType)
+                .perFieldAnalyzer(perFieldAnalyzer)
+                .positions(false)  // ensures these following parameters are never set
+                .offsets(false)
+                .payloads(false)
+                .fieldStatistics(false)
+                .termStatistics(false);
             // for artificial docs to make sure that the id has changed in the item too
             if (doc != null) {
                 termVectorsRequest.doc(doc, true, xContentType);
@@ -424,8 +365,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 } else if (currentFieldName != null) {
                     if (INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
                         item.index = parser.text();
-                    } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                        item.type = parser.text();
                     } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                         item.id = parser.text();
                     } else if (DOC.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -439,8 +378,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                             }
                             item.fields(fields.toArray(new String[fields.size()]));
                         } else {
-                            throw new OpenSearchParseException(
-                                    "failed to parse More Like This item. field [fields] must be an array");
+                            throw new OpenSearchParseException("failed to parse More Like This item. field [fields] must be an array");
                         }
                     } else if (PER_FIELD_ANALYZER.match(currentFieldName, parser.getDeprecationHandler())) {
                         item.perFieldAnalyzer(TermVectorsRequest.readPerFieldAnalyzer(parser.map()));
@@ -451,18 +389,17 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                     } else if (VERSION_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                         item.versionType = VersionType.fromString(parser.text());
                     } else {
-                        throw new OpenSearchParseException(
-                                "failed to parse More Like This item. unknown field [{}]", currentFieldName);
+                        throw new OpenSearchParseException("failed to parse More Like This item. unknown field [{}]", currentFieldName);
                     }
                 }
             }
             if (item.id != null && item.doc != null) {
                 throw new OpenSearchParseException(
-                        "failed to parse More Like This item. either [id] or [doc] can be specified, but not both!");
+                    "failed to parse More Like This item. either [id] or [doc] can be specified, but not both!"
+                );
             }
             if (item.id == null && item.doc == null) {
-                throw new OpenSearchParseException(
-                        "failed to parse More Like This item. neither [id] nor [doc] is specified!");
+                throw new OpenSearchParseException("failed to parse More Like This item. neither [id] nor [doc] is specified!");
             }
             return item;
         }
@@ -472,9 +409,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             builder.startObject();
             if (this.index != null) {
                 builder.field(INDEX.getPreferredName(), this.index);
-            }
-            if (this.type != null) {
-                builder.field(TYPE.getPreferredName(), this.type);
             }
             if (this.id != null) {
                 builder.field(ID.getPreferredName(), this.id);
@@ -516,8 +450,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
         @Override
         public int hashCode() {
-            return Objects.hash(index, type, id, doc, Arrays.hashCode(fields), perFieldAnalyzer, routing,
-                    version, versionType);
+            return Objects.hash(index, id, doc, Arrays.hashCode(fields), perFieldAnalyzer, routing, version, versionType);
         }
 
         @Override
@@ -526,7 +459,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             if (!(o instanceof Item)) return false;
             Item other = (Item) o;
             return Objects.equals(index, other.index)
-                && Objects.equals(type, other.type)
                 && Objects.equals(id, other.id)
                 && Objects.equals(doc, other.doc)
                 && Arrays.equals(fields, other.fields) // otherwise we are comparing pointers
@@ -887,7 +819,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 } else if (MAX_QUERY_TERMS.match(currentFieldName, parser.getDeprecationHandler())) {
                     maxQueryTerms = parser.intValue();
                 } else if (MIN_TERM_FREQ.match(currentFieldName, parser.getDeprecationHandler())) {
-                    minTermFreq =parser.intValue();
+                    minTermFreq = parser.intValue();
                 } else if (MIN_DOC_FREQ.match(currentFieldName, parser.getDeprecationHandler())) {
                     minDocFreq = parser.intValue();
                 } else if (MAX_DOC_FREQ.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -960,34 +892,26 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         Item[] unlikeItemsArray = unlikeItems.isEmpty() ? null : unlikeItems.toArray(new Item[unlikeItems.size()]);
 
         MoreLikeThisQueryBuilder moreLikeThisQueryBuilder = new MoreLikeThisQueryBuilder(fieldsArray, likeTextsArray, likeItemsArray)
-                .unlike(unlikeTextsArray)
-                .unlike(unlikeItemsArray)
-                .maxQueryTerms(maxQueryTerms)
-                .minTermFreq(minTermFreq)
-                .minDocFreq(minDocFreq)
-                .maxDocFreq(maxDocFreq)
-                .minWordLength(minWordLength)
-                .maxWordLength(maxWordLength)
-                .analyzer(analyzer)
-                .minimumShouldMatch(minimumShouldMatch)
-                .boostTerms(boostTerms)
-                .include(include)
-                .failOnUnsupportedField(failOnUnsupportedField)
-                .boost(boost)
-                .queryName(queryName);
+            .unlike(unlikeTextsArray)
+            .unlike(unlikeItemsArray)
+            .maxQueryTerms(maxQueryTerms)
+            .minTermFreq(minTermFreq)
+            .minDocFreq(minDocFreq)
+            .maxDocFreq(maxDocFreq)
+            .minWordLength(minWordLength)
+            .maxWordLength(maxWordLength)
+            .analyzer(analyzer)
+            .minimumShouldMatch(minimumShouldMatch)
+            .boostTerms(boostTerms)
+            .include(include)
+            .failOnUnsupportedField(failOnUnsupportedField)
+            .boost(boost)
+            .queryName(queryName);
         if (stopWords != null) {
             moreLikeThisQueryBuilder.stopWords(stopWords);
         }
 
-        if (moreLikeThisQueryBuilder.isTypeless() == false) {
-            deprecationLogger.deprecate("more_like_this_query_with_types", TYPES_DEPRECATION_MESSAGE);
-        }
         return moreLikeThisQueryBuilder;
-    }
-
-    public boolean isTypeless() {
-        return Stream.concat(Arrays.stream(likeItems), Arrays.stream(unlikeItems))
-            .allMatch(item -> item.type == null);
     }
 
     private static void parseLikeField(XContentParser parser, List<String> texts, List<Item> items) throws IOException {
@@ -1064,12 +988,12 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         List<String> moreLikeFields = new ArrayList<>();
         if (useDefaultField) {
             moreLikeFields = context.defaultFields();
-            if (moreLikeFields.size() == 1
-                    && moreLikeFields.get(0).equals("*")
-                    && (likeTexts.length > 0 || unlikeTexts.length > 0)) {
-                throw new IllegalArgumentException("[more_like_this] query cannot infer the field to analyze the free text, " +
-                    "you should update the [index.query.default_field] index setting to a field that exists in the mapping or " +
-                    "set the [fields] option in the query.");
+            if (moreLikeFields.size() == 1 && moreLikeFields.get(0).equals("*") && (likeTexts.length > 0 || unlikeTexts.length > 0)) {
+                throw new IllegalArgumentException(
+                    "[more_like_this] query cannot infer the field to analyze the free text, "
+                        + "you should update the [index.query.default_field] index setting to a field that exists in the mapping or "
+                        + "set the [fields] option in the query."
+                );
             }
         } else {
             for (String field : fields) {
@@ -1107,8 +1031,15 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         }
     }
 
-    private Query handleItems(QueryShardContext context, MoreLikeThisQuery mltQuery, Item[] likeItems, Item[] unlikeItems,
-                              boolean include, List<String> moreLikeFields, boolean useDefaultField) throws IOException {
+    private Query handleItems(
+        QueryShardContext context,
+        MoreLikeThisQuery mltQuery,
+        Item[] likeItems,
+        Item[] unlikeItems,
+        boolean include,
+        List<String> moreLikeFields,
+        boolean useDefaultField
+    ) throws IOException {
         // set default index, type and fields if not specified
         for (Item item : likeItems) {
             setDefaultIndexTypeFields(context, item, moreLikeFields, useDefaultField);
@@ -1141,13 +1072,14 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return boolQuery.build();
     }
 
-    private static void setDefaultIndexTypeFields(QueryShardContext context, Item item, List<String> moreLikeFields,
-                                                  boolean useDefaultField) {
+    private static void setDefaultIndexTypeFields(
+        QueryShardContext context,
+        Item item,
+        List<String> moreLikeFields,
+        boolean useDefaultField
+    ) {
         if (item.index() == null) {
             item.index(context.index().getName());
-        }
-        if (item.type() == null) {
-            item.type(MapperService.SINGLE_MAPPING_NAME);
         }
         // default fields if not present but don't override for artificial docs
         if ((item.fields() == null || item.fields().length == 0) && item.doc() == null) {
@@ -1214,10 +1146,25 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(Arrays.hashCode(fields), Arrays.hashCode(likeTexts),
-                Arrays.hashCode(unlikeTexts), Arrays.hashCode(likeItems), Arrays.hashCode(unlikeItems),
-                maxQueryTerms, minTermFreq, minDocFreq, maxDocFreq, minWordLength, maxWordLength,
-                Arrays.hashCode(stopWords), analyzer, minimumShouldMatch, boostTerms, include, failOnUnsupportedField);
+        return Objects.hash(
+            Arrays.hashCode(fields),
+            Arrays.hashCode(likeTexts),
+            Arrays.hashCode(unlikeTexts),
+            Arrays.hashCode(likeItems),
+            Arrays.hashCode(unlikeItems),
+            maxQueryTerms,
+            minTermFreq,
+            minDocFreq,
+            maxDocFreq,
+            minWordLength,
+            maxWordLength,
+            Arrays.hashCode(stopWords),
+            analyzer,
+            minimumShouldMatch,
+            boostTerms,
+            include,
+            failOnUnsupportedField
+        );
     }
 
     @Override

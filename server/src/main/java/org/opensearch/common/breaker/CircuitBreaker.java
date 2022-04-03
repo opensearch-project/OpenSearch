@@ -32,7 +32,6 @@
 
 package org.opensearch.common.breaker;
 
-
 import java.util.Locale;
 
 /**
@@ -67,12 +66,6 @@ public interface CircuitBreaker {
      * writing requests on the network layer.
      */
     String IN_FLIGHT_REQUESTS = "in_flight_requests";
-    /**
-     * The accounting breaker tracks things held in memory that is independent
-     * of the request lifecycle. This includes memory used by Lucene for
-     * segments.
-     */
-    String ACCOUNTING = "accounting";
 
     enum Type {
         // A regular or ChildMemoryCircuitBreaker
@@ -83,7 +76,7 @@ public interface CircuitBreaker {
         NOOP;
 
         public static Type parseValue(String value) {
-            switch(value.toLowerCase(Locale.ROOT)) {
+            switch (value.toLowerCase(Locale.ROOT)) {
                 case "noop":
                     return Type.NOOP;
                 case "parent":

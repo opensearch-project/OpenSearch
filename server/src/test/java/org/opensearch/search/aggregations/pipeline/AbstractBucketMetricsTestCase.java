@@ -35,8 +35,8 @@ package org.opensearch.search.aggregations.pipeline;
 import org.opensearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
-public abstract class AbstractBucketMetricsTestCase<PAF extends BucketMetricsPipelineAggregationBuilder<PAF>>
-        extends BasePipelineAggregationTestCase<PAF> {
+public abstract class AbstractBucketMetricsTestCase<PAF extends BucketMetricsPipelineAggregationBuilder<PAF>> extends
+    BasePipelineAggregationTestCase<PAF> {
 
     @Override
     protected final PAF createTestAggregatorFactory() {

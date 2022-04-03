@@ -35,29 +35,32 @@ import org.opensearch.action.admin.indices.close.CloseIndexResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.index.Index;
-import org.opensearch.cluster.metadata.MetadataIndexStateService;
 
 import java.util.Map;
 
 public class MetadataIndexStateServiceUtils {
 
-    private MetadataIndexStateServiceUtils(){
-    }
+    private MetadataIndexStateServiceUtils() {}
 
     /**
      * Allows to call {@link MetadataIndexStateService#addIndexClosedBlocks(Index[], Map, ClusterState)} which is a protected method.
      */
-    public static ClusterState addIndexClosedBlocks(final Index[] indices, final Map<Index, ClusterBlock> blockedIndices,
-                                                    final ClusterState state) {
+    public static ClusterState addIndexClosedBlocks(
+        final Index[] indices,
+        final Map<Index, ClusterBlock> blockedIndices,
+        final ClusterState state
+    ) {
         return MetadataIndexStateService.addIndexClosedBlocks(indices, blockedIndices, state);
     }
 
     /**
      * Allows to call {@link MetadataIndexStateService#closeRoutingTable(ClusterState, Map, Map)} which is a protected method.
      */
-    public static ClusterState closeRoutingTable(final ClusterState state,
-                                                 final Map<Index, ClusterBlock> blockedIndices,
-                                                 final Map<Index, CloseIndexResponse.IndexResult> results) {
+    public static ClusterState closeRoutingTable(
+        final ClusterState state,
+        final Map<Index, ClusterBlock> blockedIndices,
+        final Map<Index, CloseIndexResponse.IndexResult> results
+    ) {
         return MetadataIndexStateService.closeRoutingTable(state, blockedIndices, results).v1();
     }
 }

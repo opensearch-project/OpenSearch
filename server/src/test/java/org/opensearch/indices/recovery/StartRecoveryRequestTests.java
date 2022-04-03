@@ -32,7 +32,6 @@
 
 package org.opensearch.indices.recovery;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.UUIDs;
@@ -57,19 +56,23 @@ public class StartRecoveryRequestTests extends OpenSearchTestCase {
 
     public void testSerialization() throws Exception {
         final Version targetNodeVersion = randomVersion(random());
-        Store.MetadataSnapshot metadataSnapshot = randomBoolean() ? Store.MetadataSnapshot.EMPTY :
-            new Store.MetadataSnapshot(Collections.emptyMap(),
-                Collections.singletonMap(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID()), randomIntBetween(0, 100));
+        Store.MetadataSnapshot metadataSnapshot = randomBoolean()
+            ? Store.MetadataSnapshot.EMPTY
+            : new Store.MetadataSnapshot(
+                Collections.emptyMap(),
+                Collections.singletonMap(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID()),
+                randomIntBetween(0, 100)
+            );
         final StartRecoveryRequest outRequest = new StartRecoveryRequest(
-                new ShardId("test", "_na_", 0),
-                UUIDs.randomBase64UUID(),
-                new DiscoveryNode("a", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
-                new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
-                metadataSnapshot,
-                randomBoolean(),
-                randomNonNegativeLong(),
-                randomBoolean() || metadataSnapshot.getHistoryUUID() == null ?
-                    SequenceNumbers.UNASSIGNED_SEQ_NO : randomNonNegativeLong());
+            new ShardId("test", "_na_", 0),
+            UUIDs.randomBase64UUID(),
+            new DiscoveryNode("a", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
+            new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
+            metadataSnapshot,
+            randomBoolean(),
+            randomNonNegativeLong(),
+            randomBoolean() || metadataSnapshot.getHistoryUUID() == null ? SequenceNumbers.UNASSIGNED_SEQ_NO : randomNonNegativeLong()
+        );
 
         final ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         final OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
@@ -88,11 +91,7 @@ public class StartRecoveryRequestTests extends OpenSearchTestCase {
         assertThat(outRequest.metadataSnapshot().asMap(), equalTo(inRequest.metadataSnapshot().asMap()));
         assertThat(outRequest.isPrimaryRelocation(), equalTo(inRequest.isPrimaryRelocation()));
         assertThat(outRequest.recoveryId(), equalTo(inRequest.recoveryId()));
-        if (targetNodeVersion.onOrAfter(LegacyESVersion.V_6_0_0_alpha1)) {
-            assertThat(outRequest.startingSeqNo(), equalTo(inRequest.startingSeqNo()));
-        } else {
-            assertThat(SequenceNumbers.UNASSIGNED_SEQ_NO, equalTo(inRequest.startingSeqNo()));
-        }
+        assertThat(outRequest.startingSeqNo(), equalTo(inRequest.startingSeqNo()));
     }
 
 }

@@ -51,22 +51,39 @@ public class BindingsTests extends ScriptTestCase {
     @BeforeClass
     public static void beforeClass() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = newDefaultContexts();
-        List<Whitelist> whitelists = new ArrayList<>(Whitelist.BASE_WHITELISTS);
-        whitelists.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.opensearch.painless.test"));
+        List<Whitelist> allowlists = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+        allowlists.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.opensearch.painless.test"));
 
         InstanceBindingTestClass instanceBindingTestClass = new InstanceBindingTestClass(1);
-        WhitelistInstanceBinding getter = new WhitelistInstanceBinding("test", instanceBindingTestClass,
-                "setInstanceBindingValue", "void", Collections.singletonList("int"), Collections.emptyList());
-        WhitelistInstanceBinding setter = new WhitelistInstanceBinding("test", instanceBindingTestClass,
-                "getInstanceBindingValue", "int", Collections.emptyList(), Collections.emptyList());
+        WhitelistInstanceBinding getter = new WhitelistInstanceBinding(
+            "test",
+            instanceBindingTestClass,
+            "setInstanceBindingValue",
+            "void",
+            Collections.singletonList("int"),
+            Collections.emptyList()
+        );
+        WhitelistInstanceBinding setter = new WhitelistInstanceBinding(
+            "test",
+            instanceBindingTestClass,
+            "getInstanceBindingValue",
+            "int",
+            Collections.emptyList(),
+            Collections.emptyList()
+        );
         List<WhitelistInstanceBinding> instanceBindingsList = new ArrayList<>();
         instanceBindingsList.add(getter);
         instanceBindingsList.add(setter);
-        Whitelist instanceBindingsWhitelist = new Whitelist(instanceBindingTestClass.getClass().getClassLoader(),
-                Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), instanceBindingsList);
-        whitelists.add(instanceBindingsWhitelist);
+        Whitelist instanceBindingsAllowlist = new Whitelist(
+            instanceBindingTestClass.getClass().getClassLoader(),
+            Collections.emptyList(),
+            Collections.emptyList(),
+            Collections.emptyList(),
+            instanceBindingsList
+        );
+        allowlists.add(instanceBindingsAllowlist);
 
-        contexts.put(BindingsTestScript.CONTEXT, whitelists);
+        contexts.put(BindingsTestScript.CONTEXT, allowlists);
         SCRIPT_ENGINE = new PainlessScriptEngine(Settings.EMPTY, contexts);
     }
 
@@ -88,7 +105,7 @@ public class BindingsTests extends ScriptTestCase {
         }
 
         public int addWithState(int istateless, double dstateless) {
-            return istateless + state + (int)dstateless;
+            return istateless + state + (int) dstateless;
         }
     }
 
@@ -102,7 +119,7 @@ public class BindingsTests extends ScriptTestCase {
         }
 
         public int addThisWithState(int istateless, double dstateless) {
-            return istateless + state + (int)dstateless + bindingsTestScript.getTestValue();
+            return istateless + state + (int) dstateless + bindingsTestScript.getTestValue();
         }
     }
 
@@ -136,11 +153,17 @@ public class BindingsTests extends ScriptTestCase {
 
     public abstract static class BindingsTestScript {
         public static final String[] PARAMETERS = { "test", "bound" };
-        public int getTestValue() {return 7;}
+
+        public int getTestValue() {
+            return 7;
+        }
+
         public abstract int execute(int test, int bound);
+
         public interface Factory {
             BindingsTestScript newInstance();
         }
+
         public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("bindings_test", Factory.class);
     }
 

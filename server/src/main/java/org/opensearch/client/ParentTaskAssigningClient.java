@@ -70,8 +70,11 @@ public class ParentTaskAssigningClient extends FilterClient {
     }
 
     @Override
-    protected <Request extends ActionRequest, Response extends ActionResponse>
-    void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+    protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+        ActionType<Response> action,
+        Request request,
+        ActionListener<Response> listener
+    ) {
         request.setParentTask(parentTask);
         super.doExecute(action, request, listener);
     }

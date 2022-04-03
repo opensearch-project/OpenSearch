@@ -92,10 +92,12 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
     }
 
     @Override
-    public Aggregator createInternal(SearchContext searchContext,
-                                        Aggregator parent,
-                                        CardinalityUpperBound cardinality,
-                                        Map<String, Object> metadata) throws IOException {
+    public Aggregator createInternal(
+        SearchContext searchContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         Map<String, Object> aggParams = this.aggParams == null ? org.opensearch.common.collect.Map.of() : this.aggParams;
 
         Script reduceScript = deepCopyScript(this.reduceScript, searchContext, aggParams);
@@ -143,14 +145,23 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
                 clonedList.add(deepCopyParams(o, context));
             }
             clone = (T) clonedList;
-        } else if (original instanceof String || original instanceof Integer || original instanceof Long || original instanceof Short
-            || original instanceof Byte || original instanceof Float || original instanceof Double || original instanceof Character
+        } else if (original instanceof String
+            || original instanceof Integer
+            || original instanceof Long
+            || original instanceof Short
+            || original instanceof Byte
+            || original instanceof Float
+            || original instanceof Double
+            || original instanceof Character
             || original instanceof Boolean) {
-            clone = original;
-        } else {
-            throw new SearchParseException(context.shardTarget(),
-                "Can only clone primitives, String, ArrayList, and HashMap. Found: " + original.getClass().getCanonicalName(), null);
-        }
+                clone = original;
+            } else {
+                throw new SearchParseException(
+                    context.shardTarget(),
+                    "Can only clone primitives, String, ArrayList, and HashMap. Found: " + original.getClass().getCanonicalName(),
+                    null
+                );
+            }
         return clone;
     }
 
@@ -161,12 +172,12 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
         // Add in agg params, throwing an exception if any conflicts are detected
         for (Map.Entry<String, Object> aggEntry : agg.entrySet()) {
             if (combined.putIfAbsent(aggEntry.getKey(), aggEntry.getValue()) != null) {
-                throw new IllegalArgumentException("Parameter name \"" + aggEntry.getKey() +
-                    "\" used in both aggregation and script parameters");
+                throw new IllegalArgumentException(
+                    "Parameter name \"" + aggEntry.getKey() + "\" used in both aggregation and script parameters"
+                );
             }
         }
 
         return combined;
     }
 }
-

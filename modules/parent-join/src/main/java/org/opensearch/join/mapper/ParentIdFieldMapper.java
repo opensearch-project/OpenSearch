@@ -48,11 +48,11 @@ import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.opensearch.index.mapper.FieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.mapper.StringFieldType;
 import org.opensearch.index.mapper.TextSearchInfo;
 import org.opensearch.index.mapper.ValueFetcher;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.lookup.SearchLookup;
 
@@ -103,8 +103,13 @@ public final class ParentIdFieldMapper extends FieldMapper {
 
         @Override
         public ParentIdFieldMapper build(BuilderContext context) {
-            return new ParentIdFieldMapper(name, parent, children, fieldType,
-                new ParentIdFieldType(buildFullName(context), eagerGlobalOrdinals, meta));
+            return new ParentIdFieldMapper(
+                name,
+                parent,
+                children,
+                fieldType,
+                new ParentIdFieldType(buildFullName(context), eagerGlobalOrdinals, meta)
+            );
         }
     }
 
@@ -127,7 +132,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + typeName() + "].");
         }
 
@@ -144,11 +149,13 @@ public final class ParentIdFieldMapper extends FieldMapper {
     private final String parentName;
     private Set<String> children;
 
-    protected ParentIdFieldMapper(String simpleName,
-                                  String parentName,
-                                  Set<String> children,
-                                  FieldType fieldType,
-                                  MappedFieldType mappedFieldType) {
+    protected ParentIdFieldMapper(
+        String simpleName,
+        String parentName,
+        Set<String> children,
+        FieldType fieldType,
+        MappedFieldType mappedFieldType
+    ) {
         super(simpleName, fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
         this.parentName = parentName;
         this.children = children;
@@ -169,6 +176,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
     public Query getParentFilter() {
         return new TermQuery(new Term(name().substring(0, name().indexOf('#')), parentName));
     }
+
     /**
      * Returns the children names associated with this mapper.
      */

@@ -44,14 +44,9 @@ import static org.opensearch.test.AbstractXContentTestCase.xContentTester;
 public class MultiTermVectorsResponseTests extends OpenSearchTestCase {
 
     public void testFromXContent() throws IOException {
-        xContentTester(
-            this::createParser,
-            this::createTestInstance,
-            this::toXContent,
-            MultiTermVectorsResponse::fromXContent)
+        xContentTester(this::createParser, this::createTestInstance, this::toXContent, MultiTermVectorsResponse::fromXContent)
             .supportsUnknownFields(true)
-            .randomFieldsExcludeFilter(field ->
-                field.endsWith("term_vectors") || field.endsWith("terms") || field.endsWith("tokens"))
+            .randomFieldsExcludeFilter(field -> field.endsWith("term_vectors") || field.endsWith("terms") || field.endsWith("tokens"))
             .test();
     }
 

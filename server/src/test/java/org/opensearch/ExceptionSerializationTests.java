@@ -142,18 +142,20 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class ExceptionSerializationTests extends OpenSearchTestCase {
 
-    public void testExceptionRegistration()
-            throws ClassNotFoundException, IOException, URISyntaxException {
+    public void testExceptionRegistration() throws ClassNotFoundException, IOException, URISyntaxException {
         final Set<Class<?>> notRegistered = new HashSet<>();
         final Set<Class<?>> hasDedicatedWrite = new HashSet<>();
         final Set<Class<?>> registered = new HashSet<>();
         final String path = "/org/opensearch";
         final Path startPath = PathUtils.get(OpenSearchException.class.getProtectionDomain().getCodeSource().getLocation().toURI())
-                .resolve("org").resolve("opensearch");
-        final Set<? extends Class<?>> ignore = Sets.newHashSet(
-                CancellableThreadsTests.CustomException.class,
-                org.opensearch.rest.BytesRestResponseTests.WithHeadersException.class,
-                AbstractClientHeadersTestCase.InternalException.class);
+            .resolve("org")
+            .resolve("opensearch");
+        final Set<String> ignore = Sets.newHashSet(
+            CancellableThreadsTests.CustomException.class.getName(),
+            org.opensearch.rest.BytesRestResponseTests.WithHeadersException.class.getName(),
+            AbstractClientHeadersTestCase.InternalException.class.getName(),
+            "org.opensearch.rest.action.RestActionListenerTests$2"
+        );
         FileVisitor<Path> visitor = new FileVisitor<Path>() {
             private Path pkgPrefix = PathUtils.get(path).getParent();
 
@@ -181,14 +183,14 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
             }
 
             private void checkClass(Class<?> clazz) {
-                if (ignore.contains(clazz) || isAbstract(clazz.getModifiers()) || isInterface(clazz.getModifiers())) {
+                if (ignore.contains(clazz.getName()) || isAbstract(clazz.getModifiers()) || isInterface(clazz.getModifiers())) {
                     return;
                 }
                 if (isEsException(clazz) == false) {
                     return;
                 }
                 if (OpenSearchException.isRegistered(clazz.asSubclass(Throwable.class), Version.CURRENT) == false
-                        && OpenSearchException.class.equals(clazz.getEnclosingClass()) == false) {
+                    && OpenSearchException.class.equals(clazz.getEnclosingClass()) == false) {
                     notRegistered.add(clazz);
                 } else if (OpenSearchException.isRegistered(clazz.asSubclass(Throwable.class), Version.CURRENT)) {
                     registered.add(clazz);
@@ -232,8 +234,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         Files.walkFileTree(testStartPath, visitor);
         assertTrue(notRegistered.remove(TestException.class));
         assertTrue(notRegistered.remove(UnknownHeaderException.class));
-        assertTrue("Classes subclassing OpenSearchException must be registered \n" + notRegistered.toString(),
-                notRegistered.isEmpty());
+        assertTrue("Classes subclassing OpenSearchException must be registered \n" + notRegistered.toString(), notRegistered.isEmpty());
         assertTrue(registered.removeAll(OpenSearchException.getRegisteredKeys())); // check
         assertEquals(registered.toString(), 0, registered.size());
     }
@@ -245,7 +246,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
     }
 
     private <T extends Exception> T serialize(T exception) throws IOException {
-       return serialize(exception, VersionUtils.randomVersion(random()));
+        return serialize(exception, VersionUtils.randomVersion(random()));
     }
 
     private <T extends Exception> T serialize(T exception, Version version) throws IOException {
@@ -262,7 +263,8 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         final ShardRouting routing = TestShardRouting.newShardRouting("test", 0, "xyz", "def", false, ShardRoutingState.STARTED);
         final String routingAsString = routing.toString();
         IllegalShardRoutingStateException serialize = serialize(
-                new IllegalShardRoutingStateException(routing, "foo", new NullPointerException()));
+            new IllegalShardRoutingStateException(routing, "foo", new NullPointerException())
+        );
         assertNotNull(serialize.shard());
         assertEquals(routing, serialize.shard());
         assertEquals(routingAsString + ": foo", serialize.getMessage());
@@ -361,11 +363,10 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
 
     public void testActionTransportException() throws IOException {
         TransportAddress transportAddress = buildNewFakeTransportAddress();
-        ActionTransportException ex = serialize(
-                new ActionTransportException("name?", transportAddress, "ACTION BABY!", "message?", null));
+        ActionTransportException ex = serialize(new ActionTransportException("name?", transportAddress, "ACTION BABY!", "message?", null));
         assertEquals("ACTION BABY!", ex.action());
         assertEquals(transportAddress, ex.address());
-        assertEquals("[name?][" + transportAddress.toString() +"][ACTION BABY!] message?", ex.getMessage());
+        assertEquals("[name?][" + transportAddress.toString() + "][ACTION BABY!] message?", ex.getMessage());
     }
 
     public void testSearchContextMissingException() throws IOException {
@@ -381,8 +382,10 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
     }
 
     public void testCircuitBreakingException() throws IOException {
-        CircuitBreakingException ex = serialize(new CircuitBreakingException("Too large", 0, 100, CircuitBreaker.Durability.TRANSIENT),
-            LegacyESVersion.V_7_0_0);
+        CircuitBreakingException ex = serialize(
+            new CircuitBreakingException("Too large", 0, 100, CircuitBreaker.Durability.TRANSIENT),
+            LegacyESVersion.V_7_0_0
+        );
         assertEquals("Too large", ex.getMessage());
         assertEquals(100, ex.getByteLimit());
         assertEquals(0, ex.getBytesWanted());
@@ -390,9 +393,11 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
     }
 
     public void testTooManyBucketsException() throws IOException {
-        Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_2_0, Version.CURRENT);
-        MultiBucketConsumerService.TooManyBucketsException ex =
-            serialize(new MultiBucketConsumerService.TooManyBucketsException("Too many buckets", 100), version);
+        Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+        MultiBucketConsumerService.TooManyBucketsException ex = serialize(
+            new MultiBucketConsumerService.TooManyBucketsException("Too many buckets", 100),
+            version
+        );
         assertEquals("Too many buckets", ex.getMessage());
         assertEquals(100, ex.getMaxBuckets());
     }
@@ -407,7 +412,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         AliasesNotFoundException ex = serialize(new AliasesNotFoundException("one", "two", "three"));
         assertEquals("aliases [one, two, three] missing", ex.getMessage());
         assertEquals("aliases", ex.getResourceType());
-        assertArrayEquals(new String[]{"one", "two", "three"}, ex.getResourceId().toArray(new String[0]));
+        assertArrayEquals(new String[] { "one", "two", "three" }, ex.getResourceId().toArray(new String[0]));
     }
 
     public void testSearchParseException() throws IOException {
@@ -428,8 +433,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
 
     public void testConnectTransportException() throws IOException {
         TransportAddress transportAddress = buildNewFakeTransportAddress();
-        DiscoveryNode node = new DiscoveryNode("thenode", transportAddress,
-                emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode node = new DiscoveryNode("thenode", transportAddress, emptyMap(), emptySet(), Version.CURRENT);
         ConnectTransportException ex = serialize(new ConnectTransportException(node, "msg", "action", null));
         assertEquals("[][" + transportAddress.toString() + "][action] msg", ex.getMessage());
         assertEquals(node, ex.node());
@@ -437,7 +441,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         assertNull(ex.getCause());
 
         ex = serialize(new ConnectTransportException(node, "msg", "action", new NullPointerException()));
-        assertEquals("[]["+ transportAddress+ "][action] msg", ex.getMessage());
+        assertEquals("[][" + transportAddress + "][action] msg", ex.getMessage());
         assertEquals(node, ex.node());
         assertEquals("action", ex.action());
         assertTrue(ex.getCause() instanceof NullPointerException);
@@ -450,9 +454,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         assertEquals("baam", ex.getMessage());
         assertTrue(ex.getCause() instanceof NullPointerException);
         assertEquals(empty.length, ex.shardFailures().length);
-        ShardSearchFailure[] one = new ShardSearchFailure[]{
-                new ShardSearchFailure(new IllegalArgumentException("nono!"))
-        };
+        ShardSearchFailure[] one = new ShardSearchFailure[] { new ShardSearchFailure(new IllegalArgumentException("nono!")) };
 
         ex = serialize(new SearchPhaseExecutionException("boom", "baam", new NullPointerException(), one));
         assertEquals("boom", ex.getPhaseName());
@@ -463,11 +465,10 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
     }
 
     public void testRoutingMissingException() throws IOException {
-        RoutingMissingException ex = serialize(new RoutingMissingException("idx", "type", "id"));
+        RoutingMissingException ex = serialize(new RoutingMissingException("idx", "id"));
         assertEquals("idx", ex.getIndex().getName());
-        assertEquals("type", ex.getType());
         assertEquals("id", ex.getId());
-        assertEquals("routing is required for [idx]/[type]/[id]", ex.getMessage());
+        assertEquals("routing is required for [idx]/[id]", ex.getMessage());
     }
 
     public void testRepositoryException() throws IOException {
@@ -489,7 +490,6 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         assertEquals("index_template [null] missing", ex.getMessage());
         assertNull(ex.name());
     }
-
 
     public void testRecoveryEngineException() throws IOException {
         ShardId id = new ShardId("foo", "_na_", 1);
@@ -528,11 +528,10 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
             }
         }
 
-        Exception[] unknowns = new Exception[]{
-                new Exception("foobar"),
-                new ClassCastException("boom boom boom"),
-                new UnknownException("boom")
-        };
+        Exception[] unknowns = new Exception[] {
+            new Exception("foobar"),
+            new ClassCastException("boom boom boom"),
+            new UnknownException("boom") };
         for (Exception t : unknowns) {
             if (randomBoolean()) {
                 t.addSuppressed(new UnsatisfiedLinkError("suppressed"));
@@ -556,7 +555,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         Exception exception = serialize(ex);
         assertEquals("unknown_exception: eggplant", exception.getMessage());
         assertTrue(exception instanceof OpenSearchException);
-        ParsingException e = (ParsingException)exception.getCause();
+        ParsingException e = (ParsingException) exception.getCause();
         assertEquals(parsingException.getIndex(), e.getIndex());
         assertEquals(parsingException.getMessage(), e.getMessage());
         assertEquals(parsingException.getLineNumber(), e.getLineNumber());
@@ -567,31 +566,36 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         final QueryShardException queryShardException = new QueryShardException(new Index("foo", "_na_"), "foobar", null);
         final UnknownException unknownException = new UnknownException("this exception is unknown", queryShardException);
 
-        final Exception[] causes = new Exception[]{
-                new IllegalStateException("foobar"),
-                new IllegalArgumentException("alalaal"),
-                new NullPointerException("boom"),
-                new EOFException("dadada"),
-                new OpenSearchSecurityException("nono!"),
-                new NumberFormatException("not a number"),
-                new CorruptIndexException("baaaam booom", "this is my resource"),
-                new IndexFormatTooNewException("tooo new", 1, 2, 3),
-                new IndexFormatTooOldException("tooo new", 1, 2, 3),
-                new IndexFormatTooOldException("tooo new", "very old version"),
-                new ArrayIndexOutOfBoundsException("booom"),
-                new StringIndexOutOfBoundsException("booom"),
-                new FileNotFoundException("booom"),
-                new NoSuchFileException("booom"),
-                new AlreadyClosedException("closed!!", new NullPointerException()),
-                new LockObtainFailedException("can't lock directory", new NullPointerException()),
-                unknownException};
+        final Exception[] causes = new Exception[] {
+            new IllegalStateException("foobar"),
+            new IllegalArgumentException("alalaal"),
+            new NullPointerException("boom"),
+            new EOFException("dadada"),
+            new OpenSearchSecurityException("nono!"),
+            new NumberFormatException("not a number"),
+            new CorruptIndexException("baaaam booom", "this is my resource"),
+            new IndexFormatTooNewException("tooo new", 1, 2, 3),
+            new IndexFormatTooOldException("tooo new", 1, 2, 3),
+            new IndexFormatTooOldException("tooo new", "very old version"),
+            new ArrayIndexOutOfBoundsException("booom"),
+            new StringIndexOutOfBoundsException("booom"),
+            new FileNotFoundException("booom"),
+            new NoSuchFileException("booom"),
+            new AlreadyClosedException("closed!!", new NullPointerException()),
+            new LockObtainFailedException("can't lock directory", new NullPointerException()),
+            unknownException };
         for (final Exception cause : causes) {
             OpenSearchException ex = new OpenSearchException("topLevel", cause);
             OpenSearchException deserialized = serialize(ex);
             assertEquals(deserialized.getMessage(), ex.getMessage());
-            assertTrue("Expected: " + deserialized.getCause().getMessage() + " to contain: " +
-                            ex.getCause().getClass().getName() + " but it didn't",
-                    deserialized.getCause().getMessage().contains(ex.getCause().getMessage()));
+            assertTrue(
+                "Expected: "
+                    + deserialized.getCause().getMessage()
+                    + " to contain: "
+                    + ex.getCause().getClass().getName()
+                    + " but it didn't",
+                deserialized.getCause().getMessage().contains(ex.getCause().getMessage())
+            );
             if (ex.getCause().getClass() != UnknownException.class) { // unknown exception is not directly mapped
                 assertEquals(deserialized.getCause().getClass(), ex.getCause().getClass());
             } else {
@@ -680,7 +684,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
 
     public void testThatIdsAreUnique() {
         final Set<Integer> ids = new HashSet<>();
-        for (final int id: OpenSearchException.ids()) {
+        for (final int id : OpenSearchException.ids()) {
             assertTrue("duplicate id", ids.add(id));
         }
     }
@@ -855,7 +859,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
 
         for (final Tuple<Integer, Class<? extends OpenSearchException>> tuple : OpenSearchException.classes()) {
             assertNotNull(tuple.v1());
-            assertEquals((int) reverse.get(tuple.v2()), (int)tuple.v1());
+            assertEquals((int) reverse.get(tuple.v2()), (int) tuple.v1());
         }
 
         for (Map.Entry<Integer, Class<? extends OpenSearchException>> entry : ids.entrySet()) {
@@ -871,23 +875,24 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         assertTrue(serialize.getCause() instanceof NullPointerException);
     }
 
-
     public void testFileSystemExceptions() throws IOException {
-        for (FileSystemException ex : Arrays.asList(new FileSystemException("a", "b", "c"),
+        for (FileSystemException ex : Arrays.asList(
+            new FileSystemException("a", "b", "c"),
             new NoSuchFileException("a", "b", "c"),
             new NotDirectoryException("a"),
             new DirectoryNotEmptyException("a"),
             new AtomicMoveNotSupportedException("a", "b", "c"),
             new FileAlreadyExistsException("a", "b", "c"),
             new AccessDeniedException("a", "b", "c"),
-            new FileSystemLoopException("a"))) {
+            new FileSystemLoopException("a")
+        )) {
 
             FileSystemException serialize = serialize(ex);
             assertEquals(serialize.getClass(), ex.getClass());
             assertEquals("a", serialize.getFile());
-            if (serialize.getClass() == NotDirectoryException.class ||
-                serialize.getClass() == FileSystemLoopException.class ||
-                serialize.getClass() == DirectoryNotEmptyException.class) {
+            if (serialize.getClass() == NotDirectoryException.class
+                || serialize.getClass() == FileSystemLoopException.class
+                || serialize.getClass() == DirectoryNotEmptyException.class) {
                 assertNull(serialize.getOtherFile());
                 assertNull(serialize.getReason());
             } else {
@@ -907,7 +912,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
     public void testShardLockObtainFailedException() throws IOException {
         ShardId shardId = new ShardId("foo", "_na_", 1);
         ShardLockObtainFailedException orig = new ShardLockObtainFailedException(shardId, "boom");
-        Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, Version.CURRENT);
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
         ShardLockObtainFailedException ex = serialize(orig, version);
         assertEquals(orig.getMessage(), ex.getMessage());
         assertEquals(orig.getShardId(), ex.getShardId());
@@ -915,7 +920,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
 
     public void testSnapshotInProgressException() throws IOException {
         SnapshotInProgressException orig = new SnapshotInProgressException("boom");
-        Version version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_7_0, Version.CURRENT);
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
         SnapshotInProgressException ex = serialize(orig, version);
         assertEquals(orig.getMessage(), ex.getMessage());
     }

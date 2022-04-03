@@ -45,7 +45,7 @@ public class IndexCreationException extends OpenSearchException implements OpenS
         setIndex(index);
     }
 
-    public IndexCreationException(StreamInput in) throws IOException{
+    public IndexCreationException(StreamInput in) throws IOException {
         super(in);
     }
 }

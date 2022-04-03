@@ -49,7 +49,6 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.core.internal.io.IOUtils;
-import org.opensearch.index.engine.Engine;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.tasks.Task;
@@ -99,14 +98,13 @@ public class PrimaryReplicaSyncer {
         Translog.Snapshot snapshot = null;
         try {
             final long startingSeqNo = indexShard.getLastKnownGlobalCheckpoint() + 1;
+            assert startingSeqNo >= 0 : "startingSeqNo must be non-negative; got [" + startingSeqNo + "]";
             final long maxSeqNo = indexShard.seqNoStats().getMaxSeqNo();
             final ShardId shardId = indexShard.shardId();
             // Wrap translog snapshot to make it synchronized as it is accessed by different threads through SnapshotSender.
             // Even though those calls are not concurrent, snapshot.next() uses non-synchronized state and is not multi-thread-compatible
             // Also fail the resync early if the shard is shutting down
-            snapshot = indexShard.getHistoryOperations("resync",
-                indexShard.indexSettings.isSoftDeleteEnabled() ? Engine.HistorySource.INDEX : Engine.HistorySource.TRANSLOG,
-                startingSeqNo);
+            snapshot = indexShard.newChangesSnapshot("resync", startingSeqNo, Long.MAX_VALUE, false, true);
             final Translog.Snapshot originalSnapshot = snapshot;
             final Translog.Snapshot wrappedSnapshot = new Translog.Snapshot() {
                 @Override
@@ -155,8 +153,16 @@ public class PrimaryReplicaSyncer {
             // We must capture the timestamp after snapshotting a snapshot of operations to make sure
             // that the auto_id_timestamp of every operation in the snapshot is at most this value.
             final long maxSeenAutoIdTimestamp = indexShard.getMaxSeenAutoIdTimestamp();
-            resync(shardId, indexShard.routingEntry().allocationId().getId(), indexShard.getPendingPrimaryTerm(), wrappedSnapshot,
-                startingSeqNo, maxSeqNo, maxSeenAutoIdTimestamp, resyncListener);
+            resync(
+                shardId,
+                indexShard.routingEntry().allocationId().getId(),
+                indexShard.getPendingPrimaryTerm(),
+                wrappedSnapshot,
+                startingSeqNo,
+                maxSeqNo,
+                maxSeenAutoIdTimestamp,
+                resyncListener
+            );
         } catch (Exception e) {
             try {
                 IOUtils.close(snapshot);
@@ -168,8 +174,16 @@ public class PrimaryReplicaSyncer {
         }
     }
 
-    private void resync(final ShardId shardId, final String primaryAllocationId, final long primaryTerm, final Translog.Snapshot snapshot,
-                        long startingSeqNo, long maxSeqNo, long maxSeenAutoIdTimestamp, ActionListener<ResyncTask> listener) {
+    private void resync(
+        final ShardId shardId,
+        final String primaryAllocationId,
+        final long primaryTerm,
+        final Translog.Snapshot snapshot,
+        long startingSeqNo,
+        long maxSeqNo,
+        long maxSeenAutoIdTimestamp,
+        ActionListener<ResyncTask> listener
+    ) {
         ResyncRequest request = new ResyncRequest(shardId, primaryAllocationId);
         ResyncTask resyncTask = (ResyncTask) taskManager.register("transport", "resync", request); // it's not transport :-)
         ActionListener<Void> wrappedListener = new ActionListener<Void>() {
@@ -188,16 +202,32 @@ public class PrimaryReplicaSyncer {
             }
         };
         try {
-            new SnapshotSender(syncAction, resyncTask, shardId, primaryAllocationId, primaryTerm, snapshot, chunkSize.bytesAsInt(),
-                startingSeqNo, maxSeqNo, maxSeenAutoIdTimestamp, wrappedListener).run();
+            new SnapshotSender(
+                syncAction,
+                resyncTask,
+                shardId,
+                primaryAllocationId,
+                primaryTerm,
+                snapshot,
+                chunkSize.bytesAsInt(),
+                startingSeqNo,
+                maxSeqNo,
+                maxSeenAutoIdTimestamp,
+                wrappedListener
+            ).run();
         } catch (Exception e) {
             wrappedListener.onFailure(e);
         }
     }
 
     public interface SyncAction {
-        void sync(ResyncReplicationRequest request, Task parentTask, String primaryAllocationId, long primaryTerm,
-                  ActionListener<ResyncReplicationResponse> listener);
+        void sync(
+            ResyncReplicationRequest request,
+            Task parentTask,
+            String primaryAllocationId,
+            long primaryTerm,
+            ActionListener<ResyncReplicationResponse> listener
+        );
     }
 
     static class SnapshotSender extends AbstractRunnable implements ActionListener<ResyncReplicationResponse> {
@@ -218,9 +248,19 @@ public class PrimaryReplicaSyncer {
         private final AtomicInteger totalSkippedOps = new AtomicInteger();
         private final AtomicBoolean closed = new AtomicBoolean();
 
-        SnapshotSender(SyncAction syncAction, ResyncTask task, ShardId shardId, String primaryAllocationId, long primaryTerm,
-                       Translog.Snapshot snapshot, int chunkSizeInBytes, long startingSeqNo, long maxSeqNo,
-                       long maxSeenAutoIdTimestamp, ActionListener<Void> listener) {
+        SnapshotSender(
+            SyncAction syncAction,
+            ResyncTask task,
+            ShardId shardId,
+            String primaryAllocationId,
+            long primaryTerm,
+            Translog.Snapshot snapshot,
+            int chunkSizeInBytes,
+            long startingSeqNo,
+            long maxSeqNo,
+            long maxSeenAutoIdTimestamp,
+            ActionListener<Void> listener
+        ) {
             this.logger = PrimaryReplicaSyncer.logger;
             this.syncAction = syncAction;
             this.task = task;
@@ -280,10 +320,20 @@ public class PrimaryReplicaSyncer {
             // have to send sync request even in case of there are no operations to sync - have to sync trimmedAboveSeqNo at least
             if (!operations.isEmpty() || trimmedAboveSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                 task.setPhase("sending_ops");
-                ResyncReplicationRequest request =
-                    new ResyncReplicationRequest(shardId, trimmedAboveSeqNo, maxSeenAutoIdTimestamp, operations.toArray(EMPTY_ARRAY));
-                logger.trace("{} sending batch of [{}][{}] (total sent: [{}], skipped: [{}])", shardId, operations.size(),
-                    new ByteSizeValue(size), totalSentOps.get(), totalSkippedOps.get());
+                ResyncReplicationRequest request = new ResyncReplicationRequest(
+                    shardId,
+                    trimmedAboveSeqNo,
+                    maxSeenAutoIdTimestamp,
+                    operations.toArray(EMPTY_ARRAY)
+                );
+                logger.trace(
+                    "{} sending batch of [{}][{}] (total sent: [{}], skipped: [{}])",
+                    shardId,
+                    operations.size(),
+                    new ByteSizeValue(size),
+                    totalSentOps.get(),
+                    totalSkippedOps.get()
+                );
                 firstMessage.set(false);
                 syncAction.sync(request, task, primaryAllocationId, primaryTerm, this);
             } else if (closed.compareAndSet(false, true)) {
@@ -436,7 +486,6 @@ public class PrimaryReplicaSyncer {
             public String toString() {
                 return Strings.toString(this);
             }
-
 
             @Override
             public boolean equals(Object o) {

@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.indices.validate.query;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -58,23 +57,13 @@ public class QueryExplanation implements Writeable, ToXContentFragment {
 
     public static final int RANDOM_SHARD = -1;
 
-    static final ConstructingObjectParser<QueryExplanation, Void> PARSER = new ConstructingObjectParser<>(
-        "query_explanation",
-        true,
-        a -> {
-            int shard = RANDOM_SHARD;
-            if (a[1] != null) {
-                shard = (int)a[1];
-            }
-            return new QueryExplanation(
-                (String)a[0],
-                shard,
-                (boolean)a[2],
-                (String)a[3],
-                (String)a[4]
-            );
+    static final ConstructingObjectParser<QueryExplanation, Void> PARSER = new ConstructingObjectParser<>("query_explanation", true, a -> {
+        int shard = RANDOM_SHARD;
+        if (a[1] != null) {
+            shard = (int) a[1];
         }
-    );
+        return new QueryExplanation((String) a[0], shard, (boolean) a[2], (String) a[3], (String) a[4]);
+    });
     static {
         PARSER.declareString(optionalConstructorArg(), new ParseField(INDEX_FIELD));
         PARSER.declareInt(optionalConstructorArg(), new ParseField(SHARD_FIELD));
@@ -94,19 +83,14 @@ public class QueryExplanation implements Writeable, ToXContentFragment {
     private String error;
 
     public QueryExplanation(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            index = in.readOptionalString();
-        } else {
-            index = in.readString();
-        }
+        index = in.readOptionalString();
         shard = in.readInt();
         valid = in.readBoolean();
         explanation = in.readOptionalString();
         error = in.readOptionalString();
     }
 
-    public QueryExplanation(String index, int shard, boolean valid, String explanation,
-                            String error) {
+    public QueryExplanation(String index, int shard, boolean valid, String explanation, String error) {
         this.index = index;
         this.shard = shard;
         this.valid = valid;
@@ -136,11 +120,7 @@ public class QueryExplanation implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            out.writeOptionalString(index);
-        } else {
-            out.writeString(index);
-        }
+        out.writeOptionalString(index);
         out.writeInt(shard);
         out.writeBoolean(valid);
         out.writeOptionalString(explanation);
@@ -152,7 +132,7 @@ public class QueryExplanation implements Writeable, ToXContentFragment {
         if (getIndex() != null) {
             builder.field(INDEX_FIELD, getIndex());
         }
-        if(getShard() >= 0) {
+        if (getShard() >= 0) {
             builder.field(SHARD_FIELD, getShard());
         }
         builder.field(VALID_FIELD, isValid());
@@ -174,11 +154,11 @@ public class QueryExplanation implements Writeable, ToXContentFragment {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         QueryExplanation other = (QueryExplanation) o;
-        return Objects.equals(getIndex(), other.getIndex()) &&
-            Objects.equals(getShard(), other.getShard()) &&
-            Objects.equals(isValid(), other.isValid()) &&
-            Objects.equals(getError(), other.getError()) &&
-            Objects.equals(getExplanation(), other.getExplanation());
+        return Objects.equals(getIndex(), other.getIndex())
+            && Objects.equals(getShard(), other.getShard())
+            && Objects.equals(isValid(), other.isValid())
+            && Objects.equals(getError(), other.getError())
+            && Objects.equals(getExplanation(), other.getExplanation());
     }
 
     @Override

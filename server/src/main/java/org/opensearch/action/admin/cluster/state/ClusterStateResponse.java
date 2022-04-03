@@ -34,7 +34,6 @@ package org.opensearch.action.admin.cluster.state;
 
 import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionResponse;
-import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -57,17 +56,11 @@ public class ClusterStateResponse extends ActionResponse {
     public ClusterStateResponse(StreamInput in) throws IOException {
         super(in);
         clusterName = new ClusterName(in);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_6_0)) {
-            clusterState = in.readOptionalWriteable(innerIn -> ClusterState.readFrom(innerIn, null));
-        } else {
-            clusterState = ClusterState.readFrom(in, null);
-        }
+        clusterState = in.readOptionalWriteable(innerIn -> ClusterState.readFrom(innerIn, null));
         if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
             new ByteSizeValue(in);
         }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_6_0)) {
-            waitForTimedOut = in.readBoolean();
-        }
+        waitForTimedOut = in.readBoolean();
     }
 
     public ClusterStateResponse(ClusterName clusterName, ClusterState clusterState, boolean waitForTimedOut) {
@@ -102,21 +95,11 @@ public class ClusterStateResponse extends ActionResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         clusterName.writeTo(out);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_6_0)) {
-            out.writeOptionalWriteable(clusterState);
-        } else {
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
-                clusterState.writeTo(out);
-            } else {
-                ClusterModule.filterCustomsForPre63Clients(clusterState).writeTo(out);
-            }
-        }
+        out.writeOptionalWriteable(clusterState);
         if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
             ByteSizeValue.ZERO.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_6_0)) {
-            out.writeBoolean(waitForTimedOut);
-        }
+        out.writeBoolean(waitForTimedOut);
     }
 
     @Override
@@ -124,24 +107,18 @@ public class ClusterStateResponse extends ActionResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ClusterStateResponse response = (ClusterStateResponse) o;
-        return waitForTimedOut == response.waitForTimedOut &&
-            Objects.equals(clusterName, response.clusterName) &&
-            // Best effort. Only compare cluster state version and master node id,
-            // because cluster state doesn't implement equals()
-            Objects.equals(getVersion(clusterState), getVersion(response.clusterState)) &&
-            Objects.equals(getMasterNodeId(clusterState), getMasterNodeId(response.clusterState));
+        return waitForTimedOut == response.waitForTimedOut && Objects.equals(clusterName, response.clusterName) &&
+        // Best effort. Only compare cluster state version and master node id,
+        // because cluster state doesn't implement equals()
+            Objects.equals(getVersion(clusterState), getVersion(response.clusterState))
+            && Objects.equals(getMasterNodeId(clusterState), getMasterNodeId(response.clusterState));
     }
 
     @Override
     public int hashCode() {
         // Best effort. Only use cluster state version and master node id,
-        // because cluster state doesn't implement  hashcode()
-        return Objects.hash(
-            clusterName,
-            getVersion(clusterState),
-            getMasterNodeId(clusterState),
-            waitForTimedOut
-        );
+        // because cluster state doesn't implement hashcode()
+        return Objects.hash(clusterName, getVersion(clusterState), getMasterNodeId(clusterState), waitForTimedOut);
     }
 
     private static String getMasterNodeId(ClusterState clusterState) {

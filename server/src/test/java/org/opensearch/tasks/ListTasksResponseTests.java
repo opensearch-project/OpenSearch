@@ -45,6 +45,7 @@ import java.io.IOException;
 import java.net.ConnectException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -57,41 +58,64 @@ import static org.hamcrest.Matchers.instanceOf;
 public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksResponse> {
 
     public void testEmptyToString() {
-        assertEquals("{\n" +
-                "  \"tasks\" : [ ]\n" +
-                "}", new ListTasksResponse(null, null, null).toString());
+        assertEquals("{\n" + "  \"tasks\" : [ ]\n" + "}", new ListTasksResponse(null, null, null).toString());
     }
 
     public void testNonEmptyToString() {
         TaskInfo info = new TaskInfo(
-            new TaskId("node1", 1), "dummy-type", "dummy-action", "dummy-description", null, 0, 1, true, new TaskId("node1", 0),
-            Collections.singletonMap("foo", "bar"));
+            new TaskId("node1", 1),
+            "dummy-type",
+            "dummy-action",
+            "dummy-description",
+            null,
+            0,
+            1,
+            true,
+            false,
+            new TaskId("node1", 0),
+            Collections.singletonMap("foo", "bar"),
+            new TaskResourceStats(new HashMap<String, TaskResourceUsage>() {
+                {
+                    put("dummy-type1", new TaskResourceUsage(100, 100));
+                }
+            })
+        );
         ListTasksResponse tasksResponse = new ListTasksResponse(singletonList(info), emptyList(), emptyList());
-        assertEquals("{\n" +
-                "  \"tasks\" : [\n" +
-                "    {\n" +
-                "      \"node\" : \"node1\",\n" +
-                "      \"id\" : 1,\n" +
-                "      \"type\" : \"dummy-type\",\n" +
-                "      \"action\" : \"dummy-action\",\n" +
-                "      \"description\" : \"dummy-description\",\n" +
-                "      \"start_time\" : \"1970-01-01T00:00:00.000Z\",\n" +
-                "      \"start_time_in_millis\" : 0,\n" +
-                "      \"running_time\" : \"1nanos\",\n" +
-                "      \"running_time_in_nanos\" : 1,\n" +
-                "      \"cancellable\" : true,\n" +
-                "      \"parent_task_id\" : \"node1:0\",\n" +
-                "      \"headers\" : {\n" +
-                "        \"foo\" : \"bar\"\n" +
-                "      }\n" +
-                "    }\n" +
-                "  ]\n" +
-                "}", tasksResponse.toString());
+        assertEquals(
+            "{\n"
+                + "  \"tasks\" : [\n"
+                + "    {\n"
+                + "      \"node\" : \"node1\",\n"
+                + "      \"id\" : 1,\n"
+                + "      \"type\" : \"dummy-type\",\n"
+                + "      \"action\" : \"dummy-action\",\n"
+                + "      \"description\" : \"dummy-description\",\n"
+                + "      \"start_time\" : \"1970-01-01T00:00:00.000Z\",\n"
+                + "      \"start_time_in_millis\" : 0,\n"
+                + "      \"running_time\" : \"1nanos\",\n"
+                + "      \"running_time_in_nanos\" : 1,\n"
+                + "      \"cancellable\" : true,\n"
+                + "      \"cancelled\" : false,\n"
+                + "      \"parent_task_id\" : \"node1:0\",\n"
+                + "      \"headers\" : {\n"
+                + "        \"foo\" : \"bar\"\n"
+                + "      },\n"
+                + "      \"resource_stats\" : {\n"
+                + "        \"dummy-type1\" : {\n"
+                + "          \"cpu_time_in_nanos\" : 100,\n"
+                + "          \"memory_in_bytes\" : 100\n"
+                + "        }\n"
+                + "      }\n"
+                + "    }\n"
+                + "  ]\n"
+                + "}",
+            tasksResponse.toString()
+        );
     }
 
     @Override
     protected ListTasksResponse createTestInstance() {
-        //failures are tested separately, so we can test xcontent equivalence at least when we have no failures
+        // failures are tested separately, so we can test xcontent equivalence at least when we have no failures
         return new ListTasksResponse(randomTasks(), Collections.emptyList(), Collections.emptyList());
     }
 
@@ -115,8 +139,8 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        //status and headers hold arbitrary content, we can't inject random fields in them
-        return field -> field.endsWith("status") || field.endsWith("headers");
+        // status, headers and resource_stats hold arbitrary content, we can't inject random fields in them
+        return field -> field.endsWith("status") || field.endsWith("headers") || field.contains("resource_stats");
     }
 
     @Override
@@ -127,13 +151,12 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
         assertOnTaskFailures(newInstance.getTaskFailures(), expectedInstance.getTaskFailures());
     }
 
-    protected static void assertOnNodeFailures(List<OpenSearchException> nodeFailures,
-                                               List<OpenSearchException> expectedFailures) {
+    protected static void assertOnNodeFailures(List<OpenSearchException> nodeFailures, List<OpenSearchException> expectedFailures) {
         assertThat(nodeFailures.size(), equalTo(expectedFailures.size()));
         for (int i = 0; i < nodeFailures.size(); i++) {
             OpenSearchException newException = nodeFailures.get(i);
             OpenSearchException expectedException = expectedFailures.get(i);
-            assertThat(newException.getMetadata("opensearch.node_id").get(0), equalTo(((FailedNodeException)expectedException).nodeId()));
+            assertThat(newException.getMetadata("opensearch.node_id").get(0), equalTo(((FailedNodeException) expectedException).nodeId()));
             assertThat(newException.getMessage(), equalTo("OpenSearch exception [type=failed_node_exception, reason=error message]"));
             assertThat(newException.getCause(), instanceOf(OpenSearchException.class));
             OpenSearchException cause = (OpenSearchException) newException.getCause();
@@ -141,8 +164,7 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
         }
     }
 
-    protected static void assertOnTaskFailures(List<TaskOperationFailure> taskFailures,
-                                               List<TaskOperationFailure> expectedFailures) {
+    protected static void assertOnTaskFailures(List<TaskOperationFailure> taskFailures, List<TaskOperationFailure> expectedFailures) {
         assertThat(taskFailures.size(), equalTo(expectedFailures.size()));
         for (int i = 0; i < taskFailures.size(); i++) {
             TaskOperationFailure newFailure = taskFailures.get(i);
@@ -163,14 +185,23 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
      */
     public void testFromXContentWithFailures() throws IOException {
         Supplier<ListTasksResponse> instanceSupplier = ListTasksResponseTests::createTestInstanceWithFailures;
-        //with random fields insertion in the inner exceptions, some random stuff may be parsed back as metadata,
-        //but that does not bother our assertions, as we only want to test that we don't break.
+        // with random fields insertion in the inner exceptions, some random stuff may be parsed back as metadata,
+        // but that does not bother our assertions, as we only want to test that we don't break.
         boolean supportsUnknownFields = true;
-        //exceptions are not of the same type whenever parsed back
+        // exceptions are not of the same type whenever parsed back
         boolean assertToXContentEquivalence = false;
-        AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, instanceSupplier, supportsUnknownFields, Strings.EMPTY_ARRAY,
-                getRandomFieldsExcludeFilter(), this::createParser, this::doParseInstance,
-                this::assertEqualInstances, assertToXContentEquivalence, ToXContent.EMPTY_PARAMS);
+        AbstractXContentTestCase.testFromXContent(
+            NUMBER_OF_TEST_RUNS,
+            instanceSupplier,
+            supportsUnknownFields,
+            Strings.EMPTY_ARRAY,
+            getRandomFieldsExcludeFilter(),
+            this::createParser,
+            this::doParseInstance,
+            this::assertEqualInstances,
+            assertToXContentEquivalence,
+            ToXContent.EMPTY_PARAMS
+        );
     }
 
     private static ListTasksResponse createTestInstanceWithFailures() {

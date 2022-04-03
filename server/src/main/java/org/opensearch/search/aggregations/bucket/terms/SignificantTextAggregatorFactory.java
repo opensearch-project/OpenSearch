@@ -80,26 +80,29 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
     private final SignificanceHeuristic significanceHeuristic;
     private final boolean filterDuplicateText;
 
-    public SignificantTextAggregatorFactory(String name,
-                                                IncludeExclude includeExclude,
-                                                QueryBuilder backgroundFilter,
-                                                TermsAggregator.BucketCountThresholds bucketCountThresholds,
-                                                SignificanceHeuristic significanceHeuristic,
-                                                QueryShardContext queryShardContext,
-                                                AggregatorFactory parent,
-                                                AggregatorFactories.Builder subFactoriesBuilder,
-                                                String fieldName,
-                                                String [] sourceFieldNames,
-                                                boolean filterDuplicateText,
-                                                Map<String, Object> metadata) throws IOException {
+    public SignificantTextAggregatorFactory(
+        String name,
+        IncludeExclude includeExclude,
+        QueryBuilder backgroundFilter,
+        TermsAggregator.BucketCountThresholds bucketCountThresholds,
+        SignificanceHeuristic significanceHeuristic,
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        String fieldName,
+        String[] sourceFieldNames,
+        boolean filterDuplicateText,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, queryShardContext, parent, subFactoriesBuilder, metadata);
 
         // Note that if the field is unmapped (its field type is null), we don't fail,
         // and just use the given field name as a placeholder.
         this.fieldType = queryShardContext.fieldMapper(fieldName);
         if (fieldType != null && fieldType.indexAnalyzer() == null) {
-            throw new IllegalArgumentException("Field [" + fieldType.name() + "] has no analyzer, but SignificantText " +
-                "requires an analyzed field");
+            throw new IllegalArgumentException(
+                "Field [" + fieldType.name() + "] has no analyzer, but SignificantText " + "requires an analyzed field"
+            );
         }
         this.indexedFieldName = fieldType != null ? fieldType.name() : fieldName;
         this.sourceFieldNames = sourceFieldNames == null ? new String[] { indexedFieldName } : sourceFieldNames;
@@ -112,8 +115,12 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
     }
 
     @Override
-    protected Aggregator createInternal(SearchContext searchContext, Aggregator parent, CardinalityUpperBound cardinality,
-                                        Map<String, Object> metadata) throws IOException {
+    protected Aggregator createInternal(
+        SearchContext searchContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
         if (bucketCountThresholds.getShardSize() == SignificantTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
             // The user has not made a shardSize selection.
@@ -128,10 +135,9 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
         }
 
-//        TODO - need to check with mapping that this is indeed a text field....
+        // TODO - need to check with mapping that this is indeed a text field....
 
-        IncludeExclude.StringFilter incExcFilter = includeExclude == null ? null:
-            includeExclude.convertToStringFilter(DocValueFormat.RAW);
+        IncludeExclude.StringFilter incExcFilter = includeExclude == null ? null : includeExclude.convertToStringFilter(DocValueFormat.RAW);
 
         MapStringTermsAggregator.CollectorSource collectorSource = new SignificantTextCollectorSource(
             queryShardContext.lookup().source(),
@@ -218,17 +224,15 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
 
                     try {
                         for (String sourceField : sourceFieldNames) {
-                            Iterator<String> itr = sourceLookup.extractRawValues(sourceField).stream()
-                                .map(obj -> {
-                                    if (obj == null) {
-                                        return null;
-                                    }
-                                    if (obj instanceof BytesRef) {
-                                        return fieldType.valueForDisplay(obj).toString();
-                                    }
-                                    return obj.toString();
-                                })
-                                .iterator();
+                            Iterator<String> itr = sourceLookup.extractRawValues(sourceField).stream().map(obj -> {
+                                if (obj == null) {
+                                    return null;
+                                }
+                                if (obj instanceof BytesRef) {
+                                    return fieldType.valueForDisplay(obj).toString();
+                                }
+                                return obj.toString();
+                            }).iterator();
                             Analyzer analyzer = fieldType.indexAnalyzer();
                             while (itr.hasNext()) {
                                 TokenStream ts = analyzer.tokenStream(fieldType.name(), itr.next());

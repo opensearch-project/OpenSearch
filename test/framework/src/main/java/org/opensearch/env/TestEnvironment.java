@@ -41,8 +41,7 @@ import org.opensearch.common.settings.Settings;
  */
 public class TestEnvironment {
 
-    private TestEnvironment() {
-    }
+    private TestEnvironment() {}
 
     public static Environment newEnvironment(Settings settings) {
         return new Environment(settings, null);

@@ -48,15 +48,14 @@ import static org.hamcrest.Matchers.nullValue;
 public class ConcurrentDocumentOperationIT extends OpenSearchIntegTestCase {
     public void testConcurrentOperationOnSameDoc() throws Exception {
         logger.info("--> create an index with 1 shard and max replicas based on nodes");
-        assertAcked(prepareCreate("test")
-                .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1)));
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1)));
 
         logger.info("execute concurrent updates on the same doc");
         int numberOfUpdates = 100;
         final AtomicReference<Throwable> failure = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(numberOfUpdates);
         for (int i = 0; i < numberOfUpdates; i++) {
-            client().prepareIndex("test", "type1", "1").setSource("field1", i).execute(new ActionListener<IndexResponse>() {
+            client().prepareIndex("test").setId("1").setSource("field1", i).execute(new ActionListener<IndexResponse>() {
                 @Override
                 public void onResponse(IndexResponse response) {
                     latch.countDown();
@@ -78,9 +77,9 @@ public class ConcurrentDocumentOperationIT extends OpenSearchIntegTestCase {
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         logger.info("done indexing, check all have the same field value");
-        Map masterSource = client().prepareGet("test", "type1", "1").execute().actionGet().getSourceAsMap();
+        Map masterSource = client().prepareGet("test", "1").execute().actionGet().getSourceAsMap();
         for (int i = 0; i < (cluster().size() * 5); i++) {
-            assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().getSourceAsMap(), equalTo(masterSource));
+            assertThat(client().prepareGet("test", "1").execute().actionGet().getSourceAsMap(), equalTo(masterSource));
         }
     }
 }

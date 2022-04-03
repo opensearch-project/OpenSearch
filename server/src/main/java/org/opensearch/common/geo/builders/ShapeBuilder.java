@@ -39,7 +39,6 @@ import org.locationtech.jts.geom.GeometryFactory;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.opensearch.Assertions;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.Strings;
 import org.opensearch.common.geo.GeoShapeType;
 import org.opensearch.common.geo.parsers.GeoWKTParser;
@@ -65,8 +64,10 @@ import java.util.Objects;
 /**
  * Basic class for building GeoJSON shapes like Polygons, Linestrings, etc
  */
-public abstract class ShapeBuilder<T extends Shape, G extends org.opensearch.geometry.Geometry,
-    E extends ShapeBuilder<T, G, E>> implements NamedWriteable, ToXContentObject {
+public abstract class ShapeBuilder<T extends Shape, G extends org.opensearch.geometry.Geometry, E extends ShapeBuilder<T, G, E>>
+    implements
+        NamedWriteable,
+        ToXContentObject {
 
     protected static final Logger LOGGER = LogManager.getLogger(ShapeBuilder.class);
 
@@ -99,7 +100,7 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.opensearch.geo
     /** @see org.locationtech.spatial4j.shape.jts.JtsGeometry#validate() */
     protected static final boolean AUTO_VALIDATE_JTS_GEOMETRY = true;
     /** @see org.locationtech.spatial4j.shape.jts.JtsGeometry#index() */
-    protected static final boolean AUTO_INDEX_JTS_GEOMETRY = true;//may want to turn off once SpatialStrategy impls do it.
+    protected static final boolean AUTO_INDEX_JTS_GEOMETRY = true;// may want to turn off once SpatialStrategy impls do it.
 
     /** default ctor */
     protected ShapeBuilder() {
@@ -118,7 +119,7 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.opensearch.geo
     protected ShapeBuilder(StreamInput in) throws IOException {
         int size = in.readVInt();
         coordinates = new ArrayList<>(size);
-        for (int i=0; i < size; i++) {
+        for (int i = 0; i < size; i++) {
             coordinates.add(readFromStream(in));
         }
     }
@@ -126,10 +127,7 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.opensearch.geo
     protected static Coordinate readFromStream(StreamInput in) throws IOException {
         double x = in.readDouble();
         double y = in.readDouble();
-        Double z = null;
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
-            z = in.readOptionalDouble();
-        }
+        Double z = in.readOptionalDouble();
         return z == null ? new Coordinate(x, y) : new Coordinate(x, y, z);
     }
 
@@ -144,14 +142,12 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.opensearch.geo
     protected static void writeCoordinateTo(Coordinate coordinate, StreamOutput out) throws IOException {
         out.writeDouble(coordinate.x);
         out.writeDouble(coordinate.y);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
-            out.writeOptionalDouble(Double.isNaN(coordinate.z) ? null : coordinate.z);
-        }
+        out.writeOptionalDouble(Double.isNaN(coordinate.z) ? null : coordinate.z);
     }
 
     @SuppressWarnings("unchecked")
     private E thisRef() {
-        return (E)this;
+        return (E) this;
     }
 
     /**
@@ -180,7 +176,7 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.opensearch.geo
      * @param coordinates array of {@link Coordinate}s to add
      * @return this
      */
-    public E coordinates(Coordinate...coordinates) {
+    public E coordinates(Coordinate... coordinates) {
         return this.coordinates(Arrays.asList(coordinates));
     }
 
@@ -202,20 +198,18 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.opensearch.geo
      * @return Array of coordinates
      */
     protected Coordinate[] coordinates(boolean closed) {
-        Coordinate[] result = coordinates.toArray(new Coordinate[coordinates.size() + (closed?1:0)]);
-        if(closed) {
-            result[result.length-1] = result[0];
+        Coordinate[] result = coordinates.toArray(new Coordinate[coordinates.size() + (closed ? 1 : 0)]);
+        if (closed) {
+            result[result.length - 1] = result[0];
         }
         return result;
     }
 
     protected JtsGeometry jtsGeometry(Geometry geom) {
-        //dateline180Check is false because ElasticSearch does it's own dateline wrapping
+        // dateline180Check is false because ElasticSearch does it's own dateline wrapping
         JtsGeometry jtsGeometry = new JtsGeometry(geom, SPATIAL_CONTEXT, false, MULTI_POLYGON_MAY_OVERLAP);
-        if (AUTO_VALIDATE_JTS_GEOMETRY)
-            jtsGeometry.validate();
-        if (AUTO_INDEX_JTS_GEOMETRY)
-            jtsGeometry.index();
+        if (AUTO_VALIDATE_JTS_GEOMETRY) jtsGeometry.validate();
+        if (AUTO_INDEX_JTS_GEOMETRY) jtsGeometry.index();
         return jtsGeometry;
     }
 
@@ -433,11 +427,11 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.opensearch.geo
         public static final Orientation CW = Orientation.LEFT;
         public static final Orientation CCW = Orientation.RIGHT;
 
-        public void writeTo (StreamOutput out) throws IOException {
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(this == Orientation.RIGHT);
         }
 
-        public static Orientation readFrom (StreamInput in) throws IOException {
+        public static Orientation readFrom(StreamInput in) throws IOException {
             return in.readBoolean() ? Orientation.RIGHT : Orientation.LEFT;
         }
 
@@ -483,13 +477,13 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.opensearch.geo
      */
     protected XContentBuilder coordinatesToXcontent(XContentBuilder builder, boolean closed) throws IOException {
         builder.startArray();
-        for(Coordinate coord : coordinates) {
+        for (Coordinate coord : coordinates) {
             toXContent(builder, coord);
         }
-        if(closed) {
+        if (closed) {
             Coordinate start = coordinates.get(0);
-            Coordinate end = coordinates.get(coordinates.size()-1);
-            if(start.x != end.x || start.y != end.y) {
+            Coordinate end = coordinates.get(coordinates.size() - 1);
+            if (start.x != end.x || start.y != end.y) {
                 toXContent(builder, coordinates.get(0));
             }
         }
@@ -502,7 +496,7 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.opensearch.geo
         if (this == o) return true;
         if (!(o instanceof ShapeBuilder)) return false;
 
-        ShapeBuilder<?,?,?> that = (ShapeBuilder<?,?,?>) o;
+        ShapeBuilder<?, ?, ?> that = (ShapeBuilder<?, ?, ?>) o;
 
         return Objects.equals(coordinates, that.coordinates);
     }

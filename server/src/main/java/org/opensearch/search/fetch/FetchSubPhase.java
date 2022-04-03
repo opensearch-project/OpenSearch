@@ -51,12 +51,7 @@ public interface FetchSubPhase {
         private final int docId;
         private final SourceLookup sourceLookup;
 
-        public HitContext(
-            SearchHit hit,
-            LeafReaderContext context,
-            int docId,
-            SourceLookup sourceLookup
-        ) {
+        public HitContext(SearchHit hit, LeafReaderContext context, int docId, SourceLookup sourceLookup) {
             this.hit = hit;
             this.readerContext = context;
             this.docId = docId;

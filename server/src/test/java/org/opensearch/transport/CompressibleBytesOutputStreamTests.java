@@ -107,9 +107,9 @@ public class CompressibleBytesOutputStreamTests extends OpenSearchTestCase {
         byte[] expectedBytes = randomBytes(between(1, 30));
         stream.write(expectedBytes);
 
-
-        StreamInput streamInput =
-                new InputStreamStreamInput(CompressorFactory.COMPRESSOR.threadLocalInputStream(bStream.bytes().streamInput()));
+        StreamInput streamInput = new InputStreamStreamInput(
+            CompressorFactory.COMPRESSOR.threadLocalInputStream(bStream.bytes().streamInput())
+        );
         byte[] actualBytes = new byte[expectedBytes.length];
         EOFException e = expectThrows(EOFException.class, () -> streamInput.readBytes(actualBytes, 0, expectedBytes.length));
         assertEquals("Unexpected end of ZLIB input stream", e.getMessage());

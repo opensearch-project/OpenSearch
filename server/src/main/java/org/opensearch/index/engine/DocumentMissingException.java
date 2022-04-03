@@ -39,11 +39,11 @@ import java.io.IOException;
 
 public class DocumentMissingException extends EngineException {
 
-    public DocumentMissingException(ShardId shardId, String type, String id) {
-        super(shardId, "[" + type + "][" + id + "]: document missing");
+    public DocumentMissingException(ShardId shardId, String id) {
+        super(shardId, "[" + id + "]: document missing");
     }
 
-    public DocumentMissingException(StreamInput in) throws IOException{
+    public DocumentMissingException(StreamInput in) throws IOException {
         super(in);
     }
 

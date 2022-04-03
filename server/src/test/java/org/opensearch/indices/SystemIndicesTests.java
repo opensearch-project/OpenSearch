@@ -65,10 +65,20 @@ public class SystemIndicesTests extends OpenSearchTestCase {
         descriptors.put(broadPatternSource, singletonList(broadPattern));
         descriptors.put(otherSource, Arrays.asList(notOverlapping, overlapping1, overlapping2, overlapping3));
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class,
-            () -> SystemIndices.checkForOverlappingPatterns(descriptors));
-        assertThat(exception.getMessage(), containsString("a system index descriptor [" + broadPattern +
-            "] from [" + broadPatternSource + "] overlaps with other system index descriptors:"));
+        IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> SystemIndices.checkForOverlappingPatterns(descriptors)
+        );
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                "a system index descriptor ["
+                    + broadPattern
+                    + "] from ["
+                    + broadPatternSource
+                    + "] overlaps with other system index descriptors:"
+            )
+        );
         String fromPluginString = " from [" + otherSource + "]";
         assertThat(exception.getMessage(), containsString(overlapping1.toString() + fromPluginString));
         assertThat(exception.getMessage(), containsString(overlapping2.toString() + fromPluginString));
@@ -92,10 +102,16 @@ public class SystemIndicesTests extends OpenSearchTestCase {
         descriptors.put(source1, singletonList(pattern1));
         descriptors.put(source2, singletonList(pattern2));
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class,
-            () -> SystemIndices.checkForOverlappingPatterns(descriptors));
-        assertThat(exception.getMessage(), containsString("a system index descriptor [" + pattern1 +
-            "] from [" + source1 + "] overlaps with other system index descriptors:"));
+        IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> SystemIndices.checkForOverlappingPatterns(descriptors)
+        );
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                "a system index descriptor [" + pattern1 + "] from [" + source1 + "] overlaps with other system index descriptors:"
+            )
+        );
         assertThat(exception.getMessage(), containsString(pattern2.toString() + " from [" + source2 + "]"));
 
         IllegalStateException constructorException = expectThrows(IllegalStateException.class, () -> new SystemIndices(descriptors));
@@ -111,7 +127,8 @@ public class SystemIndicesTests extends OpenSearchTestCase {
 
     public void testPluginCannotOverrideBuiltInSystemIndex() {
         Map<String, Collection<SystemIndexDescriptor>> pluginMap = singletonMap(
-            TaskResultsService.class.getName(), singletonList(new SystemIndexDescriptor(TASK_INDEX, "Task Result Index"))
+            TaskResultsService.class.getName(),
+            singletonList(new SystemIndexDescriptor(TASK_INDEX, "Task Result Index"))
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SystemIndices(pluginMap));
         assertThat(e.getMessage(), containsString("plugin or module attempted to define the same source"));

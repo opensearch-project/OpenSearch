@@ -61,8 +61,12 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
 
     private final IndexNumericFieldData indexFieldData;
 
-    public FloatValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue, MultiValueMode sortMode,
-            Nested nested) {
+    public FloatValuesComparatorSource(
+        IndexNumericFieldData indexFieldData,
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested
+    ) {
         super(missingValue, sortMode, nested);
         this.indexFieldData = indexFieldData;
     }
@@ -85,13 +89,13 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
     }
 
     @Override
-    public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) {
+    public FieldComparator<?> newComparator(String fieldname, int numHits, boolean enableSkipping, boolean reversed) {
         assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
         final float fMissingValue = (Float) missingObject(missingValue, reversed);
         // NOTE: it's important to pass null as a missing value in the constructor so that
         // the comparator doesn't check docsWithField since we replace missing values in select()
-        return new FloatComparator(numHits, null, null, reversed, sortPos) {
+        return new FloatComparator(numHits, null, null, reversed, false) {
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                 return new FloatLeafComparator(context) {
@@ -105,13 +109,20 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
     }
 
     @Override
-    public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format,
-                int bucketSize, BucketedSort.ExtraData extra) {
+    public BucketedSort newBucketedSort(
+        BigArrays bigArrays,
+        SortOrder sortOrder,
+        DocValueFormat format,
+        int bucketSize,
+        BucketedSort.ExtraData extra
+    ) {
         return new BucketedSort.ForFloats(bigArrays, sortOrder, format, bucketSize, extra) {
             private final float dMissingValue = (Float) missingObject(missingValue, sortOrder == SortOrder.DESC);
 
             @Override
-            public boolean needsScores() { return false; }
+            public boolean needsScores() {
+                return false;
+            }
 
             @Override
             public Leaf forLeaf(LeafReaderContext ctx) throws IOException {

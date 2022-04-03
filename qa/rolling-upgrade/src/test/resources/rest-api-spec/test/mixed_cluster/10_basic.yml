@@ -78,5 +78,4 @@
   - do:
      indices.get:
        index: queries
-       include_type_name: false
   - match: { queries.mappings.properties.id.type: "keyword" }

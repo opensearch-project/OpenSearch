@@ -153,7 +153,8 @@ class ClusterFormationTasks {
                     }
                     boolean supportsInitialMasterNodes = hasBwcNodes == false || config.bwcVersion.onOrAfter("7.0.0")
                     if (esConfig['discovery.type'] == null && config.getAutoSetInitialMasterNodes() && supportsInitialMasterNodes) {
-                        esConfig['cluster.initial_master_nodes'] = nodes.stream().map({ n ->
+                        // To promote inclusive language, the old setting name is deprecated in 2.0.0
+                        esConfig[node.nodeVersion.onOrAfter("2.0.0") ? 'cluster.initial_cluster_manager_nodes' : 'cluster.initial_master_nodes'] = nodes.stream().map({ n ->
                             if (n.config.settings['node.name'] == null) {
                                 return "node-" + n.nodeNum
                             } else {

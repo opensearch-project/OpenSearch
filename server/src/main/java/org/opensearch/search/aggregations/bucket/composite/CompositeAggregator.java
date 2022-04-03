@@ -37,7 +37,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.queries.SearchAfterSortedDocQuery;
+import org.opensearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -70,6 +70,7 @@ import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.MultiBucketCollector;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
+import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.searchafter.SearchAfterBuilder;
 import org.opensearch.search.sort.SortAndFormats;
@@ -89,6 +90,7 @@ final class CompositeAggregator extends BucketsAggregator {
     private final int size;
     private final List<String> sourceNames;
     private final int[] reverseMuls;
+    private final MissingOrder[] missingOrders;
     private final List<DocValueFormat> formats;
     private final CompositeKey rawAfterKey;
 
@@ -103,21 +105,37 @@ final class CompositeAggregator extends BucketsAggregator {
 
     private boolean earlyTerminated;
 
-    CompositeAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
-                        Map<String, Object> metadata,
-                        int size, CompositeValuesSourceConfig[] sourceConfigs, CompositeKey rawAfterKey) throws IOException {
+    CompositeAggregator(
+        String name,
+        AggregatorFactories factories,
+        SearchContext context,
+        Aggregator parent,
+        Map<String, Object> metadata,
+        int size,
+        CompositeValuesSourceConfig[] sourceConfigs,
+        CompositeKey rawAfterKey
+    ) throws IOException {
         super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
         this.size = size;
         this.sourceNames = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::name).collect(Collectors.toList());
         this.reverseMuls = Arrays.stream(sourceConfigs).mapToInt(CompositeValuesSourceConfig::reverseMul).toArray();
+        this.missingOrders = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::missingOrder).toArray(MissingOrder[]::new);
         this.formats = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::format).collect(Collectors.toList());
         this.sources = new SingleDimensionValuesSource[sourceConfigs.length];
         // check that the provided size is not greater than the search.max_buckets setting
         int bucketLimit = context.aggregations().multiBucketConsumer().getLimit();
         if (size > bucketLimit) {
-            throw new MultiBucketConsumerService.TooManyBucketsException("Trying to create too many buckets. Must be less than or equal" +
-                " to: [" + bucketLimit + "] but was [" + size + "]. This limit can be set by changing the [" + MAX_BUCKET_SETTING.getKey() +
-                "] cluster level setting.", bucketLimit);
+            throw new MultiBucketConsumerService.TooManyBucketsException(
+                "Trying to create too many buckets. Must be less than or equal"
+                    + " to: ["
+                    + bucketLimit
+                    + "] but was ["
+                    + size
+                    + "]. This limit can be set by changing the ["
+                    + MAX_BUCKET_SETTING.getKey()
+                    + "] cluster level setting.",
+                bucketLimit
+            );
         }
         this.sourceConfigs = sourceConfigs;
         for (int i = 0; i < sourceConfigs.length; i++) {
@@ -174,19 +192,46 @@ final class CompositeAggregator extends BucketsAggregator {
             CompositeKey key = queue.toCompositeKey(slot);
             InternalAggregations aggs = subAggsForBuckets[slot];
             int docCount = queue.getDocCount(slot);
-            buckets[queue.size()] = new InternalComposite.InternalBucket(sourceNames, formats, key, reverseMuls, docCount, aggs);
+            buckets[queue.size()] = new InternalComposite.InternalBucket(
+                sourceNames,
+                formats,
+                key,
+                reverseMuls,
+                missingOrders,
+                docCount,
+                aggs
+            );
         }
-        CompositeKey lastBucket = num > 0 ? buckets[num-1].getRawKey() : null;
+        CompositeKey lastBucket = num > 0 ? buckets[num - 1].getRawKey() : null;
         return new InternalAggregation[] {
-            new InternalComposite(name, size, sourceNames, formats, Arrays.asList(buckets), lastBucket, reverseMuls,
-                    earlyTerminated, metadata())
-        };
+            new InternalComposite(
+                name,
+                size,
+                sourceNames,
+                formats,
+                Arrays.asList(buckets),
+                lastBucket,
+                reverseMuls,
+                missingOrders,
+                earlyTerminated,
+                metadata()
+            ) };
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalComposite(name, size, sourceNames, formats, Collections.emptyList(), null, reverseMuls,
-            false, metadata());
+        return new InternalComposite(
+            name,
+            size,
+            sourceNames,
+            formats,
+            Collections.emptyList(),
+            null,
+            reverseMuls,
+            missingOrders,
+            false,
+            metadata()
+        );
     }
 
     private void finishLeaf() {
@@ -235,11 +280,11 @@ final class CompositeAggregator extends BucketsAggregator {
             SingleDimensionValuesSource<?> source = sources[i];
             SortField indexSortField = indexSort.getSort()[i];
             if (source.fieldType == null
-                    // TODO: can we handle missing bucket when using index sort optimization ?
-                    || source.missingBucket
-                    || indexSortField.getField().equals(source.fieldType.name()) == false
-                    || isMaybeMultivalued(context, indexSortField)
-                    || sourceConfig.hasScript()) {
+                // TODO: can we handle missing bucket when using index sort optimization ?
+                || source.missingBucket
+                || indexSortField.getField().equals(source.fieldType.name()) == false
+                || isMaybeMultivalued(context, indexSortField)
+                || sourceConfig.hasScript()) {
                 break;
             }
 
@@ -304,17 +349,19 @@ final class CompositeAggregator extends BucketsAggregator {
                     }
 
                     @Override
-                    public FieldComparator<?> getComparator(int numHits, int sortPos) {
-                        return new LongComparator(1, delegate.getField(), (Long) missingValue, delegate.getReverse(), sortPos) {
+                    public FieldComparator<?> getComparator(int numHits, boolean enableSkipping) {
+                        return new LongComparator(1, delegate.getField(), (Long) missingValue, delegate.getReverse(), false) {
                             @Override
                             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                                 return new LongLeafComparator(context) {
                                     @Override
                                     protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field)
-                                            throws IOException {
-                                        NumericDocValues dvs =  SortedNumericSelector.wrap(
-                                                DocValues.getSortedNumeric(context.reader(), field),
-                                            delegate.getSelector(), delegate.getNumericType());
+                                        throws IOException {
+                                        NumericDocValues dvs = SortedNumericSelector.wrap(
+                                            DocValues.getSortedNumeric(context.reader(), field),
+                                            delegate.getSelector(),
+                                            delegate.getNumericType()
+                                        );
                                         return new NumericDocValues() {
                                             @Override
                                             public long longValue() throws IOException {
@@ -364,22 +411,25 @@ final class CompositeAggregator extends BucketsAggregator {
         for (int i = 0; i < formats.length; i++) {
             formats[i] = sources[i].format;
         }
-        FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(new SortAndFormats(indexSortPrefix, formats),
-            Arrays.copyOfRange(rawAfterKey.values(), 0, formats.length));
+        FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(
+            new SortAndFormats(indexSortPrefix, formats),
+            Arrays.copyOfRange(rawAfterKey.values(), 0, formats.length)
+        );
         if (indexSortPrefix.getSort().length < sources.length) {
             // include all docs that belong to the partial bucket
             fieldDoc.doc = -1;
         }
-        BooleanQuery newQuery = new BooleanQuery.Builder()
-            .add(context.query(), BooleanClause.Occur.MUST)
+        BooleanQuery newQuery = new BooleanQuery.Builder().add(context.query(), BooleanClause.Occur.MUST)
             .add(new SearchAfterSortedDocQuery(applySortFieldRounding(indexSortPrefix), fieldDoc), BooleanClause.Occur.FILTER)
             .build();
         Weight weight = context.searcher().createWeight(context.searcher().rewrite(newQuery), ScoreMode.COMPLETE_NO_SCORES, 1f);
         Scorer scorer = weight.scorer(ctx);
         if (scorer != null) {
             DocIdSetIterator docIt = scorer.iterator();
-            final LeafBucketCollector inner = queue.getLeafCollector(ctx,
-                getFirstPassCollector(docIdSetBuilder, indexSortPrefix.getSort().length));
+            final LeafBucketCollector inner = queue.getLeafCollector(
+                ctx,
+                getFirstPassCollector(docIdSetBuilder, indexSortPrefix.getSort().length)
+            );
             inner.setScorer(scorer);
             final Bits liveDocs = ctx.reader().getLiveDocs();
             while (docIt.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
@@ -399,8 +449,9 @@ final class CompositeAggregator extends BucketsAggregator {
         Sort indexSortPrefix = buildIndexSortPrefix(ctx);
         int sortPrefixLen = computeSortPrefixLen(indexSortPrefix);
 
-        SortedDocsProducer sortedDocsProducer = sortPrefixLen == 0  ?
-            sources[0].createSortedDocsProducerOrNull(ctx.reader(), context.query()) : null;
+        SortedDocsProducer sortedDocsProducer = sortPrefixLen == 0
+            ? sources[0].createSortedDocsProducerOrNull(ctx.reader(), context.query())
+            : null;
         if (sortedDocsProducer != null) {
             // Visit documents sorted by the leading source of the composite definition and terminates
             // when the leading source value is guaranteed to be greater than the lowest composite bucket
@@ -531,4 +582,3 @@ final class CompositeAggregator extends BucketsAggregator {
         }
     }
 }
-

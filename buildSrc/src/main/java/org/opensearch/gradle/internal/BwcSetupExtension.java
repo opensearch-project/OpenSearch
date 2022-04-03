@@ -39,6 +39,7 @@ import org.opensearch.gradle.LoggedExec;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
 import org.gradle.api.logging.LogLevel;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.TaskProvider;
@@ -80,77 +81,83 @@ public class BwcSetupExtension {
     }
 
     private TaskProvider<LoggedExec> createRunBwcGradleTask(Project project, String name, Action<LoggedExec> configAction) {
-        return project.getTasks().register(name, LoggedExec.class, loggedExec -> {
-            // TODO revisit
-            loggedExec.dependsOn("checkoutBwcBranch");
-            loggedExec.setSpoolOutput(true);
-            loggedExec.setWorkingDir(checkoutDir.get());
-            loggedExec.doFirst(t -> {
-                // Execution time so that the checkouts are available
-                String javaVersionsString = readFromFile(new File(checkoutDir.get(), ".ci/java-versions.properties"));
-                loggedExec.environment(
-                    "JAVA_HOME",
-                    getJavaHome(
-                        Integer.parseInt(
-                            Arrays.asList(javaVersionsString.split("\n"))
-                                .stream()
-                                .filter(l -> l.trim().startsWith("OPENSEARCH_BUILD_JAVA="))
-                                .map(l -> l.replace("OPENSEARCH_BUILD_JAVA=java", "").trim())
-                                .map(l -> l.replace("OPENSEARCH_BUILD_JAVA=openjdk", "").trim())
-                                .collect(Collectors.joining("!!"))
-                        )
-                    )
-                );
-                loggedExec.environment(
-                    "RUNTIME_JAVA_HOME",
-                    getJavaHome(
-                        Integer.parseInt(
-                            Arrays.asList(javaVersionsString.split("\n"))
-                                .stream()
-                                .filter(l -> l.trim().startsWith("OPENSEARCH_RUNTIME_JAVA="))
-                                .map(l -> l.replace("OPENSEARCH_RUNTIME_JAVA=java", "").trim())
-                                .map(l -> l.replace("OPENSEARCH_RUNTIME_JAVA=openjdk", "").trim())
-                                .collect(Collectors.joining("!!"))
-                        )
-                    )
-                );
-            });
+        return project.getTasks().register(name, LoggedExec.class, new Action<LoggedExec>() {
+            @Override
+            public void execute(LoggedExec loggedExec) {
+                // TODO revisit
+                loggedExec.dependsOn("checkoutBwcBranch");
+                loggedExec.setSpoolOutput(true);
+                loggedExec.setWorkingDir(checkoutDir.get());
+                loggedExec.doFirst(new Action<Task>() {
+                    @Override
+                    public void execute(Task t) {
+                        // Execution time so that the checkouts are available
+                        String javaVersionsString = readFromFile(new File(checkoutDir.get(), ".ci/java-versions.properties"));
+                        loggedExec.environment(
+                            "JAVA_HOME",
+                            getJavaHome(
+                                Integer.parseInt(
+                                    Arrays.asList(javaVersionsString.split("\n"))
+                                        .stream()
+                                        .filter(l -> l.trim().startsWith("OPENSEARCH_BUILD_JAVA="))
+                                        .map(l -> l.replace("OPENSEARCH_BUILD_JAVA=java", "").trim())
+                                        .map(l -> l.replace("OPENSEARCH_BUILD_JAVA=openjdk", "").trim())
+                                        .collect(Collectors.joining("!!"))
+                                )
+                            )
+                        );
+                        loggedExec.environment(
+                            "RUNTIME_JAVA_HOME",
+                            getJavaHome(
+                                Integer.parseInt(
+                                    Arrays.asList(javaVersionsString.split("\n"))
+                                        .stream()
+                                        .filter(l -> l.trim().startsWith("OPENSEARCH_RUNTIME_JAVA="))
+                                        .map(l -> l.replace("OPENSEARCH_RUNTIME_JAVA=java", "").trim())
+                                        .map(l -> l.replace("OPENSEARCH_RUNTIME_JAVA=openjdk", "").trim())
+                                        .collect(Collectors.joining("!!"))
+                                )
+                            )
+                        );
+                    }
+                });
 
-            if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-                loggedExec.executable("cmd");
-                loggedExec.args("/C", "call", new File(checkoutDir.get(), "gradlew").toString());
-            } else {
-                loggedExec.executable(new File(checkoutDir.get(), "gradlew").toString());
-            }
-            if (project.getGradle().getStartParameter().isOffline()) {
-                loggedExec.args("--offline");
-            }
-            // TODO resolve
-            String buildCacheUrl = System.getProperty("org.opensearch.build.cache.url");
-            if (buildCacheUrl != null) {
-                loggedExec.args("-Dorg.opensearch.build.cache.url=" + buildCacheUrl);
-            }
+                if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+                    loggedExec.executable("cmd");
+                    loggedExec.args("/C", "call", new File(checkoutDir.get(), "gradlew").toString());
+                } else {
+                    loggedExec.executable(new File(checkoutDir.get(), "gradlew").toString());
+                }
+                if (project.getGradle().getStartParameter().isOffline()) {
+                    loggedExec.args("--offline");
+                }
+                // TODO resolve
+                String buildCacheUrl = System.getProperty("org.opensearch.build.cache.url");
+                if (buildCacheUrl != null) {
+                    loggedExec.args("-Dorg.opensearch.build.cache.url=" + buildCacheUrl);
+                }
 
-            loggedExec.args("-Dbuild.snapshot=true");
-            loggedExec.args("-Dscan.tag.NESTED");
-            final LogLevel logLevel = project.getGradle().getStartParameter().getLogLevel();
-            List<LogLevel> nonDefaultLogLevels = Arrays.asList(LogLevel.QUIET, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG);
-            if (nonDefaultLogLevels.contains(logLevel)) {
-                loggedExec.args("--" + logLevel.name().toLowerCase(Locale.ENGLISH));
+                loggedExec.args("-Dbuild.snapshot=true");
+                loggedExec.args("-Dscan.tag.NESTED");
+                final LogLevel logLevel = project.getGradle().getStartParameter().getLogLevel();
+                List<LogLevel> nonDefaultLogLevels = Arrays.asList(LogLevel.QUIET, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG);
+                if (nonDefaultLogLevels.contains(logLevel)) {
+                    loggedExec.args("--" + logLevel.name().toLowerCase(Locale.ENGLISH));
+                }
+                final String showStacktraceName = project.getGradle().getStartParameter().getShowStacktrace().name();
+                assert Arrays.asList("INTERNAL_EXCEPTIONS", "ALWAYS", "ALWAYS_FULL").contains(showStacktraceName);
+                if (showStacktraceName.equals("ALWAYS")) {
+                    loggedExec.args("--stacktrace");
+                } else if (showStacktraceName.equals("ALWAYS_FULL")) {
+                    loggedExec.args("--full-stacktrace");
+                }
+                if (project.getGradle().getStartParameter().isParallelProjectExecutionEnabled()) {
+                    loggedExec.args("--parallel");
+                }
+                loggedExec.setStandardOutput(new IndentingOutputStream(System.out, unreleasedVersionInfo.get().version));
+                loggedExec.setErrorOutput(new IndentingOutputStream(System.err, unreleasedVersionInfo.get().version));
+                configAction.execute(loggedExec);
             }
-            final String showStacktraceName = project.getGradle().getStartParameter().getShowStacktrace().name();
-            assert Arrays.asList("INTERNAL_EXCEPTIONS", "ALWAYS", "ALWAYS_FULL").contains(showStacktraceName);
-            if (showStacktraceName.equals("ALWAYS")) {
-                loggedExec.args("--stacktrace");
-            } else if (showStacktraceName.equals("ALWAYS_FULL")) {
-                loggedExec.args("--full-stacktrace");
-            }
-            if (project.getGradle().getStartParameter().isParallelProjectExecutionEnabled()) {
-                loggedExec.args("--parallel");
-            }
-            loggedExec.setStandardOutput(new IndentingOutputStream(System.out, unreleasedVersionInfo.get().version));
-            loggedExec.setErrorOutput(new IndentingOutputStream(System.err, unreleasedVersionInfo.get().version));
-            configAction.execute(loggedExec);
         });
     }
 

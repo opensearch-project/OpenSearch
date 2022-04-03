@@ -34,9 +34,7 @@ package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.indices.analysis.PreBuiltCacheFactory;
 import org.opensearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
@@ -47,61 +45,98 @@ import java.util.function.Function;
  * Provides pre-configured, shared {@link TokenFilter}s.
  */
 public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisComponent<TokenFilterFactory> {
-
-    private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(PreConfiguredTokenFilter.class);
-
     /**
      * Create a pre-configured token filter that may not vary at all.
      */
-    public static PreConfiguredTokenFilter singleton(String name, boolean useFilterForMultitermQueries,
-            Function<TokenStream, TokenStream> create) {
-        return new PreConfiguredTokenFilter(name, useFilterForMultitermQueries, true, CachingStrategy.ONE,
-                (tokenStream, version) -> create.apply(tokenStream));
+    public static PreConfiguredTokenFilter singleton(
+        String name,
+        boolean useFilterForMultitermQueries,
+        Function<TokenStream, TokenStream> create
+    ) {
+        return new PreConfiguredTokenFilter(
+            name,
+            useFilterForMultitermQueries,
+            true,
+            CachingStrategy.ONE,
+            (tokenStream, version) -> create.apply(tokenStream)
+        );
     }
 
     /**
      * Create a pre-configured token filter that may not vary at all.
      */
-    public static PreConfiguredTokenFilter singleton(String name, boolean useFilterForMultitermQueries,
-                                                     boolean allowForSynonymParsing,
-                                                     Function<TokenStream, TokenStream> create) {
-        return new PreConfiguredTokenFilter(name, useFilterForMultitermQueries, allowForSynonymParsing, CachingStrategy.ONE,
-            (tokenStream, version) -> create.apply(tokenStream));
+    public static PreConfiguredTokenFilter singleton(
+        String name,
+        boolean useFilterForMultitermQueries,
+        boolean allowForSynonymParsing,
+        Function<TokenStream, TokenStream> create
+    ) {
+        return new PreConfiguredTokenFilter(
+            name,
+            useFilterForMultitermQueries,
+            allowForSynonymParsing,
+            CachingStrategy.ONE,
+            (tokenStream, version) -> create.apply(tokenStream)
+        );
     }
 
     /**
      * Create a pre-configured token filter that may vary based on the Lucene version.
      */
-    public static PreConfiguredTokenFilter luceneVersion(String name, boolean useFilterForMultitermQueries,
-            BiFunction<TokenStream, org.apache.lucene.util.Version, TokenStream> create) {
-        return new PreConfiguredTokenFilter(name, useFilterForMultitermQueries, true, CachingStrategy.LUCENE,
-                (tokenStream, version) -> create.apply(tokenStream, version.luceneVersion));
+    public static PreConfiguredTokenFilter luceneVersion(
+        String name,
+        boolean useFilterForMultitermQueries,
+        BiFunction<TokenStream, org.apache.lucene.util.Version, TokenStream> create
+    ) {
+        return new PreConfiguredTokenFilter(
+            name,
+            useFilterForMultitermQueries,
+            true,
+            CachingStrategy.LUCENE,
+            (tokenStream, version) -> create.apply(tokenStream, version.luceneVersion)
+        );
     }
 
     /**
      * Create a pre-configured token filter that may vary based on the OpenSearch version.
      */
-    public static PreConfiguredTokenFilter openSearchVersion(String name, boolean useFilterForMultitermQueries,
-            BiFunction<TokenStream, org.opensearch.Version, TokenStream> create) {
+    public static PreConfiguredTokenFilter openSearchVersion(
+        String name,
+        boolean useFilterForMultitermQueries,
+        BiFunction<TokenStream, org.opensearch.Version, TokenStream> create
+    ) {
         return new PreConfiguredTokenFilter(name, useFilterForMultitermQueries, true, CachingStrategy.OPENSEARCH, create);
     }
 
     /**
      * Create a pre-configured token filter that may vary based on the OpenSearch version.
      */
-    public static PreConfiguredTokenFilter openSearchVersion(String name, boolean useFilterForMultitermQueries,
-                                                                boolean useFilterForParsingSynonyms,
-                                                                BiFunction<TokenStream, Version, TokenStream> create) {
-        return new PreConfiguredTokenFilter(name, useFilterForMultitermQueries, useFilterForParsingSynonyms,
-                CachingStrategy.OPENSEARCH, create);
+    public static PreConfiguredTokenFilter openSearchVersion(
+        String name,
+        boolean useFilterForMultitermQueries,
+        boolean useFilterForParsingSynonyms,
+        BiFunction<TokenStream, Version, TokenStream> create
+    ) {
+        return new PreConfiguredTokenFilter(
+            name,
+            useFilterForMultitermQueries,
+            useFilterForParsingSynonyms,
+            CachingStrategy.OPENSEARCH,
+            create
+        );
     }
 
     private final boolean useFilterForMultitermQueries;
     private final boolean allowForSynonymParsing;
     private final BiFunction<TokenStream, Version, TokenStream> create;
 
-    private PreConfiguredTokenFilter(String name, boolean useFilterForMultitermQueries, boolean allowForSynonymParsing,
-            PreBuiltCacheFactory.CachingStrategy cache, BiFunction<TokenStream, Version, TokenStream> create) {
+    private PreConfiguredTokenFilter(
+        String name,
+        boolean useFilterForMultitermQueries,
+        boolean allowForSynonymParsing,
+        PreBuiltCacheFactory.CachingStrategy cache,
+        BiFunction<TokenStream, Version, TokenStream> create
+    ) {
         super(name, cache);
         this.useFilterForMultitermQueries = useFilterForMultitermQueries;
         this.allowForSynonymParsing = allowForSynonymParsing;
@@ -140,14 +175,7 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
                     if (allowForSynonymParsing) {
                         return this;
                     }
-                    if (version.onOrAfter(LegacyESVersion.V_7_0_0)) {
-                        throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
-                    }
-                    else {
-                        DEPRECATION_LOGGER.deprecate(name(), "Token filter [" + name()
-                            + "] will not be usable to parse synonyms after v7.0");
-                        return this;
-                    }
+                    throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
                 }
             };
         }
@@ -167,14 +195,7 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
                 if (allowForSynonymParsing) {
                     return this;
                 }
-                if (version.onOrAfter(LegacyESVersion.V_7_0_0)) {
-                    throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
-                }
-                else {
-                    DEPRECATION_LOGGER.deprecate(name(), "Token filter [" + name()
-                        + "] will not be usable to parse synonyms after v7.0");
-                    return this;
-                }
+                throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
             }
         };
     }

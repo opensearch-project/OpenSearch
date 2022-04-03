@@ -72,8 +72,10 @@ public class SearchScrollRequestTests extends OpenSearchTestCase {
 
     public void testInternalScrollSearchRequestSerialization() throws IOException {
         SearchScrollRequest searchScrollRequest = createSearchScrollRequest();
-        InternalScrollSearchRequest internalScrollSearchRequest =
-            new InternalScrollSearchRequest(searchScrollRequest, new ShardSearchContextId(UUIDs.randomBase64UUID(), randomLong()));
+        InternalScrollSearchRequest internalScrollSearchRequest = new InternalScrollSearchRequest(
+            searchScrollRequest,
+            new ShardSearchContextId(UUIDs.randomBase64UUID(), randomLong())
+        );
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             internalScrollSearchRequest.writeTo(output);
             try (StreamInput in = output.bytes().streamInput()) {
@@ -88,14 +90,14 @@ public class SearchScrollRequestTests extends OpenSearchTestCase {
     public void testFromXContent() throws Exception {
         SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
         if (randomBoolean()) {
-            //test that existing values get overridden
+            // test that existing values get overridden
             searchScrollRequest = createSearchScrollRequest();
         }
-        try (XContentParser parser = createParser(XContentFactory.jsonBuilder()
-                .startObject()
-                .field("scroll_id", "SCROLL_ID")
-                .field("scroll", "1m")
-                .endObject())) {
+        try (
+            XContentParser parser = createParser(
+                XContentFactory.jsonBuilder().startObject().field("scroll_id", "SCROLL_ID").field("scroll", "1m").endObject()
+            )
+        ) {
             searchScrollRequest.fromXContent(parser);
         }
         assertEquals("SCROLL_ID", searchScrollRequest.scrollId());
@@ -104,14 +106,11 @@ public class SearchScrollRequestTests extends OpenSearchTestCase {
 
     public void testFromXContentWithUnknownParamThrowsException() throws Exception {
         SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
-        XContentParser invalidContent = createParser(XContentFactory.jsonBuilder()
-                .startObject()
-                .field("scroll_id", "value_2")
-                .field("unknown", "keyword")
-                .endObject());
+        XContentParser invalidContent = createParser(
+            XContentFactory.jsonBuilder().startObject().field("scroll_id", "value_2").field("unknown", "keyword").endObject()
+        );
 
-        Exception e = expectThrows(IllegalArgumentException.class,
-                () -> searchScrollRequest.fromXContent(invalidContent));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> searchScrollRequest.fromXContent(invalidContent));
         assertThat(e.getMessage(), startsWith("Unknown parameter [unknown]"));
     }
 

@@ -109,8 +109,12 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     public final Aggregator resolveSortPathOnValidAgg(AggregationPath.PathElement next, Iterator<AggregationPath.PathElement> path) {
         Aggregator n = subAggregator(next.name);
         if (n == null) {
-            throw new IllegalArgumentException("The provided aggregation [" + next + "] either does not exist, or is "
-                    + "a pipeline aggregation and cannot be used to sort the buckets.");
+            throw new IllegalArgumentException(
+                "The provided aggregation ["
+                    + next
+                    + "] either does not exist, or is "
+                    + "a pipeline aggregation and cannot be used to sort the buckets."
+            );
         }
         if (false == path.hasNext()) {
             return n;
@@ -127,9 +131,13 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * The default implementation throws an exception but we override it on aggregations that support sorting.
      */
     public Aggregator resolveSortPath(AggregationPath.PathElement next, Iterator<AggregationPath.PathElement> path) {
-        throw new IllegalArgumentException("Buckets can only be sorted on a sub-aggregator path " +
-                "that is built out of zero or more single-bucket aggregations within the path and a final " +
-                "single-bucket or a metrics aggregation at the path end. [" + name() + "] is not single-bucket.");
+        throw new IllegalArgumentException(
+            "Buckets can only be sorted on a sub-aggregator path "
+                + "that is built out of zero or more single-bucket aggregations within the path and a final "
+                + "single-bucket or a metrics aggregation at the path end. ["
+                + name()
+                + "] is not single-bucket."
+        );
     }
 
     /**
@@ -138,10 +146,13 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * The default implementation throws an exception but we override it on aggregations that support sorting.
      */
     public BucketComparator bucketComparator(String key, SortOrder order) {
-        throw new IllegalArgumentException("Buckets can only be sorted on a sub-aggregator path " +
-                "that is built out of zero or more single-bucket aggregations within the path and a final " +
-                "single-bucket or a metrics aggregation at the path end.");
+        throw new IllegalArgumentException(
+            "Buckets can only be sorted on a sub-aggregator path "
+                + "that is built out of zero or more single-bucket aggregations within the path and a final "
+                + "single-bucket or a metrics aggregation at the path end."
+        );
     }
+
     /**
      * Compare two buckets by their ordinal.
      */
@@ -170,7 +181,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      */
     public final InternalAggregation buildTopLevel() throws IOException {
         assert parent() == null;
-        return buildAggregations(new long[] {0})[0];
+        return buildAggregations(new long[] { 0 })[0];
     }
 
     /**

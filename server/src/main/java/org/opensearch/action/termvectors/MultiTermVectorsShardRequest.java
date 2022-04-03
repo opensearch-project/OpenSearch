@@ -93,7 +93,6 @@ public class MultiTermVectorsShardRequest extends SingleShardRequest<MultiTermVe
         return this.preference;
     }
 
-
     public void add(int location, TermVectorsRequest request) {
         this.locations.add(location);
         this.requests.add(request);

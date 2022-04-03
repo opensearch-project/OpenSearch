@@ -42,7 +42,6 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,7 +52,10 @@ import java.util.List;
 import java.util.Set;
 
 public class MultiTermVectorsRequest extends ActionRequest
-        implements Iterable<TermVectorsRequest>, CompositeIndicesRequest, RealtimeRequest {
+    implements
+        Iterable<TermVectorsRequest>,
+        CompositeIndicesRequest,
+        RealtimeRequest {
 
     String preference;
     List<TermVectorsRequest> requests = new ArrayList<>();
@@ -77,8 +79,8 @@ public class MultiTermVectorsRequest extends ActionRequest
         return this;
     }
 
-    public MultiTermVectorsRequest add(String index, @Nullable String type, String id) {
-        requests.add(new TermVectorsRequest(index, type, id));
+    public MultiTermVectorsRequest add(String index, String id) {
+        requests.add(new TermVectorsRequest(index, id));
         return this;
     }
 
@@ -92,8 +94,10 @@ public class MultiTermVectorsRequest extends ActionRequest
                 TermVectorsRequest termVectorsRequest = requests.get(i);
                 ActionRequestValidationException validationExceptionForDoc = termVectorsRequest.validate();
                 if (validationExceptionForDoc != null) {
-                    validationException = ValidateActions.addValidationError("at multi term vectors for doc " + i,
-                            validationExceptionForDoc);
+                    validationException = ValidateActions.addValidationError(
+                        "at multi term vectors for doc " + i,
+                        validationExceptionForDoc
+                    );
                 }
             }
         }
@@ -127,9 +131,6 @@ public class MultiTermVectorsRequest extends ActionRequest
                                 throw new IllegalArgumentException("docs array element should include an object");
                             }
                             TermVectorsRequest termVectorsRequest = new TermVectorsRequest(template);
-                            if (termVectorsRequest.type() == null) {
-                                termVectorsRequest.type(MapperService.SINGLE_MAPPING_NAME);
-                            }
                             TermVectorsRequest.parseRequest(termVectorsRequest, parser);
                             add(termVectorsRequest);
                         }

@@ -82,7 +82,7 @@ public class ScheduleWithFixedDelayTests extends OpenSearchTestCase {
         final CountDownLatch startLatch = new CountDownLatch(1);
         final CountDownLatch pauseLatch = new CountDownLatch(1);
         ThreadPool threadPool = mock(ThreadPool.class);
-        final Runnable runnable = () ->  {
+        final Runnable runnable = () -> {
             // notify that the runnable is started
             startLatch.countDown();
             try {
@@ -92,8 +92,14 @@ public class ScheduleWithFixedDelayTests extends OpenSearchTestCase {
                 Thread.currentThread().interrupt();
             }
         };
-        ReschedulingRunnable reschedulingRunnable = new ReschedulingRunnable(runnable, delay, Names.GENERIC, threadPool,
-                (e) -> {}, (e) -> {});
+        ReschedulingRunnable reschedulingRunnable = new ReschedulingRunnable(
+            runnable,
+            delay,
+            Names.GENERIC,
+            threadPool,
+            (e) -> {},
+            (e) -> {}
+        );
         // this call was made during construction of the runnable
         verify(threadPool, times(1)).schedule(reschedulingRunnable, delay, Names.GENERIC);
 
@@ -196,7 +202,8 @@ public class ScheduleWithFixedDelayTests extends OpenSearchTestCase {
     }
 
     public void testBlockingCallOnSchedulerThreadFails() throws Exception {
-        final BaseFuture<Object> future = new BaseFuture<Object>() {};
+        final BaseFuture<Object> future = new BaseFuture<Object>() {
+        };
         final TestFuture resultsFuture = new TestFuture();
         final boolean getWithTimeout = randomBoolean();
 
@@ -273,8 +280,14 @@ public class ScheduleWithFixedDelayTests extends OpenSearchTestCase {
             }
         };
         Runnable runnable = () -> {};
-        ReschedulingRunnable reschedulingRunnable = new ReschedulingRunnable(runnable, delay, Names.GENERIC,
-                threadPool, (e) -> {}, (e) -> {});
+        ReschedulingRunnable reschedulingRunnable = new ReschedulingRunnable(
+            runnable,
+            delay,
+            Names.GENERIC,
+            threadPool,
+            (e) -> {},
+            (e) -> {}
+        );
         assertTrue(reschedulingRunnable.isCancelled());
     }
 
@@ -296,10 +309,7 @@ public class ScheduleWithFixedDelayTests extends OpenSearchTestCase {
         assertThat(counterValue, equalTo(iterations));
 
         if (rarely()) {
-            assertBusy(
-                () -> assertThat(counter.get(), equalTo(iterations)),
-                5 * interval.millis(),
-                TimeUnit.MILLISECONDS);
+            assertBusy(() -> assertThat(counter.get(), equalTo(iterations)), 5 * interval.millis(), TimeUnit.MILLISECONDS);
         }
     }
 

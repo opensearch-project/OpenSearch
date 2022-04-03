@@ -46,6 +46,7 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.StringFieldType;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 
 import java.io.IOException;
 
@@ -65,32 +66,57 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     private long lastLookupOrd = -1;
     private BytesRef lastLookupValue;
 
-    GlobalOrdinalValuesSource(BigArrays bigArrays, MappedFieldType type,
-                              CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc,
-                              DocValueFormat format, boolean missingBucket, int size, int reverseMul) {
-        super(bigArrays, format, type, missingBucket, size, reverseMul);
+    GlobalOrdinalValuesSource(
+        BigArrays bigArrays,
+        MappedFieldType type,
+        CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc,
+        DocValueFormat format,
+        boolean missingBucket,
+        MissingOrder missingOrder,
+        int size,
+        int reverseMul
+    ) {
+        super(bigArrays, format, type, missingBucket, missingOrder, size, reverseMul);
         this.docValuesFunc = docValuesFunc;
         this.values = bigArrays.newLongArray(Math.min(size, 100), false);
     }
 
     @Override
     void copyCurrent(int slot) {
-        values = bigArrays.grow(values, slot+1);
+        values = bigArrays.grow(values, slot + 1);
         values.set(slot, currentValue);
     }
 
     @Override
     int compare(int from, int to) {
+        if (missingBucket) {
+            int result = missingOrder.compare(() -> values.get(from) == -1, () -> values.get(to) == -1, reverseMul);
+            if (MissingOrder.unknownOrder(result) == false) {
+                return result;
+            }
+        }
         return Long.compare(values.get(from), values.get(to)) * reverseMul;
     }
 
     @Override
     int compareCurrent(int slot) {
+        if (missingBucket) {
+            int result = missingOrder.compare(() -> currentValue == -1, () -> values.get(slot) == -1, reverseMul);
+            if (MissingOrder.unknownOrder(result) == false) {
+                return result;
+            }
+        }
         return Long.compare(currentValue, values.get(slot)) * reverseMul;
     }
 
     @Override
     int compareCurrentWithAfter() {
+        if (missingBucket) {
+            int result = missingOrder.compare(() -> currentValue == -1, () -> afterValueGlobalOrd == -1, reverseMul);
+            if (MissingOrder.unknownOrder(result) == false) {
+                return result;
+            }
+        }
         int cmp = Long.compare(currentValue, afterValueGlobalOrd);
         if (cmp == 0 && isTopValueInsertionPoint) {
             // the top value is missing in this shard, the comparison is against
@@ -195,9 +221,9 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
-        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false ||
-                fieldType instanceof StringFieldType == false ||
-                    (query != null && query.getClass() != MatchAllDocsQuery.class)) {
+        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false
+            || fieldType instanceof StringFieldType == false
+            || (query != null && query.getClass() != MatchAllDocsQuery.class)) {
             return null;
         }
         return new TermsSortedDocsProducer(fieldType.name());

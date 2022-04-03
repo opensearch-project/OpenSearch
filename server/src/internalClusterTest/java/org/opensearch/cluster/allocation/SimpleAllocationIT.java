@@ -66,8 +66,12 @@ public class SimpleAllocationIT extends OpenSearchIntegTestCase {
                 assertThat(node.size(), equalTo(2));
             }
         }
-        client().admin().indices().prepareUpdateSettings("test")
-            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 0)).execute().actionGet();
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 0))
+            .execute()
+            .actionGet();
         ensureGreen("test");
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
 
@@ -85,8 +89,12 @@ public class SimpleAllocationIT extends OpenSearchIntegTestCase {
         }
         ensureGreen("test2");
 
-        client().admin().indices().prepareUpdateSettings("test")
-            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 1)).execute().actionGet();
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 1))
+            .execute()
+            .actionGet();
         ensureGreen("test");
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
 

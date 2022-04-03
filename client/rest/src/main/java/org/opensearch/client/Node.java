@@ -85,8 +85,7 @@ public class Node {
      * @param roles      roles that the OpenSearch process has on the host
      * @param attributes attributes declared on the node
      */
-    public Node(HttpHost host, Set<HttpHost> boundHosts, String name, String version,
-            Roles roles, Map<String, List<String>> attributes) {
+    public Node(HttpHost host, Set<HttpHost> boundHosts, String name, String version, Roles roles, Map<String, List<String>> attributes) {
         if (host == null) {
             throw new IllegalArgumentException("host cannot be null");
         }
@@ -211,19 +210,21 @@ public class Node {
         }
 
         /**
-         * Teturns whether or not the node <strong>could</strong> be elected master.
+         * Returns whether or not the node <strong>could</strong> be elected master.
          */
         public boolean isMasterEligible() {
-            return roles.contains("master");
+            return roles.contains("master") || roles.contains("cluster_manager");
         }
+
         /**
-         * Teturns whether or not the node stores data.
+         * Returns whether or not the node stores data.
          */
         public boolean isData() {
             return roles.contains("data");
         }
+
         /**
-         * Teturns whether or not the node runs ingest pipelines.
+         * Returns whether or not the node runs ingest pipelines.
          */
         public boolean isIngest() {
             return roles.contains("ingest");

@@ -33,7 +33,11 @@
 package org.opensearch.common.cache;
 
 public class RemovalNotification<K, V> {
-    public enum RemovalReason {REPLACED, INVALIDATED, EVICTED}
+    public enum RemovalReason {
+        REPLACED,
+        INVALIDATED,
+        EVICTED
+    }
 
     private final K key;
     private final V value;

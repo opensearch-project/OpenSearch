@@ -33,6 +33,7 @@
 package org.opensearch.action.termvectors;
 
 import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -51,20 +52,21 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
      */
     public static class Failure implements Writeable {
         private final String index;
-        private final String type;
         private final String id;
         private final Exception cause;
 
-        public Failure(String index, String type, String id, Exception cause) {
+        public Failure(String index, String id, Exception cause) {
             this.index = index;
-            this.type = type;
             this.id = id;
             this.cause = cause;
         }
 
         public Failure(StreamInput in) throws IOException {
             index = in.readString();
-            type = in.readOptionalString();
+            if (in.getVersion().before(Version.V_2_0_0)) {
+                // ignore removed type from pre-2.0.0 versions
+                in.readOptionalString();
+            }
             id = in.readString();
             cause = in.readException();
         }
@@ -74,16 +76,6 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
          */
         public String getIndex() {
             return this.index;
-        }
-
-        /**
-         * The type of the action.
-         *
-         * @deprecated Types are in the process of being removed.
-         */
-        @Deprecated
-        public String getType() {
-            return type;
         }
 
         /**
@@ -103,7 +95,10 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(index);
-            out.writeOptionalString(type);
+            if (out.getVersion().before(Version.V_2_0_0)) {
+                // types no longer supported
+                out.writeOptionalString(null);
+            }
             out.writeString(id);
             out.writeException(cause);
         }
@@ -138,7 +133,6 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
                 builder.startObject();
                 Failure failure = response.getFailure();
                 builder.field(Fields._INDEX, failure.getIndex());
-                builder.field(Fields._TYPE, failure.getType());
                 builder.field(Fields._ID, failure.getId());
                 OpenSearchException.generateFailureXContent(builder, params, failure.getCause(), true);
                 builder.endObject();

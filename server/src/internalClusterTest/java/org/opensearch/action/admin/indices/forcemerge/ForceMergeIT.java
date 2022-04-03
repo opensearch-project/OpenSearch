@@ -32,11 +32,13 @@
 
 package org.opensearch.action.admin.indices.forcemerge;
 
+import org.apache.lucene.index.IndexCommit;
 import org.opensearch.action.admin.indices.flush.FlushResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.Index;
 import org.opensearch.index.engine.Engine;
@@ -55,9 +57,10 @@ public class ForceMergeIT extends OpenSearchIntegTestCase {
     public void testForceMergeUUIDConsistent() throws IOException {
         internalCluster().ensureAtLeastNumDataNodes(2);
         final String index = "test-index";
-        createIndex(index,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build());
+        createIndex(
+            index,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()
+        );
         ensureGreen(index);
         final ClusterState state = clusterService().state();
         final IndexRoutingTable indexShardRoutingTables = state.routingTable().getIndicesRouting().get(index);
@@ -65,18 +68,21 @@ public class ForceMergeIT extends OpenSearchIntegTestCase {
         final String primaryNodeId = shardRouting.primaryShard().currentNodeId();
         final String replicaNodeId = shardRouting.replicaShards().get(0).currentNodeId();
         final Index idx = shardRouting.primaryShard().index();
-        final IndicesService primaryIndicesService =
-            internalCluster().getInstance(IndicesService.class, state.nodes().get(primaryNodeId).getName());
-        final IndicesService replicaIndicesService = internalCluster().getInstance(IndicesService.class,
-            state.nodes().get(replicaNodeId).getName());
+        final IndicesService primaryIndicesService = internalCluster().getInstance(
+            IndicesService.class,
+            state.nodes().get(primaryNodeId).getName()
+        );
+        final IndicesService replicaIndicesService = internalCluster().getInstance(
+            IndicesService.class,
+            state.nodes().get(replicaNodeId).getName()
+        );
         final IndexShard primary = primaryIndicesService.indexService(idx).getShard(0);
         final IndexShard replica = replicaIndicesService.indexService(idx).getShard(0);
 
         assertThat(getForceMergeUUID(primary), nullValue());
         assertThat(getForceMergeUUID(replica), nullValue());
 
-        final ForceMergeResponse forceMergeResponse =
-            client().admin().indices().prepareForceMerge(index).setMaxNumSegments(1).get();
+        final ForceMergeResponse forceMergeResponse = client().admin().indices().prepareForceMerge(index).setMaxNumSegments(1).get();
 
         assertThat(forceMergeResponse.getFailedShards(), is(0));
         assertThat(forceMergeResponse.getSuccessfulShards(), is(2));
@@ -95,8 +101,8 @@ public class ForceMergeIT extends OpenSearchIntegTestCase {
     }
 
     private static String getForceMergeUUID(IndexShard indexShard) throws IOException {
-        try (Engine.IndexCommitRef indexCommitRef = indexShard.acquireLastIndexCommit(true)) {
-            return indexCommitRef.getIndexCommit().getUserData().get(Engine.FORCE_MERGE_UUID_KEY);
+        try (GatedCloseable<IndexCommit> wrappedIndexCommit = indexShard.acquireLastIndexCommit(true)) {
+            return wrappedIndexCommit.get().getUserData().get(Engine.FORCE_MERGE_UUID_KEY);
         }
     }
 }

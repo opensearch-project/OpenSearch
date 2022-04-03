@@ -40,8 +40,10 @@ import org.opensearch.cluster.metadata.IndexMetadata.APIBlock;
 /**
  * Builder for add index block request
  */
-public class AddIndexBlockRequestBuilder
-    extends AcknowledgedRequestBuilder<AddIndexBlockRequest, AddIndexBlockResponse, AddIndexBlockRequestBuilder> {
+public class AddIndexBlockRequestBuilder extends AcknowledgedRequestBuilder<
+    AddIndexBlockRequest,
+    AddIndexBlockResponse,
+    AddIndexBlockRequestBuilder> {
 
     public AddIndexBlockRequestBuilder(OpenSearchClient client, AddIndexBlockAction action, APIBlock block, String... indices) {
         super(client, action, new AddIndexBlockRequest(block, indices));

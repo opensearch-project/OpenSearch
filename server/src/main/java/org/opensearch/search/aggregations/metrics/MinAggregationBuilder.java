@@ -66,9 +66,11 @@ public class MinAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
         super(name);
     }
 
-    protected MinAggregationBuilder(MinAggregationBuilder clone,
-                                    AggregatorFactories.Builder factoriesBuilder,
-                                    Map<String, Object> metadata) {
+    protected MinAggregationBuilder(
+        MinAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
     }
 
@@ -99,9 +101,12 @@ public class MinAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     }
 
     @Override
-    protected MinAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
-                                              AggregatorFactory parent,
-                                              AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+    protected MinAggregatorFactory innerBuild(
+        QueryShardContext queryShardContext,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
         return new MinAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 

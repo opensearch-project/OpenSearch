@@ -66,7 +66,8 @@ public final class AssignmentDecision {
     }
 
     public enum Type {
-        NO(0), YES(1);
+        NO(0),
+        YES(1);
 
         private final int id;
 

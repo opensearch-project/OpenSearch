@@ -60,12 +60,18 @@ public class ParsedTopHits extends ParsedAggregation implements TopHits {
         return searchHits.toXContent(builder, params);
     }
 
-    private static final ObjectParser<ParsedTopHits, Void> PARSER =
-            new ObjectParser<>(ParsedTopHits.class.getSimpleName(), true, ParsedTopHits::new);
+    private static final ObjectParser<ParsedTopHits, Void> PARSER = new ObjectParser<>(
+        ParsedTopHits.class.getSimpleName(),
+        true,
+        ParsedTopHits::new
+    );
     static {
         declareAggregationFields(PARSER);
-        PARSER.declareObject((topHit, searchHits) -> topHit.searchHits = searchHits, (parser, context) -> SearchHits.fromXContent(parser),
-                new ParseField(SearchHits.Fields.HITS));
+        PARSER.declareObject(
+            (topHit, searchHits) -> topHit.searchHits = searchHits,
+            (parser, context) -> SearchHits.fromXContent(parser),
+            new ParseField(SearchHits.Fields.HITS)
+        );
     }
 
     public static ParsedTopHits fromXContent(XContentParser parser, String name) throws IOException {

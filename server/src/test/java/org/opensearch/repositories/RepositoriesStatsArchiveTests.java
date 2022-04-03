@@ -46,10 +46,11 @@ public class RepositoriesStatsArchiveTests extends OpenSearchTestCase {
         int retentionTimeInMillis = randomIntBetween(100, 1000);
 
         AtomicLong fakeRelativeClock = new AtomicLong();
-        RepositoriesStatsArchive repositoriesStatsArchive =
-            new RepositoriesStatsArchive(TimeValue.timeValueMillis(retentionTimeInMillis),
-                100,
-                fakeRelativeClock::get);
+        RepositoriesStatsArchive repositoriesStatsArchive = new RepositoriesStatsArchive(
+            TimeValue.timeValueMillis(retentionTimeInMillis),
+            100,
+            fakeRelativeClock::get
+        );
 
         for (int i = 0; i < randomInt(10); i++) {
             RepositoryStatsSnapshot repoStats = createRepositoryStats(RepositoryStats.EMPTY_STATS);
@@ -59,16 +60,19 @@ public class RepositoriesStatsArchiveTests extends OpenSearchTestCase {
         fakeRelativeClock.set(retentionTimeInMillis * 2);
         int statsToBeRetainedCount = randomInt(10);
         for (int i = 0; i < statsToBeRetainedCount; i++) {
-            RepositoryStatsSnapshot repoStats =
-                createRepositoryStats(new RepositoryStats(org.opensearch.common.collect.Map.of("GET", 10L)));
+            RepositoryStatsSnapshot repoStats = createRepositoryStats(
+                new RepositoryStats(org.opensearch.common.collect.Map.of("GET", 10L))
+            );
             repositoriesStatsArchive.archive(repoStats);
         }
 
         List<RepositoryStatsSnapshot> archivedStats = repositoriesStatsArchive.getArchivedStats();
         assertThat(archivedStats.size(), equalTo(statsToBeRetainedCount));
         for (RepositoryStatsSnapshot repositoryStatsSnapshot : archivedStats) {
-            assertThat(repositoryStatsSnapshot.getRepositoryStats().requestCounts,
-                equalTo(org.opensearch.common.collect.Map.of("GET", 10L)));
+            assertThat(
+                repositoryStatsSnapshot.getRepositoryStats().requestCounts,
+                equalTo(org.opensearch.common.collect.Map.of("GET", 10L))
+            );
         }
     }
 
@@ -76,10 +80,11 @@ public class RepositoriesStatsArchiveTests extends OpenSearchTestCase {
         int retentionTimeInMillis = randomIntBetween(100, 1000);
 
         AtomicLong fakeRelativeClock = new AtomicLong();
-        RepositoriesStatsArchive repositoriesStatsArchive =
-            new RepositoriesStatsArchive(TimeValue.timeValueMillis(retentionTimeInMillis),
-                1,
-                fakeRelativeClock::get);
+        RepositoriesStatsArchive repositoriesStatsArchive = new RepositoriesStatsArchive(
+            TimeValue.timeValueMillis(retentionTimeInMillis),
+            1,
+            fakeRelativeClock::get
+        );
 
         assertTrue(repositoriesStatsArchive.archive(createRepositoryStats(RepositoryStats.EMPTY_STATS)));
 
@@ -93,10 +98,11 @@ public class RepositoriesStatsArchiveTests extends OpenSearchTestCase {
     public void testClearArchive() {
         int retentionTimeInMillis = randomIntBetween(100, 1000);
         AtomicLong fakeRelativeClock = new AtomicLong();
-        RepositoriesStatsArchive repositoriesStatsArchive =
-            new RepositoriesStatsArchive(TimeValue.timeValueMillis(retentionTimeInMillis),
-                100,
-                fakeRelativeClock::get);
+        RepositoriesStatsArchive repositoriesStatsArchive = new RepositoriesStatsArchive(
+            TimeValue.timeValueMillis(retentionTimeInMillis),
+            100,
+            fakeRelativeClock::get
+        );
 
         int archivedStatsWithVersionZero = randomIntBetween(1, 20);
         for (int i = 0; i < archivedStatsWithVersionZero; i++) {
@@ -119,12 +125,14 @@ public class RepositoriesStatsArchiveTests extends OpenSearchTestCase {
     }
 
     private RepositoryStatsSnapshot createRepositoryStats(RepositoryStats repositoryStats, long clusterVersion) {
-        RepositoryInfo repositoryInfo = new RepositoryInfo(UUIDs.randomBase64UUID(),
+        RepositoryInfo repositoryInfo = new RepositoryInfo(
+            UUIDs.randomBase64UUID(),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             org.opensearch.common.collect.Map.of("bucket", randomAlphaOfLength(10)),
             System.currentTimeMillis(),
-            null);
+            null
+        );
         return new RepositoryStatsSnapshot(repositoryInfo, repositoryStats, clusterVersion, true);
     }
 

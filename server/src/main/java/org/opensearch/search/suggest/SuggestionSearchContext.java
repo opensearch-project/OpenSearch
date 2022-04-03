@@ -139,17 +139,26 @@ public class SuggestionSearchContext {
 
         @Override
         public String toString() {
-            return "[" +
-                       "text=" + text +
-                       ",field=" + field +
-                       ",prefix=" + prefix +
-                       ",regex=" + regex +
-                       ",size=" + size +
-                       ",shardSize=" + shardSize +
-                       ",suggester=" + suggester +
-                       ",analyzer=" + analyzer +
-                       ",shardContext=" + shardContext +
-                   "]";
+            return "["
+                + "text="
+                + text
+                + ",field="
+                + field
+                + ",prefix="
+                + prefix
+                + ",regex="
+                + regex
+                + ",size="
+                + size
+                + ",shardSize="
+                + shardSize
+                + ",suggester="
+                + suggester
+                + ",analyzer="
+                + analyzer
+                + ",shardContext="
+                + shardContext
+                + "]";
         }
     }
 

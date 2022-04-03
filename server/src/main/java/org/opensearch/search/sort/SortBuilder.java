@@ -41,6 +41,7 @@ import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.common.xcontent.NamedObjectNotFoundException;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -53,13 +54,10 @@ import org.opensearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
-import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
 public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWriteable, ToXContentObject, Rewriteable<SortBuilder<?>> {
@@ -71,17 +69,6 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
     public static final ParseField NESTED_FILTER_FIELD = new ParseField("nested_filter");
     public static final ParseField NESTED_PATH_FIELD = new ParseField("nested_path");
 
-    private static final Map<String, Parser<?>> PARSERS;
-    static {
-        Map<String, Parser<?>> parsers = new HashMap<>();
-        parsers.put(ScriptSortBuilder.NAME, ScriptSortBuilder::fromXContent);
-        parsers.put(GeoDistanceSortBuilder.NAME, GeoDistanceSortBuilder::fromXContent);
-        parsers.put(GeoDistanceSortBuilder.ALTERNATIVE_NAME, GeoDistanceSortBuilder::fromXContent);
-        parsers.put(ScoreSortBuilder.NAME, ScoreSortBuilder::fromXContent);
-        // FieldSortBuilder gets involved if the user specifies a name that isn't one of these.
-        PARSERS = unmodifiableMap(parsers);
-    }
-
     /**
      * Create a {@linkplain SortFieldAndFormat} from this builder.
      */
@@ -90,8 +77,8 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
     /**
      * Create a {@linkplain BucketedSort} which is useful for sorting inside of aggregations.
      */
-    public abstract BucketedSort buildBucketedSort(QueryShardContext context,
-            int bucketSize, BucketedSort.ExtraData extra) throws IOException;
+    public abstract BucketedSort buildBucketedSort(QueryShardContext context, int bucketSize, BucketedSort.ExtraData extra)
+        throws IOException;
 
     /**
      * Set the order of sorting.
@@ -121,8 +108,9 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
                     String fieldName = parser.text();
                     sortFields.add(fieldOrScoreSort(fieldName));
                 } else {
-                    throw new IllegalArgumentException("malformed sort format, "
-                            + "within the sort array, an object, or an actual string are allowed");
+                    throw new IllegalArgumentException(
+                        "malformed sort format, " + "within the sort array, an object, or an actual string are allowed"
+                    );
                 }
             }
         } else if (token == XContentParser.Token.VALUE_STRING) {
@@ -144,8 +132,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         }
     }
 
-    private static void parseCompoundSortField(XContentParser parser, List<SortBuilder<?>> sortFields)
-            throws IOException {
+    private static void parseCompoundSortField(XContentParser parser, List<SortBuilder<?>> sortFields) throws IOException {
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -155,9 +142,10 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
                     SortOrder order = SortOrder.fromString(parser.text());
                     sortFields.add(fieldOrScoreSort(fieldName).order(order));
                 } else {
-                    if (PARSERS.containsKey(fieldName)) {
-                        sortFields.add(PARSERS.get(fieldName).fromXContent(parser, fieldName));
-                    } else {
+                    try {
+                        SortBuilder<?> sort = parser.namedObject(SortBuilder.class, fieldName, null);
+                        sortFields.add(sort);
+                    } catch (NamedObjectNotFoundException err) {
                         sortFields.add(FieldSortBuilder.fromXContent(parser, fieldName));
                     }
                 }
@@ -188,9 +176,12 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
                 }
             }
             if (sort) {
-                return Optional.of(new SortAndFormats(
+                return Optional.of(
+                    new SortAndFormats(
                         new Sort(sortFields.toArray(new SortField[sortFields.size()])),
-                        sortFormats.toArray(new DocValueFormat[sortFormats.size()])));
+                        sortFormats.toArray(new DocValueFormat[sortFormats.size()])
+                    )
+                );
             }
         }
         return Optional.empty();
@@ -210,7 +201,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         final ObjectMapper objectMapper = context.nestedScope().getObjectMapper();
         final Query parentQuery;
         if (objectMapper == null) {
-            parentQuery = Queries.newNonNestedFilter(context.indexVersionCreated());
+            parentQuery = Queries.newNonNestedFilter();
         } else {
             parentQuery = objectMapper.nestedTypeFilter();
         }
@@ -259,8 +250,10 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         // apply filters from the previous nested level
         if (parentQuery != null) {
             if (objectMapper != null) {
-                childQuery = Queries.filtered(childQuery,
-                    new ToChildBlockJoinQuery(parentQuery, context.bitsetFilter(objectMapper.nestedTypeFilter())));
+                childQuery = Queries.filtered(
+                    childQuery,
+                    new ToChildBlockJoinQuery(parentQuery, context.bitsetFilter(objectMapper.nestedTypeFilter()))
+                );
             }
         }
 
@@ -283,11 +276,6 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         } catch (Exception e) {
             throw new ParsingException(parser.getTokenLocation(), "Expected " + NESTED_FILTER_FIELD.getPreferredName() + " element.", e);
         }
-    }
-
-    @FunctionalInterface
-    private interface Parser<T extends SortBuilder<?>> {
-        T fromXContent(XContentParser parser, String elementName) throws IOException;
     }
 
     @Override

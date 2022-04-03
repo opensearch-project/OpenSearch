@@ -53,8 +53,9 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public final class CardinalityAggregationBuilder
-    extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource, CardinalityAggregationBuilder> {
+public final class CardinalityAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<
+    ValuesSource,
+    CardinalityAggregationBuilder> {
 
     public static final String NAME = "cardinality";
     public static final ValuesSourceRegistry.RegistryKey<CardinalityAggregatorSupplier> REGISTRY_KEY =
@@ -63,8 +64,10 @@ public final class CardinalityAggregationBuilder
     private static final ParseField REHASH = new ParseField("rehash").withAllDeprecated("no replacement - values will always be rehashed");
     public static final ParseField PRECISION_THRESHOLD_FIELD = new ParseField("precision_threshold");
 
-    public static final ObjectParser<CardinalityAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, CardinalityAggregationBuilder::new);
+    public static final ObjectParser<CardinalityAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
+        NAME,
+        CardinalityAggregationBuilder::new
+    );
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, false, false);
         PARSER.declareLong(CardinalityAggregationBuilder::precisionThreshold, CardinalityAggregationBuilder.PRECISION_THRESHOLD_FIELD);
@@ -81,9 +84,11 @@ public final class CardinalityAggregationBuilder
         super(name);
     }
 
-    public CardinalityAggregationBuilder(CardinalityAggregationBuilder clone,
-                                         AggregatorFactories.Builder factoriesBuilder,
-                                         Map<String, Object> metadata) {
+    public CardinalityAggregationBuilder(
+        CardinalityAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
         this.precisionThreshold = clone.precisionThreshold;
     }
@@ -129,7 +134,8 @@ public final class CardinalityAggregationBuilder
     public CardinalityAggregationBuilder precisionThreshold(long precisionThreshold) {
         if (precisionThreshold < 0) {
             throw new IllegalArgumentException(
-                    "[precisionThreshold] must be greater than or equal to 0. Found [" + precisionThreshold + "] in [" + name + "]");
+                "[precisionThreshold] must be greater than or equal to 0. Found [" + precisionThreshold + "] in [" + name + "]"
+            );
         }
         this.precisionThreshold = precisionThreshold;
         return this;
@@ -145,9 +151,12 @@ public final class CardinalityAggregationBuilder
     }
 
     @Override
-    protected CardinalityAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
-                                                      AggregatorFactory parent,
-                                                      AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+    protected CardinalityAggregatorFactory innerBuild(
+        QueryShardContext queryShardContext,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
         return new CardinalityAggregatorFactory(name, config, precisionThreshold, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 

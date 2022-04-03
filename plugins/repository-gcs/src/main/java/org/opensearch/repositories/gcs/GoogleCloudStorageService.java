@@ -50,6 +50,9 @@ import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.unit.TimeValue;
 
 import java.io.IOException;
+import java.net.Authenticator;
+import java.net.PasswordAuthentication;
+import java.net.Proxy;
 import java.net.URI;
 import java.util.Map;
 
@@ -93,9 +96,8 @@ public class GoogleCloudStorageService {
      * @return a cached client storage instance that can be used to manage objects
      *         (blobs)
      */
-    public Storage client(final String clientName,
-                          final String repositoryName,
-                          final GoogleCloudStorageOperationsStats stats) throws IOException {
+    public Storage client(final String clientName, final String repositoryName, final GoogleCloudStorageOperationsStats stats)
+        throws IOException {
         {
             final Storage storage = clientCache.get(repositoryName);
             if (storage != null) {
@@ -112,12 +114,17 @@ public class GoogleCloudStorageService {
             final GoogleCloudStorageClientSettings settings = clientSettings.get(clientName);
 
             if (settings == null) {
-                throw new IllegalArgumentException("Unknown client name [" + clientName + "]. Existing client configs: "
-                    + Strings.collectionToDelimitedString(clientSettings.keySet(), ","));
+                throw new IllegalArgumentException(
+                    "Unknown client name ["
+                        + clientName
+                        + "]. Existing client configs: "
+                        + Strings.collectionToDelimitedString(clientSettings.keySet(), ",")
+                );
             }
 
-            logger.debug(() -> new ParameterizedMessage("creating GCS client with client_name [{}], endpoint [{}]", clientName,
-                settings.getHost()));
+            logger.debug(
+                () -> new ParameterizedMessage("creating GCS client with client_name [{}], endpoint [{}]", clientName, settings.getHost())
+            );
             final Storage storage = createClient(settings, stats);
             clientCache = MapBuilder.newMapBuilder(clientCache).put(repositoryName, storage).immutableMap();
             return storage;
@@ -136,30 +143,25 @@ public class GoogleCloudStorageService {
      * @return a new client storage instance that can be used to manage objects
      *         (blobs)
      */
-    private Storage createClient(GoogleCloudStorageClientSettings clientSettings,
-                                 GoogleCloudStorageOperationsStats stats) throws IOException {
-        final HttpTransport httpTransport = SocketAccess.doPrivilegedIOException(() -> {
-            final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
-            // requires java.lang.RuntimePermission "setFactory"
-            // Pin the TLS trust certificates.
-            builder.trustCertificates(GoogleUtils.getCertificateTrustStore());
-            return builder.build();
-        });
+    private Storage createClient(GoogleCloudStorageClientSettings clientSettings, GoogleCloudStorageOperationsStats stats)
+        throws IOException {
+        final HttpTransport httpTransport = createHttpTransport(clientSettings);
 
         final GoogleCloudStorageHttpStatsCollector httpStatsCollector = new GoogleCloudStorageHttpStatsCollector(stats);
 
-        final HttpTransportOptions httpTransportOptions = new HttpTransportOptions(HttpTransportOptions.newBuilder()
-            .setConnectTimeout(toTimeout(clientSettings.getConnectTimeout()))
-            .setReadTimeout(toTimeout(clientSettings.getReadTimeout()))
-            .setHttpTransportFactory(() -> httpTransport)) {
+        final HttpTransportOptions httpTransportOptions = new HttpTransportOptions(
+            HttpTransportOptions.newBuilder()
+                .setConnectTimeout(toTimeout(clientSettings.getConnectTimeout()))
+                .setReadTimeout(toTimeout(clientSettings.getReadTimeout()))
+                .setHttpTransportFactory(() -> httpTransport)
+        ) {
 
             @Override
             public HttpRequestInitializer getHttpRequestInitializer(ServiceOptions<?, ?> serviceOptions) {
                 HttpRequestInitializer requestInitializer = super.getHttpRequestInitializer(serviceOptions);
 
                 return (httpRequest) -> {
-                    if (requestInitializer != null)
-                        requestInitializer.initialize(httpRequest);
+                    if (requestInitializer != null) requestInitializer.initialize(httpRequest);
 
                     httpRequest.setResponseInterceptor(httpStatsCollector);
                 };
@@ -170,17 +172,41 @@ public class GoogleCloudStorageService {
         return storageOptions.getService();
     }
 
-    StorageOptions createStorageOptions(final GoogleCloudStorageClientSettings clientSettings,
-                                        final HttpTransportOptions httpTransportOptions) {
+    private HttpTransport createHttpTransport(final GoogleCloudStorageClientSettings clientSettings) throws IOException {
+        return SocketAccess.doPrivilegedIOException(() -> {
+            final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
+            // requires java.lang.RuntimePermission "setFactory"
+            // Pin the TLS trust certificates.
+            builder.trustCertificates(GoogleUtils.getCertificateTrustStore());
+            final ProxySettings proxySettings = clientSettings.getProxySettings();
+            if (proxySettings != ProxySettings.NO_PROXY_SETTINGS) {
+                if (proxySettings.isAuthenticated()) {
+                    Authenticator.setDefault(new Authenticator() {
+                        @Override
+                        protected PasswordAuthentication getPasswordAuthentication() {
+                            return new PasswordAuthentication(proxySettings.getUsername(), proxySettings.getPassword().toCharArray());
+                        }
+                    });
+                }
+                builder.setProxy(new Proxy(proxySettings.getType(), proxySettings.getAddress()));
+            }
+            return builder.build();
+        });
+    }
+
+    StorageOptions createStorageOptions(
+        final GoogleCloudStorageClientSettings clientSettings,
+        final HttpTransportOptions httpTransportOptions
+    ) {
         final StorageOptions.Builder storageOptionsBuilder = StorageOptions.newBuilder()
-                .setTransportOptions(httpTransportOptions)
-                .setHeaderProvider(() -> {
-                    final MapBuilder<String, String> mapBuilder = MapBuilder.newMapBuilder();
-                    if (Strings.hasLength(clientSettings.getApplicationName())) {
-                        mapBuilder.put("user-agent", clientSettings.getApplicationName());
-                    }
-                    return mapBuilder.immutableMap();
-                });
+            .setTransportOptions(httpTransportOptions)
+            .setHeaderProvider(() -> {
+                final MapBuilder<String, String> mapBuilder = MapBuilder.newMapBuilder();
+                if (Strings.hasLength(clientSettings.getApplicationName())) {
+                    mapBuilder.put("user-agent", clientSettings.getApplicationName());
+                }
+                return mapBuilder.immutableMap();
+            });
         if (Strings.hasLength(clientSettings.getHost())) {
             storageOptionsBuilder.setHost(clientSettings.getHost());
         }
@@ -188,8 +214,10 @@ public class GoogleCloudStorageService {
             storageOptionsBuilder.setProjectId(clientSettings.getProjectId());
         }
         if (clientSettings.getCredential() == null) {
-            logger.warn("\"Application Default Credentials\" are not supported out of the box."
-                    + " Additional file system permissions have to be granted to the plugin.");
+            logger.warn(
+                "\"Application Default Credentials\" are not supported out of the box."
+                    + " Additional file system permissions have to be granted to the plugin."
+            );
         } else {
             ServiceAccountCredentials serviceAccountCredentials = clientSettings.getCredential();
             // override token server URI

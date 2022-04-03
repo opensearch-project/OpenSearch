@@ -53,21 +53,21 @@ public abstract class AggregationScript implements ScorerAware {
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("aggs", Factory.class);
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
-    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.opensearch.common.collect.Map.of(
-            "doc", value -> {
-                deprecationLogger.deprecate("aggregation-script_doc",
-                        "Accessing variable [doc] via [params.doc] from within an aggregation-script "
-                                + "is deprecated in favor of directly accessing [doc].");
-                return value;
-            },
-            "_doc", value -> {
-                deprecationLogger.deprecate("aggregation-script__doc",
-                        "Accessing variable [doc] via [params._doc] from within an aggregation-script "
-                                + "is deprecated in favor of directly accessing [doc].");
-                return value;
-            },
-            "_source", value -> ((SourceLookup)value).loadSourceIfNeeded()
-    );
+    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.opensearch.common.collect.Map.of("doc", value -> {
+        deprecationLogger.deprecate(
+            "aggregation-script_doc",
+            "Accessing variable [doc] via [params.doc] from within an aggregation-script "
+                + "is deprecated in favor of directly accessing [doc]."
+        );
+        return value;
+    }, "_doc", value -> {
+        deprecationLogger.deprecate(
+            "aggregation-script__doc",
+            "Accessing variable [doc] via [params._doc] from within an aggregation-script "
+                + "is deprecated in favor of directly accessing [doc]."
+        );
+        return value;
+    }, "_source", value -> ((SourceLookup) value).loadSourceIfNeeded());
 
     /**
      * The generic runtime parameters for the script.
@@ -128,7 +128,7 @@ public abstract class AggregationScript implements ScorerAware {
      * <p>
      * The default implementation just calls {@code setNextVar("_value", value)} but
      * some engines might want to handle this differently for better performance.
-     * <p>
+     * </p>
      * @param value per-document value, typically a String, Long, or Double
      */
     public void setNextAggregationValue(Object value) {

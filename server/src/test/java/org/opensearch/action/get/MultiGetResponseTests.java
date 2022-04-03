@@ -64,7 +64,6 @@ public class MultiGetResponseTests extends OpenSearchTestCase {
                 MultiGetItemResponse expectedItem = expected.getResponses()[i];
                 MultiGetItemResponse actualItem = parsed.getResponses()[i];
                 assertThat(actualItem.getIndex(), equalTo(expectedItem.getIndex()));
-                assertThat(actualItem.getType(), equalTo(expectedItem.getType()));
                 assertThat(actualItem.getId(), equalTo(expectedItem.getId()));
                 if (expectedItem.isFailed()) {
                     assertThat(actualItem.isFailed(), is(true));
@@ -82,13 +81,21 @@ public class MultiGetResponseTests extends OpenSearchTestCase {
         MultiGetItemResponse[] items = new MultiGetItemResponse[randomIntBetween(0, 128)];
         for (int i = 0; i < items.length; i++) {
             if (randomBoolean()) {
-                items[i] = new MultiGetItemResponse(new GetResponse(new GetResult(
-                        randomAlphaOfLength(4), randomAlphaOfLength(4), randomAlphaOfLength(4), 0, 1, randomNonNegativeLong(),
-                        true, null, null, null
-                )), null);
+                items[i] = new MultiGetItemResponse(
+                    new GetResponse(
+                        new GetResult(randomAlphaOfLength(4), randomAlphaOfLength(4), 0, 1, randomNonNegativeLong(), true, null, null, null)
+                    ),
+                    null
+                );
             } else {
-                items[i] = new MultiGetItemResponse(null, new MultiGetResponse.Failure(randomAlphaOfLength(4),
-                        randomAlphaOfLength(4), randomAlphaOfLength(4), new RuntimeException(randomAlphaOfLength(4))));
+                items[i] = new MultiGetItemResponse(
+                    null,
+                    new MultiGetResponse.Failure(
+                        randomAlphaOfLength(4),
+                        randomAlphaOfLength(4),
+                        new RuntimeException(randomAlphaOfLength(4))
+                    )
+                );
             }
         }
         return new MultiGetResponse(items);

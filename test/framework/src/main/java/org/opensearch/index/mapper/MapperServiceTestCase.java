@@ -35,7 +35,7 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.store.Directory;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -73,8 +73,8 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -82,8 +82,9 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
 
     protected static final Settings SETTINGS = Settings.builder().put("index.version.created", Version.CURRENT).build();
 
-    protected static final ToXContent.Params INCLUDE_DEFAULTS
-        = new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true"));
+    protected static final ToXContent.Params INCLUDE_DEFAULTS = new ToXContent.MapParams(
+        Collections.singletonMap("include_defaults", "true")
+    );
 
     protected Collection<? extends Plugin> getPlugins() {
         return emptyList();
@@ -182,11 +183,11 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         build.accept(builder);
         builder.endObject();
-        return new SourceToParse("test", "_doc", "1", BytesReference.bytes(builder), XContentType.JSON);
+        return new SourceToParse("test", "1", BytesReference.bytes(builder), XContentType.JSON);
     }
 
     protected final SourceToParse source(String source) {
-        return new SourceToParse("test", "_doc", "1", new BytesArray(source), XContentType.JSON);
+        return new SourceToParse("test", "1", new BytesArray(source), XContentType.JSON);
     }
 
     /**
@@ -206,9 +207,7 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
     /**
      * Merge a new mapping into the one in the provided {@link MapperService} with a specific {@code MergeReason}
      */
-    protected final void merge(MapperService mapperService,
-                               MapperService.MergeReason reason,
-                               XContentBuilder mapping) throws IOException {
+    protected final void merge(MapperService mapperService, MapperService.MergeReason reason, XContentBuilder mapping) throws IOException {
         mapperService.merge("_doc", new CompressedXContent(BytesReference.bytes(mapping)), reason);
     }
 
@@ -243,19 +242,16 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
         when(queryShardContext.getMapperService()).thenReturn(mapperService);
         when(queryShardContext.fieldMapper(anyString())).thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()));
         when(queryShardContext.getIndexAnalyzers()).thenReturn(mapperService.getIndexAnalyzers());
-        when(queryShardContext.getSearchQuoteAnalyzer(anyObject())).thenCallRealMethod();
-        when(queryShardContext.getSearchAnalyzer(anyObject())).thenCallRealMethod();
+        when(queryShardContext.getSearchQuoteAnalyzer(any())).thenCallRealMethod();
+        when(queryShardContext.getSearchAnalyzer(any())).thenCallRealMethod();
         when(queryShardContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
-        when(queryShardContext.simpleMatchToIndexNames(anyObject())).thenAnswer(
+        when(queryShardContext.simpleMatchToIndexNames(any())).thenAnswer(
             inv -> mapperService.simpleMatchToFullName(inv.getArguments()[0].toString())
         );
         when(queryShardContext.allowExpensiveQueries()).thenReturn(true);
-        when(queryShardContext.lookup()).thenReturn(new SearchLookup(
-            mapperService,
-            (ft, s) -> {
-                throw new UnsupportedOperationException("search lookup not available");
-            },
-            null));
+        when(queryShardContext.lookup()).thenReturn(
+            new SearchLookup(mapperService, (ft, s) -> { throw new UnsupportedOperationException("search lookup not available"); })
+        );
         return queryShardContext;
     }
 }

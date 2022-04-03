@@ -51,17 +51,32 @@ public class ChildrenToParentAggregator extends ParentJoinAggregator {
 
     static final ParseField TYPE_FIELD = new ParseField("type");
 
-    public ChildrenToParentAggregator(String name, AggregatorFactories factories,
-            SearchContext context, Aggregator parent, Query childFilter,
-            Query parentFilter, ValuesSource.Bytes.WithOrdinals valuesSource,
-            long maxOrd, CardinalityUpperBound cardinality, Map<String, Object> metadata) throws IOException {
+    public ChildrenToParentAggregator(
+        String name,
+        AggregatorFactories factories,
+        SearchContext context,
+        Aggregator parent,
+        Query childFilter,
+        Query parentFilter,
+        ValuesSource.Bytes.WithOrdinals valuesSource,
+        long maxOrd,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, factories, context, parent, childFilter, parentFilter, valuesSource, maxOrd, cardinality, metadata);
     }
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        return buildAggregationsForSingleBucket(owningBucketOrds, (owningBucketOrd, subAggregationResults) ->
-            new InternalParent(name, bucketDocCount(owningBucketOrd), subAggregationResults, metadata()));
+        return buildAggregationsForSingleBucket(
+            owningBucketOrds,
+            (owningBucketOrd, subAggregationResults) -> new InternalParent(
+                name,
+                bucketDocCount(owningBucketOrd),
+                subAggregationResults,
+                metadata()
+            )
+        );
     }
 
     @Override

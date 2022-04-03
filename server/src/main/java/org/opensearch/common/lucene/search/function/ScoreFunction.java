@@ -69,8 +69,7 @@ public abstract class ScoreFunction {
         }
 
         ScoreFunction other = (ScoreFunction) obj;
-        return Objects.equals(scoreCombiner, other.scoreCombiner) &&
-                doEquals(other);
+        return Objects.equals(scoreCombiner, other.scoreCombiner) && doEquals(other);
     }
 
     public float getWeight() {

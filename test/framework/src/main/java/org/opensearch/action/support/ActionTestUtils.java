@@ -37,8 +37,6 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.tasks.Task;
-import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.action.support.TransportAction;
 
 import static org.opensearch.action.support.PlainActionFuture.newFuture;
 
@@ -46,8 +44,10 @@ public class ActionTestUtils {
 
     private ActionTestUtils() { /* no construction */ }
 
-    public static <Request extends ActionRequest, Response extends ActionResponse>
-    Response executeBlocking(TransportAction<Request, Response> action, Request request) {
+    public static <Request extends ActionRequest, Response extends ActionResponse> Response executeBlocking(
+        TransportAction<Request, Response> action,
+        Request request
+    ) {
         PlainActionFuture<Response> future = newFuture();
         action.execute(request, future);
         return future.actionGet();
@@ -58,14 +58,16 @@ public class ActionTestUtils {
      *
      * This is a shim method to make execution publicly available in tests.
      */
-    public static <Request extends ActionRequest, Response extends ActionResponse>
-    void execute(TransportAction<Request, Response> action, Task task, Request request, ActionListener<Response> listener) {
+    public static <Request extends ActionRequest, Response extends ActionResponse> void execute(
+        TransportAction<Request, Response> action,
+        Task task,
+        Request request,
+        ActionListener<Response> listener
+    ) {
         action.execute(task, request, listener);
     }
 
     public static <T> ActionListener<T> assertNoFailureListener(CheckedConsumer<T, Exception> consumer) {
-        return ActionListener.wrap(consumer, e -> {
-            throw new AssertionError(e);
-        });
+        return ActionListener.wrap(consumer, e -> { throw new AssertionError(e); });
     }
 }

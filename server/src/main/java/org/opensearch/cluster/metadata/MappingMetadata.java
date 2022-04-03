@@ -36,17 +36,21 @@ import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.DocumentMapper;
+import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
@@ -54,49 +58,21 @@ import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBoole
  * Mapping configuration for a type.
  */
 public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
-
-    public static class Routing {
-
-        public static final Routing EMPTY = new Routing(false);
-
-        private final boolean required;
-
-        public Routing(boolean required) {
-            this.required = required;
-        }
-
-        public boolean required() {
-            return required;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            Routing routing = (Routing) o;
-
-            return required == routing.required;
-        }
-
-        @Override
-        public int hashCode() {
-            return getClass().hashCode() + (required ? 1 : 0);
-        }
-    }
+    public static final MappingMetadata EMPTY_MAPPINGS = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, Collections.emptyMap());
 
     private final String type;
 
     private final CompressedXContent source;
 
-    private Routing routing;
+    private final boolean routingRequired;
 
     public MappingMetadata(DocumentMapper docMapper) {
         this.type = docMapper.type();
         this.source = docMapper.mappingSource();
-        this.routing = new Routing(docMapper.routingFieldMapper().required());
+        this.routingRequired = docMapper.routingFieldMapper().required();
     }
 
+    @SuppressWarnings("unchecked")
     public MappingMetadata(CompressedXContent mapping) {
         this.source = mapping;
         Map<String, Object> mappingMap = XContentHelper.convertToMap(mapping.compressedReference(), true).v2();
@@ -104,23 +80,29 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
             throw new IllegalStateException("Can't derive type from mapping, no root type: " + mapping.string());
         }
         this.type = mappingMap.keySet().iterator().next();
-        initMappers((Map<String, Object>) mappingMap.get(this.type));
+        this.routingRequired = isRoutingRequired((Map<String, Object>) mappingMap.get(this.type));
     }
 
-    public MappingMetadata(String type, Map<String, Object> mapping) throws IOException {
+    @SuppressWarnings("unchecked")
+    public MappingMetadata(String type, Map<String, Object> mapping) {
         this.type = type;
-        this.source = new CompressedXContent(
-                (builder, params) -> builder.mapContents(mapping), XContentType.JSON, ToXContent.EMPTY_PARAMS);
+        try {
+            XContentBuilder mappingBuilder = XContentFactory.jsonBuilder().map(mapping);
+            this.source = new CompressedXContent(BytesReference.bytes(mappingBuilder));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);  // XContent exception, should never happen
+        }
         Map<String, Object> withoutType = mapping;
         if (mapping.size() == 1 && mapping.containsKey(type)) {
             withoutType = (Map<String, Object>) mapping.get(type);
         }
-        initMappers(withoutType);
+        this.routingRequired = isRoutingRequired(withoutType);
     }
 
-    private void initMappers(Map<String, Object> withoutType) {
+    @SuppressWarnings("unchecked")
+    private boolean isRoutingRequired(Map<String, Object> withoutType) {
+        boolean required = false;
         if (withoutType.containsKey("_routing")) {
-            boolean required = false;
             Map<String, Object> routingNode = (Map<String, Object>) withoutType.get("_routing");
             for (Map.Entry<String, Object> entry : routingNode.entrySet()) {
                 String fieldName = entry.getKey();
@@ -129,21 +111,15 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
                     try {
                         required = nodeBooleanValue(fieldNode);
                     } catch (IllegalArgumentException ex) {
-                        throw new IllegalArgumentException("Failed to create mapping for type [" + this.type() + "]. " +
-                            "Illegal value in field [_routing.required].", ex);
+                        throw new IllegalArgumentException(
+                            "Failed to create mapping for type [" + this.type() + "]. " + "Illegal value in field [_routing.required].",
+                            ex
+                        );
                     }
                 }
             }
-            this.routing = new Routing(required);
-        } else {
-            this.routing = Routing.EMPTY;
         }
-    }
-
-    void updateDefaultMapping(MappingMetadata defaultMapping) {
-        if (routing == Routing.EMPTY) {
-            routing = defaultMapping.routing();
-        }
+        return required;
     }
 
     public String type() {
@@ -173,8 +149,8 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         return sourceAsMap();
     }
 
-    public Routing routing() {
-        return this.routing;
+    public boolean routingRequired() {
+        return this.routingRequired;
     }
 
     @Override
@@ -182,14 +158,7 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         out.writeString(type());
         source().writeTo(out);
         // routing
-        out.writeBoolean(routing().required());
-        if (out.getVersion().before(LegacyESVersion.V_6_0_0_alpha1)) {
-            // timestamp
-            out.writeBoolean(false); // enabled
-            out.writeString(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern());
-            out.writeOptionalString("now"); // 5.x default
-            out.writeOptionalBoolean(null);
-        }
+        out.writeBoolean(routingRequired);
         if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
             out.writeBoolean(false); // hasParentField
         }
@@ -202,7 +171,7 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
 
         MappingMetadata that = (MappingMetadata) o;
 
-        if (!routing.equals(that.routing)) return false;
+        if (!Objects.equals(this.routingRequired, that.routingRequired)) return false;
         if (!source.equals(that.source)) return false;
         if (!type.equals(that.type)) return false;
 
@@ -211,27 +180,14 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
 
     @Override
     public int hashCode() {
-        int result = type.hashCode();
-        result = 31 * result + source.hashCode();
-        result = 31 * result + routing.hashCode();
-        return result;
+        return Objects.hash(type, source, routingRequired);
     }
 
     public MappingMetadata(StreamInput in) throws IOException {
         type = in.readString();
         source = CompressedXContent.readCompressedString(in);
         // routing
-        routing = new Routing(in.readBoolean());
-        if (in.getVersion().before(LegacyESVersion.V_6_0_0_alpha1)) {
-            // timestamp
-            boolean enabled = in.readBoolean();
-            if (enabled) {
-                throw new IllegalArgumentException("_timestamp may not be enabled");
-            }
-            in.readString(); // format
-            in.readOptionalString(); // defaultTimestamp
-            in.readOptionalBoolean(); // ignoreMissing
-        }
+        routingRequired = in.readBoolean();
         if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
             in.readBoolean(); // hasParentField
         }

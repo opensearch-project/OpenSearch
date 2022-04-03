@@ -49,16 +49,21 @@ public abstract class ShardsAcknowledgedResponse extends AcknowledgedResponse {
     protected static final ParseField SHARDS_ACKNOWLEDGED = new ParseField("shards_acknowledged");
 
     protected static <T extends ShardsAcknowledgedResponse> void declareAcknowledgedAndShardsAcknowledgedFields(
-            ConstructingObjectParser<T, Void> objectParser) {
+        ConstructingObjectParser<T, Void> objectParser
+    ) {
         declareAcknowledgedField(objectParser);
-        objectParser.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), SHARDS_ACKNOWLEDGED,
-                ObjectParser.ValueType.BOOLEAN);
+        objectParser.declareField(
+            constructorArg(),
+            (parser, context) -> parser.booleanValue(),
+            SHARDS_ACKNOWLEDGED,
+            ObjectParser.ValueType.BOOLEAN
+        );
     }
 
     private final boolean shardsAcknowledged;
 
-    protected ShardsAcknowledgedResponse(StreamInput in, boolean readShardsAcknowledged, boolean readAcknowledged) throws IOException {
-        super(in, readAcknowledged);
+    protected ShardsAcknowledgedResponse(StreamInput in, boolean readShardsAcknowledged) throws IOException {
+        super(in);
         if (readShardsAcknowledged) {
             this.shardsAcknowledged = in.readBoolean();
         } else {

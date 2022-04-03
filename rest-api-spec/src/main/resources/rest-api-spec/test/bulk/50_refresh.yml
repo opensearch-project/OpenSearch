@@ -1,9 +1,5 @@
 ---
 "refresh=true immediately makes changes are visible in search":
-
-  - skip:
-      version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
   - do:
       bulk:
         refresh: true
@@ -20,10 +16,6 @@
 
 ---
 "refresh=empty string immediately makes changes are visible in search":
-
-  - skip:
-      version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
   - do:
       bulk:
         refresh: ""
@@ -41,10 +33,6 @@
 
 ---
 "refresh=wait_for waits until changes are visible in search":
-
-  - skip:
-      version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
   - do:
       bulk:
         refresh: wait_for

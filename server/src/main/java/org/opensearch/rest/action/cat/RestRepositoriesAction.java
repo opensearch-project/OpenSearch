@@ -37,6 +37,7 @@ import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRespo
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.Table;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
@@ -51,26 +52,30 @@ import static org.opensearch.rest.RestRequest.Method.GET;
  */
 public class RestRepositoriesAction extends AbstractCatAction {
 
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestRepositoriesAction.class);
+
     @Override
     public List<Route> routes() {
         return singletonList(new Route(GET, "/_cat/repositories"));
     }
 
     @Override
-    protected RestChannelConsumer doCatRequest(RestRequest request, NodeClient client) {
+    public RestChannelConsumer doCatRequest(RestRequest request, NodeClient client) {
         GetRepositoriesRequest getRepositoriesRequest = new GetRepositoriesRequest();
         getRepositoriesRequest.local(request.paramAsBoolean("local", getRepositoriesRequest.local()));
-        getRepositoriesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRepositoriesRequest.masterNodeTimeout()));
+        getRepositoriesRequest.masterNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", getRepositoriesRequest.masterNodeTimeout())
+        );
+        parseDeprecatedMasterTimeoutParameter(getRepositoriesRequest, request, deprecationLogger, getName());
 
-        return channel ->
-                client.admin()
-                        .cluster()
-                        .getRepositories(getRepositoriesRequest, new RestResponseListener<GetRepositoriesResponse>(channel) {
-                            @Override
-                            public RestResponse buildResponse(GetRepositoriesResponse getRepositoriesResponse) throws Exception {
-                                return RestTable.buildResponse(buildTable(request, getRepositoriesResponse), channel);
-                            }
-                        });
+        return channel -> client.admin()
+            .cluster()
+            .getRepositories(getRepositoriesRequest, new RestResponseListener<GetRepositoriesResponse>(channel) {
+                @Override
+                public RestResponse buildResponse(GetRepositoriesResponse getRepositoriesResponse) throws Exception {
+                    return RestTable.buildResponse(buildTable(request, getRepositoriesResponse), channel);
+                }
+            });
     }
 
     @Override
@@ -85,11 +90,10 @@ public class RestRepositoriesAction extends AbstractCatAction {
 
     @Override
     protected Table getTableWithHeader(RestRequest request) {
-        return new Table()
-                .startHeaders()
-                .addCell("id", "alias:id,repoId;desc:unique repository id")
-                .addCell("type", "alias:t,type;text-align:right;desc:repository type")
-                .endHeaders();
+        return new Table().startHeaders()
+            .addCell("id", "alias:id,repoId;desc:unique repository id")
+            .addCell("type", "alias:t,type;text-align:right;desc:repository type")
+            .endHeaders();
     }
 
     private Table buildTable(RestRequest req, GetRepositoriesResponse getRepositoriesResponse) {

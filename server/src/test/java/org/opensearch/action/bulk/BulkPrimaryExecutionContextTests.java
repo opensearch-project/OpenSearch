@@ -45,9 +45,6 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.action.bulk.BulkItemRequest;
-import org.opensearch.action.bulk.BulkPrimaryExecutionContext;
-import org.opensearch.action.bulk.BulkShardRequest;
 
 import java.util.ArrayList;
 
@@ -70,9 +67,8 @@ public class BulkPrimaryExecutionContextTests extends OpenSearchTestCase {
         }
 
         ArrayList<DocWriteRequest<?>> visitedRequests = new ArrayList<>();
-        for (BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(shardRequest, null);
-             context.hasMoreOperationsToExecute();
-             ) {
+        for (BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(shardRequest, null); context
+            .hasMoreOperationsToExecute();) {
             visitedRequests.add(context.getCurrent());
             context.setRequestToExecute(context.getCurrent());
             // using failures prevents caring about types
@@ -89,24 +85,23 @@ public class BulkPrimaryExecutionContextTests extends OpenSearchTestCase {
             final DocWriteRequest request;
             switch (randomFrom(DocWriteRequest.OpType.values())) {
                 case INDEX:
-                    request = new IndexRequest("index", "_doc", "id_" + i);
+                    request = new IndexRequest("index").id("id_" + i);
                     break;
                 case CREATE:
-                    request = new IndexRequest("index", "_doc", "id_" + i).create(true);
+                    request = new IndexRequest("index").id("id_" + i).create(true);
                     break;
                 case UPDATE:
-                    request = new UpdateRequest("index", "_doc", "id_" + i);
+                    request = new UpdateRequest("index", "id_" + i);
                     break;
                 case DELETE:
-                    request = new DeleteRequest("index", "_doc", "id_" + i);
+                    request = new DeleteRequest("index", "id_" + i);
                     break;
                 default:
                     throw new AssertionError("unknown type");
             }
             items[i] = new BulkItemRequest(i, request);
         }
-        return new BulkShardRequest(new ShardId("index", "_na_", 0),
-            randomFrom(WriteRequest.RefreshPolicy.values()), items);
+        return new BulkShardRequest(new ShardId("index", "_na_", 0), randomFrom(WriteRequest.RefreshPolicy.values()), items);
     }
 
     public void testTranslogLocation() {
@@ -144,7 +139,7 @@ public class BulkPrimaryExecutionContextTests extends OpenSearchTestCase {
                     }
                     break;
                 case UPDATE:
-                    context.setRequestToExecute(new IndexRequest(current.index(), current.type(), current.id()));
+                    context.setRequestToExecute(new IndexRequest(current.index()).id(current.id()));
                     if (failure) {
                         result = new Engine.IndexResult(new OpenSearchException("bla"), 1, 1, 1);
                     } else {

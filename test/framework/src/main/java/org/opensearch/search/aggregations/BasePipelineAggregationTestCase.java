@@ -93,7 +93,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .build();
         IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
-        SearchModule searchModule = new SearchModule(settings, false, plugins());
+        SearchModule searchModule = new SearchModule(settings, plugins());
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(indicesModule.getNamedWriteables());
         entries.addAll(searchModule.getNamedWriteables());
@@ -102,7 +102,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
         List<NamedXContentRegistry.Entry> xContentEntries = searchModule.getNamedXContents();
         xContentEntries.addAll(additionalNamedContents());
         xContentRegistry = new NamedXContentRegistry(xContentEntries);
-        //create some random type with some default field, those types will stick around for all of the subclasses
+        // create some random type with some default field, those types will stick around for all of the subclasses
         currentTypes = new String[randomIntBetween(0, 5)];
         for (int i = 0; i < currentTypes.length; i++) {
             String type = randomAlphaOfLengthBetween(1, 10);
@@ -183,7 +183,6 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
         }
     }
 
-
     public void testEqualsAndHashcode() throws IOException {
         // TODO we only change name and boost, we should extend by any sub-test supplying a "mutate" method that randomly changes one
         // aspect of the object under test
@@ -213,7 +212,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
             }
         } else {
             if (randomBoolean()) {
-                types = new String[]{Metadata.ALL};
+                types = new String[] { Metadata.ALL };
             } else {
                 types = new String[0];
             }
@@ -256,8 +255,11 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
     /**
      * Helper for testing validation.
      */
-    protected String validate(Collection<AggregationBuilder> siblingAggregations,
-            Collection<PipelineAggregationBuilder> siblingPipelineAggregations, AF builder) {
+    protected String validate(
+        Collection<AggregationBuilder> siblingAggregations,
+        Collection<PipelineAggregationBuilder> siblingPipelineAggregations,
+        AF builder
+    ) {
         return validate(ValidationContext.forTreeRoot(siblingAggregations, siblingPipelineAggregations, null), builder);
     }
 

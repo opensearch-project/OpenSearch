@@ -147,8 +147,7 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
     private final TypeLiteral<F> factoryType;
     private final Map<Method, AssistedConstructor<?>> factoryMethodToConstructor;
 
-    private FactoryProvider(TypeLiteral<F> factoryType,
-                            Map<Method, AssistedConstructor<?>> factoryMethodToConstructor) {
+    private FactoryProvider(TypeLiteral<F> factoryType, Map<Method, AssistedConstructor<?>> factoryMethodToConstructor) {
         this.factoryType = factoryType;
         this.factoryMethodToConstructor = factoryMethodToConstructor;
         checkDeclaredExceptionsMatch();
@@ -157,17 +156,18 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
     private void checkDeclaredExceptionsMatch() {
         for (Map.Entry<Method, AssistedConstructor<?>> entry : factoryMethodToConstructor.entrySet()) {
             for (Class<?> constructorException : entry.getValue().getDeclaredExceptions()) {
-                if (!isConstructorExceptionCompatibleWithFactoryExeception(
-                        constructorException, entry.getKey().getExceptionTypes())) {
-                    throw newConfigurationException("Constructor %s declares an exception, but no compatible "
-                            + "exception is thrown by the factory method %s", entry.getValue(), entry.getKey());
+                if (!isConstructorExceptionCompatibleWithFactoryExeception(constructorException, entry.getKey().getExceptionTypes())) {
+                    throw newConfigurationException(
+                        "Constructor %s declares an exception, but no compatible " + "exception is thrown by the factory method %s",
+                        entry.getValue(),
+                        entry.getKey()
+                    );
                 }
             }
         }
     }
 
-    private boolean isConstructorExceptionCompatibleWithFactoryExeception(
-            Class<?> constructorException, Class<?>[] factoryExceptions) {
+    private boolean isConstructorExceptionCompatibleWithFactoryExeception(Class<?> constructorException, Class<?>[] factoryExceptions) {
         for (Class<?> factoryException : factoryExceptions) {
             if (factoryException.isAssignableFrom(constructorException)) {
                 return true;
@@ -206,9 +206,7 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
                 return objectToReturn;
             }
 
-            public Object[] gatherArgsForConstructor(
-                    AssistedConstructor<?> constructor,
-                    Object[] factoryArgs) {
+            public Object[] gatherArgsForConstructor(AssistedConstructor<?> constructor, Object[] factoryArgs) {
                 int numParams = constructor.getAllParameters().size();
                 int argPosition = 0;
                 Object[] result = new Object[numParams];
@@ -227,9 +225,10 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
         };
 
         @SuppressWarnings("unchecked") // we imprecisely treat the class literal of T as a Class<T>
-                Class<F> factoryRawType = (Class) factoryType.getRawType();
-        return factoryRawType.cast(Proxy.newProxyInstance(factoryRawType.getClassLoader(),
-                new Class[]{factoryRawType}, invocationHandler));
+        Class<F> factoryRawType = (Class) factoryType.getRawType();
+        return factoryRawType.cast(
+            Proxy.newProxyInstance(factoryRawType.getClassLoader(), new Class[] { factoryRawType }, invocationHandler)
+        );
     }
 
     private static ConfigurationException newConfigurationException(String format, Object... args) {

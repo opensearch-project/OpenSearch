@@ -52,7 +52,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import static org.apache.lucene.util.LuceneTestCase.random;
+import static org.apache.lucene.tests.util.LuceneTestCase.random;
 import static org.opensearch.test.OpenSearchTestCase.randomInt;
 
 public class FakeThreadPoolMasterService extends MasterService {
@@ -65,18 +65,33 @@ public class FakeThreadPoolMasterService extends MasterService {
     private boolean taskInProgress = false;
     private boolean waitForPublish = false;
 
-    public FakeThreadPoolMasterService(String nodeName, String serviceName, ThreadPool threadPool,
-                                       Consumer<Runnable> onTaskAvailableToRun) {
-        super(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), nodeName).build(),
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), threadPool);
+    public FakeThreadPoolMasterService(
+        String nodeName,
+        String serviceName,
+        ThreadPool threadPool,
+        Consumer<Runnable> onTaskAvailableToRun
+    ) {
+        super(
+            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), nodeName).build(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            threadPool
+        );
         this.name = serviceName;
         this.onTaskAvailableToRun = onTaskAvailableToRun;
     }
 
     @Override
     protected PrioritizedOpenSearchThreadPoolExecutor createThreadPoolExecutor() {
-        return new PrioritizedOpenSearchThreadPoolExecutor(name, 1, 1, 1, TimeUnit.SECONDS, OpenSearchExecutors.daemonThreadFactory(name),
-            null, null) {
+        return new PrioritizedOpenSearchThreadPoolExecutor(
+            name,
+            1,
+            1,
+            1,
+            TimeUnit.SECONDS,
+            OpenSearchExecutors.daemonThreadFactory(name),
+            null,
+            null
+        ) {
 
             @Override
             public void execute(Runnable command, final TimeValue timeout, final Runnable timeoutCallback) {
@@ -179,9 +194,15 @@ public class FakeThreadPoolMasterService extends MasterService {
 
             @Override
             public String toString() {
-                return "publish change of cluster state from version [" + clusterChangedEvent.previousState().version() + "] in term [" +
-                        clusterChangedEvent.previousState().term() + "] to version [" + clusterChangedEvent.state().version()
-                        + "] in term [" + clusterChangedEvent.state().term() + "]";
+                return "publish change of cluster state from version ["
+                    + clusterChangedEvent.previousState().version()
+                    + "] in term ["
+                    + clusterChangedEvent.previousState().term()
+                    + "] to version ["
+                    + clusterChangedEvent.state().version()
+                    + "] in term ["
+                    + clusterChangedEvent.state().term()
+                    + "]";
             }
         }));
     }

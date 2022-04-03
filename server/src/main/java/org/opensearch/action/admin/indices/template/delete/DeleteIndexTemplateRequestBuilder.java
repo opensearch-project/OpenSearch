@@ -35,8 +35,10 @@ import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
-public class DeleteIndexTemplateRequestBuilder
-        extends MasterNodeOperationRequestBuilder<DeleteIndexTemplateRequest, AcknowledgedResponse, DeleteIndexTemplateRequestBuilder> {
+public class DeleteIndexTemplateRequestBuilder extends MasterNodeOperationRequestBuilder<
+    DeleteIndexTemplateRequest,
+    AcknowledgedResponse,
+    DeleteIndexTemplateRequestBuilder> {
 
     public DeleteIndexTemplateRequestBuilder(OpenSearchClient client, DeleteIndexTemplateAction action) {
         super(client, action, new DeleteIndexTemplateRequest());

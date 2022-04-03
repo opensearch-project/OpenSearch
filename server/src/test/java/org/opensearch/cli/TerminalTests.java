@@ -80,7 +80,6 @@ public class TerminalTests extends OpenSearchTestCase {
         assertErrorPrinted(terminal, Terminal.Verbosity.VERBOSE, "text");
     }
 
-
     public void testEscaping() throws Exception {
         MockTerminal terminal = new MockTerminal();
         assertPrinted(terminal, Terminal.Verbosity.NORMAL, "This message contains percent like %20n");
@@ -120,8 +119,11 @@ public class TerminalTests extends OpenSearchTestCase {
         String secret = "A very long secret, too long in fact for our purposes.";
         terminal.addSecretInput(secret);
 
-        expectThrows(IllegalStateException.class, "Secret exceeded maximum length of ",
-            () -> terminal.readSecret("Secret? ", secret.length() - 1));
+        expectThrows(
+            IllegalStateException.class,
+            "Secret exceeded maximum length of ",
+            () -> terminal.readSecret("Secret? ", secret.length() - 1)
+        );
     }
 
     public void testTerminalReusesBufferedReaders() throws Exception {
@@ -178,8 +180,7 @@ public class TerminalTests extends OpenSearchTestCase {
 
     public void testSystemTerminalLineExceedsMaxCharacters() throws Exception {
         try (StringReader reader = new StringReader("hellohellohello!\n")) {
-            expectThrows(RuntimeException.class, "Input exceeded maximum length of 10",
-                () -> readLineToCharArray(reader, 10));
+            expectThrows(RuntimeException.class, "Input exceeded maximum length of 10", () -> readLineToCharArray(reader, 10));
         }
     }
 

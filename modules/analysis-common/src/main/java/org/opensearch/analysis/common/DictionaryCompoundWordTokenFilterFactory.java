@@ -38,7 +38,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 
-
 /**
  * Uses the {@link org.apache.lucene.analysis.compound.DictionaryCompoundWordTokenFilter} to decompound tokens using a dictionary.
  *
@@ -52,7 +51,6 @@ public class DictionaryCompoundWordTokenFilterFactory extends AbstractCompoundWo
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new DictionaryCompoundWordTokenFilter(tokenStream, wordList, minWordSize,
-                                                     minSubwordSize, maxSubwordSize, onlyLongestMatch);
+        return new DictionaryCompoundWordTokenFilter(tokenStream, wordList, minWordSize, minSubwordSize, maxSubwordSize, onlyLongestMatch);
     }
 }

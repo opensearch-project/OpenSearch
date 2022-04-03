@@ -57,7 +57,7 @@ import java.util.stream.Collectors;
  * Index metadata generation could be obtained by calling {@link #getIndexGenerations()}.
  */
 public class Manifest implements ToXContentFragment {
-    //TODO revisit missing and unknown constants once Zen2 BWC is ready
+    // TODO revisit missing and unknown constants once Zen2 BWC is ready
     private static final long MISSING_GLOBAL_GENERATION = -1L;
     private static final long MISSING_CURRENT_TERM = 0L;
     private static final long UNKNOWN_CURRENT_TERM = MISSING_CURRENT_TERM;
@@ -107,10 +107,10 @@ public class Manifest implements ToXContentFragment {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Manifest manifest = (Manifest) o;
-        return currentTerm == manifest.currentTerm &&
-               clusterStateVersion == manifest.clusterStateVersion &&
-               globalGeneration == manifest.globalGeneration &&
-               Objects.equals(indexGenerations, manifest.indexGenerations);
+        return currentTerm == manifest.currentTerm
+            && clusterStateVersion == manifest.clusterStateVersion
+            && globalGeneration == manifest.globalGeneration
+            && Objects.equals(indexGenerations, manifest.indexGenerations);
     }
 
     @Override
@@ -120,12 +120,16 @@ public class Manifest implements ToXContentFragment {
 
     @Override
     public String toString() {
-        return "Manifest{" +
-                "currentTerm=" + currentTerm +
-                ", clusterStateVersion=" + clusterStateVersion +
-                ", globalGeneration=" + globalGeneration +
-                ", indexGenerations=" + indexGenerations +
-                '}';
+        return "Manifest{"
+            + "currentTerm="
+            + currentTerm
+            + ", clusterStateVersion="
+            + clusterStateVersion
+            + ", globalGeneration="
+            + globalGeneration
+            + ", indexGenerations="
+            + indexGenerations
+            + '}';
     }
 
     private static final String MANIFEST_FILE_PREFIX = "manifest-";
@@ -143,7 +147,6 @@ public class Manifest implements ToXContentFragment {
             return Manifest.fromXContent(parser);
         }
     };
-
 
     /*
      * Code below this comment is for XContent parsing/generation
@@ -168,9 +171,10 @@ public class Manifest implements ToXContentFragment {
     }
 
     private List<IndexEntry> indexEntryList() {
-        return indexGenerations.entrySet().stream().
-                map(entry -> new IndexEntry(entry.getKey(), entry.getValue())).
-                collect(Collectors.toList());
+        return indexGenerations.entrySet()
+            .stream()
+            .map(entry -> new IndexEntry(entry.getKey(), entry.getValue()))
+            .collect(Collectors.toList());
     }
 
     private static long currentTerm(Object[] manifestFields) {
@@ -192,10 +196,14 @@ public class Manifest implements ToXContentFragment {
     }
 
     private static final ConstructingObjectParser<Manifest, Void> PARSER = new ConstructingObjectParser<>(
-            "manifest",
-            manifestFields ->
-                    new Manifest(currentTerm(manifestFields), clusterStateVersion(manifestFields), generation(manifestFields),
-                            indices(manifestFields)));
+        "manifest",
+        manifestFields -> new Manifest(
+            currentTerm(manifestFields),
+            clusterStateVersion(manifestFields),
+            generation(manifestFields),
+            indices(manifestFields)
+        )
+    );
 
     static {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), CURRENT_TERM_PARSE_FIELD);
@@ -209,8 +217,10 @@ public class Manifest implements ToXContentFragment {
     }
 
     public boolean isEmpty() {
-        return currentTerm == MISSING_CURRENT_TERM && clusterStateVersion == MISSING_CLUSTER_STATE_VERSION
-                && globalGeneration == MISSING_GLOBAL_GENERATION && indexGenerations.isEmpty();
+        return currentTerm == MISSING_CURRENT_TERM
+            && clusterStateVersion == MISSING_CLUSTER_STATE_VERSION
+            && globalGeneration == MISSING_GLOBAL_GENERATION
+            && indexGenerations.isEmpty();
     }
 
     public static Manifest empty() {
@@ -226,12 +236,17 @@ public class Manifest implements ToXContentFragment {
         private static final ParseField INDEX_PARSE_FIELD = new ParseField("index");
 
         static final ConstructingObjectParser<IndexEntry, Void> INDEX_ENTRY_PARSER = new ConstructingObjectParser<>(
-                "indexEntry",
-                indexAndGeneration -> new IndexEntry((Index) indexAndGeneration[0], (long) indexAndGeneration[1]));
+            "indexEntry",
+            indexAndGeneration -> new IndexEntry((Index) indexAndGeneration[0], (long) indexAndGeneration[1])
+        );
 
         static {
-            INDEX_ENTRY_PARSER.declareField(ConstructingObjectParser.constructorArg(),
-                    Index::fromXContent, INDEX_PARSE_FIELD, ObjectParser.ValueType.OBJECT);
+            INDEX_ENTRY_PARSER.declareField(
+                ConstructingObjectParser.constructorArg(),
+                Index::fromXContent,
+                INDEX_PARSE_FIELD,
+                ObjectParser.ValueType.OBJECT
+            );
             INDEX_ENTRY_PARSER.declareLong(ConstructingObjectParser.constructorArg(), INDEX_GENERATION_PARSE_FIELD);
         }
 
@@ -261,4 +276,3 @@ public class Manifest implements ToXContentFragment {
         }
     }
 }
-

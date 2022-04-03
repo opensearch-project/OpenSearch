@@ -69,7 +69,8 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
         final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = Requests.clusterUpdateSettingsRequest();
         clusterUpdateSettingsRequest.timeout(request.paramAsTime("timeout", clusterUpdateSettingsRequest.timeout()));
         clusterUpdateSettingsRequest.masterNodeTimeout(
-                request.paramAsTime("master_timeout", clusterUpdateSettingsRequest.masterNodeTimeout()));
+            request.paramAsTime("master_timeout", clusterUpdateSettingsRequest.masterNodeTimeout())
+        );
         Map<String, Object> source;
         try (XContentParser parser = request.contentParser()) {
             source = parser.map();

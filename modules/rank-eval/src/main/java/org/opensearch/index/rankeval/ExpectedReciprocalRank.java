@@ -137,7 +137,6 @@ public class ExpectedReciprocalRank implements EvaluationMetric {
         return this.unknownDocRating;
     }
 
-
     @Override
     public OptionalInt forcedSearchSize() {
         return OptionalInt.of(k);
@@ -189,14 +188,15 @@ public class ExpectedReciprocalRank implements EvaluationMetric {
     private static final ParseField K_FIELD = new ParseField("k");
     private static final ParseField UNKNOWN_DOC_RATING_FIELD = new ParseField("unknown_doc_rating");
     private static final ParseField MAX_RELEVANCE_FIELD = new ParseField("maximum_relevance");
-    private static final ConstructingObjectParser<ExpectedReciprocalRank, Void> PARSER = new ConstructingObjectParser<>("dcg", false,
-            args -> {
-                int maxRelevance = (Integer) args[0];
-                Integer optK = (Integer) args[2];
-                return new ExpectedReciprocalRank(maxRelevance, (Integer) args[1],
-                        optK == null ? DEFAULT_K : optK);
-            });
-
+    private static final ConstructingObjectParser<ExpectedReciprocalRank, Void> PARSER = new ConstructingObjectParser<>(
+        "dcg",
+        false,
+        args -> {
+            int maxRelevance = (Integer) args[0];
+            Integer optK = (Integer) args[2];
+            return new ExpectedReciprocalRank(maxRelevance, (Integer) args[1], optK == null ? DEFAULT_K : optK);
+        }
+    );
 
     static {
         PARSER.declareInt(constructorArg(), MAX_RELEVANCE_FIELD);
@@ -231,9 +231,7 @@ public class ExpectedReciprocalRank implements EvaluationMetric {
             return false;
         }
         ExpectedReciprocalRank other = (ExpectedReciprocalRank) obj;
-        return this.k == other.k &&
-                this.maxRelevance == other.maxRelevance
-                && Objects.equals(unknownDocRating, other.unknownDocRating);
+        return this.k == other.k && this.maxRelevance == other.maxRelevance && Objects.equals(unknownDocRating, other.unknownDocRating);
     }
 
     @Override
@@ -255,8 +253,7 @@ public class ExpectedReciprocalRank implements EvaluationMetric {
         }
 
         @Override
-        public
-        String getMetricName() {
+        public String getMetricName() {
             return NAME;
         }
 
@@ -265,9 +262,11 @@ public class ExpectedReciprocalRank implements EvaluationMetric {
             return builder.field(UNRATED_FIELD.getPreferredName(), this.unratedDocs);
         }
 
-        private static final ConstructingObjectParser<Detail, Void> PARSER = new ConstructingObjectParser<>(NAME, true, args -> {
-            return new Detail((Integer) args[0]);
-        });
+        private static final ConstructingObjectParser<Detail, Void> PARSER = new ConstructingObjectParser<>(
+            NAME,
+            true,
+            args -> { return new Detail((Integer) args[0]); }
+        );
 
         static {
             PARSER.declareInt(constructorArg(), UNRATED_FIELD);
@@ -312,4 +311,3 @@ public class ExpectedReciprocalRank implements EvaluationMetric {
         }
     }
 }
-

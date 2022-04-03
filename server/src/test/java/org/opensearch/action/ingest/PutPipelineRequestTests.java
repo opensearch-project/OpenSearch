@@ -65,14 +65,14 @@ public class PutPipelineRequestTests extends OpenSearchTestCase {
         XContentBuilder pipelineBuilder = XContentBuilder.builder(xContentType.xContent());
         pipelineBuilder.startObject().field(Pipeline.DESCRIPTION_KEY, "some random set of processors");
         pipelineBuilder.startArray(Pipeline.PROCESSORS_KEY);
-        //Start first processor
+        // Start first processor
         pipelineBuilder.startObject();
         pipelineBuilder.startObject("set");
         pipelineBuilder.field("field", "foo");
         pipelineBuilder.field("value", "bar");
         pipelineBuilder.endObject();
         pipelineBuilder.endObject();
-        //End first processor
+        // End first processor
         pipelineBuilder.endArray();
         pipelineBuilder.endObject();
         PutPipelineRequest request = new PutPipelineRequest("1", BytesReference.bytes(pipelineBuilder), xContentType);

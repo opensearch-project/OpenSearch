@@ -38,10 +38,13 @@ import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilde
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.util.ArrayUtils;
 
-public abstract class ClusterInfoRequestBuilder<Request extends ClusterInfoRequest<Request>, Response extends ActionResponse,
-        Builder extends ClusterInfoRequestBuilder<Request, Response, Builder>>
-        extends MasterNodeReadOperationRequestBuilder<Request, Response, Builder> {
-
+public abstract class ClusterInfoRequestBuilder<
+    Request extends ClusterInfoRequest<Request>,
+    Response extends ActionResponse,
+    Builder extends ClusterInfoRequestBuilder<Request, Response, Builder>> extends MasterNodeReadOperationRequestBuilder<
+        Request,
+        Response,
+        Builder> {
 
     protected ClusterInfoRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);
@@ -56,18 +59,6 @@ public abstract class ClusterInfoRequestBuilder<Request extends ClusterInfoReque
     @SuppressWarnings("unchecked")
     public Builder addIndices(String... indices) {
         request.indices(ArrayUtils.concat(request.indices(), indices));
-        return (Builder) this;
-    }
-
-    @SuppressWarnings("unchecked")
-    public Builder setTypes(String... types) {
-        request.types(types);
-        return (Builder) this;
-    }
-
-    @SuppressWarnings("unchecked")
-    public Builder addTypes(String... types) {
-        request.types(ArrayUtils.concat(request.types(), types));
         return (Builder) this;
     }
 

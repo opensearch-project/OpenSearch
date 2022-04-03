@@ -34,7 +34,6 @@ package org.opensearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState.Custom;
 import org.opensearch.common.collect.ImmutableOpenMap;
@@ -115,8 +114,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
 
         private final ImmutableOpenMap.Builder<String, Entry> entries = ImmutableOpenMap.builder();
 
-        public Builder() {
-        }
+        public Builder() {}
 
         public Builder(RestoreInProgress restoreInProgress) {
             entries.putAll(restoreInProgress.entries);
@@ -151,8 +149,13 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
          * @param indices    list of indices being restored
          * @param shards     map of shards being restored to their current restore status
          */
-        public Entry(String uuid, Snapshot snapshot, State state, List<String> indices,
-            ImmutableOpenMap<ShardId, ShardRestoreStatus> shards) {
+        public Entry(
+            String uuid,
+            Snapshot snapshot,
+            State state,
+            List<String> indices,
+            ImmutableOpenMap<ShardId, ShardRestoreStatus> shards
+        ) {
             this.snapshot = Objects.requireNonNull(snapshot);
             this.state = Objects.requireNonNull(state);
             this.indices = Objects.requireNonNull(indices);
@@ -217,11 +220,11 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
                 return false;
             }
             Entry entry = (Entry) o;
-            return uuid.equals(entry.uuid) &&
-                       snapshot.equals(entry.snapshot) &&
-                       state == entry.state &&
-                       indices.equals(entry.indices) &&
-                       shards.equals(entry.shards);
+            return uuid.equals(entry.uuid)
+                && snapshot.equals(entry.snapshot)
+                && state == entry.state
+                && indices.equals(entry.indices)
+                && shards.equals(entry.shards);
         }
 
         @Override
@@ -238,8 +241,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         private String nodeId;
         private String reason;
 
-        private ShardRestoreStatus() {
-        }
+        private ShardRestoreStatus() {}
 
         /**
          * Constructs a new shard restore status in initializing state on the given node
@@ -345,9 +347,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             }
 
             ShardRestoreStatus status = (ShardRestoreStatus) o;
-            return state == status.state &&
-                       Objects.equals(nodeId, status.nodeId) &&
-                       Objects.equals(reason, status.reason);
+            return state == status.state && Objects.equals(nodeId, status.nodeId) && Objects.equals(reason, status.reason);
         }
 
         @Override
@@ -450,16 +450,20 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         final ImmutableOpenMap.Builder<String, Entry> entriesBuilder = ImmutableOpenMap.builder(count);
         for (int i = 0; i < count; i++) {
             final String uuid;
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_6_6_0)) {
-                uuid = in.readString();
-            } else {
-                uuid = BWC_UUID;
-            }
+            uuid = in.readString();
             Snapshot snapshot = new Snapshot(in);
             State state = State.fromValue(in.readByte());
             List<String> indexBuilder = in.readStringList();
-            entriesBuilder.put(uuid, new Entry(uuid, snapshot, state, Collections.unmodifiableList(indexBuilder),
-                    in.readImmutableMap(ShardId::new, ShardRestoreStatus::readShardRestoreStatus)));
+            entriesBuilder.put(
+                uuid,
+                new Entry(
+                    uuid,
+                    snapshot,
+                    state,
+                    Collections.unmodifiableList(indexBuilder),
+                    in.readImmutableMap(ShardId::new, ShardRestoreStatus::readShardRestoreStatus)
+                )
+            );
         }
         this.entries = entriesBuilder.build();
     }
@@ -469,9 +473,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         out.writeVInt(entries.size());
         for (ObjectCursor<Entry> v : entries.values()) {
             Entry entry = v.value;
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_6_6_0)) {
-                out.writeString(entry.uuid);
-            }
+            out.writeString(entry.uuid);
             entry.snapshot().writeTo(out);
             out.writeByte(entry.state().value());
             out.writeStringCollection(entry.indices);

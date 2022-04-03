@@ -54,9 +54,7 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(PUT, "/{index}/_settings"),
-            new Route(PUT, "/_settings")));
+        return unmodifiableList(asList(new Route(PUT, "/{index}/_settings"), new Route(PUT, "/_settings")));
     }
 
     @Override

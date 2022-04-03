@@ -188,14 +188,14 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     }
 
     public static MultiSearchTemplateResponse fromXContext(XContentParser parser) {
-        //The MultiSearchTemplateResponse is identical to the multi search response so we reuse the parsing logic in multi search response
+        // The MultiSearchTemplateResponse is identical to the multi search response so we reuse the parsing logic in multi search response
         MultiSearchResponse mSearchResponse = MultiSearchResponse.fromXContext(parser);
         org.opensearch.action.search.MultiSearchResponse.Item[] responses = mSearchResponse.getResponses();
         Item[] templateResponses = new Item[responses.length];
         int i = 0;
         for (org.opensearch.action.search.MultiSearchResponse.Item item : responses) {
             SearchTemplateResponse stResponse = null;
-            if(item.getResponse() != null){
+            if (item.getResponse() != null) {
                 stResponse = new SearchTemplateResponse();
                 stResponse.setResponse(item.getResponse());
             }

@@ -44,6 +44,7 @@ import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 
 import java.io.IOException;
 
@@ -57,10 +58,17 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     private double currentValue;
     private boolean missingCurrentValue;
 
-    DoubleValuesSource(BigArrays bigArrays, MappedFieldType fieldType,
-                       CheckedFunction<LeafReaderContext, SortedNumericDoubleValues, IOException> docValuesFunc,
-                       DocValueFormat format, boolean missingBucket, int size, int reverseMul) {
-        super(bigArrays, format, fieldType, missingBucket, size, reverseMul);
+    DoubleValuesSource(
+        BigArrays bigArrays,
+        MappedFieldType fieldType,
+        CheckedFunction<LeafReaderContext, SortedNumericDoubleValues, IOException> docValuesFunc,
+        DocValueFormat format,
+        boolean missingBucket,
+        MissingOrder missingOrder,
+        int size,
+        int reverseMul
+    ) {
+        super(bigArrays, format, fieldType, missingBucket, missingOrder, size, reverseMul);
         this.docValuesFunc = docValuesFunc;
         this.bits = missingBucket ? new BitArray(100, bigArrays) : null;
         this.values = bigArrays.newDoubleArray(Math.min(size, 100), false);
@@ -68,7 +76,7 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
 
     @Override
     void copyCurrent(int slot) {
-        values = bigArrays.grow(values, slot+1);
+        values = bigArrays.grow(values, slot + 1);
         if (missingBucket && missingCurrentValue) {
             bits.clear(slot);
         } else {
@@ -83,10 +91,9 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     @Override
     int compare(int from, int to) {
         if (missingBucket) {
-            if (bits.get(from) == false) {
-                return bits.get(to) ? -1 * reverseMul : 0;
-            } else if (bits.get(to) == false) {
-                return reverseMul;
+            int result = missingOrder.compare(() -> bits.get(from) == false, () -> bits.get(to) == false, reverseMul);
+            if (MissingOrder.unknownOrder(result) == false) {
+                return result;
             }
         }
         return compareValues(values.get(from), values.get(to));
@@ -95,10 +102,9 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     @Override
     int compareCurrent(int slot) {
         if (missingBucket) {
-            if (missingCurrentValue) {
-                return bits.get(slot) ? -1 * reverseMul : 0;
-            } else if (bits.get(slot) == false) {
-                return reverseMul;
+            int result = missingOrder.compare(() -> missingCurrentValue, () -> bits.get(slot) == false, reverseMul);
+            if (MissingOrder.unknownOrder(result) == false) {
+                return result;
             }
         }
         return compareValues(currentValue, values.get(slot));
@@ -107,10 +113,9 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     @Override
     int compareCurrentWithAfter() {
         if (missingBucket) {
-            if (missingCurrentValue) {
-                return afterValue != null ? -1 * reverseMul : 0;
-            } else if (afterValue == null) {
-                return reverseMul;
+            int result = missingOrder.compare(() -> missingCurrentValue, () -> afterValue == null, reverseMul);
+            if (MissingOrder.unknownOrder(result) == false) {
+                return result;
             }
         }
         return compareValues(currentValue, afterValue);
@@ -145,9 +150,11 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
         } else if (value instanceof Number) {
             afterValue = ((Number) value).doubleValue();
         } else {
-            afterValue = format.parseDouble(value.toString(), false, () -> {
-                throw new IllegalArgumentException("now() is not supported in [after] key");
-            });
+            afterValue = format.parseDouble(
+                value.toString(),
+                false,
+                () -> { throw new IllegalArgumentException("now() is not supported in [after] key"); }
+            );
         }
     }
 

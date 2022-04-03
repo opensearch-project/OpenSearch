@@ -58,7 +58,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTestCase {
 
-    private static final ActionListener<ReplicationResponse> EMPTY_LISTENER = ActionListener.wrap(() -> { });
+    private static final ActionListener<ReplicationResponse> EMPTY_LISTENER = ActionListener.wrap(() -> {});
 
     private ReplicationTracker replicationTracker;
     private AtomicLong currentTimeMillis;
@@ -72,8 +72,10 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
 
         if (randomBoolean()) {
             settings = Settings.builder()
-                .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey(),
-                    TimeValue.timeValueMillis(randomLongBetween(1, TimeValue.timeValueHours(12).millis())))
+                .put(
+                    IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey(),
+                    TimeValue.timeValueMillis(randomLongBetween(1, TimeValue.timeValueHours(12).millis()))
+                )
                 .build();
         } else {
             settings = Settings.EMPTY;
@@ -88,21 +90,29 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
             IndexSettingsModule.newIndexSettings("test", settings),
             primaryTerm,
             UNASSIGNED_SEQ_NO,
-            value -> { },
+            value -> {},
             currentTimeMillis::get,
-            (leases, listener) -> { },
-            () -> safeCommitInfo);
-        replicationTracker.updateFromMaster(1L, Collections.singleton(primaryAllocationId.getId()),
-            routingTable(Collections.emptySet(), primaryAllocationId));
+            (leases, listener) -> {},
+            () -> safeCommitInfo
+        );
+        replicationTracker.updateFromMaster(
+            1L,
+            Collections.singleton(primaryAllocationId.getId()),
+            routingTable(Collections.emptySet(), primaryAllocationId)
+        );
         replicationTracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
 
         final AllocationId replicaAllocationId = AllocationId.newInitializing();
-        final IndexShardRoutingTable routingTableWithReplica
-            = routingTable(Collections.singleton(replicaAllocationId), primaryAllocationId);
+        final IndexShardRoutingTable routingTableWithReplica = routingTable(
+            Collections.singleton(replicaAllocationId),
+            primaryAllocationId
+        );
         replicationTracker.updateFromMaster(2L, Collections.singleton(primaryAllocationId.getId()), routingTableWithReplica);
         replicationTracker.addPeerRecoveryRetentionLease(
-            routingTableWithReplica.getByAllocationId(replicaAllocationId.getId()).currentNodeId(), randomCheckpoint(),
-            EMPTY_LISTENER);
+            routingTableWithReplica.getByAllocationId(replicaAllocationId.getId()).currentNodeId(),
+            randomCheckpoint(),
+            EMPTY_LISTENER
+        );
 
         replicationTracker.initiateTracking(replicaAllocationId.getId());
         replicationTracker.markAllocationIdAsInSync(replicaAllocationId.getId(), randomCheckpoint());
@@ -117,9 +127,11 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
         final IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(replicationTracker.routingTable);
         builder.removeShard(replicaShardRouting);
         builder.addShard(replicaShardRouting.moveToStarted());
-        replicationTracker.updateFromMaster(replicationTracker.appliedClusterStateVersion + 1,
+        replicationTracker.updateFromMaster(
+            replicationTracker.appliedClusterStateVersion + 1,
             replicationTracker.routingTable.shards().stream().map(sr -> sr.allocationId().getId()).collect(Collectors.toSet()),
-            builder.build());
+            builder.build()
+        );
     }
 
     public void testPeerRecoveryRetentionLeasesForAssignedCopiesDoNotEverExpire() {
@@ -135,8 +147,15 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
 
         final Set<String> leaseIds = retentionLeases.v2().leases().stream().map(RetentionLease::id).collect(Collectors.toSet());
         assertThat(leaseIds, hasSize(2));
-        assertThat(leaseIds, equalTo(replicationTracker.routingTable.shards().stream()
-            .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId).collect(Collectors.toSet())));
+        assertThat(
+            leaseIds,
+            equalTo(
+                replicationTracker.routingTable.shards()
+                    .stream()
+                    .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
+                    .collect(Collectors.toSet())
+            )
+        );
     }
 
     public void testPeerRecoveryRetentionLeasesForUnassignedCopiesDoNotExpireImmediatelyIfShardsNotAllStarted() {
@@ -144,8 +163,12 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
         final long globalCheckpoint = randomNonNegativeLong(); // not NO_OPS_PERFORMED since this always results in file-based recovery
         replicationTracker.addPeerRecoveryRetentionLease(unknownNodeId, globalCheckpoint, EMPTY_LISTENER);
 
-        currentTimeMillis.set(currentTimeMillis.get()
-            + randomLongBetween(0, IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.get(settings).millis()));
+        currentTimeMillis.set(
+            currentTimeMillis.get() + randomLongBetween(
+                0,
+                IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.get(settings).millis()
+            )
+        );
 
         safeCommitInfo = randomSafeCommitInfoSuitableForOpsBasedRecovery(globalCheckpoint);
 
@@ -154,9 +177,15 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
 
         final Set<String> leaseIds = retentionLeases.v2().leases().stream().map(RetentionLease::id).collect(Collectors.toSet());
         assertThat(leaseIds, hasSize(3));
-        assertThat(leaseIds, equalTo(Stream.concat(Stream.of(ReplicationTracker.getPeerRecoveryRetentionLeaseId(unknownNodeId)),
-            replicationTracker.routingTable.shards().stream()
-                .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)).collect(Collectors.toSet())));
+        assertThat(
+            leaseIds,
+            equalTo(
+                Stream.concat(
+                    Stream.of(ReplicationTracker.getPeerRecoveryRetentionLeaseId(unknownNodeId)),
+                    replicationTracker.routingTable.shards().stream().map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
+                ).collect(Collectors.toSet())
+            )
+        );
     }
 
     public void testPeerRecoveryRetentionLeasesForUnassignedCopiesExpireEventually() {
@@ -168,9 +197,12 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
         final long globalCheckpoint = randomCheckpoint();
         replicationTracker.addPeerRecoveryRetentionLease(unknownNodeId, globalCheckpoint, EMPTY_LISTENER);
 
-        currentTimeMillis.set(randomLongBetween(
-            currentTimeMillis.get() + IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.get(settings).millis() + 1,
-            Long.MAX_VALUE));
+        currentTimeMillis.set(
+            randomLongBetween(
+                currentTimeMillis.get() + IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.get(settings).millis() + 1,
+                Long.MAX_VALUE
+            )
+        );
 
         safeCommitInfo = randomSafeCommitInfoSuitableForOpsBasedRecovery(globalCheckpoint);
 
@@ -179,8 +211,15 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
 
         final Set<String> leaseIds = retentionLeases.v2().leases().stream().map(RetentionLease::id).collect(Collectors.toSet());
         assertThat(leaseIds, hasSize(2));
-        assertThat(leaseIds, equalTo(replicationTracker.routingTable.shards().stream()
-            .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId).collect(Collectors.toSet())));
+        assertThat(
+            leaseIds,
+            equalTo(
+                replicationTracker.routingTable.shards()
+                    .stream()
+                    .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
+                    .collect(Collectors.toSet())
+            )
+        );
     }
 
     public void testPeerRecoveryRetentionLeasesForUnassignedCopiesExpireImmediatelyIfShardsAllStarted() {
@@ -189,10 +228,11 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
 
         startReplica();
 
-        currentTimeMillis.set(currentTimeMillis.get() +
-            (usually()
+        currentTimeMillis.set(
+            currentTimeMillis.get() + (usually()
                 ? randomLongBetween(0, IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.get(settings).millis())
-                : randomLongBetween(0, Long.MAX_VALUE - currentTimeMillis.get())));
+                : randomLongBetween(0, Long.MAX_VALUE - currentTimeMillis.get()))
+        );
         safeCommitInfo = randomSafeCommitInfo();
 
         final Tuple<Boolean, RetentionLeases> retentionLeases = replicationTracker.getRetentionLeases(true);
@@ -200,8 +240,15 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
 
         final Set<String> leaseIds = retentionLeases.v2().leases().stream().map(RetentionLease::id).collect(Collectors.toSet());
         assertThat(leaseIds, hasSize(2));
-        assertThat(leaseIds, equalTo(replicationTracker.routingTable.shards().stream()
-            .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId).collect(Collectors.toSet())));
+        assertThat(
+            leaseIds,
+            equalTo(
+                replicationTracker.routingTable.shards()
+                    .stream()
+                    .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
+                    .collect(Collectors.toSet())
+            )
+        );
     }
 
     public void testPeerRecoveryRetentionLeasesForUnassignedCopiesExpireIfRetainingTooMuchHistory() {
@@ -220,14 +267,24 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
 
         final Set<String> leaseIds = retentionLeases.v2().leases().stream().map(RetentionLease::id).collect(Collectors.toSet());
         assertThat(leaseIds, hasSize(2));
-        assertThat(leaseIds, equalTo(replicationTracker.routingTable.shards().stream()
-            .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId).collect(Collectors.toSet())));
+        assertThat(
+            leaseIds,
+            equalTo(
+                replicationTracker.routingTable.shards()
+                    .stream()
+                    .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
+                    .collect(Collectors.toSet())
+            )
+        );
     }
 
     private SafeCommitInfo randomSafeCommitInfo() {
-        return randomBoolean() ? SafeCommitInfo.EMPTY : new SafeCommitInfo(
-            randomFrom(randomNonNegativeLong(), (long) randomIntBetween(0, Integer.MAX_VALUE)),
-            randomIntBetween(0, Integer.MAX_VALUE));
+        return randomBoolean()
+            ? SafeCommitInfo.EMPTY
+            : new SafeCommitInfo(
+                randomFrom(randomNonNegativeLong(), (long) randomIntBetween(0, Integer.MAX_VALUE)),
+                randomIntBetween(0, Integer.MAX_VALUE)
+            );
     }
 
     private SafeCommitInfo randomSafeCommitInfoSuitableForOpsBasedRecovery(long globalCheckpoint) {

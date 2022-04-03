@@ -132,9 +132,9 @@ public final class LinearInterpolation extends SmoothingModel {
     @Override
     protected boolean doEquals(SmoothingModel other) {
         final LinearInterpolation otherModel = (LinearInterpolation) other;
-        return Objects.equals(trigramLambda, otherModel.trigramLambda) &&
-                Objects.equals(bigramLambda, otherModel.bigramLambda) &&
-                Objects.equals(unigramLambda, otherModel.unigramLambda);
+        return Objects.equals(trigramLambda, otherModel.trigramLambda)
+            && Objects.equals(bigramLambda, otherModel.bigramLambda)
+            && Objects.equals(unigramLambda, otherModel.unigramLambda);
     }
 
     @Override
@@ -168,12 +168,13 @@ public final class LinearInterpolation extends SmoothingModel {
                         throw new IllegalArgumentException("unigram_lambda must be positive");
                     }
                 } else {
-                    throw new IllegalArgumentException(
-                            "suggester[phrase][smoothing][linear] doesn't support field [" + fieldName + "]");
+                    throw new IllegalArgumentException("suggester[phrase][smoothing][linear] doesn't support field [" + fieldName + "]");
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(),
-                        "[" + NAME + "] unknown token [" + token + "] after [" + fieldName + "]");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "[" + NAME + "] unknown token [" + token + "] after [" + fieldName + "]"
+                );
             }
         }
         return new LinearInterpolation(trigramLambda, bigramLambda, unigramLambda);
@@ -181,8 +182,20 @@ public final class LinearInterpolation extends SmoothingModel {
 
     @Override
     public WordScorerFactory buildWordScorerFactory() {
-        return (IndexReader reader, Terms terms, String field, double realWordLikelihood, BytesRef separator) ->
-                    new LinearInterpolatingScorer(reader, terms, field, realWordLikelihood, separator, trigramLambda, bigramLambda,
-                        unigramLambda);
+        return (
+            IndexReader reader,
+            Terms terms,
+            String field,
+            double realWordLikelihood,
+            BytesRef separator) -> new LinearInterpolatingScorer(
+                reader,
+                terms,
+                field,
+                realWordLikelihood,
+                separator,
+                trigramLambda,
+                bigramLambda,
+                unigramLambda
+            );
     }
 }

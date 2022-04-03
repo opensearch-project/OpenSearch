@@ -66,7 +66,6 @@ public class StubbableTransport implements Transport {
     private volatile OpenConnectionBehavior defaultConnectBehavior = null;
     private final Transport delegate;
 
-
     public StubbableTransport(Transport transport) {
         this.delegate = transport;
     }
@@ -99,8 +98,10 @@ public class StubbableTransport implements Transport {
         }
         replacedRequestRegistries.put(actionName, realRegistry);
         final TransportRequestHandler<Request> realHandler = realRegistry.getHandler();
-        final RequestHandlerRegistry<Request> newRegistry = RequestHandlerRegistry.replaceHandler(realRegistry, (request, channel, task) ->
-            behavior.messageReceived(realHandler, request, channel, task));
+        final RequestHandlerRegistry<Request> newRegistry = RequestHandlerRegistry.replaceHandler(
+            realRegistry,
+            (request, channel, task) -> behavior.messageReceived(realHandler, request, channel, task)
+        );
         requestHandlers.forceRegister(newRegistry);
     }
 
@@ -163,9 +164,10 @@ public class StubbableTransport implements Transport {
         TransportAddress address = node.getAddress();
         OpenConnectionBehavior behavior = connectBehaviors.getOrDefault(address, defaultConnectBehavior);
 
-        ActionListener<Connection> wrappedListener =
-            ActionListener.delegateFailure(listener,
-                (delegatedListener, connection) -> delegatedListener.onResponse(new WrappedConnection(connection)));
+        ActionListener<Connection> wrappedListener = ActionListener.delegateFailure(
+            listener,
+            (delegatedListener, connection) -> delegatedListener.onResponse(new WrappedConnection(connection))
+        );
 
         if (behavior == null) {
             delegate.openConnection(node, profile, wrappedListener);
@@ -254,7 +256,6 @@ public class StubbableTransport implements Transport {
             connection.addCloseListener(listener);
         }
 
-
         @Override
         public boolean isClosed() {
             return connection.isClosed();
@@ -283,16 +284,20 @@ public class StubbableTransport implements Transport {
     @FunctionalInterface
     public interface OpenConnectionBehavior {
 
-        void openConnection(Transport transport, DiscoveryNode discoveryNode, ConnectionProfile profile,
-                            ActionListener<Connection> listener);
+        void openConnection(
+            Transport transport,
+            DiscoveryNode discoveryNode,
+            ConnectionProfile profile,
+            ActionListener<Connection> listener
+        );
 
         default void clearCallback() {}
     }
 
     @FunctionalInterface
     public interface SendRequestBehavior {
-        void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
-                         TransportRequestOptions options) throws IOException;
+        void sendRequest(Connection connection, long requestId, String action, TransportRequest request, TransportRequestOptions options)
+            throws IOException;
 
         default void clearCallback() {}
     }

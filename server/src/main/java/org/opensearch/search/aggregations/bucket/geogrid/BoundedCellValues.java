@@ -44,12 +44,15 @@ class BoundedCellValues extends CellValues {
 
     private final GeoBoundingBox geoBoundingBox;
 
-    protected BoundedCellValues(MultiGeoPointValues geoValues, int precision, CellIdSource.GeoPointLongEncoder encoder,
-                                GeoBoundingBox geoBoundingBox) {
+    protected BoundedCellValues(
+        MultiGeoPointValues geoValues,
+        int precision,
+        CellIdSource.GeoPointLongEncoder encoder,
+        GeoBoundingBox geoBoundingBox
+    ) {
         super(geoValues, precision, encoder);
         this.geoBoundingBox = geoBoundingBox;
     }
-
 
     @Override
     int advanceValue(org.opensearch.common.geo.GeoPoint target, int valuesIdx) {

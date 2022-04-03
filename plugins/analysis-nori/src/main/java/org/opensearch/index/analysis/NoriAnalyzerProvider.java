@@ -45,7 +45,6 @@ import org.opensearch.index.IndexSettings;
 
 import static org.opensearch.index.analysis.NoriPartOfSpeechStopFilterFactory.resolvePOSList;
 
-
 public class NoriAnalyzerProvider extends AbstractIndexAnalyzerProvider<KoreanAnalyzer> {
     private final KoreanAnalyzer analyzer;
 
@@ -62,6 +61,5 @@ public class NoriAnalyzerProvider extends AbstractIndexAnalyzerProvider<KoreanAn
     public KoreanAnalyzer get() {
         return analyzer;
     }
-
 
 }

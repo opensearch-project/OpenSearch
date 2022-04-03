@@ -198,7 +198,7 @@ public abstract class Terminal {
                 len++;
             }
 
-            if (len > 0 && len < buf.length && buf[len-1] == '\r') {
+            if (len > 0 && len < buf.length && buf[len - 1] == '\r') {
                 len--;
             }
 

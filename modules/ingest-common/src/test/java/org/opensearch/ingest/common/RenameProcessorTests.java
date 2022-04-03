@@ -94,7 +94,7 @@ public class RenameProcessorTests extends OpenSearchTestCase {
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("[3] is out of bounds for array with length [2] as part of path [list.3]"));
             assertThat(actualList.size(), equalTo(2));
             assertThat(actualList.get(0), equalTo("item2"));
@@ -105,12 +105,11 @@ public class RenameProcessorTests extends OpenSearchTestCase {
     public void testRenameNonExistingField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        Processor processor = createRenameProcessor(fieldName,
-            RandomDocumentPicks.randomFieldName(random()), false);
+        Processor processor = createRenameProcessor(fieldName, RandomDocumentPicks.randomFieldName(random()), false);
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [" + fieldName + "] doesn't exist"));
         }
     }
@@ -119,8 +118,7 @@ public class RenameProcessorTests extends OpenSearchTestCase {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        Processor processor = createRenameProcessor(fieldName,
-            RandomDocumentPicks.randomFieldName(random()), true);
+        Processor processor = createRenameProcessor(fieldName, RandomDocumentPicks.randomFieldName(random()), true);
         processor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
     }
@@ -128,12 +126,15 @@ public class RenameProcessorTests extends OpenSearchTestCase {
     public void testRenameNewFieldAlreadyExists() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String fieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
-        Processor processor = createRenameProcessor(RandomDocumentPicks.randomExistingFieldName(
-                random(), ingestDocument), fieldName, false);
+        Processor processor = createRenameProcessor(
+            RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument),
+            fieldName,
+            false
+        );
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [" + fieldName + "] already exists"));
         }
     }
@@ -171,8 +172,8 @@ public class RenameProcessorTests extends OpenSearchTestCase {
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
-        } catch(UnsupportedOperationException e) {
-            //the set failed, the old field has not been removed
+        } catch (UnsupportedOperationException e) {
+            // the set failed, the old field has not been removed
             assertThat(ingestDocument.getSourceAndMetadata().containsKey("list"), equalTo(true));
             assertThat(ingestDocument.getSourceAndMetadata().containsKey("new_field"), equalTo(false));
         }
@@ -196,7 +197,7 @@ public class RenameProcessorTests extends OpenSearchTestCase {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
         } catch (UnsupportedOperationException e) {
-            //the set failed, the old field has not been removed
+            // the set failed, the old field has not been removed
             assertThat(ingestDocument.getSourceAndMetadata().containsKey("list"), equalTo(true));
             assertThat(ingestDocument.getSourceAndMetadata().containsKey("new_field"), equalTo(false));
         }
@@ -211,10 +212,12 @@ public class RenameProcessorTests extends OpenSearchTestCase {
         assertThat(ingestDocument.getFieldValue("foo", Map.class), equalTo(Collections.singletonMap("bar", "bar")));
         assertThat(ingestDocument.getFieldValue("foo.bar", String.class), equalTo("bar"));
 
-        Processor processor2 = createRenameProcessor( "foo.bar", "foo.bar.baz", false);
+        Processor processor2 = createRenameProcessor("foo.bar", "foo.bar.baz", false);
         processor2.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue("foo", Map.class), equalTo(Collections.singletonMap("bar",
-                Collections.singletonMap("baz", "bar"))));
+        assertThat(
+            ingestDocument.getFieldValue("foo", Map.class),
+            equalTo(Collections.singletonMap("bar", Collections.singletonMap("baz", "bar")))
+        );
         assertThat(ingestDocument.getFieldValue("foo.bar", Map.class), equalTo(Collections.singletonMap("baz", "bar")));
         assertThat(ingestDocument.getFieldValue("foo.bar.baz", String.class), equalTo("bar"));
 
@@ -225,7 +228,12 @@ public class RenameProcessorTests extends OpenSearchTestCase {
     }
 
     private RenameProcessor createRenameProcessor(String field, String targetField, boolean ignoreMissing) {
-        return new RenameProcessor(randomAlphaOfLength(10), null, new TestTemplateService.MockTemplateScript.Factory(field),
-            new TestTemplateService.MockTemplateScript.Factory(targetField), ignoreMissing);
+        return new RenameProcessor(
+            randomAlphaOfLength(10),
+            null,
+            new TestTemplateService.MockTemplateScript.Factory(field),
+            new TestTemplateService.MockTemplateScript.Factory(targetField),
+            ignoreMissing
+        );
     }
 }

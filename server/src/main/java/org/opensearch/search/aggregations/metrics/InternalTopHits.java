@@ -60,8 +60,14 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
     private TopDocsAndMaxScore topDocs;
     private SearchHits searchHits;
 
-    public InternalTopHits(String name, int from, int size, TopDocsAndMaxScore topDocs, SearchHits searchHits,
-            Map<String, Object> metadata) {
+    public InternalTopHits(
+        String name,
+        int from,
+        int size,
+        TopDocsAndMaxScore topDocs,
+        SearchHits searchHits,
+        Map<String, Object> metadata
+    ) {
         super(name, metadata);
         this.from = from;
         this.size = size;
@@ -135,16 +141,22 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
                 InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
                 shardDocs[i] = topHitsAgg.topDocs.topDocs;
                 shardHits[i] = topHitsAgg.searchHits;
+                for (ScoreDoc doc : shardDocs[i].scoreDocs) {
+                    doc.shardIndex = i;
+                }
             }
-            reducedTopDocs = TopDocs.merge(sort, from, size, (TopFieldDocs[]) shardDocs, true);
+            reducedTopDocs = TopDocs.merge(sort, from, size, (TopFieldDocs[]) shardDocs);
         } else {
             shardDocs = new TopDocs[aggregations.size()];
             for (int i = 0; i < shardDocs.length; i++) {
                 InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
                 shardDocs[i] = topHitsAgg.topDocs.topDocs;
                 shardHits[i] = topHitsAgg.searchHits;
+                for (ScoreDoc doc : shardDocs[i].scoreDocs) {
+                    doc.shardIndex = i;
+                }
             }
-            reducedTopDocs = TopDocs.merge(from, size, shardDocs, true);
+            reducedTopDocs = TopDocs.merge(from, size, shardDocs);
         }
 
         float maxScore = Float.NaN;
@@ -170,9 +182,14 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
             hits[i] = shardHits[scoreDoc.shardIndex].getAt(position);
         }
         assert reducedTopDocs.totalHits.relation == Relation.EQUAL_TO;
-        return new InternalTopHits(name, this.from, this.size,
+        return new InternalTopHits(
+            name,
+            this.from,
+            this.size,
             new TopDocsAndMaxScore(reducedTopDocs, maxScore),
-            new SearchHits(hits, reducedTopDocs.totalHits, maxScore), getMetadata());
+            new SearchHits(hits, reducedTopDocs.totalHits, maxScore),
+            getMetadata()
+        );
     }
 
     @Override

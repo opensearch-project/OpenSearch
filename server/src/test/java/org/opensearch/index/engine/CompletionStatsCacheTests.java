@@ -32,14 +32,14 @@
 package org.opensearch.index.engine;
 
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene87.Lucene87Codec;
+import org.apache.lucene.codecs.lucene91.Lucene91Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
-import org.apache.lucene.search.suggest.document.Completion84PostingsFormat;
+import org.apache.lucene.search.suggest.document.Completion90PostingsFormat;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.apache.lucene.store.Directory;
 import org.opensearch.OpenSearchException;
@@ -59,9 +59,9 @@ public class CompletionStatsCacheTests extends OpenSearchTestCase {
 
     public void testExceptionsAreNotCached() {
         final AtomicInteger openCount = new AtomicInteger();
-        final CompletionStatsCache completionStatsCache = new CompletionStatsCache(() -> {
-            throw new OpenSearchException("simulated " + openCount.incrementAndGet());
-        });
+        final CompletionStatsCache completionStatsCache = new CompletionStatsCache(
+            () -> { throw new OpenSearchException("simulated " + openCount.incrementAndGet()); }
+        );
 
         assertThat(expectThrows(OpenSearchException.class, completionStatsCache::get).getMessage(), equalTo("simulated 1"));
         assertThat(expectThrows(OpenSearchException.class, completionStatsCache::get).getMessage(), equalTo("simulated 2"));
@@ -69,8 +69,8 @@ public class CompletionStatsCacheTests extends OpenSearchTestCase {
 
     public void testCompletionStatsCache() throws IOException, InterruptedException {
         final IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
-        final PostingsFormat postingsFormat = new Completion84PostingsFormat();
-        indexWriterConfig.setCodec(new Lucene87Codec() {
+        final PostingsFormat postingsFormat = new Completion90PostingsFormat();
+        indexWriterConfig.setCodec(new Lucene91Codec() {
             @Override
             public PostingsFormat getPostingsFormatForField(String field) {
                 return postingsFormat; // all fields are suggest fields
@@ -79,8 +79,7 @@ public class CompletionStatsCacheTests extends OpenSearchTestCase {
 
         final QueryCachingPolicy queryCachingPolicy = new QueryCachingPolicy() {
             @Override
-            public void onUse(Query query) {
-            }
+            public void onUse(Query query) {}
 
             @Override
             public boolean shouldCache(Query query) {
@@ -88,8 +87,7 @@ public class CompletionStatsCacheTests extends OpenSearchTestCase {
             }
         };
 
-        try (Directory directory = newDirectory();
-             IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
+        try (Directory directory = newDirectory(); IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
 
             final Document document = new Document();
             document.add(new SuggestField("suggest1", "val", 1));

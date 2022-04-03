@@ -56,8 +56,8 @@ public class AckClusterStatePublishResponseHandler extends BlockingClusterStateP
      *                    gotten from non master nodes
      */
     public AckClusterStatePublishResponseHandler(Set<DiscoveryNode> publishingToNodes, Discovery.AckListener ackListener) {
-        //Don't count the master as acknowledged, because it's not done yet
-        //otherwise we might end up with all the nodes but the master holding the latest cluster state
+        // Don't count the master as acknowledged, because it's not done yet
+        // otherwise we might end up with all the nodes but the master holding the latest cluster state
         super(publishingToNodes);
         this.ackListener = ackListener;
     }

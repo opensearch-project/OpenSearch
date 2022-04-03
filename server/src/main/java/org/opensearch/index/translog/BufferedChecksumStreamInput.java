@@ -53,7 +53,7 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
     public BufferedChecksumStreamInput(StreamInput in, String source, BufferedChecksumStreamInput reuse) {
         super(in);
         this.source = source;
-        if (reuse == null ) {
+        if (reuse == null) {
             this.digest = new BufferedChecksum(new CRC32());
         } else {
             this.digest = reuse.digest;
@@ -103,8 +103,8 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
     public long readLong() throws IOException {
         final byte[] buf = buffer.get();
         readBytes(buf, 0, 8);
-        return (((long) (((buf[0] & 0xFF) << 24) | ((buf[1] & 0xFF) << 16) | ((buf[2] & 0xFF) << 8) | (buf[3] & 0xFF))) << 32)
-            | ((((buf[4] & 0xFF) << 24) | ((buf[5] & 0xFF) << 16) | ((buf[6] & 0xFF) << 8) | (buf[7] & 0xFF)) & 0xFFFFFFFFL);
+        return (((long) (((buf[0] & 0xFF) << 24) | ((buf[1] & 0xFF) << 16) | ((buf[2] & 0xFF) << 8) | (buf[3] & 0xFF))) << 32) | ((((buf[4]
+            & 0xFF) << 24) | ((buf[5] & 0xFF) << 16) | ((buf[6] & 0xFF) << 8) | (buf[7] & 0xFF)) & 0xFFFFFFFFL);
     }
 
     @Override
@@ -133,7 +133,7 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
         }
         assert skipBuffer.length == SKIP_BUFFER_SIZE;
         long skipped = 0;
-        for (; skipped < numBytes; ) {
+        for (; skipped < numBytes;) {
             final int step = (int) Math.min(SKIP_BUFFER_SIZE, numBytes - skipped);
             readBytes(skipBuffer, 0, step);
             skipped += step;
@@ -150,7 +150,7 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
         digest.reset();
     }
 
-    public String getSource(){
+    public String getSource() {
         return source;
     }
 }

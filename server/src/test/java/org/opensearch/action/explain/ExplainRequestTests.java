@@ -59,7 +59,7 @@ public class ExplainRequestTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(indicesModule.getNamedWriteables());
         entries.addAll(searchModule.getNamedWriteables());
@@ -68,12 +68,12 @@ public class ExplainRequestTests extends OpenSearchTestCase {
 
     public void testSerialize() throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            ExplainRequest request = new ExplainRequest("index", "type", "id");
-            request.fetchSourceContext(new FetchSourceContext(true, new String[]{"field1.*"}, new String[] {"field2.*"}));
-            request.filteringAlias(new AliasFilter(QueryBuilders.termQuery("filter_field", "value"), new String[] {"alias0", "alias1"}));
+            ExplainRequest request = new ExplainRequest("index", "id");
+            request.fetchSourceContext(new FetchSourceContext(true, new String[] { "field1.*" }, new String[] { "field2.*" }));
+            request.filteringAlias(new AliasFilter(QueryBuilders.termQuery("filter_field", "value"), "alias0", "alias1"));
             request.preference("the_preference");
             request.query(QueryBuilders.termQuery("field", "value"));
-            request.storedFields(new String[] {"field1", "field2"});
+            request.storedFields(new String[] { "field1", "field2" });
             request.routing("some_routing");
             request.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
@@ -90,7 +90,7 @@ public class ExplainRequestTests extends OpenSearchTestCase {
 
     public void testValidation() {
         {
-            final ExplainRequest request = new ExplainRequest("index4", "_doc", "0");
+            final ExplainRequest request = new ExplainRequest("index4", "0");
             request.query(QueryBuilders.termQuery("field", "value"));
 
             final ActionRequestValidationException validate = request.validate();
@@ -99,12 +99,12 @@ public class ExplainRequestTests extends OpenSearchTestCase {
         }
 
         {
-            final ExplainRequest request = new ExplainRequest("index4", randomBoolean() ? "" : null, randomBoolean() ? "" : null);
+            final ExplainRequest request = new ExplainRequest("index4", randomBoolean() ? "" : null);
             request.query(QueryBuilders.termQuery("field", "value"));
             final ActionRequestValidationException validate = request.validate();
 
             assertThat(validate, not(nullValue()));
-            assertThat(validate.validationErrors(), hasItems("type is missing", "id is missing"));
+            assertThat(validate.validationErrors(), hasItems("id is missing"));
         }
     }
 }

@@ -142,7 +142,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         if (token == XContentParser.Token.VALUE_BOOLEAN) {
             fetchSource = parser.booleanValue();
         } else if (token == XContentParser.Token.VALUE_STRING) {
-            includes = new String[]{parser.text()};
+            includes = new String[] { parser.text() };
         } else if (token == XContentParser.Token.START_ARRAY) {
             ArrayList<String> list = new ArrayList<>();
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -161,8 +161,11 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                             if (token == XContentParser.Token.VALUE_STRING) {
                                 includesList.add(parser.text());
                             } else {
-                                throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token
-                                        + " in [" + currentFieldName + "].", parser.getTokenLocation());
+                                throw new ParsingException(
+                                    parser.getTokenLocation(),
+                                    "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                                    parser.getTokenLocation()
+                                );
                             }
                         }
                         includes = includesList.toArray(new String[includesList.size()]);
@@ -172,32 +175,53 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                             if (token == XContentParser.Token.VALUE_STRING) {
                                 excludesList.add(parser.text());
                             } else {
-                                throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token
-                                        + " in [" + currentFieldName + "].", parser.getTokenLocation());
+                                throw new ParsingException(
+                                    parser.getTokenLocation(),
+                                    "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                                    parser.getTokenLocation()
+                                );
                             }
                         }
                         excludes = excludesList.toArray(new String[excludesList.size()]);
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token
-                                + " in [" + currentFieldName + "].", parser.getTokenLocation());
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                            parser.getTokenLocation()
+                        );
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     if (INCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        includes = new String[] {parser.text()};
+                        includes = new String[] { parser.text() };
                     } else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        excludes = new String[] {parser.text()};
+                        excludes = new String[] { parser.text() };
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token
-                            + " in [" + currentFieldName + "].", parser.getTokenLocation());
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                            parser.getTokenLocation()
+                        );
                     }
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                            parser.getTokenLocation());
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                        parser.getTokenLocation()
+                    );
                 }
             }
         } else {
-            throw new ParsingException(parser.getTokenLocation(), "Expected one of [" + XContentParser.Token.VALUE_BOOLEAN + ", "
-                    + XContentParser.Token.START_OBJECT + "] but found [" + token + "]", parser.getTokenLocation());
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "Expected one of ["
+                    + XContentParser.Token.VALUE_BOOLEAN
+                    + ", "
+                    + XContentParser.Token.START_OBJECT
+                    + "] but found ["
+                    + token
+                    + "]",
+                parser.getTokenLocation()
+            );
         }
         return new FetchSourceContext(fetchSource, includes, excludes);
     }

@@ -42,13 +42,16 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.query.QueryBuilder;
 
 public abstract class AbstractBulkByScrollRequestBuilder<
-                Request extends AbstractBulkByScrollRequest<Request>,
-                Self extends AbstractBulkByScrollRequestBuilder<Request, Self>>
-        extends ActionRequestBuilder<Request, BulkByScrollResponse> {
+    Request extends AbstractBulkByScrollRequest<Request>,
+    Self extends AbstractBulkByScrollRequestBuilder<Request, Self>> extends ActionRequestBuilder<Request, BulkByScrollResponse> {
     private final SearchRequestBuilder source;
 
-    protected AbstractBulkByScrollRequestBuilder(OpenSearchClient client,
-                                                 ActionType<BulkByScrollResponse> action, SearchRequestBuilder source, Request request) {
+    protected AbstractBulkByScrollRequestBuilder(
+        OpenSearchClient client,
+        ActionType<BulkByScrollResponse> action,
+        SearchRequestBuilder source,
+        Request request
+    ) {
         super(client, action, request);
         this.source = source;
     }
@@ -88,7 +91,6 @@ public abstract class AbstractBulkByScrollRequestBuilder<
     public Self size(int size) {
         return maxDocs(size);
     }
-
 
     /**
      * Maximum number of processed documents. Defaults to processing all

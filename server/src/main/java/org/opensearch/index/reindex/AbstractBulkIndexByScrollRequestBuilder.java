@@ -38,12 +38,15 @@ import org.opensearch.client.OpenSearchClient;
 import org.opensearch.script.Script;
 
 public abstract class AbstractBulkIndexByScrollRequestBuilder<
-                Request extends AbstractBulkIndexByScrollRequest<Request>,
-                Self extends AbstractBulkIndexByScrollRequestBuilder<Request, Self>>
-        extends AbstractBulkByScrollRequestBuilder<Request, Self> {
+    Request extends AbstractBulkIndexByScrollRequest<Request>,
+    Self extends AbstractBulkIndexByScrollRequestBuilder<Request, Self>> extends AbstractBulkByScrollRequestBuilder<Request, Self> {
 
-    protected AbstractBulkIndexByScrollRequestBuilder(OpenSearchClient client, ActionType<BulkByScrollResponse> action,
-                                                      SearchRequestBuilder search, Request request) {
+    protected AbstractBulkIndexByScrollRequestBuilder(
+        OpenSearchClient client,
+        ActionType<BulkByScrollResponse> action,
+        SearchRequestBuilder search,
+        Request request
+    ) {
         super(client, action, search, request);
     }
 

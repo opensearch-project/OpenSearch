@@ -62,19 +62,17 @@ import static org.hamcrest.Matchers.not;
 public class OpenSearchTestCaseTests extends OpenSearchTestCase {
 
     public void testExpectThrows() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            throw new IllegalArgumentException("bad arg");
-        });
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> { throw new IllegalArgumentException("bad arg"); });
         assertEquals("bad arg", e.getMessage());
 
         try {
-            expectThrows(IllegalArgumentException.class, () -> {
-               throw new IllegalStateException("bad state");
-            });
+            expectThrows(IllegalArgumentException.class, () -> { throw new IllegalStateException("bad state"); });
             fail("expected assertion error");
         } catch (AssertionFailedError assertFailed) {
-            assertEquals("Unexpected exception type, expected IllegalArgumentException but got java.lang.IllegalStateException: bad state",
-                    assertFailed.getMessage());
+            assertEquals(
+                "Unexpected exception type, expected IllegalArgumentException but got java.lang.IllegalStateException: bad state",
+                assertFailed.getMessage()
+            );
             assertNotNull(assertFailed.getCause());
             assertEquals("bad state", assertFailed.getCause().getMessage());
         }
@@ -84,8 +82,7 @@ public class OpenSearchTestCaseTests extends OpenSearchTestCase {
             fail("expected assertion error");
         } catch (AssertionFailedError assertFailed) {
             assertNull(assertFailed.getCause());
-            assertEquals("Expected exception IllegalArgumentException but no exception was thrown",
-                    assertFailed.getMessage());
+            assertEquals("Expected exception IllegalArgumentException but no exception was thrown", assertFailed.getMessage());
         }
     }
 
@@ -93,7 +90,7 @@ public class OpenSearchTestCaseTests extends OpenSearchTestCase {
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference source = RandomObjects.randomSource(random(), xContentType, 5);
         try (XContentParser parser = createParser(xContentType.xContent(), source)) {
-            LinkedHashMap<String, Object> initialMap = (LinkedHashMap<String, Object>)parser.mapOrdered();
+            LinkedHashMap<String, Object> initialMap = (LinkedHashMap<String, Object>) parser.mapOrdered();
 
             Set<List<String>> distinctKeys = new HashSet<>();
             for (int i = 0; i < 10; i++) {
@@ -102,8 +99,8 @@ public class OpenSearchTestCaseTests extends OpenSearchTestCase {
                 List<String> shuffledKeys = new ArrayList<>(shuffledMap.keySet());
                 distinctKeys.add(shuffledKeys);
             }
-            //out of 10 shuffling runs we expect to have at least more than 1 distinct output.
-            //This is to make sure that we actually do the shuffling
+            // out of 10 shuffling runs we expect to have at least more than 1 distinct output.
+            // This is to make sure that we actually do the shuffling
             assertThat(distinctKeys.size(), greaterThan(1));
         }
     }
@@ -138,7 +135,7 @@ public class OpenSearchTestCaseTests extends OpenSearchTestCase {
             BytesReference bytes = BytesReference.bytes(builder);
             final LinkedHashMap<String, Object> initialMap;
             try (XContentParser parser = createParser(xContentType.xContent(), bytes)) {
-                initialMap = (LinkedHashMap<String, Object>)parser.mapOrdered();
+                initialMap = (LinkedHashMap<String, Object>) parser.mapOrdered();
             }
 
             List<String> expectedInnerKeys1 = Arrays.asList("inner1", "inner2", "inner3");
@@ -153,11 +150,11 @@ public class OpenSearchTestCaseTests extends OpenSearchTestCase {
                             List<String> shuffledKeys = new ArrayList<>(shuffledMap.keySet());
                             distinctTopLevelKeys.add(shuffledKeys);
                             @SuppressWarnings("unchecked")
-                            Map<String, Object> innerMap1 = (Map<String, Object>)shuffledMap.get("object1");
+                            Map<String, Object> innerMap1 = (Map<String, Object>) shuffledMap.get("object1");
                             List<String> actualInnerKeys1 = new ArrayList<>(innerMap1.keySet());
                             assertEquals("object1 should have been left untouched", expectedInnerKeys1, actualInnerKeys1);
                             @SuppressWarnings("unchecked")
-                            Map<String, Object> innerMap2 = (Map<String, Object>)shuffledMap.get("object2");
+                            Map<String, Object> innerMap2 = (Map<String, Object>) shuffledMap.get("object2");
                             List<String> actualInnerKeys2 = new ArrayList<>(innerMap2.keySet());
                             distinctInnerKeys2.add(actualInnerKeys2);
                         }
@@ -165,7 +162,7 @@ public class OpenSearchTestCaseTests extends OpenSearchTestCase {
                 }
             }
 
-            //out of 10 shuffling runs we expect to have at least more than 1 distinct output for both top level keys and inner object2
+            // out of 10 shuffling runs we expect to have at least more than 1 distinct output for both top level keys and inner object2
             assertThat(distinctTopLevelKeys.size(), greaterThan(1));
             assertThat(distinctInnerKeys2.size(), greaterThan(1));
         }

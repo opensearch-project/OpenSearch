@@ -57,20 +57,19 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 2)
 public class BulkProcessorRetryIT extends OpenSearchIntegTestCase {
     private static final String INDEX_NAME = "test";
-    private static final String TYPE_NAME = "type";
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        //Have very low pool and queue sizes to overwhelm internal pools easily
+        // Have very low pool and queue sizes to overwhelm internal pools easily
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                // don't mess with this one! It's quite sensitive to a low queue size
-                // (see also ThreadedActionListener which is happily spawning threads even when we already got rejected)
-                //.put("thread_pool.listener.queue_size", 1)
-                .put("thread_pool.get.queue_size", 1)
-                // default is 200
-                .put("thread_pool.write.queue_size", 30)
-                .build();
+            .put(super.nodeSettings(nodeOrdinal))
+            // don't mess with this one! It's quite sensitive to a low queue size
+            // (see also ThreadedActionListener which is happily spawning threads even when we already got rejected)
+            // .put("thread_pool.listener.queue_size", 1)
+            .put("thread_pool.get.queue_size", 1)
+            // default is 200
+            .put("thread_pool.write.queue_size", 30)
+            .build();
     }
 
     public void testBulkRejectionLoadWithoutBackoff() throws Throwable {
@@ -111,11 +110,12 @@ public class BulkProcessorRetryIT extends OpenSearchIntegTestCase {
                 responses.add(failure);
                 latch.countDown();
             }
-        }).setBulkActions(1)
-                 // zero means that we're in the sync case, more means that we're in the async case
-                .setConcurrentRequests(randomIntBetween(0, 100))
-                .setBackoffPolicy(internalPolicy)
-                .build();
+        })
+            .setBulkActions(1)
+            // zero means that we're in the sync case, more means that we're in the async case
+            .setConcurrentRequests(randomIntBetween(0, 100))
+            .setBackoffPolicy(internalPolicy)
+            .build();
         indexDocs(bulkProcessor, numberOfAsyncOps);
         latch.await(10, TimeUnit.SECONDS);
         bulkProcessor.close();
@@ -158,12 +158,7 @@ public class BulkProcessorRetryIT extends OpenSearchIntegTestCase {
 
         client().admin().indices().refresh(new RefreshRequest()).get();
 
-        SearchResponse results = client()
-                .prepareSearch(INDEX_NAME)
-                .setTypes(TYPE_NAME)
-                .setQuery(QueryBuilders.matchAllQuery())
-                .setSize(0)
-                .get();
+        SearchResponse results = client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).setSize(0).get();
 
         if (rejectedExecutionExpected) {
             assertThat((int) results.getHits().getTotalHits().value, lessThanOrEqualTo(numberOfAsyncOps));
@@ -187,13 +182,13 @@ public class BulkProcessorRetryIT extends OpenSearchIntegTestCase {
 
     private static void indexDocs(BulkProcessor processor, int numDocs) {
         for (int i = 1; i <= numDocs; i++) {
-            processor.add(client()
-                    .prepareIndex()
+            processor.add(
+                client().prepareIndex()
                     .setIndex(INDEX_NAME)
-                    .setType(TYPE_NAME)
                     .setId(Integer.toString(i))
                     .setSource("field", randomRealisticUnicodeOfLengthBetween(1, 30))
-                    .request());
+                    .request()
+            );
         }
     }
 

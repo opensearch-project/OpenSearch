@@ -60,12 +60,23 @@ public class DoubleBounds implements ToXContentFragment, Writeable {
     static final InstantiatingObjectParser<DoubleBounds, Void> PARSER;
 
     static {
-        InstantiatingObjectParser.Builder<DoubleBounds, Void> parser =
-            InstantiatingObjectParser.builder("double_bounds", false, DoubleBounds.class);
-        parser.declareField(optionalConstructorArg(), p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.doubleValue(),
-            MIN_FIELD, ObjectParser.ValueType.DOUBLE_OR_NULL);
-        parser.declareField(optionalConstructorArg(), p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.doubleValue(),
-            MAX_FIELD, ObjectParser.ValueType.DOUBLE_OR_NULL);
+        InstantiatingObjectParser.Builder<DoubleBounds, Void> parser = InstantiatingObjectParser.builder(
+            "double_bounds",
+            false,
+            DoubleBounds.class
+        );
+        parser.declareField(
+            optionalConstructorArg(),
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.doubleValue(),
+            MIN_FIELD,
+            ObjectParser.ValueType.DOUBLE_OR_NULL
+        );
+        parser.declareField(
+            optionalConstructorArg(),
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.doubleValue(),
+            MAX_FIELD,
+            ObjectParser.ValueType.DOUBLE_OR_NULL
+        );
         PARSER = parser.build();
     }
 
@@ -135,8 +146,7 @@ public class DoubleBounds implements ToXContentFragment, Writeable {
             return false;
         }
         DoubleBounds other = (DoubleBounds) obj;
-        return Objects.equals(min, other.min)
-                && Objects.equals(max, other.max);
+        return Objects.equals(min, other.min) && Objects.equals(max, other.max);
     }
 
     public Double getMin() {

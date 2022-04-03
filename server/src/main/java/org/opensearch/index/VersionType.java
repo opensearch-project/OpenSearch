@@ -237,7 +237,6 @@ public enum VersionType implements Writeable {
      */
     public abstract boolean isVersionConflictForWrites(long currentVersion, long expectedVersion, boolean deleted);
 
-
     /**
      * Returns a human readable explanation for a version conflict on write.
      *

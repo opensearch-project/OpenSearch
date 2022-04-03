@@ -33,7 +33,6 @@
 package org.opensearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
@@ -85,9 +84,7 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         fieldName = in.readString();
         value = in.readGenericValue();
         slop = in.readVInt();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
-            zeroTermsQuery = ZeroTermsQuery.readFromStream(in);
-        }
+        zeroTermsQuery = ZeroTermsQuery.readFromStream(in);
         analyzer = in.readOptionalString();
     }
 
@@ -96,9 +93,7 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         out.writeString(fieldName);
         out.writeGenericValue(value);
         out.writeVInt(slop);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
-            zeroTermsQuery.writeTo(out);
-        }
+        zeroTermsQuery.writeTo(out);
         out.writeOptionalString(analyzer);
     }
 
@@ -246,16 +241,22 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
                             } else if ("all".equalsIgnoreCase(zeroTermsValue)) {
                                 zeroTermsQuery = ZeroTermsQuery.ALL;
                             } else {
-                                throw new ParsingException(parser.getTokenLocation(),
-                                    "Unsupported zero_terms_query value [" + zeroTermsValue + "]");
+                                throw new ParsingException(
+                                    parser.getTokenLocation(),
+                                    "Unsupported zero_terms_query value [" + zeroTermsValue + "]"
+                                );
                             }
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(),
-                                    "[" + NAME + "] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "[" + NAME + "] query does not support [" + currentFieldName + "]"
+                            );
                         }
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(),
-                                "[" + NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "[" + NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]"
+                        );
                     }
                 }
             } else {

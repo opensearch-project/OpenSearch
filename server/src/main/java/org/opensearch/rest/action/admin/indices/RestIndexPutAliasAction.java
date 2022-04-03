@@ -53,18 +53,21 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(POST, "/{index}/_alias/{name}"),
-            new Route(PUT, "/{index}/_alias/{name}"),
-            new Route(POST, "/_alias/{name}"),
-            new Route(PUT, "/_alias/{name}"),
-            new Route(POST, "/{index}/_aliases/{name}"),
-            new Route(PUT, "/{index}/_aliases/{name}"),
-            new Route(POST, "/_aliases/{name}"),
-            new Route(PUT, "/_aliases/{name}"),
-            new Route(PUT, "/{index}/_alias"),
-            new Route(PUT, "/{index}/_aliases"),
-            new Route(PUT, "/_alias")));
+        return unmodifiableList(
+            asList(
+                new Route(POST, "/{index}/_alias/{name}"),
+                new Route(PUT, "/{index}/_alias/{name}"),
+                new Route(POST, "/_alias/{name}"),
+                new Route(PUT, "/_alias/{name}"),
+                new Route(POST, "/{index}/_aliases/{name}"),
+                new Route(PUT, "/{index}/_aliases/{name}"),
+                new Route(POST, "/_aliases/{name}"),
+                new Route(PUT, "/_aliases/{name}"),
+                new Route(PUT, "/{index}/_alias"),
+                new Route(PUT, "/{index}/_aliases"),
+                new Route(PUT, "/_alias")
+            )
+        );
     }
 
     @Override
@@ -100,14 +103,16 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
                         } else if ("routing".equals(currentFieldName)) {
                             routing = parser.textOrNull();
                         } else if ("indexRouting".equals(currentFieldName)
-                                || "index-routing".equals(currentFieldName) || "index_routing".equals(currentFieldName)) {
-                            indexRouting = parser.textOrNull();
-                        } else if ("searchRouting".equals(currentFieldName)
-                                || "search-routing".equals(currentFieldName) || "search_routing".equals(currentFieldName)) {
-                            searchRouting = parser.textOrNull();
-                        } else if ("is_write_index".equals(currentFieldName)) {
-                            writeIndex = parser.booleanValue();
-                        }
+                            || "index-routing".equals(currentFieldName)
+                            || "index_routing".equals(currentFieldName)) {
+                                indexRouting = parser.textOrNull();
+                            } else if ("searchRouting".equals(currentFieldName)
+                                || "search-routing".equals(currentFieldName)
+                                || "search_routing".equals(currentFieldName)) {
+                                    searchRouting = parser.textOrNull();
+                                } else if ("is_write_index".equals(currentFieldName)) {
+                                    writeIndex = parser.booleanValue();
+                                }
                     } else if (token == XContentParser.Token.START_OBJECT) {
                         if ("filter".equals(currentFieldName)) {
                             filter = parser.mapOrdered();

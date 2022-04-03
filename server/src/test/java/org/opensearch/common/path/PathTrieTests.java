@@ -270,8 +270,8 @@ public class PathTrieTests extends OpenSearchTestCase {
         assertThat(params.get("test"), equalTo("*"));
     }
 
-    //https://github.com/elastic/elasticsearch/issues/14177
-    //https://github.com/elastic/elasticsearch/issues/13665
+    // https://github.com/elastic/elasticsearch/issues/14177
+    // https://github.com/elastic/elasticsearch/issues/13665
     public void testEscapedSlashWithinUrl() {
         PathTrie<String> pathTrie = new PathTrie<>(RestUtils.REST_DECODER);
         pathTrie.insert("/{index}/{type}/{id}", "test");

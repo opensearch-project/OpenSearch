@@ -73,29 +73,68 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
     }
 
     @Override
-    public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
-                                        long maxSeenAutoIdTimestampOnPrimary, long maxSeqNoOfDeletesOrUpdatesOnPrimary,
-                                        RetentionLeases retentionLeases, long mappingVersionOnPrimary, ActionListener<Long> listener) {
-        executor.execute(() -> target.indexTranslogOperations(operations, totalTranslogOps, maxSeenAutoIdTimestampOnPrimary,
-            maxSeqNoOfDeletesOrUpdatesOnPrimary, retentionLeases, mappingVersionOnPrimary, listener));
+    public void indexTranslogOperations(
+        List<Translog.Operation> operations,
+        int totalTranslogOps,
+        long maxSeenAutoIdTimestampOnPrimary,
+        long maxSeqNoOfDeletesOrUpdatesOnPrimary,
+        RetentionLeases retentionLeases,
+        long mappingVersionOnPrimary,
+        ActionListener<Long> listener
+    ) {
+        executor.execute(
+            () -> target.indexTranslogOperations(
+                operations,
+                totalTranslogOps,
+                maxSeenAutoIdTimestampOnPrimary,
+                maxSeqNoOfDeletesOrUpdatesOnPrimary,
+                retentionLeases,
+                mappingVersionOnPrimary,
+                listener
+            )
+        );
     }
 
     @Override
-    public void receiveFileInfo(List<String> phase1FileNames, List<Long> phase1FileSizes, List<String> phase1ExistingFileNames,
-                                List<Long> phase1ExistingFileSizes, int totalTranslogOps, ActionListener<Void> listener) {
-        executor.execute(() -> target.receiveFileInfo(
-            phase1FileNames, phase1FileSizes, phase1ExistingFileNames, phase1ExistingFileSizes, totalTranslogOps, listener));
+    public void receiveFileInfo(
+        List<String> phase1FileNames,
+        List<Long> phase1FileSizes,
+        List<String> phase1ExistingFileNames,
+        List<Long> phase1ExistingFileSizes,
+        int totalTranslogOps,
+        ActionListener<Void> listener
+    ) {
+        executor.execute(
+            () -> target.receiveFileInfo(
+                phase1FileNames,
+                phase1FileSizes,
+                phase1ExistingFileNames,
+                phase1ExistingFileSizes,
+                totalTranslogOps,
+                listener
+            )
+        );
     }
 
     @Override
-    public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetadata,
-                           ActionListener<Void> listener) {
+    public void cleanFiles(
+        int totalTranslogOps,
+        long globalCheckpoint,
+        Store.MetadataSnapshot sourceMetadata,
+        ActionListener<Void> listener
+    ) {
         executor.execute(() -> target.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetadata, listener));
     }
 
     @Override
-    public void writeFileChunk(StoreFileMetadata fileMetadata, long position, BytesReference content,
-                               boolean lastChunk, int totalTranslogOps, ActionListener<Void> listener) {
+    public void writeFileChunk(
+        StoreFileMetadata fileMetadata,
+        long position,
+        BytesReference content,
+        boolean lastChunk,
+        int totalTranslogOps,
+        ActionListener<Void> listener
+    ) {
         final BytesReference copy = new BytesArray(BytesRef.deepCopyOf(content.toBytesRef()));
         executor.execute(() -> target.writeFileChunk(fileMetadata, position, copy, lastChunk, totalTranslogOps, listener));
     }

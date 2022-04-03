@@ -33,16 +33,22 @@
 package org.opensearch.search.profile.query;
 
 import org.opensearch.search.profile.AbstractProfileBreakdown;
+import org.opensearch.search.profile.ContextualProfileBreakdown;
 
 /**
  * A record of timings for the various operations that may happen during query execution.
  * A node's time may be composed of several internal attributes (rewriting, weighting,
  * scoring, etc).
  */
-public final class QueryProfileBreakdown extends AbstractProfileBreakdown<QueryTimingType> {
+public final class QueryProfileBreakdown extends ContextualProfileBreakdown<QueryTimingType> {
 
     /** Sole constructor. */
     public QueryProfileBreakdown() {
         super(QueryTimingType.class);
+    }
+
+    @Override
+    public AbstractProfileBreakdown<QueryTimingType> context(Object context) {
+        return this;
     }
 }

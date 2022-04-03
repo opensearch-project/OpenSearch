@@ -56,8 +56,10 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
         RangeAggregatorSupplier.class
     );
 
-    public static final ObjectParser<DateRangeAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME,  DateRangeAggregationBuilder::new);
+    public static final ObjectParser<DateRangeAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
+        NAME,
+        DateRangeAggregationBuilder::new
+    );
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, true);
         PARSER.declareBoolean(DateRangeAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
@@ -77,9 +79,11 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
         super(name, InternalDateRange.FACTORY);
     }
 
-    protected DateRangeAggregationBuilder(DateRangeAggregationBuilder clone,
-                                          AggregatorFactories.Builder factoriesBuilder,
-                                          Map<String, Object> metadata) {
+    protected DateRangeAggregationBuilder(
+        DateRangeAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
     }
 
@@ -314,9 +318,12 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
     }
 
     @Override
-    protected DateRangeAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
-                                                    AggregatorFactory parent,
-                                                    AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+    protected DateRangeAggregatorFactory innerBuild(
+        QueryShardContext queryShardContext,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
         // We need to call processRanges here so they are parsed and we know whether `now` has been used before we make
         // the decision of whether to cache the request
         RangeAggregator.Range[] ranges = processRanges(range -> {
@@ -343,7 +350,16 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
         if (ranges.length == 0) {
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
         }
-        return new DateRangeAggregatorFactory(name, config, ranges, keyed, rangeFactory, queryShardContext, parent, subFactoriesBuilder,
-                metadata);
+        return new DateRangeAggregatorFactory(
+            name,
+            config,
+            ranges,
+            keyed,
+            rangeFactory,
+            queryShardContext,
+            parent,
+            subFactoriesBuilder,
+            metadata
+        );
     }
 }

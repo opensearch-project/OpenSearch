@@ -78,9 +78,15 @@ class S3BlobStore implements BlobStore {
     final RequestMetricCollector putMetricCollector;
     final RequestMetricCollector multiPartUploadMetricCollector;
 
-    S3BlobStore(S3Service service, String bucket, boolean serverSideEncryption,
-                ByteSizeValue bufferSize, String cannedACL, String storageClass,
-                RepositoryMetadata repositoryMetadata) {
+    S3BlobStore(
+        S3Service service,
+        String bucket,
+        boolean serverSideEncryption,
+        ByteSizeValue bufferSize,
+        String cannedACL,
+        String storageClass,
+        RepositoryMetadata repositoryMetadata
+    ) {
         this.service = service;
         this.bucket = bucket;
         this.serverSideEncryption = serverSideEncryption;
@@ -112,16 +118,14 @@ class S3BlobStore implements BlobStore {
         this.multiPartUploadMetricCollector = new RequestMetricCollector() {
             @Override
             public void collectMetrics(Request<?> request, Response<?> response) {
-                assert request.getHttpMethod().name().equals("PUT")
-                    || request.getHttpMethod().name().equals("POST");
+                assert request.getHttpMethod().name().equals("PUT") || request.getHttpMethod().name().equals("POST");
                 stats.postCount.addAndGet(getRequestCount(request));
             }
         };
     }
 
     private long getRequestCount(Request<?> request) {
-        Number requestCount = request.getAWSRequestMetrics().getTimingInfo()
-            .getCounter(AWSRequestMetrics.Field.RequestCount.name());
+        Number requestCount = request.getAWSRequestMetrics().getTimingInfo().getCounter(AWSRequestMetrics.Field.RequestCount.name());
         if (requestCount == null) {
             logger.warn("Expected request count to be tracked for request [{}] but found not count.", request);
             return 0L;

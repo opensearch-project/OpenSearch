@@ -47,8 +47,10 @@ import java.util.Map;
 /**
  * Builder for a create index request
  */
-public class CreateIndexRequestBuilder
-    extends AcknowledgedRequestBuilder<CreateIndexRequest, CreateIndexResponse, CreateIndexRequestBuilder> {
+public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<
+    CreateIndexRequest,
+    CreateIndexResponse,
+    CreateIndexRequestBuilder> {
 
     public CreateIndexRequestBuilder(OpenSearchClient client, CreateIndexAction action) {
         super(client, action, new CreateIndexRequest());
@@ -109,12 +111,39 @@ public class CreateIndexRequestBuilder
     /**
      * Adds mapping that will be added when the index gets created.
      *
-     * @param type   The mapping type
      * @param source The mapping source
-     * @param xContentType The content type of the source
      */
-    public CreateIndexRequestBuilder addMapping(String type, String source, XContentType xContentType) {
-        request.mapping(type, source, xContentType);
+    public CreateIndexRequestBuilder setMapping(String source) {
+        request.mapping(source);
+        return this;
+    }
+
+    /**
+     * Adds mapping that will be added when the index gets created.
+     *
+     * @param source The mapping source
+     */
+    public CreateIndexRequestBuilder setMapping(XContentBuilder source) {
+        request.mapping(source);
+        return this;
+    }
+
+    /**
+     * Adds mapping that will be added when the index gets created.
+     *
+     * @param source The mapping source
+     */
+    public CreateIndexRequestBuilder setMapping(Map<String, Object> source) {
+        request.mapping(source);
+        return this;
+    }
+
+    /**
+     * A specialized simplified mapping source method, takes the form of simple properties definition:
+     * ("field1", "type=string,store=true").
+     */
+    public CreateIndexRequestBuilder setMapping(String... source) {
+        request.simpleMapping(source);
         return this;
     }
 
@@ -123,37 +152,6 @@ public class CreateIndexRequestBuilder
      */
     public CreateIndexRequestBuilder setCause(String cause) {
         request.cause(cause);
-        return this;
-    }
-
-    /**
-     * Adds mapping that will be added when the index gets created.
-     *
-     * @param type   The mapping type
-     * @param source The mapping source
-     */
-    public CreateIndexRequestBuilder addMapping(String type, XContentBuilder source) {
-        request.mapping(type, source);
-        return this;
-    }
-
-    /**
-     * Adds mapping that will be added when the index gets created.
-     *
-     * @param type   The mapping type
-     * @param source The mapping source
-     */
-    public CreateIndexRequestBuilder addMapping(String type, Map<String, Object> source) {
-        request.mapping(type, source);
-        return this;
-    }
-
-    /**
-     * A specialized simplified mapping source method, takes the form of simple properties definition:
-     * ("field1", "type=string,store=true").
-     */
-    public CreateIndexRequestBuilder addMapping(String type, Object... source) {
-        request.mapping(type, source);
         return this;
     }
 

@@ -92,7 +92,7 @@ public class IngestDocumentTests extends OpenSearchTestCase {
         list2.add("bar");
         list2.add("baz");
         document.put("list2", list2);
-        ingestDocument = new IngestDocument("index", "type", "id", null, null, null, document);
+        ingestDocument = new IngestDocument("index", "id", null, null, null, document);
     }
 
     public void testSimpleGetFieldValue() {
@@ -101,12 +101,12 @@ public class IngestDocumentTests extends OpenSearchTestCase {
         assertThat(ingestDocument.getFieldValue("_source.foo", String.class), equalTo("bar"));
         assertThat(ingestDocument.getFieldValue("_source.int", Integer.class), equalTo(123));
         assertThat(ingestDocument.getFieldValue("_index", String.class), equalTo("index"));
-        assertThat(ingestDocument.getFieldValue("_type", String.class), equalTo("type"));
         assertThat(ingestDocument.getFieldValue("_id", String.class), equalTo("id"));
-        assertThat(ingestDocument.getFieldValue("_ingest.timestamp", ZonedDateTime.class),
-            both(notNullValue()).and(not(equalTo(BOGUS_TIMESTAMP))));
-        assertThat(ingestDocument.getFieldValue("_source._ingest.timestamp", ZonedDateTime.class),
-            equalTo(BOGUS_TIMESTAMP));
+        assertThat(
+            ingestDocument.getFieldValue("_ingest.timestamp", ZonedDateTime.class),
+            both(notNullValue()).and(not(equalTo(BOGUS_TIMESTAMP)))
+        );
+        assertThat(ingestDocument.getFieldValue("_source._ingest.timestamp", ZonedDateTime.class), equalTo(BOGUS_TIMESTAMP));
     }
 
     public void testGetSourceObject() {
@@ -167,8 +167,10 @@ public class IngestDocumentTests extends OpenSearchTestCase {
         try {
             ingestDocument.getFieldValue("foo.foo.bar", String.class);
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(),
-                    equalTo("cannot resolve [foo] from object of type [java.lang.String] as part of path [foo.foo.bar]"));
+            assertThat(
+                e.getMessage(),
+                equalTo("cannot resolve [foo] from object of type [java.lang.String] as part of path [foo.foo.bar]")
+            );
         }
     }
 
@@ -235,7 +237,6 @@ public class IngestDocumentTests extends OpenSearchTestCase {
     public void testHasField() {
         assertTrue(ingestDocument.hasField("fizz"));
         assertTrue(ingestDocument.hasField("_index"));
-        assertTrue(ingestDocument.hasField("_type"));
         assertTrue(ingestDocument.hasField("_id"));
         assertTrue(ingestDocument.hasField("_source.fizz"));
         assertTrue(ingestDocument.hasField("_ingest.timestamp"));
@@ -387,8 +388,10 @@ public class IngestDocumentTests extends OpenSearchTestCase {
             ingestDocument.setFieldValue("fizz.buzz.new", "bar");
             fail("add field should have failed");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(),
-                    equalTo("cannot set [new] with parent object of type [java.lang.String] as part of path [fizz.buzz.new]"));
+            assertThat(
+                e.getMessage(),
+                equalTo("cannot set [new] with parent object of type [java.lang.String] as part of path [fizz.buzz.new]")
+            );
         }
     }
 
@@ -421,7 +424,7 @@ public class IngestDocumentTests extends OpenSearchTestCase {
     }
 
     public void testSetIngestSourceObject() {
-        //test that we don't strip out the _source prefix when _ingest is used
+        // test that we don't strip out the _source prefix when _ingest is used
         ingestDocument.setFieldValue("_ingest._source", "value");
         assertThat(ingestDocument.getIngestMetadata().get("_source"), equalTo("value"));
     }
@@ -803,23 +806,23 @@ public class IngestDocumentTests extends OpenSearchTestCase {
 
     public void testRemoveField() {
         ingestDocument.removeField("foo");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(7));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("foo"), equalTo(false));
         ingestDocument.removeField("_index");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(7));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(6));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("_index"), equalTo(false));
         ingestDocument.removeField("_source.fizz");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(6));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(5));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("fizz"), equalTo(false));
         assertThat(ingestDocument.getIngestMetadata().size(), equalTo(1));
         ingestDocument.removeField("_ingest.timestamp");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(6));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(5));
         assertThat(ingestDocument.getIngestMetadata().size(), equalTo(0));
     }
 
     public void testRemoveInnerField() {
         ingestDocument.removeField("fizz.buzz");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(9));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
         assertThat(ingestDocument.getSourceAndMetadata().get("fizz"), instanceOf(Map.class));
         @SuppressWarnings("unchecked")
         Map<String, Object> map = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("fizz");
@@ -828,17 +831,17 @@ public class IngestDocumentTests extends OpenSearchTestCase {
 
         ingestDocument.removeField("fizz.foo_null");
         assertThat(map.size(), equalTo(2));
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(9));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
 
         ingestDocument.removeField("fizz.1");
         assertThat(map.size(), equalTo(1));
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(9));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
 
         ingestDocument.removeField("fizz.list");
         assertThat(map.size(), equalTo(0));
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(9));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
     }
 
@@ -856,8 +859,10 @@ public class IngestDocumentTests extends OpenSearchTestCase {
             ingestDocument.removeField("foo.foo.bar");
             fail("remove field should have failed");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(),
-                    equalTo("cannot resolve [foo] from object of type [java.lang.String] as part of path [foo.foo.bar]"));
+            assertThat(
+                e.getMessage(),
+                equalTo("cannot resolve [foo] from object of type [java.lang.String] as part of path [foo.foo.bar]")
+            );
         }
     }
 
@@ -872,7 +877,7 @@ public class IngestDocumentTests extends OpenSearchTestCase {
 
     public void testRemoveIngestObject() {
         ingestDocument.removeField("_ingest");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(7));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("_ingest"), equalTo(false));
     }
 
@@ -894,7 +899,7 @@ public class IngestDocumentTests extends OpenSearchTestCase {
 
     public void testListRemoveField() {
         ingestDocument.removeField("list.0.field");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(9));
+        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("list"), equalTo(true));
         Object object = ingestDocument.getSourceAndMetadata().get("list");
         assertThat(object, instanceOf(List.class));
@@ -1011,8 +1016,10 @@ public class IngestDocumentTests extends OpenSearchTestCase {
             assertThat(ingestDocument, equalTo(otherIngestDocument));
             assertThat(otherIngestDocument, equalTo(ingestDocument));
             assertThat(ingestDocument.hashCode(), equalTo(otherIngestDocument.hashCode()));
-            IngestDocument thirdIngestDocument = new IngestDocument(Collections.unmodifiableMap(sourceAndMetadata),
-                    Collections.unmodifiableMap(ingestMetadata));
+            IngestDocument thirdIngestDocument = new IngestDocument(
+                Collections.unmodifiableMap(sourceAndMetadata),
+                Collections.unmodifiableMap(ingestMetadata)
+            );
             assertThat(thirdIngestDocument, equalTo(ingestDocument));
             assertThat(ingestDocument, equalTo(thirdIngestDocument));
             assertThat(ingestDocument.hashCode(), equalTo(thirdIngestDocument.hashCode()));
@@ -1047,10 +1054,8 @@ public class IngestDocumentTests extends OpenSearchTestCase {
         IngestDocument original = new IngestDocument(sourceAndMetadata, new HashMap<>());
         IngestDocument copy = new IngestDocument(original);
 
-        assertThat(copy.getSourceAndMetadata().get("beforeClockChange"),
-            equalTo(original.getSourceAndMetadata().get("beforeClockChange")));
-        assertThat(copy.getSourceAndMetadata().get("afterClockChange"),
-            equalTo(original.getSourceAndMetadata().get("afterClockChange")));
+        assertThat(copy.getSourceAndMetadata().get("beforeClockChange"), equalTo(original.getSourceAndMetadata().get("beforeClockChange")));
+        assertThat(copy.getSourceAndMetadata().get("afterClockChange"), equalTo(original.getSourceAndMetadata().get("afterClockChange")));
     }
 
     public void testSetInvalidSourceField() throws Exception {
@@ -1065,8 +1070,10 @@ public class IngestDocumentTests extends OpenSearchTestCase {
         } catch (IllegalArgumentException e) {
             String expectedClassName = randomObject.getClass().getName();
 
-            assertThat(e.getMessage(),
-                    containsString("field [source_field] of unknown type [" + expectedClassName + "], must be string or byte array"));
+            assertThat(
+                e.getMessage(),
+                containsString("field [source_field] of unknown type [" + expectedClassName + "], must be string or byte array")
+            );
         }
     }
 

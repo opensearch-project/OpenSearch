@@ -58,12 +58,13 @@ public abstract class AbstractTermsTestCase extends OpenSearchIntegTestCase {
     public void testOtherDocCount(String... fieldNames) {
         for (String fieldName : fieldNames) {
             SearchResponse allTerms = client().prepareSearch("idx")
-                    .addAggregation(terms("terms")
-                            .executionHint(randomExecutionHint())
-                            .field(fieldName)
-                            .size(10000)
-                            .collectMode(randomFrom(SubAggCollectionMode.values())))
-                    .get();
+                .addAggregation(
+                    terms("terms").executionHint(randomExecutionHint())
+                        .field(fieldName)
+                        .size(10000)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
+                )
+                .get();
             assertSearchResponse(allTerms);
 
             Terms terms = allTerms.getAggregations().get("terms");
@@ -74,13 +75,14 @@ public abstract class AbstractTermsTestCase extends OpenSearchIntegTestCase {
             for (int size = 1; size < totalNumTerms + 2; size += randomIntBetween(1, 5)) {
                 for (int shardSize = size; shardSize <= totalNumTerms + 2; shardSize += randomIntBetween(1, 5)) {
                     SearchResponse resp = client().prepareSearch("idx")
-                            .addAggregation(terms("terms")
-                                    .executionHint(randomExecutionHint())
-                                    .field(fieldName)
-                                    .size(size)
-                                    .shardSize(shardSize)
-                                    .collectMode(randomFrom(SubAggCollectionMode.values())))
-                            .get();
+                        .addAggregation(
+                            terms("terms").executionHint(randomExecutionHint())
+                                .field(fieldName)
+                                .size(size)
+                                .shardSize(shardSize)
+                                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                        )
+                        .get();
                     assertSearchResponse(resp);
                     terms = resp.getAggregations().get("terms");
                     assertEquals(Math.min(size, totalNumTerms), terms.getBuckets().size());

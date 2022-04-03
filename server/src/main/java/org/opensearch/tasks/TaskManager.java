@@ -313,7 +313,6 @@ public class TaskManager implements ClusterStateApplier {
         return Collections.unmodifiableMap(taskHashMap);
     }
 
-
     /**
      * Returns the list of currently running tasks on the node that can be cancelled
      */
@@ -374,10 +373,7 @@ public class TaskManager implements ClusterStateApplier {
                 banedParents.put(parentTaskId, reason);
             }
         }
-        return cancellableTasks.values().stream()
-            .filter(t -> t.hasParent(parentTaskId))
-            .map(t -> t.task)
-            .collect(Collectors.toList());
+        return cancellableTasks.values().stream().filter(t -> t.hasParent(parentTaskId)).map(t -> t.task).collect(Collectors.toList());
     }
 
     /**
@@ -423,8 +419,11 @@ public class TaskManager implements ClusterStateApplier {
                 while (banIterator.hasNext()) {
                     TaskId taskId = banIterator.next();
                     if (lastDiscoveryNodes.nodeExists(taskId.getNodeId()) == false) {
-                        logger.debug("Removing ban for the parent [{}] on the node [{}], reason: the parent node is gone", taskId,
-                            event.state().getNodes().getLocalNode());
+                        logger.debug(
+                            "Removing ban for the parent [{}] on the node [{}], reason: the parent node is gone",
+                            taskId,
+                            event.state().getNodes().getLocalNode()
+                        );
                         banIterator.remove();
                     }
                 }
@@ -565,7 +564,8 @@ public class TaskManager implements ClusterStateApplier {
                     pendingChildNodes = Collections.emptySet();
                 } else {
                     pendingChildNodes = StreamSupport.stream(childTasksPerNode.spliterator(), false)
-                        .map(e -> e.key).collect(Collectors.toSet());
+                        .map(e -> e.key)
+                        .collect(Collectors.toSet());
                 }
                 if (pendingChildNodes.isEmpty()) {
                     assert childTaskCompletedListeners == null;
@@ -599,15 +599,11 @@ public class TaskManager implements ClusterStateApplier {
             return curr;
         });
         if (tracker.registered.compareAndSet(false, true)) {
-            channel.addCloseListener(ActionListener.wrap(
-                r -> {
-                    final ChannelPendingTaskTracker removedTracker = channelPendingTaskTrackers.remove(channel);
-                    assert removedTracker == tracker;
-                    cancelTasksOnChannelClosed(tracker.drainTasks());
-                },
-                e -> {
-                    assert false : new AssertionError("must not be here", e);
-                }));
+            channel.addCloseListener(ActionListener.wrap(r -> {
+                final ChannelPendingTaskTracker removedTracker = channelPendingTaskTrackers.remove(channel);
+                assert removedTracker == tracker;
+                cancelTasksOnChannelClosed(tracker.drainTasks());
+            }, e -> { assert false : new AssertionError("must not be here", e); }));
         }
         return () -> tracker.removeTask(task);
     }

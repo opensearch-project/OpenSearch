@@ -32,7 +32,6 @@
 
 package org.opensearch.index.fielddata.plain;
 
-import org.apache.lucene.document.HalfFloatPoint;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReader;
@@ -53,6 +52,7 @@ import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.opensearch.index.mapper.DocValueFetcher;
 import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.support.ValuesSourceType;
@@ -77,10 +77,7 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         }
 
         @Override
-        public SortedNumericIndexFieldData build(
-            IndexFieldDataCache cache,
-            CircuitBreakerService breakerService
-        ) {
+        public SortedNumericIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
             return new SortedNumericIndexFieldData(name, numericType);
         }
     }
@@ -114,8 +111,13 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     protected XFieldComparatorSource dateComparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
         if (numericType == NumericType.DATE_NANOSECONDS) {
             // converts date_nanos values to millisecond resolution
-            return new LongValuesComparatorSource(this, missingValue,
-                sortMode, nested, dvs -> convertNumeric(dvs, DateUtils::toMilliSeconds));
+            return new LongValuesComparatorSource(
+                this,
+                missingValue,
+                sortMode,
+                nested,
+                dvs -> convertNumeric(dvs, DateUtils::toMilliSeconds)
+            );
         }
         return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
     }
@@ -124,8 +126,13 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     protected XFieldComparatorSource dateNanosComparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
         if (numericType == NumericType.DATE) {
             // converts date values to nanosecond resolution
-            return new LongValuesComparatorSource(this, missingValue,
-                sortMode, nested, dvs -> convertNumeric(dvs, DateUtils::toNanoSeconds));
+            return new LongValuesComparatorSource(
+                this,
+                missingValue,
+                sortMode,
+                nested,
+                dvs -> convertNumeric(dvs, DateUtils::toNanoSeconds)
+            );
         }
         return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
     }

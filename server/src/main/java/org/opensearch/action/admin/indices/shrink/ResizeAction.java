@@ -32,15 +32,12 @@
 
 package org.opensearch.action.admin.indices.shrink;
 
-import org.opensearch.LegacyESVersion;
-import org.opensearch.Version;
 import org.opensearch.action.ActionType;
 
 public class ResizeAction extends ActionType<ResizeResponse> {
 
     public static final ResizeAction INSTANCE = new ResizeAction();
     public static final String NAME = "indices:admin/resize";
-    public static final Version COMPATIBILITY_VERSION = LegacyESVersion.V_6_1_0; // TODO remove this once it's backported
 
     private ResizeAction() {
         super(NAME, ResizeResponse::new);

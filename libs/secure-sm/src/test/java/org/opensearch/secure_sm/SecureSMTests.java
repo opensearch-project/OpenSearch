@@ -37,6 +37,7 @@ import junit.framework.TestCase;
 import java.security.Permission;
 import java.security.Policy;
 import java.security.ProtectionDomain;
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Simple tests for SecureSM */
@@ -57,7 +58,7 @@ public class SecureSMTests extends TestCase {
                 return true;
             }
         });
-        System.setSecurityManager(SecureSM.createTestSecureSM());
+        System.setSecurityManager(SecureSM.createTestSecureSM(Collections.emptySet()));
     }
 
     @SuppressForbidden(reason = "testing that System#exit is blocked")
@@ -73,8 +74,8 @@ public class SecureSMTests extends TestCase {
         assertTrue(SecureSM.classCanExit("com.carrotsearch.ant.tasks.junit4.slave.JvmExit", SecureSM.TEST_RUNNER_PACKAGES));
         assertTrue(SecureSM.classCanExit("org.eclipse.jdt.internal.junit.runner.RemoteTestRunner", SecureSM.TEST_RUNNER_PACKAGES));
         assertTrue(SecureSM.classCanExit("com.intellij.rt.execution.junit.JUnitStarter", SecureSM.TEST_RUNNER_PACKAGES));
-        assertTrue(SecureSM.classCanExit("org.opensearch.Foo", new String[]{"org.opensearch.Foo"}));
-        assertFalse(SecureSM.classCanExit("org.opensearch.Foo", new String[]{"org.opensearch.Bar"}));
+        assertTrue(SecureSM.classCanExit("org.opensearch.Foo", new String[] { "org.opensearch.Foo" }));
+        assertFalse(SecureSM.classCanExit("org.opensearch.Foo", new String[] { "org.opensearch.Bar" }));
     }
 
     public void testCreateThread() throws Exception {

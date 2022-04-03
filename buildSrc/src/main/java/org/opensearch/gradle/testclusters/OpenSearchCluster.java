@@ -103,10 +103,9 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         this.nodes = project.container(OpenSearchNode.class);
         this.bwcJdk = bwcJdk;
 
-        this.nodes.add(
-            new OpenSearchNode(path, clusterName + "-0", project, reaper, fileSystemOperations, archiveOperations, workingDirBase, bwcJdk)
-        );
-        // configure the cluster name eagerly so nodes know about it
+        // Always add the first node
+        addNode(clusterName + "-0");
+        // configure the cluster name eagerly so all nodes know about it
         this.nodes.all((node) -> node.defaultConfig.put("cluster.name", safeName(clusterName)));
 
         addWaitForClusterHealth();
@@ -126,19 +125,24 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         }
 
         for (int i = nodes.size(); i < numberOfNodes; i++) {
-            this.nodes.add(
-                new OpenSearchNode(
-                    path,
-                    clusterName + "-" + i,
-                    project,
-                    reaper,
-                    fileSystemOperations,
-                    archiveOperations,
-                    workingDirBase,
-                    bwcJdk
-                )
-            );
+            addNode(clusterName + "-" + i);
         }
+    }
+
+    private void addNode(String nodeName) {
+        OpenSearchNode newNode = new OpenSearchNode(
+            path,
+            nodeName,
+            project,
+            reaper,
+            fileSystemOperations,
+            archiveOperations,
+            workingDirBase,
+            bwcJdk
+        );
+        // configure the cluster name eagerly
+        newNode.defaultConfig.put("cluster.name", safeName(clusterName));
+        this.nodes.add(newNode);
     }
 
     @Internal
@@ -184,6 +188,11 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     @Override
     public void plugin(String pluginProjectPath) {
         nodes.all(each -> each.plugin(pluginProjectPath));
+    }
+
+    @Override
+    public void upgradePlugin(List<Provider<RegularFile>> plugins) {
+        nodes.all(each -> each.upgradePlugin(plugins));
     }
 
     @Override
@@ -352,7 +361,12 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
                 .collect(Collectors.toList())
                 .forEach(node.defaultConfig::remove);
             if (nodeNames != null && node.settings.getOrDefault("discovery.type", "anything").equals("single-node") == false) {
-                node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
+                // To promote inclusive language, the old setting name is deprecated n 2.0.0
+                if (node.getVersion().onOrAfter("2.0.0")) {
+                    node.defaultConfig.put("cluster.initial_cluster_manager_nodes", "[" + nodeNames + "]");
+                } else {
+                    node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
+                }
             }
             node.defaultConfig.put("discovery.seed_providers", "file");
             node.defaultConfig.put("discovery.seed_hosts", "[]");
@@ -387,20 +401,22 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         writeUnicastHostsFiles();
     }
 
-    public void fullRestart() {
+    public void upgradeAllNodesAndPluginsToNextVersion(List<Provider<RegularFile>> plugins) {
         stop(false);
+        nodes.all(OpenSearchNode::goToNextVersion);
+        upgradePlugin(plugins);
         start();
+        writeUnicastHostsFiles();
     }
 
     public void nextNodeToNextVersion() {
-        if (nodeIndex + 1 > nodes.size()) {
-            throw new TestClustersException("Ran out of nodes to take to the next version");
-        }
-        OpenSearchNode node = nodes.getByName(clusterName + "-" + nodeIndex);
-        node.stop(false);
-        node.goToNextVersion();
-        commonNodeConfig(node, null, null);
-        nodeIndex += 1;
+        OpenSearchNode node = upgradeNodeToNextVersion();
+        node.start();
+    }
+
+    public void upgradeNodeAndPluginToNextVersion(List<Provider<RegularFile>> plugins) {
+        OpenSearchNode node = upgradeNodeToNextVersion();
+        node.upgradePlugin(plugins);
         node.start();
     }
 
@@ -433,6 +449,18 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
                 throw new UncheckedIOException("Failed to write unicast_hosts for " + this, e);
             }
         });
+    }
+
+    private OpenSearchNode upgradeNodeToNextVersion() {
+        if (nodeIndex + 1 > nodes.size()) {
+            throw new TestClustersException("Ran out of nodes to take to the next version");
+        }
+        OpenSearchNode node = nodes.getByName(clusterName + "-" + nodeIndex);
+        node.stop(false);
+        node.goToNextVersion();
+        commonNodeConfig(node, null, null);
+        nodeIndex += 1;
+        return node;
     }
 
     @Override

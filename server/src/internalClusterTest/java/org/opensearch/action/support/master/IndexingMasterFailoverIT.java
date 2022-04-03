@@ -75,9 +75,11 @@ public class IndexingMasterFailoverIT extends OpenSearchIntegTestCase {
         ensureStableCluster(4);
 
         // We index data with mapping changes into cluster and have master failover at same time
-        client().admin().indices().prepareCreate("myindex")
-                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
-                .get();
+        client().admin()
+            .indices()
+            .prepareCreate("myindex")
+            .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+            .get();
         ensureGreen("myindex");
 
         final CyclicBarrier barrier = new CyclicBarrier(2);
@@ -95,8 +97,8 @@ public class IndexingMasterFailoverIT extends OpenSearchIntegTestCase {
                     return;
                 }
                 for (int i = 0; i < 10; i++) {
-                    // index data with mapping changes
-                    IndexResponse response = client(dataNode).prepareIndex("myindex", "mytype").setSource("field_" + i, "val").get();
+                    // index data
+                    IndexResponse response = client(dataNode).prepareIndex("myindex").setSource("field_" + i, "val").get();
                     assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
                 }
             }

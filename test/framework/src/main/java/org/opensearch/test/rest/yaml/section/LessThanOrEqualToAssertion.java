@@ -50,13 +50,15 @@ import static org.junit.Assert.fail;
  *
  *   - lte:     { fields._ttl: 0 }
  */
-public class LessThanOrEqualToAssertion  extends Assertion {
+public class LessThanOrEqualToAssertion extends Assertion {
     public static LessThanOrEqualToAssertion parse(XContentParser parser) throws IOException {
         XContentLocation location = parser.getTokenLocation();
-        Tuple<String,Object> stringObjectTuple = ParserUtils.parseTuple(parser);
+        Tuple<String, Object> stringObjectTuple = ParserUtils.parseTuple(parser);
         if (false == stringObjectTuple.v2() instanceof Comparable) {
-            throw new IllegalArgumentException("lte section can only be used with objects that support natural ordering, found "
-                    + stringObjectTuple.v2().getClass().getSimpleName());
+            throw new IllegalArgumentException(
+                "lte section can only be used with objects that support natural ordering, found "
+                    + stringObjectTuple.v2().getClass().getSimpleName()
+            );
         }
         return new LessThanOrEqualToAssertion(location, stringObjectTuple.v1(), stringObjectTuple.v2());
     }
@@ -70,10 +72,16 @@ public class LessThanOrEqualToAssertion  extends Assertion {
     @Override
     protected void doAssert(Object actualValue, Object expectedValue) {
         logger.trace("assert that [{}] is less than or equal to [{}] (field: [{}])", actualValue, expectedValue, getField());
-        assertThat("value of [" + getField() + "] is not comparable (got [" + safeClass(actualValue) + "])",
-                actualValue, instanceOf(Comparable.class));
-        assertThat("expected value of [" + getField() + "] is not comparable (got [" + expectedValue.getClass() + "])",
-                expectedValue, instanceOf(Comparable.class));
+        assertThat(
+            "value of [" + getField() + "] is not comparable (got [" + safeClass(actualValue) + "])",
+            actualValue,
+            instanceOf(Comparable.class)
+        );
+        assertThat(
+            "expected value of [" + getField() + "] is not comparable (got [" + expectedValue.getClass() + "])",
+            expectedValue,
+            instanceOf(Comparable.class)
+        );
         try {
             assertThat(errorMessage(), (Comparable) actualValue, lessThanOrEqualTo((Comparable) expectedValue));
         } catch (ClassCastException e) {

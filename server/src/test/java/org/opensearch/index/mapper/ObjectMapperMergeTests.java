@@ -52,8 +52,12 @@ public class ObjectMapperMergeTests extends OpenSearchTestCase {
 
     private final RootObjectMapper rootObjectMapper = createMapping(false, true, true, false);
 
-    private RootObjectMapper createMapping(boolean disabledFieldEnabled, boolean fooFieldEnabled,
-                                                  boolean includeBarField, boolean includeBazField) {
+    private RootObjectMapper createMapping(
+        boolean disabledFieldEnabled,
+        boolean fooFieldEnabled,
+        boolean includeBarField,
+        boolean includeBazField
+    ) {
         Map<String, Mapper> mappers = new HashMap<>();
         mappers.put("disabled", createObjectMapper("disabled", disabledFieldEnabled, emptyMap()));
         Map<String, Mapper> fooMappers = new HashMap<>();
@@ -63,7 +67,7 @@ public class ObjectMapperMergeTests extends OpenSearchTestCase {
         if (includeBazField) {
             fooMappers.put("baz", bazFieldMapper);
         }
-        mappers.put("foo", createObjectMapper("foo", fooFieldEnabled,  Collections.unmodifiableMap(fooMappers)));
+        mappers.put("foo", createObjectMapper("foo", fooFieldEnabled, Collections.unmodifiableMap(fooMappers)));
         return createRootObjectMapper("type1", true, Collections.unmodifiableMap(mappers));
     }
 
@@ -114,10 +118,14 @@ public class ObjectMapperMergeTests extends OpenSearchTestCase {
 
     public void testMergeNested() {
         String type = MapperService.SINGLE_MAPPING_NAME;
-        ObjectMapper firstMapper = createNestedMapper(type,
-            ObjectMapper.Nested.newNested(new Explicit<>(true, true), new Explicit<>(true, true)));
-        ObjectMapper secondMapper = createNestedMapper(type,
-            ObjectMapper.Nested.newNested(new Explicit<>(false, true), new Explicit<>(false, false)));
+        ObjectMapper firstMapper = createNestedMapper(
+            type,
+            ObjectMapper.Nested.newNested(new Explicit<>(true, true), new Explicit<>(true, true))
+        );
+        ObjectMapper secondMapper = createNestedMapper(
+            type,
+            ObjectMapper.Nested.newNested(new Explicit<>(false, true), new Explicit<>(false, false))
+        );
 
         MapperException e = expectThrows(MapperException.class, () -> firstMapper.merge(secondMapper));
         assertThat(e.getMessage(), containsString("[include_in_parent] parameter can't be updated on a nested object mapping"));
@@ -150,9 +158,7 @@ public class ObjectMapperMergeTests extends OpenSearchTestCase {
     private static ObjectMapper createNestedMapper(String name, ObjectMapper.Nested nested) {
         final Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build();
         final Mapper.BuilderContext context = new Mapper.BuilderContext(indexSettings, new ContentPath());
-        return new ObjectMapper.Builder<>(name)
-            .nested(nested)
-            .build(context);
+        return new ObjectMapper.Builder<>(name).nested(nested).build(context);
     }
 
     private TextFieldMapper createTextFieldMapper(String name) {

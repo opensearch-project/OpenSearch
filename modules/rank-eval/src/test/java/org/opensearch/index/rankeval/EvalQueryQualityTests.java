@@ -73,23 +73,27 @@ public class EvalQueryQualityTests extends OpenSearchTestCase {
             ratedSearchHit.getSearchHit().shard(new SearchShardTarget("_na_", new ShardId("index", "_na_", 0), null, OriginalIndices.NONE));
             ratedHits.add(ratedSearchHit);
         }
-        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(randomAlphaOfLength(10),
-                randomDoubleBetween(0.0, 1.0, true));
+        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(randomAlphaOfLength(10), randomDoubleBetween(0.0, 1.0, true));
         if (randomBoolean()) {
             int metricDetail = randomIntBetween(0, 2);
             switch (metricDetail) {
-            case 0:
-                evalQueryQuality.setMetricDetails(new PrecisionAtK.Detail(randomIntBetween(0, 1000), randomIntBetween(0, 1000)));
-                break;
-            case 1:
-                evalQueryQuality.setMetricDetails(new MeanReciprocalRank.Detail(randomIntBetween(0, 1000)));
-                break;
-            case 2:
-                evalQueryQuality.setMetricDetails(new DiscountedCumulativeGain.Detail(randomDoubleBetween(0, 1, true),
-                        randomBoolean() ? randomDoubleBetween(0, 1, true) : 0, randomInt()));
-                break;
-            default:
-                throw new IllegalArgumentException("illegal randomized value in test");
+                case 0:
+                    evalQueryQuality.setMetricDetails(new PrecisionAtK.Detail(randomIntBetween(0, 1000), randomIntBetween(0, 1000)));
+                    break;
+                case 1:
+                    evalQueryQuality.setMetricDetails(new MeanReciprocalRank.Detail(randomIntBetween(0, 1000)));
+                    break;
+                case 2:
+                    evalQueryQuality.setMetricDetails(
+                        new DiscountedCumulativeGain.Detail(
+                            randomDoubleBetween(0, 1, true),
+                            randomBoolean() ? randomDoubleBetween(0, 1, true) : 0,
+                            randomInt()
+                        )
+                    );
+                    break;
+                default:
+                    throw new IllegalArgumentException("illegal randomized value in test");
             }
         }
         evalQueryQuality.addHitsAndRatings(ratedHits);
@@ -147,24 +151,24 @@ public class EvalQueryQualityTests extends OpenSearchTestCase {
         List<RatedSearchHit> ratedHits = new ArrayList<>(original.getHitsAndRatings());
         MetricDetail metricDetails = original.getMetricDetails();
         switch (randomIntBetween(0, 3)) {
-        case 0:
-            id = id + "_";
-            break;
-        case 1:
-            metricScore = metricScore + 0.1;
-            break;
-        case 2:
-            if (metricDetails == null) {
-                metricDetails = new PrecisionAtK.Detail(1, 5);
-            } else {
-                metricDetails = null;
-            }
-            break;
-        case 3:
-            ratedHits.add(RatedSearchHitTests.randomRatedSearchHit());
-            break;
-        default:
-            throw new IllegalStateException("The test should only allow four parameters mutated");
+            case 0:
+                id = id + "_";
+                break;
+            case 1:
+                metricScore = metricScore + 0.1;
+                break;
+            case 2:
+                if (metricDetails == null) {
+                    metricDetails = new PrecisionAtK.Detail(1, 5);
+                } else {
+                    metricDetails = null;
+                }
+                break;
+            case 3:
+                ratedHits.add(RatedSearchHitTests.randomRatedSearchHit());
+                break;
+            default:
+                throw new IllegalStateException("The test should only allow four parameters mutated");
         }
         EvalQueryQuality evalQueryQuality = new EvalQueryQuality(id, metricScore);
         evalQueryQuality.setMetricDetails(metricDetails);

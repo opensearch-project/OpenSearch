@@ -42,8 +42,7 @@ import java.io.IOException;
  */
 public abstract class ActionResponse extends TransportResponse {
 
-    public ActionResponse() {
-    }
+    public ActionResponse() {}
 
     public ActionResponse(StreamInput in) throws IOException {
         super(in);

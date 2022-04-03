@@ -215,18 +215,18 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
     protected void randomFieldOrScript(ValuesSourceAggregationBuilder<?> factory, String field) {
         int choice = randomInt(2);
         switch (choice) {
-        case 0:
-            factory.field(field);
-            break;
-        case 1:
-            factory.field(field);
-            factory.script(mockScript("_value + 1"));
-            break;
-        case 2:
-            factory.script(mockScript("doc[" + field + "] + 1"));
-            break;
-        default:
-            throw new AssertionError("Unknown random operation [" + choice + "]");
+            case 0:
+                factory.field(field);
+                break;
+            case 1:
+                factory.field(field);
+                factory.script(mockScript("_value + 1"));
+                break;
+            case 2:
+                factory.script(mockScript("doc[" + field + "] + 1"));
+                break;
+            default:
+                throw new AssertionError("Unknown random operation [" + choice + "]");
         }
     }
 

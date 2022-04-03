@@ -115,7 +115,7 @@ public final class GeometryParser {
      * <p>
      * Json structure: valid geojson definition
      */
-    public  Geometry parseGeometry(Object value) throws OpenSearchParseException {
+    public Geometry parseGeometry(Object value) throws OpenSearchParseException {
         if (value instanceof List) {
             List<?> values = (List<?>) value;
             if (values.size() == 2 && values.get(0) instanceof Number) {
@@ -129,8 +129,14 @@ public final class GeometryParser {
                 return new GeometryCollection<>(geometries);
             }
         }
-        try (XContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
-            Collections.singletonMap("null_value", value), null)) {
+        try (
+            XContentParser parser = new MapXContentParser(
+                NamedXContentRegistry.EMPTY,
+                LoggingDeprecationHandler.INSTANCE,
+                Collections.singletonMap("null_value", value),
+                null
+            )
+        ) {
             parser.nextToken(); // start object
             parser.nextToken(); // field name
             parser.nextToken(); // field value

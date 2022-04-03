@@ -55,10 +55,12 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureFieldName
 import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
-public class SearchProfileShardResultsTests  extends OpenSearchTestCase {
+public class SearchProfileShardResultsTests extends OpenSearchTestCase {
 
     public static SearchProfileShardResults createTestItem() {
         int size = rarely() ? 0 : randomIntBetween(1, 2);
+        long inboundTime = 0;
+        long outboundTime = 0;
         Map<String, ProfileShardResult> searchProfileResults = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
             List<QueryProfileShardResult> queryProfileResults = new ArrayList<>();
@@ -67,7 +69,11 @@ public class SearchProfileShardResultsTests  extends OpenSearchTestCase {
                 queryProfileResults.add(QueryProfileShardResultTests.createTestItem());
             }
             AggregationProfileShardResult aggProfileShardResult = AggregationProfileShardResultTests.createTestItem(1);
-            searchProfileResults.put(randomAlphaOfLengthBetween(5, 10), new ProfileShardResult(queryProfileResults, aggProfileShardResult));
+            NetworkTime networkTime = new NetworkTime(inboundTime, outboundTime);
+            searchProfileResults.put(
+                randomAlphaOfLengthBetween(5, 10),
+                new ProfileShardResult(queryProfileResults, aggProfileShardResult, networkTime)
+            );
         }
         return new SearchProfileShardResults(searchProfileResults);
     }
@@ -94,8 +100,8 @@ public class SearchProfileShardResultsTests  extends OpenSearchTestCase {
             // The ProfileResults "breakdown" section just consists of key/value pairs, we shouldn't add anything random there
             // also we don't want to insert into the root object here, its just the PROFILE_FIELD itself
             Predicate<String> excludeFilter = (s) -> s.isEmpty()
-                    || s.endsWith(ProfileResult.BREAKDOWN.getPreferredName())
-                    || s.endsWith(ProfileResult.DEBUG.getPreferredName());
+                || s.endsWith(ProfileResult.BREAKDOWN.getPreferredName())
+                || s.endsWith(ProfileResult.DEBUG.getPreferredName());
             mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
         } else {
             mutated = originalBytes;

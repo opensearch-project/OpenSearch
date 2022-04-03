@@ -44,6 +44,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Strings;
 import org.opensearch.common.Table;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
@@ -56,14 +57,13 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
-
 public class RestAllocationAction extends AbstractCatAction {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestAllocationAction.class);
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_cat/allocation"),
-            new Route(GET, "/_cat/allocation/{nodes}")));
+        return unmodifiableList(asList(new Route(GET, "/_cat/allocation"), new Route(GET, "/_cat/allocation/{nodes}")));
     }
 
     @Override
@@ -82,14 +82,16 @@ public class RestAllocationAction extends AbstractCatAction {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().routingTable(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
+        clusterStateRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", clusterStateRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(clusterStateRequest, request, deprecationLogger, getName());
 
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse state) {
                 NodesStatsRequest statsRequest = new NodesStatsRequest(nodes);
                 statsRequest.timeout(request.param("timeout"));
-                statsRequest.clear().addMetric(NodesStatsRequest.Metric.FS.metricName())
+                statsRequest.clear()
+                    .addMetric(NodesStatsRequest.Metric.FS.metricName())
                     .indices(new CommonStatsFlags(CommonStatsFlags.Flag.Store));
 
                 client.admin().cluster().nodesStats(statsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
@@ -143,7 +145,7 @@ public class RestAllocationAction extends AbstractCatAction {
 
             ByteSizeValue total = nodeStats.getFs().getTotal().getTotal();
             ByteSizeValue avail = nodeStats.getFs().getTotal().getAvailable();
-            //if we don't know how much we use (non data nodes), it means 0
+            // if we don't know how much we use (non data nodes), it means 0
             long used = 0;
             short diskPercent = -1;
             if (total.getBytes() > 0) {

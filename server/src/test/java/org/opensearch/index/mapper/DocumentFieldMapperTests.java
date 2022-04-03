@@ -36,9 +36,10 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -84,7 +85,7 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             throw new UnsupportedOperationException();
         }
 
@@ -101,8 +102,7 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         }
 
         @Override
-        protected void parseCreateField(ParseContext context) {
-        }
+        protected void parseCreateField(ParseContext context) {}
 
         @Override
         protected String contentType() {
@@ -129,7 +129,9 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
             Arrays.asList(fieldMapper1, fieldMapper2),
             Collections.emptyList(),
             Collections.emptyList(),
-            0, defaultIndex);
+            0,
+            defaultIndex
+        );
 
         assertAnalyzes(mappingLookup.indexAnalyzer(), "field1", "index");
 

@@ -73,10 +73,7 @@ public class ValuesSourceRegistryTests extends OpenSearchTestCase {
             CoreValuesSourceType.BYTES
         );
         ValuesSourceRegistry.RegistryKey key = new ValuesSourceRegistry.RegistryKey("bogus", HistogramAggregatorSupplier.class);
-        ValuesSourceRegistry registry = new ValuesSourceRegistry(
-            Collections.singletonMap(key, Collections.emptyList()),
-            null
-        );
+        ValuesSourceRegistry registry = new ValuesSourceRegistry(Collections.singletonMap(key, Collections.emptyList()), null);
         expectThrows(IllegalArgumentException.class, () -> registry.getAggregator(key, fieldOnly));
         expectThrows(IllegalArgumentException.class, () -> registry.getAggregator(key, scriptOnly));
     }

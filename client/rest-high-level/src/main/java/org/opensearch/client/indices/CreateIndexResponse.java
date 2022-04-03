@@ -48,8 +48,11 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
 public class CreateIndexResponse extends ShardsAcknowledgedResponse {
 
     private static final ParseField INDEX = new ParseField("index");
-    private static final ConstructingObjectParser<CreateIndexResponse, Void> PARSER = new ConstructingObjectParser<>("create_index",
-        true, args -> new CreateIndexResponse((boolean) args[0], (boolean) args[1], (String) args[2]));
+    private static final ConstructingObjectParser<CreateIndexResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "create_index",
+        true,
+        args -> new CreateIndexResponse((boolean) args[0], (boolean) args[1], (String) args[2])
+    );
 
     static {
         declareAcknowledgedAndShardsAcknowledgedFields(PARSER);

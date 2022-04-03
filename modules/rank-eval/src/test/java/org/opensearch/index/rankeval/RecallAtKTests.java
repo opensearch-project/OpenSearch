@@ -35,7 +35,6 @@ package org.opensearch.index.rankeval;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.text.Text;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -101,7 +100,7 @@ public class RecallAtKTests extends OpenSearchTestCase {
 
         RecallAtK recallAtN = new RecallAtK(2, 5);
 
-        EvalQueryQuality evaluated = recallAtN.evaluate("id", toSearchHits(rated.subList(0,3), "test"), rated);
+        EvalQueryQuality evaluated = recallAtN.evaluate("id", toSearchHits(rated.subList(0, 3), "test"), rated);
         assertEquals((double) 1 / 3, evaluated.metricScore(), 0.00001);
         assertEquals(1, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
         assertEquals(3, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevant());
@@ -128,7 +127,7 @@ public class RecallAtKTests extends OpenSearchTestCase {
         int k = 5;
         SearchHit[] hits = new SearchHit[k];
         for (int i = 0; i < k; i++) {
-            hits[i] = new SearchHit(i, i + "", new Text(""), Collections.emptyMap(), Collections.emptyMap());
+            hits[i] = new SearchHit(i, i + "", Collections.emptyMap(), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
         }
 
@@ -213,8 +212,11 @@ public class RecallAtKTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
         RecallAtK original = createTestItem();
-        RecallAtK deserialized = OpenSearchTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()),
-            RecallAtK::new);
+        RecallAtK deserialized = OpenSearchTestCase.copyWriteable(
+            original,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            RecallAtK::new
+        );
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());
         assertNotSame(deserialized, original);
@@ -234,12 +236,11 @@ public class RecallAtKTests extends OpenSearchTestCase {
             case 0:
                 recallAtK = new RecallAtK(
                     randomValueOtherThan(original.getRelevantRatingThreshold(), () -> randomIntBetween(0, 10)),
-                    original.forcedSearchSize().getAsInt());
+                    original.forcedSearchSize().getAsInt()
+                );
                 break;
             case 1:
-                recallAtK = new RecallAtK(
-                    original.getRelevantRatingThreshold(),
-                    original.forcedSearchSize().getAsInt() + 1);
+                recallAtK = new RecallAtK(original.getRelevantRatingThreshold(), original.forcedSearchSize().getAsInt() + 1);
                 break;
             default:
                 throw new IllegalStateException("The test should only allow two parameters mutated");
@@ -250,7 +251,7 @@ public class RecallAtKTests extends OpenSearchTestCase {
     private static SearchHit[] toSearchHits(List<RatedDocument> rated, String index) {
         SearchHit[] hits = new SearchHit[rated.size()];
         for (int i = 0; i < rated.size(); i++) {
-            hits[i] = new SearchHit(i, i + "", new Text(""), Collections.emptyMap(), Collections.emptyMap());
+            hits[i] = new SearchHit(i, i + "", Collections.emptyMap(), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null, OriginalIndices.NONE));
         }
         return hits;

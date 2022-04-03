@@ -59,8 +59,11 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
     public static final String TYPE = "component_template";
     private static final ParseField COMPONENT_TEMPLATE = new ParseField("component_template");
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<ComponentTemplateMetadata, Void> PARSER = new ConstructingObjectParser<>(TYPE, false,
-        a -> new ComponentTemplateMetadata((Map<String, ComponentTemplate>) a[0]));
+    private static final ConstructingObjectParser<ComponentTemplateMetadata, Void> PARSER = new ConstructingObjectParser<>(
+        TYPE,
+        false,
+        a -> new ComponentTemplateMetadata((Map<String, ComponentTemplate>) a[0])
+    );
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
@@ -156,13 +159,20 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
         final Diff<Map<String, ComponentTemplate>> componentTemplateDiff;
 
         ComponentTemplateMetadataDiff(ComponentTemplateMetadata before, ComponentTemplateMetadata after) {
-            this.componentTemplateDiff = DiffableUtils.diff(before.componentTemplates, after.componentTemplates,
-                DiffableUtils.getStringKeySerializer());
+            this.componentTemplateDiff = DiffableUtils.diff(
+                before.componentTemplates,
+                after.componentTemplates,
+                DiffableUtils.getStringKeySerializer()
+            );
         }
 
         ComponentTemplateMetadataDiff(StreamInput in) throws IOException {
-            this.componentTemplateDiff = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(),
-                ComponentTemplate::new, ComponentTemplate::readComponentTemplateDiffFrom);
+            this.componentTemplateDiff = DiffableUtils.readJdkMapDiff(
+                in,
+                DiffableUtils.getStringKeySerializer(),
+                ComponentTemplate::new,
+                ComponentTemplate::readComponentTemplateDiffFrom
+            );
         }
 
         @Override

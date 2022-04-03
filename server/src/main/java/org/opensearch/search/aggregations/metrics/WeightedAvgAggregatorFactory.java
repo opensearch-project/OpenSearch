@@ -50,29 +50,36 @@ import static org.opensearch.search.aggregations.metrics.WeightedAvgAggregationB
 
 class WeightedAvgAggregatorFactory extends MultiValuesSourceAggregatorFactory {
 
-    WeightedAvgAggregatorFactory(String name, Map<String, ValuesSourceConfig> configs,
-                                 DocValueFormat format, QueryShardContext queryShardContext, AggregatorFactory parent,
-                                 AggregatorFactories.Builder subFactoriesBuilder,
-                                 Map<String, Object> metadata) throws IOException {
+    WeightedAvgAggregatorFactory(
+        String name,
+        Map<String, ValuesSourceConfig> configs,
+        DocValueFormat format,
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, configs, format, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
         return new WeightedAvgAggregator(name, null, format, searchContext, parent, metadata);
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                            Map<String, ValuesSourceConfig> configs,
-                                            DocValueFormat format,
-                                            Aggregator parent,
-                                            CardinalityUpperBound cardinality,
-                                            Map<String, Object> metadata) throws IOException {
-        MultiValuesSource.NumericMultiValuesSource numericMultiVS
-            = new MultiValuesSource.NumericMultiValuesSource(configs, queryShardContext);
+    protected Aggregator doCreateInternal(
+        SearchContext searchContext,
+        Map<String, ValuesSourceConfig> configs,
+        DocValueFormat format,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        MultiValuesSource.NumericMultiValuesSource numericMultiVS = new MultiValuesSource.NumericMultiValuesSource(
+            configs,
+            queryShardContext
+        );
         if (numericMultiVS.areValuesSourcesEmpty()) {
             return createUnmapped(searchContext, parent, metadata);
         }

@@ -31,7 +31,7 @@
 
 package org.opensearch.search;
 
-import org.apache.lucene.util.English;
+import org.apache.lucene.tests.util.English;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
@@ -52,8 +52,10 @@ public class StressSearchServiceReaperIT extends OpenSearchIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         // very frequent checks
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-                .put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(1)).build();
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(1))
+            .build();
     }
 
     // see issue #5165 - this test fails each time without the fix in pull #5170
@@ -61,7 +63,7 @@ public class StressSearchServiceReaperIT extends OpenSearchIntegTestCase {
         int num = randomIntBetween(100, 150);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[num];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test", "type", "" + i).setSource("f", English.intToEnglish(i));
+            builders[i] = client().prepareIndex("test").setId("" + i).setSource("f", English.intToEnglish(i));
         }
         createIndex("test");
         indexRandom(true, builders);

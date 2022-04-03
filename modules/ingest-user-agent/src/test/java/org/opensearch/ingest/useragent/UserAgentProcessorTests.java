@@ -60,23 +60,49 @@ public class UserAgentProcessorTests extends OpenSearchTestCase {
 
         UserAgentParser parser = new UserAgentParser(randomAlphaOfLength(10), regexStream, new UserAgentCache(1000));
 
-        processor = new UserAgentProcessor(randomAlphaOfLength(10), null, "source_field", "target_field", parser,
-                EnumSet.allOf(UserAgentProcessor.Property.class), false, true);
+        processor = new UserAgentProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            "target_field",
+            parser,
+            EnumSet.allOf(UserAgentProcessor.Property.class),
+            false,
+            true
+        );
     }
 
     public void testNullValueWithIgnoreMissing() throws Exception {
-        UserAgentProcessor processor = new UserAgentProcessor(randomAlphaOfLength(10), null, "source_field", "target_field", null,
-            EnumSet.allOf(UserAgentProcessor.Property.class), true, true);
-        IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(),
-            Collections.singletonMap("source_field", null));
+        UserAgentProcessor processor = new UserAgentProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            "target_field",
+            null,
+            EnumSet.allOf(UserAgentProcessor.Property.class),
+            true,
+            true
+        );
+        IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(
+            random(),
+            Collections.singletonMap("source_field", null)
+        );
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         processor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
     }
 
     public void testNonExistentWithIgnoreMissing() throws Exception {
-        UserAgentProcessor processor = new UserAgentProcessor(randomAlphaOfLength(10), null, "source_field", "target_field", null,
-            EnumSet.allOf(UserAgentProcessor.Property.class), true, true);
+        UserAgentProcessor processor = new UserAgentProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            "target_field",
+            null,
+            EnumSet.allOf(UserAgentProcessor.Property.class),
+            true,
+            true
+        );
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         processor.execute(ingestDocument);
@@ -84,18 +110,36 @@ public class UserAgentProcessorTests extends OpenSearchTestCase {
     }
 
     public void testNullWithoutIgnoreMissing() throws Exception {
-        UserAgentProcessor processor = new UserAgentProcessor(randomAlphaOfLength(10), null, "source_field", "target_field", null,
-            EnumSet.allOf(UserAgentProcessor.Property.class), false, true);
-        IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(),
-            Collections.singletonMap("source_field", null));
+        UserAgentProcessor processor = new UserAgentProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            "target_field",
+            null,
+            EnumSet.allOf(UserAgentProcessor.Property.class),
+            false,
+            true
+        );
+        IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(
+            random(),
+            Collections.singletonMap("source_field", null)
+        );
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("field [source_field] is null, cannot parse user-agent."));
     }
 
     public void testNonExistentWithoutIgnoreMissing() throws Exception {
-        UserAgentProcessor processor = new UserAgentProcessor(randomAlphaOfLength(10), null, "source_field", "target_field", null,
-            EnumSet.allOf(UserAgentProcessor.Property.class), false, true);
+        UserAgentProcessor processor = new UserAgentProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            "target_field",
+            null,
+            EnumSet.allOf(UserAgentProcessor.Property.class),
+            false,
+            true
+        );
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
@@ -105,8 +149,10 @@ public class UserAgentProcessorTests extends OpenSearchTestCase {
     @SuppressWarnings("unchecked")
     public void testCommonBrowser() throws Exception {
         Map<String, Object> document = new HashMap<>();
-        document.put("source_field",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.149 Safari/537.36");
+        document.put(
+            "source_field",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.149 Safari/537.36"
+        );
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
 
         processor.execute(ingestDocument);
@@ -131,9 +177,11 @@ public class UserAgentProcessorTests extends OpenSearchTestCase {
     @SuppressWarnings("unchecked")
     public void testUncommonDevice() throws Exception {
         Map<String, Object> document = new HashMap<>();
-        document.put("source_field",
-                "Mozilla/5.0 (Linux; U; Android 3.0; en-us; Xoom Build/HRI39) AppleWebKit/525.10+ "
-                + "(KHTML, like Gecko) Version/3.0.4 Mobile Safari/523.12.2");
+        document.put(
+            "source_field",
+            "Mozilla/5.0 (Linux; U; Android 3.0; en-us; Xoom Build/HRI39) AppleWebKit/525.10+ "
+                + "(KHTML, like Gecko) Version/3.0.4 Mobile Safari/523.12.2"
+        );
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
 
         processor.execute(ingestDocument);
@@ -159,8 +207,7 @@ public class UserAgentProcessorTests extends OpenSearchTestCase {
     @SuppressWarnings("unchecked")
     public void testSpider() throws Exception {
         Map<String, Object> document = new HashMap<>();
-        document.put("source_field",
-            "Mozilla/5.0 (compatible; EasouSpider; +http://www.easou.com/search/spider.html)");
+        document.put("source_field", "Mozilla/5.0 (compatible; EasouSpider; +http://www.easou.com/search/spider.html)");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
 
         processor.execute(ingestDocument);
@@ -182,8 +229,7 @@ public class UserAgentProcessorTests extends OpenSearchTestCase {
     @SuppressWarnings("unchecked")
     public void testUnknown() throws Exception {
         Map<String, Object> document = new HashMap<>();
-        document.put("source_field",
-            "Something I made up v42.0.1");
+        document.put("source_field", "Something I made up v42.0.1");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
 
         processor.execute(ingestDocument);

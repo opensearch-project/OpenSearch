@@ -51,7 +51,7 @@ public class SlicedInputStreamTests extends OpenSearchTestCase {
         final long seed = randomLong();
         Random random = new Random(seed);
         for (int i = 0; i < numWriteOps; i++) {
-            switch(random.nextInt(5)) {
+            switch (random.nextInt(5)) {
                 case 1:
                     stream.write(random.nextInt(Byte.MAX_VALUE));
                     break;
@@ -67,7 +67,7 @@ public class SlicedInputStreamTests extends OpenSearchTestCase {
         int offset = 0;
         int length;
         for (int i = 0; i < parts; i++) {
-            length = i == parts-1 ? bytes.length-offset : slice;
+            length = i == parts - 1 ? bytes.length - offset : slice;
             streams[i] = new CheckClosedInputStream(new ByteArrayInputStream(bytes, offset, length));
             offset += length;
         }
@@ -81,7 +81,7 @@ public class SlicedInputStreamTests extends OpenSearchTestCase {
         random = new Random(seed);
         assertThat(input.available(), equalTo(streams[0].available()));
         for (int i = 0; i < numWriteOps; i++) {
-            switch(random.nextInt(5)) {
+            switch (random.nextInt(5)) {
                 case 1:
                     assertThat(random.nextInt(Byte.MAX_VALUE), equalTo(input.read()));
                     break;
@@ -96,12 +96,12 @@ public class SlicedInputStreamTests extends OpenSearchTestCase {
         }
 
         assertThat(input.available(), equalTo(0));
-        for (int i =0; i < streams.length-1; i++) {
+        for (int i = 0; i < streams.length - 1; i++) {
             assertTrue(streams[i].closed);
         }
         input.close();
 
-        for (int i =0; i < streams.length; i++) {
+        for (int i = 0; i < streams.length; i++) {
             assertTrue(streams[i].closed);
         }
 
@@ -109,15 +109,15 @@ public class SlicedInputStreamTests extends OpenSearchTestCase {
 
     private int readFully(InputStream stream, byte[] buffer) throws IOException {
         for (int i = 0; i < buffer.length;) {
-            int read = stream.read(buffer, i, buffer.length-i);
+            int read = stream.read(buffer, i, buffer.length - i);
             if (read == -1) {
-              if (i == 0) {
-                  return -1;
-              } else {
-                  return i;
-              }
+                if (i == 0) {
+                    return -1;
+                } else {
+                    return i;
+                }
             }
-            i+= read;
+            i += read;
         }
         return buffer.length;
     }

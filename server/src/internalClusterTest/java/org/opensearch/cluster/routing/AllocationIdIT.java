@@ -32,7 +32,7 @@
 
 package org.opensearch.cluster.routing;
 
-import org.apache.lucene.store.SimpleFSDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
 
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
 import org.opensearch.action.admin.indices.stats.ShardStats;
@@ -102,10 +102,14 @@ public class AllocationIdIT extends OpenSearchIntegTestCase {
         final String indexName = "index42";
         final String master = internalCluster().startMasterOnlyNode();
         String node1 = internalCluster().startNode();
-        createIndex(indexName, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "checksum").build());
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "checksum")
+                .build()
+        );
         final int numDocs = indexDocs(indexName, "foo", "bar");
         final IndexSettings indexSettings = getIndexSettings(indexName, node1);
         final Set<String> allocationIds = getAllocationIds(indexName);
@@ -138,9 +142,7 @@ public class AllocationIdIT extends OpenSearchIntegTestCase {
         checkNoValidShardCopy(indexName, shardId);
 
         // allocate stale primary
-        client(node1).admin().cluster().prepareReroute()
-            .add(new AllocateStalePrimaryAllocationCommand(indexName, 0, node1, true))
-            .get();
+        client(node1).admin().cluster().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(indexName, 0, node1, true)).get();
 
         // allocation fails due to corruption marker
         assertBusy(() -> {
@@ -151,7 +153,7 @@ public class AllocationIdIT extends OpenSearchIntegTestCase {
         });
 
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node1));
-        try(Store store = new Store(shardId, indexSettings, new SimpleFSDirectory(indexPath), new DummyShardLock(shardId))) {
+        try (Store store = new Store(shardId, indexSettings, new NIOFSDirectory(indexPath), new DummyShardLock(shardId))) {
             store.removeCorruptionMarker();
         }
         node1 = internalCluster().startNode(node1DataPathSettings);
@@ -161,9 +163,7 @@ public class AllocationIdIT extends OpenSearchIntegTestCase {
         checkNoValidShardCopy(indexName, shardId);
 
         // no any valid shard is there; have to invoke AllocateStalePrimary again
-        client().admin().cluster().prepareReroute()
-            .add(new AllocateStalePrimaryAllocationCommand(indexName, 0, node1, true))
-            .get();
+        client().admin().cluster().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(indexName, 0, node1, true)).get();
 
         ensureYellow(indexName);
 
@@ -178,19 +178,22 @@ public class AllocationIdIT extends OpenSearchIntegTestCase {
     }
 
     public void checkHealthStatus(String indexName, ClusterHealthStatus healthStatus) {
-        final ClusterHealthStatus indexHealthStatus = client().admin().cluster()
-            .health(Requests.clusterHealthRequest(indexName)).actionGet().getStatus();
+        final ClusterHealthStatus indexHealthStatus = client().admin()
+            .cluster()
+            .health(Requests.clusterHealthRequest(indexName))
+            .actionGet()
+            .getStatus();
         assertThat(indexHealthStatus, is(healthStatus));
     }
 
-    private int indexDocs(String indexName, Object ... source) throws InterruptedException {
+    private int indexDocs(String indexName, Object... source) throws InterruptedException {
         // index some docs in several segments
         int numDocs = 0;
         for (int k = 0, attempts = randomIntBetween(5, 10); k < attempts; k++) {
             final int numExtraDocs = between(10, 100);
             IndexRequestBuilder[] builders = new IndexRequestBuilder[numExtraDocs];
             for (int i = 0; i < builders.length; i++) {
-                builders[i] = client().prepareIndex(indexName, "type").setSource(source);
+                builders[i] = client().prepareIndex(indexName).setSource(source);
             }
 
             indexRandom(true, false, true, Arrays.asList(builders));
@@ -229,22 +232,28 @@ public class AllocationIdIT extends OpenSearchIntegTestCase {
     }
 
     private void putFakeCorruptionMarker(IndexSettings indexSettings, ShardId shardId, Path indexPath) throws IOException {
-        try(Store store = new Store(shardId, indexSettings, new SimpleFSDirectory(indexPath), new DummyShardLock(shardId))) {
+        try (Store store = new Store(shardId, indexSettings, new NIOFSDirectory(indexPath), new DummyShardLock(shardId))) {
             store.markStoreCorrupted(new IOException("fake ioexception"));
         }
     }
 
     private void checkNoValidShardCopy(String indexName, ShardId shardId) throws Exception {
         assertBusy(() -> {
-            final ClusterAllocationExplanation explanation =
-                client().admin().cluster().prepareAllocationExplain()
-                    .setIndex(indexName).setShard(shardId.id()).setPrimary(true)
-                    .get().getExplanation();
+            final ClusterAllocationExplanation explanation = client().admin()
+                .cluster()
+                .prepareAllocationExplain()
+                .setIndex(indexName)
+                .setShard(shardId.id())
+                .setPrimary(true)
+                .get()
+                .getExplanation();
 
             final ShardAllocationDecision shardAllocationDecision = explanation.getShardAllocationDecision();
             assertThat(shardAllocationDecision.isDecisionTaken(), equalTo(true));
-            assertThat(shardAllocationDecision.getAllocateDecision().getAllocationDecision(),
-                equalTo(AllocationDecision.NO_VALID_SHARD_COPY));
+            assertThat(
+                shardAllocationDecision.getAllocateDecision().getAllocationDecision(),
+                equalTo(AllocationDecision.NO_VALID_SHARD_COPY)
+            );
         });
     }
 

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 OPENSEARCH_MAIN_CLASS=org.opensearch.plugins.PluginCli \
   OPENSEARCH_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/plugin-cli \

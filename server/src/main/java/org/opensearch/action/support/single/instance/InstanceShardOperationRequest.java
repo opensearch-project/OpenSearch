@@ -49,7 +49,8 @@ import java.util.concurrent.TimeUnit;
 // TODO: This request and its associated transport action can be folded into UpdateRequest which is its only concrete production code
 //       implementation
 public abstract class InstanceShardOperationRequest<Request extends InstanceShardOperationRequest<Request>> extends ActionRequest
-        implements IndicesRequest {
+    implements
+        IndicesRequest {
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
@@ -61,8 +62,7 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
 
     private String concreteIndex;
 
-    protected InstanceShardOperationRequest() {
-    }
+    protected InstanceShardOperationRequest() {}
 
     protected InstanceShardOperationRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         super(in);
@@ -103,7 +103,7 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
 
     @Override
     public String[] indices() {
-        return new String[]{index};
+        return new String[] { index };
     }
 
     @Override
@@ -166,4 +166,3 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
         out.writeOptionalString(concreteIndex);
     }
 }
-

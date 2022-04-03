@@ -54,13 +54,12 @@ public class JvmInfoTests extends OpenSearchTestCase {
         final boolean g1GCEnabled = flagIsEnabled(argline, "UseG1GC");
         // for JDK 9 the default collector when no collector is specified is G1 GC
         final boolean versionIsAtLeastJava9 = JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0;
-        final boolean noOtherCollectorSpecified =
-                argline == null ||
-                        (!flagIsEnabled(argline, "UseParNewGC") &&
-                                !flagIsEnabled(argline, "UseParallelGC") &&
-                                !flagIsEnabled(argline, "UseParallelOldGC") &&
-                                !flagIsEnabled(argline, "UseSerialGC") &&
-                                !flagIsEnabled(argline, "UseConcMarkSweepGC"));
+        final boolean noOtherCollectorSpecified = argline == null
+            || (!flagIsEnabled(argline, "UseParNewGC")
+                && !flagIsEnabled(argline, "UseParallelGC")
+                && !flagIsEnabled(argline, "UseParallelOldGC")
+                && !flagIsEnabled(argline, "UseSerialGC")
+                && !flagIsEnabled(argline, "UseConcMarkSweepGC"));
         return g1GCEnabled || (versionIsAtLeastJava9 && noOtherCollectorSpecified);
     }
 

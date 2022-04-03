@@ -35,8 +35,10 @@ package org.opensearch.action.admin.indices.cache.clear;
 import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
-public class ClearIndicesCacheRequestBuilder
-        extends BroadcastOperationRequestBuilder<ClearIndicesCacheRequest, ClearIndicesCacheResponse, ClearIndicesCacheRequestBuilder> {
+public class ClearIndicesCacheRequestBuilder extends BroadcastOperationRequestBuilder<
+    ClearIndicesCacheRequest,
+    ClearIndicesCacheResponse,
+    ClearIndicesCacheRequestBuilder> {
 
     public ClearIndicesCacheRequestBuilder(OpenSearchClient client, ClearIndicesCacheAction action) {
         super(client, action, new ClearIndicesCacheRequest());

@@ -83,11 +83,13 @@ public class ShardSearchFailure extends ShardOperationFailedException {
     }
 
     public ShardSearchFailure(Exception e, @Nullable SearchShardTarget shardTarget) {
-        super(shardTarget == null ? null : shardTarget.getFullyQualifiedIndexName(),
+        super(
+            shardTarget == null ? null : shardTarget.getFullyQualifiedIndexName(),
             shardTarget == null ? -1 : shardTarget.getShardId().getId(),
             ExceptionsHelper.detailedMessage(e),
             ExceptionsHelper.status(ExceptionsHelper.unwrapCause(e)),
-            ExceptionsHelper.unwrapCause(e));
+            ExceptionsHelper.unwrapCause(e)
+        );
 
         final Throwable actual = ExceptionsHelper.unwrapCause(e);
         if (actual instanceof SearchException) {
@@ -107,8 +109,13 @@ public class ShardSearchFailure extends ShardOperationFailedException {
 
     @Override
     public String toString() {
-        return "shard [" + (shardTarget == null ? "_na" : shardTarget) + "], reason [" + reason + "], cause [" +
-                (cause == null ? "_na" : ExceptionsHelper.stackTrace(cause)) + "]";
+        return "shard ["
+            + (shardTarget == null ? "_na" : shardTarget)
+            + "], reason ["
+            + reason
+            + "], cause ["
+            + (cause == null ? "_na" : ExceptionsHelper.stackTrace(cause))
+            + "]";
     }
 
     public static ShardSearchFailure readShardSearchFailure(StreamInput in) throws IOException {
@@ -151,21 +158,21 @@ public class ShardSearchFailure extends ShardOperationFailedException {
         String clusterAlias = null;
         String nodeId = null;
         OpenSearchException exception = null;
-        while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
                 if (SHARD_FIELD.equals(currentFieldName)) {
-                    shardId  = parser.intValue();
+                    shardId = parser.intValue();
                 } else if (INDEX_FIELD.equals(currentFieldName)) {
-                    indexName  = parser.text();
+                    indexName = parser.text();
                     int indexOf = indexName.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR);
                     if (indexOf > 0) {
                         clusterAlias = indexName.substring(0, indexOf);
                         indexName = indexName.substring(indexOf + 1);
                     }
                 } else if (NODE_FIELD.equals(currentFieldName)) {
-                    nodeId  = parser.text();
+                    nodeId = parser.text();
                 } else {
                     parser.skipChildren();
                 }
@@ -181,8 +188,12 @@ public class ShardSearchFailure extends ShardOperationFailedException {
         }
         SearchShardTarget searchShardTarget = null;
         if (nodeId != null) {
-            searchShardTarget = new SearchShardTarget(nodeId,
-                new ShardId(new Index(indexName, IndexMetadata.INDEX_UUID_NA_VALUE), shardId), clusterAlias, OriginalIndices.NONE);
+            searchShardTarget = new SearchShardTarget(
+                nodeId,
+                new ShardId(new Index(indexName, IndexMetadata.INDEX_UUID_NA_VALUE), shardId),
+                clusterAlias,
+                OriginalIndices.NONE
+            );
         }
         return new ShardSearchFailure(exception, searchShardTarget);
     }

@@ -32,8 +32,8 @@
 
 package org.opensearch.recovery;
 
-import org.apache.lucene.util.English;
-import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.apache.lucene.tests.util.English;
+import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
@@ -79,9 +79,16 @@ public class TruncatedRecoveryIT extends OpenSearchIntegTestCase {
      * Later we allow full recovery to ensure we can still recover and don't run into corruptions.
      */
     public void testCancelRecoveryAndResume() throws Exception {
-        assertTrue(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-            .put(CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(randomIntBetween(50, 300), ByteSizeUnit.BYTES)))
-            .get().isAcknowledged());
+        assertTrue(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(
+                    Settings.builder().put(CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(randomIntBetween(50, 300), ByteSizeUnit.BYTES))
+                )
+                .get()
+                .isAcknowledged()
+        );
 
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
         List<NodeStats> dataNodeStats = new ArrayList<>();
@@ -100,18 +107,22 @@ public class TruncatedRecoveryIT extends OpenSearchIntegTestCase {
 
         // create the index and prevent allocation on any other nodes than the lucky one
         // we have no replicas so far and make sure that we allocate the primary on the lucky node
-        assertAcked(prepareCreate("test")
-            .addMapping("type1", "field1", "type=text", "the_id", "type=text")
-            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards())
-                .put("index.routing.allocation.include._name", primariesNode.getNode().getName()))); // only allocate on the lucky node
+        assertAcked(
+            prepareCreate("test").setMapping("field1", "type=text", "the_id", "type=text")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards())
+                        .put("index.routing.allocation.include._name", primariesNode.getNode().getName())
+                )
+        ); // only allocate on the lucky node
 
         // index some docs and check if they are coming back
         int numDocs = randomIntBetween(100, 200);
         List<IndexRequestBuilder> builder = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
-            builder.add(client().prepareIndex("test", "type1", id).setSource("field1", English.intToEnglish(i), "the_id", id));
+            builder.add(client().prepareIndex("test").setId(id).setSource("field1", English.intToEnglish(i), "the_id", id));
         }
         indexRandom(true, builder);
         for (int i = 0; i < numDocs; i++) {
@@ -127,9 +138,12 @@ public class TruncatedRecoveryIT extends OpenSearchIntegTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean truncate = new AtomicBoolean(true);
         for (NodeStats dataNode : dataNodeStats) {
-            MockTransportService mockTransportService = ((MockTransportService) internalCluster()
-                    .getInstance(TransportService.class, dataNode.getNode().getName()));
-            mockTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()),
+            MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(
+                TransportService.class,
+                dataNode.getNode().getName()
+            ));
+            mockTransportService.addSendBehavior(
+                internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()),
                 (connection, requestId, action, request, options) -> {
                     if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
                         RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
@@ -140,14 +154,23 @@ public class TruncatedRecoveryIT extends OpenSearchIntegTestCase {
                         }
                     }
                     connection.sendRequest(requestId, action, request, options);
-                });
+                }
+            );
         }
 
         logger.info("--> bumping replicas to 1"); //
-        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put("index.routing.allocation.include._name",  // now allow allocation on all nodes
-                primariesNode.getNode().getName() + "," + unluckyNode.getNode().getName())).get();
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(
+                        "index.routing.allocation.include._name",  // now allow allocation on all nodes
+                        primariesNode.getNode().getName() + "," + unluckyNode.getNode().getName()
+                    )
+            )
+            .get();
 
         latch.await();
 

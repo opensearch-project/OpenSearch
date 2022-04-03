@@ -51,7 +51,9 @@ import java.io.IOException;
  * destination index and things.
  */
 public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<UpdateByQueryRequest>
-    implements IndicesRequest.Replaceable, ToXContentObject {
+    implements
+        IndicesRequest.Replaceable,
+        ToXContentObject {
     /**
      * Ingest pipeline to set on index requests made by this action.
      */
@@ -97,19 +99,6 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
     }
 
     /**
-     * Set the document types for the update
-     * @deprecated Types are in the process of being removed. Instead of
-     * using a type, prefer to filter on a field of the document.
-     */
-    @Deprecated
-    public UpdateByQueryRequest setDocTypes(String... types) {
-        if (types != null) {
-            getSearchRequest().types(types);
-        }
-        return this;
-    }
-
-    /**
      * Set routing limiting the process to the shards that match that routing value
      */
     public UpdateByQueryRequest setRouting(String routing) {
@@ -150,21 +139,6 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
     }
 
     /**
-     * Gets the document types on which this request would be executed. Returns an empty array if all
-     * types are to be processed.
-     * @deprecated Types are in the process of being removed. Instead of
-     * using a type, prefer to filter on a field of the document.
-     */
-    @Deprecated
-    public String[] getDocTypes() {
-        if (getSearchRequest().types() != null) {
-            return getSearchRequest().types();
-        } else {
-            return new String[0];
-        }
-    }
-
-    /**
      * Ingest pipeline to set on index requests made by this action.
      */
     public String getPipeline() {
@@ -191,8 +165,8 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
         return b.toString();
     }
 
-    //update by query updates all documents that match a query. The indices and indices options that affect how
-    //indices are resolved depend entirely on the inner search request. That's why the following methods delegate to it.
+    // update by query updates all documents that match a query. The indices and indices options that affect how
+    // indices are resolved depend entirely on the inner search request. That's why the following methods delegate to it.
     @Override
     public IndicesRequest indices(String... indices) {
         assert getSearchRequest() != null;

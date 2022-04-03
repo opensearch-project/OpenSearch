@@ -46,7 +46,7 @@ import java.io.IOException;
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -103,16 +103,13 @@ public class S3RetryingInputStreamTests extends OpenSearchTestCase {
         assertThat(stream.isAborted(), is(true));
     }
 
-    private S3RetryingInputStream createInputStream(
-        final byte[] data,
-        @Nullable final Integer position,
-        @Nullable final Integer length
-    ) throws IOException {
+    private S3RetryingInputStream createInputStream(final byte[] data, @Nullable final Integer position, @Nullable final Integer length)
+        throws IOException {
         final S3Object s3Object = new S3Object();
         final AmazonS3 client = mock(AmazonS3.class);
         when(client.getObject(any(GetObjectRequest.class))).thenReturn(s3Object);
         final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
-        when(clientReference.client()).thenReturn(client);
+        when(clientReference.get()).thenReturn(client);
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         when(blobStore.clientReference()).thenReturn(clientReference);
 

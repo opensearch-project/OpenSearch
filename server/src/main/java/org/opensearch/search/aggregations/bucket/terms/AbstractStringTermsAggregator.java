@@ -50,16 +50,37 @@ abstract class AbstractStringTermsAggregator extends TermsAggregator {
 
     protected final boolean showTermDocCountError;
 
-    AbstractStringTermsAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
-            BucketOrder order, DocValueFormat format, BucketCountThresholds bucketCountThresholds, SubAggCollectionMode subAggCollectMode,
-            boolean showTermDocCountError, Map<String, Object> metadata) throws IOException {
+    AbstractStringTermsAggregator(
+        String name,
+        AggregatorFactories factories,
+        SearchContext context,
+        Aggregator parent,
+        BucketOrder order,
+        DocValueFormat format,
+        BucketCountThresholds bucketCountThresholds,
+        SubAggCollectionMode subAggCollectMode,
+        boolean showTermDocCountError,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, factories, context, parent, bucketCountThresholds, order, format, subAggCollectMode, metadata);
         this.showTermDocCountError = showTermDocCountError;
     }
 
     protected StringTerms buildEmptyTermsAggregation() {
-        return new StringTerms(name, order, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError, 0, emptyList(), 0);
+        return new StringTerms(
+            name,
+            order,
+            order,
+            bucketCountThresholds.getRequiredSize(),
+            bucketCountThresholds.getMinDocCount(),
+            metadata(),
+            format,
+            bucketCountThresholds.getShardSize(),
+            showTermDocCountError,
+            0,
+            emptyList(),
+            0
+        );
     }
 
     protected SignificantStringTerms buildEmptySignificantTermsAggregation(long subsetSize, SignificanceHeuristic significanceHeuristic) {
@@ -67,7 +88,16 @@ abstract class AbstractStringTermsAggregator extends TermsAggregator {
         ContextIndexSearcher searcher = context.searcher();
         IndexReader topReader = searcher.getIndexReader();
         int supersetSize = topReader.numDocs();
-        return new SignificantStringTerms(name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                metadata(), format, subsetSize, supersetSize, significanceHeuristic, emptyList());
+        return new SignificantStringTerms(
+            name,
+            bucketCountThresholds.getRequiredSize(),
+            bucketCountThresholds.getMinDocCount(),
+            metadata(),
+            format,
+            subsetSize,
+            supersetSize,
+            significanceHeuristic,
+            emptyList()
+        );
     }
 }

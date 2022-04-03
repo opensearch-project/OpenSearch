@@ -39,9 +39,10 @@ import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
 
-public abstract class ReplicationRequestBuilder<Request extends ReplicationRequest<Request>, Response extends ActionResponse,
-        RequestBuilder extends ReplicationRequestBuilder<Request, Response, RequestBuilder>>
-        extends ActionRequestBuilder<Request, Response> {
+public abstract class ReplicationRequestBuilder<
+    Request extends ReplicationRequest<Request>,
+    Response extends ActionResponse,
+    RequestBuilder extends ReplicationRequestBuilder<Request, Response, RequestBuilder>> extends ActionRequestBuilder<Request, Response> {
 
     protected ReplicationRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);

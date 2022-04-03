@@ -69,8 +69,10 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
     private List<KeyedFilter> filters;
     private String separator = DEFAULT_SEPARATOR;
 
-    private static final ObjectParser<AdjacencyMatrixAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, AdjacencyMatrixAggregationBuilder::new);
+    private static final ObjectParser<AdjacencyMatrixAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
+        NAME,
+        AdjacencyMatrixAggregationBuilder::new
+    );
     static {
         PARSER.declareString(AdjacencyMatrixAggregationBuilder::separator, SEPARATOR_FIELD);
         PARSER.declareNamedObjects(AdjacencyMatrixAggregationBuilder::setFiltersAsList, KeyedFilter.PARSER, FILTERS_FIELD);
@@ -90,7 +92,6 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
         super(name);
     }
 
-
     /**
      * @param name
      *            the name of this aggregation
@@ -101,8 +102,11 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
         this(name, DEFAULT_SEPARATOR, filters);
     }
 
-    protected AdjacencyMatrixAggregationBuilder(AdjacencyMatrixAggregationBuilder clone,
-                                                Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AdjacencyMatrixAggregationBuilder(
+        AdjacencyMatrixAggregationBuilder clone,
+        Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
         this.filters = new ArrayList<>(clone.filters);
         this.separator = clone.separator;
@@ -153,7 +157,7 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
 
     private void checkConsistency() {
         if ((filters == null) || (filters.size() == 0)) {
-            throw new IllegalStateException("[" + name  + "] is missing : " + FILTERS_FIELD.getPreferredName() + " parameter");
+            throw new IllegalStateException("[" + name + "] is missing : " + FILTERS_FIELD.getPreferredName() + " parameter");
         }
     }
 
@@ -175,8 +179,6 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
         Collections.sort(this.filters, Comparator.comparing(KeyedFilter::key));
         return this;
     }
-
-
 
     /**
      * Set the separator used to join pairs of bucket keys
@@ -200,7 +202,7 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
      * Get the filters. This will be an unmodifiable map
      */
     public Map<String, QueryBuilder> filters() {
-        Map<String, QueryBuilder>result = new HashMap<>(this.filters.size());
+        Map<String, QueryBuilder> result = new HashMap<>(this.filters.size());
         for (KeyedFilter keyedFilter : this.filters) {
             result.put(keyedFilter.key(), keyedFilter.filter());
         }
@@ -224,17 +226,21 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
 
     @Override
     protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent, Builder subFactoriesBuilder)
-            throws IOException {
+        throws IOException {
         int maxFilters = queryShardContext.getIndexSettings().getMaxAdjacencyMatrixFilters();
-        if (filters.size() > maxFilters){
+        if (filters.size() > maxFilters) {
             throw new IllegalArgumentException(
-                    "Number of filters is too large, must be less than or equal to: [" + maxFilters + "] but was ["
-                            + filters.size() + "]."
-                            + "This limit can be set by changing the [" + IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey()
-                            + "] index level setting.");
+                "Number of filters is too large, must be less than or equal to: ["
+                    + maxFilters
+                    + "] but was ["
+                    + filters.size()
+                    + "]."
+                    + "This limit can be set by changing the ["
+                    + IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey()
+                    + "] index level setting."
+            );
         }
-        return new AdjacencyMatrixAggregatorFactory(name, filters, separator, queryShardContext, parent,
-                subFactoriesBuilder, metadata);
+        return new AdjacencyMatrixAggregatorFactory(name, filters, separator, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

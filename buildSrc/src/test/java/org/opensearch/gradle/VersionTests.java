@@ -65,7 +65,7 @@ public class VersionTests extends GradleUnitTestCase {
 
     public void testCompareWithStringVersions() {
         // 1.10.2 is now rebased to OpenSearch version; so this needs to report
-        assertTrue("OpenSearch 1.10.20 is not interpreted as after Legacy 2.0.0", Version.fromString("1.10.20").after("2.0.0"));
+        assertTrue("OpenSearch 1.10.20 is not interpreted as after Legacy 3.0.0", Version.fromString("1.10.20").after("3.0.0"));
         assertTrue(
             "7.0.0-alpha1 should be equal to 7.0.0-alpha1",
             Version.fromString("7.0.0-alpha1").equals(Version.fromString("7.0.0-alpha1"))

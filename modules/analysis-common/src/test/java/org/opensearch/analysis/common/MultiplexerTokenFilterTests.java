@@ -50,9 +50,7 @@ import java.util.Collections;
 public class MultiplexerTokenFilterTests extends OpenSearchTokenStreamTestCase {
 
     public void testMultiplexingFilter() throws IOException {
-        Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .build();
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put("index.analysis.filter.t.type", "truncate")
@@ -65,30 +63,27 @@ public class MultiplexerTokenFilterTests extends OpenSearchTokenStreamTestCase {
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
 
-        IndexAnalyzers indexAnalyzers = new AnalysisModule(TestEnvironment.newEnvironment(settings),
-            Collections.singletonList(new CommonAnalysisPlugin())).getAnalysisRegistry().build(idxSettings);
+        IndexAnalyzers indexAnalyzers = new AnalysisModule(
+            TestEnvironment.newEnvironment(settings),
+            Collections.singletonList(new CommonAnalysisPlugin())
+        ).getAnalysisRegistry().build(idxSettings);
 
         try (NamedAnalyzer analyzer = indexAnalyzers.get("myAnalyzer")) {
             assertNotNull(analyzer);
-            assertAnalyzesTo(analyzer, "ONe tHree", new String[]{
-                "ONe", "on", "ONE", "tHree", "th", "THREE"
-            }, new int[]{
-                1,      0,      0,      1,      0,      0
-            });
+            assertAnalyzesTo(
+                analyzer,
+                "ONe tHree",
+                new String[] { "ONe", "on", "ONE", "tHree", "th", "THREE" },
+                new int[] { 1, 0, 0, 1, 0, 0 }
+            );
             // Duplicates are removed
-            assertAnalyzesTo(analyzer, "ONe THREE", new String[]{
-                "ONe", "on", "ONE", "THREE", "th"
-            }, new int[]{
-                1,      0,      0,      1,      0,      0
-            });
+            assertAnalyzesTo(analyzer, "ONe THREE", new String[] { "ONe", "on", "ONE", "THREE", "th" }, new int[] { 1, 0, 0, 1, 0, 0 });
         }
     }
 
     public void testMultiplexingNoOriginal() throws IOException {
 
-        Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .build();
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put("index.analysis.filter.t.type", "truncate")
@@ -102,16 +97,14 @@ public class MultiplexerTokenFilterTests extends OpenSearchTokenStreamTestCase {
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
 
-        IndexAnalyzers indexAnalyzers = new AnalysisModule(TestEnvironment.newEnvironment(settings),
-            Collections.singletonList(new CommonAnalysisPlugin())).getAnalysisRegistry().build(idxSettings);
+        IndexAnalyzers indexAnalyzers = new AnalysisModule(
+            TestEnvironment.newEnvironment(settings),
+            Collections.singletonList(new CommonAnalysisPlugin())
+        ).getAnalysisRegistry().build(idxSettings);
 
         try (NamedAnalyzer analyzer = indexAnalyzers.get("myAnalyzer")) {
             assertNotNull(analyzer);
-            assertAnalyzesTo(analyzer, "ONe tHree", new String[]{
-                "on", "ONE", "th", "THREE"
-            }, new int[]{
-                1,      0,      1,      0,
-            });
+            assertAnalyzesTo(analyzer, "ONe tHree", new String[] { "on", "ONE", "th", "THREE" }, new int[] { 1, 0, 1, 0, });
         }
 
     }

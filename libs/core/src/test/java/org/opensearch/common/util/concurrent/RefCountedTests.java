@@ -31,13 +31,13 @@
 
 package org.opensearch.common.util.concurrent;
 
+import org.opensearch.common.concurrent.OneWayGate;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -138,7 +138,7 @@ public class RefCountedTests extends OpenSearchTestCase {
 
     private final class MyRefCounted extends AbstractRefCounted {
 
-        private final AtomicBoolean closed = new AtomicBoolean(false);
+        private final OneWayGate gate = new OneWayGate();
 
         MyRefCounted() {
             super("test");
@@ -146,11 +146,11 @@ public class RefCountedTests extends OpenSearchTestCase {
 
         @Override
         protected void closeInternal() {
-            this.closed.set(true);
+            gate.close();
         }
 
         public void ensureOpen() {
-            if (closed.get()) {
+            if (gate.isClosed()) {
                 assert this.refCount() == 0;
                 throw new IllegalStateException("closed");
             }

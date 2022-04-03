@@ -51,7 +51,6 @@ import org.opensearch.common.util.concurrent.RunOnce;
 import org.opensearch.common.util.concurrent.UncategorizedExecutionException;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.Index;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.Mapping;
 
 import java.util.concurrent.Semaphore;
@@ -62,13 +61,21 @@ import java.util.concurrent.Semaphore;
  */
 public class MappingUpdatedAction {
 
-    public static final Setting<TimeValue> INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING =
-        Setting.positiveTimeSetting("indices.mapping.dynamic_timeout", TimeValue.timeValueSeconds(30),
-            Property.Dynamic, Property.NodeScope);
+    public static final Setting<TimeValue> INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING = Setting.positiveTimeSetting(
+        "indices.mapping.dynamic_timeout",
+        TimeValue.timeValueSeconds(30),
+        Property.Dynamic,
+        Property.NodeScope
+    );
 
-    public static final Setting<Integer> INDICES_MAX_IN_FLIGHT_UPDATES_SETTING =
-        Setting.intSetting("indices.mapping.max_in_flight_updates", 10, 1, 1000,
-            Property.Dynamic, Property.NodeScope);
+    public static final Setting<Integer> INDICES_MAX_IN_FLIGHT_UPDATES_SETTING = Setting.intSetting(
+        "indices.mapping.max_in_flight_updates",
+        10,
+        1,
+        1000,
+        Property.Dynamic,
+        Property.NodeScope
+    );
 
     private IndicesAdminClient client;
     private volatile TimeValue dynamicMappingUpdateTimeout;
@@ -102,10 +109,7 @@ public class MappingUpdatedAction {
      * {@code timeout} is the master node timeout ({@link MasterNodeRequest#masterNodeTimeout()}),
      * potentially waiting for a master node to be available.
      */
-    public void updateMappingOnMaster(Index index, String type, Mapping mappingUpdate, ActionListener<Void> listener) {
-        if (type.equals(MapperService.DEFAULT_MAPPING)) {
-            throw new IllegalArgumentException("_default_ mapping should not be updated");
-        }
+    public void updateMappingOnMaster(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {
 
         final RunOnce release = new RunOnce(() -> semaphore.release());
         try {
@@ -117,7 +121,7 @@ public class MappingUpdatedAction {
         }
         boolean successFullySent = false;
         try {
-            sendUpdateMapping(index, type, mappingUpdate, ActionListener.runBefore(listener, release::run));
+            sendUpdateMapping(index, mappingUpdate, ActionListener.runBefore(listener, release::run));
             successFullySent = true;
         } finally {
             if (successFullySent == false) {
@@ -132,19 +136,23 @@ public class MappingUpdatedAction {
     }
 
     // can be overridden by tests
-    protected void sendUpdateMapping(Index index, String type, Mapping mappingUpdate, ActionListener<Void> listener) {
+    protected void sendUpdateMapping(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {
         PutMappingRequest putMappingRequest = new PutMappingRequest();
         putMappingRequest.setConcreteIndex(index);
-        putMappingRequest.type(type);
         putMappingRequest.source(mappingUpdate.toString(), XContentType.JSON);
         putMappingRequest.masterNodeTimeout(dynamicMappingUpdateTimeout);
         putMappingRequest.timeout(TimeValue.ZERO);
         if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-            client.execute(AutoPutMappingAction.INSTANCE, putMappingRequest,
-                ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure));
+            client.execute(
+                AutoPutMappingAction.INSTANCE,
+                putMappingRequest,
+                ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure)
+            );
         } else {
-            client.putMapping(putMappingRequest,
-                ActionListener.wrap(r -> listener.onResponse(null), e -> listener.onFailure(unwrapException(e))));
+            client.putMapping(
+                putMappingRequest,
+                ActionListener.wrap(r -> listener.onResponse(null), e -> listener.onFailure(unwrapException(e)))
+            );
         }
     }
 

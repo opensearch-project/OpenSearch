@@ -78,23 +78,22 @@ public abstract class ScoreScript {
     }
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
-    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.opensearch.common.collect.Map.of(
-            "doc", value -> {
-                deprecationLogger.deprecate("score-script_doc",
-                        "Accessing variable [doc] via [params.doc] from within an score-script "
-                                + "is deprecated in favor of directly accessing [doc].");
-                return value;
-            },
-            "_doc", value -> {
-                deprecationLogger.deprecate("score-script__doc",
-                        "Accessing variable [doc] via [params._doc] from within an score-script "
-                                + "is deprecated in favor of directly accessing [doc].");
-                return value;
-            },
-            "_source", value -> ((SourceLookup)value).loadSourceIfNeeded()
-    );
+    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.opensearch.common.collect.Map.of("doc", value -> {
+        deprecationLogger.deprecate(
+            "score-script_doc",
+            "Accessing variable [doc] via [params.doc] from within an score-script " + "is deprecated in favor of directly accessing [doc]."
+        );
+        return value;
+    }, "_doc", value -> {
+        deprecationLogger.deprecate(
+            "score-script__doc",
+            "Accessing variable [doc] via [params._doc] from within an score-script "
+                + "is deprecated in favor of directly accessing [doc]."
+        );
+        return value;
+    }, "_source", value -> ((SourceLookup) value).loadSourceIfNeeded());
 
-    public static final String[] PARAMETERS = new String[]{ "explanation" };
+    public static final String[] PARAMETERS = new String[] { "explanation" };
 
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
@@ -162,7 +161,6 @@ public abstract class ScoreScript {
     public double get_score() {
         return scoreSupplier.getAsDouble();
     }
-
 
     /**
      * Starting a name with underscore, so that the user cannot access this function directly through a script
@@ -241,7 +239,6 @@ public abstract class ScoreScript {
     public void _setIndexVersion(Version indexVersion) {
         this.indexVersion = indexVersion;
     }
-
 
     /** A factory to construct {@link ScoreScript} instances. */
     public interface LeafFactory {

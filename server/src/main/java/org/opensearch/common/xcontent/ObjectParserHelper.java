@@ -50,9 +50,11 @@ public final class ObjectParserHelper<Value, Context> {
     /**
      * Helper to declare an object that will be parsed into a {@link BytesReference}
      */
-    public void declareRawObject(final AbstractObjectParser<Value, Context> parser,
-                                 final BiConsumer<Value, BytesReference> consumer,
-                                 final ParseField field) {
+    public void declareRawObject(
+        final AbstractObjectParser<Value, Context> parser,
+        final BiConsumer<Value, BytesReference> consumer,
+        final ParseField field
+    ) {
         final CheckedFunction<XContentParser, BytesReference, IOException> bytesParser = p -> {
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 builder.copyCurrentStructure(p);

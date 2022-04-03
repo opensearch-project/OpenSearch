@@ -58,7 +58,7 @@ public class WeightedAvgAggregationBuilderTests extends AbstractSerializingTestC
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
@@ -78,8 +78,7 @@ public class WeightedAvgAggregationBuilderTests extends AbstractSerializingTestC
     protected WeightedAvgAggregationBuilder createTestInstance() {
         MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
         MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();
-        WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder(aggregationName)
-            .value(valueConfig)
+        WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder(aggregationName).value(valueConfig)
             .weight(weightConfig);
         return aggregationBuilder;
     }

@@ -39,16 +39,22 @@ import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.Strings;
 
-public class CloneSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<CloneSnapshotRequest, AcknowledgedResponse,
-                                                                                   CloneSnapshotRequestBuilder> {
+public class CloneSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<
+    CloneSnapshotRequest,
+    AcknowledgedResponse,
+    CloneSnapshotRequestBuilder> {
 
-    protected CloneSnapshotRequestBuilder(OpenSearchClient client, ActionType<AcknowledgedResponse> action,
-                                          CloneSnapshotRequest request) {
+    protected CloneSnapshotRequestBuilder(OpenSearchClient client, ActionType<AcknowledgedResponse> action, CloneSnapshotRequest request) {
         super(client, action, request);
     }
 
-    public CloneSnapshotRequestBuilder(OpenSearchClient client, ActionType<AcknowledgedResponse> action,
-                                       String repository, String source, String target) {
+    public CloneSnapshotRequestBuilder(
+        OpenSearchClient client,
+        ActionType<AcknowledgedResponse> action,
+        String repository,
+        String source,
+        String target
+    ) {
         this(client, action, new CloneSnapshotRequest(repository, source, target, Strings.EMPTY_ARRAY));
     }
 

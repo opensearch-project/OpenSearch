@@ -39,7 +39,7 @@ import org.mockito.InOrder;
 
 import java.util.concurrent.Callable;
 
-import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -131,8 +131,7 @@ public class AbstractLifecycleRunnableTests extends OpenSearchTestCase {
             protected void onAfterInLifecycle() {
                 try {
                     afterCallable.call();
-                }
-                catch (Exception e) {
+                } catch (Exception e) {
                     fail("Unexpected for mock.");
                 }
             }

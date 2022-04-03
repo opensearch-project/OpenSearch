@@ -88,7 +88,6 @@ import static org.opensearch.index.query.QueryBuilders.spanTermQuery;
 import static org.opensearch.index.query.QueryBuilders.spanWithinQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.index.query.QueryBuilders.termsQuery;
-import static org.opensearch.index.query.QueryBuilders.typeQuery;
 import static org.opensearch.index.query.QueryBuilders.wildcardQuery;
 import static org.opensearch.index.query.QueryBuilders.wrapperQuery;
 import static org.opensearch.index.query.functionscore.ScoreFunctionBuilders.exponentialDecayFunction;
@@ -447,12 +446,6 @@ public class QueryDSLDocumentationTests extends OpenSearchTestCase {
         // end::terms
     }
 
-    public void testType() {
-        // tag::type
-        typeQuery("my_type");                                        // <1>
-        // end::type
-    }
-
     public void testWildcard() {
         // tag::wildcard
         wildcardQuery(
@@ -473,30 +466,18 @@ public class QueryDSLDocumentationTests extends OpenSearchTestCase {
     }
 
     public void testRankFeatureSaturationPivot() {
-        RankFeatureQueryBuilders.saturation(
-            "pagerank",
-            8
-        );
+        RankFeatureQueryBuilders.saturation("pagerank", 8);
     }
 
     public void testRankFeatureLog() {
-        RankFeatureQueryBuilders.log(
-            "pagerank",
-            4f
-        );
+        RankFeatureQueryBuilders.log("pagerank", 4f);
     }
 
     public void testRankFeatureSigmoid() {
-        RankFeatureQueryBuilders.sigmoid(
-            "pagerank",
-            7,
-            0.6f
-        );
+        RankFeatureQueryBuilders.sigmoid("pagerank", 7, 0.6f);
     }
 
     public void testRankFeatureLinear() {
-        RankFeatureQueryBuilders.linear(
-            "pagerank"
-        );
+        RankFeatureQueryBuilders.linear("pagerank");
     }
 }

@@ -79,7 +79,6 @@ public final class AggregationProfileShardResult implements Writeable, ToXConten
         }
     }
 
-
     public List<ProfileResult> getProfileResults() {
         return Collections.unmodifiableList(aggProfileResults);
     }
@@ -98,7 +97,7 @@ public final class AggregationProfileShardResult implements Writeable, ToXConten
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
         List<ProfileResult> aggProfileResults = new ArrayList<>();
-        while((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             aggProfileResults.add(ProfileResult.fromXContent(parser));
         }
         return new AggregationProfileShardResult(aggProfileResults);

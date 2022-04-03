@@ -69,7 +69,6 @@ public class TestTemplateService extends ScriptService {
         }
     }
 
-
     public static class MockTemplateScript extends TemplateScript {
         private final String expected;
 

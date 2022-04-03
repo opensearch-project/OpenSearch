@@ -74,10 +74,8 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
-        checker.registerUpdateCheck(b -> b.field("coerce", false),
-            m -> assertFalse(((NumberFieldMapper) m).coerce()));
-        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true),
-            m -> assertTrue(((NumberFieldMapper) m).ignoreMalformed()));
+        checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((NumberFieldMapper) m).coerce()));
+        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> assertTrue(((NumberFieldMapper) m).ignoreMalformed()));
     }
 
     protected void writeFieldValue(XContentBuilder builder) throws IOException {
@@ -284,14 +282,17 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             OutOfRangeSpec.of(NumberType.DOUBLE, Double.NEGATIVE_INFINITY, "[double] supports only finite values")
         );
 
-        for(OutOfRangeSpec item: inputs) {
+        for (OutOfRangeSpec item : inputs) {
             DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", item.type.typeName())));
             try {
                 mapper.parse(source(item::write));
                 fail("Mapper parsing exception expected for [" + item.type + "] with value [" + item.value + "]");
             } catch (MapperParsingException e) {
-                assertThat("Incorrect error message for [" + item.type + "] with value [" + item.value + "]",
-                    e.getCause().getMessage(), containsString(item.message));
+                assertThat(
+                    "Incorrect error message for [" + item.type + "] with value [" + item.value + "]",
+                    e.getCause().getMessage(),
+                    containsString(item.message)
+                );
             }
         }
 

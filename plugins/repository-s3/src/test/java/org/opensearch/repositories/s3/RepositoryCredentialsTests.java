@@ -102,10 +102,7 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase {
         secureSettings.setString(ACCESS_KEY_SETTING.getConcreteSettingForNamespace("other").getKey(), "secure_other_key");
         secureSettings.setString(SECRET_KEY_SETTING.getConcreteSettingForNamespace("other").getKey(), "secure_other_secret");
 
-        return Settings.builder()
-            .setSecureSettings(secureSettings)
-            .put(super.nodeSettings())
-            .build();
+        return Settings.builder().setSecureSettings(secureSettings).put(super.nodeSettings()).build();
     }
 
     public void testRepositoryCredentialsOverrideSecureCredentials() {
@@ -126,7 +123,7 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase {
         assertThat(repositories.repository(repositoryName), instanceOf(S3Repository.class));
 
         final S3Repository repository = (S3Repository) repositories.repository(repositoryName);
-        final AmazonS3 client = repository.createBlobStore().clientReference().client();
+        final AmazonS3 client = repository.createBlobStore().clientReference().get();
         assertThat(client, instanceOf(ProxyS3RepositoryPlugin.ClientAndCredentials.class));
 
         final AWSCredentials credentials = ((ProxyS3RepositoryPlugin.ClientAndCredentials) client).credentials.getCredentials();
@@ -139,7 +136,8 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase {
             "Using s3 access/secret key from repository settings. Instead store these in named clients and"
                 + " the opensearch keystore for secure settings.",
             "[access_key] setting was deprecated in OpenSearch and will be removed in a future release!"
-                + " See the breaking changes documentation for the next major version.");
+                + " See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testReinitSecureCredentials() {
@@ -164,7 +162,7 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase {
 
         final S3Repository repository = (S3Repository) repositories.repository(repositoryName);
         try (AmazonS3Reference clientReference = ((S3BlobStore) repository.blobStore()).clientReference()) {
-            final AmazonS3 client = clientReference.client();
+            final AmazonS3 client = clientReference.get();
             assertThat(client, instanceOf(ProxyS3RepositoryPlugin.ClientAndCredentials.class));
 
             final AWSCredentials credentials = ((ProxyS3RepositoryPlugin.ClientAndCredentials) client).credentials.getCredentials();
@@ -204,7 +202,7 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase {
 
         // check credentials have been updated
         try (AmazonS3Reference clientReference = ((S3BlobStore) repository.blobStore()).clientReference()) {
-            final AmazonS3 client = clientReference.client();
+            final AmazonS3 client = clientReference.get();
             assertThat(client, instanceOf(ProxyS3RepositoryPlugin.ClientAndCredentials.class));
 
             final AWSCredentials newCredentials = ((ProxyS3RepositoryPlugin.ClientAndCredentials) client).credentials.getCredentials();
@@ -224,16 +222,20 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase {
                 "Using s3 access/secret key from repository settings. Instead store these in named clients and"
                     + " the opensearch keystore for secure settings.",
                 "[access_key] setting was deprecated in OpenSearch and will be removed in a future release!"
-                    + " See the breaking changes documentation for the next major version.");
+                    + " See the breaking changes documentation for the next major version."
+            );
         }
     }
 
     public void testInsecureRepositoryCredentials() throws Exception {
         final String repositoryName = "repo-insecure-creds";
-        createRepository(repositoryName, Settings.builder()
-            .put(S3Repository.ACCESS_KEY_SETTING.getKey(), "insecure_aws_key")
-            .put(S3Repository.SECRET_KEY_SETTING.getKey(), "insecure_aws_secret")
-            .build());
+        createRepository(
+            repositoryName,
+            Settings.builder()
+                .put(S3Repository.ACCESS_KEY_SETTING.getKey(), "insecure_aws_key")
+                .put(S3Repository.SECRET_KEY_SETTING.getKey(), "insecure_aws_secret")
+                .build()
+        );
 
         final RestRequest fakeRestRequest = new FakeRestRequest();
         fakeRestRequest.params().put("repository", repositoryName);
@@ -262,14 +264,19 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase {
 
         assertWarnings(
             "Using s3 access/secret key from repository settings. Instead store these in named clients and"
-                + " the opensearch keystore for secure settings.");
+                + " the opensearch keystore for secure settings."
+        );
     }
 
     private void createRepository(final String name, final Settings repositorySettings) {
-        assertAcked(client().admin().cluster().preparePutRepository(name)
-            .setType(S3Repository.TYPE)
-            .setVerify(false)
-            .setSettings(repositorySettings));
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(name)
+                .setType(S3Repository.TYPE)
+                .setVerify(false)
+                .setSettings(repositorySettings)
+        );
     }
 
     /**
@@ -282,9 +289,12 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase {
         }
 
         @Override
-        protected S3Repository createRepository(RepositoryMetadata metadata,
-                                                NamedXContentRegistry registry, ClusterService clusterService,
-                                                RecoverySettings recoverySettings) {
+        protected S3Repository createRepository(
+            RepositoryMetadata metadata,
+            NamedXContentRegistry registry,
+            ClusterService clusterService,
+            RecoverySettings recoverySettings
+        ) {
             return new S3Repository(metadata, registry, service, clusterService, recoverySettings) {
                 @Override
                 protected void assertSnapshotOrGenericThread() {

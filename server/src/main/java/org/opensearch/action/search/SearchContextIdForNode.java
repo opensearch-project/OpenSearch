@@ -79,10 +79,15 @@ public final class SearchContextIdForNode implements Writeable {
 
     @Override
     public String toString() {
-        return "SearchContextIdForNode{" +
-            "node='" + node + '\'' +
-            ", seachContextId=" + searchContextId +
-            ", clusterAlias='" + clusterAlias + '\'' +
-            '}';
+        return "SearchContextIdForNode{"
+            + "node='"
+            + node
+            + '\''
+            + ", seachContextId="
+            + searchContextId
+            + ", clusterAlias='"
+            + clusterAlias
+            + '\''
+            + '}';
     }
 }

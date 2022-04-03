@@ -64,17 +64,29 @@ public class JodaDateMathParserTests extends OpenSearchTestCase {
     void assertDateEquals(long gotMillis, String original, String expected) {
         long expectedMillis = parser.parse(expected, () -> 0).toEpochMilli();
         if (gotMillis != expectedMillis) {
-            fail("Date math not equal\n" +
-                "Original              : " + original + "\n" +
-                "Parsed                : " + formatter.formatMillis(gotMillis) + "\n" +
-                "Expected              : " + expected + "\n" +
-                "Expected milliseconds : " + expectedMillis + "\n" +
-                "Actual milliseconds   : " + gotMillis + "\n");
+            fail(
+                "Date math not equal\n"
+                    + "Original              : "
+                    + original
+                    + "\n"
+                    + "Parsed                : "
+                    + formatter.formatMillis(gotMillis)
+                    + "\n"
+                    + "Expected              : "
+                    + expected
+                    + "\n"
+                    + "Expected milliseconds : "
+                    + expectedMillis
+                    + "\n"
+                    + "Actual milliseconds   : "
+                    + gotMillis
+                    + "\n"
+            );
         }
     }
 
     public void testOverridingLocaleOrZoneAndCompositeRoundUpParser() {
-        //the pattern has to be composite and the match should not be on the first one
+        // the pattern has to be composite and the match should not be on the first one
         DateFormatter formatter = Joda.forPattern("date||epoch_millis").withLocale(randomLocale(random()));
         DateMathParser parser = formatter.toDateMathParser();
         long gotMillis = parser.parse("297276785531", () -> 0, true, (ZoneId) null).toEpochMilli();
@@ -172,7 +184,6 @@ public class JodaDateMathParserTests extends OpenSearchTestCase {
         assertDateMathEquals("2014-11-18||+1M/M+1h", "2014-12-01T01");
     }
 
-
     public void testNow() {
         final long now = parser.parse("2014-11-18T14:27:32", () -> 0, false, (ZoneId) null).toEpochMilli();
 
@@ -195,11 +206,13 @@ public class JodaDateMathParserTests extends OpenSearchTestCase {
         DateFormatter formatter = DateFormatter.forPattern("HH:mm:ss");
         DateMathParser parser = formatter.toDateMathParser();
         assertEquals(
-                this.formatter.parseMillis("1970-01-01T04:52:20.000Z"),
-                parser.parse("04:52:20", () -> 0, false, (ZoneId) null).toEpochMilli());
+            this.formatter.parseMillis("1970-01-01T04:52:20.000Z"),
+            parser.parse("04:52:20", () -> 0, false, (ZoneId) null).toEpochMilli()
+        );
         assertEquals(
-                this.formatter.parseMillis("1970-01-01T04:52:20.999Z"),
-                parser.parse("04:52:20", () -> 0, true, (ZoneId) null).toEpochMilli());
+            this.formatter.parseMillis("1970-01-01T04:52:20.999Z"),
+            parser.parse("04:52:20", () -> 0, true, (ZoneId) null).toEpochMilli()
+        );
     }
 
     // Implicit rounding happening when parts of the date are not specified
@@ -343,7 +356,7 @@ public class JodaDateMathParserTests extends OpenSearchTestCase {
         try {
             parser.parse("1234567890123", () -> 42, false, ZoneId.of("CET"));
             fail("Expected OpenSearchParseException");
-        } catch(OpenSearchParseException e) {
+        } catch (OpenSearchParseException e) {
             assertThat(e.getMessage(), containsString("failed to parse date field"));
             assertThat(e.getMessage(), containsString("with format [epoch_millis]"));
         }

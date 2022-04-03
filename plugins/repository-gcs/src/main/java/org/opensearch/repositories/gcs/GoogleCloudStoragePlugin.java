@@ -65,11 +65,22 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                           ClusterService clusterService, RecoverySettings recoverySettings) {
-        return Collections.singletonMap(GoogleCloudStorageRepository.TYPE,
-            metadata -> new GoogleCloudStorageRepository(metadata, namedXContentRegistry, this.storageService, clusterService,
-                recoverySettings));
+    public Map<String, Repository.Factory> getRepositories(
+        Environment env,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        RecoverySettings recoverySettings
+    ) {
+        return Collections.singletonMap(
+            GoogleCloudStorageRepository.TYPE,
+            metadata -> new GoogleCloudStorageRepository(
+                metadata,
+                namedXContentRegistry,
+                this.storageService,
+                clusterService,
+                recoverySettings
+            )
+        );
     }
 
     @Override
@@ -81,7 +92,13 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
             GoogleCloudStorageClientSettings.CONNECT_TIMEOUT_SETTING,
             GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING,
             GoogleCloudStorageClientSettings.APPLICATION_NAME_SETTING,
-            GoogleCloudStorageClientSettings.TOKEN_URI_SETTING);
+            GoogleCloudStorageClientSettings.TOKEN_URI_SETTING,
+            GoogleCloudStorageClientSettings.PROXY_TYPE_SETTING,
+            GoogleCloudStorageClientSettings.PROXY_HOST_SETTING,
+            GoogleCloudStorageClientSettings.PROXY_PORT_SETTING,
+            GoogleCloudStorageClientSettings.PROXY_USERNAME_SETTING,
+            GoogleCloudStorageClientSettings.PROXY_PASSWORD_SETTING
+        );
     }
 
     @Override

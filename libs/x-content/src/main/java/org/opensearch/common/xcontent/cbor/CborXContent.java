@@ -72,8 +72,7 @@ public class CborXContent implements XContent {
         cborXContent = new CborXContent();
     }
 
-    private CborXContent() {
-    }
+    private CborXContent() {}
 
     @Override
     public XContentType type() {
@@ -91,32 +90,37 @@ public class CborXContent implements XContent {
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, String content) throws IOException {
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, String content)
+        throws IOException {
         return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(content));
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, InputStream is) throws IOException {
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, InputStream is)
+        throws IOException {
         return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(is));
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, byte[] data) throws IOException {
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, byte[] data)
+        throws IOException {
         return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(data));
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, byte[] data, int offset, int length) throws IOException {
+    public XContentParser createParser(
+        NamedXContentRegistry xContentRegistry,
+        DeprecationHandler deprecationHandler,
+        byte[] data,
+        int offset,
+        int length
+    ) throws IOException {
         return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(data, offset, length));
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, Reader reader) throws IOException {
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, Reader reader)
+        throws IOException {
         return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(reader));
     }
 

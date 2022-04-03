@@ -40,8 +40,7 @@ import java.util.List;
 public class MultiPoint extends GeometryCollection<Point> {
     public static final MultiPoint EMPTY = new MultiPoint();
 
-    private MultiPoint() {
-    }
+    private MultiPoint() {}
 
     public MultiPoint(List<Point> points) {
         super(points);

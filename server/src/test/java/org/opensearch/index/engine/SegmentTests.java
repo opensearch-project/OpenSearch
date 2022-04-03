@@ -50,20 +50,22 @@ import java.util.Objects;
 public class SegmentTests extends OpenSearchTestCase {
     static SortField randomSortField() {
         if (randomBoolean()) {
-            SortedNumericSortField field =
-                new SortedNumericSortField(randomAlphaOfLengthBetween(1, 10),
-                    SortField.Type.INT,
-                    randomBoolean(),
-                    randomBoolean() ? SortedNumericSelector.Type.MAX : SortedNumericSelector.Type.MIN);
+            SortedNumericSortField field = new SortedNumericSortField(
+                randomAlphaOfLengthBetween(1, 10),
+                SortField.Type.INT,
+                randomBoolean(),
+                randomBoolean() ? SortedNumericSelector.Type.MAX : SortedNumericSelector.Type.MIN
+            );
             if (randomBoolean()) {
                 field.setMissingValue(randomInt());
             }
             return field;
         } else {
-            SortedSetSortField field =
-                new SortedSetSortField(randomAlphaOfLengthBetween(1, 10),
-                    randomBoolean(),
-                    randomBoolean() ? SortedSetSelector.Type.MAX : SortedSetSelector.Type.MIN);
+            SortedSetSortField field = new SortedSetSortField(
+                randomAlphaOfLengthBetween(1, 10),
+                randomBoolean(),
+                randomBoolean() ? SortedSetSelector.Type.MAX : SortedSetSelector.Type.MIN
+            );
             if (randomBoolean()) {
                 field.setMissingValue(randomBoolean() ? SortedSetSortField.STRING_FIRST : SortedSetSortField.STRING_LAST);
             }
@@ -90,10 +92,9 @@ public class SegmentTests extends OpenSearchTestCase {
         segment.sizeInBytes = randomNonNegativeLong();
         segment.docCount = randomIntBetween(1, Integer.MAX_VALUE);
         segment.delDocCount = randomIntBetween(0, segment.docCount);
-        segment.version = Version.LUCENE_7_0_0;
+        segment.version = Version.LUCENE_8_0_0;
         segment.compound = randomBoolean();
         segment.mergeId = randomAlphaOfLengthBetween(1, 10);
-        segment.memoryInBytes = randomNonNegativeLong();
         segment.segmentSort = randomIndexSort();
         if (randomBoolean()) {
             segment.attributes = Collections.singletonMap("foo", "bar");
@@ -114,17 +115,16 @@ public class SegmentTests extends OpenSearchTestCase {
     }
 
     static boolean isSegmentEquals(Segment seg1, Segment seg2) {
-        return seg1.docCount == seg2.docCount &&
-            seg1.delDocCount == seg2.delDocCount &&
-            seg1.committed == seg2.committed &&
-            seg1.search == seg2.search &&
-            Objects.equals(seg1.version, seg2.version) &&
-            Objects.equals(seg1.compound, seg2.compound) &&
-            seg1.sizeInBytes == seg2.sizeInBytes &&
-            seg1.memoryInBytes == seg2.memoryInBytes &&
-            seg1.getGeneration() == seg2.getGeneration() &&
-            seg1.getName().equals(seg2.getName()) &&
-            seg1.getMergeId().equals(seg2.getMergeId()) &&
-            Objects.equals(seg1.segmentSort, seg2.segmentSort);
+        return seg1.docCount == seg2.docCount
+            && seg1.delDocCount == seg2.delDocCount
+            && seg1.committed == seg2.committed
+            && seg1.search == seg2.search
+            && Objects.equals(seg1.version, seg2.version)
+            && Objects.equals(seg1.compound, seg2.compound)
+            && seg1.sizeInBytes == seg2.sizeInBytes
+            && seg1.getGeneration() == seg2.getGeneration()
+            && seg1.getName().equals(seg2.getName())
+            && seg1.getMergeId().equals(seg2.getMergeId())
+            && Objects.equals(seg1.segmentSort, seg2.segmentSort);
     }
 }

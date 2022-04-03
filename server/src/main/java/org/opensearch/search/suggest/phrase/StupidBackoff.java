@@ -135,7 +135,13 @@ public final class StupidBackoff extends SmoothingModel {
 
     @Override
     public WordScorerFactory buildWordScorerFactory() {
-        return (IndexReader reader, Terms terms, String field, double realWordLikelihood, BytesRef separator)
-                -> new StupidBackoffScorer(reader, terms, field, realWordLikelihood, separator, discount);
+        return (IndexReader reader, Terms terms, String field, double realWordLikelihood, BytesRef separator) -> new StupidBackoffScorer(
+            reader,
+            terms,
+            field,
+            realWordLikelihood,
+            separator,
+            discount
+        );
     }
 }

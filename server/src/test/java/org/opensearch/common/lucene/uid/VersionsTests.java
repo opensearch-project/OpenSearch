@@ -52,7 +52,6 @@ import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import static org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver.loadDocIdAndVersion;
@@ -175,10 +174,10 @@ public class VersionsTests extends OpenSearchTestCase {
         DirectoryReader reader = DirectoryReader.open(writer);
         // should increase cache size by 1
         assertEquals(87, loadDocIdAndVersion(reader, new Term(IdFieldMapper.NAME, "6"), randomBoolean()).version);
-        assertEquals(size+1, VersionsAndSeqNoResolver.lookupStates.size());
+        assertEquals(size + 1, VersionsAndSeqNoResolver.lookupStates.size());
         // should be cache hit
         assertEquals(87, loadDocIdAndVersion(reader, new Term(IdFieldMapper.NAME, "6"), randomBoolean()).version);
-        assertEquals(size+1, VersionsAndSeqNoResolver.lookupStates.size());
+        assertEquals(size + 1, VersionsAndSeqNoResolver.lookupStates.size());
 
         reader.close();
         writer.close();
@@ -201,12 +200,12 @@ public class VersionsTests extends OpenSearchTestCase {
         writer.addDocument(doc);
         DirectoryReader reader = DirectoryReader.open(writer);
         assertEquals(87, loadDocIdAndVersion(reader, new Term(IdFieldMapper.NAME, "6"), randomBoolean()).version);
-        assertEquals(size+1, VersionsAndSeqNoResolver.lookupStates.size());
+        assertEquals(size + 1, VersionsAndSeqNoResolver.lookupStates.size());
         // now wrap the reader
         DirectoryReader wrapped = OpenSearchDirectoryReader.wrap(reader, new ShardId("bogus", "_na_", 5));
         assertEquals(87, loadDocIdAndVersion(wrapped, new Term(IdFieldMapper.NAME, "6"), randomBoolean()).version);
         // same size map: core cache key is shared
-        assertEquals(size+1, VersionsAndSeqNoResolver.lookupStates.size());
+        assertEquals(size + 1, VersionsAndSeqNoResolver.lookupStates.size());
 
         reader.close();
         writer.close();
@@ -216,20 +215,13 @@ public class VersionsTests extends OpenSearchTestCase {
     }
 
     public void testLuceneVersionOnUnknownVersions() {
-        List<Version> allVersions = VersionUtils.allVersions();
-
-        // should have the same Lucene version as the latest 6.x version
-        Version version = LegacyESVersion.fromString("6.88.50");
-        assertEquals(allVersions.get(Collections.binarySearch(allVersions, LegacyESVersion.V_7_0_0) - 1).luceneVersion,
-                version.luceneVersion);
-
         // between two known versions, should use the lucene version of the previous version
-        version = LegacyESVersion.fromString("6.2.50");
-        assertEquals(VersionUtils.getPreviousVersion(LegacyESVersion.V_6_2_4).luceneVersion, version.luceneVersion);
+        Version version = LegacyESVersion.fromString("7.10.50");
+        assertEquals(VersionUtils.getPreviousVersion(Version.fromString("7.10.3")).luceneVersion, version.luceneVersion);
 
         // too old version, major should be the oldest supported lucene version minus 1
         version = LegacyESVersion.fromString("5.2.1");
-        assertEquals(LegacyESVersion.V_6_0_0.luceneVersion.major - 1, version.luceneVersion.major);
+        assertEquals(VersionUtils.getFirstVersion().luceneVersion.major - 1, version.luceneVersion.major);
 
         // future version, should be the same version as today
         version = Version.fromString("2.77.1");

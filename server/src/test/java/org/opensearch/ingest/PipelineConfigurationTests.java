@@ -53,8 +53,11 @@ import java.util.function.Predicate;
 public class PipelineConfigurationTests extends AbstractXContentTestCase<PipelineConfiguration> {
 
     public void testSerialization() throws IOException {
-        PipelineConfiguration configuration = new PipelineConfiguration("1",
-            new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
+        PipelineConfiguration configuration = new PipelineConfiguration(
+            "1",
+            new BytesArray("{}".getBytes(StandardCharsets.UTF_8)),
+            XContentType.JSON
+        );
         assertEquals(XContentType.JSON, configuration.getXContentType());
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -70,8 +73,10 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
         XContentType xContentType = randomFrom(XContentType.values());
         final BytesReference bytes;
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
-            new PipelineConfiguration("1", new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), XContentType.JSON)
-                .toXContent(builder, ToXContent.EMPTY_PARAMS);
+            new PipelineConfiguration("1", new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), XContentType.JSON).toXContent(
+                builder,
+                ToXContent.EMPTY_PARAMS
+            );
             bytes = BytesReference.bytes(builder);
         }
 

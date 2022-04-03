@@ -49,4 +49,3 @@ public class MapperSizeClientYamlTestSuiteIT extends OpenSearchClientYamlSuiteTe
         return createParameters();
     }
 }
-

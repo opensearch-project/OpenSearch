@@ -101,7 +101,7 @@ public interface PainlessScript {
                     pos = new ScriptException.Position(originalOffset, startOffset, endOffset);
                 }
                 break;
-            // but filter our own internal stacks (e.g. indy bootstrap)
+                // but filter our own internal stacks (e.g. indy bootstrap)
             } else if (!shouldFilter(element)) {
                 scriptStack.add(element.toString());
             }
@@ -115,9 +115,9 @@ public interface PainlessScript {
 
     /** returns true for methods that are part of the runtime */
     default boolean shouldFilter(StackTraceElement element) {
-        return element.getClassName().startsWith("org.opensearch.painless.") ||
-               element.getClassName().startsWith("java.lang.invoke.") ||
-               element.getClassName().startsWith("sun.invoke.");
+        return element.getClassName().startsWith("org.opensearch.painless.")
+            || element.getClassName().startsWith("java.lang.invoke.")
+            || element.getClassName().startsWith("sun.invoke.");
     }
 
     /**

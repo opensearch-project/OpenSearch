@@ -52,10 +52,17 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * Implementation of the "run" Gradle task used in run.gradle
+ */
 public class RunTask extends DefaultTestClustersTask {
 
     private static final Logger logger = Logging.getLogger(RunTask.class);
     public static final String CUSTOM_SETTINGS_PREFIX = "tests.opensearch.";
+    private static final int DEFAULT_HTTP_PORT = 9200;
+    private static final int DEFAULT_TRANSPORT_PORT = 9300;
+    private static final int DEFAULT_DEBUG_PORT = 5005;
+    public static final String LOCALHOST_ADDRESS_PREFIX = "127.0.0.1:";
 
     private Boolean debug = false;
 
@@ -112,9 +119,9 @@ public class RunTask extends DefaultTestClustersTask {
 
     @Override
     public void beforeStart() {
-        int debugPort = 5005;
-        int httpPort = 9200;
-        int transportPort = 9300;
+        int debugPort = DEFAULT_DEBUG_PORT;
+        int httpPort = DEFAULT_HTTP_PORT;
+        int transportPort = DEFAULT_TRANSPORT_PORT;
         Map<String, String> additionalSettings = System.getProperties()
             .entrySet()
             .stream()
@@ -134,12 +141,22 @@ public class RunTask extends DefaultTestClustersTask {
         }
 
         for (OpenSearchCluster cluster : getClusters()) {
-            cluster.getFirstNode().setHttpPort(String.valueOf(httpPort));
+            // Configure the first node with the default ports first
+            OpenSearchNode firstNode = cluster.getFirstNode();
+            firstNode.setHttpPort(String.valueOf(httpPort));
             httpPort++;
-            cluster.getFirstNode().setTransportPort(String.valueOf(transportPort));
+            firstNode.setTransportPort(String.valueOf(transportPort));
             transportPort++;
+            firstNode.setting("discovery.seed_hosts", LOCALHOST_ADDRESS_PREFIX + DEFAULT_TRANSPORT_PORT);
             cluster.setPreserveDataDir(preserveData);
             for (OpenSearchNode node : cluster.getNodes()) {
+                if (node != firstNode) {
+                    node.setHttpPort(String.valueOf(httpPort));
+                    httpPort++;
+                    node.setTransportPort(String.valueOf(transportPort));
+                    transportPort++;
+                    node.setting("discovery.seed_hosts", LOCALHOST_ADDRESS_PREFIX + DEFAULT_TRANSPORT_PORT);
+                }
                 additionalSettings.forEach(node::setting);
                 if (dataDir != null) {
                     node.setDataPath(getDataPath.apply(node));

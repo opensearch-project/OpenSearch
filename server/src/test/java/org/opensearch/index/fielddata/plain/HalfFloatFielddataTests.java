@@ -40,7 +40,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.store.Directory;
 import org.opensearch.core.internal.io.IOUtils;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.index.fielddata.FieldData;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.index.mapper.NumberFieldMapper;
@@ -61,8 +61,8 @@ public class HalfFloatFielddataTests extends OpenSearchTestCase {
         w.addDocument(doc);
         final DirectoryReader dirReader = DirectoryReader.open(w);
         LeafReader reader = getOnlyLeafReader(dirReader);
-        SortedNumericDoubleValues values = new SortedNumericIndexFieldData.SortedNumericHalfFloatFieldData(
-                reader, "half_float").getDoubleValues();
+        SortedNumericDoubleValues values = new SortedNumericIndexFieldData.SortedNumericHalfFloatFieldData(reader, "half_float")
+            .getDoubleValues();
         assertNotNull(FieldData.unwrapSingleton(values));
         assertTrue(values.advanceExact(0));
         assertEquals(1, values.docValueCount());
@@ -83,8 +83,8 @@ public class HalfFloatFielddataTests extends OpenSearchTestCase {
         w.addDocument(doc);
         final DirectoryReader dirReader = DirectoryReader.open(w);
         LeafReader reader = getOnlyLeafReader(dirReader);
-        SortedNumericDoubleValues values = new SortedNumericIndexFieldData.SortedNumericHalfFloatFieldData(
-                reader, "half_float").getDoubleValues();
+        SortedNumericDoubleValues values = new SortedNumericIndexFieldData.SortedNumericHalfFloatFieldData(reader, "half_float")
+            .getDoubleValues();
         assertNull(FieldData.unwrapSingleton(values));
         assertTrue(values.advanceExact(0));
         assertEquals(2, values.docValueCount());

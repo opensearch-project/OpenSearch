@@ -53,11 +53,7 @@ public class DataStreamTestCase extends OpenSearchIntegTestCase {
     }
 
     public List<String> getDataStreamsNames(String... names) throws Exception {
-        return getDataStreams(names)
-            .getDataStreams()
-            .stream()
-            .map(dsInfo -> dsInfo.getDataStream().getName())
-            .collect(Collectors.toList());
+        return getDataStreams(names).getDataStreams().stream().map(dsInfo -> dsInfo.getDataStream().getName()).collect(Collectors.toList());
     }
 
     public DataStreamsStatsAction.Response getDataStreamsStats(String... names) throws Exception {
@@ -78,16 +74,11 @@ public class DataStreamTestCase extends OpenSearchIntegTestCase {
         return createDataStreamIndexTemplate(name, indexPatterns, "@timestamp");
     }
 
-    public AcknowledgedResponse createDataStreamIndexTemplate(String name,
-                                                              List<String> indexPatterns,
-                                                              String timestampFieldName) throws Exception {
+    public AcknowledgedResponse createDataStreamIndexTemplate(String name, List<String> indexPatterns, String timestampFieldName)
+        throws Exception {
         ComposableIndexTemplate template = new ComposableIndexTemplate(
             indexPatterns,
-            new Template(
-                Settings.builder().put("number_of_shards", 2).put("number_of_replicas", 1).build(),
-                null,
-                null
-            ),
+            new Template(Settings.builder().put("number_of_shards", 2).put("number_of_replicas", 1).build(), null, null),
             null,
             null,
             null,
@@ -99,12 +90,7 @@ public class DataStreamTestCase extends OpenSearchIntegTestCase {
     }
 
     public AcknowledgedResponse createIndexTemplate(String name, String jsonContent) throws Exception {
-        XContentParser parser = XContentHelper.createParser(
-            xContentRegistry(),
-            null,
-            new BytesArray(jsonContent),
-            XContentType.JSON
-        );
+        XContentParser parser = XContentHelper.createParser(xContentRegistry(), null, new BytesArray(jsonContent), XContentType.JSON);
 
         return createIndexTemplate(name, ComposableIndexTemplate.parse(parser));
     }

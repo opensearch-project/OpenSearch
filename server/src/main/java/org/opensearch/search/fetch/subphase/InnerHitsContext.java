@@ -35,7 +35,7 @@ package org.opensearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.ConjunctionDISI;
+import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.ScoreMode;
@@ -45,7 +45,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
-import org.opensearch.index.mapper.Uid;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.SubSearchContext;
@@ -77,8 +76,11 @@ public final class InnerHitsContext {
 
     public void addInnerHitDefinition(InnerHitSubContext innerHit) {
         if (innerHits.containsKey(innerHit.getName())) {
-            throw new IllegalArgumentException("inner_hit definition with the name [" + innerHit.getName() +
-                    "] already exists. Use a different inner_hit name or define one explicitly");
+            throw new IllegalArgumentException(
+                "inner_hit definition with the name ["
+                    + innerHit.getName()
+                    + "] already exists. Use a different inner_hit name or define one explicitly"
+            );
         }
 
         innerHits.put(innerHit.getName(), innerHit);
@@ -95,8 +97,7 @@ public final class InnerHitsContext {
         private InnerHitsContext childInnerHits;
         private Weight innerHitQueryWeight;
 
-        // TODO: when types are complete removed just use String instead for the id:
-        private Uid rootId;
+        private String id;
         private SourceLookup rootLookup;
 
         protected InnerHitSubContext(String name, SearchContext context) {
@@ -123,8 +124,8 @@ public final class InnerHitsContext {
         protected Weight getInnerHitQueryWeight() throws IOException {
             if (innerHitQueryWeight == null) {
                 final boolean needsScores = size() != 0 && (sort() == null || sort().sort.needsScores());
-                innerHitQueryWeight = context.searcher().createWeight(context.searcher().rewrite(query()),
-                    needsScores ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES, 1f);
+                innerHitQueryWeight = context.searcher()
+                    .createWeight(context.searcher().rewrite(query()), needsScores ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES, 1f);
             }
             return innerHitQueryWeight;
         }
@@ -138,12 +139,12 @@ public final class InnerHitsContext {
          *
          * Since this ID is available on the context, inner hits can avoid re-loading the root _id.
          */
-        public Uid getRootId() {
-            return rootId;
+        public String getId() {
+            return id;
         }
 
-        public void setRootId(Uid rootId) {
-            this.rootId = rootId;
+        public void setId(String id) {
+            this.id = id;
         }
 
         /**
@@ -186,8 +187,9 @@ public final class InnerHitsContext {
 
         try {
             Bits acceptDocs = ctx.reader().getLiveDocs();
-            DocIdSetIterator iterator = ConjunctionDISI.intersectIterators(Arrays.asList(innerHitQueryScorer.iterator(),
-                scorer.iterator()));
+            DocIdSetIterator iterator = ConjunctionUtils.intersectIterators(
+                Arrays.asList(innerHitQueryScorer.iterator(), scorer.iterator())
+            );
             for (int docId = iterator.nextDoc(); docId < DocIdSetIterator.NO_MORE_DOCS; docId = iterator.nextDoc()) {
                 if (acceptDocs == null || acceptDocs.get(docId)) {
                     leafCollector.collect(docId);

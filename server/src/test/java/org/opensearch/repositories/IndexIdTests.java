@@ -62,7 +62,7 @@ public class IndexIdTests extends OpenSearchTestCase {
         indexId2 = new IndexId(name, id);
         assertEquals(indexId1, indexId2);
         assertEquals(indexId1.hashCode(), indexId2.hashCode());
-        //assert not equals when name or id differ
+        // assert not equals when name or id differ
         indexId2 = new IndexId(randomAlphaOfLength(8), id);
         assertNotEquals(indexId1, indexId2);
         assertNotEquals(indexId1.hashCode(), indexId2.hashCode());

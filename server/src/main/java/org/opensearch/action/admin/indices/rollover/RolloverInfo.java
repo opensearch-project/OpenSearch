@@ -57,11 +57,17 @@ public class RolloverInfo extends AbstractDiffable<RolloverInfo> implements Writ
     public static final ParseField TIME_FIELD = new ParseField("time");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<RolloverInfo, String> PARSER = new ConstructingObjectParser<>("rollover_info", false,
-        (a, alias) -> new RolloverInfo(alias, (List<Condition<?>>) a[0], (Long) a[1]));
+    public static final ConstructingObjectParser<RolloverInfo, String> PARSER = new ConstructingObjectParser<>(
+        "rollover_info",
+        false,
+        (a, alias) -> new RolloverInfo(alias, (List<Condition<?>>) a[0], (Long) a[1])
+    );
     static {
-        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(),
-            (p, c, n) -> p.namedObject(Condition.class, n, c), CONDITION_FIELD);
+        PARSER.declareNamedObjects(
+            ConstructingObjectParser.constructorArg(),
+            (p, c, n) -> p.namedObject(Condition.class, n, c),
+            CONDITION_FIELD
+        );
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), TIME_FIELD);
     }
 
@@ -135,9 +141,7 @@ public class RolloverInfo extends AbstractDiffable<RolloverInfo> implements Writ
             return false;
         }
         RolloverInfo other = (RolloverInfo) obj;
-        return Objects.equals(alias, other.alias) &&
-            Objects.equals(metConditions, other.metConditions) &&
-            Objects.equals(time, other.time);
+        return Objects.equals(alias, other.alias) && Objects.equals(metConditions, other.metConditions) && Objects.equals(time, other.time);
     }
 
     @Override

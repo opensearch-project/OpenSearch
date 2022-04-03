@@ -64,7 +64,6 @@ import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.join.aggregations.Children;
 import org.opensearch.join.aggregations.ChildrenAggregationBuilder;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.rest.action.document.RestIndexAction;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.script.mustache.MultiSearchTemplateRequest;
@@ -125,24 +124,19 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
     @Before
     public void indexDocuments() throws IOException {
         {
-            Request doc1 = new Request(HttpPut.METHOD_NAME, "/index/type/1");
-            doc1.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
+            Request doc1 = new Request(HttpPut.METHOD_NAME, "/index/_doc/1");
             doc1.setJsonEntity("{\"type\":\"type1\", \"id\":1, \"num\":10, \"num2\":50}");
             client().performRequest(doc1);
-            Request doc2 = new Request(HttpPut.METHOD_NAME, "/index/type/2");
-            doc2.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
+            Request doc2 = new Request(HttpPut.METHOD_NAME, "/index/_doc/2");
             doc2.setJsonEntity("{\"type\":\"type1\", \"id\":2, \"num\":20, \"num2\":40}");
             client().performRequest(doc2);
-            Request doc3 = new Request(HttpPut.METHOD_NAME, "/index/type/3");
-            doc3.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
+            Request doc3 = new Request(HttpPut.METHOD_NAME, "/index/_doc/3");
             doc3.setJsonEntity("{\"type\":\"type1\", \"id\":3, \"num\":50, \"num2\":35}");
             client().performRequest(doc3);
-            Request doc4 = new Request(HttpPut.METHOD_NAME, "/index/type/4");
-            doc4.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
+            Request doc4 = new Request(HttpPut.METHOD_NAME, "/index/_doc/4");
             doc4.setJsonEntity("{\"type\":\"type2\", \"id\":4, \"num\":100, \"num2\":10}");
             client().performRequest(doc4);
-            Request doc5 = new Request(HttpPut.METHOD_NAME, "/index/type/5");
-            doc5.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
+            Request doc5 = new Request(HttpPut.METHOD_NAME, "/index/_doc/5");
             doc5.setJsonEntity("{\"type\":\"type2\", \"id\":5, \"num\":100, \"num2\":10}");
             client().performRequest(doc5);
         }
@@ -159,15 +153,16 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         {
             Request create = new Request("PUT", "/index2");
             create.setJsonEntity(
-                "{" +
-                "  \"mappings\": {" +
-                "    \"properties\": {" +
-                "      \"rating\": {" +
-                "        \"type\":  \"keyword\"" +
-                "      }" +
-                "    }" +
-                "  }" +
-                "}");
+                "{"
+                    + "  \"mappings\": {"
+                    + "    \"properties\": {"
+                    + "      \"rating\": {"
+                    + "        \"type\":  \"keyword\""
+                    + "      }"
+                    + "    }"
+                    + "  }"
+                    + "}"
+            );
             client().performRequest(create);
             Request doc3 = new Request(HttpPut.METHOD_NAME, "/index2/_doc/3");
             doc3.setJsonEntity("{\"id\":3, \"field\":\"value1\", \"rating\": \"good\"}");
@@ -189,20 +184,21 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         {
             Request create = new Request(HttpPut.METHOD_NAME, "/index4");
             create.setJsonEntity(
-                    "{" +
-                    "  \"mappings\": {" +
-                    "    \"properties\": {" +
-                    "      \"field1\": {" +
-                    "        \"type\":  \"keyword\"," +
-                    "        \"store\":  true" +
-                    "      }," +
-                    "      \"field2\": {" +
-                    "        \"type\":  \"keyword\"," +
-                    "        \"store\":  true" +
-                    "      }" +
-                    "    }" +
-                    "  }" +
-                    "}");
+                "{"
+                    + "  \"mappings\": {"
+                    + "    \"properties\": {"
+                    + "      \"field1\": {"
+                    + "        \"type\":  \"keyword\","
+                    + "        \"store\":  true"
+                    + "      },"
+                    + "      \"field2\": {"
+                    + "        \"type\":  \"keyword\","
+                    + "        \"store\":  true"
+                    + "      }"
+                    + "    }"
+                    + "  }"
+                    + "}"
+            );
             client().performRequest(create);
             Request doc1 = new Request(HttpPut.METHOD_NAME, "/index4/_doc/1");
             doc1.setJsonEntity("{\"id\":1, \"field1\":\"value1\", \"field2\":\"value2\"}");
@@ -210,17 +206,18 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
 
             Request createFilteredAlias = new Request(HttpPost.METHOD_NAME, "/_aliases");
             createFilteredAlias.setJsonEntity(
-                    "{" +
-                    "  \"actions\" : [" +
-                    "    {" +
-                    "      \"add\" : {" +
-                    "        \"index\" : \"index4\"," +
-                    "        \"alias\" : \"alias4\"," +
-                    "        \"filter\" : { \"term\" : { \"field2\" : \"value1\" } }" +
-                    "      }" +
-                    "    }" +
-                    "  ]" +
-                    "}");
+                "{"
+                    + "  \"actions\" : ["
+                    + "    {"
+                    + "      \"add\" : {"
+                    + "        \"index\" : \"index4\","
+                    + "        \"alias\" : \"alias4\","
+                    + "        \"filter\" : { \"term\" : { \"field2\" : \"value1\" } }"
+                    + "      }"
+                    + "    }"
+                    + "  ]"
+                    + "}"
+            );
             client().performRequest(createFilteredAlias);
         }
 
@@ -238,13 +235,11 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         assertEquals(5, searchResponse.getHits().getHits().length);
         for (SearchHit searchHit : searchResponse.getHits().getHits()) {
             assertEquals("index", searchHit.getIndex());
-            assertEquals("type", searchHit.getType());
             assertThat(Integer.valueOf(searchHit.getId()), both(greaterThan(0)).and(lessThan(6)));
             assertEquals(1.0f, searchHit.getScore(), 0);
             assertEquals(-1L, searchHit.getVersion());
             assertNotNull(searchHit.getSourceAsMap());
             assertEquals(4, searchHit.getSourceAsMap().size());
-            assertTrue(searchHit.getSourceAsMap().containsKey("type"));
             assertTrue(searchHit.getSourceAsMap().containsKey("num"));
             assertTrue(searchHit.getSourceAsMap().containsKey("num2"));
         }
@@ -263,7 +258,6 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(searchResponse.getHits().getMaxScore(), greaterThan(0f));
         SearchHit searchHit = searchResponse.getHits().getHits()[0];
         assertEquals("index", searchHit.getIndex());
-        assertEquals("type", searchHit.getType());
         assertEquals("1", searchHit.getId());
         assertThat(searchHit.getScore(), greaterThan(0f));
         assertEquals(-1L, searchHit.getVersion());
@@ -276,8 +270,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
     public void testSearchWithTermsAgg() throws IOException {
         SearchRequest searchRequest = new SearchRequest();
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        searchSourceBuilder.aggregation(new TermsAggregationBuilder("agg1").userValueTypeHint(ValueType.STRING)
-            .field("type.keyword"));
+        searchSourceBuilder.aggregation(new TermsAggregationBuilder("agg1").userValueTypeHint(ValueType.STRING).field("type.keyword"));
         searchSourceBuilder.size(0);
         searchRequest.source(searchSourceBuilder);
         SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
@@ -300,8 +293,9 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
     public void testSearchWithRareTermsAgg() throws IOException {
         SearchRequest searchRequest = new SearchRequest();
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        searchSourceBuilder.aggregation(new RareTermsAggregationBuilder("agg1").userValueTypeHint(ValueType.STRING)
-            .field("type.keyword").maxDocCount(2));
+        searchSourceBuilder.aggregation(
+            new RareTermsAggregationBuilder("agg1").userValueTypeHint(ValueType.STRING).field("type.keyword").maxDocCount(2)
+        );
         searchSourceBuilder.size(0);
         searchRequest.source(searchSourceBuilder);
         SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
@@ -320,8 +314,9 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
     public void testSearchWithCompositeAgg() throws IOException {
         SearchRequest searchRequest = new SearchRequest();
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        List<CompositeValuesSourceBuilder<?>> sources
-            = Collections.singletonList(new TermsValuesSourceBuilder("terms").field("type.keyword").missingBucket(true).order("asc"));
+        List<CompositeValuesSourceBuilder<?>> sources = Collections.singletonList(
+            new TermsValuesSourceBuilder("terms").field("type.keyword").missingBucket(true).order("asc")
+        );
         searchSourceBuilder.aggregation(AggregationBuilders.composite("composite", sources));
         searchSourceBuilder.size(0);
         searchRequest.source(searchSourceBuilder);
@@ -353,15 +348,18 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
             searchSourceBuilder.size(0);
             searchRequest.source(searchSourceBuilder);
 
-            OpenSearchStatusException exception = expectThrows(OpenSearchStatusException.class,
-                    () -> execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync));
+            OpenSearchStatusException exception = expectThrows(
+                OpenSearchStatusException.class,
+                () -> execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync)
+            );
             assertEquals(RestStatus.BAD_REQUEST, exception.status());
         }
 
         SearchRequest searchRequest = new SearchRequest("index");
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        searchSourceBuilder.aggregation(new RangeAggregationBuilder("agg1").field("num")
-                .addRange("first", 0, 30).addRange("second", 31, 200));
+        searchSourceBuilder.aggregation(
+            new RangeAggregationBuilder("agg1").field("num").addRange("first", 0, 30).addRange("second", 31, 200)
+        );
         searchSourceBuilder.size(0);
         searchRequest.source(searchSourceBuilder);
         SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
@@ -390,8 +388,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         SearchRequest searchRequest = new SearchRequest("index");
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         TermsAggregationBuilder agg = new TermsAggregationBuilder("agg1").userValueTypeHint(ValueType.STRING).field("type.keyword");
-        agg.subAggregation(new RangeAggregationBuilder("subagg").field("num")
-                .addRange("first", 0, 30).addRange("second", 31, 200));
+        agg.subAggregation(new RangeAggregationBuilder("subagg").field("num").addRange("first", 0, 30).addRange("second", 31, 200));
         searchSourceBuilder.aggregation(agg);
         searchSourceBuilder.size(0);
         searchRequest.source(searchSourceBuilder);
@@ -444,9 +441,9 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         SearchRequest searchRequest = new SearchRequest("index");
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         TermsAggregationBuilder agg = new TermsAggregationBuilder("agg1").userValueTypeHint(ValueType.STRING).field("type.keyword");
-        agg.subAggregation(new WeightedAvgAggregationBuilder("subagg")
-            .value(new MultiValuesSourceFieldConfig.Builder().setFieldName("num").build())
-            .weight(new MultiValuesSourceFieldConfig.Builder().setFieldName("num2").build())
+        agg.subAggregation(
+            new WeightedAvgAggregationBuilder("subagg").value(new MultiValuesSourceFieldConfig.Builder().setFieldName("num").build())
+                .weight(new MultiValuesSourceFieldConfig.Builder().setFieldName("num2").build())
         );
         searchSourceBuilder.aggregation(agg);
         searchSourceBuilder.size(0);
@@ -509,73 +506,78 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         final String indexName = "child_example";
         Request createIndex = new Request(HttpPut.METHOD_NAME, "/" + indexName);
         createIndex.setJsonEntity(
-                "{\n" +
-                "    \"mappings\": {\n" +
-                "        \"properties\" : {\n" +
-                "            \"qa_join_field\" : {\n" +
-                "                \"type\" : \"join\",\n" +
-                "                \"relations\" : { \"question\" : \"answer\" }\n" +
-                "            }\n" +
-                "        }\n" +
-                "    }" +
-                "}");
+            "{\n"
+                + "    \"mappings\": {\n"
+                + "        \"properties\" : {\n"
+                + "            \"qa_join_field\" : {\n"
+                + "                \"type\" : \"join\",\n"
+                + "                \"relations\" : { \"question\" : \"answer\" }\n"
+                + "            }\n"
+                + "        }\n"
+                + "    }"
+                + "}"
+        );
         client().performRequest(createIndex);
         Request questionDoc = new Request(HttpPut.METHOD_NAME, "/" + indexName + "/_doc/1");
         questionDoc.setJsonEntity(
-                "{\n" +
-                "    \"body\": \"<p>I have Windows 2003 server and i bought a new Windows 2008 server...\",\n" +
-                "    \"title\": \"Whats the best way to file transfer my site from server to a newer one?\",\n" +
-                "    \"tags\": [\n" +
-                "        \"windows-server-2003\",\n" +
-                "        \"windows-server-2008\",\n" +
-                "        \"file-transfer\"\n" +
-                "    ],\n" +
-                "    \"qa_join_field\" : \"question\"\n" +
-                "}");
+            "{\n"
+                + "    \"body\": \"<p>I have Windows 2003 server and i bought a new Windows 2008 server...\",\n"
+                + "    \"title\": \"Whats the best way to file transfer my site from server to a newer one?\",\n"
+                + "    \"tags\": [\n"
+                + "        \"windows-server-2003\",\n"
+                + "        \"windows-server-2008\",\n"
+                + "        \"file-transfer\"\n"
+                + "    ],\n"
+                + "    \"qa_join_field\" : \"question\"\n"
+                + "}"
+        );
         client().performRequest(questionDoc);
         Request answerDoc1 = new Request(HttpPut.METHOD_NAME, "/" + indexName + "/_doc/2");
         answerDoc1.addParameter("routing", "1");
         answerDoc1.setJsonEntity(
-                "{\n" +
-                "    \"owner\": {\n" +
-                "        \"location\": \"Norfolk, United Kingdom\",\n" +
-                "        \"display_name\": \"Sam\",\n" +
-                "        \"id\": 48\n" +
-                "    },\n" +
-                "    \"body\": \"<p>Unfortunately you're pretty much limited to FTP...\",\n" +
-                "    \"qa_join_field\" : {\n" +
-                "        \"name\" : \"answer\",\n" +
-                "        \"parent\" : \"1\"\n" +
-                "    },\n" +
-                "    \"creation_date\": \"2009-05-04T13:45:37.030\"\n" +
-                "}");
+            "{\n"
+                + "    \"owner\": {\n"
+                + "        \"location\": \"Norfolk, United Kingdom\",\n"
+                + "        \"display_name\": \"Sam\",\n"
+                + "        \"id\": 48\n"
+                + "    },\n"
+                + "    \"body\": \"<p>Unfortunately you're pretty much limited to FTP...\",\n"
+                + "    \"qa_join_field\" : {\n"
+                + "        \"name\" : \"answer\",\n"
+                + "        \"parent\" : \"1\"\n"
+                + "    },\n"
+                + "    \"creation_date\": \"2009-05-04T13:45:37.030\"\n"
+                + "}"
+        );
         client().performRequest(answerDoc1);
         Request answerDoc2 = new Request(HttpPut.METHOD_NAME, "/" + indexName + "/_doc/3");
         answerDoc2.addParameter("routing", "1");
         answerDoc2.setJsonEntity(
-                "{\n" +
-                "    \"owner\": {\n" +
-                "        \"location\": \"Norfolk, United Kingdom\",\n" +
-                "        \"display_name\": \"Troll\",\n" +
-                "        \"id\": 49\n" +
-                "    },\n" +
-                "    \"body\": \"<p>Use Linux...\",\n" +
-                "    \"qa_join_field\" : {\n" +
-                "        \"name\" : \"answer\",\n" +
-                "        \"parent\" : \"1\"\n" +
-                "    },\n" +
-                "    \"creation_date\": \"2009-05-05T13:45:37.030\"\n" +
-                "}");
+            "{\n"
+                + "    \"owner\": {\n"
+                + "        \"location\": \"Norfolk, United Kingdom\",\n"
+                + "        \"display_name\": \"Troll\",\n"
+                + "        \"id\": 49\n"
+                + "    },\n"
+                + "    \"body\": \"<p>Use Linux...\",\n"
+                + "    \"qa_join_field\" : {\n"
+                + "        \"name\" : \"answer\",\n"
+                + "        \"parent\" : \"1\"\n"
+                + "    },\n"
+                + "    \"creation_date\": \"2009-05-05T13:45:37.030\"\n"
+                + "}"
+        );
         client().performRequest(answerDoc2);
         client().performRequest(new Request(HttpPost.METHOD_NAME, "/_refresh"));
 
-        TermsAggregationBuilder leafTermAgg = new TermsAggregationBuilder("top-names")
-                .userValueTypeHint(ValueType.STRING)
-                .field("owner.display_name.keyword").size(10);
+        TermsAggregationBuilder leafTermAgg = new TermsAggregationBuilder("top-names").userValueTypeHint(ValueType.STRING)
+            .field("owner.display_name.keyword")
+            .size(10);
         ChildrenAggregationBuilder childrenAgg = new ChildrenAggregationBuilder("to-answers", "answer").subAggregation(leafTermAgg);
         TermsAggregationBuilder termsAgg = new TermsAggregationBuilder("top-tags").userValueTypeHint(ValueType.STRING)
-                .field("tags.keyword")
-                .size(10).subAggregation(childrenAgg);
+            .field("tags.keyword")
+            .size(10)
+            .subAggregation(childrenAgg);
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchSourceBuilder.size(0).aggregation(termsAgg);
         SearchRequest searchRequest = new SearchRequest(indexName);
@@ -594,8 +596,10 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         assertEquals(0, terms.getSumOfOtherDocCounts());
         assertEquals(3, terms.getBuckets().size());
         for (Terms.Bucket bucket : terms.getBuckets()) {
-            assertThat(bucket.getKeyAsString(),
-                    either(equalTo("file-transfer")).or(equalTo("windows-server-2003")).or(equalTo("windows-server-2008")));
+            assertThat(
+                bucket.getKeyAsString(),
+                either(equalTo("file-transfer")).or(equalTo("windows-server-2003")).or(equalTo("windows-server-2008"))
+            );
             assertEquals(1, bucket.getDocCount());
             assertEquals(1, bucket.getAggregations().asList().size());
             Children children = bucket.getAggregations().get("to-answers");
@@ -616,8 +620,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
     public void testSearchWithSuggest() throws IOException {
         SearchRequest searchRequest = new SearchRequest("index");
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        searchSourceBuilder.suggest(new SuggestBuilder().addSuggestion("sugg1", new PhraseSuggestionBuilder("type"))
-                .setGlobalText("type"));
+        searchSourceBuilder.suggest(new SuggestBuilder().addSuggestion("sugg1", new PhraseSuggestionBuilder("type")).setGlobalText("type"));
         searchSourceBuilder.size(0);
         searchRequest.source(searchSourceBuilder);
 
@@ -630,14 +633,15 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         assertEquals(0, searchResponse.getHits().getHits().length);
         assertEquals(1, searchResponse.getSuggest().size());
 
-        Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> sugg = searchResponse
-                .getSuggest().iterator().next();
+        Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> sugg = searchResponse.getSuggest()
+            .iterator()
+            .next();
         assertEquals("sugg1", sugg.getName());
         for (Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option> options : sugg) {
             assertEquals("type", options.getText().string());
             assertEquals(0, options.getOffset());
             assertEquals(4, options.getLength());
-            assertEquals(2 ,options.getOptions().size());
+            assertEquals(2, options.getOptions().size());
             for (Suggest.Suggestion.Entry.Option option : options) {
                 assertThat(option.getScore(), greaterThan(0f));
                 assertThat(option.getText().string(), either(equalTo("type1")).or(equalTo("type2")));
@@ -652,8 +656,9 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         client().performRequest(new Request("POST", "/test/_refresh"));
 
         {
-            SearchRequest searchRequest = new SearchRequest("test").source(SearchSourceBuilder.searchSource()
-                    .scriptField("result", new Script("null")));
+            SearchRequest searchRequest = new SearchRequest("test").source(
+                SearchSourceBuilder.searchSource().scriptField("result", new Script("null"))
+            );
             SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
             SearchHit searchHit = searchResponse.getHits().getAt(0);
             List<Object> values = searchHit.getFields().get("result").getValues();
@@ -662,8 +667,9 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
             assertNull(values.get(0));
         }
         {
-            SearchRequest searchRequest = new SearchRequest("test").source(SearchSourceBuilder.searchSource()
-                    .scriptField("result", new Script("new HashMap()")));
+            SearchRequest searchRequest = new SearchRequest("test").source(
+                SearchSourceBuilder.searchSource().scriptField("result", new Script("new HashMap()"))
+            );
             SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
             SearchHit searchHit = searchResponse.getHits().getAt(0);
             List<Object> values = searchHit.getFields().get("result").getValues();
@@ -674,8 +680,9 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
             assertEquals(0, map.size());
         }
         {
-            SearchRequest searchRequest = new SearchRequest("test").source(SearchSourceBuilder.searchSource()
-                    .scriptField("result", new Script("new String[]{}")));
+            SearchRequest searchRequest = new SearchRequest("test").source(
+                SearchSourceBuilder.searchSource().scriptField("result", new Script("new String[]{}"))
+            );
             SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
             SearchHit searchHit = searchResponse.getHits().getAt(0);
             List<Object> values = searchHit.getFields().get("result").getValues();
@@ -709,8 +716,11 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
             }
 
-            searchResponse = execute(new SearchScrollRequest(searchResponse.getScrollId()).scroll(TimeValue.timeValueMinutes(2)),
-                    highLevelClient()::scroll, highLevelClient()::scrollAsync);
+            searchResponse = execute(
+                new SearchScrollRequest(searchResponse.getScrollId()).scroll(TimeValue.timeValueMinutes(2)),
+                highLevelClient()::scroll,
+                highLevelClient()::scrollAsync
+            );
 
             assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
             assertThat(searchResponse.getHits().getHits().length, equalTo(35));
@@ -718,8 +728,11 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
                 assertEquals(counter++, ((Number) hit.getSortValues()[0]).longValue());
             }
 
-            searchResponse = execute(new SearchScrollRequest(searchResponse.getScrollId()).scroll(TimeValue.timeValueMinutes(2)),
-                    highLevelClient()::scroll, highLevelClient()::scrollAsync);
+            searchResponse = execute(
+                new SearchScrollRequest(searchResponse.getScrollId()).scroll(TimeValue.timeValueMinutes(2)),
+                highLevelClient()::scroll,
+                highLevelClient()::scrollAsync
+            );
 
             assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
             assertThat(searchResponse.getHits().getHits().length, equalTo(30));
@@ -729,14 +742,19 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         } finally {
             ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
             clearScrollRequest.addScrollId(searchResponse.getScrollId());
-            ClearScrollResponse clearScrollResponse = execute(clearScrollRequest,
-                    highLevelClient()::clearScroll, highLevelClient()::clearScrollAsync);
+            ClearScrollResponse clearScrollResponse = execute(
+                clearScrollRequest,
+                highLevelClient()::clearScroll,
+                highLevelClient()::clearScrollAsync
+            );
             assertThat(clearScrollResponse.getNumFreed(), greaterThan(0));
             assertTrue(clearScrollResponse.isSucceeded());
 
             SearchScrollRequest scrollRequest = new SearchScrollRequest(searchResponse.getScrollId()).scroll(TimeValue.timeValueMinutes(2));
-            OpenSearchStatusException exception = expectThrows(OpenSearchStatusException.class, () -> execute(scrollRequest,
-                    highLevelClient()::scroll, highLevelClient()::scrollAsync));
+            OpenSearchStatusException exception = expectThrows(
+                OpenSearchStatusException.class,
+                () -> execute(scrollRequest, highLevelClient()::scroll, highLevelClient()::scrollAsync)
+            );
             assertEquals(RestStatus.NOT_FOUND, exception.status());
             assertThat(exception.getRootCause(), instanceOf(OpenSearchException.class));
             OpenSearchException rootCause = (OpenSearchException) exception.getRootCause();
@@ -756,8 +774,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         searchRequest3.source().sort("id", SortOrder.ASC);
         multiSearchRequest.add(searchRequest3);
 
-        MultiSearchResponse multiSearchResponse =
-                execute(multiSearchRequest, highLevelClient()::msearch, highLevelClient()::msearchAsync);
+        MultiSearchResponse multiSearchResponse = execute(multiSearchRequest, highLevelClient()::msearch, highLevelClient()::msearchAsync);
         assertThat(multiSearchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
         assertThat(multiSearchResponse.getResponses().length, Matchers.equalTo(3));
 
@@ -786,23 +803,28 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
     public void testMultiSearch_withAgg() throws Exception {
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
         SearchRequest searchRequest1 = new SearchRequest("index1");
-        searchRequest1.source().size(0).aggregation(new TermsAggregationBuilder("name").userValueTypeHint(ValueType.STRING)
-                .field("field.keyword")
-                .order(BucketOrder.key(true)));
+        searchRequest1.source()
+            .size(0)
+            .aggregation(
+                new TermsAggregationBuilder("name").userValueTypeHint(ValueType.STRING).field("field.keyword").order(BucketOrder.key(true))
+            );
         multiSearchRequest.add(searchRequest1);
         SearchRequest searchRequest2 = new SearchRequest("index2");
-        searchRequest2.source().size(0).aggregation(new TermsAggregationBuilder("name").userValueTypeHint(ValueType.STRING)
-                .field("field.keyword")
-                .order(BucketOrder.key(true)));
+        searchRequest2.source()
+            .size(0)
+            .aggregation(
+                new TermsAggregationBuilder("name").userValueTypeHint(ValueType.STRING).field("field.keyword").order(BucketOrder.key(true))
+            );
         multiSearchRequest.add(searchRequest2);
         SearchRequest searchRequest3 = new SearchRequest("index3");
-        searchRequest3.source().size(0).aggregation(new TermsAggregationBuilder("name").userValueTypeHint(ValueType.STRING)
-                .field("field.keyword")
-                .order(BucketOrder.key(true)));
+        searchRequest3.source()
+            .size(0)
+            .aggregation(
+                new TermsAggregationBuilder("name").userValueTypeHint(ValueType.STRING).field("field.keyword").order(BucketOrder.key(true))
+            );
         multiSearchRequest.add(searchRequest3);
 
-        MultiSearchResponse multiSearchResponse =
-                execute(multiSearchRequest, highLevelClient()::msearch, highLevelClient()::msearchAsync);
+        MultiSearchResponse multiSearchResponse = execute(multiSearchRequest, highLevelClient()::msearch, highLevelClient()::msearchAsync);
         assertThat(multiSearchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
         assertThat(multiSearchResponse.getResponses().length, Matchers.equalTo(3));
 
@@ -849,8 +871,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         searchRequest3.source().query(new TermsQueryBuilder("field", "value2"));
         multiSearchRequest.add(searchRequest3);
 
-        MultiSearchResponse multiSearchResponse =
-                execute(multiSearchRequest, highLevelClient()::msearch, highLevelClient()::msearchAsync);
+        MultiSearchResponse multiSearchResponse = execute(multiSearchRequest, highLevelClient()::msearch, highLevelClient()::msearchAsync);
         assertThat(multiSearchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
         assertThat(multiSearchResponse.getResponses().length, Matchers.equalTo(3));
 
@@ -883,24 +904,33 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(multiSearchResponse.getResponses()[0].isFailure(), Matchers.is(false));
         SearchIT.assertSearchHeader(multiSearchResponse.getResponses()[0].getResponse());
         assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value, Matchers.equalTo(1L));
-        assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getAt(0).getHighlightFields()
-                .get("field").fragments()[0].string(), Matchers.equalTo("<em>value2</em>"));
+        assertThat(
+            multiSearchResponse.getResponses()[0].getResponse().getHits().getAt(0).getHighlightFields().get("field").fragments()[0]
+                .string(),
+            Matchers.equalTo("<em>value2</em>")
+        );
 
         assertThat(multiSearchResponse.getResponses()[1].getFailure(), Matchers.nullValue());
         assertThat(multiSearchResponse.getResponses()[1].isFailure(), Matchers.is(false));
         SearchIT.assertSearchHeader(multiSearchResponse.getResponses()[1].getResponse());
         assertThat(multiSearchResponse.getResponses()[1].getResponse().getHits().getTotalHits().value, Matchers.equalTo(1L));
         assertThat(multiSearchResponse.getResponses()[1].getResponse().getHits().getAt(0).getId(), Matchers.equalTo("4"));
-        assertThat(multiSearchResponse.getResponses()[1].getResponse().getHits().getAt(0).getHighlightFields()
-                .get("field").fragments()[0].string(), Matchers.equalTo("<em>value2</em>"));
+        assertThat(
+            multiSearchResponse.getResponses()[1].getResponse().getHits().getAt(0).getHighlightFields().get("field").fragments()[0]
+                .string(),
+            Matchers.equalTo("<em>value2</em>")
+        );
 
         assertThat(multiSearchResponse.getResponses()[2].getFailure(), Matchers.nullValue());
         assertThat(multiSearchResponse.getResponses()[2].isFailure(), Matchers.is(false));
         SearchIT.assertSearchHeader(multiSearchResponse.getResponses()[2].getResponse());
         assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getTotalHits().value, Matchers.equalTo(1L));
         assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getAt(0).getId(), Matchers.equalTo("6"));
-        assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getAt(0).getHighlightFields()
-                .get("field").fragments()[0].string(), Matchers.equalTo("<em>value2</em>"));
+        assertThat(
+            multiSearchResponse.getResponses()[2].getResponse().getHits().getAt(0).getHighlightFields().get("field").fragments()[0]
+                .string(),
+            Matchers.equalTo("<em>value2</em>")
+        );
     }
 
     public void testMultiSearch_failure() throws Exception {
@@ -912,8 +942,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         searchRequest2.source().query(new ScriptQueryBuilder(new Script(ScriptType.INLINE, "invalid", "code", Collections.emptyMap())));
         multiSearchRequest.add(searchRequest2);
 
-        MultiSearchResponse multiSearchResponse =
-                execute(multiSearchRequest, highLevelClient()::msearch, highLevelClient()::msearchAsync);
+        MultiSearchResponse multiSearchResponse = execute(multiSearchRequest, highLevelClient()::msearch, highLevelClient()::msearchAsync);
         assertThat(multiSearchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
         assertThat(multiSearchResponse.getResponses().length, Matchers.equalTo(2));
 
@@ -940,9 +969,11 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         searchTemplateRequest.setExplain(true);
         searchTemplateRequest.setProfile(true);
 
-        SearchTemplateResponse searchTemplateResponse = execute(searchTemplateRequest,
+        SearchTemplateResponse searchTemplateResponse = execute(
+            searchTemplateRequest,
             highLevelClient()::searchTemplate,
-            highLevelClient()::searchTemplateAsync);
+            highLevelClient()::searchTemplateAsync
+        );
 
         assertNull(searchTemplateResponse.getSource());
 
@@ -967,10 +998,10 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         searchTemplateRequest.setScript("non-existent");
         searchTemplateRequest.setScriptParams(Collections.emptyMap());
 
-        OpenSearchStatusException exception = expectThrows(OpenSearchStatusException.class,
-            () -> execute(searchTemplateRequest,
-                highLevelClient()::searchTemplate,
-                highLevelClient()::searchTemplateAsync));
+        OpenSearchStatusException exception = expectThrows(
+            OpenSearchStatusException.class,
+            () -> execute(searchTemplateRequest, highLevelClient()::searchTemplate, highLevelClient()::searchTemplateAsync)
+        );
 
         assertEquals(RestStatus.NOT_FOUND, exception.status());
     }
@@ -988,27 +1019,29 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         // Setting simulate true causes the template to only be rendered.
         searchTemplateRequest.setSimulate(true);
 
-        SearchTemplateResponse searchTemplateResponse = execute(searchTemplateRequest,
+        SearchTemplateResponse searchTemplateResponse = execute(
+            searchTemplateRequest,
             highLevelClient()::searchTemplate,
-            highLevelClient()::searchTemplateAsync);
+            highLevelClient()::searchTemplateAsync
+        );
         assertNull(searchTemplateResponse.getResponse());
 
         BytesReference expectedSource = BytesReference.bytes(
             XContentFactory.jsonBuilder()
                 .startObject()
-                    .startObject("query")
-                        .startObject("match")
-                            .field("num", 10)
-                        .endObject()
-                    .endObject()
-                .endObject());
+                .startObject("query")
+                .startObject("match")
+                .field("num", 10)
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
         BytesReference actualSource = searchTemplateResponse.getSource();
         assertNotNull(actualSource);
 
         assertToXContentEquivalent(expectedSource, actualSource, XContentType.JSON);
     }
-
 
     public void testMultiSearchTemplate() throws Exception {
         MultiSearchTemplateRequest multiSearchTemplateRequest = new MultiSearchTemplateRequest();
@@ -1024,7 +1057,6 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         goodRequest.setProfile(true);
         multiSearchTemplateRequest.add(goodRequest);
 
-
         SearchTemplateRequest badRequest = new SearchTemplateRequest();
         badRequest.setRequest(new SearchRequest("index"));
         badRequest.setScriptType(ScriptType.INLINE);
@@ -1035,17 +1067,18 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
 
         multiSearchTemplateRequest.add(badRequest);
 
-        MultiSearchTemplateResponse multiSearchTemplateResponse =
-                execute(multiSearchTemplateRequest, highLevelClient()::msearchTemplate,
-                        highLevelClient()::msearchTemplateAsync);
+        MultiSearchTemplateResponse multiSearchTemplateResponse = execute(
+            multiSearchTemplateRequest,
+            highLevelClient()::msearchTemplate,
+            highLevelClient()::msearchTemplateAsync
+        );
 
         Item[] responses = multiSearchTemplateResponse.getResponses();
 
         assertEquals(2, responses.length);
 
-
         assertNull(responses[0].getResponse().getSource());
-        SearchResponse goodResponse =responses[0].getResponse().getResponse();
+        SearchResponse goodResponse = responses[0].getResponse().getResponse();
         assertNotNull(goodResponse);
         assertThat(responses[0].isFailure(), Matchers.is(false));
         assertEquals(1, goodResponse.getHits().getTotalHits().value);
@@ -1054,7 +1087,6 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         SearchHit hit = goodResponse.getHits().getHits()[0];
         assertNotNull(hit.getExplanation());
         assertFalse(goodResponse.getProfileResults().isEmpty());
-
 
         assertNull(responses[0].getResponse().getSource());
         assertThat(responses[1].isFailure(), Matchers.is(true));
@@ -1074,7 +1106,6 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         badRequest1.setScriptParams(scriptParams);
         multiSearchTemplateRequest.add(badRequest1);
 
-
         SearchTemplateRequest badRequest2 = new SearchTemplateRequest();
         badRequest2.setRequest(new SearchRequest("index"));
         badRequest2.setScriptType(ScriptType.INLINE);
@@ -1086,9 +1117,10 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         multiSearchTemplateRequest.add(badRequest2);
 
         // The whole HTTP request should fail if no nested search requests are valid
-        OpenSearchStatusException exception = expectThrows(OpenSearchStatusException.class,
-                () -> execute(multiSearchTemplateRequest, highLevelClient()::msearchTemplate,
-                        highLevelClient()::msearchTemplateAsync));
+        OpenSearchStatusException exception = expectThrows(
+            OpenSearchStatusException.class,
+            () -> execute(multiSearchTemplateRequest, highLevelClient()::msearchTemplate, highLevelClient()::msearchTemplateAsync)
+        );
 
         assertEquals(RestStatus.BAD_REQUEST, exception.status());
         assertThat(exception.getMessage(), containsString("no requests added"));
@@ -1102,7 +1134,6 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
             ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
 
             assertThat(explainResponse.getIndex(), equalTo("index1"));
-            assertThat(explainResponse.getType(), equalTo("_doc"));
             assertThat(Integer.valueOf(explainResponse.getId()), equalTo(1));
             assertTrue(explainResponse.isExists());
             assertTrue(explainResponse.isMatch());
@@ -1117,7 +1148,6 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
             ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
 
             assertThat(explainResponse.getIndex(), equalTo("index1"));
-            assertThat(explainResponse.getType(), equalTo("_doc"));
             assertThat(Integer.valueOf(explainResponse.getId()), equalTo(1));
             assertTrue(explainResponse.isExists());
             assertTrue(explainResponse.isMatch());
@@ -1132,7 +1162,6 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
             ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
 
             assertThat(explainResponse.getIndex(), equalTo("index1"));
-            assertThat(explainResponse.getType(), equalTo("_doc"));
             assertThat(Integer.valueOf(explainResponse.getId()), equalTo(1));
             assertTrue(explainResponse.isExists());
             assertFalse(explainResponse.isMatch());
@@ -1141,14 +1170,13 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         }
         {
             ExplainRequest explainRequest = new ExplainRequest("index1", "1");
-            explainRequest.query(QueryBuilders.boolQuery()
-                .must(QueryBuilders.termQuery("field", "value1"))
-                .must(QueryBuilders.termQuery("field", "value2")));
+            explainRequest.query(
+                QueryBuilders.boolQuery().must(QueryBuilders.termQuery("field", "value1")).must(QueryBuilders.termQuery("field", "value2"))
+            );
 
             ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
 
             assertThat(explainResponse.getIndex(), equalTo("index1"));
-            assertThat(explainResponse.getType(), equalTo("_doc"));
             assertThat(Integer.valueOf(explainResponse.getId()), equalTo(1));
             assertTrue(explainResponse.isExists());
             assertFalse(explainResponse.isMatch());
@@ -1162,12 +1190,16 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         {
             ExplainRequest explainRequest = new ExplainRequest("non_existent_index", "1");
             explainRequest.query(QueryBuilders.matchQuery("field", "value"));
-            OpenSearchException exception = expectThrows(OpenSearchException.class,
-                () -> execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync));
+            OpenSearchException exception = expectThrows(
+                OpenSearchException.class,
+                () -> execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync)
+            );
             assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
             assertThat(exception.getIndex().getName(), equalTo("non_existent_index"));
-            assertThat(exception.getDetailedMessage(),
-                containsString("OpenSearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
+            assertThat(
+                exception.getDetailedMessage(),
+                containsString("OpenSearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]")
+            );
         }
         {
             ExplainRequest explainRequest = new ExplainRequest("index1", "999");
@@ -1176,7 +1208,6 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
             ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
 
             assertThat(explainResponse.getIndex(), equalTo("index1"));
-            assertThat(explainResponse.getType(), equalTo("_doc"));
             assertThat(explainResponse.getId(), equalTo("999"));
             assertFalse(explainResponse.isExists());
             assertFalse(explainResponse.isMatch());
@@ -1189,7 +1220,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         {
             ExplainRequest explainRequest = new ExplainRequest("index4", "1");
             explainRequest.query(QueryBuilders.matchAllQuery());
-            explainRequest.storedFields(new String[]{"field1"});
+            explainRequest.storedFields(new String[] { "field1" });
 
             ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
 
@@ -1205,7 +1236,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         {
             ExplainRequest explainRequest = new ExplainRequest("index4", "1");
             explainRequest.query(QueryBuilders.matchAllQuery());
-            explainRequest.storedFields(new String[]{"field1", "field2"});
+            explainRequest.storedFields(new String[] { "field1", "field2" });
 
             ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
 
@@ -1225,7 +1256,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         {
             ExplainRequest explainRequest = new ExplainRequest("index4", "1");
             explainRequest.query(QueryBuilders.matchAllQuery());
-            explainRequest.fetchSourceContext(new FetchSourceContext(true, new String[]{"field1"}, null));
+            explainRequest.fetchSourceContext(new FetchSourceContext(true, new String[] { "field1" }, null));
 
             ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
 
@@ -1239,7 +1270,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         {
             ExplainRequest explainRequest = new ExplainRequest("index4", "1");
             explainRequest.query(QueryBuilders.matchAllQuery());
-            explainRequest.fetchSourceContext(new FetchSourceContext(true, null, new String[] {"field2"}));
+            explainRequest.fetchSourceContext(new FetchSourceContext(true, null, new String[] { "field2" }));
 
             ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
 
@@ -1264,12 +1295,9 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
     }
 
     public void testFieldCaps() throws IOException {
-        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest()
-            .indices("index1", "index2")
-            .fields("rating", "field");
+        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest().indices("index1", "index2").fields("rating", "field");
 
-        FieldCapabilitiesResponse response = execute(request,
-            highLevelClient()::fieldCaps, highLevelClient()::fieldCapsAsync);
+        FieldCapabilitiesResponse response = execute(request, highLevelClient()::fieldCaps, highLevelClient()::fieldCapsAsync);
 
         assertThat(response.getIndices(), arrayContaining("index1", "index2"));
 
@@ -1279,11 +1307,27 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         assertEquals(2, ratingResponse.size());
 
         FieldCapabilities expectedKeywordCapabilities = new FieldCapabilities(
-            "rating", "keyword", true, true, new String[]{"index2"}, null, null, Collections.emptyMap());
+            "rating",
+            "keyword",
+            true,
+            true,
+            new String[] { "index2" },
+            null,
+            null,
+            Collections.emptyMap()
+        );
         assertEquals(expectedKeywordCapabilities, ratingResponse.get("keyword"));
 
         FieldCapabilities expectedLongCapabilities = new FieldCapabilities(
-            "rating", "long", true, true, new String[]{"index1"}, null, null, Collections.emptyMap());
+            "rating",
+            "long",
+            true,
+            true,
+            new String[] { "index1" },
+            null,
+            null,
+            Collections.emptyMap()
+        );
         assertEquals(expectedLongCapabilities, ratingResponse.get("long"));
 
         // Check the capabilities for the 'field' field.
@@ -1292,27 +1336,32 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         assertEquals(1, fieldResponse.size());
 
         FieldCapabilities expectedTextCapabilities = new FieldCapabilities(
-            "field", "text", true, false, null, null, null, Collections.emptyMap());
+            "field",
+            "text",
+            true,
+            false,
+            null,
+            null,
+            null,
+            Collections.emptyMap()
+        );
         assertEquals(expectedTextCapabilities, fieldResponse.get("text"));
     }
 
     public void testFieldCapsWithNonExistentFields() throws IOException {
-        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest()
-            .indices("index2")
-            .fields("nonexistent");
+        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest().indices("index2").fields("nonexistent");
 
-        FieldCapabilitiesResponse response = execute(request,
-            highLevelClient()::fieldCaps, highLevelClient()::fieldCapsAsync);
+        FieldCapabilitiesResponse response = execute(request, highLevelClient()::fieldCaps, highLevelClient()::fieldCapsAsync);
         assertTrue(response.get().isEmpty());
     }
 
     public void testFieldCapsWithNonExistentIndices() {
-        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest()
-            .indices("non-existent")
-            .fields("rating");
+        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest().indices("non-existent").fields("rating");
 
-        OpenSearchException exception = expectThrows(OpenSearchException.class,
-            () -> execute(request, highLevelClient()::fieldCaps, highLevelClient()::fieldCapsAsync));
+        OpenSearchException exception = expectThrows(
+            OpenSearchException.class,
+            () -> execute(request, highLevelClient()::fieldCaps, highLevelClient()::fieldCapsAsync)
+        );
         assertEquals(RestStatus.NOT_FOUND, exception.status());
     }
 
@@ -1358,10 +1407,10 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         CountRequest countRequest;
         if (randomBoolean()) {
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(new MatchQueryBuilder("field", "value1"));
-            countRequest = new CountRequest(new String[]{"index1", "index2", "index3"}, sourceBuilder);
+            countRequest = new CountRequest(new String[] { "index1", "index2", "index3" }, sourceBuilder);
         } else {
             QueryBuilder query = new MatchQueryBuilder("field", "value1");
-            countRequest = new CountRequest(new String[]{"index1", "index2", "index3"}, query);
+            countRequest = new CountRequest(new String[] { "index1", "index2", "index3" }, query);
         }
         CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
         assertCountHeader(countResponse);
@@ -1382,7 +1431,6 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
     }
 
     public void testCountAllIndicesMatchQuery() throws IOException {
-
         CountRequest countRequest = new CountRequest();
         countRequest.source(new SearchSourceBuilder().query(new MatchQueryBuilder("field", "value1")));
         CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);

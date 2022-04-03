@@ -48,4 +48,3 @@ public class ExpertScriptClientYamlTestSuiteIT extends OpenSearchClientYamlSuite
         return OpenSearchClientYamlSuiteTestCase.createParameters();
     }
 }
-

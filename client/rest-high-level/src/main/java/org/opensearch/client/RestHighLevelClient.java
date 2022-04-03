@@ -33,14 +33,6 @@
 package org.opensearch.client;
 
 import org.apache.http.HttpEntity;
-import org.opensearch.client.Cancellable;
-import org.opensearch.client.Request;
-import org.opensearch.client.RequestOptions;
-import org.opensearch.client.Response;
-import org.opensearch.client.ResponseException;
-import org.opensearch.client.ResponseListener;
-import org.opensearch.client.RestClient;
-import org.opensearch.client.RestClientBuilder;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.ActionListener;
@@ -299,13 +291,18 @@ public class RestHighLevelClient implements Closeable {
      * The consumer argument allows to control what needs to be done when the {@link #close()} method is called.
      * Also subclasses can provide parsers for custom response sections added to OpenSearch through plugins.
      */
-    protected RestHighLevelClient(RestClient restClient, CheckedConsumer<RestClient, IOException> doClose,
-                                  List<NamedXContentRegistry.Entry> namedXContentEntries) {
+    protected RestHighLevelClient(
+        RestClient restClient,
+        CheckedConsumer<RestClient, IOException> doClose,
+        List<NamedXContentRegistry.Entry> namedXContentEntries
+    ) {
         this.client = Objects.requireNonNull(restClient, "restClient must not be null");
         this.doClose = Objects.requireNonNull(doClose, "doClose consumer must not be null");
         this.registry = new NamedXContentRegistry(
-                Stream.of(getDefaultNamedXContents().stream(), getProvidedNamedXContents().stream(), namedXContentEntries.stream())
-                    .flatMap(Function.identity()).collect(toList()));
+            Stream.of(getDefaultNamedXContents().stream(), getProvidedNamedXContents().stream(), namedXContentEntries.stream())
+                .flatMap(Function.identity())
+                .collect(toList())
+        );
     }
 
     /**
@@ -374,8 +371,14 @@ public class RestHighLevelClient implements Closeable {
      * @return cancellable that may be used to cancel the request
      */
     public final Cancellable bulkAsync(BulkRequest bulkRequest, RequestOptions options, ActionListener<BulkResponse> listener) {
-        return performRequestAsyncAndParseEntity(bulkRequest, RequestConverters::bulk, options,
-            BulkResponse::fromXContent, listener, emptySet());
+        return performRequestAsyncAndParseEntity(
+            bulkRequest,
+            RequestConverters::bulk,
+            options,
+            BulkResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -386,7 +389,11 @@ public class RestHighLevelClient implements Closeable {
      */
     public final BulkByScrollResponse reindex(ReindexRequest reindexRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(
-            reindexRequest, RequestConverters::reindex, options, BulkByScrollResponse::fromXContent, singleton(409)
+            reindexRequest,
+            RequestConverters::reindex,
+            options,
+            BulkByScrollResponse::fromXContent,
+            singleton(409)
         );
     }
 
@@ -398,7 +405,11 @@ public class RestHighLevelClient implements Closeable {
      */
     public final TaskSubmissionResponse submitReindexTask(ReindexRequest reindexRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(
-            reindexRequest, RequestConverters::submitReindex, options, TaskSubmissionResponse::fromXContent, emptySet()
+            reindexRequest,
+            RequestConverters::submitReindex,
+            options,
+            TaskSubmissionResponse::fromXContent,
+            emptySet()
         );
     }
 
@@ -409,10 +420,18 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public final Cancellable reindexAsync(ReindexRequest reindexRequest, RequestOptions options,
-                                          ActionListener<BulkByScrollResponse> listener) {
+    public final Cancellable reindexAsync(
+        ReindexRequest reindexRequest,
+        RequestOptions options,
+        ActionListener<BulkByScrollResponse> listener
+    ) {
         return performRequestAsyncAndParseEntity(
-            reindexRequest, RequestConverters::reindex, options, BulkByScrollResponse::fromXContent, listener, singleton(409)
+            reindexRequest,
+            RequestConverters::reindex,
+            options,
+            BulkByScrollResponse::fromXContent,
+            listener,
+            singleton(409)
         );
     }
 
@@ -425,7 +444,11 @@ public class RestHighLevelClient implements Closeable {
      */
     public final BulkByScrollResponse updateByQuery(UpdateByQueryRequest updateByQueryRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(
-            updateByQueryRequest, RequestConverters::updateByQuery, options, BulkByScrollResponse::fromXContent, singleton(409)
+            updateByQueryRequest,
+            RequestConverters::updateByQuery,
+            options,
+            BulkByScrollResponse::fromXContent,
+            singleton(409)
         );
     }
 
@@ -436,10 +459,14 @@ public class RestHighLevelClient implements Closeable {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the submission response
      */
-    public final TaskSubmissionResponse submitUpdateByQueryTask(UpdateByQueryRequest updateByQueryRequest,
-                                                                RequestOptions options) throws IOException {
+    public final TaskSubmissionResponse submitUpdateByQueryTask(UpdateByQueryRequest updateByQueryRequest, RequestOptions options)
+        throws IOException {
         return performRequestAndParseEntity(
-            updateByQueryRequest, RequestConverters::submitUpdateByQuery, options, TaskSubmissionResponse::fromXContent, emptySet()
+            updateByQueryRequest,
+            RequestConverters::submitUpdateByQuery,
+            options,
+            TaskSubmissionResponse::fromXContent,
+            emptySet()
         );
     }
 
@@ -451,10 +478,18 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public final Cancellable updateByQueryAsync(UpdateByQueryRequest updateByQueryRequest, RequestOptions options,
-                                                ActionListener<BulkByScrollResponse> listener) {
+    public final Cancellable updateByQueryAsync(
+        UpdateByQueryRequest updateByQueryRequest,
+        RequestOptions options,
+        ActionListener<BulkByScrollResponse> listener
+    ) {
         return performRequestAsyncAndParseEntity(
-            updateByQueryRequest, RequestConverters::updateByQuery, options, BulkByScrollResponse::fromXContent, listener, singleton(409)
+            updateByQueryRequest,
+            RequestConverters::updateByQuery,
+            options,
+            BulkByScrollResponse::fromXContent,
+            listener,
+            singleton(409)
         );
     }
 
@@ -467,7 +502,11 @@ public class RestHighLevelClient implements Closeable {
      */
     public final BulkByScrollResponse deleteByQuery(DeleteByQueryRequest deleteByQueryRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(
-            deleteByQueryRequest, RequestConverters::deleteByQuery, options, BulkByScrollResponse::fromXContent, singleton(409)
+            deleteByQueryRequest,
+            RequestConverters::deleteByQuery,
+            options,
+            BulkByScrollResponse::fromXContent,
+            singleton(409)
         );
     }
 
@@ -478,10 +517,14 @@ public class RestHighLevelClient implements Closeable {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the submission response
      */
-    public final TaskSubmissionResponse submitDeleteByQueryTask(DeleteByQueryRequest deleteByQueryRequest,
-                                                                RequestOptions options) throws IOException {
+    public final TaskSubmissionResponse submitDeleteByQueryTask(DeleteByQueryRequest deleteByQueryRequest, RequestOptions options)
+        throws IOException {
         return performRequestAndParseEntity(
-            deleteByQueryRequest, RequestConverters::submitDeleteByQuery, options, TaskSubmissionResponse::fromXContent, emptySet()
+            deleteByQueryRequest,
+            RequestConverters::submitDeleteByQuery,
+            options,
+            TaskSubmissionResponse::fromXContent,
+            emptySet()
         );
     }
 
@@ -493,10 +536,18 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public final Cancellable deleteByQueryAsync(DeleteByQueryRequest deleteByQueryRequest, RequestOptions options,
-                                                ActionListener<BulkByScrollResponse> listener) {
+    public final Cancellable deleteByQueryAsync(
+        DeleteByQueryRequest deleteByQueryRequest,
+        RequestOptions options,
+        ActionListener<BulkByScrollResponse> listener
+    ) {
         return performRequestAsyncAndParseEntity(
-            deleteByQueryRequest, RequestConverters::deleteByQuery, options, BulkByScrollResponse::fromXContent, listener, singleton(409)
+            deleteByQueryRequest,
+            RequestConverters::deleteByQuery,
+            options,
+            BulkByScrollResponse::fromXContent,
+            listener,
+            singleton(409)
         );
     }
 
@@ -508,8 +559,13 @@ public class RestHighLevelClient implements Closeable {
      * @return the response
      */
     public final ListTasksResponse deleteByQueryRethrottle(RethrottleRequest rethrottleRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(rethrottleRequest, RequestConverters::rethrottleDeleteByQuery, options,
-                ListTasksResponse::fromXContent, emptySet());
+        return performRequestAndParseEntity(
+            rethrottleRequest,
+            RequestConverters::rethrottleDeleteByQuery,
+            options,
+            ListTasksResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -520,10 +576,19 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public final Cancellable deleteByQueryRethrottleAsync(RethrottleRequest rethrottleRequest, RequestOptions options,
-                                                          ActionListener<ListTasksResponse> listener) {
-        return performRequestAsyncAndParseEntity(rethrottleRequest, RequestConverters::rethrottleDeleteByQuery, options,
-                ListTasksResponse::fromXContent, listener, emptySet());
+    public final Cancellable deleteByQueryRethrottleAsync(
+        RethrottleRequest rethrottleRequest,
+        RequestOptions options,
+        ActionListener<ListTasksResponse> listener
+    ) {
+        return performRequestAsyncAndParseEntity(
+            rethrottleRequest,
+            RequestConverters::rethrottleDeleteByQuery,
+            options,
+            ListTasksResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -534,8 +599,13 @@ public class RestHighLevelClient implements Closeable {
      * @return the response
      */
     public final ListTasksResponse updateByQueryRethrottle(RethrottleRequest rethrottleRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(rethrottleRequest, RequestConverters::rethrottleUpdateByQuery, options,
-                ListTasksResponse::fromXContent, emptySet());
+        return performRequestAndParseEntity(
+            rethrottleRequest,
+            RequestConverters::rethrottleUpdateByQuery,
+            options,
+            ListTasksResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -546,10 +616,19 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public final Cancellable updateByQueryRethrottleAsync(RethrottleRequest rethrottleRequest, RequestOptions options,
-                                                          ActionListener<ListTasksResponse> listener) {
-        return performRequestAsyncAndParseEntity(rethrottleRequest, RequestConverters::rethrottleUpdateByQuery, options,
-                ListTasksResponse::fromXContent, listener, emptySet());
+    public final Cancellable updateByQueryRethrottleAsync(
+        RethrottleRequest rethrottleRequest,
+        RequestOptions options,
+        ActionListener<ListTasksResponse> listener
+    ) {
+        return performRequestAsyncAndParseEntity(
+            rethrottleRequest,
+            RequestConverters::rethrottleUpdateByQuery,
+            options,
+            ListTasksResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -560,8 +639,13 @@ public class RestHighLevelClient implements Closeable {
      * @return the response
      */
     public final ListTasksResponse reindexRethrottle(RethrottleRequest rethrottleRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(rethrottleRequest, RequestConverters::rethrottleReindex, options,
-                ListTasksResponse::fromXContent, emptySet());
+        return performRequestAndParseEntity(
+            rethrottleRequest,
+            RequestConverters::rethrottleReindex,
+            options,
+            ListTasksResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -572,10 +656,19 @@ public class RestHighLevelClient implements Closeable {
      * @param listener          the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public final Cancellable reindexRethrottleAsync(RethrottleRequest rethrottleRequest, RequestOptions options,
-                                                    ActionListener<ListTasksResponse> listener) {
-        return performRequestAsyncAndParseEntity(rethrottleRequest,
-            RequestConverters::rethrottleReindex, options, ListTasksResponse::fromXContent, listener, emptySet());
+    public final Cancellable reindexRethrottleAsync(
+        RethrottleRequest rethrottleRequest,
+        RequestOptions options,
+        ActionListener<ListTasksResponse> listener
+    ) {
+        return performRequestAsyncAndParseEntity(
+            rethrottleRequest,
+            RequestConverters::rethrottleReindex,
+            options,
+            ListTasksResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -584,8 +677,13 @@ public class RestHighLevelClient implements Closeable {
      * @return <code>true</code> if the ping succeeded, false otherwise
      */
     public final boolean ping(RequestOptions options) throws IOException {
-        return performRequest(new MainRequest(), (request) -> RequestConverters.ping(), options, RestHighLevelClient::convertExistsResponse,
-                emptySet());
+        return performRequest(
+            new MainRequest(),
+            (request) -> RequestConverters.ping(),
+            options,
+            RestHighLevelClient::convertExistsResponse,
+            emptySet()
+        );
     }
 
     /**
@@ -594,8 +692,13 @@ public class RestHighLevelClient implements Closeable {
      * @return the response
      */
     public final MainResponse info(RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(new MainRequest(), (request) -> RequestConverters.info(), options,
-                MainResponse::fromXContent, emptySet());
+        return performRequestAndParseEntity(
+            new MainRequest(),
+            (request) -> RequestConverters.info(),
+            options,
+            MainResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -618,8 +721,14 @@ public class RestHighLevelClient implements Closeable {
      * @return cancellable that may be used to cancel the request
      */
     public final Cancellable getAsync(GetRequest getRequest, RequestOptions options, ActionListener<GetResponse> listener) {
-        return performRequestAsyncAndParseEntity(getRequest, RequestConverters::get, options, GetResponse::fromXContent, listener,
-                singleton(404));
+        return performRequestAsyncAndParseEntity(
+            getRequest,
+            RequestConverters::get,
+            options,
+            GetResponse::fromXContent,
+            listener,
+            singleton(404)
+        );
     }
 
     /**
@@ -635,7 +744,6 @@ public class RestHighLevelClient implements Closeable {
         return mget(multiGetRequest, options);
     }
 
-
     /**
      * Retrieves multiple documents by id using the Multi Get API.
      *
@@ -644,8 +752,13 @@ public class RestHighLevelClient implements Closeable {
      * @return the response
      */
     public final MultiGetResponse mget(MultiGetRequest multiGetRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(multiGetRequest, RequestConverters::multiGet, options, MultiGetResponse::fromXContent,
-                singleton(404));
+        return performRequestAndParseEntity(
+            multiGetRequest,
+            RequestConverters::multiGet,
+            options,
+            MultiGetResponse::fromXContent,
+            singleton(404)
+        );
     }
 
     /**
@@ -658,8 +771,11 @@ public class RestHighLevelClient implements Closeable {
      * @return cancellable that may be used to cancel the request
      */
     @Deprecated
-    public final Cancellable multiGetAsync(MultiGetRequest multiGetRequest, RequestOptions options,
-                                           ActionListener<MultiGetResponse> listener) {
+    public final Cancellable multiGetAsync(
+        MultiGetRequest multiGetRequest,
+        RequestOptions options,
+        ActionListener<MultiGetResponse> listener
+    ) {
         return mgetAsync(multiGetRequest, options, listener);
     }
 
@@ -671,10 +787,15 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public final Cancellable mgetAsync(MultiGetRequest multiGetRequest, RequestOptions options,
-                                       ActionListener<MultiGetResponse> listener) {
-        return performRequestAsyncAndParseEntity(multiGetRequest, RequestConverters::multiGet, options,
-            MultiGetResponse::fromXContent, listener, singleton(404));
+    public final Cancellable mgetAsync(MultiGetRequest multiGetRequest, RequestOptions options, ActionListener<MultiGetResponse> listener) {
+        return performRequestAsyncAndParseEntity(
+            multiGetRequest,
+            RequestConverters::multiGet,
+            options,
+            MultiGetResponse::fromXContent,
+            listener,
+            singleton(404)
+        );
     }
 
     /**
@@ -697,8 +818,14 @@ public class RestHighLevelClient implements Closeable {
      * @return cancellable that may be used to cancel the request
      */
     public final Cancellable existsAsync(GetRequest getRequest, RequestOptions options, ActionListener<Boolean> listener) {
-        return performRequestAsync(getRequest, RequestConverters::exists, options, RestHighLevelClient::convertExistsResponse, listener,
-                emptySet());
+        return performRequestAsync(
+            getRequest,
+            RequestConverters::exists,
+            options,
+            RestHighLevelClient::convertExistsResponse,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -712,8 +839,13 @@ public class RestHighLevelClient implements Closeable {
     @Deprecated
     public boolean existsSource(GetRequest getRequest, RequestOptions options) throws IOException {
         GetSourceRequest getSourceRequest = GetSourceRequest.from(getRequest);
-        return performRequest(getSourceRequest, RequestConverters::sourceExists, options,
-            RestHighLevelClient::convertExistsResponse, emptySet());
+        return performRequest(
+            getSourceRequest,
+            RequestConverters::sourceExists,
+            options,
+            RestHighLevelClient::convertExistsResponse,
+            emptySet()
+        );
     }
 
     /**
@@ -728,8 +860,14 @@ public class RestHighLevelClient implements Closeable {
     @Deprecated
     public final Cancellable existsSourceAsync(GetRequest getRequest, RequestOptions options, ActionListener<Boolean> listener) {
         GetSourceRequest getSourceRequest = GetSourceRequest.from(getRequest);
-        return performRequestAsync(getSourceRequest, RequestConverters::sourceExists, options,
-            RestHighLevelClient::convertExistsResponse, listener, emptySet());
+        return performRequestAsync(
+            getSourceRequest,
+            RequestConverters::sourceExists,
+            options,
+            RestHighLevelClient::convertExistsResponse,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -740,8 +878,13 @@ public class RestHighLevelClient implements Closeable {
      * @return <code>true</code> if the document and _source field exists, <code>false</code> otherwise
      */
     public boolean existsSource(GetSourceRequest getSourceRequest, RequestOptions options) throws IOException {
-        return performRequest(getSourceRequest, RequestConverters::sourceExists, options,
-            RestHighLevelClient::convertExistsResponse, emptySet());
+        return performRequest(
+            getSourceRequest,
+            RequestConverters::sourceExists,
+            options,
+            RestHighLevelClient::convertExistsResponse,
+            emptySet()
+        );
     }
 
     /**
@@ -752,10 +895,19 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public final Cancellable existsSourceAsync(GetSourceRequest getSourceRequest, RequestOptions options,
-                                               ActionListener<Boolean> listener) {
-        return performRequestAsync(getSourceRequest, RequestConverters::sourceExists, options,
-            RestHighLevelClient::convertExistsResponse, listener, emptySet());
+    public final Cancellable existsSourceAsync(
+        GetSourceRequest getSourceRequest,
+        RequestOptions options,
+        ActionListener<Boolean> listener
+    ) {
+        return performRequestAsync(
+            getSourceRequest,
+            RequestConverters::sourceExists,
+            options,
+            RestHighLevelClient::convertExistsResponse,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -766,8 +918,13 @@ public class RestHighLevelClient implements Closeable {
      * @return the response
      */
     public GetSourceResponse getSource(GetSourceRequest getSourceRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(getSourceRequest, RequestConverters::getSource, options,
-            GetSourceResponse::fromXContent, emptySet());
+        return performRequestAndParseEntity(
+            getSourceRequest,
+            RequestConverters::getSource,
+            options,
+            GetSourceResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -778,10 +935,19 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public final Cancellable getSourceAsync(GetSourceRequest getSourceRequest, RequestOptions options,
-                                            ActionListener<GetSourceResponse> listener) {
-        return performRequestAsyncAndParseEntity(getSourceRequest, RequestConverters::getSource, options,
-            GetSourceResponse::fromXContent, listener, emptySet());
+    public final Cancellable getSourceAsync(
+        GetSourceRequest getSourceRequest,
+        RequestOptions options,
+        ActionListener<GetSourceResponse> listener
+    ) {
+        return performRequestAsyncAndParseEntity(
+            getSourceRequest,
+            RequestConverters::getSource,
+            options,
+            GetSourceResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -792,8 +958,7 @@ public class RestHighLevelClient implements Closeable {
      * @return the response
      */
     public final IndexResponse index(IndexRequest indexRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(indexRequest, RequestConverters::index, options,
-            IndexResponse::fromXContent, emptySet());
+        return performRequestAndParseEntity(indexRequest, RequestConverters::index, options, IndexResponse::fromXContent, emptySet());
     }
 
     /**
@@ -805,8 +970,14 @@ public class RestHighLevelClient implements Closeable {
      * @return cancellable that may be used to cancel the request
      */
     public final Cancellable indexAsync(IndexRequest indexRequest, RequestOptions options, ActionListener<IndexResponse> listener) {
-        return performRequestAsyncAndParseEntity(indexRequest, RequestConverters::index, options, IndexResponse::fromXContent, listener,
-                emptySet());
+        return performRequestAsyncAndParseEntity(
+            indexRequest,
+            RequestConverters::index,
+            options,
+            IndexResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -817,8 +988,7 @@ public class RestHighLevelClient implements Closeable {
      * @return the response
      */
     public final CountResponse count(CountRequest countRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(countRequest, RequestConverters::count, options, CountResponse::fromXContent,
-        emptySet());
+        return performRequestAndParseEntity(countRequest, RequestConverters::count, options, CountResponse::fromXContent, emptySet());
     }
 
     /**
@@ -830,8 +1000,14 @@ public class RestHighLevelClient implements Closeable {
      * @return cancellable that may be used to cancel the request
      */
     public final Cancellable countAsync(CountRequest countRequest, RequestOptions options, ActionListener<CountResponse> listener) {
-        return performRequestAsyncAndParseEntity(countRequest, RequestConverters::count,  options,CountResponse::fromXContent,
-            listener, emptySet());
+        return performRequestAsyncAndParseEntity(
+            countRequest,
+            RequestConverters::count,
+            options,
+            CountResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -854,8 +1030,14 @@ public class RestHighLevelClient implements Closeable {
      * @return cancellable that may be used to cancel the request
      */
     public final Cancellable updateAsync(UpdateRequest updateRequest, RequestOptions options, ActionListener<UpdateResponse> listener) {
-        return performRequestAsyncAndParseEntity(updateRequest, RequestConverters::update, options, UpdateResponse::fromXContent, listener,
-                emptySet());
+        return performRequestAsyncAndParseEntity(
+            updateRequest,
+            RequestConverters::update,
+            options,
+            UpdateResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -866,8 +1048,13 @@ public class RestHighLevelClient implements Closeable {
      * @return the response
      */
     public final DeleteResponse delete(DeleteRequest deleteRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(deleteRequest, RequestConverters::delete, options, DeleteResponse::fromXContent,
-                singleton(404));
+        return performRequestAndParseEntity(
+            deleteRequest,
+            RequestConverters::delete,
+            options,
+            DeleteResponse::fromXContent,
+            singleton(404)
+        );
     }
 
     /**
@@ -879,8 +1066,14 @@ public class RestHighLevelClient implements Closeable {
      * @return cancellable that may be used to cancel the request
      */
     public final Cancellable deleteAsync(DeleteRequest deleteRequest, RequestOptions options, ActionListener<DeleteResponse> listener) {
-        return performRequestAsyncAndParseEntity(deleteRequest, RequestConverters::delete, options, DeleteResponse::fromXContent, listener,
-            Collections.singleton(404));
+        return performRequestAsyncAndParseEntity(
+            deleteRequest,
+            RequestConverters::delete,
+            options,
+            DeleteResponse::fromXContent,
+            listener,
+            Collections.singleton(404)
+        );
     }
 
     /**
@@ -892,11 +1085,12 @@ public class RestHighLevelClient implements Closeable {
      */
     public final SearchResponse search(SearchRequest searchRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(
-                searchRequest,
-                r -> RequestConverters.search(r, "_search"),
-                options,
-                SearchResponse::fromXContent,
-                emptySet());
+            searchRequest,
+            r -> RequestConverters.search(r, "_search"),
+            options,
+            SearchResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -909,12 +1103,13 @@ public class RestHighLevelClient implements Closeable {
      */
     public final Cancellable searchAsync(SearchRequest searchRequest, RequestOptions options, ActionListener<SearchResponse> listener) {
         return performRequestAsyncAndParseEntity(
-                searchRequest,
-                r -> RequestConverters.search(r, "_search"),
-                options,
-                SearchResponse::fromXContent,
-                listener,
-                emptySet());
+            searchRequest,
+            r -> RequestConverters.search(r, "_search"),
+            options,
+            SearchResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -938,8 +1133,13 @@ public class RestHighLevelClient implements Closeable {
      * @return the response
      */
     public final MultiSearchResponse msearch(MultiSearchRequest multiSearchRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(multiSearchRequest, RequestConverters::multiSearch, options, MultiSearchResponse::fromXContext,
-                emptySet());
+        return performRequestAndParseEntity(
+            multiSearchRequest,
+            RequestConverters::multiSearch,
+            options,
+            MultiSearchResponse::fromXContext,
+            emptySet()
+        );
     }
 
     /**
@@ -952,8 +1152,11 @@ public class RestHighLevelClient implements Closeable {
      * @return cancellable that may be used to cancel the request
      */
     @Deprecated
-    public final Cancellable multiSearchAsync(MultiSearchRequest searchRequest, RequestOptions options,
-                                              ActionListener<MultiSearchResponse> listener) {
+    public final Cancellable multiSearchAsync(
+        MultiSearchRequest searchRequest,
+        RequestOptions options,
+        ActionListener<MultiSearchResponse> listener
+    ) {
         return msearchAsync(searchRequest, options, listener);
     }
 
@@ -965,10 +1168,19 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public final Cancellable msearchAsync(MultiSearchRequest searchRequest, RequestOptions options,
-                                          ActionListener<MultiSearchResponse> listener) {
-        return performRequestAsyncAndParseEntity(searchRequest, RequestConverters::multiSearch, options, MultiSearchResponse::fromXContext,
-                listener, emptySet());
+    public final Cancellable msearchAsync(
+        MultiSearchRequest searchRequest,
+        RequestOptions options,
+        ActionListener<MultiSearchResponse> listener
+    ) {
+        return performRequestAsyncAndParseEntity(
+            searchRequest,
+            RequestConverters::multiSearch,
+            options,
+            MultiSearchResponse::fromXContext,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -992,8 +1204,13 @@ public class RestHighLevelClient implements Closeable {
      * @return the response
      */
     public final SearchResponse scroll(SearchScrollRequest searchScrollRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(searchScrollRequest, RequestConverters::searchScroll, options, SearchResponse::fromXContent,
-                emptySet());
+        return performRequestAndParseEntity(
+            searchScrollRequest,
+            RequestConverters::searchScroll,
+            options,
+            SearchResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -1006,8 +1223,11 @@ public class RestHighLevelClient implements Closeable {
      * @return cancellable that may be used to cancel the request
      */
     @Deprecated
-    public final Cancellable searchScrollAsync(SearchScrollRequest searchScrollRequest, RequestOptions options,
-                                               ActionListener<SearchResponse> listener) {
+    public final Cancellable searchScrollAsync(
+        SearchScrollRequest searchScrollRequest,
+        RequestOptions options,
+        ActionListener<SearchResponse> listener
+    ) {
         return scrollAsync(searchScrollRequest, options, listener);
     }
 
@@ -1019,10 +1239,19 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public final Cancellable scrollAsync(SearchScrollRequest searchScrollRequest, RequestOptions options,
-                                         ActionListener<SearchResponse> listener) {
-        return performRequestAsyncAndParseEntity(searchScrollRequest, RequestConverters::searchScroll,
-            options, SearchResponse::fromXContent, listener, emptySet());
+    public final Cancellable scrollAsync(
+        SearchScrollRequest searchScrollRequest,
+        RequestOptions options,
+        ActionListener<SearchResponse> listener
+    ) {
+        return performRequestAsyncAndParseEntity(
+            searchScrollRequest,
+            RequestConverters::searchScroll,
+            options,
+            SearchResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -1033,8 +1262,13 @@ public class RestHighLevelClient implements Closeable {
      * @return the response
      */
     public final ClearScrollResponse clearScroll(ClearScrollRequest clearScrollRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(clearScrollRequest, RequestConverters::clearScroll, options, ClearScrollResponse::fromXContent,
-                emptySet());
+        return performRequestAndParseEntity(
+            clearScrollRequest,
+            RequestConverters::clearScroll,
+            options,
+            ClearScrollResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -1045,10 +1279,19 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public final Cancellable clearScrollAsync(ClearScrollRequest clearScrollRequest, RequestOptions options,
-                                              ActionListener<ClearScrollResponse> listener) {
-        return performRequestAsyncAndParseEntity(clearScrollRequest, RequestConverters::clearScroll,
-            options, ClearScrollResponse::fromXContent, listener, emptySet());
+    public final Cancellable clearScrollAsync(
+        ClearScrollRequest clearScrollRequest,
+        RequestOptions options,
+        ActionListener<ClearScrollResponse> listener
+    ) {
+        return performRequestAsyncAndParseEntity(
+            clearScrollRequest,
+            RequestConverters::clearScroll,
+            options,
+            ClearScrollResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -1058,10 +1301,15 @@ public class RestHighLevelClient implements Closeable {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
      */
-    public final SearchTemplateResponse searchTemplate(SearchTemplateRequest searchTemplateRequest,
-                                                       RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(searchTemplateRequest, RequestConverters::searchTemplate, options,
-            SearchTemplateResponse::fromXContent, emptySet());
+    public final SearchTemplateResponse searchTemplate(SearchTemplateRequest searchTemplateRequest, RequestOptions options)
+        throws IOException {
+        return performRequestAndParseEntity(
+            searchTemplateRequest,
+            RequestConverters::searchTemplate,
+            options,
+            SearchTemplateResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -1069,10 +1317,19 @@ public class RestHighLevelClient implements Closeable {
      *
      * @return cancellable that may be used to cancel the request
      */
-    public final Cancellable searchTemplateAsync(SearchTemplateRequest searchTemplateRequest, RequestOptions options,
-                                                 ActionListener<SearchTemplateResponse> listener) {
-        return performRequestAsyncAndParseEntity(searchTemplateRequest, RequestConverters::searchTemplate, options,
-            SearchTemplateResponse::fromXContent, listener, emptySet());
+    public final Cancellable searchTemplateAsync(
+        SearchTemplateRequest searchTemplateRequest,
+        RequestOptions options,
+        ActionListener<SearchTemplateResponse> listener
+    ) {
+        return performRequestAsyncAndParseEntity(
+            searchTemplateRequest,
+            RequestConverters::searchTemplate,
+            options,
+            SearchTemplateResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -1083,13 +1340,13 @@ public class RestHighLevelClient implements Closeable {
      * @return the response
      */
     public final ExplainResponse explain(ExplainRequest explainRequest, RequestOptions options) throws IOException {
-        return performRequest(explainRequest, RequestConverters::explain, options,
-            response -> {
-                CheckedFunction<XContentParser, ExplainResponse, IOException> entityParser =
-                    parser -> ExplainResponse.fromXContent(parser, convertExistsResponse(response));
-                return parseEntity(response.getEntity(), entityParser);
-            },
-            singleton(404));
+        return performRequest(explainRequest, RequestConverters::explain, options, response -> {
+            CheckedFunction<XContentParser, ExplainResponse, IOException> entityParser = parser -> ExplainResponse.fromXContent(
+                parser,
+                convertExistsResponse(response)
+            );
+            return parseEntity(response.getEntity(), entityParser);
+        }, singleton(404));
     }
 
     /**
@@ -1101,15 +1358,14 @@ public class RestHighLevelClient implements Closeable {
      * @return cancellable that may be used to cancel the request
      */
     public final Cancellable explainAsync(ExplainRequest explainRequest, RequestOptions options, ActionListener<ExplainResponse> listener) {
-        return performRequestAsync(explainRequest, RequestConverters::explain, options,
-            response -> {
-                CheckedFunction<XContentParser, ExplainResponse, IOException> entityParser =
-                    parser -> ExplainResponse.fromXContent(parser, convertExistsResponse(response));
-                return parseEntity(response.getEntity(), entityParser);
-            },
-            listener, singleton(404));
+        return performRequestAsync(explainRequest, RequestConverters::explain, options, response -> {
+            CheckedFunction<XContentParser, ExplainResponse, IOException> entityParser = parser -> ExplainResponse.fromXContent(
+                parser,
+                convertExistsResponse(response)
+            );
+            return parseEntity(response.getEntity(), entityParser);
+        }, listener, singleton(404));
     }
-
 
     /**
      * Calls the Term Vectors API
@@ -1118,8 +1374,13 @@ public class RestHighLevelClient implements Closeable {
      * @param options   the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      */
     public final TermVectorsResponse termvectors(TermVectorsRequest request, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(request, RequestConverters::termVectors, options, TermVectorsResponse::fromXContent,
-            emptySet());
+        return performRequestAndParseEntity(
+            request,
+            RequestConverters::termVectors,
+            options,
+            TermVectorsResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -1130,13 +1391,20 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public final Cancellable termvectorsAsync(TermVectorsRequest request, RequestOptions options,
-                                              ActionListener<TermVectorsResponse> listener) {
-        return performRequestAsyncAndParseEntity(request, RequestConverters::termVectors, options,
-            TermVectorsResponse::fromXContent, listener,
-            emptySet());
+    public final Cancellable termvectorsAsync(
+        TermVectorsRequest request,
+        RequestOptions options,
+        ActionListener<TermVectorsResponse> listener
+    ) {
+        return performRequestAsyncAndParseEntity(
+            request,
+            RequestConverters::termVectors,
+            options,
+            TermVectorsResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
-
 
     /**
      * Calls the Multi Term Vectors API
@@ -1146,9 +1414,13 @@ public class RestHighLevelClient implements Closeable {
      */
     public final MultiTermVectorsResponse mtermvectors(MultiTermVectorsRequest request, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(
-            request, RequestConverters::mtermVectors, options, MultiTermVectorsResponse::fromXContent, emptySet());
+            request,
+            RequestConverters::mtermVectors,
+            options,
+            MultiTermVectorsResponse::fromXContent,
+            emptySet()
+        );
     }
-
 
     /**
      * Asynchronously calls the Multi Term Vectors API
@@ -1158,12 +1430,20 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public final Cancellable mtermvectorsAsync(MultiTermVectorsRequest request, RequestOptions options,
-                                               ActionListener<MultiTermVectorsResponse> listener) {
+    public final Cancellable mtermvectorsAsync(
+        MultiTermVectorsRequest request,
+        RequestOptions options,
+        ActionListener<MultiTermVectorsResponse> listener
+    ) {
         return performRequestAsyncAndParseEntity(
-            request, RequestConverters::mtermVectors, options, MultiTermVectorsResponse::fromXContent, listener, emptySet());
+            request,
+            RequestConverters::mtermVectors,
+            options,
+            MultiTermVectorsResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
-
 
     /**
      * Executes a request using the Ranking Evaluation API.
@@ -1173,19 +1453,28 @@ public class RestHighLevelClient implements Closeable {
      * @return the response
      */
     public final RankEvalResponse rankEval(RankEvalRequest rankEvalRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(rankEvalRequest, RequestConverters::rankEval, options, RankEvalResponse::fromXContent,
-                emptySet());
+        return performRequestAndParseEntity(
+            rankEvalRequest,
+            RequestConverters::rankEval,
+            options,
+            RankEvalResponse::fromXContent,
+            emptySet()
+        );
     }
-
 
     /**
      * Executes a request using the Multi Search Template API.
      *
      */
-    public final MultiSearchTemplateResponse msearchTemplate(MultiSearchTemplateRequest multiSearchTemplateRequest,
-                                                             RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(multiSearchTemplateRequest, RequestConverters::multiSearchTemplate,
-                options, MultiSearchTemplateResponse::fromXContext, emptySet());
+    public final MultiSearchTemplateResponse msearchTemplate(MultiSearchTemplateRequest multiSearchTemplateRequest, RequestOptions options)
+        throws IOException {
+        return performRequestAndParseEntity(
+            multiSearchTemplateRequest,
+            RequestConverters::multiSearchTemplate,
+            options,
+            MultiSearchTemplateResponse::fromXContext,
+            emptySet()
+        );
     }
 
     /**
@@ -1193,11 +1482,19 @@ public class RestHighLevelClient implements Closeable {
      *
      * @return cancellable that may be used to cancel the request
      */
-    public final Cancellable msearchTemplateAsync(MultiSearchTemplateRequest multiSearchTemplateRequest,
-                                                  RequestOptions options,
-                                                  ActionListener<MultiSearchTemplateResponse> listener) {
-        return performRequestAsyncAndParseEntity(multiSearchTemplateRequest, RequestConverters::multiSearchTemplate,
-            options, MultiSearchTemplateResponse::fromXContext, listener, emptySet());
+    public final Cancellable msearchTemplateAsync(
+        MultiSearchTemplateRequest multiSearchTemplateRequest,
+        RequestOptions options,
+        ActionListener<MultiSearchTemplateResponse> listener
+    ) {
+        return performRequestAsyncAndParseEntity(
+            multiSearchTemplateRequest,
+            RequestConverters::multiSearchTemplate,
+            options,
+            MultiSearchTemplateResponse::fromXContext,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -1208,11 +1505,19 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public final Cancellable rankEvalAsync(RankEvalRequest rankEvalRequest, RequestOptions options,
-                                           ActionListener<RankEvalResponse> listener) {
-        return performRequestAsyncAndParseEntity(rankEvalRequest, RequestConverters::rankEval, options,
-            RankEvalResponse::fromXContent, listener,
-                emptySet());
+    public final Cancellable rankEvalAsync(
+        RankEvalRequest rankEvalRequest,
+        RequestOptions options,
+        ActionListener<RankEvalResponse> listener
+    ) {
+        return performRequestAsyncAndParseEntity(
+            rankEvalRequest,
+            RequestConverters::rankEval,
+            options,
+            RankEvalResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -1222,10 +1527,15 @@ public class RestHighLevelClient implements Closeable {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
      */
-    public final FieldCapabilitiesResponse fieldCaps(FieldCapabilitiesRequest fieldCapabilitiesRequest,
-                                                     RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(fieldCapabilitiesRequest, RequestConverters::fieldCaps, options,
-            FieldCapabilitiesResponse::fromXContent, emptySet());
+    public final FieldCapabilitiesResponse fieldCaps(FieldCapabilitiesRequest fieldCapabilitiesRequest, RequestOptions options)
+        throws IOException {
+        return performRequestAndParseEntity(
+            fieldCapabilitiesRequest,
+            RequestConverters::fieldCaps,
+            options,
+            FieldCapabilitiesResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -1236,8 +1546,13 @@ public class RestHighLevelClient implements Closeable {
      * @return the response
      */
     public GetStoredScriptResponse getScript(GetStoredScriptRequest request, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(request, RequestConverters::getScript, options,
-            GetStoredScriptResponse::fromXContent, emptySet());
+        return performRequestAndParseEntity(
+            request,
+            RequestConverters::getScript,
+            options,
+            GetStoredScriptResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -1248,10 +1563,19 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getScriptAsync(GetStoredScriptRequest request, RequestOptions options,
-                                      ActionListener<GetStoredScriptResponse> listener) {
-        return performRequestAsyncAndParseEntity(request, RequestConverters::getScript, options,
-            GetStoredScriptResponse::fromXContent, listener, emptySet());
+    public Cancellable getScriptAsync(
+        GetStoredScriptRequest request,
+        RequestOptions options,
+        ActionListener<GetStoredScriptResponse> listener
+    ) {
+        return performRequestAsyncAndParseEntity(
+            request,
+            RequestConverters::getScript,
+            options,
+            GetStoredScriptResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -1262,8 +1586,13 @@ public class RestHighLevelClient implements Closeable {
      * @return the response
      */
     public AcknowledgedResponse deleteScript(DeleteStoredScriptRequest request, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(request, RequestConverters::deleteScript, options,
-            AcknowledgedResponse::fromXContent, emptySet());
+        return performRequestAndParseEntity(
+            request,
+            RequestConverters::deleteScript,
+            options,
+            AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -1274,10 +1603,19 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable deleteScriptAsync(DeleteStoredScriptRequest request, RequestOptions options,
-                                         ActionListener<AcknowledgedResponse> listener) {
-        return performRequestAsyncAndParseEntity(request, RequestConverters::deleteScript, options,
-            AcknowledgedResponse::fromXContent, listener, emptySet());
+    public Cancellable deleteScriptAsync(
+        DeleteStoredScriptRequest request,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        return performRequestAsyncAndParseEntity(
+            request,
+            RequestConverters::deleteScript,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -1287,10 +1625,14 @@ public class RestHighLevelClient implements Closeable {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
      */
-    public AcknowledgedResponse putScript(PutStoredScriptRequest putStoredScriptRequest,
-                                             RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(putStoredScriptRequest, RequestConverters::putScript, options,
-            AcknowledgedResponse::fromXContent, emptySet());
+    public AcknowledgedResponse putScript(PutStoredScriptRequest putStoredScriptRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(
+            putStoredScriptRequest,
+            RequestConverters::putScript,
+            options,
+            AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -1301,10 +1643,19 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable putScriptAsync(PutStoredScriptRequest putStoredScriptRequest, RequestOptions options,
-                                      ActionListener<AcknowledgedResponse> listener) {
-        return performRequestAsyncAndParseEntity(putStoredScriptRequest, RequestConverters::putScript, options,
-            AcknowledgedResponse::fromXContent, listener, emptySet());
+    public Cancellable putScriptAsync(
+        PutStoredScriptRequest putStoredScriptRequest,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        return performRequestAsyncAndParseEntity(
+            putStoredScriptRequest,
+            RequestConverters::putScript,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -1315,10 +1666,19 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public final Cancellable fieldCapsAsync(FieldCapabilitiesRequest fieldCapabilitiesRequest, RequestOptions options,
-                                            ActionListener<FieldCapabilitiesResponse> listener) {
-        return performRequestAsyncAndParseEntity(fieldCapabilitiesRequest, RequestConverters::fieldCaps, options,
-            FieldCapabilitiesResponse::fromXContent, listener, emptySet());
+    public final Cancellable fieldCapsAsync(
+        FieldCapabilitiesRequest fieldCapabilitiesRequest,
+        RequestOptions options,
+        ActionListener<FieldCapabilitiesResponse> listener
+    ) {
+        return performRequestAsyncAndParseEntity(
+            fieldCapabilitiesRequest,
+            RequestConverters::fieldCaps,
+            options,
+            FieldCapabilitiesResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -1326,25 +1686,27 @@ public class RestHighLevelClient implements Closeable {
      * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
      */
     @Deprecated
-    protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
-                                                                            CheckedFunction<Req, Request, IOException> requestConverter,
-                                                                            RequestOptions options,
-                                                                            CheckedFunction<XContentParser, Resp, IOException> entityParser,
-                                                                            Set<Integer> ignores) throws IOException {
-        return performRequest(request, requestConverter, options,
-                response -> parseEntity(response.getEntity(), entityParser), ignores);
+    protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(
+        Req request,
+        CheckedFunction<Req, Request, IOException> requestConverter,
+        RequestOptions options,
+        CheckedFunction<XContentParser, Resp, IOException> entityParser,
+        Set<Integer> ignores
+    ) throws IOException {
+        return performRequest(request, requestConverter, options, response -> parseEntity(response.getEntity(), entityParser), ignores);
     }
 
     /**
      * Defines a helper method for performing a request and then parsing the returned entity using the provided entityParser.
      */
-    protected final <Req extends Validatable, Resp> Resp performRequestAndParseEntity(Req request,
-                                                                  CheckedFunction<Req, Request, IOException> requestConverter,
-                                                                  RequestOptions options,
-                                                                  CheckedFunction<XContentParser, Resp, IOException> entityParser,
-                                                                  Set<Integer> ignores) throws IOException {
-        return performRequest(request, requestConverter, options,
-                response -> parseEntity(response.getEntity(), entityParser), ignores);
+    protected final <Req extends Validatable, Resp> Resp performRequestAndParseEntity(
+        Req request,
+        CheckedFunction<Req, Request, IOException> requestConverter,
+        RequestOptions options,
+        CheckedFunction<XContentParser, Resp, IOException> entityParser,
+        Set<Integer> ignores
+    ) throws IOException {
+        return performRequest(request, requestConverter, options, response -> parseEntity(response.getEntity(), entityParser), ignores);
     }
 
     /**
@@ -1352,11 +1714,13 @@ public class RestHighLevelClient implements Closeable {
      * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
      */
     @Deprecated
-    protected final <Req extends ActionRequest, Resp> Resp performRequest(Req request,
-                                                                           CheckedFunction<Req, Request, IOException> requestConverter,
-                                                                           RequestOptions options,
-                                                                           CheckedFunction<Response, Resp, IOException> responseConverter,
-                                                                           Set<Integer> ignores) throws IOException {
+    protected final <Req extends ActionRequest, Resp> Resp performRequest(
+        Req request,
+        CheckedFunction<Req, Request, IOException> requestConverter,
+        RequestOptions options,
+        CheckedFunction<Response, Resp, IOException> responseConverter,
+        Set<Integer> ignores
+    ) throws IOException {
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null && validationException.validationErrors().isEmpty() == false) {
             throw validationException;
@@ -1367,11 +1731,13 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Defines a helper method for performing a request.
      */
-    protected final <Req extends Validatable, Resp> Resp performRequest(Req request,
-                                                             CheckedFunction<Req, Request, IOException> requestConverter,
-                                                             RequestOptions options,
-                                                             CheckedFunction<Response, Resp, IOException> responseConverter,
-                                                             Set<Integer> ignores) throws IOException {
+    protected final <Req extends Validatable, Resp> Resp performRequest(
+        Req request,
+        CheckedFunction<Req, Request, IOException> requestConverter,
+        RequestOptions options,
+        CheckedFunction<Response, Resp, IOException> responseConverter,
+        Set<Integer> ignores
+    ) throws IOException {
         Optional<ValidationException> validationException = request.validate();
         if (validationException != null && validationException.isPresent()) {
             throw validationException.get();
@@ -1382,11 +1748,13 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Provides common functionality for performing a request.
      */
-    private <Req, Resp> Resp internalPerformRequest(Req request,
-                                            CheckedFunction<Req, Request, IOException> requestConverter,
-                                            RequestOptions options,
-                                            CheckedFunction<Response, Resp, IOException> responseConverter,
-                                            Set<Integer> ignores) throws IOException {
+    private <Req, Resp> Resp internalPerformRequest(
+        Req request,
+        CheckedFunction<Req, Request, IOException> requestConverter,
+        RequestOptions options,
+        CheckedFunction<Response, Resp, IOException> responseConverter,
+        Set<Integer> ignores
+    ) throws IOException {
         Request req = requestConverter.apply(request);
         req.setOptions(options);
         Response response;
@@ -1409,7 +1777,7 @@ public class RestHighLevelClient implements Closeable {
 
         try {
             return responseConverter.apply(response);
-        } catch(Exception e) {
+        } catch (Exception e) {
             throw new IOException("Unable to parse response body for " + response, e);
         }
     }
@@ -1418,11 +1786,12 @@ public class RestHighLevelClient implements Closeable {
      * Defines a helper method for requests that can 404 and in which case will return an empty Optional
      * otherwise tries to parse the response body
      */
-    protected final <Req extends Validatable, Resp> Optional<Resp> performRequestAndParseOptionalEntity(Req request,
-                                                                  CheckedFunction<Req, Request, IOException> requestConverter,
-                                                                  RequestOptions options,
-                                                                  CheckedFunction<XContentParser, Resp, IOException> entityParser
-                                                                  ) throws IOException {
+    protected final <Req extends Validatable, Resp> Optional<Resp> performRequestAndParseOptionalEntity(
+        Req request,
+        CheckedFunction<Req, Request, IOException> requestConverter,
+        RequestOptions options,
+        CheckedFunction<XContentParser, Resp, IOException> entityParser
+    ) throws IOException {
         Optional<ValidationException> validationException = request.validate();
         if (validationException != null && validationException.isPresent()) {
             throw validationException.get();
@@ -1452,28 +1821,45 @@ public class RestHighLevelClient implements Closeable {
      * @return Cancellable instance that may be used to cancel the request
      */
     @Deprecated
-    protected final <Req extends ActionRequest, Resp> Cancellable performRequestAsyncAndParseEntity(Req request,
-                CheckedFunction<Req, Request, IOException> requestConverter,
-                RequestOptions options,
-                CheckedFunction<XContentParser, Resp, IOException> entityParser,
-                ActionListener<Resp> listener, Set<Integer> ignores) {
-        return performRequestAsync(request, requestConverter, options,
-                response -> parseEntity(response.getEntity(), entityParser), listener, ignores);
+    protected final <Req extends ActionRequest, Resp> Cancellable performRequestAsyncAndParseEntity(
+        Req request,
+        CheckedFunction<Req, Request, IOException> requestConverter,
+        RequestOptions options,
+        CheckedFunction<XContentParser, Resp, IOException> entityParser,
+        ActionListener<Resp> listener,
+        Set<Integer> ignores
+    ) {
+        return performRequestAsync(
+            request,
+            requestConverter,
+            options,
+            response -> parseEntity(response.getEntity(), entityParser),
+            listener,
+            ignores
+        );
     }
 
     /**
      * Defines a helper method for asynchronously performing a request.
      * @return Cancellable instance that may be used to cancel the request
      */
-    protected final <Req extends Validatable, Resp> Cancellable performRequestAsyncAndParseEntity(Req request,
-                CheckedFunction<Req, Request, IOException> requestConverter,
-                RequestOptions options,
-                CheckedFunction<XContentParser, Resp, IOException> entityParser,
-                ActionListener<Resp> listener, Set<Integer> ignores) {
-        return performRequestAsync(request, requestConverter, options,
-                response -> parseEntity(response.getEntity(), entityParser), listener, ignores);
+    protected final <Req extends Validatable, Resp> Cancellable performRequestAsyncAndParseEntity(
+        Req request,
+        CheckedFunction<Req, Request, IOException> requestConverter,
+        RequestOptions options,
+        CheckedFunction<XContentParser, Resp, IOException> entityParser,
+        ActionListener<Resp> listener,
+        Set<Integer> ignores
+    ) {
+        return performRequestAsync(
+            request,
+            requestConverter,
+            options,
+            response -> parseEntity(response.getEntity(), entityParser),
+            listener,
+            ignores
+        );
     }
-
 
     /**
      * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
@@ -1481,11 +1867,14 @@ public class RestHighLevelClient implements Closeable {
      * @return Cancellable instance that may be used to cancel the request
      */
     @Deprecated
-    protected final <Req extends ActionRequest, Resp> Cancellable performRequestAsync(Req request,
-                CheckedFunction<Req, Request, IOException> requestConverter,
-                RequestOptions options,
-                CheckedFunction<Response, Resp, IOException> responseConverter,
-                ActionListener<Resp> listener, Set<Integer> ignores) {
+    protected final <Req extends ActionRequest, Resp> Cancellable performRequestAsync(
+        Req request,
+        CheckedFunction<Req, Request, IOException> requestConverter,
+        RequestOptions options,
+        CheckedFunction<Response, Resp, IOException> responseConverter,
+        ActionListener<Resp> listener,
+        Set<Integer> ignores
+    ) {
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null && validationException.validationErrors().isEmpty() == false) {
             listener.onFailure(validationException);
@@ -1498,11 +1887,14 @@ public class RestHighLevelClient implements Closeable {
      * Defines a helper method for asynchronously performing a request.
      * @return Cancellable instance that may be used to cancel the request
      */
-    protected final <Req extends Validatable, Resp> Cancellable performRequestAsync(Req request,
-                CheckedFunction<Req, Request, IOException> requestConverter,
-                RequestOptions options,
-                CheckedFunction<Response, Resp, IOException> responseConverter,
-                ActionListener<Resp> listener, Set<Integer> ignores) {
+    protected final <Req extends Validatable, Resp> Cancellable performRequestAsync(
+        Req request,
+        CheckedFunction<Req, Request, IOException> requestConverter,
+        RequestOptions options,
+        CheckedFunction<Response, Resp, IOException> responseConverter,
+        ActionListener<Resp> listener,
+        Set<Integer> ignores
+    ) {
         Optional<ValidationException> validationException = request.validate();
         if (validationException != null && validationException.isPresent()) {
             listener.onFailure(validationException.get());
@@ -1515,11 +1907,14 @@ public class RestHighLevelClient implements Closeable {
      * Provides common functionality for asynchronously performing a request.
      * @return Cancellable instance that may be used to cancel the request
      */
-    private <Req, Resp> Cancellable internalPerformRequestAsync(Req request,
-                 CheckedFunction<Req, Request, IOException> requestConverter,
-                 RequestOptions options,
-                 CheckedFunction<Response, Resp, IOException> responseConverter,
-                 ActionListener<Resp> listener, Set<Integer> ignores) {
+    private <Req, Resp> Cancellable internalPerformRequestAsync(
+        Req request,
+        CheckedFunction<Req, Request, IOException> requestConverter,
+        RequestOptions options,
+        CheckedFunction<Response, Resp, IOException> responseConverter,
+        ActionListener<Resp> listener,
+        Set<Integer> ignores
+    ) {
         Request req;
         try {
             req = requestConverter.apply(request);
@@ -1533,15 +1928,17 @@ public class RestHighLevelClient implements Closeable {
         return client.performRequestAsync(req, responseListener);
     }
 
-
-    final <Resp> ResponseListener wrapResponseListener(CheckedFunction<Response, Resp, IOException> responseConverter,
-                                                        ActionListener<Resp> actionListener, Set<Integer> ignores) {
+    final <Resp> ResponseListener wrapResponseListener(
+        CheckedFunction<Response, Resp, IOException> responseConverter,
+        ActionListener<Resp> actionListener,
+        Set<Integer> ignores
+    ) {
         return new ResponseListener() {
             @Override
             public void onSuccess(Response response) {
                 try {
                     actionListener.onResponse(responseConverter.apply(response));
-                } catch(Exception e) {
+                } catch (Exception e) {
                     IOException ioe = new IOException("Unable to parse response body for " + response, e);
                     onFailure(ioe);
                 }
@@ -1576,11 +1973,13 @@ public class RestHighLevelClient implements Closeable {
      * Asynchronous request which returns empty {@link Optional}s in the case of 404s or parses entity into an Optional
      * @return Cancellable instance that may be used to cancel the request
      */
-    protected final <Req extends Validatable, Resp> Cancellable performRequestAsyncAndParseOptionalEntity(Req request,
-              CheckedFunction<Req, Request, IOException> requestConverter,
-              RequestOptions options,
-              CheckedFunction<XContentParser, Resp, IOException> entityParser,
-              ActionListener<Optional<Resp>> listener) {
+    protected final <Req extends Validatable, Resp> Cancellable performRequestAsyncAndParseOptionalEntity(
+        Req request,
+        CheckedFunction<Req, Request, IOException> requestConverter,
+        RequestOptions options,
+        CheckedFunction<XContentParser, Resp, IOException> entityParser,
+        ActionListener<Optional<Resp>> listener
+    ) {
         Optional<ValidationException> validationException = request.validate();
         if (validationException != null && validationException.isPresent()) {
             listener.onFailure(validationException.get());
@@ -1594,13 +1993,17 @@ public class RestHighLevelClient implements Closeable {
             return Cancellable.NO_OP;
         }
         req.setOptions(options);
-        ResponseListener responseListener = wrapResponseListener404sOptional(response -> parseEntity(response.getEntity(),
-                entityParser), listener);
+        ResponseListener responseListener = wrapResponseListener404sOptional(
+            response -> parseEntity(response.getEntity(), entityParser),
+            listener
+        );
         return client.performRequestAsync(req, responseListener);
     }
 
-    final <Resp> ResponseListener wrapResponseListener404sOptional(CheckedFunction<Response, Resp, IOException> responseConverter,
-            ActionListener<Optional<Resp>> actionListener) {
+    final <Resp> ResponseListener wrapResponseListener404sOptional(
+        CheckedFunction<Response, Resp, IOException> responseConverter,
+        ActionListener<Optional<Resp>> actionListener
+    ) {
         return new ResponseListener() {
             @Override
             public void onSuccess(Response response) {
@@ -1618,7 +2021,7 @@ public class RestHighLevelClient implements Closeable {
                     ResponseException responseException = (ResponseException) exception;
                     Response response = responseException.getResponse();
                     if (RestStatus.NOT_FOUND.getStatus() == response.getStatusLine().getStatusCode()) {
-                            actionListener.onResponse(Optional.empty());
+                        actionListener.onResponse(Optional.empty());
                     } else {
                         actionListener.onFailure(parseResponseException(responseException));
                     }
@@ -1643,8 +2046,7 @@ public class RestHighLevelClient implements Closeable {
         RestStatus restStatus = RestStatus.fromCode(response.getStatusLine().getStatusCode());
 
         if (entity == null) {
-            opensearchException = new OpenSearchStatusException(
-                    responseException.getMessage(), restStatus, responseException);
+            opensearchException = new OpenSearchStatusException(responseException.getMessage(), restStatus, responseException);
         } else {
             try {
                 opensearchException = parseEntity(entity, BytesRestResponse::errorFromXContent);
@@ -1657,8 +2059,8 @@ public class RestHighLevelClient implements Closeable {
         return opensearchException;
     }
 
-    protected final <Resp> Resp parseEntity(final HttpEntity entity,
-                                      final CheckedFunction<XContentParser, Resp, IOException> entityParser) throws IOException {
+    protected final <Resp> Resp parseEntity(final HttpEntity entity, final CheckedFunction<XContentParser, Resp, IOException> entityParser)
+        throws IOException {
         if (entity == null) {
             throw new IllegalStateException("Response body expected but not returned");
         }
@@ -1707,15 +2109,13 @@ public class RestHighLevelClient implements Closeable {
         map.put(StatsAggregationBuilder.NAME, (p, c) -> ParsedStats.fromXContent(p, (String) c));
         map.put(StatsBucketPipelineAggregationBuilder.NAME, (p, c) -> ParsedStatsBucket.fromXContent(p, (String) c));
         map.put(ExtendedStatsAggregationBuilder.NAME, (p, c) -> ParsedExtendedStats.fromXContent(p, (String) c));
-        map.put(ExtendedStatsBucketPipelineAggregationBuilder.NAME,
-                (p, c) -> ParsedExtendedStatsBucket.fromXContent(p, (String) c));
+        map.put(ExtendedStatsBucketPipelineAggregationBuilder.NAME, (p, c) -> ParsedExtendedStatsBucket.fromXContent(p, (String) c));
         map.put(GeoBoundsAggregationBuilder.NAME, (p, c) -> ParsedGeoBounds.fromXContent(p, (String) c));
         map.put(GeoCentroidAggregationBuilder.NAME, (p, c) -> ParsedGeoCentroid.fromXContent(p, (String) c));
         map.put(HistogramAggregationBuilder.NAME, (p, c) -> ParsedHistogram.fromXContent(p, (String) c));
         map.put(DateHistogramAggregationBuilder.NAME, (p, c) -> ParsedDateHistogram.fromXContent(p, (String) c));
         map.put(AutoDateHistogramAggregationBuilder.NAME, (p, c) -> ParsedAutoDateHistogram.fromXContent(p, (String) c));
-        map.put(VariableWidthHistogramAggregationBuilder.NAME,
-            (p, c) -> ParsedVariableWidthHistogram.fromXContent(p, (String) c));
+        map.put(VariableWidthHistogramAggregationBuilder.NAME, (p, c) -> ParsedVariableWidthHistogram.fromXContent(p, (String) c));
         map.put(StringTerms.NAME, (p, c) -> ParsedStringTerms.fromXContent(p, (String) c));
         map.put(LongTerms.NAME, (p, c) -> ParsedLongTerms.fromXContent(p, (String) c));
         map.put(DoubleTerms.NAME, (p, c) -> ParsedDoubleTerms.fromXContent(p, (String) c));
@@ -1740,15 +2140,31 @@ public class RestHighLevelClient implements Closeable {
         map.put(IpRangeAggregationBuilder.NAME, (p, c) -> ParsedBinaryRange.fromXContent(p, (String) c));
         map.put(TopHitsAggregationBuilder.NAME, (p, c) -> ParsedTopHits.fromXContent(p, (String) c));
         map.put(CompositeAggregationBuilder.NAME, (p, c) -> ParsedComposite.fromXContent(p, (String) c));
-        List<NamedXContentRegistry.Entry> entries = map.entrySet().stream()
-                .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))
-                .collect(Collectors.toList());
-        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(TermSuggestionBuilder.SUGGESTION_NAME),
-                (parser, context) -> TermSuggestion.fromXContent(parser, (String)context)));
-        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(PhraseSuggestionBuilder.SUGGESTION_NAME),
-                (parser, context) -> PhraseSuggestion.fromXContent(parser, (String)context)));
-        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(CompletionSuggestionBuilder.SUGGESTION_NAME),
-                (parser, context) -> CompletionSuggestion.fromXContent(parser, (String)context)));
+        List<NamedXContentRegistry.Entry> entries = map.entrySet()
+            .stream()
+            .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))
+            .collect(Collectors.toList());
+        entries.add(
+            new NamedXContentRegistry.Entry(
+                Suggest.Suggestion.class,
+                new ParseField(TermSuggestionBuilder.SUGGESTION_NAME),
+                (parser, context) -> TermSuggestion.fromXContent(parser, (String) context)
+            )
+        );
+        entries.add(
+            new NamedXContentRegistry.Entry(
+                Suggest.Suggestion.class,
+                new ParseField(PhraseSuggestionBuilder.SUGGESTION_NAME),
+                (parser, context) -> PhraseSuggestion.fromXContent(parser, (String) context)
+            )
+        );
+        entries.add(
+            new NamedXContentRegistry.Entry(
+                Suggest.Suggestion.class,
+                new ParseField(CompletionSuggestionBuilder.SUGGESTION_NAME),
+                (parser, context) -> CompletionSuggestion.fromXContent(parser, (String) context)
+            )
+        );
         return entries;
     }
 

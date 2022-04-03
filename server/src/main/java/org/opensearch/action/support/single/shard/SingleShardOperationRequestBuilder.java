@@ -37,9 +37,12 @@ import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.client.OpenSearchClient;
 
-public abstract class SingleShardOperationRequestBuilder<Request extends SingleShardRequest<Request>, Response extends ActionResponse,
-        RequestBuilder extends SingleShardOperationRequestBuilder<Request, Response, RequestBuilder>>
-        extends ActionRequestBuilder<Request, Response> {
+public abstract class SingleShardOperationRequestBuilder<
+    Request extends SingleShardRequest<Request>,
+    Response extends ActionResponse,
+    RequestBuilder extends SingleShardOperationRequestBuilder<Request, Response, RequestBuilder>> extends ActionRequestBuilder<
+        Request,
+        Response> {
 
     protected SingleShardOperationRequestBuilder(OpenSearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);

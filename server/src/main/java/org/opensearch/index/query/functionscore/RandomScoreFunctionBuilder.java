@@ -31,7 +31,7 @@
 
 package org.opensearch.index.query.functionscore;
 
-import org.opensearch.LegacyESVersion;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -57,7 +57,10 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
     private String field;
     private Integer seed;
 
-    public RandomScoreFunctionBuilder() {
+    public RandomScoreFunctionBuilder() {}
+
+    public RandomScoreFunctionBuilder(@Nullable String functionName) {
+        setFunctionName(functionName);
     }
 
     /**
@@ -68,9 +71,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
         if (in.readBoolean()) {
             seed = in.readInt();
         }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_0_0_beta1)) {
-            field = in.readOptionalString();
-        }
+        field = in.readOptionalString();
     }
 
     @Override
@@ -81,9 +82,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_0_0_beta1)) {
-            out.writeOptionalString(field);
-        }
+        out.writeOptionalString(field);
     }
 
     @Override
@@ -172,23 +171,26 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
         final int salt = (context.index().getName().hashCode() << 10) | context.getShardId();
         if (seed == null) {
             // DocID-based random score generation
-            return new RandomScoreFunction(hash(context.nowInMillis()), salt, null);
+            return new RandomScoreFunction(hash(context.nowInMillis()), salt, null, getFunctionName());
         } else {
             final MappedFieldType fieldType;
             if (field != null) {
                 fieldType = context.getMapperService().fieldType(field);
             } else {
-                deprecationLogger.deprecate("seed_requires_field",
-                    "OpenSearch requires that a [field] parameter is provided when a [seed] is set");
+                deprecationLogger.deprecate(
+                    "seed_requires_field",
+                    "OpenSearch requires that a [field] parameter is provided when a [seed] is set"
+                );
                 fieldType = context.getMapperService().fieldType(IdFieldMapper.NAME);
             }
             if (fieldType == null) {
                 if (context.getMapperService().documentMapper() == null) {
                     // no mappings: the index is empty anyway
-                    return new RandomScoreFunction(hash(context.nowInMillis()), salt, null);
+                    return new RandomScoreFunction(hash(context.nowInMillis()), salt, null, getFunctionName());
                 }
-                throw new IllegalArgumentException("Field [" + field + "] is not mapped on [" + context.index() +
-                        "] and cannot be used as a source of random numbers.");
+                throw new IllegalArgumentException(
+                    "Field [" + field + "] is not mapped on [" + context.index() + "] and cannot be used as a source of random numbers."
+                );
             }
             int seed;
             if (this.seed != null) {
@@ -196,7 +198,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
             } else {
                 seed = hash(context.nowInMillis());
             }
-            return new RandomScoreFunction(seed, salt, context.getForField(fieldType));
+            return new RandomScoreFunction(seed, salt, context.getForField(fieldType), getFunctionName());
         }
     }
 
@@ -204,8 +206,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
         return Long.hashCode(value);
     }
 
-    public static RandomScoreFunctionBuilder fromXContent(XContentParser parser)
-            throws IOException, ParsingException {
+    public static RandomScoreFunctionBuilder fromXContent(XContentParser parser) throws IOException, ParsingException {
         RandomScoreFunctionBuilder randomScoreFunctionBuilder = new RandomScoreFunctionBuilder();
         String currentFieldName = null;
         XContentParser.Token token;
@@ -220,17 +221,23 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
                         } else if (parser.numberType() == XContentParser.NumberType.LONG) {
                             randomScoreFunctionBuilder.seed(parser.longValue());
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(), "random_score seed must be an int, long or string, not '"
-                                    + token.toString() + "'");
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "random_score seed must be an int, long or string, not '" + token.toString() + "'"
+                            );
                         }
                     } else if (token == XContentParser.Token.VALUE_STRING) {
                         randomScoreFunctionBuilder.seed(parser.text());
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(), "random_score seed must be an int/long or string, not '"
-                                + token.toString() + "'");
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "random_score seed must be an int/long or string, not '" + token.toString() + "'"
+                        );
                     }
                 } else if ("field".equals(currentFieldName)) {
                     randomScoreFunctionBuilder.setField(parser.text());
+                } else if (FunctionScoreQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    randomScoreFunctionBuilder.setFunctionName(parser.text());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), NAME + " query does not support [" + currentFieldName + "]");
                 }

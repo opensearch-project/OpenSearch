@@ -53,8 +53,7 @@ import static java.util.Collections.unmodifiableSet;
  *
  * @author jessewilson@google.com (Jesse Wilson)
  */
-public class BindingBuilder<T> extends AbstractBindingBuilder<T>
-        implements AnnotatedBindingBuilder<T> {
+public class BindingBuilder<T> extends AbstractBindingBuilder<T> implements AnnotatedBindingBuilder<T> {
 
     public BindingBuilder(Binder binder, List<Element> elements, Object source, Key<T> key) {
         super(binder, elements, source, key);
@@ -87,8 +86,7 @@ public class BindingBuilder<T> extends AbstractBindingBuilder<T>
         Objects.requireNonNull(linkedKey, "linkedKey");
         checkNotTargetted();
         BindingImpl<T> base = getBinding();
-        setBinding(new LinkedBindingImpl<>(
-                base.getSource(), base.getKey(), base.getScoping(), linkedKey));
+        setBinding(new LinkedBindingImpl<>(base.getSource(), base.getKey(), base.getScoping(), linkedKey));
         return this;
     }
 
@@ -113,8 +111,7 @@ public class BindingBuilder<T> extends AbstractBindingBuilder<T>
         }
 
         BindingImpl<T> base = getBinding();
-        setBinding(new InstanceBindingImpl<>(
-                base.getSource(), base.getKey(), base.getScoping(), injectionPoints, instance));
+        setBinding(new InstanceBindingImpl<>(base.getSource(), base.getKey(), base.getScoping(), injectionPoints, instance));
     }
 
     @Override
@@ -134,8 +131,7 @@ public class BindingBuilder<T> extends AbstractBindingBuilder<T>
         }
 
         BindingImpl<T> base = getBinding();
-        setBinding(new ProviderInstanceBindingImpl<>(
-                base.getSource(), base.getKey(), base.getScoping(), injectionPoints, provider));
+        setBinding(new ProviderInstanceBindingImpl<>(base.getSource(), base.getKey(), base.getScoping(), injectionPoints, provider));
         return this;
     }
 
@@ -150,8 +146,7 @@ public class BindingBuilder<T> extends AbstractBindingBuilder<T>
         checkNotTargetted();
 
         BindingImpl<T> base = getBinding();
-        setBinding(new LinkedProviderBindingImpl<>(
-                base.getSource(), base.getKey(), base.getScoping(), providerKey));
+        setBinding(new LinkedProviderBindingImpl<>(base.getSource(), base.getKey(), base.getScoping(), providerKey));
         return this;
     }
 

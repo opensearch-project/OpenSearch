@@ -35,7 +35,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
@@ -152,7 +152,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 // make sure we have more than one segment to test the merge
                 indexWriter.commit();
             }
-            int value = randomInt(maxTerm-1);
+            int value = randomInt(maxTerm - 1);
             expectedBucketCount[value] += 1;
             document.add(new Field("field", Integer.toString(value), KeywordFieldMapper.Defaults.FIELD_TYPE));
             indexWriter.addDocument(document);

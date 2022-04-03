@@ -35,7 +35,6 @@ package org.opensearch.indices.recovery;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.TimeUnit;
@@ -45,53 +44,56 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
     private final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, clusterSettings);
 
     public void testZeroBytesPerSecondIsNoRateLimit() {
-        clusterSettings.applySettings(Settings.builder().put(
-                RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), 0).build());
+        clusterSettings.applySettings(
+            Settings.builder().put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), 0).build()
+        );
         assertEquals(null, recoverySettings.rateLimiter());
     }
 
     public void testRetryDelayStateSync() {
         long duration = between(1, 1000);
         TimeUnit timeUnit = randomFrom(TimeUnit.MILLISECONDS, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS);
-        clusterSettings.applySettings(Settings.builder().put(
-                RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.getKey(), duration, timeUnit
-        ).build());
+        clusterSettings.applySettings(
+            Settings.builder().put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.getKey(), duration, timeUnit).build()
+        );
         assertEquals(new TimeValue(duration, timeUnit), recoverySettings.retryDelayStateSync());
     }
 
     public void testRetryDelayNetwork() {
         long duration = between(1, 1000);
         TimeUnit timeUnit = randomFrom(TimeUnit.MILLISECONDS, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS);
-        clusterSettings.applySettings(Settings.builder().put(
-                RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(), duration, timeUnit
-        ).build());
+        clusterSettings.applySettings(
+            Settings.builder().put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(), duration, timeUnit).build()
+        );
         assertEquals(new TimeValue(duration, timeUnit), recoverySettings.retryDelayNetwork());
     }
 
     public void testActivityTimeout() {
         long duration = between(1, 1000);
         TimeUnit timeUnit = randomFrom(TimeUnit.MILLISECONDS, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS);
-        clusterSettings.applySettings(Settings.builder().put(
-                RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.getKey(), duration, timeUnit
-        ).build());
+        clusterSettings.applySettings(
+            Settings.builder().put(RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.getKey(), duration, timeUnit).build()
+        );
         assertEquals(new TimeValue(duration, timeUnit), recoverySettings.activityTimeout());
     }
 
     public void testInternalActionTimeout() {
         long duration = between(1, 1000);
         TimeUnit timeUnit = randomFrom(TimeUnit.MILLISECONDS, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS);
-        clusterSettings.applySettings(Settings.builder().put(
-                RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.getKey(), duration, timeUnit
-        ).build());
+        clusterSettings.applySettings(
+            Settings.builder().put(RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.getKey(), duration, timeUnit).build()
+        );
         assertEquals(new TimeValue(duration, timeUnit), recoverySettings.internalActionTimeout());
     }
 
     public void testInternalLongActionTimeout() {
         long duration = between(1, 1000);
         TimeUnit timeUnit = randomFrom(TimeUnit.MILLISECONDS, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS);
-        clusterSettings.applySettings(Settings.builder().put(
-                RecoverySettings.INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING.getKey(), duration, timeUnit
-        ).build());
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(RecoverySettings.INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING.getKey(), duration, timeUnit)
+                .build()
+        );
         assertEquals(new TimeValue(duration, timeUnit), recoverySettings.internalActionLongTimeout());
     }
 }

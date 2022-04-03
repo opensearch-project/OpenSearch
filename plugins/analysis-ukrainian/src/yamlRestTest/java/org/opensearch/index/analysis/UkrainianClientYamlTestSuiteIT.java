@@ -49,4 +49,3 @@ public class UkrainianClientYamlTestSuiteIT extends OpenSearchClientYamlSuiteTes
         return OpenSearchClientYamlSuiteTestCase.createParameters();
     }
 }
-

@@ -55,25 +55,32 @@ public class TransportMainAction extends HandledTransportAction<MainRequest, Mai
     public static final String OVERRIDE_MAIN_RESPONSE_VERSION_KEY = "compatibility.override_main_response_version";
 
     public static final Setting<Boolean> OVERRIDE_MAIN_RESPONSE_VERSION = Setting.boolSetting(
-        OVERRIDE_MAIN_RESPONSE_VERSION_KEY, false, Setting.Property.NodeScope, Setting.Property.Dynamic);
+        OVERRIDE_MAIN_RESPONSE_VERSION_KEY,
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
-    public static final String OVERRIDE_MAIN_RESPONSE_VERSION_DEPRECATION_MESSAGE = "overriding main response version" +
-        " number will be removed in a future version";
+    public static final String OVERRIDE_MAIN_RESPONSE_VERSION_DEPRECATION_MESSAGE = "overriding main response version"
+        + " number will be removed in a future version";
 
     private final String nodeName;
     private final ClusterService clusterService;
     private volatile String responseVersion;
 
     @Inject
-    public TransportMainAction(Settings settings, TransportService transportService,
-                               ActionFilters actionFilters, ClusterService clusterService) {
+    public TransportMainAction(
+        Settings settings,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService
+    ) {
         super(MainAction.NAME, transportService, actionFilters, MainRequest::new);
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.clusterService = clusterService;
         setResponseVersion(OVERRIDE_MAIN_RESPONSE_VERSION.get(settings));
 
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(OVERRIDE_MAIN_RESPONSE_VERSION,
-            this::setResponseVersion);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(OVERRIDE_MAIN_RESPONSE_VERSION, this::setResponseVersion);
     }
 
     private void setResponseVersion(boolean isResponseVersionOverrideEnabled) {
@@ -89,7 +96,14 @@ public class TransportMainAction extends HandledTransportAction<MainRequest, Mai
     protected void doExecute(Task task, MainRequest request, ActionListener<MainResponse> listener) {
         ClusterState clusterState = clusterService.state();
         listener.onResponse(
-            new MainResponse(nodeName, Version.CURRENT, clusterState.getClusterName(),
-                    clusterState.metadata().clusterUUID(), Build.CURRENT, responseVersion));
+            new MainResponse(
+                nodeName,
+                Version.CURRENT,
+                clusterState.getClusterName(),
+                clusterState.metadata().clusterUUID(),
+                Build.CURRENT,
+                responseVersion
+            )
+        );
     }
 }

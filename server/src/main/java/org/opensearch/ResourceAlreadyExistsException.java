@@ -49,7 +49,7 @@ public class ResourceAlreadyExistsException extends OpenSearchException {
         super(msg, args);
     }
 
-    public ResourceAlreadyExistsException(StreamInput in) throws IOException{
+    public ResourceAlreadyExistsException(StreamInput in) throws IOException {
         super(in);
     }
 

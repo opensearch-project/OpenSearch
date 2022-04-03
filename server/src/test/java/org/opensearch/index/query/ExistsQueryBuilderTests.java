@@ -40,7 +40,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -74,32 +73,14 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
     protected void doAssertLuceneQuery(ExistsQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         String fieldPattern = queryBuilder.fieldName();
         Collection<String> fields = context.simpleMatchToIndexNames(fieldPattern);
-        Collection<String> mappedFields = fields.stream().filter((field) -> context.getObjectMapper(field) != null
-                || context.getMapperService().fieldType(field) != null).collect(Collectors.toList());
+        Collection<String> mappedFields = fields.stream()
+            .filter((field) -> context.getObjectMapper(field) != null || context.getMapperService().fieldType(field) != null)
+            .collect(Collectors.toList());
         if (mappedFields.size() == 0) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
             return;
         }
-        if (context.getIndexSettings().getIndexVersionCreated().before(LegacyESVersion.V_6_1_0)) {
-            if (fields.size() == 1) {
-                assertThat(query, instanceOf(ConstantScoreQuery.class));
-                ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;
-                String field = expectedFieldName(fields.iterator().next());
-                assertThat(constantScoreQuery.getQuery(), instanceOf(TermQuery.class));
-                TermQuery termQuery = (TermQuery) constantScoreQuery.getQuery();
-                assertEquals(field, termQuery.getTerm().text());
-            } else {
-                assertThat(query, instanceOf(ConstantScoreQuery.class));
-                ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;
-                assertThat(constantScoreQuery.getQuery(), instanceOf(BooleanQuery.class));
-                BooleanQuery booleanQuery = (BooleanQuery) constantScoreQuery.getQuery();
-                assertThat(booleanQuery.clauses().size(), equalTo(mappedFields.size()));
-                for (int i = 0; i < mappedFields.size(); i++) {
-                    BooleanClause booleanClause = booleanQuery.clauses().get(i);
-                    assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
-                }
-            }
-        } else if (fields.size() == 1) {
+        if (fields.size() == 1) {
             assertThat(query, instanceOf(ConstantScoreQuery.class));
             ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;
             String field = expectedFieldName(fields.iterator().next());
@@ -144,8 +125,7 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
         QueryShardContext context = createShardContext();
         context.setAllowUnmappedFields(true);
         ExistsQueryBuilder queryBuilder = new ExistsQueryBuilder("foo");
-        IllegalStateException e = expectThrows(IllegalStateException.class,
-            () -> queryBuilder.toQuery(context));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> queryBuilder.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
         Query ret = ExistsQueryBuilder.newFilter(context, "foo", false);
         assertThat(ret, instanceOf(MatchNoDocsQuery.class));
@@ -157,13 +137,7 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
     }
 
     public void testFromJson() throws IOException {
-        String json =
-                "{\n" +
-                "  \"exists\" : {\n" +
-                "    \"field\" : \"user\",\n" +
-                "    \"boost\" : 42.0\n" +
-                "  }\n" +
-                "}";
+        String json = "{\n" + "  \"exists\" : {\n" + "    \"field\" : \"user\",\n" + "    \"boost\" : 42.0\n" + "  }\n" + "}";
 
         ExistsQueryBuilder parsed = (ExistsQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

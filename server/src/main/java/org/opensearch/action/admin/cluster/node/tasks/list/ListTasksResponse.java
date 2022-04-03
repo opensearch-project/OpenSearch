@@ -72,8 +72,11 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
 
     private List<TaskGroup> groups;
 
-    public ListTasksResponse(List<TaskInfo> tasks, List<TaskOperationFailure> taskFailures,
-            List<? extends OpenSearchException> nodeFailures) {
+    public ListTasksResponse(
+        List<TaskInfo> tasks,
+        List<TaskOperationFailure> taskFailures,
+        List<? extends OpenSearchException> nodeFailures
+    ) {
         super(taskFailures, nodeFailures);
         this.tasks = tasks == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(tasks));
     }
@@ -89,32 +92,30 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
         out.writeList(tasks);
     }
 
-    protected static <T> ConstructingObjectParser<T, Void> setupParser(String name,
-                                                                       TriFunction<
-                                                                           List<TaskInfo>,
-                                                                           List<TaskOperationFailure>,
-                                                                           List<OpenSearchException>,
-                                                                           T> ctor) {
-        ConstructingObjectParser<T, Void> parser = new ConstructingObjectParser<>(name, true,
-            constructingObjects -> {
-                int i = 0;
-                @SuppressWarnings("unchecked")
-                List<TaskInfo> tasks = (List<TaskInfo>) constructingObjects[i++];
-                @SuppressWarnings("unchecked")
-                List<TaskOperationFailure> tasksFailures = (List<TaskOperationFailure>) constructingObjects[i++];
-                @SuppressWarnings("unchecked")
-                List<OpenSearchException> nodeFailures = (List<OpenSearchException>) constructingObjects[i];
-                return ctor.apply(tasks,tasksFailures, nodeFailures);
-            });
+    protected static <T> ConstructingObjectParser<T, Void> setupParser(
+        String name,
+        TriFunction<List<TaskInfo>, List<TaskOperationFailure>, List<OpenSearchException>, T> ctor
+    ) {
+        ConstructingObjectParser<T, Void> parser = new ConstructingObjectParser<>(name, true, constructingObjects -> {
+            int i = 0;
+            @SuppressWarnings("unchecked")
+            List<TaskInfo> tasks = (List<TaskInfo>) constructingObjects[i++];
+            @SuppressWarnings("unchecked")
+            List<TaskOperationFailure> tasksFailures = (List<TaskOperationFailure>) constructingObjects[i++];
+            @SuppressWarnings("unchecked")
+            List<OpenSearchException> nodeFailures = (List<OpenSearchException>) constructingObjects[i];
+            return ctor.apply(tasks, tasksFailures, nodeFailures);
+        });
         parser.declareObjectArray(optionalConstructorArg(), TaskInfo.PARSER, new ParseField(TASKS));
         parser.declareObjectArray(optionalConstructorArg(), (p, c) -> TaskOperationFailure.fromXContent(p), new ParseField(TASK_FAILURES));
-        parser.declareObjectArray(optionalConstructorArg(),
-            (p, c) -> OpenSearchException.fromXContent(p), new ParseField(NODE_FAILURES));
+        parser.declareObjectArray(optionalConstructorArg(), (p, c) -> OpenSearchException.fromXContent(p), new ParseField(NODE_FAILURES));
         return parser;
     }
 
-    private static final ConstructingObjectParser<ListTasksResponse, Void> PARSER =
-        setupParser("list_tasks_response", ListTasksResponse::new);
+    private static final ConstructingObjectParser<ListTasksResponse, Void> PARSER = setupParser(
+        "list_tasks_response",
+        ListTasksResponse::new
+    );
 
     /**
      * Returns the list of tasks by node
@@ -175,7 +176,7 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
      * Convert this task response to XContent grouping by executing nodes.
      */
     public XContentBuilder toXContentGroupedByNode(XContentBuilder builder, Params params, DiscoveryNodes discoveryNodes)
-            throws IOException {
+        throws IOException {
         toXContentCommon(builder, params);
         builder.startObject("nodes");
         for (Map.Entry<String, List<TaskInfo>> entry : getPerNodeTasks().entrySet()) {
@@ -203,7 +204,7 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
                 }
             }
             builder.startObject(TASKS);
-            for(TaskInfo task : entry.getValue()) {
+            for (TaskInfo task : entry.getValue()) {
                 builder.startObject(task.getTaskId().toString());
                 task.toXContent(builder, params);
                 builder.endObject();

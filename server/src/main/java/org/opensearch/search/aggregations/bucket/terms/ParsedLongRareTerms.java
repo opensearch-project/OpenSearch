@@ -32,7 +32,6 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
-
 import org.opensearch.common.xcontent.ObjectParser;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
@@ -45,8 +44,11 @@ public class ParsedLongRareTerms extends ParsedRareTerms {
         return LongRareTerms.NAME;
     }
 
-    private static final ObjectParser<ParsedLongRareTerms, Void> PARSER =
-        new ObjectParser<>(ParsedLongRareTerms.class.getSimpleName(), true, ParsedLongRareTerms::new);
+    private static final ObjectParser<ParsedLongRareTerms, Void> PARSER = new ObjectParser<>(
+        ParsedLongRareTerms.class.getSimpleName(),
+        true,
+        ParsedLongRareTerms::new
+    );
 
     static {
         declareParsedTermsFields(PARSER, ParsedBucket::fromXContent);

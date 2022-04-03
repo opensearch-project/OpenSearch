@@ -38,7 +38,7 @@ package org.opensearch.index.engine;
  */
 public final class MissingHistoryOperationsException extends IllegalStateException {
 
-    MissingHistoryOperationsException(String message) {
+    public MissingHistoryOperationsException(String message) {
         super(message);
     }
 }

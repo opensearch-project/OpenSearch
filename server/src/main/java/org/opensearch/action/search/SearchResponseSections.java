@@ -63,8 +63,15 @@ public class SearchResponseSections implements ToXContentFragment {
     protected final Boolean terminatedEarly;
     protected final int numReducePhases;
 
-    public SearchResponseSections(SearchHits hits, Aggregations aggregations, Suggest suggest, boolean timedOut, Boolean terminatedEarly,
-                                  SearchProfileShardResults profileResults,  int numReducePhases) {
+    public SearchResponseSections(
+        SearchHits hits,
+        Aggregations aggregations,
+        Suggest suggest,
+        boolean timedOut,
+        Boolean terminatedEarly,
+        SearchProfileShardResults profileResults,
+        int numReducePhases
+    ) {
         this.hits = hits;
         this.aggregations = aggregations;
         this.suggest = suggest;

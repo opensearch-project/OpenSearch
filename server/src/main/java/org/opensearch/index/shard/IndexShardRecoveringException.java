@@ -42,7 +42,7 @@ public class IndexShardRecoveringException extends IllegalIndexShardStateExcepti
         super(shardId, IndexShardState.RECOVERING, "Already recovering");
     }
 
-    public IndexShardRecoveringException(StreamInput in) throws IOException{
+    public IndexShardRecoveringException(StreamInput in) throws IOException {
         super(in);
     }
 }

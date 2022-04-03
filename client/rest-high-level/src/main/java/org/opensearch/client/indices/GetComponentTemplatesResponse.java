@@ -44,7 +44,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-
 public class GetComponentTemplatesResponse {
 
     public static final ParseField NAME = new ParseField("name");
@@ -52,14 +51,18 @@ public class GetComponentTemplatesResponse {
     public static final ParseField COMPONENT_TEMPLATE = new ParseField("component_template");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<Map<String, ComponentTemplate>, Void> PARSER =
-        new ConstructingObjectParser<>("component_templates", false,
-            a -> ((List<NamedComponentTemplate>) a[0]).stream().collect(Collectors.toMap(n -> n.name, n -> n.componentTemplate,
-                (n1, n2) -> n1, LinkedHashMap::new)));
+    private static final ConstructingObjectParser<Map<String, ComponentTemplate>, Void> PARSER = new ConstructingObjectParser<>(
+        "component_templates",
+        false,
+        a -> ((List<NamedComponentTemplate>) a[0]).stream()
+            .collect(Collectors.toMap(n -> n.name, n -> n.componentTemplate, (n1, n2) -> n1, LinkedHashMap::new))
+    );
 
-    private static final ConstructingObjectParser<NamedComponentTemplate, Void> INNER_PARSER =
-        new ConstructingObjectParser<>("named_component_template", false,
-            a -> new NamedComponentTemplate((String) a[0], (ComponentTemplate) a[1]));
+    private static final ConstructingObjectParser<NamedComponentTemplate, Void> INNER_PARSER = new ConstructingObjectParser<>(
+        "named_component_template",
+        false,
+        a -> new NamedComponentTemplate((String) a[0], (ComponentTemplate) a[1])
+    );
 
     static {
         INNER_PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
@@ -92,7 +95,6 @@ public class GetComponentTemplatesResponse {
         return componentTemplates;
     }
 
-
     public static GetComponentTemplatesResponse fromXContent(XContentParser parser) throws IOException {
         return new GetComponentTemplatesResponse(PARSER.apply(parser, null));
     }
@@ -116,6 +118,5 @@ public class GetComponentTemplatesResponse {
         GetComponentTemplatesResponse other = (GetComponentTemplatesResponse) obj;
         return Objects.equals(componentTemplates, other.componentTemplates);
     }
-
 
 }

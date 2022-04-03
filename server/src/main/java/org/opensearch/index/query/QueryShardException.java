@@ -62,7 +62,7 @@ public class QueryShardException extends OpenSearchException {
         setIndex(index);
     }
 
-    public QueryShardException(StreamInput in) throws IOException{
+    public QueryShardException(StreamInput in) throws IOException {
         super(in);
     }
 

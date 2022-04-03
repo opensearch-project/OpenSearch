@@ -35,11 +35,8 @@ package org.opensearch.action.admin.indices.create;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentBuilder;
@@ -47,25 +44,23 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.index.RandomCreateIndexGenerator;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.test.hamcrest.OpenSearchAssertions;
-import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.opensearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class CreateIndexRequestTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
         CreateIndexRequest request = new CreateIndexRequest("foo");
-        String mapping = Strings.toString(JsonXContent.contentBuilder().startObject().startObject("my_type").endObject().endObject());
-        request.mapping("my_type", mapping, XContentType.JSON);
+        String mapping = Strings.toString(
+            JsonXContent.contentBuilder().startObject().startObject(MapperService.SINGLE_MAPPING_NAME).endObject().endObject()
+        );
+        request.mapping(mapping);
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             request.writeTo(output);
@@ -73,62 +68,33 @@ public class CreateIndexRequestTests extends OpenSearchTestCase {
             try (StreamInput in = output.bytes().streamInput()) {
                 CreateIndexRequest serialized = new CreateIndexRequest(in);
                 assertEquals(request.index(), serialized.index());
-                assertEquals(mapping, serialized.mappings().get("my_type"));
+                assertEquals("{\"_doc\":{}}", serialized.mappings());
             }
         }
     }
 
     public void testTopLevelKeys() {
-        String createIndex =
-                "{\n"
-                + "  \"FOO_SHOULD_BE_ILLEGAL_HERE\": {\n"
-                + "    \"BAR_IS_THE_SAME\": 42\n"
-                + "  },\n"
-                + "  \"mappings\": {\n"
-                + "    \"test\": {\n"
-                + "      \"properties\": {\n"
-                + "        \"field1\": {\n"
-                + "          \"type\": \"text\"\n"
-                + "       }\n"
-                + "     }\n"
-                + "    }\n"
-                + "  }\n"
-                + "}";
+        String createIndex = "{\n"
+            + "  \"FOO_SHOULD_BE_ILLEGAL_HERE\": {\n"
+            + "    \"BAR_IS_THE_SAME\": 42\n"
+            + "  },\n"
+            + "  \"mappings\": {\n"
+            + "    \"test\": {\n"
+            + "      \"properties\": {\n"
+            + "        \"field1\": {\n"
+            + "          \"type\": \"text\"\n"
+            + "       }\n"
+            + "     }\n"
+            + "    }\n"
+            + "  }\n"
+            + "}";
 
         CreateIndexRequest request = new CreateIndexRequest();
-        OpenSearchParseException e = expectThrows(OpenSearchParseException.class,
-                () -> {request.source(createIndex, XContentType.JSON);});
+        OpenSearchParseException e = expectThrows(
+            OpenSearchParseException.class,
+            () -> { request.source(createIndex, XContentType.JSON); }
+        );
         assertEquals("unknown key [FOO_SHOULD_BE_ILLEGAL_HERE] for create index", e.getMessage());
-    }
-
-    public void testToXContent() throws IOException {
-        CreateIndexRequest request = new CreateIndexRequest("foo");
-
-        String mapping;
-        if (randomBoolean()) {
-            mapping = Strings.toString(JsonXContent.contentBuilder().startObject().startObject("my_type").endObject().endObject());
-        } else {
-            mapping = Strings.toString(JsonXContent.contentBuilder().startObject().endObject());
-        }
-        request.mapping("my_type", mapping, XContentType.JSON);
-
-        Alias alias = new Alias("test_alias");
-        alias.routing("1");
-        alias.filter("{\"term\":{\"year\":2016}}");
-        alias.writeIndex(true);
-        request.alias(alias);
-
-        Settings.Builder settings = Settings.builder();
-        settings.put(SETTING_NUMBER_OF_SHARDS, 10);
-        request.settings(settings);
-
-        String actualRequestBody = Strings.toString(request);
-
-        String expectedRequestBody = "{\"settings\":{\"index\":{\"number_of_shards\":\"10\"}}," +
-            "\"mappings\":{\"my_type\":{\"my_type\":{}}}," +
-            "\"aliases\":{\"test_alias\":{\"filter\":{\"term\":{\"year\":2016}},\"routing\":\"1\",\"is_write_index\":true}}}";
-
-        assertEquals(expectedRequestBody, actualRequestBody);
     }
 
     public void testMappingKeyedByType() throws IOException {
@@ -136,79 +102,41 @@ public class CreateIndexRequestTests extends OpenSearchTestCase {
         CreateIndexRequest request2 = new CreateIndexRequest("bar");
         {
             XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-            builder.startObject().startObject("properties")
+            builder.startObject()
+                .startObject("properties")
                 .startObject("field1")
-                    .field("type", "text")
+                .field("type", "text")
                 .endObject()
                 .startObject("field2")
-                    .startObject("properties")
-                        .startObject("field21")
-                            .field("type", "keyword")
-                        .endObject()
-                    .endObject()
-                .endObject()
-            .endObject().endObject();
-            request1.mapping("type1", builder);
-            builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-            builder.startObject().startObject("type1")
                 .startObject("properties")
-                    .startObject("field1")
-                        .field("type", "text")
-                    .endObject()
-                    .startObject("field2")
-                        .startObject("properties")
-                            .startObject("field21")
-                                .field("type", "keyword")
-                            .endObject()
-                        .endObject()
-                    .endObject()
+                .startObject("field21")
+                .field("type", "keyword")
                 .endObject()
-            .endObject().endObject();
-            request2.mapping("type1", builder);
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+            request1.mapping(builder);
+            builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            builder.startObject()
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
+                .startObject("properties")
+                .startObject("field1")
+                .field("type", "text")
+                .endObject()
+                .startObject("field2")
+                .startObject("properties")
+                .startObject("field21")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+            request2.mapping(builder);
             assertEquals(request1.mappings(), request2.mappings());
         }
-        {
-            request1 = new CreateIndexRequest("foo");
-            request2 = new CreateIndexRequest("bar");
-            String nakedMapping = "{\"properties\": {\"foo\": {\"type\": \"integer\"}}}";
-            request1.mapping("type2", nakedMapping, XContentType.JSON);
-            request2.mapping("type2", "{\"type2\": " + nakedMapping + "}", XContentType.JSON);
-            assertEquals(request1.mappings(), request2.mappings());
-        }
-        {
-            request1 = new CreateIndexRequest("foo");
-            request2 = new CreateIndexRequest("bar");
-            Map<String , Object> nakedMapping = MapBuilder.<String, Object>newMapBuilder()
-                    .put("properties", MapBuilder.<String, Object>newMapBuilder()
-                            .put("bar", MapBuilder.<String, Object>newMapBuilder()
-                                    .put("type", "scaled_float")
-                                    .put("scaling_factor", 100)
-                            .map())
-                    .map())
-            .map();
-            request1.mapping("type3", nakedMapping);
-            request2.mapping("type3", MapBuilder.<String, Object>newMapBuilder().put("type3", nakedMapping).map());
-            assertEquals(request1.mappings(), request2.mappings());
-        }
-    }
-
-    public void testToAndFromXContent() throws IOException {
-
-        final CreateIndexRequest createIndexRequest = RandomCreateIndexGenerator.randomCreateIndexRequest();
-
-        boolean humanReadable = randomBoolean();
-        final XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference originalBytes = toShuffledXContent(createIndexRequest, xContentType, EMPTY_PARAMS, humanReadable);
-
-        CreateIndexRequest parsedCreateIndexRequest = new CreateIndexRequest();
-        parsedCreateIndexRequest.source(originalBytes, xContentType);
-
-        assertMappingsEqual(createIndexRequest.mappings(), parsedCreateIndexRequest.mappings());
-        assertAliasesEqual(createIndexRequest.aliases(), parsedCreateIndexRequest.aliases());
-        assertEquals(createIndexRequest.settings(), parsedCreateIndexRequest.settings());
-
-        BytesReference finalBytes = toShuffledXContent(parsedCreateIndexRequest, xContentType, EMPTY_PARAMS, humanReadable);
-        OpenSearchAssertions.assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
     }
 
     public void testSettingsType() throws IOException {
@@ -226,10 +154,18 @@ public class CreateIndexRequestTests extends OpenSearchTestCase {
         for (Map.Entry<String, String> expectedEntry : expected.entrySet()) {
             String expectedValue = expectedEntry.getValue();
             String actualValue = actual.get(expectedEntry.getKey());
-            try (XContentParser expectedJson = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE, expectedValue);
-                 XContentParser actualJson = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE, actualValue)){
+            try (
+                XContentParser expectedJson = JsonXContent.jsonXContent.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE,
+                    expectedValue
+                );
+                XContentParser actualJson = JsonXContent.jsonXContent.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE,
+                    actualValue
+                )
+            ) {
                 assertEquals(expectedJson.map(), actualJson.map());
             }
         }

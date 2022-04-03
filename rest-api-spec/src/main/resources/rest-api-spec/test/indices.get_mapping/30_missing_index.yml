@@ -4,7 +4,7 @@
       catch: missing
       indices.get_mapping:
         index: test_index
-  
+
 ---
 "Index missing, no indexes":
   - do:
@@ -14,9 +14,6 @@
 
 ---
 "Index missing, ignore_unavailable=true":
-  - skip:
-      version: " - 6.99.99"
-      reason: ignore_unavailable was ignored in previous versions
   - do:
       indices.get_mapping:
         index: test_index

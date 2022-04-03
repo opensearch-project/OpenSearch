@@ -35,7 +35,7 @@ package org.opensearch.test.rest.yaml;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.http.HttpHost;
-import org.apache.lucene.util.TimeUnits;
+import org.apache.lucene.tests.util.TimeUnits;
 import org.opensearch.Version;
 import org.opensearch.client.Node;
 import org.opensearch.client.Request;
@@ -75,7 +75,7 @@ import java.util.Set;
 
 /**
  * Runs a suite of yaml tests shared with all the official OpenSearch
- * clients against against an opensearch cluster.
+ * clients against an opensearch cluster.
  *
  * The suite timeout is extended to account for projects with a large number of tests.
  */
@@ -88,13 +88,13 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
      */
     public static final String REST_TESTS_SUITE = "tests.rest.suite";
     /**
-     * Property that allows to blacklist some of the REST tests based on a comma separated list of globs
+     * Property that allows to denylist some of the REST tests based on a comma separated list of globs
      * e.g. "-Dtests.rest.blacklist=get/10_basic/*"
      */
     public static final String REST_TESTS_BLACKLIST = "tests.rest.blacklist";
     /**
-     * We use tests.rest.blacklist in build files to blacklist tests; this property enables a user to add additional blacklisted tests on
-     * top of the tests blacklisted in the build.
+     * We use tests.rest.blacklist in build files to denylist tests; this property enables a user to add additional denylisted tests on
+     * top of the tests denylisted in the build.
      */
     public static final String REST_TESTS_BLACKLIST_ADDITIONS = "tests.rest.blacklist_additions";
     /**
@@ -116,7 +116,7 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
      */
     private static final String PATHS_SEPARATOR = "(?<!\\\\),";
 
-    private static List<BlacklistedPathPatternMatcher> blacklistPathMatchers;
+    private static List<BlacklistedPathPatternMatcher> denylistPathMatchers;
     private static ClientYamlTestExecutionContext restTestExecutionContext;
     private static ClientYamlTestExecutionContext adminExecutionContext;
     private static ClientYamlTestClient clientYamlTestClient;
@@ -138,43 +138,49 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
     public void initAndResetContext() throws Exception {
         if (restTestExecutionContext == null) {
             assert adminExecutionContext == null;
-            assert blacklistPathMatchers == null;
+            assert denylistPathMatchers == null;
             final ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load(SPEC_PATH);
             validateSpec(restSpec);
             final List<HttpHost> hosts = getClusterHosts();
             Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(adminClient());
-            final Version esVersion = versionVersionTuple.v1();
+            final Version minVersion = versionVersionTuple.v1();
             final Version masterVersion = versionVersionTuple.v2();
-            logger.info("initializing client, minimum es version [{}], master version, [{}], hosts {}", esVersion, masterVersion, hosts);
-            clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, masterVersion);
+            logger.info(
+                "initializing client, minimum OpenSearch version [{}], master version, [{}], hosts {}",
+                minVersion,
+                masterVersion,
+                hosts
+            );
+            clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, minVersion, masterVersion);
             restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, randomizeContentType());
             adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, false);
-            final String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
-            blacklistPathMatchers = new ArrayList<>();
-            for (final String entry : blacklist) {
-                blacklistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
+            final String[] denylist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
+            denylistPathMatchers = new ArrayList<>();
+            for (final String entry : denylist) {
+                denylistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
             }
-            final String[] blacklistAdditions = resolvePathsProperty(REST_TESTS_BLACKLIST_ADDITIONS, null);
-            for (final String entry : blacklistAdditions) {
-                blacklistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
+            final String[] denylistAdditions = resolvePathsProperty(REST_TESTS_BLACKLIST_ADDITIONS, null);
+            for (final String entry : denylistAdditions) {
+                denylistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
             }
         }
         assert restTestExecutionContext != null;
         assert adminExecutionContext != null;
-        assert blacklistPathMatchers != null;
+        assert denylistPathMatchers != null;
 
-        // admin context must be available for @After always, regardless of whether the test was blacklisted
+        // admin context must be available for @After always, regardless of whether the test was denylisted
         adminExecutionContext.clear();
 
         restTestExecutionContext.clear();
     }
 
     protected ClientYamlTestClient initClientYamlTestClient(
-            final ClientYamlSuiteRestSpec restSpec,
-            final RestClient restClient,
-            final List<HttpHost> hosts,
-            final Version esVersion,
-            final Version masterVersion) {
+        final ClientYamlSuiteRestSpec restSpec,
+        final RestClient restClient,
+        final List<HttpHost> hosts,
+        final Version esVersion,
+        final Version masterVersion
+    ) {
         return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, masterVersion, this::getClientBuilderWithSniffedHosts);
     }
 
@@ -183,7 +189,7 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
         try {
             IOUtils.close(clientYamlTestClient);
         } finally {
-            blacklistPathMatchers = null;
+            denylistPathMatchers = null;
             restTestExecutionContext = null;
             adminExecutionContext = null;
             clientYamlTestClient = null;
@@ -215,10 +221,11 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
                 suites.add(suite);
                 try {
                     suite.validate();
-                } catch(IllegalArgumentException e) {
+                } catch (IllegalArgumentException e) {
                     if (validationException == null) {
-                        validationException = new IllegalArgumentException("Validation errors for the following test suites:\n- "
-                            + e.getMessage());
+                        validationException = new IllegalArgumentException(
+                            "Validation errors for the following test suites:\n- " + e.getMessage()
+                        );
                     } else {
                         String previousMessage = validationException.getMessage();
                         Throwable[] suppressed = validationException.getSuppressed();
@@ -239,10 +246,10 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
         List<Object[]> tests = new ArrayList<>();
         for (ClientYamlTestSuite yamlTestSuite : suites) {
             for (ClientYamlTestSection testSection : yamlTestSuite.getTestSections()) {
-                tests.add(new Object[]{ new ClientYamlTestCandidate(yamlTestSuite, testSection) });
+                tests.add(new Object[] { new ClientYamlTestCandidate(yamlTestSuite, testSection) });
             }
         }
-        //sort the candidates so they will always be in the same order before being shuffled, for repeatability
+        // sort the candidates so they will always be in the same order before being shuffled, for repeatability
         tests.sort(Comparator.comparing(o -> ((ClientYamlTestCandidate) o[0]).getTestPath()));
         return tests;
     }
@@ -285,7 +292,7 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
     private static String[] resolvePathsProperty(String propertyName, String defaultValue) {
         String property = System.getProperty(propertyName);
         if (!Strings.hasLength(property)) {
-            return defaultValue == null ? Strings.EMPTY_ARRAY : new String[]{defaultValue};
+            return defaultValue == null ? Strings.EMPTY_ARRAY : new String[] { defaultValue };
         } else {
             return property.split(PATHS_SEPARATOR);
         }
@@ -305,7 +312,8 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
                         List<String> methodsList = Arrays.asList(path.getMethods());
                         if (methodsList.contains("GET") && restApi.isBodySupported()) {
                             if (!methodsList.contains("POST")) {
-                                errorMessage.append("\n- ").append(restApi.getName())
+                                errorMessage.append("\n- ")
+                                    .append(restApi.getName())
                                     .append(" supports GET with a body but doesn't support POST");
                             }
                         }
@@ -318,6 +326,13 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
         }
     }
 
+    /**
+     * Detect minimal node version and master node version of cluster using REST Client.
+     *
+     * @param restClient REST client used to discover cluster nodes
+     * @return {@link Tuple} of [minimal node version, master node version]
+     * @throws IOException When _cat API output parsing fails
+     */
     private Tuple<Version, Version> readVersionsFromCatNodes(RestClient restClient) throws IOException {
         // we simply go to the _cat/nodes API and parse all versions in the cluster
         final Request request = new Request("GET", "/_cat/nodes");
@@ -352,30 +367,38 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
     }
 
     public void test() throws IOException {
-        //skip test if it matches one of the blacklist globs
-        for (BlacklistedPathPatternMatcher blacklistedPathMatcher : blacklistPathMatchers) {
+        // skip test if it matches one of the denylist globs
+        for (BlacklistedPathPatternMatcher denylistedPathMatcher : denylistPathMatchers) {
             String testPath = testCandidate.getSuitePath() + "/" + testCandidate.getTestSection().getName();
-            assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted", blacklistedPathMatcher
-                .isSuffixMatch(testPath));
+            assumeFalse(
+                "[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted",
+                denylistedPathMatcher.isSuffixMatch(testPath)
+            );
         }
 
-        //skip test if the whole suite (yaml file) is disabled
-        assumeFalse(testCandidate.getSetupSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
-            testCandidate.getSetupSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
-        //skip test if the whole suite (yaml file) is disabled
-        assumeFalse(testCandidate.getTeardownSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
-            testCandidate.getTeardownSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
-        //skip test if test section is disabled
-        assumeFalse(testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
-            testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
+        // skip test if the whole suite (yaml file) is disabled
+        assumeFalse(
+            testCandidate.getSetupSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
+            testCandidate.getSetupSection().getSkipSection().skip(restTestExecutionContext.esVersion())
+        );
+        // skip test if the whole suite (yaml file) is disabled
+        assumeFalse(
+            testCandidate.getTeardownSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
+            testCandidate.getTeardownSection().getSkipSection().skip(restTestExecutionContext.esVersion())
+        );
+        // skip test if test section is disabled
+        assumeFalse(
+            testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
+            testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion())
+        );
 
-        //let's check that there is something to run, otherwise there might be a problem with the test section
+        // let's check that there is something to run, otherwise there might be a problem with the test section
         if (testCandidate.getTestSection().getExecutableSections().size() == 0) {
             throw new IllegalArgumentException("No executable sections loaded for [" + testCandidate.getTestPath() + "]");
         }
 
         if (useDefaultNumberOfShards == false
-                && testCandidate.getTestSection().getSkipSection().getFeatures().contains("default_shards") == false) {
+            && testCandidate.getTestSection().getSkipSection().getFeatures().contains("default_shards") == false) {
             final Request request = new Request("PUT", "/_template/global");
             request.setJsonEntity("{\"index_patterns\":[\"*\"],\"settings\":{\"index.number_of_shards\":2}}");
             // Because this has not yet transitioned to a composable template, it's possible that
@@ -420,9 +443,13 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
             executableSection.execute(restTestExecutionContext);
         } catch (AssertionError | Exception e) {
             // Dump the stash on failure. Instead of dumping it in true json we escape `\n`s so stack traces are easier to read
-            logger.info("Stash dump on test failure [{}]",
-                    Strings.toString(restTestExecutionContext.stash(), true, true)
-                            .replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t"));
+            logger.info(
+                "Stash dump on test failure [{}]",
+                Strings.toString(restTestExecutionContext.stash(), true, true)
+                    .replace("\\n", "\n")
+                    .replace("\\r", "\r")
+                    .replace("\\t", "\t")
+            );
             if (e instanceof AssertionError) {
                 throw new AssertionError(errorMessage(executableSection, e), e);
             } else {
@@ -444,10 +471,12 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
      * {@link RestClientBuilder} for a client with that metadata.
      */
     protected final RestClientBuilder getClientBuilderWithSniffedHosts() throws IOException {
-        OpenSearchNodesSniffer.Scheme scheme =
-            OpenSearchNodesSniffer.Scheme.valueOf(getProtocol().toUpperCase(Locale.ROOT));
+        OpenSearchNodesSniffer.Scheme scheme = OpenSearchNodesSniffer.Scheme.valueOf(getProtocol().toUpperCase(Locale.ROOT));
         OpenSearchNodesSniffer sniffer = new OpenSearchNodesSniffer(
-                adminClient(), OpenSearchNodesSniffer.DEFAULT_SNIFF_REQUEST_TIMEOUT, scheme);
+            adminClient(),
+            OpenSearchNodesSniffer.DEFAULT_SNIFF_REQUEST_TIMEOUT,
+            scheme
+        );
         RestClientBuilder builder = RestClient.builder(sniffer.sniff().toArray(new Node[0]));
         configureClient(builder, restClientSettings());
         return builder;

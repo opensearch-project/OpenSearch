@@ -65,8 +65,14 @@ public class GeoShapeParser extends AbstractGeometryFieldMapper.Parser<Geometry>
 
     @Override
     public Object parseAndFormatObject(Object value, String format) {
-        try (XContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
-            Collections.singletonMap("dummy_field", value), XContentType.JSON)) {
+        try (
+            XContentParser parser = new MapXContentParser(
+                NamedXContentRegistry.EMPTY,
+                LoggingDeprecationHandler.INSTANCE,
+                Collections.singletonMap("dummy_field", value),
+                XContentType.JSON
+            )
+        ) {
             parser.nextToken(); // start object
             parser.nextToken(); // field name
             parser.nextToken(); // field value

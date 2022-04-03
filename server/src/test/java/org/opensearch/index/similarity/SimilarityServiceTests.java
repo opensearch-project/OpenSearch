@@ -32,11 +32,11 @@
 package org.opensearch.index.similarity;
 
 import org.apache.lucene.index.FieldInvertState;
+import org.apache.lucene.misc.search.similarity.LegacyBM25Similarity;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
-import org.apache.lucene.search.similarity.LegacyBM25Similarity;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
@@ -69,8 +69,7 @@ public class SimilarityServiceTests extends OpenSearchTestCase {
     }
 
     public void testOverrideDefaultSimilarity() {
-        Settings settings = Settings.builder().put("index.similarity.default.type", "boolean")
-                .build();
+        Settings settings = Settings.builder().put("index.similarity.default.type", "boolean").build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
         SimilarityService service = new SimilarityService(indexSettings, null, Collections.emptyMap());
         assertTrue(service.getDefaultSimilarity() instanceof BooleanSimilarity);
@@ -96,8 +95,10 @@ public class SimilarityServiceTests extends OpenSearchTestCase {
                 };
             }
         };
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> SimilarityService.validateSimilarity(LegacyESVersion.V_7_0_0, negativeScoresSim));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> SimilarityService.validateSimilarity(LegacyESVersion.V_7_0_0, negativeScoresSim)
+        );
         assertThat(e.getMessage(), Matchers.containsString("Similarities should not return negative scores"));
 
         Similarity decreasingScoresWithFreqSim = new Similarity() {
@@ -119,8 +120,10 @@ public class SimilarityServiceTests extends OpenSearchTestCase {
                 };
             }
         };
-        e = expectThrows(IllegalArgumentException.class,
-                () -> SimilarityService.validateSimilarity(LegacyESVersion.V_7_0_0, decreasingScoresWithFreqSim));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> SimilarityService.validateSimilarity(LegacyESVersion.V_7_0_0, decreasingScoresWithFreqSim)
+        );
         assertThat(e.getMessage(), Matchers.containsString("Similarity scores should not decrease when term frequency increases"));
 
         Similarity increasingScoresWithNormSim = new Similarity() {
@@ -142,8 +145,10 @@ public class SimilarityServiceTests extends OpenSearchTestCase {
                 };
             }
         };
-        e = expectThrows(IllegalArgumentException.class,
-                () -> SimilarityService.validateSimilarity(LegacyESVersion.V_7_0_0, increasingScoresWithNormSim));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> SimilarityService.validateSimilarity(LegacyESVersion.V_7_0_0, increasingScoresWithNormSim)
+        );
         assertThat(e.getMessage(), Matchers.containsString("Similarity scores should not increase when norm increases"));
     }
 

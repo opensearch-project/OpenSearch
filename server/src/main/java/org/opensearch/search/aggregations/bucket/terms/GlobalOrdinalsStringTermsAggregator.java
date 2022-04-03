@@ -113,8 +113,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do its job.
         this.valuesSource = valuesSource;
         final IndexReader reader = context.searcher().getIndexReader();
-        final SortedSetDocValues values = reader.leaves().size() > 0 ?
-            valuesSource.globalOrdinalsValues(context.searcher().getIndexReader().leaves().get(0)) : DocValues.emptySortedSet();
+        final SortedSetDocValues values = reader.leaves().size() > 0
+            ? valuesSource.globalOrdinalsValues(context.searcher().getIndexReader().leaves().get(0))
+            : DocValues.emptySortedSet();
         this.valueCount = values.getValueCount();
         this.lookupGlobalOrd = values::lookupOrd;
         this.acceptedGlobalOrdinals = includeExclude == null ? ALWAYS_TRUE : includeExclude.acceptedGlobalOrdinals(values)::get;
@@ -302,8 +303,23 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             boolean showTermDocCountError,
             Map<String, Object> metadata
         ) throws IOException {
-            super(name, factories, resultStrategy, valuesSource, order, format, bucketCountThresholds, null, context,
-                parent, remapGlobalOrds, collectionMode, showTermDocCountError, CardinalityUpperBound.ONE, metadata);
+            super(
+                name,
+                factories,
+                resultStrategy,
+                valuesSource,
+                order,
+                format,
+                bucketCountThresholds,
+                null,
+                context,
+                parent,
+                remapGlobalOrds,
+                collectionMode,
+                showTermDocCountError,
+                CardinalityUpperBound.ONE,
+                metadata
+            );
             assert factories == null || factories.countAggregators() == 0;
             this.segmentDocCounts = context.bigArrays().newIntArray(1, true);
         }
@@ -391,15 +407,18 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
          * output to help with debugging.
          */
         abstract String describe();
+
         /**
          * Collect debug information to add to the profiling results. This will
          * only be called if the aggregation is being profiled.
          */
         abstract void collectDebugInfo(BiConsumer<String, Object> add);
+
         /**
          * Called when the global ordinals are ready.
          */
         abstract void globalOrdsReady(SortedSetDocValues globalOrds);
+
         /**
          * Called once per unique document, global ordinal combination to
          * collect the bucket.
@@ -410,10 +429,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
          * @param sub the sub-aggregators that that will collect the bucket data
          */
         abstract void collectGlobalOrd(long owningBucketOrd, int doc, long globalOrd, LeafBucketCollector sub) throws IOException;
+
         /**
          * Convert a global ordinal into a bucket ordinal.
          */
         abstract long globalOrdToBucketOrd(long owningBucketOrd, long globalOrd);
+
         /**
          * Iterate all of the buckets. Implementations take into account
          * the {@link BucketCountThresholds}. In particular,
@@ -425,6 +446,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
          */
         abstract void forEach(long owningBucketOrd, BucketInfoConsumer consumer) throws IOException;
     }
+
     interface BucketInfoConsumer {
         void accept(long globalOrd, long bucketOrd, long docCount) throws IOException;
     }
@@ -691,6 +713,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
          */
         abstract R buildNoValuesResult(long owningBucketOrdinal);
     }
+
     interface BucketUpdater<TB extends InternalMultiBucketAggregation.InternalBucket> {
         void updateBucket(TB spare, long globalOrd, long bucketOrd, long docCount) throws IOException;
     }
@@ -760,9 +783,20 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             } else {
                 reduceOrder = order;
             }
-            return new StringTerms(name, reduceOrder, order, bucketCountThresholds.getRequiredSize(),
-                bucketCountThresholds.getMinDocCount(), metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError,
-                otherDocCount, Arrays.asList(topBuckets), 0);
+            return new StringTerms(
+                name,
+                reduceOrder,
+                order,
+                bucketCountThresholds.getRequiredSize(),
+                bucketCountThresholds.getMinDocCount(),
+                metadata(),
+                format,
+                bucketCountThresholds.getShardSize(),
+                showTermDocCountError,
+                otherDocCount,
+                Arrays.asList(topBuckets),
+                0
+            );
         }
 
         @Override

@@ -48,7 +48,6 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.rest.RestHandler.Route;
 import org.opensearch.rest.RestHandler.ReplacedRoute;
-import org.opensearch.rest.RestHandler;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -99,8 +98,10 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
         params.put("unconsumed", randomAlphaOfLength(8));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
         RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
-        final IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> handler.handleRequest(request, channel, mockClient));
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> handler.handleRequest(request, channel, mockClient)
+        );
         assertThat(e, hasToString(containsString("request [/] contains unrecognized parameter: [unconsumed]")));
         assertFalse(executed.get());
     }
@@ -126,8 +127,10 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
         params.put("unconsumed-second", randomAlphaOfLength(8));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
         RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
-        final IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> handler.handleRequest(request, channel, mockClient));
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> handler.handleRequest(request, channel, mockClient)
+        );
         assertThat(e, hasToString(containsString("request [/] contains unrecognized parameters: [unconsumed-first], [unconsumed-second]")));
         assertFalse(executed.get());
     }
@@ -165,17 +168,23 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
         params.put("very_far_from_every_consumed_parameter", randomAlphaOfLength(8));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
         RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
-        final IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> handler.handleRequest(request, channel, mockClient));
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> handler.handleRequest(request, channel, mockClient)
+        );
         assertThat(
             e,
-            hasToString(containsString(
-                "request [/] contains unrecognized parameters: " +
-                    "[flied] -> did you mean [field]?, " +
-                    "[respones_param] -> did you mean [response_param]?, " +
-                    "[tokenzier] -> did you mean [tokenizer]?, " +
-                    "[very_close_to_parametre] -> did you mean any of [very_close_to_parameter_1, very_close_to_parameter_2]?, " +
-                    "[very_far_from_every_consumed_parameter]")));
+            hasToString(
+                containsString(
+                    "request [/] contains unrecognized parameters: "
+                        + "[flied] -> did you mean [field]?, "
+                        + "[respones_param] -> did you mean [response_param]?, "
+                        + "[tokenzier] -> did you mean [tokenizer]?, "
+                        + "[very_close_to_parametre] -> did you mean any of [very_close_to_parameter_1, very_close_to_parameter_2]?, "
+                        + "[very_far_from_every_consumed_parameter]"
+                )
+            )
+        );
         assertFalse(executed.get());
     }
 
@@ -288,9 +297,10 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
         };
 
         try (XContentBuilder builder = JsonXContent.contentBuilder().startObject().endObject()) {
-            final RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-                    .withContent(new BytesArray(builder.toString()), XContentType.JSON)
-                    .build();
+            final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
+                new BytesArray(builder.toString()),
+                XContentType.JSON
+            ).build();
             final RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
             handler.handleRequest(request, channel, mockClient);
             assertTrue(executed.get());
@@ -332,12 +342,15 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
         };
 
         try (XContentBuilder builder = JsonXContent.contentBuilder().startObject().endObject()) {
-            final RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-                    .withContent(new BytesArray(builder.toString()), XContentType.JSON)
-                    .build();
+            final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
+                new BytesArray(builder.toString()),
+                XContentType.JSON
+            ).build();
             final RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
-            final IllegalArgumentException e =
-                    expectThrows(IllegalArgumentException.class, () -> handler.handleRequest(request, channel, mockClient));
+            final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> handler.handleRequest(request, channel, mockClient)
+            );
             assertThat(e, hasToString(containsString("request [GET /] does not support having a body")));
             assertFalse(executed.get());
         }
@@ -347,7 +360,7 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
         List<Route> routes = Arrays.asList(new Route(Method.GET, "/path/test"), new Route(Method.PUT, "/path2/test"));
         List<ReplacedRoute> replacedRoutes = RestHandler.replaceRoutes(routes, "/prefix", "/deprecatedPrefix");
 
-        for(int i = 0; i < routes.size(); i++) {
+        for (int i = 0; i < routes.size(); i++) {
             assertEquals("/prefix" + routes.get(i).getPath(), replacedRoutes.get(i).getPath());
             assertEquals(routes.get(i).getMethod(), replacedRoutes.get(i).getMethod());
             assertEquals("/deprecatedPrefix" + routes.get(i).getPath(), replacedRoutes.get(i).getDeprecatedPath());

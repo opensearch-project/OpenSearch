@@ -35,8 +35,6 @@ package org.opensearch.cluster.node;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.DiscoveryNodeRole;
 
 import java.util.Collections;
 import java.util.function.Predicate;
@@ -58,7 +56,13 @@ public class DiscoveryNodeRoleSettingTests extends OpenSearchTestCase {
     }
 
     public void testIsMasterNode() {
+        // It's used to add MASTER_ROLE into 'roleMap', because MASTER_ROLE is removed from DiscoveryNodeRole.BUILT_IN_ROLES in 2.0.
+        DiscoveryNode.setAdditionalRoles(Collections.emptySet());
         runRoleTest(DiscoveryNode::isMasterNode, DiscoveryNodeRole.MASTER_ROLE);
+    }
+
+    public void testIsClusterManagerNode() {
+        runRoleTest(DiscoveryNode::isMasterNode, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
     }
 
     public void testIsRemoteClusterClient() {
@@ -69,29 +73,29 @@ public class DiscoveryNodeRoleSettingTests extends OpenSearchTestCase {
         final Settings legacyTrue = Settings.builder().put(role.legacySetting().getKey(), true).build();
 
         assertTrue(predicate.test(legacyTrue));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{role.legacySetting()});
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { role.legacySetting() });
 
         assertThat(DiscoveryNode.getRolesFromSettings(legacyTrue), hasItem(role));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{role.legacySetting()});
+        assertNoDeprecationWarnings();
 
         final Settings legacyFalse = Settings.builder().put(role.legacySetting().getKey(), false).build();
 
         assertFalse(predicate.test(legacyFalse));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{role.legacySetting()});
+        assertNoDeprecationWarnings();
 
         assertThat(DiscoveryNode.getRolesFromSettings(legacyFalse), not(hasItem(role)));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{role.legacySetting()});
+        assertNoDeprecationWarnings();
 
         assertTrue(predicate.test(onlyRole(role)));
-        assertThat(DiscoveryNode.getRolesFromSettings(onlyRole(role)), hasItem(role));
+        assertNoDeprecationWarnings();
 
         assertFalse(predicate.test(removeRoles(Collections.singleton(role))));
-        assertThat(DiscoveryNode.getRolesFromSettings(removeRoles(Collections.singleton(role))), not(hasItem(role)));
+        assertNoDeprecationWarnings();
 
         final Settings settings = Settings.builder().put(onlyRole(role)).put(role.legacySetting().getKey(), randomBoolean()).build();
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DiscoveryNode.getRolesFromSettings(settings));
         assertThat(e.getMessage(), startsWith("can not explicitly configure node roles and use legacy role setting"));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{role.legacySetting()});
+        assertNoDeprecationWarnings();
     }
 
 }

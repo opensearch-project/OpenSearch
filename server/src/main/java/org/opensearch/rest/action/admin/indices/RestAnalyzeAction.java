@@ -63,11 +63,14 @@ public class RestAnalyzeAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_analyze"),
-            new Route(POST, "/_analyze"),
-            new Route(GET, "/{index}/_analyze"),
-            new Route(POST, "/{index}/_analyze")));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "/_analyze"),
+                new Route(POST, "/_analyze"),
+                new Route(GET, "/{index}/_analyze"),
+                new Route(POST, "/{index}/_analyze")
+            )
+        );
     }
 
     @Override

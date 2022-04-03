@@ -102,8 +102,12 @@ public class TestProcessor implements Processor {
 
     public static final class Factory implements Processor.Factory {
         @Override
-        public TestProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                    String description, Map<String, Object> config) throws Exception {
+        public TestProcessor create(
+            Map<String, Processor.Factory> registry,
+            String processorTag,
+            String description,
+            Map<String, Object> config
+        ) throws Exception {
             return new TestProcessor(processorTag, "test-processor", description, ingestDocument -> {});
         }
     }

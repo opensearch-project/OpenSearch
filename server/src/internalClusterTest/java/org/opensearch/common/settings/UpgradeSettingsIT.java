@@ -37,8 +37,6 @@ import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
-import org.opensearch.transport.RemoteClusterService;
-import org.opensearch.transport.SniffConnectionStrategy;
 
 import org.junit.After;
 
@@ -55,13 +53,12 @@ public class UpgradeSettingsIT extends OpenSearchSingleNodeTestCase {
 
     @After
     public void cleanup() throws Exception {
-                client()
-                        .admin()
-                        .cluster()
-                        .prepareUpdateSettings()
-                        .setPersistentSettings(Settings.builder().putNull("*"))
-                        .setTransientSettings(Settings.builder().putNull("*"))
-                        .get();
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().putNull("*"))
+            .setTransientSettings(Settings.builder().putNull("*"))
+            .get();
     }
 
     @Override
@@ -74,7 +71,7 @@ public class UpgradeSettingsIT extends OpenSearchSingleNodeTestCase {
         static final Setting<String> oldSetting = Setting.simpleString("foo.old", Setting.Property.Dynamic, Setting.Property.NodeScope);
         static final Setting<String> newSetting = Setting.simpleString("foo.new", Setting.Property.Dynamic, Setting.Property.NodeScope);
 
-        public UpgradeSettingsPlugin(){
+        public UpgradeSettingsPlugin() {
 
         }
 
@@ -114,62 +111,18 @@ public class UpgradeSettingsIT extends OpenSearchSingleNodeTestCase {
     }
 
     private void runUpgradeSettingsOnUpdateTest(
-            final BiConsumer<Settings, ClusterUpdateSettingsRequestBuilder> consumer,
-            final Function<Metadata, Settings> settingsFunction) {
+        final BiConsumer<Settings, ClusterUpdateSettingsRequestBuilder> consumer,
+        final Function<Metadata, Settings> settingsFunction
+    ) {
         final String value = randomAlphaOfLength(8);
-        final ClusterUpdateSettingsRequestBuilder builder =
-                client()
-                        .admin()
-                        .cluster()
-                        .prepareUpdateSettings();
+        final ClusterUpdateSettingsRequestBuilder builder = client().admin().cluster().prepareUpdateSettings();
         consumer.accept(Settings.builder().put("foo.old", value).build(), builder);
         builder.get();
 
-        final ClusterStateResponse response = client()
-                .admin()
-                .cluster()
-                .prepareState()
-                .clear()
-                .setMetadata(true)
-                .get();
+        final ClusterStateResponse response = client().admin().cluster().prepareState().clear().setMetadata(true).get();
 
         assertFalse(UpgradeSettingsPlugin.oldSetting.exists(settingsFunction.apply(response.getState().metadata())));
         assertTrue(UpgradeSettingsPlugin.newSetting.exists(settingsFunction.apply(response.getState().metadata())));
         assertThat(UpgradeSettingsPlugin.newSetting.get(settingsFunction.apply(response.getState().metadata())), equalTo("new." + value));
     }
-
-    public void testUpgradeRemoteClusterSettings() {
-        final boolean skipUnavailable = randomBoolean();
-        client()
-                .admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                        Settings.builder()
-                            .put("search.remote.foo.skip_unavailable", skipUnavailable)
-                            .putList("search.remote.foo.seeds", Collections.singletonList("localhost:9200"))
-                            .put("search.remote.foo.proxy", "localhost:9200")
-                            .build())
-                .get();
-
-        final ClusterStateResponse response = client().admin().cluster().prepareState().clear().setMetadata(true).get();
-
-        final Settings settings = response.getState().metadata().persistentSettings();
-        assertFalse(RemoteClusterService.SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace("foo").exists(settings));
-        assertTrue(RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace("foo").exists(settings));
-        assertThat(
-                RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace("foo").get(settings),
-                equalTo(skipUnavailable));
-        assertFalse(SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace("foo").exists(settings));
-        assertTrue(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("foo").exists(settings));
-        assertThat(
-                SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("foo").get(settings),
-                equalTo(Collections.singletonList("localhost:9200")));
-        assertFalse(SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("foo").exists(settings));
-        assertTrue(SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("foo").exists(settings));
-        assertThat(
-                SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("foo").get(settings),
-                equalTo("localhost:9200"));
-    }
-
 }

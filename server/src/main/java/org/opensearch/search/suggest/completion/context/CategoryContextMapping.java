@@ -123,8 +123,7 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
      *  </ul>
      */
     @Override
-    public Set<String> parseContext(ParseContext parseContext, XContentParser parser)
-            throws IOException, OpenSearchParseException {
+    public Set<String> parseContext(ParseContext parseContext, XContentParser parser) throws IOException, OpenSearchParseException {
         final Set<String> contexts = new HashSet<>();
         Token token = parser.currentToken();
         if (token == Token.VALUE_STRING || token == Token.VALUE_NUMBER || token == Token.VALUE_BOOLEAN) {
@@ -134,13 +133,13 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
                 if (token == Token.VALUE_STRING || token == Token.VALUE_NUMBER || token == Token.VALUE_BOOLEAN) {
                     contexts.add(parser.text());
                 } else {
-                    throw new OpenSearchParseException(
-                            "context array must have string, number or boolean values, but was [" + token + "]");
+                    throw new OpenSearchParseException("context array must have string, number or boolean values, but was [" + token + "]");
                 }
             }
         } else {
             throw new OpenSearchParseException(
-                    "contexts must be a string, number or boolean or a list of string, number or boolean, but was [" + token + "]");
+                "contexts must be a string, number or boolean or a list of string, number or boolean, but was [" + token + "]"
+            );
         }
         return contexts;
     }
@@ -153,17 +152,16 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
             values = new HashSet<>(fields.length);
             // TODO we should be checking mapped field types, not lucene field types
             for (IndexableField field : fields) {
-                if (field instanceof SortedDocValuesField ||
-                        field instanceof SortedSetDocValuesField ||
-                        field instanceof StoredField) {
+                if (field instanceof SortedDocValuesField || field instanceof SortedSetDocValuesField || field instanceof StoredField) {
                     // Ignore doc values and stored fields
                 } else if (field instanceof KeywordFieldMapper.KeywordField) {
                     values.add(field.binaryValue().utf8ToString());
                 } else if (field.stringValue() != null) {
                     values.add(field.stringValue());
                 } else {
-                    throw new IllegalArgumentException("Failed to parse context field [" + fieldName +
-                            "], only keyword and text fields are accepted");
+                    throw new IllegalArgumentException(
+                        "Failed to parse context field [" + fieldName + "], only keyword and text fields are accepted"
+                    );
                 }
             }
         }
@@ -198,7 +196,8 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
         internalInternalQueryContexts.addAll(
             queryContexts.stream()
                 .map(queryContext -> new InternalQueryContext(queryContext.getCategory(), queryContext.getBoost(), queryContext.isPrefix()))
-                .collect(Collectors.toList()));
+                .collect(Collectors.toList())
+        );
         return internalInternalQueryContexts;
     }
 

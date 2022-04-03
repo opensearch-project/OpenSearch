@@ -44,6 +44,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContent;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
@@ -67,8 +68,6 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 
 public class RestMultiSearchAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestMultiSearchAction.class);
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
-        " Specifying types in multi search requests is deprecated.";
 
     private static final Set<String> RESPONSE_PARAMS;
 
@@ -87,14 +86,14 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_msearch"),
-            new Route(POST, "/_msearch"),
-            new Route(GET, "/{index}/_msearch"),
-            new Route(POST, "/{index}/_msearch"),
-            // Deprecated typed endpoints.
-            new Route(GET, "/{index}/{type}/_msearch"),
-            new Route(POST, "/{index}/{type}/_msearch")));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "/_msearch"),
+                new Route(POST, "/_msearch"),
+                new Route(GET, "/{index}/_msearch"),
+                new Route(POST, "/{index}/_msearch")
+            )
+        );
     }
 
     @Override
@@ -105,13 +104,6 @@ public class RestMultiSearchAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final MultiSearchRequest multiSearchRequest = parseRequest(request, client.getNamedWriteableRegistry(), allowExplicitIndex);
-        // Emit a single deprecation message if any search request contains types.
-        for (SearchRequest searchRequest : multiSearchRequest.requests()) {
-            if (searchRequest.types().length > 0) {
-                deprecationLogger.deprecate("msearch_with_types", TYPES_DEPRECATION_MESSAGE);
-                break;
-            }
-        }
         return channel -> {
             final RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
             cancellableClient.execute(MultiSearchAction.INSTANCE, multiSearchRequest, new RestToXContentListener<>(channel));
@@ -121,9 +113,11 @@ public class RestMultiSearchAction extends BaseRestHandler {
     /**
      * Parses a {@link RestRequest} body and returns a {@link MultiSearchRequest}
      */
-    public static MultiSearchRequest parseRequest(RestRequest restRequest,
-                                                  NamedWriteableRegistry namedWriteableRegistry,
-                                                  boolean allowExplicitIndex) throws IOException {
+    public static MultiSearchRequest parseRequest(
+        RestRequest restRequest,
+        NamedWriteableRegistry namedWriteableRegistry,
+        boolean allowExplicitIndex
+    ) throws IOException {
         MultiSearchRequest multiRequest = new MultiSearchRequest();
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(restRequest, multiRequest.indicesOptions());
         multiRequest.indicesOptions(indicesOptions);
@@ -158,6 +152,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
             multiRequest.add(searchRequest);
         });
         List<SearchRequest> requests = multiRequest.requests();
+        final TimeValue cancelAfterTimeInterval = restRequest.paramAsTime("cancel_after_time_interval", null);
         for (SearchRequest request : requests) {
             // preserve if it's set on the request
             if (preFilterShardSize != null && request.getPreFilterShardSize() == null) {
@@ -166,6 +161,11 @@ public class RestMultiSearchAction extends BaseRestHandler {
             if (maxConcurrentShardRequests != null) {
                 request.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
             }
+            // if cancel_after_time_interval parameter is set at per search request level than that is used otherwise one set at
+            // multi search request level will be used
+            if (request.getCancelAfterTimeInterval() == null) {
+                request.setCancelAfterTimeInterval(cancelAfterTimeInterval);
+            }
         }
         return multiRequest;
     }
@@ -173,11 +173,14 @@ public class RestMultiSearchAction extends BaseRestHandler {
     /**
      * Parses a multi-line {@link RestRequest} body, instantiating a {@link SearchRequest} for each line and applying the given consumer.
      */
-    public static void parseMultiLineRequest(RestRequest request, IndicesOptions indicesOptions, boolean allowExplicitIndex,
-            CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer) throws IOException {
+    public static void parseMultiLineRequest(
+        RestRequest request,
+        IndicesOptions indicesOptions,
+        boolean allowExplicitIndex,
+        CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer
+    ) throws IOException {
 
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        String[] types = Strings.splitStringByCommaToArray(request.param("type"));
         String searchType = request.param("search_type");
         boolean ccsMinimizeRoundtrips = request.paramAsBoolean("ccs_minimize_roundtrips", true);
         String routing = request.param("routing");
@@ -185,8 +188,19 @@ public class RestMultiSearchAction extends BaseRestHandler {
         final Tuple<XContentType, BytesReference> sourceTuple = request.contentOrSourceParam();
         final XContent xContent = sourceTuple.v1().xContent();
         final BytesReference data = sourceTuple.v2();
-        MultiSearchRequest.readMultiLineFormat(data, xContent, consumer, indices, indicesOptions, types, routing,
-                searchType, ccsMinimizeRoundtrips, request.getXContentRegistry(), allowExplicitIndex, deprecationLogger);
+        MultiSearchRequest.readMultiLineFormat(
+            data,
+            xContent,
+            consumer,
+            indices,
+            indicesOptions,
+            routing,
+            searchType,
+            ccsMinimizeRoundtrips,
+            request.getXContentRegistry(),
+            allowExplicitIndex,
+            deprecationLogger
+        );
     }
 
     @Override

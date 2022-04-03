@@ -60,12 +60,14 @@ public class RestForceMergeActionTests extends RestActionTestCase {
     public void testBodyRejection() throws Exception {
         final RestForceMergeAction handler = new RestForceMergeAction();
         String json = JsonXContent.contentBuilder().startObject().field("max_num_segments", 1).endObject().toString();
-        final FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-                .withContent(new BytesArray(json), XContentType.JSON)
-                .withPath("/_forcemerge")
-                .build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> handler.handleRequest(request, new FakeRestChannel(request, randomBoolean(), 1), mock(NodeClient.class)));
+        final FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
+            new BytesArray(json),
+            XContentType.JSON
+        ).withPath("/_forcemerge").build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> handler.handleRequest(request, new FakeRestChannel(request, randomBoolean(), 1), mock(NodeClient.class))
+        );
         assertThat(e.getMessage(), equalTo("request [GET /_forcemerge] does not support having a body"));
     }
 
@@ -75,8 +77,7 @@ public class RestForceMergeActionTests extends RestActionTestCase {
         params.put("max_num_segments", Integer.toString(randomIntBetween(0, 10)));
         params.put("flush", Boolean.toString(randomBoolean()));
 
-        final RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-            .withPath("/_forcemerge")
+        final RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath("/_forcemerge")
             .withMethod(RestRequest.Method.POST)
             .withParams(params)
             .build();
@@ -85,7 +86,8 @@ public class RestForceMergeActionTests extends RestActionTestCase {
         verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
 
         dispatchRequest(request);
-        assertWarnings("setting only_expunge_deletes and max_num_segments at the same time is deprecated " +
-            "and will be rejected in a future version");
+        assertWarnings(
+            "setting only_expunge_deletes and max_num_segments at the same time is deprecated " + "and will be rejected in a future version"
+        );
     }
 }

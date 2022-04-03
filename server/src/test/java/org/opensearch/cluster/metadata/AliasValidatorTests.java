@@ -34,7 +34,6 @@ package org.opensearch.cluster.metadata;
 
 import org.opensearch.indices.InvalidAliasNameException;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.cluster.metadata.AliasValidator;
 
 import static org.hamcrest.Matchers.startsWith;
 

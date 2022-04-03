@@ -57,10 +57,25 @@ public class PriorityComparatorTests extends OpenSearchTestCase {
     public void testPreferNewIndices() {
         RoutingNodes.UnassignedShards shards = new RoutingNodes.UnassignedShards(mock(RoutingNodes.class));
         List<ShardRouting> shardRoutings = Arrays.asList(
-            TestShardRouting.newShardRouting("oldest", 0, null, null,
-                randomBoolean(), ShardRoutingState.UNASSIGNED, new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "foobar")),
-            TestShardRouting.newShardRouting("newest", 0, null, null,
-                randomBoolean(), ShardRoutingState.UNASSIGNED, new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "foobar")));
+            TestShardRouting.newShardRouting(
+                "oldest",
+                0,
+                null,
+                null,
+                randomBoolean(),
+                ShardRoutingState.UNASSIGNED,
+                new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "foobar")
+            ),
+            TestShardRouting.newShardRouting(
+                "newest",
+                0,
+                null,
+                null,
+                randomBoolean(),
+                ShardRoutingState.UNASSIGNED,
+                new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "foobar")
+            )
+        );
         Collections.shuffle(shardRoutings, random());
         for (ShardRouting routing : shardRoutings) {
             shards.add(routing);
@@ -91,10 +106,25 @@ public class PriorityComparatorTests extends OpenSearchTestCase {
     public void testPreferPriorityIndices() {
         RoutingNodes.UnassignedShards shards = new RoutingNodes.UnassignedShards(mock(RoutingNodes.class));
         List<ShardRouting> shardRoutings = Arrays.asList(
-            TestShardRouting.newShardRouting("oldest", 0, null, null,
-                randomBoolean(), ShardRoutingState.UNASSIGNED, new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "foobar")),
-            TestShardRouting.newShardRouting("newest", 0, null, null,
-                randomBoolean(), ShardRoutingState.UNASSIGNED, new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "foobar")));
+            TestShardRouting.newShardRouting(
+                "oldest",
+                0,
+                null,
+                null,
+                randomBoolean(),
+                ShardRoutingState.UNASSIGNED,
+                new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "foobar")
+            ),
+            TestShardRouting.newShardRouting(
+                "newest",
+                0,
+                null,
+                null,
+                randomBoolean(),
+                ShardRoutingState.UNASSIGNED,
+                new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "foobar")
+            )
+        );
         Collections.shuffle(shardRoutings, random());
         for (ShardRouting routing : shardRoutings) {
             shards.add(routing);
@@ -125,10 +155,25 @@ public class PriorityComparatorTests extends OpenSearchTestCase {
     public void testPreferSystemIndices() {
         RoutingNodes.UnassignedShards shards = new RoutingNodes.UnassignedShards(mock(RoutingNodes.class));
         List<ShardRouting> shardRoutings = Arrays.asList(
-            TestShardRouting.newShardRouting("oldest", 0, null, null,
-                randomBoolean(), ShardRoutingState.UNASSIGNED, new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "foobar")),
-            TestShardRouting.newShardRouting("newest", 0, null, null,
-                randomBoolean(), ShardRoutingState.UNASSIGNED, new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "foobar")));
+            TestShardRouting.newShardRouting(
+                "oldest",
+                0,
+                null,
+                null,
+                randomBoolean(),
+                ShardRoutingState.UNASSIGNED,
+                new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "foobar")
+            ),
+            TestShardRouting.newShardRouting(
+                "newest",
+                0,
+                null,
+                null,
+                randomBoolean(),
+                ShardRoutingState.UNASSIGNED,
+                new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "foobar")
+            )
+        );
         Collections.shuffle(shardRoutings, random());
         for (ShardRouting routing : shardRoutings) {
             shards.add(routing);
@@ -188,9 +233,17 @@ public class PriorityComparatorTests extends OpenSearchTestCase {
         int numShards = randomIntBetween(10, 100);
         for (int i = 0; i < numShards; i++) {
             IndexMetadata indexMeta = randomFrom(indices);
-            shards.add(TestShardRouting.newShardRouting(indexMeta.getIndex().getName(), randomIntBetween(1, 5), null, null,
-                    randomBoolean(), ShardRoutingState.UNASSIGNED, new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()),
-                    "foobar")));
+            shards.add(
+                TestShardRouting.newShardRouting(
+                    indexMeta.getIndex().getName(),
+                    randomIntBetween(1, 5),
+                    null,
+                    null,
+                    randomBoolean(),
+                    ShardRoutingState.UNASSIGNED,
+                    new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "foobar")
+                )
+            );
         }
         shards.sort(new PriorityComparator() {
             @Override
@@ -226,13 +279,15 @@ public class PriorityComparatorTests extends OpenSearchTestCase {
                         } else {
                             assertThat(
                                 "creationDate mismatch, expected:" + currentCreationDate + " after " + prevCreationDate,
-                                prevCreationDate, greaterThan(currentCreationDate)
+                                prevCreationDate,
+                                greaterThan(currentCreationDate)
                             );
                         }
                     } else {
                         assertThat(
                             "priority mismatch, expected:" + currentPriority + " after " + prevPriority,
-                            prevPriority, greaterThan(currentPriority)
+                            prevPriority,
+                            greaterThan(currentPriority)
                         );
                     }
                 } else {

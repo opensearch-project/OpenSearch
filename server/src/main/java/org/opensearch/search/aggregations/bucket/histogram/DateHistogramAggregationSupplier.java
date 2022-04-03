@@ -46,18 +46,20 @@ import java.util.Map;
 
 @FunctionalInterface
 public interface DateHistogramAggregationSupplier {
-    Aggregator build(String name,
-                     AggregatorFactories factories,
-                     Rounding rounding,
-                     Rounding.Prepared preparedRounding,
-                     BucketOrder order,
-                     boolean keyed,
-                     long minDocCount,
-                     @Nullable LongBounds extendedBounds,
-                     @Nullable LongBounds hardBounds,
-                     ValuesSourceConfig valuesSourceConfig,
-                     SearchContext aggregationContext,
-                     Aggregator parent,
-                     CardinalityUpperBound cardinality,
-                     Map<String, Object> metadata) throws IOException;
+    Aggregator build(
+        String name,
+        AggregatorFactories factories,
+        Rounding rounding,
+        Rounding.Prepared preparedRounding,
+        BucketOrder order,
+        boolean keyed,
+        long minDocCount,
+        @Nullable LongBounds extendedBounds,
+        @Nullable LongBounds hardBounds,
+        ValuesSourceConfig valuesSourceConfig,
+        SearchContext aggregationContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException;
 }

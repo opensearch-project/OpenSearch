@@ -140,7 +140,11 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
 
     @Override
     public String toString() {
-        return "SimulateIndexTemplateResponse{" + "resolved template=" + resolvedTemplate + ", overlapping templates="
-            + String.join("|", overlappingTemplates.keySet()) + "}";
+        return "SimulateIndexTemplateResponse{"
+            + "resolved template="
+            + resolvedTemplate
+            + ", overlapping templates="
+            + String.join("|", overlappingTemplates.keySet())
+            + "}";
     }
 }

@@ -56,7 +56,8 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
             DateHistogramAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
             DateHistogramAggregator::new,
-                true);
+            true
+        );
 
         builder.register(DateHistogramAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.RANGE, DateRangeHistogramAggregator::new, true);
     }
@@ -104,9 +105,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         DateHistogramAggregationSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
             .getAggregator(DateHistogramAggregationBuilder.REGISTRY_KEY, config);
         // TODO: Is there a reason not to get the prepared rounding in the supplier itself?
-        Rounding.Prepared preparedRounding = config.getValuesSource()
-            .roundingPreparer(queryShardContext.getIndexReader())
-            .apply(rounding);
+        Rounding.Prepared preparedRounding = config.getValuesSource().roundingPreparer(queryShardContext.getIndexReader()).apply(rounding);
         return aggregatorSupplier.build(
             name,
             factories,
@@ -126,10 +125,22 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
-        return new DateHistogramAggregator(name, factories, rounding, null, order, keyed, minDocCount, extendedBounds, hardBounds,
-            config, searchContext, parent, CardinalityUpperBound.NONE, metadata);
+    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new DateHistogramAggregator(
+            name,
+            factories,
+            rounding,
+            null,
+            order,
+            keyed,
+            minDocCount,
+            extendedBounds,
+            hardBounds,
+            config,
+            searchContext,
+            parent,
+            CardinalityUpperBound.NONE,
+            metadata
+        );
     }
 }

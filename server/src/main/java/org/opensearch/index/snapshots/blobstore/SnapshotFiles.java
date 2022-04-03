@@ -133,7 +133,7 @@ public class SnapshotFiles {
     public FileInfo findPhysicalIndexFile(String physicalName) {
         if (physicalFiles == null) {
             Map<String, FileInfo> files = new HashMap<>();
-            for(FileInfo fileInfo : indexFiles) {
+            for (FileInfo fileInfo : indexFiles) {
                 files.put(fileInfo.physicalName(), fileInfo);
             }
             this.physicalFiles = files;

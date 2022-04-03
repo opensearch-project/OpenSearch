@@ -87,11 +87,7 @@ public class Alias implements Writeable, ToXContentFragment {
         filter = in.readOptionalString();
         indexRouting = in.readOptionalString();
         searchRouting = in.readOptionalString();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            writeIndex = in.readOptionalBoolean();
-        } else {
-            writeIndex = null;
-        }
+        writeIndex = in.readOptionalBoolean();
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
             isHidden = in.readOptionalBoolean();
         } else {
@@ -237,9 +233,7 @@ public class Alias implements Writeable, ToXContentFragment {
         out.writeOptionalString(filter);
         out.writeOptionalString(indexRouting);
         out.writeOptionalString(searchRouting);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            out.writeOptionalBoolean(writeIndex);
-        }
+        out.writeOptionalBoolean(writeIndex);
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
             out.writeOptionalBoolean(isHidden);
         }

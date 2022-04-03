@@ -45,8 +45,7 @@ import java.util.Map;
 
 public final class CustomQueryScorer extends QueryScorer {
 
-    public CustomQueryScorer(Query query, IndexReader reader, String field,
-                             String defaultField) {
+    public CustomQueryScorer(Query query, IndexReader reader, String field, String defaultField) {
         super(query, reader, field, defaultField);
     }
 
@@ -72,8 +71,7 @@ public final class CustomQueryScorer extends QueryScorer {
 
     @Override
     protected WeightedSpanTermExtractor newTermExtractor(String defaultField) {
-        return defaultField == null ? new CustomWeightedSpanTermExtractor()
-                : new CustomWeightedSpanTermExtractor(defaultField);
+        return defaultField == null ? new CustomWeightedSpanTermExtractor() : new CustomWeightedSpanTermExtractor(defaultField);
     }
 
     private static class CustomWeightedSpanTermExtractor extends WeightedSpanTermExtractor {
@@ -87,8 +85,7 @@ public final class CustomQueryScorer extends QueryScorer {
         }
 
         @Override
-        protected void extractUnknownQuery(Query query,
-                                           Map<String, WeightedSpanTerm> terms) throws IOException {
+        protected void extractUnknownQuery(Query query, Map<String, WeightedSpanTerm> terms) throws IOException {
             if (terms.isEmpty()) {
                 extractWeightedTerms(terms, query, 1F);
             }
@@ -111,6 +108,7 @@ public final class CustomQueryScorer extends QueryScorer {
          * Workaround to detect parent/child query
          */
         private static final String PARENT_CHILD_QUERY_NAME = "HasChildQueryBuilder$LateParsingQuery";
+
         private static boolean isChildOrParentQuery(Class<?> clazz) {
             return clazz.getName().endsWith(PARENT_CHILD_QUERY_NAME);
         }

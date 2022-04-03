@@ -85,7 +85,7 @@ public class IndexRequestTests extends OpenSearchTestCase {
     public void testCreateOperationRejectsVersions() {
         Set<VersionType> allButInternalSet = new HashSet<>(Arrays.asList(VersionType.values()));
         allButInternalSet.remove(VersionType.INTERNAL);
-        VersionType[] allButInternal = allButInternalSet.toArray(new VersionType[]{});
+        VersionType[] allButInternal = allButInternalSet.toArray(new VersionType[] {});
         IndexRequest request = new IndexRequest("index").id("1");
         request.opType(IndexRequest.OpType.CREATE);
         request.versionType(randomFrom(allButInternal));
@@ -98,24 +98,23 @@ public class IndexRequestTests extends OpenSearchTestCase {
 
     public void testIndexingRejectsLongIds() {
         String id = randomAlphaOfLength(511);
-        IndexRequest request = new IndexRequest("index").id( id);
+        IndexRequest request = new IndexRequest("index").id(id);
         request.source("{}", XContentType.JSON);
         ActionRequestValidationException validate = request.validate();
         assertNull(validate);
 
         id = randomAlphaOfLength(512);
-        request = new IndexRequest("index").id( id);
+        request = new IndexRequest("index").id(id);
         request.source("{}", XContentType.JSON);
         validate = request.validate();
         assertNull(validate);
 
         id = randomAlphaOfLength(513);
-        request = new IndexRequest("index").id( id);
+        request = new IndexRequest("index").id(id);
         request.source("{}", XContentType.JSON);
         validate = request.validate();
         assertThat(validate, notNullValue());
-        assertThat(validate.getMessage(),
-                containsString("id [" + id + "] is too long, must be no longer than 512 bytes but was: 513"));
+        assertThat(validate.getMessage(), containsString("id [" + id + "] is too long, must be no longer than 512 bytes but was: 513"));
     }
 
     public void testWaitForActiveShards() {
@@ -138,11 +137,10 @@ public class IndexRequestTests extends OpenSearchTestCase {
 
     public void testIndexResponse() {
         ShardId shardId = new ShardId(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10), randomIntBetween(0, 1000));
-        String type = randomAlphaOfLengthBetween(3, 10);
         String id = randomAlphaOfLengthBetween(3, 10);
         long version = randomLong();
         boolean created = randomBoolean();
-        IndexResponse indexResponse = new IndexResponse(shardId, type, id, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, version, created);
+        IndexResponse indexResponse = new IndexResponse(shardId, id, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, version, created);
         int total = randomIntBetween(1, 10);
         int successful = randomIntBetween(1, 10);
         ReplicationResponse.ShardInfo shardInfo = new ReplicationResponse.ShardInfo(total, successful);
@@ -152,7 +150,6 @@ public class IndexRequestTests extends OpenSearchTestCase {
             forcedRefresh = randomBoolean();
             indexResponse.setForcedRefresh(forcedRefresh);
         }
-        assertEquals(type, indexResponse.getType());
         assertEquals(id, indexResponse.getId());
         assertEquals(version, indexResponse.getVersion());
         assertEquals(shardId, indexResponse.getShardId());
@@ -160,12 +157,26 @@ public class IndexRequestTests extends OpenSearchTestCase {
         assertEquals(total, indexResponse.getShardInfo().getTotal());
         assertEquals(successful, indexResponse.getShardInfo().getSuccessful());
         assertEquals(forcedRefresh, indexResponse.forcedRefresh());
-        assertEquals("IndexResponse[index=" + shardId.getIndexName() + ",type=" + type + ",id="+ id +
-                ",version=" + version + ",result=" + (created ? "created" : "updated") +
-                ",seqNo=" + SequenceNumbers.UNASSIGNED_SEQ_NO +
-                ",primaryTerm=" + 0 +
-                ",shards={\"total\":" + total + ",\"successful\":" + successful + ",\"failed\":0}]",
-                indexResponse.toString());
+        assertEquals(
+            "IndexResponse[index="
+                + shardId.getIndexName()
+                + ",id="
+                + id
+                + ",version="
+                + version
+                + ",result="
+                + (created ? "created" : "updated")
+                + ",seqNo="
+                + SequenceNumbers.UNASSIGNED_SEQ_NO
+                + ",primaryTerm="
+                + 0
+                + ",shards={\"total\":"
+                + total
+                + ",\"successful\":"
+                + successful
+                + ",\"failed\":0}]",
+            indexResponse.toString()
+        );
     }
 
     public void testIndexRequestXContentSerialization() throws IOException {
@@ -205,13 +216,19 @@ public class IndexRequestTests extends OpenSearchTestCase {
 
         String source = "{\"name\":\"value\"}";
         request.source(source, XContentType.JSON);
-        assertEquals("index {[index][_doc][null], source[" + source + "]}", request.toString());
+        assertEquals("index {[index][null], source[" + source + "]}", request.toString());
 
         source = "{\"name\":\"" + randomUnicodeOfLength(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING) + "\"}";
         request.source(source, XContentType.JSON);
         int actualBytes = source.getBytes("UTF-8").length;
-        assertEquals("index {[index][_doc][null], source[n/a, actual length: [" + new ByteSizeValue(actualBytes).toString() +
-                "], max length: " + new ByteSizeValue(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING).toString() + "]}", request.toString());
+        assertEquals(
+            "index {[index][null], source[n/a, actual length: ["
+                + new ByteSizeValue(actualBytes).toString()
+                + "], max length: "
+                + new ByteSizeValue(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING).toString()
+                + "]}",
+            request.toString()
+        );
     }
 
     public void testRejectsEmptyStringPipeline() {
@@ -220,7 +237,6 @@ public class IndexRequestTests extends OpenSearchTestCase {
         request.setPipeline("");
         ActionRequestValidationException validate = request.validate();
         assertThat(validate, notNullValue());
-        assertThat(validate.getMessage(),
-            containsString("pipeline cannot be an empty string"));
+        assertThat(validate.getMessage(), containsString("pipeline cannot be an empty string"));
     }
 }

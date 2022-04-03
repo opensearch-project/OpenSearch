@@ -116,11 +116,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
     private static final TimeUnit NODE_UP_TIMEOUT_UNIT = TimeUnit.MINUTES;
     private static final int ADDITIONAL_CONFIG_TIMEOUT = 15;
     private static final TimeUnit ADDITIONAL_CONFIG_TIMEOUT_UNIT = TimeUnit.SECONDS;
-    private static final List<String> OVERRIDABLE_SETTINGS = Arrays.asList(
-        "path.repo",
-        "discovery.seed_providers"
-
-    );
+    private static final List<String> OVERRIDABLE_SETTINGS = Arrays.asList("path.repo", "discovery.seed_providers", "discovery.seed_hosts");
 
     private static final int TAIL_LOG_MESSAGES_COUNT = 40;
     private static final List<String> MESSAGES_WE_DONT_CARE_ABOUT = Arrays.asList(
@@ -389,8 +385,12 @@ public class OpenSearchNode implements TestClusterConfiguration {
     private Provider<RegularFile> maybeCreatePluginOrModuleDependency(String path) {
         Configuration configuration = pluginAndModuleConfigurations.computeIfAbsent(
             path,
-            key -> project.getConfigurations()
-                .detachedConfiguration(project.getDependencies().project(Map.of("path", path, "configuration", "zip")))
+            key -> project.getConfigurations().detachedConfiguration(project.getDependencies().project(new HashMap<String, String>() {
+                {
+                    put("path", path);
+                    put("configuration", "zip");
+                }
+            }))
         );
         Provider<File> fileProvider = configuration.getElements()
             .map(
@@ -406,6 +406,14 @@ public class OpenSearchNode implements TestClusterConfiguration {
     public void plugin(Provider<RegularFile> plugin) {
         checkFrozen();
         this.plugins.add(plugin.map(RegularFile::getAsFile));
+    }
+
+    @Override
+    public void upgradePlugin(List<Provider<RegularFile>> plugins) {
+        this.plugins.clear();
+        for (Provider<RegularFile> plugin : plugins) {
+            this.plugins.add(plugin.map(RegularFile::getAsFile));
+        }
     }
 
     @Override
@@ -673,10 +681,6 @@ public class OpenSearchNode implements TestClusterConfiguration {
         currentDistro += 1;
         applyConfig();
         setting("node.attr.upgraded", "true");
-    }
-
-    private boolean isSettingTrue(String name) {
-        return Boolean.valueOf(settings.getOrDefault(name, "false").toString());
     }
 
     private void copyExtraConfigFiles() {
@@ -973,7 +977,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
         LOGGER.info("Stopping `{}`, tailLogs: {}", this, tailLogs);
         requireNonNull(opensearchProcess, "Can't stop `" + this + "` as it was not started or already stopped.");
         // Test clusters are not reused, don't spend time on a graceful shutdown
-        stopHandle(opensearchProcess.toHandle(), true);
+        stopProcess(opensearchProcess.toHandle(), true);
         reaper.unregister(toString());
         if (tailLogs) {
             logFileContents("Standard output of node", currentConfig.stdoutFile);
@@ -998,7 +1002,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
         this.nameCustomization = nameCustomizer;
     }
 
-    private void stopHandle(ProcessHandle processHandle, boolean forcibly) {
+    private void stopProcess(ProcessHandle processHandle, boolean forcibly) {
         // No-op if the process has already exited by itself.
         if (processHandle.isAlive() == false) {
             LOGGER.info("Process was not running when we tried to terminate it.");
@@ -1037,7 +1041,12 @@ public class OpenSearchNode implements TestClusterConfiguration {
                 throw new TestClustersException("Was not able to terminate " + currentConfig.command + " process for " + this);
             }
         } finally {
-            children.forEach(each -> stopHandle(each, forcibly));
+            children.forEach(each -> stopProcess(each, forcibly));
+        }
+
+        waitForProcessToExit(processHandle);
+        if (processHandle.isAlive()) {
+            throw new TestClustersException("Was not able to terminate " + currentConfig.command + " process for " + this);
         }
     }
 
@@ -1246,9 +1255,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
         } else {
             baseConfig.put("script.max_compilations_rate", "2048/1m");
         }
-        if (getVersion().onOrAfter("6.0.0")) {
-            baseConfig.put("cluster.routing.allocation.disk.watermark.flood_stage", "1b");
-        }
+        baseConfig.put("cluster.routing.allocation.disk.watermark.flood_stage", "1b");
         // Temporarily disable the real memory usage circuit breaker. It depends on real memory usage which we have no full control
         // over and the REST client will not retry on circuit breaking exceptions yet (see #31986 for details). Once the REST client
         // can retry on circuit breaking exceptions, we can revert again to the default configuration.
@@ -1377,25 +1384,27 @@ public class OpenSearchNode implements TestClusterConfiguration {
         return distributions.get(currentDistro).getExtracted().getSingleFile().toPath();
     }
 
-    private List<File> getInstalledFileSet(Action<? super PatternFilterable> filter) {
-        return Stream.concat(plugins.stream().map(Provider::get), modules.stream().map(Provider::get))
-            .filter(File::exists)
-            // TODO: We may be able to simplify this with Gradle 5.6
-            // https://docs.gradle.org/nightly/release-notes.html#improved-handling-of-zip-archives-on-classpaths
-            .map(zipFile -> archiveOperations.zipTree(zipFile).matching(filter))
-            .flatMap(tree -> tree.getFiles().stream())
-            .sorted(Comparator.comparing(File::getName))
+    private List<Provider<List<File>>> getInstalledFileSet(Action<? super PatternFilterable> filter) {
+        return Stream.concat(plugins.stream(), modules.stream()).map(p -> p.map(f -> {
+            if (f.exists()) {
+                final FileTree tree = archiveOperations.zipTree(f).matching(filter);
+                return tree.getFiles();
+            } else {
+                return new HashSet<File>();
+            }
+        }))
+            .map(p -> p.map(f -> f.stream().sorted(Comparator.comparing(File::getName)).collect(Collectors.toList())))
             .collect(Collectors.toList());
     }
 
     @Classpath
-    public List<File> getInstalledClasspath() {
+    public List<Provider<List<File>>> getInstalledClasspath() {
         return getInstalledFileSet(filter -> filter.include("**/*.jar"));
     }
 
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
-    public List<File> getInstalledFiles() {
+    public List<Provider<List<File>>> getInstalledFiles() {
         return getInstalledFileSet(filter -> filter.exclude("**/*.jar"));
     }
 

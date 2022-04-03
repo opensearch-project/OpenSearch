@@ -81,7 +81,6 @@ public class ChannelsTests extends OpenSearchTestCase {
         assertThat("read bytes didn't match written bytes", randomBytes, Matchers.equalTo(readBytes));
     }
 
-
     public void testPartialReadWriteThroughArrays() throws Exception {
         int length = randomIntBetween(1, randomBytes.length / 2);
         int offset = randomIntBetween(0, randomBytes.length - length);

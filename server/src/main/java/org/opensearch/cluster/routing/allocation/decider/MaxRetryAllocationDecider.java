@@ -49,8 +49,14 @@ import org.opensearch.common.settings.Setting;
  */
 public class MaxRetryAllocationDecider extends AllocationDecider {
 
-    public static final Setting<Integer> SETTING_ALLOCATION_MAX_RETRY = Setting.intSetting("index.allocation.max_retries", 5, 0,
-        Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.NotCopyableOnResize);
+    public static final Setting<Integer> SETTING_ALLOCATION_MAX_RETRY = Setting.intSetting(
+        "index.allocation.max_retries",
+        5,
+        0,
+        Setting.Property.Dynamic,
+        Setting.Property.IndexScope,
+        Setting.Property.NotCopyableOnResize
+    );
 
     public static final String NAME = "max_retry";
 
@@ -62,12 +68,22 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
             final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
             final int maxRetry = SETTING_ALLOCATION_MAX_RETRY.get(indexMetadata.getSettings());
             if (unassignedInfo.getNumFailedAllocations() >= maxRetry) {
-                decision = allocation.decision(Decision.NO, NAME, "shard has exceeded the maximum number of retries [%d] on " +
-                    "failed allocation attempts - manually call [/_cluster/reroute?retry_failed=true] to retry, [%s]",
-                    maxRetry, unassignedInfo.toString());
+                decision = allocation.decision(
+                    Decision.NO,
+                    NAME,
+                    "shard has exceeded the maximum number of retries [%d] on "
+                        + "failed allocation attempts - manually call [/_cluster/reroute?retry_failed=true] to retry, [%s]",
+                    maxRetry,
+                    unassignedInfo.toString()
+                );
             } else {
-                decision = allocation.decision(Decision.YES, NAME, "shard has failed allocating [%d] times but [%d] retries are allowed",
-                    unassignedInfo.getNumFailedAllocations(), maxRetry);
+                decision = allocation.decision(
+                    Decision.YES,
+                    NAME,
+                    "shard has failed allocating [%d] times but [%d] retries are allowed",
+                    unassignedInfo.getNumFailedAllocations(),
+                    maxRetry
+                );
             }
         } else {
             decision = allocation.decision(Decision.YES, NAME, "shard has no previous failures");

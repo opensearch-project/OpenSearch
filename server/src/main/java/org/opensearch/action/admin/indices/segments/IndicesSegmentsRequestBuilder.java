@@ -35,8 +35,10 @@ package org.opensearch.action.admin.indices.segments;
 import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
-public class IndicesSegmentsRequestBuilder
-        extends BroadcastOperationRequestBuilder<IndicesSegmentsRequest, IndicesSegmentResponse, IndicesSegmentsRequestBuilder> {
+public class IndicesSegmentsRequestBuilder extends BroadcastOperationRequestBuilder<
+    IndicesSegmentsRequest,
+    IndicesSegmentResponse,
+    IndicesSegmentsRequestBuilder> {
 
     public IndicesSegmentsRequestBuilder(OpenSearchClient client, IndicesSegmentsAction action) {
         super(client, action, new IndicesSegmentsRequest());

@@ -62,12 +62,14 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
             return null;
         }
 
-        if (context.docValuesContext().fields().stream()
-                .map(f -> f.format)
-                .anyMatch(USE_DEFAULT_FORMAT::equals)) {
-            DEPRECATION_LOGGER.deprecate("explicit_default_format",
-                    "[" + USE_DEFAULT_FORMAT + "] is a special format that was only used to " +
-                    "ease the transition to 7.x. It has become the default and shouldn't be set explicitly anymore.");
+        if (context.docValuesContext().fields().stream().map(f -> f.format).anyMatch(USE_DEFAULT_FORMAT::equals)) {
+            DEPRECATION_LOGGER.deprecate(
+                "explicit_default_format",
+                "["
+                    + USE_DEFAULT_FORMAT
+                    + "] is a special format that was only used to "
+                    + "ease the transition to 7.x. It has become the default and shouldn't be set explicitly anymore."
+            );
         }
 
         /*
@@ -82,10 +84,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
                 continue;
             }
             String format = USE_DEFAULT_FORMAT.equals(fieldAndFormat.format) ? null : fieldAndFormat.format;
-            ValueFetcher fetcher = new DocValueFetcher(
-                ft.docValueFormat(format, null),
-                context.searchLookup().doc().getForField(ft)
-            );
+            ValueFetcher fetcher = new DocValueFetcher(ft.docValueFormat(format, null), context.searchLookup().doc().getForField(ft));
             fields.add(new DocValueField(fieldAndFormat.field, fetcher));
         }
 

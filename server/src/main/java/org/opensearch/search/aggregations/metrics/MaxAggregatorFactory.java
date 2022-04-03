@@ -53,19 +53,23 @@ class MaxAggregatorFactory extends ValuesSourceAggregatorFactory {
             MaxAggregationBuilder.REGISTRY_KEY,
             org.opensearch.common.collect.List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             MaxAggregator::new,
-                true);
+            true
+        );
     }
 
-    MaxAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
-                         AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                         Map<String, Object> metadata) throws IOException {
+    MaxAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
         return new MaxAggregator(name, config, searchContext, parent, metadata);
     }
 

@@ -50,8 +50,10 @@ public class ExampleCustomSettingsConfigTests extends OpenSearchTestCase {
         final String actual = VALIDATED_SETTING.get(Settings.builder().put(VALIDATED_SETTING.getKey(), expected).build());
         assertEquals(expected, actual);
 
-        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
-            VALIDATED_SETTING.get(Settings.builder().put("custom.validated", "it's forbidden").build()));
+        final IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> VALIDATED_SETTING.get(Settings.builder().put("custom.validated", "it's forbidden").build())
+        );
         assertEquals("Setting must not contain [forbidden]", exception.getMessage());
     }
 }

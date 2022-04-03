@@ -87,8 +87,6 @@ class CompositeKey implements Writeable {
 
     @Override
     public String toString() {
-        return "CompositeKey{" +
-            "values=" + Arrays.toString(values) +
-            '}';
+        return "CompositeKey{" + "values=" + Arrays.toString(values) + '}';
     }
 }

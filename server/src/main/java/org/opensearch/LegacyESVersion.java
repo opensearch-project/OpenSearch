@@ -46,70 +46,6 @@ import java.lang.reflect.Field;
  */
 public class LegacyESVersion extends Version {
 
-    public static final LegacyESVersion V_6_0_0_alpha1 =
-        new LegacyESVersion(6000001, org.apache.lucene.util.Version.LUCENE_7_0_0);
-    public static final LegacyESVersion V_6_0_0_alpha2 =
-        new LegacyESVersion(6000002, org.apache.lucene.util.Version.LUCENE_7_0_0);
-    public static final LegacyESVersion V_6_0_0_beta1 =
-        new LegacyESVersion(6000026, org.apache.lucene.util.Version.LUCENE_7_0_0);
-    public static final LegacyESVersion V_6_0_0_beta2 =
-        new LegacyESVersion(6000027, org.apache.lucene.util.Version.LUCENE_7_0_0);
-    public static final LegacyESVersion V_6_0_0_rc1 =
-        new LegacyESVersion(6000051, org.apache.lucene.util.Version.LUCENE_7_0_0);
-    public static final LegacyESVersion V_6_0_0_rc2 =
-        new LegacyESVersion(6000052, org.apache.lucene.util.Version.LUCENE_7_0_1);
-    public static final LegacyESVersion V_6_0_0 =
-        new LegacyESVersion(6000099, org.apache.lucene.util.Version.LUCENE_7_0_1);
-    public static final LegacyESVersion V_6_0_1 =
-        new LegacyESVersion(6000199, org.apache.lucene.util.Version.LUCENE_7_0_1);
-    public static final LegacyESVersion V_6_1_0 = new LegacyESVersion(6010099, org.apache.lucene.util.Version.LUCENE_7_1_0);
-    public static final LegacyESVersion V_6_1_1 = new LegacyESVersion(6010199, org.apache.lucene.util.Version.LUCENE_7_1_0);
-    public static final LegacyESVersion V_6_1_2 = new LegacyESVersion(6010299, org.apache.lucene.util.Version.LUCENE_7_1_0);
-    public static final LegacyESVersion V_6_1_3 = new LegacyESVersion(6010399, org.apache.lucene.util.Version.LUCENE_7_1_0);
-    public static final LegacyESVersion V_6_1_4 = new LegacyESVersion(6010499, org.apache.lucene.util.Version.LUCENE_7_1_0);
-    // The below version is missing from the 7.3 JAR
-    private static final org.apache.lucene.util.Version LUCENE_7_2_1 = org.apache.lucene.util.Version.fromBits(7, 2, 1);
-    public static final LegacyESVersion V_6_2_0 = new LegacyESVersion(6020099, LUCENE_7_2_1);
-    public static final LegacyESVersion V_6_2_1 = new LegacyESVersion(6020199, LUCENE_7_2_1);
-    public static final LegacyESVersion V_6_2_2 = new LegacyESVersion(6020299, LUCENE_7_2_1);
-    public static final LegacyESVersion V_6_2_3 = new LegacyESVersion(6020399, LUCENE_7_2_1);
-    public static final LegacyESVersion V_6_2_4 = new LegacyESVersion(6020499, LUCENE_7_2_1);
-    public static final LegacyESVersion V_6_3_0 = new LegacyESVersion(6030099, org.apache.lucene.util.Version.LUCENE_7_3_1);
-    public static final LegacyESVersion V_6_3_1 = new LegacyESVersion(6030199, org.apache.lucene.util.Version.LUCENE_7_3_1);
-    public static final LegacyESVersion V_6_3_2 = new LegacyESVersion(6030299, org.apache.lucene.util.Version.LUCENE_7_3_1);
-    public static final LegacyESVersion V_6_4_0 = new LegacyESVersion(6040099, org.apache.lucene.util.Version.LUCENE_7_4_0);
-    public static final LegacyESVersion V_6_4_1 = new LegacyESVersion(6040199, org.apache.lucene.util.Version.LUCENE_7_4_0);
-    public static final LegacyESVersion V_6_4_2 = new LegacyESVersion(6040299, org.apache.lucene.util.Version.LUCENE_7_4_0);
-    public static final LegacyESVersion V_6_4_3 = new LegacyESVersion(6040399, org.apache.lucene.util.Version.LUCENE_7_4_0);
-    public static final LegacyESVersion V_6_5_0 = new LegacyESVersion(6050099, org.apache.lucene.util.Version.LUCENE_7_5_0);
-    public static final LegacyESVersion V_6_5_1 = new LegacyESVersion(6050199, org.apache.lucene.util.Version.LUCENE_7_5_0);
-    public static final LegacyESVersion V_6_5_2 = new LegacyESVersion(6050299, org.apache.lucene.util.Version.LUCENE_7_5_0);
-    public static final LegacyESVersion V_6_5_3 = new LegacyESVersion(6050399, org.apache.lucene.util.Version.LUCENE_7_5_0);
-    public static final LegacyESVersion V_6_5_4 = new LegacyESVersion(6050499, org.apache.lucene.util.Version.LUCENE_7_5_0);
-    public static final LegacyESVersion V_6_6_0 = new LegacyESVersion(6060099, org.apache.lucene.util.Version.LUCENE_7_6_0);
-    public static final LegacyESVersion V_6_6_1 = new LegacyESVersion(6060199, org.apache.lucene.util.Version.LUCENE_7_6_0);
-    public static final LegacyESVersion V_6_6_2 = new LegacyESVersion(6060299, org.apache.lucene.util.Version.LUCENE_7_6_0);
-    public static final LegacyESVersion V_6_7_0 = new LegacyESVersion(6070099, org.apache.lucene.util.Version.LUCENE_7_7_0);
-    public static final LegacyESVersion V_6_7_1 = new LegacyESVersion(6070199, org.apache.lucene.util.Version.LUCENE_7_7_0);
-    public static final LegacyESVersion V_6_7_2 = new LegacyESVersion(6070299, org.apache.lucene.util.Version.LUCENE_7_7_0);
-    public static final LegacyESVersion V_6_8_0 = new LegacyESVersion(6080099, org.apache.lucene.util.Version.LUCENE_7_7_0);
-    public static final LegacyESVersion V_6_8_1 = new LegacyESVersion(6080199, org.apache.lucene.util.Version.LUCENE_7_7_0);
-    public static final LegacyESVersion V_6_8_2 = new LegacyESVersion(6080299, org.apache.lucene.util.Version.LUCENE_7_7_0);
-    public static final LegacyESVersion V_6_8_3 = new LegacyESVersion(6080399, org.apache.lucene.util.Version.LUCENE_7_7_0);
-    public static final LegacyESVersion V_6_8_4 = new LegacyESVersion(6080499, org.apache.lucene.util.Version.LUCENE_7_7_2);
-    public static final LegacyESVersion V_6_8_5 = new LegacyESVersion(6080599, org.apache.lucene.util.Version.LUCENE_7_7_2);
-    public static final LegacyESVersion V_6_8_6 = new LegacyESVersion(6080699, org.apache.lucene.util.Version.LUCENE_7_7_2);
-    public static final LegacyESVersion V_6_8_7 = new LegacyESVersion(6080799, org.apache.lucene.util.Version.LUCENE_7_7_2);
-    public static final LegacyESVersion V_6_8_8 = new LegacyESVersion(6080899, org.apache.lucene.util.Version.LUCENE_7_7_2);
-    // Version constant for Lucene 7.7.3 release with index corruption bug fix
-    private static final org.apache.lucene.util.Version LUCENE_7_7_3 = org.apache.lucene.util.Version.fromBits(7, 7, 3);
-    public static final LegacyESVersion V_6_8_9 = new LegacyESVersion(6080999, LUCENE_7_7_3);
-    public static final LegacyESVersion V_6_8_10 = new LegacyESVersion(6081099, LUCENE_7_7_3);
-    public static final LegacyESVersion V_6_8_11 = new LegacyESVersion(6081199, LUCENE_7_7_3);
-    public static final LegacyESVersion V_6_8_12 = new LegacyESVersion(6081299, LUCENE_7_7_3);
-    public static final LegacyESVersion V_6_8_13 = new LegacyESVersion(6081399, LUCENE_7_7_3);
-    public static final LegacyESVersion V_6_8_14 = new LegacyESVersion(6081499, LUCENE_7_7_3);
-    public static final LegacyESVersion V_6_8_15 = new LegacyESVersion(6081599, org.apache.lucene.util.Version.LUCENE_7_7_3);
     public static final LegacyESVersion V_7_0_0 = new LegacyESVersion(7000099, org.apache.lucene.util.Version.LUCENE_8_0_0);
     public static final LegacyESVersion V_7_0_1 = new LegacyESVersion(7000199, org.apache.lucene.util.Version.LUCENE_8_0_0);
     public static final LegacyESVersion V_7_1_0 = new LegacyESVersion(7010099, org.apache.lucene.util.Version.LUCENE_8_0_0);
@@ -153,33 +89,45 @@ public class LegacyESVersion extends Version {
                 if (fieldName.equals("CURRENT") || fieldName.equals("V_EMPTY")) {
                     continue;
                 }
-                assert fieldName.matches("V_\\d+_\\d+_\\d+(_alpha[1,2]|_beta[1,2]|_rc[1,2])?")
-                    : "expected Version field [" + fieldName + "] to match V_\\d+_\\d+_\\d+";
+                assert fieldName.matches("V_\\d+_\\d+_\\d+(_alpha[1,2]|_beta[1,2]|_rc[1,2])?") : "expected Version field ["
+                    + fieldName
+                    + "] to match V_\\d+_\\d+_\\d+";
                 try {
                     final Version version = (Version) declaredField.get(null);
                     if (Assertions.ENABLED) {
                         final String[] fields = fieldName.split("_");
                         if (fields.length == 5) {
-                            assert (fields[1].equals("1") || fields[1].equals("6")) && fields[2].equals("0") :
-                                "field " + fieldName + " should not have a build qualifier";
+                            assert (fields[1].equals("1") || fields[1].equals("6")) && fields[2].equals("0") : "field "
+                                + fieldName
+                                + " should not have a build qualifier";
                         } else {
                             final int major = Integer.valueOf(fields[1]) * 1000000;
                             final int minor = Integer.valueOf(fields[2]) * 10000;
                             final int revision = Integer.valueOf(fields[3]) * 100;
                             final int expectedId;
-                            if (fields[1].equals("1")) {
+                            if (major > 0 && major < 6000000) {
                                 expectedId = 0x08000000 ^ (major + minor + revision + 99);
                             } else {
                                 expectedId = (major + minor + revision + 99);
                             }
-                            assert version.id == expectedId :
-                                "expected version [" + fieldName + "] to have id [" + expectedId + "] but was [" + version.id + "]";
+                            assert version.id == expectedId : "expected version ["
+                                + fieldName
+                                + "] to have id ["
+                                + expectedId
+                                + "] but was ["
+                                + version.id
+                                + "]";
                         }
                     }
                     final Version maybePrevious = builder.put(version.id, version);
                     builderByString.put(version.toString(), version);
-                    assert maybePrevious == null :
-                        "expected [" + version.id + "] to be uniquely mapped but saw [" + maybePrevious + "] and [" + version + "]";
+                    assert maybePrevious == null : "expected ["
+                        + version.id
+                        + "] to be uniquely mapped but saw ["
+                        + maybePrevious
+                        + "] and ["
+                        + version
+                        + "]";
                 } catch (final IllegalAccessException e) {
                     assert false : "Version field [" + fieldName + "] should be public";
                 } catch (final RuntimeException e) {
@@ -188,7 +136,10 @@ public class LegacyESVersion extends Version {
             }
         }
         assert CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) : "Version must be upgraded to ["
-            + org.apache.lucene.util.Version.LATEST + "] is still set to [" + CURRENT.luceneVersion + "]";
+            + org.apache.lucene.util.Version.LATEST
+            + "] is still set to ["
+            + CURRENT.luceneVersion
+            + "]";
 
         builder.put(V_EMPTY_ID, V_EMPTY);
         builderByString.put(V_EMPTY.toString(), V_EMPTY);
@@ -215,7 +166,7 @@ public class LegacyESVersion extends Version {
      */
     @Override
     public boolean isAlpha() {
-        return major < 5 ? false :  build < 25;
+        return major < 5 ? false : build < 25;
     }
 
     /**
@@ -232,7 +183,8 @@ public class LegacyESVersion extends Version {
         return fromStringSlow(version);
     }
 
-    private static Version fromStringSlow(String version) {
+    // pkg private for usage in Version (todo: remove in 3.0)
+    static Version fromStringSlow(String version) {
         final boolean snapshot; // this is some BWC for 2.x and before indices
         if (snapshot = version.endsWith("-SNAPSHOT")) {
             version = version.substring(0, version.length() - 9);
@@ -240,7 +192,8 @@ public class LegacyESVersion extends Version {
         String[] parts = version.split("[.-]");
         if (parts.length < 3 || parts.length > 4) {
             throw new IllegalArgumentException(
-                "the version needs to contain major, minor, and revision, and optionally the build: " + version);
+                "the version needs to contain major, minor, and revision, and optionally the build: " + version
+            );
         }
 
         try {
@@ -248,15 +201,14 @@ public class LegacyESVersion extends Version {
             if (rawMajor >= 5 && snapshot) { // we don't support snapshot as part of the version here anymore
                 throw new IllegalArgumentException("illegal version format - snapshots are only supported until version 2.x");
             }
-            if (rawMajor >=7 && parts.length == 4) { // we don't support qualifier as part of the version anymore
+            if (rawMajor >= 7 && parts.length == 4) { // we don't support qualifier as part of the version anymore
                 throw new IllegalArgumentException("illegal version format - qualifiers are only supported until version 6.x");
             }
             final int betaOffset = rawMajor < 5 ? 0 : 25;
-            //we reverse the version id calculation based on some assumption as we can't reliably reverse the modulo
+            // we reverse the version id calculation based on some assumption as we can't reliably reverse the modulo
             final int major = rawMajor * 1000000;
             final int minor = Integer.parseInt(parts[1]) * 10000;
             final int revision = Integer.parseInt(parts[2]) * 100;
-
 
             int build = 99;
             if (parts.length == 4) {
@@ -287,5 +239,30 @@ public class LegacyESVersion extends Version {
      */
     protected int maskId(final int id) {
         return id;
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(major).append('.').append(minor).append('.').append(revision);
+        if (isAlpha()) {
+            sb.append("-alpha");
+            sb.append(build);
+        } else if (isBeta()) {
+            if (major >= 2) {
+                sb.append("-beta");
+            } else {
+                sb.append(".Beta");
+            }
+            sb.append(major < 5 ? build : build - 25);
+        } else if (build < 99) {
+            if (major >= 2) {
+                sb.append("-rc");
+            } else {
+                sb.append(".RC");
+            }
+            sb.append(build - 50);
+        }
+        return sb.toString();
     }
 }

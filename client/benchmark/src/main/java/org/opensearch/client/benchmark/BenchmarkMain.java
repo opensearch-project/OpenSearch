@@ -32,7 +32,6 @@
 package org.opensearch.client.benchmark;
 
 import org.opensearch.client.benchmark.rest.RestClientBenchmark;
-import org.opensearch.client.benchmark.transport.TransportClientBenchmark;
 import org.opensearch.common.SuppressForbidden;
 
 import java.util.Arrays;
@@ -42,16 +41,11 @@ public class BenchmarkMain {
     public static void main(String[] args) throws Exception {
         String type = args[0];
         AbstractBenchmark<?> benchmark = null;
-        switch (type) {
-            case "transport":
-                benchmark = new TransportClientBenchmark();
-                break;
-            case "rest":
-                benchmark = new RestClientBenchmark();
-                break;
-            default:
-                System.err.println("Unknown client type [" + type + "]");
-                System.exit(1);
+        if ("rest".equals(type)) {
+            benchmark = new RestClientBenchmark();
+        } else {
+            System.err.println("Unknown client type [" + type + "]");
+            System.exit(1);
         }
         benchmark.run(Arrays.copyOfRange(args, 1, args.length));
     }

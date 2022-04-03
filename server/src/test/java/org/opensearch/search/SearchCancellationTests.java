@@ -38,14 +38,14 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PointValues;
-import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.core.internal.io.IOUtils;
@@ -103,8 +103,14 @@ public class SearchCancellationTests extends OpenSearchTestCase {
     }
 
     public void testAddingCancellationActions() throws IOException {
-        ContextIndexSearcher searcher = new ContextIndexSearcher(reader, IndexSearcher.getDefaultSimilarity(),
-                IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), true);
+        ContextIndexSearcher searcher = new ContextIndexSearcher(
+            reader,
+            IndexSearcher.getDefaultSimilarity(),
+            IndexSearcher.getDefaultQueryCache(),
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            true,
+            null
+        );
         NullPointerException npe = expectThrows(NullPointerException.class, () -> searcher.addQueryCancellation(null));
         assertEquals("cancellation runnable should not be null", npe.getMessage());
 
@@ -117,15 +123,20 @@ public class SearchCancellationTests extends OpenSearchTestCase {
     public void testCancellableCollector() throws IOException {
         TotalHitCountCollector collector1 = new TotalHitCountCollector();
         Runnable cancellation = () -> { throw new TaskCancelledException("cancelled"); };
-        ContextIndexSearcher searcher = new ContextIndexSearcher(reader, IndexSearcher.getDefaultSimilarity(),
-                IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), true);
+        ContextIndexSearcher searcher = new ContextIndexSearcher(
+            reader,
+            IndexSearcher.getDefaultSimilarity(),
+            IndexSearcher.getDefaultQueryCache(),
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            true,
+            null
+        );
 
         searcher.search(new MatchAllDocsQuery(), collector1);
         assertThat(collector1.getTotalHits(), equalTo(reader.numDocs()));
 
         searcher.addQueryCancellation(cancellation);
-        expectThrows(TaskCancelledException.class,
-            () -> searcher.search(new MatchAllDocsQuery(), collector1));
+        expectThrows(TaskCancelledException.class, () -> searcher.search(new MatchAllDocsQuery(), collector1));
 
         searcher.removeQueryCancellation(cancellation);
         TotalHitCountCollector collector2 = new TotalHitCountCollector();
@@ -138,20 +149,35 @@ public class SearchCancellationTests extends OpenSearchTestCase {
         Runnable cancellation = () -> {
             if (cancelled.get()) {
                 throw new TaskCancelledException("cancelled");
-        }};
-        ContextIndexSearcher searcher = new ContextIndexSearcher(reader, IndexSearcher.getDefaultSimilarity(),
-                IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), true);
+            }
+        };
+        ContextIndexSearcher searcher = new ContextIndexSearcher(
+            reader,
+            IndexSearcher.getDefaultSimilarity(),
+            IndexSearcher.getDefaultQueryCache(),
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            true,
+            null
+        );
         searcher.addQueryCancellation(cancellation);
         CompiledAutomaton automaton = new CompiledAutomaton(new RegExp("a.*").toAutomaton());
 
-        expectThrows(TaskCancelledException.class,
-                () -> searcher.getIndexReader().leaves().get(0).reader().terms(STRING_FIELD_NAME).iterator());
-        expectThrows(TaskCancelledException.class,
-                () -> searcher.getIndexReader().leaves().get(0).reader().terms(STRING_FIELD_NAME).intersect(automaton, null));
-        expectThrows(TaskCancelledException.class,
-                () -> searcher.getIndexReader().leaves().get(0).reader().getPointValues(POINT_FIELD_NAME));
-        expectThrows(TaskCancelledException.class,
-                () -> searcher.getIndexReader().leaves().get(0).reader().getPointValues(POINT_FIELD_NAME));
+        expectThrows(
+            TaskCancelledException.class,
+            () -> searcher.getIndexReader().leaves().get(0).reader().terms(STRING_FIELD_NAME).iterator()
+        );
+        expectThrows(
+            TaskCancelledException.class,
+            () -> searcher.getIndexReader().leaves().get(0).reader().terms(STRING_FIELD_NAME).intersect(automaton, null)
+        );
+        expectThrows(
+            TaskCancelledException.class,
+            () -> searcher.getIndexReader().leaves().get(0).reader().getPointValues(POINT_FIELD_NAME)
+        );
+        expectThrows(
+            TaskCancelledException.class,
+            () -> searcher.getIndexReader().leaves().get(0).reader().getPointValues(POINT_FIELD_NAME)
+        );
 
         cancelled.set(false); // Avoid exception during construction of the wrapper objects
         Terms terms = searcher.getIndexReader().leaves().get(0).reader().terms(STRING_FIELD_NAME);
@@ -183,12 +209,10 @@ public class SearchCancellationTests extends OpenSearchTestCase {
 
     private static class PointValuesIntersectVisitor implements PointValues.IntersectVisitor {
         @Override
-        public void visit(int docID) {
-        }
+        public void visit(int docID) {}
 
         @Override
-        public void visit(int docID, byte[] packedValue) {
-        }
+        public void visit(int docID, byte[] packedValue) {}
 
         @Override
         public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {

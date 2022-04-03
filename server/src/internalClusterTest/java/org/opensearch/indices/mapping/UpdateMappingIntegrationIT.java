@@ -41,7 +41,6 @@ import org.opensearch.client.Client;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.common.Priority;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
@@ -86,16 +85,24 @@ public class UpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
     }
 
     public void testDynamicUpdates() throws Exception {
-        client().admin().indices().prepareCreate("test")
-                .setSettings(
-                        Settings.builder()
-                                .put("index.number_of_shards", 1)
-                                .put("index.number_of_replicas", 0)
-                                .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), Long.MAX_VALUE)
-                ).execute().actionGet();
+        client().admin()
+            .indices()
+            .prepareCreate("test")
+            .setSettings(
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), Long.MAX_VALUE)
+            )
+            .execute()
+            .actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-            Settings.builder().put(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(5)))
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(
+                Settings.builder().put(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(5))
+            )
             .get();
 
         int recCount = randomIntBetween(20, 200);
@@ -103,8 +110,12 @@ public class UpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
         for (int rec = 0; rec < recCount; rec++) {
             String type = "type";
             String fieldName = "field_" + type + "_" + rec;
-            indexRequests.add(client().prepareIndex("test", type, Integer.toString(rec))
-                .setTimeout(TimeValue.timeValueMinutes(5)).setSource(fieldName, "some_value"));
+            indexRequests.add(
+                client().prepareIndex("test")
+                    .setId(Integer.toString(rec))
+                    .setTimeout(TimeValue.timeValueMinutes(5))
+                    .setSource(fieldName, "some_value")
+            );
         }
         indexRandom(true, false, indexRequests);
 
@@ -119,67 +130,87 @@ public class UpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
         for (int rec = 0; rec < recCount; rec++) {
             String type = "type";
             String fieldName = "field_" + type + "_" + rec;
-            assertConcreteMappingsOnAll("test", type, fieldName);
+            assertConcreteMappingsOnAll("test", fieldName);
         }
 
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-            Settings.builder().putNull(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey())).get();
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().putNull(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey()))
+            .get();
     }
 
     public void testUpdateMappingWithoutType() {
-        client().admin().indices().prepareCreate("test")
-                .setSettings(
-                        Settings.builder()
-                                .put("index.number_of_shards", 1)
-                                .put("index.number_of_replicas", 0)
-                ).addMapping("_doc", "{\"_doc\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}", XContentType.JSON)
-                .execute().actionGet();
+        client().admin()
+            .indices()
+            .prepareCreate("test")
+            .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+            .setMapping("{\"properties\":{\"body\":{\"type\":\"text\"}}}")
+            .execute()
+            .actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("_doc")
-                .setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}", XContentType.JSON)
-                .execute().actionGet();
+        AcknowledgedResponse putMappingResponse = client().admin()
+            .indices()
+            .preparePutMapping("test")
+            .setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}", XContentType.JSON)
+            .execute()
+            .actionGet();
 
         assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").execute().actionGet();
-        assertThat(getMappingsResponse.mappings().get("test").get("_doc").source().toString(),
-                equalTo("{\"_doc\":{\"properties\":{\"body\":{\"type\":\"text\"},\"date\":{\"type\":\"integer\"}}}}"));
+        assertThat(
+            getMappingsResponse.mappings().get("test").source().toString(),
+            equalTo("{\"_doc\":{\"properties\":{\"body\":{\"type\":\"text\"},\"date\":{\"type\":\"integer\"}}}}")
+        );
     }
 
     public void testUpdateMappingWithoutTypeMultiObjects() {
-        client().admin().indices().prepareCreate("test")
-                .setSettings(
-                        Settings.builder()
-                                .put("index.number_of_shards", 1)
-                                .put("index.number_of_replicas", 0)
-                ).execute().actionGet();
+        client().admin()
+            .indices()
+            .prepareCreate("test")
+            .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+            .execute()
+            .actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("_doc")
-                .setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}", XContentType.JSON)
-                .execute().actionGet();
+        AcknowledgedResponse putMappingResponse = client().admin()
+            .indices()
+            .preparePutMapping("test")
+            .setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}", XContentType.JSON)
+            .execute()
+            .actionGet();
 
         assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").execute().actionGet();
-        assertThat(getMappingsResponse.mappings().get("test").get("_doc").source().toString(),
-                equalTo("{\"_doc\":{\"properties\":{\"date\":{\"type\":\"integer\"}}}}"));
+        assertThat(
+            getMappingsResponse.mappings().get("test").source().toString(),
+            equalTo("{\"_doc\":{\"properties\":{\"date\":{\"type\":\"integer\"}}}}")
+        );
     }
 
     public void testUpdateMappingWithConflicts() {
-        client().admin().indices().prepareCreate("test")
-                .setSettings(
-                        Settings.builder()
-                                .put("index.number_of_shards", 2)
-                                .put("index.number_of_replicas", 0)
-                ).addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}", XContentType.JSON)
-                .execute().actionGet();
+        client().admin()
+            .indices()
+            .prepareCreate("test")
+            .setSettings(Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0))
+            .setMapping("{\"properties\":{\"body\":{\"type\":\"text\"}}}")
+            .execute()
+            .actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         try {
-            client().admin().indices().preparePutMapping("test").setType("type")
-                    .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"integer\"}}}}", XContentType.JSON).execute().actionGet();
+            client().admin()
+                .indices()
+                .preparePutMapping("test")
+                .setSource(
+                    "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"properties\":{\"body\":{\"type\":\"integer\"}}}}",
+                    XContentType.JSON
+                )
+                .execute()
+                .actionGet();
             fail("Expected MergeMappingException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("mapper [body] cannot be changed from type [text] to [integer]"));
@@ -187,13 +218,22 @@ public class UpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
     }
 
     public void testUpdateMappingWithNormsConflicts() {
-        client().admin().indices().prepareCreate("test")
-                .addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": false }}}}", XContentType.JSON)
-                .execute().actionGet();
+        client().admin()
+            .indices()
+            .prepareCreate("test")
+            .setMapping("{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": false }}}")
+            .execute()
+            .actionGet();
         try {
-            client().admin().indices().preparePutMapping("test").setType("type")
-                    .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": true }}}}", XContentType.JSON).execute()
-                    .actionGet();
+            client().admin()
+                .indices()
+                .preparePutMapping("test")
+                .setSource(
+                    "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": true }}}}",
+                    XContentType.JSON
+                )
+                .execute()
+                .actionGet();
             fail("Expected MergeMappingException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("Cannot update parameter [norms] from [false] to [true]"));
@@ -204,20 +244,23 @@ public class UpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
     Second regression test for https://github.com/elastic/elasticsearch/issues/3381
      */
     public void testUpdateMappingNoChanges() {
-        client().admin().indices().prepareCreate("test")
-                .setSettings(
-                        Settings.builder()
-                                .put("index.number_of_shards", 2)
-                                .put("index.number_of_replicas", 0)
-                ).addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}", XContentType.JSON)
-                .execute().actionGet();
+        client().admin()
+            .indices()
+            .prepareCreate("test")
+            .setSettings(Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0))
+            .setMapping("{\"properties\":{\"body\":{\"type\":\"text\"}}}")
+            .execute()
+            .actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("type")
-                .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}", XContentType.JSON)
-                .execute().actionGet();
+        AcknowledgedResponse putMappingResponse = client().admin()
+            .indices()
+            .preparePutMapping("test")
+            .setSource("{\"properties\":{\"body\":{\"type\":\"text\"}}}", XContentType.JSON)
+            .execute()
+            .actionGet();
 
-        //no changes, we return
+        // no changes, we return
         assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
     }
 
@@ -246,21 +289,33 @@ public class UpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
                         Client client1 = clientArray.get(i % clientArray.size());
                         Client client2 = clientArray.get((i + 1) % clientArray.size());
                         String indexName = i % 2 == 0 ? "test2" : "test1";
-                        String typeName = "type";
                         String fieldName = Thread.currentThread().getName() + "_" + i;
 
-                        AcknowledgedResponse response = client1.admin().indices().preparePutMapping(indexName).setType(typeName).setSource(
-                                JsonXContent.contentBuilder().startObject().startObject(typeName)
-                                        .startObject("properties").startObject(fieldName).field("type", "text").endObject().endObject()
-                                        .endObject().endObject()
-                        ).setMasterNodeTimeout(TimeValue.timeValueMinutes(5)).get();
+                        AcknowledgedResponse response = client1.admin()
+                            .indices()
+                            .preparePutMapping(indexName)
+                            .setSource(
+                                JsonXContent.contentBuilder()
+                                    .startObject()
+                                    .startObject(MapperService.SINGLE_MAPPING_NAME)
+                                    .startObject("properties")
+                                    .startObject(fieldName)
+                                    .field("type", "text")
+                                    .endObject()
+                                    .endObject()
+                                    .endObject()
+                                    .endObject()
+                            )
+                            .setMasterNodeTimeout(TimeValue.timeValueMinutes(5))
+                            .get();
 
                         assertThat(response.isAcknowledged(), equalTo(true));
                         GetMappingsResponse getMappingResponse = client2.admin().indices().prepareGetMappings(indexName).get();
-                        ImmutableOpenMap<String, MappingMetadata> mappings = getMappingResponse.getMappings().get(indexName);
-                        assertThat(mappings.containsKey(typeName), equalTo(true));
-                        assertThat(((Map<String, Object>) mappings.get(typeName).getSourceAsMap().get("properties")).keySet(),
-                            Matchers.hasItem(fieldName));
+                        MappingMetadata mappings = getMappingResponse.getMappings().get(indexName);
+                        assertThat(
+                            ((Map<String, Object>) mappings.getSourceAsMap().get("properties")).keySet(),
+                            Matchers.hasItem(fieldName)
+                        );
                     }
                 } catch (Exception e) {
                     threadException.set(e);
@@ -272,7 +327,8 @@ public class UpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
             threads[j].start();
         }
 
-        for (Thread t : threads) t.join();
+        for (Thread t : threads)
+            t.join();
 
         if (threadException.get() != null) {
             throw threadException.get();
@@ -287,8 +343,12 @@ public class UpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
         for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE)) {
             try {
                 enableIndexBlock("test", block);
-                assertAcked(client().admin().indices().preparePutMapping("test").setType("_doc")
-                    .setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}", XContentType.JSON));
+                assertAcked(
+                    client().admin()
+                        .indices()
+                        .preparePutMapping("test")
+                        .setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}", XContentType.JSON)
+                );
             } finally {
                 disableIndexBlock("test", block);
             }
@@ -297,8 +357,12 @@ public class UpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
         for (String block : Arrays.asList(SETTING_READ_ONLY, SETTING_BLOCKS_METADATA)) {
             try {
                 enableIndexBlock("test", block);
-                assertBlocked(client().admin().indices().preparePutMapping("test").setType("_doc")
-                    .setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}", XContentType.JSON));
+                assertBlocked(
+                    client().admin()
+                        .indices()
+                        .preparePutMapping("test")
+                        .setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}", XContentType.JSON)
+                );
             } finally {
                 disableIndexBlock("test", block);
             }
@@ -309,7 +373,7 @@ public class UpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
      * Waits until mappings for the provided fields exist on all nodes. Note, this waits for the current
      * started shards and checks for concrete mappings.
      */
-    private void assertConcreteMappingsOnAll(final String index, final String type, final String... fieldNames) {
+    private void assertConcreteMappingsOnAll(final String index, final String... fieldNames) {
         Set<String> nodes = internalCluster().nodesInclude(index);
         assertThat(nodes, Matchers.not(Matchers.emptyIterable()));
         for (String node : nodes) {
@@ -322,20 +386,18 @@ public class UpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
                 assertNotNull("field " + fieldName + " doesn't exists on " + node, fieldType);
             }
         }
-        assertMappingOnMaster(index, type, fieldNames);
+        assertMappingOnMaster(index, fieldNames);
     }
 
     /**
      * Waits for the given mapping type to exists on the master node.
      */
-    private void assertMappingOnMaster(final String index, final String type, final String... fieldNames) {
-        GetMappingsResponse response = client().admin().indices().prepareGetMappings(index).setTypes(type).get();
-        ImmutableOpenMap<String, MappingMetadata> mappings = response.getMappings().get(index);
+    private void assertMappingOnMaster(final String index, final String... fieldNames) {
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings(index).get();
+        MappingMetadata mappings = response.getMappings().get(index);
         assertThat(mappings, notNullValue());
-        MappingMetadata mappingMetadata = mappings.get(type);
-        assertThat(mappingMetadata, notNullValue());
+        Map<String, Object> mappingSource = mappings.getSourceAsMap();
 
-        Map<String, Object> mappingSource = mappingMetadata.getSourceAsMap();
         assertFalse(mappingSource.isEmpty());
         assertTrue(mappingSource.containsKey("properties"));
 
@@ -344,8 +406,11 @@ public class UpdateMappingIntegrationIT extends OpenSearchIntegTestCase {
             if (fieldName.indexOf('.') != -1) {
                 fieldName = fieldName.replace(".", ".properties.");
             }
-            assertThat("field " + fieldName + " doesn't exists in mapping " + mappingMetadata.source().string(),
-                XContentMapValues.extractValue(fieldName, mappingProperties), notNullValue());
+            assertThat(
+                "field " + fieldName + " doesn't exists in mapping " + mappings.source().string(),
+                XContentMapValues.extractValue(fieldName, mappingProperties),
+                notNullValue()
+            );
         }
     }
 }

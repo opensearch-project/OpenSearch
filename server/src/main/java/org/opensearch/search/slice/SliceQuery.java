@@ -33,6 +33,7 @@
 package org.opensearch.search.slice;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 
 import java.util.Objects;
 
@@ -91,4 +92,10 @@ public abstract class SliceQuery extends Query {
         return getClass().getSimpleName() + "[field=" + field + ", id=" + id + ", max=" + max + "]";
     }
 
+    @Override
+    public void visit(QueryVisitor visitor) {
+        if (visitor.acceptField(field)) {
+            visitor.visitLeaf(this);
+        }
+    }
 }

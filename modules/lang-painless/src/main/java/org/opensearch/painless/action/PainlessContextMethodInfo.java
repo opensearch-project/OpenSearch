@@ -59,14 +59,8 @@ public class PainlessContextMethodInfo implements Writeable, ToXContentObject {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<PainlessContextMethodInfo, Void> PARSER = new ConstructingObjectParser<>(
-            PainlessContextMethodInfo.class.getCanonicalName(),
-            (v) ->
-                    new PainlessContextMethodInfo(
-                            (String)v[0],
-                            (String)v[1],
-                            (String)v[2],
-                            (List<String>)v[3]
-                    )
+        PainlessContextMethodInfo.class.getCanonicalName(),
+        (v) -> new PainlessContextMethodInfo((String) v[0], (String) v[1], (String) v[2], (List<String>) v[3])
     );
 
     static {
@@ -83,10 +77,10 @@ public class PainlessContextMethodInfo implements Writeable, ToXContentObject {
 
     public PainlessContextMethodInfo(PainlessMethod painlessMethod) {
         this(
-                painlessMethod.javaMethod.getDeclaringClass().getName(),
-                painlessMethod.javaMethod.getName(),
-                painlessMethod.returnType.getName(),
-                painlessMethod.typeParameters.stream().map(Class::getName).collect(Collectors.toList())
+            painlessMethod.javaMethod.getDeclaringClass().getName(),
+            painlessMethod.javaMethod.getName(),
+            painlessMethod.returnType.getName(),
+            painlessMethod.typeParameters.stream().map(Class::getName).collect(Collectors.toList())
         );
     }
 
@@ -137,10 +131,10 @@ public class PainlessContextMethodInfo implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PainlessContextMethodInfo that = (PainlessContextMethodInfo) o;
-        return Objects.equals(declaring, that.declaring) &&
-                Objects.equals(name, that.name) &&
-                Objects.equals(rtn, that.rtn) &&
-                Objects.equals(parameters, that.parameters);
+        return Objects.equals(declaring, that.declaring)
+            && Objects.equals(name, that.name)
+            && Objects.equals(rtn, that.rtn)
+            && Objects.equals(parameters, that.parameters);
     }
 
     @Override
@@ -150,12 +144,19 @@ public class PainlessContextMethodInfo implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return "PainlessContextMethodInfo{" +
-                "declaring='" + declaring + '\'' +
-                ", name='" + name + '\'' +
-                ", rtn='" + rtn + '\'' +
-                ", parameters=" + parameters +
-                '}';
+        return "PainlessContextMethodInfo{"
+            + "declaring='"
+            + declaring
+            + '\''
+            + ", name='"
+            + name
+            + '\''
+            + ", rtn='"
+            + rtn
+            + '\''
+            + ", parameters="
+            + parameters
+            + '}';
     }
 
     public String getDeclaring() {

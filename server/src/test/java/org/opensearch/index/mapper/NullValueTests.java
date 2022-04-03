@@ -36,7 +36,6 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.index.mapper.MapperServiceTestCase;
 
 import java.util.Collections;
 
@@ -46,7 +45,7 @@ public class NullValueTests extends MapperServiceTestCase {
 
     public void testNullNullValue() throws Exception {
 
-        String[] typesToTest = {"integer", "long", "double", "float", "short", "date", "ip", "keyword", "boolean", "byte", "geo_point"};
+        String[] typesToTest = { "integer", "long", "double", "float", "short", "date", "ip", "keyword", "boolean", "byte", "geo_point" };
 
         for (String type : typesToTest) {
             DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", type).nullField("null_value")));

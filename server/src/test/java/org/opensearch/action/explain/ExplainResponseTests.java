@@ -71,20 +71,23 @@ public class ExplainResponseTests extends AbstractSerializingTestCase<ExplainRes
     @Override
     protected ExplainResponse createTestInstance() {
         String index = randomAlphaOfLength(5);
-        String type = randomAlphaOfLength(5);
-        String id = String.valueOf(randomIntBetween(1,100));
+        String id = String.valueOf(randomIntBetween(1, 100));
         boolean exist = randomBoolean();
         Explanation explanation = randomExplanation(randomExplanation(randomExplanation()), randomExplanation());
         String fieldName = randomAlphaOfLength(10);
         List<Object> values = Arrays.asList(randomAlphaOfLengthBetween(3, 10), randomInt(), randomLong(), randomDouble(), randomBoolean());
-        GetResult getResult = new GetResult(randomAlphaOfLengthBetween(3, 10),
+        GetResult getResult = new GetResult(
             randomAlphaOfLengthBetween(3, 10),
             randomAlphaOfLengthBetween(3, 10),
-            0, 1, randomNonNegativeLong(),
+            0,
+            1,
+            randomNonNegativeLong(),
             true,
             RandomObjects.randomSource(random()),
-            singletonMap(fieldName, new DocumentField(fieldName, values)), null);
-        return new ExplainResponse(index, type, id, exist, explanation, getResult);
+            singletonMap(fieldName, new DocumentField(fieldName, values)),
+            null
+        );
+        return new ExplainResponse(index, id, exist, explanation, getResult);
     }
 
     @Override
@@ -98,47 +101,56 @@ public class ExplainResponseTests extends AbstractSerializingTestCase<ExplainRes
         String id = "1";
         boolean exist = true;
         Explanation explanation = Explanation.match(1.0f, "description", Collections.emptySet());
-        GetResult getResult = new GetResult(null, null, null, 0, 1, -1, true, new BytesArray("{ \"field1\" : " +
-            "\"value1\", \"field2\":\"value2\"}"), singletonMap("field1", new DocumentField("field1",
-            singletonList("value1"))), null);
-        ExplainResponse response = new ExplainResponse(index, type, id, exist, explanation, getResult);
+        GetResult getResult = new GetResult(
+            null,
+            null,
+            0,
+            1,
+            -1,
+            true,
+            new BytesArray("{ \"field1\" : " + "\"value1\", \"field2\":\"value2\"}"),
+            singletonMap("field1", new DocumentField("field1", singletonList("value1"))),
+            null
+        );
+        ExplainResponse response = new ExplainResponse(index, id, exist, explanation, getResult);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
         String generatedResponse = BytesReference.bytes(builder).utf8ToString().replaceAll("\\s+", "");
 
-        String expectedResponse =
-            ("{\n" +
-            "    \"_index\":\"index\",\n" +
-            "    \"_type\":\"type\",\n" +
-            "    \"_id\":\"1\",\n" +
-            "    \"matched\":true,\n" +
-            "    \"explanation\":{\n" +
-            "        \"value\":1.0,\n" +
-            "        \"description\":\"description\",\n" +
-            "        \"details\":[]\n" +
-            "    },\n" +
-            "    \"get\":{\n" +
-            "        \"_seq_no\":0," +
-            "        \"_primary_term\":1," +
-            "        \"found\":true,\n" +
-            "        \"_source\":{\n" +
-            "            \"field1\":\"value1\",\n" +
-            "            \"field2\":\"value2\"\n" +
-            "        },\n" +
-            "        \"fields\":{\n" +
-            "            \"field1\":[\n" +
-            "                \"value1\"\n" +
-            "            ]\n" +
-            "        }\n" +
-            "    }\n" +
-            "}").replaceAll("\\s+", "");
+        String expectedResponse = ("{\n"
+            + "    \"_index\":\"index\",\n"
+            + "    \"_id\":\"1\",\n"
+            + "    \"matched\":true,\n"
+            + "    \"explanation\":{\n"
+            + "        \"value\":1.0,\n"
+            + "        \"description\":\"description\",\n"
+            + "        \"details\":[]\n"
+            + "    },\n"
+            + "    \"get\":{\n"
+            + "        \"_seq_no\":0,"
+            + "        \"_primary_term\":1,"
+            + "        \"found\":true,\n"
+            + "        \"_source\":{\n"
+            + "            \"field1\":\"value1\",\n"
+            + "            \"field2\":\"value2\"\n"
+            + "        },\n"
+            + "        \"fields\":{\n"
+            + "            \"field1\":[\n"
+            + "                \"value1\"\n"
+            + "            ]\n"
+            + "        }\n"
+            + "    }\n"
+            + "}").replaceAll("\\s+", "");
         assertThat(expectedResponse, equalTo(generatedResponse));
     }
 
     private static Explanation randomExplanation(Explanation... explanations) {
-        return Explanation.match(randomFloat(), randomAlphaOfLengthBetween(1, 10),
-            explanations.length > 0 ? explanations : new Explanation[0]);
+        return Explanation.match(
+            randomFloat(),
+            randomAlphaOfLengthBetween(1, 10),
+            explanations.length > 0 ? explanations : new Explanation[0]
+        );
     }
 }

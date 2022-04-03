@@ -112,27 +112,34 @@ public abstract class AbstractFieldDataTestCase extends OpenSearchSingleNodeTest
             if (docValues) {
                 fieldType = new KeywordFieldMapper.Builder(fieldName).build(context).fieldType();
             } else {
-                fieldType = new TextFieldMapper.Builder(fieldName, createDefaultIndexAnalyzers())
-                    .fielddata(true).build(context).fieldType();
+                fieldType = new TextFieldMapper.Builder(fieldName, createDefaultIndexAnalyzers()).fielddata(true)
+                    .build(context)
+                    .fieldType();
             }
         } else if (type.equals("float")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.FLOAT, false, true)
-                    .docValues(docValues).build(context).fieldType();
+            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.FLOAT, false, true).docValues(docValues)
+                .build(context)
+                .fieldType();
         } else if (type.equals("double")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.DOUBLE, false, true)
-                    .docValues(docValues).build(context).fieldType();
+            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.DOUBLE, false, true).docValues(docValues)
+                .build(context)
+                .fieldType();
         } else if (type.equals("long")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.LONG, false, true)
-                    .docValues(docValues).build(context).fieldType();
+            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.LONG, false, true).docValues(docValues)
+                .build(context)
+                .fieldType();
         } else if (type.equals("int")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.INTEGER, false, true)
-                    .docValues(docValues).build(context).fieldType();
+            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.INTEGER, false, true).docValues(docValues)
+                .build(context)
+                .fieldType();
         } else if (type.equals("short")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.SHORT, false, true)
-                    .docValues(docValues).build(context).fieldType();
+            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.SHORT, false, true).docValues(docValues)
+                .build(context)
+                .fieldType();
         } else if (type.equals("byte")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.BYTE, false, true)
-                    .docValues(docValues).build(context).fieldType();
+            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.BYTE, false, true).docValues(docValues)
+                .build(context)
+                .fieldType();
         } else if (type.equals("geo_point")) {
             fieldType = new GeoPointFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
         } else if (type.equals("binary")) {
@@ -150,7 +157,8 @@ public abstract class AbstractFieldDataTestCase extends OpenSearchSingleNodeTest
         indicesFieldDataCache = getInstanceFromNode(IndicesService.class).getIndicesFieldDataCache();
         // LogByteSizeMP to preserve doc ID order
         writer = new IndexWriter(
-            new ByteBuffersDirectory(), new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
+            new ByteBuffersDirectory(),
+            new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
         );
         shardContext = indexService.newQueryShardContext(0, null, () -> 0, null);
     }

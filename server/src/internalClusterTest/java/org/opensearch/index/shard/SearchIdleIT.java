@@ -62,32 +62,30 @@ public class SearchIdleIT extends OpenSearchSingleNodeTestCase {
     }
 
     public void testAutomaticRefreshGet() throws InterruptedException {
-        runTestAutomaticRefresh(
-            numDocs -> {
-                int count = 0;
-                for (int i = 0; i < numDocs; i++) {
-                    final GetRequest request = new GetRequest();
-                    request.realtime(false);
-                    request.index("test");
-                    request.id("" + i);
-                    if (client().get(request).actionGet().isExists()) {
-                        count++;
-                    }
+        runTestAutomaticRefresh(numDocs -> {
+            int count = 0;
+            for (int i = 0; i < numDocs; i++) {
+                final GetRequest request = new GetRequest();
+                request.realtime(false);
+                request.index("test");
+                request.id("" + i);
+                if (client().get(request).actionGet().isExists()) {
+                    count++;
                 }
-                return count;
-            });
+            }
+            return count;
+        });
     }
 
     public void testAutomaticRefreshMultiGet() throws InterruptedException {
-        runTestAutomaticRefresh(
-            numDocs -> {
-                final MultiGetRequest request = new MultiGetRequest();
-                request.realtime(false);
-                for (int i = 0; i < numDocs; i++) {
-                    request.add("test", "" + i);
-                }
-                return Arrays.stream(client().multiGet(request).actionGet().getResponses()).filter(r -> r.getResponse().isExists()).count();
-            });
+        runTestAutomaticRefresh(numDocs -> {
+            final MultiGetRequest request = new MultiGetRequest();
+            request.realtime(false);
+            for (int i = 0; i < numDocs; i++) {
+                request.add("test", "" + i);
+            }
+            return Arrays.stream(client().multiGet(request).actionGet().getResponses()).filter(r -> r.getResponse().isExists()).count();
+        });
     }
 
     private void runTestAutomaticRefresh(final IntToLongFunction count) throws InterruptedException {
@@ -104,7 +102,7 @@ public class SearchIdleIT extends OpenSearchSingleNodeTestCase {
         int numDocs = scaledRandomIntBetween(25, 100);
         totalNumDocs.set(numDocs);
         CountDownLatch indexingDone = new CountDownLatch(numDocs);
-        client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         indexingDone.countDown(); // one doc is indexed above blocking
         IndexShard shard = indexService.getShard(0);
         boolean hasRefreshed = shard.scheduledRefresh();
@@ -135,7 +133,9 @@ public class SearchIdleIT extends OpenSearchSingleNodeTestCase {
         started.await();
         assertThat(count.applyAsLong(totalNumDocs.get()), equalTo(1L));
         for (int i = 1; i < numDocs; i++) {
-            client().prepareIndex("test", "test", "" + i).setSource("{\"foo\" : \"bar\"}", XContentType.JSON)
+            client().prepareIndex("test")
+                .setId("" + i)
+                .setSource("{\"foo\" : \"bar\"}", XContentType.JSON)
                 .execute(new ActionListener<IndexResponse>() {
                     @Override
                     public void onResponse(IndexResponse indexResponse) {
@@ -153,28 +153,28 @@ public class SearchIdleIT extends OpenSearchSingleNodeTestCase {
         t.join();
     }
 
-
     public void testPendingRefreshWithIntervalChange() throws Exception {
         Settings.Builder builder = Settings.builder();
         builder.put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO);
         IndexService indexService = createIndex("test", builder.build());
         assertFalse(indexService.getIndexSettings().isExplicitRefresh());
         ensureGreen();
-        client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         IndexShard shard = indexService.getShard(0);
         assertFalse(shard.scheduledRefresh());
         assertTrue(shard.isSearchIdle());
         CountDownLatch refreshLatch = new CountDownLatch(1);
-        client().admin().indices().prepareRefresh()
-            .execute(ActionListener.wrap(refreshLatch::countDown));// async on purpose to make sure it happens concurrently
+        client().admin().indices().prepareRefresh().execute(ActionListener.wrap(refreshLatch::countDown));// async on purpose to make sure
+                                                                                                          // it happens concurrently
         assertHitCount(client().prepareSearch().get(), 1);
-        client().prepareIndex("test", "test", "1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         assertFalse(shard.scheduledRefresh());
         assertTrue(shard.hasRefreshPending());
 
         // now disable background refresh and make sure the refresh happens
         CountDownLatch updateSettingsLatch = new CountDownLatch(1);
-        client().admin().indices()
+        client().admin()
+            .indices()
             .prepareUpdateSettings("test")
             .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build())
             .execute(ActionListener.wrap(updateSettingsLatch::countDown));
@@ -186,7 +186,7 @@ public class SearchIdleIT extends OpenSearchSingleNodeTestCase {
         // We need to ensure a `scheduledRefresh` triggered by the internal refresh setting update is executed before we index a new doc;
         // otherwise, it will compete to call `Engine#maybeRefresh` with the `scheduledRefresh` that we are going to verify.
         ensureNoPendingScheduledRefresh(indexService.getThreadPool());
-        client().prepareIndex("test", "test", "2").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("2").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         assertTrue(shard.scheduledRefresh());
         assertFalse(shard.hasRefreshPending());
         assertTrue(shard.isSearchIdle());

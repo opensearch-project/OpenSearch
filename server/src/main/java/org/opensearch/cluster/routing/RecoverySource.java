@@ -34,7 +34,6 @@ package org.opensearch.cluster.routing;
 
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
-import org.opensearch.cluster.RestoreInProgress;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -77,12 +76,18 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
     public static RecoverySource readFrom(StreamInput in) throws IOException {
         Type type = Type.values()[in.readByte()];
         switch (type) {
-            case EMPTY_STORE: return EmptyStoreRecoverySource.INSTANCE;
-            case EXISTING_STORE: return ExistingStoreRecoverySource.read(in);
-            case PEER: return PeerRecoverySource.INSTANCE;
-            case SNAPSHOT: return new SnapshotRecoverySource(in);
-            case LOCAL_SHARDS: return LocalShardsRecoverySource.INSTANCE;
-            default: throw new IllegalArgumentException("unknown recovery type: " + type.name());
+            case EMPTY_STORE:
+                return EmptyStoreRecoverySource.INSTANCE;
+            case EXISTING_STORE:
+                return ExistingStoreRecoverySource.read(in);
+            case PEER:
+                return PeerRecoverySource.INSTANCE;
+            case SNAPSHOT:
+                return new SnapshotRecoverySource(in);
+            case LOCAL_SHARDS:
+                return LocalShardsRecoverySource.INSTANCE;
+            default:
+                throw new IllegalArgumentException("unknown recovery type: " + type.name());
         }
     }
 
@@ -209,8 +214,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
         public static final LocalShardsRecoverySource INSTANCE = new LocalShardsRecoverySource();
 
-        private LocalShardsRecoverySource() {
-        }
+        private LocalShardsRecoverySource() {}
 
         @Override
         public Type getType() {
@@ -244,11 +248,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         }
 
         SnapshotRecoverySource(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_6_6_0)) {
-                restoreUUID = in.readString();
-            } else {
-                restoreUUID = RestoreInProgress.BWC_UUID;
-            }
+            restoreUUID = in.readString();
             snapshot = new Snapshot(in);
             version = Version.readVersion(in);
             if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
@@ -282,9 +282,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
         @Override
         protected void writeAdditionalFields(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_6_6_0)) {
-                out.writeString(restoreUUID);
-            }
+            out.writeString(restoreUUID);
             snapshot.writeTo(out);
             Version.writeVersion(version, out);
             if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
@@ -323,8 +321,10 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             }
 
             SnapshotRecoverySource that = (SnapshotRecoverySource) o;
-            return restoreUUID.equals(that.restoreUUID) && snapshot.equals(that.snapshot)
-                && index.equals(that.index) && version.equals(that.version);
+            return restoreUUID.equals(that.restoreUUID)
+                && snapshot.equals(that.snapshot)
+                && index.equals(that.index)
+                && version.equals(that.version);
         }
 
         @Override
@@ -341,8 +341,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
         public static final PeerRecoverySource INSTANCE = new PeerRecoverySource();
 
-        private PeerRecoverySource() {
-        }
+        private PeerRecoverySource() {}
 
         @Override
         public Type getType() {

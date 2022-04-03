@@ -46,11 +46,19 @@ public class IncompatibleClusterStateVersionException extends OpenSearchExceptio
     }
 
     public IncompatibleClusterStateVersionException(long expectedVersion, String expectedUuid, long receivedVersion, String receivedUuid) {
-        super("Expected diff for version " + expectedVersion + " with uuid " + expectedUuid + " got version " +
-            receivedVersion + " and uuid " + receivedUuid);
+        super(
+            "Expected diff for version "
+                + expectedVersion
+                + " with uuid "
+                + expectedUuid
+                + " got version "
+                + receivedVersion
+                + " and uuid "
+                + receivedUuid
+        );
     }
 
-    public IncompatibleClusterStateVersionException(StreamInput in) throws IOException{
+    public IncompatibleClusterStateVersionException(StreamInput in) throws IOException {
         super(in);
     }
 }

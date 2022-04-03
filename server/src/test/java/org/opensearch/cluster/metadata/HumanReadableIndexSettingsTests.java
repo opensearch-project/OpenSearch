@@ -35,7 +35,6 @@ package org.opensearch.cluster.metadata;
 import org.opensearch.Version;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.cluster.metadata.IndexMetadata;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -49,10 +48,10 @@ public class HumanReadableIndexSettingsTests extends OpenSearchTestCase {
         Version versionUpgraded = randomVersion(random());
         long created = System.currentTimeMillis();
         Settings testSettings = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, versionCreated)
-                .put(IndexMetadata.SETTING_VERSION_UPGRADED, versionUpgraded)
-                .put(IndexMetadata.SETTING_CREATION_DATE, created)
-                .build();
+            .put(IndexMetadata.SETTING_VERSION_CREATED, versionCreated)
+            .put(IndexMetadata.SETTING_VERSION_UPGRADED, versionUpgraded)
+            .put(IndexMetadata.SETTING_CREATION_DATE, created)
+            .build();
 
         Settings humanSettings = IndexMetadata.addHumanReadableSettings(testSettings);
 

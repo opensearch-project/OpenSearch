@@ -166,12 +166,12 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
         return queryBuilder;
     }
 
-
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         if (context.allowExpensiveQueries() == false) {
-            throw new OpenSearchException("[joining] queries cannot be executed when '" +
-                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+            throw new OpenSearchException(
+                "[joining] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
+            );
         }
 
         ParentJoinFieldMapper joinFieldMapper = ParentJoinFieldMapper.getMapper(context.getMapperService());
@@ -180,7 +180,7 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
                 return new MatchNoDocsQuery();
             } else {
                 final String indexName = context.getIndexSettings().getIndex().getName();
-                throw new QueryShardException(context, "[" + NAME + "] no join field found for index [" + indexName  + "]");
+                throw new QueryShardException(context, "[" + NAME + "] no join field found for index [" + indexName + "]");
             }
         }
         final ParentIdFieldMapper childMapper = joinFieldMapper.getParentIdFieldMapper(type, false);
@@ -191,8 +191,7 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
                 throw new QueryShardException(context, "[" + NAME + "] no relation found for child [" + type + "]");
             }
         }
-        return new BooleanQuery.Builder()
-            .add(childMapper.fieldType().termQuery(id, context), BooleanClause.Occur.MUST)
+        return new BooleanQuery.Builder().add(childMapper.fieldType().termQuery(id, context), BooleanClause.Occur.MUST)
             // Need to take child type into account, otherwise a child doc of different type with the same id could match
             .add(joinFieldMapper.fieldType().termQuery(type, context), BooleanClause.Occur.FILTER)
             .build();
@@ -200,9 +199,7 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
 
     @Override
     protected boolean doEquals(ParentIdQueryBuilder that) {
-        return Objects.equals(type, that.type)
-                && Objects.equals(id, that.id)
-                && Objects.equals(ignoreUnmapped, that.ignoreUnmapped);
+        return Objects.equals(type, that.type) && Objects.equals(id, that.id) && Objects.equals(ignoreUnmapped, that.ignoreUnmapped);
     }
 
     @Override

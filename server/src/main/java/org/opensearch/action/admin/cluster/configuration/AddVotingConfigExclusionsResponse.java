@@ -45,8 +45,7 @@ import java.io.IOException;
  */
 public class AddVotingConfigExclusionsResponse extends ActionResponse implements ToXContentObject {
 
-    public AddVotingConfigExclusionsResponse() {
-    }
+    public AddVotingConfigExclusionsResponse() {}
 
     public AddVotingConfigExclusionsResponse(StreamInput in) throws IOException {
         super(in);

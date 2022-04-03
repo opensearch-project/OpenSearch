@@ -70,8 +70,7 @@ public class TransportRequestOptions {
         private TimeValue timeout;
         private Type type = Type.REG;
 
-        private Builder() {
-        }
+        private Builder() {}
 
         public Builder withTimeout(long timeout) {
             return withTimeout(TimeValue.timeValueMillis(timeout));

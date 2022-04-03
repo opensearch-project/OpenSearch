@@ -31,7 +31,6 @@
 
 package org.opensearch.persistent;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionType;
@@ -83,11 +82,7 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
             super(in);
             taskId = in.readString();
             taskName = in.readString();
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
-                params = in.readNamedWriteable(PersistentTaskParams.class);
-            } else {
-                params = in.readOptionalNamedWriteable(PersistentTaskParams.class);
-            }
+            params = in.readNamedWriteable(PersistentTaskParams.class);
         }
 
         public Request(String taskId, String taskName, PersistentTaskParams params) {
@@ -101,11 +96,7 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
             super.writeTo(out);
             out.writeString(taskId);
             out.writeString(taskName);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
-                out.writeNamedWriteable(params);
-            } else {
-                out.writeOptionalNamedWriteable(params);
-            }
+            out.writeNamedWriteable(params);
         }
 
         @Override
@@ -119,8 +110,10 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
             }
             if (params != null) {
                 if (params.getWriteableName().equals(taskName) == false) {
-                    validationException = addValidationError("params have to have the same writeable name as task. params: " +
-                            params.getWriteableName() + " task: " + taskName, validationException);
+                    validationException = addValidationError(
+                        "params have to have the same writeable name as task. params: " + params.getWriteableName() + " task: " + taskName,
+                        validationException
+                    );
                 }
             }
             return validationException;
@@ -131,8 +124,9 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request1 = (Request) o;
-            return Objects.equals(taskId, request1.taskId) && Objects.equals(taskName, request1.taskName) &&
-                    Objects.equals(params, request1.params);
+            return Objects.equals(taskId, request1.taskId)
+                && Objects.equals(taskName, request1.taskName)
+                && Objects.equals(params, request1.params);
         }
 
         @Override
@@ -167,8 +161,10 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
 
     }
 
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<StartPersistentTaskAction.Request,
-            PersistentTaskResponse, StartPersistentTaskAction.RequestBuilder> {
+    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<
+        StartPersistentTaskAction.Request,
+        PersistentTaskResponse,
+        StartPersistentTaskAction.RequestBuilder> {
 
         protected RequestBuilder(OpenSearchClient client, StartPersistentTaskAction action) {
             super(client, action, new Request());
@@ -196,18 +192,35 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
         private final PersistentTasksClusterService persistentTasksClusterService;
 
         @Inject
-        public TransportAction(TransportService transportService, ClusterService clusterService,
-                               ThreadPool threadPool, ActionFilters actionFilters,
-                               PersistentTasksClusterService persistentTasksClusterService,
-                               PersistentTasksExecutorRegistry persistentTasksExecutorRegistry,
-                               PersistentTasksService persistentTasksService,
-                               IndexNameExpressionResolver indexNameExpressionResolver) {
-            super(StartPersistentTaskAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                Request::new, indexNameExpressionResolver);
+        public TransportAction(
+            TransportService transportService,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ActionFilters actionFilters,
+            PersistentTasksClusterService persistentTasksClusterService,
+            PersistentTasksExecutorRegistry persistentTasksExecutorRegistry,
+            PersistentTasksService persistentTasksService,
+            IndexNameExpressionResolver indexNameExpressionResolver
+        ) {
+            super(
+                StartPersistentTaskAction.NAME,
+                transportService,
+                clusterService,
+                threadPool,
+                actionFilters,
+                Request::new,
+                indexNameExpressionResolver
+            );
             this.persistentTasksClusterService = persistentTasksClusterService;
             NodePersistentTasksExecutor executor = new NodePersistentTasksExecutor(threadPool);
-            clusterService.addListener(new PersistentTasksNodeService(persistentTasksService, persistentTasksExecutorRegistry,
-                    transportService.getTaskManager(), executor));
+            clusterService.addListener(
+                new PersistentTasksNodeService(
+                    persistentTasksService,
+                    persistentTasksExecutorRegistry,
+                    transportService.getTaskManager(),
+                    executor
+                )
+            );
         }
 
         @Override
@@ -227,13 +240,20 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
         }
 
         @Override
-        protected final void masterOperation(final Request request, ClusterState state,
-                                             final ActionListener<PersistentTaskResponse> listener) {
-            persistentTasksClusterService.createPersistentTask(request.taskId, request.taskName, request.params,
-                ActionListener.delegateFailure(listener,
-                    (delegatedListener, task) -> delegatedListener.onResponse(new PersistentTaskResponse(task))));
+        protected final void masterOperation(
+            final Request request,
+            ClusterState state,
+            final ActionListener<PersistentTaskResponse> listener
+        ) {
+            persistentTasksClusterService.createPersistentTask(
+                request.taskId,
+                request.taskName,
+                request.params,
+                ActionListener.delegateFailure(
+                    listener,
+                    (delegatedListener, task) -> delegatedListener.onResponse(new PersistentTaskResponse(task))
+                )
+            );
         }
     }
 }
-
-

@@ -38,8 +38,7 @@ import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.util.ArrayUtils;
 
 /** A helper class to build {@link GetFieldMappingsRequest} objects */
-public class GetFieldMappingsRequestBuilder
-        extends ActionRequestBuilder<GetFieldMappingsRequest, GetFieldMappingsResponse> {
+public class GetFieldMappingsRequestBuilder extends ActionRequestBuilder<GetFieldMappingsRequest, GetFieldMappingsResponse> {
 
     public GetFieldMappingsRequestBuilder(OpenSearchClient client, GetFieldMappingsAction action, String... indices) {
         super(client, action, new GetFieldMappingsRequest().indices(indices));
@@ -55,21 +54,10 @@ public class GetFieldMappingsRequestBuilder
         return this;
     }
 
-    public GetFieldMappingsRequestBuilder setTypes(String... types) {
-        request.types(types);
-        return this;
-    }
-
-    public GetFieldMappingsRequestBuilder addTypes(String... types) {
-        request.types(ArrayUtils.concat(request.types(), types));
-        return this;
-    }
-
     public GetFieldMappingsRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
         request.indicesOptions(indicesOptions);
         return this;
     }
-
 
     /** Sets the fields to retrieve. */
     public GetFieldMappingsRequestBuilder setFields(String... fields) {

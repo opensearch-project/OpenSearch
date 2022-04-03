@@ -76,27 +76,40 @@ public class NoOpNodeClient extends NodeClient {
     }
 
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse>
-    void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+    public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+        ActionType<Response> action,
+        Request request,
+        ActionListener<Response> listener
+    ) {
         listener.onResponse(null);
     }
 
     @Override
-    public void initialize(Map<ActionType, TransportAction> actions, Supplier<String> localNodeId,
-                           RemoteClusterService remoteClusterService, NamedWriteableRegistry namedWriteableRegistry) {
+    public void initialize(
+        Map<ActionType, TransportAction> actions,
+        Supplier<String> localNodeId,
+        RemoteClusterService remoteClusterService,
+        NamedWriteableRegistry namedWriteableRegistry
+    ) {
         throw new UnsupportedOperationException("cannot initialize " + this.getClass().getSimpleName());
     }
 
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse>
-    Task executeLocally(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+    public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
+        ActionType<Response> action,
+        Request request,
+        ActionListener<Response> listener
+    ) {
         listener.onResponse(null);
         return null;
     }
 
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse>
-    Task executeLocally(ActionType<Response> action, Request request, TaskListener<Response> listener) {
+    public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
+        ActionType<Response> action,
+        Request request,
+        TaskListener<Response> listener
+    ) {
         listener.onResponse(null, null);
         return null;
     }

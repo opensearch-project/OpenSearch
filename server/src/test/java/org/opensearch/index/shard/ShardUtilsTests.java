@@ -31,14 +31,13 @@
 
 package org.opensearch.index.shard;
 
-
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.CompositeReaderContext;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.store.BaseDirectoryWrapper;
+import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.test.OpenSearchTestCase;

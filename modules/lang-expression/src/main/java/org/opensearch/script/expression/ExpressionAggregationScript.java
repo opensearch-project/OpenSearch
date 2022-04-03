@@ -106,7 +106,7 @@ class ExpressionAggregationScript implements AggregationScript.LeafFactory {
                 // _value isn't used in script if specialValue == null
                 if (specialValue != null) {
                     if (value instanceof Number) {
-                        specialValue.setValue(((Number)value).doubleValue());
+                        specialValue.setValue(((Number) value).doubleValue());
                     } else {
                         throw new GeneralScriptException("Cannot use expression with text variable using " + exprScript);
                     }

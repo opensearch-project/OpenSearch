@@ -40,7 +40,7 @@ import java.util.Map;
  * Program-wide globals (initializers, synthetic methods, etc)
  */
 public class Globals {
-    private final Map<String,Constant> constantInitializers = new HashMap<>();
+    private final Map<String, Constant> constantInitializers = new HashMap<>();
     private final BitSet statements;
 
     /** Create a new Globals from the set of statement boundaries */
@@ -56,7 +56,7 @@ public class Globals {
     }
 
     /** Returns the current initializers */
-    public Map<String,Constant> getConstantInitializers() {
+    public Map<String, Constant> getConstantInitializers() {
         return constantInitializers;
     }
 

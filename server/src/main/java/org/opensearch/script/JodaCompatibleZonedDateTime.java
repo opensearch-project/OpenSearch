@@ -71,7 +71,11 @@ import java.util.Objects;
  * A wrapper around ZonedDateTime that exposes joda methods for backcompat.
  */
 public class JodaCompatibleZonedDateTime
-        implements Comparable<ChronoZonedDateTime<?>>, ChronoZonedDateTime<LocalDate>, Temporal, TemporalAccessor {
+    implements
+        Comparable<ChronoZonedDateTime<?>>,
+        ChronoZonedDateTime<LocalDate>,
+        Temporal,
+        TemporalAccessor {
 
     private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("strict_date_time");
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(JodaCompatibleZonedDateTime.class);
@@ -105,7 +109,7 @@ public class JodaCompatibleZonedDateTime
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null)return false;
+        if (o == null) return false;
         if (o.getClass() == JodaCompatibleZonedDateTime.class) {
             JodaCompatibleZonedDateTime that = (JodaCompatibleZonedDateTime) o;
             return Objects.equals(dt, that.dt);
@@ -305,7 +309,7 @@ public class JodaCompatibleZonedDateTime
     }
 
     @Override
-    public ZonedDateTime plus(long amount,TemporalUnit unit) {
+    public ZonedDateTime plus(long amount, TemporalUnit unit) {
         return dt.plus(amount, unit);
     }
 
@@ -531,8 +535,10 @@ public class JodaCompatibleZonedDateTime
 
     @Deprecated
     public int getDayOfWeek() {
-        logDeprecated("getDayOfWeek()",
-            "The return type of [getDayOfWeek()] will change to an enum in 7.0. Use getDayOfWeekEnum().getValue().");
+        logDeprecated(
+            "getDayOfWeek()",
+            "The return type of [getDayOfWeek()] will change to an enum in 7.0. Use getDayOfWeekEnum().getValue()."
+        );
         return dt.getDayOfWeek().getValue();
     }
 }

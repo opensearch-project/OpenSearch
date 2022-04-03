@@ -36,7 +36,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
-import org.opensearch.index.mapper.Uid;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.fetch.FetchContext;
@@ -79,9 +78,8 @@ public final class InnerHitsPhase implements FetchSubPhase {
         };
     }
 
-    private void hitExecute(Map<String, InnerHitsContext.InnerHitSubContext> innerHits,
-                            SearchHit hit,
-                            SourceLookup rootLookup) throws IOException {
+    private void hitExecute(Map<String, InnerHitsContext.InnerHitSubContext> innerHits, SearchHit hit, SourceLookup rootLookup)
+        throws IOException {
         for (Map.Entry<String, InnerHitsContext.InnerHitSubContext> entry : innerHits.entrySet()) {
             InnerHitsContext.InnerHitSubContext innerHitsContext = entry.getValue();
             TopDocsAndMaxScore topDoc = innerHitsContext.topDocs(hit);
@@ -96,7 +94,7 @@ public final class InnerHitsPhase implements FetchSubPhase {
                 docIdsToLoad[j] = topDoc.topDocs.scoreDocs[j].doc;
             }
             innerHitsContext.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
-            innerHitsContext.setRootId(new Uid(hit.getType(), hit.getId()));
+            innerHitsContext.setId(hit.getId());
             innerHitsContext.setRootLookup(rootLookup);
 
             fetchPhase.execute(innerHitsContext);

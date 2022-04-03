@@ -188,16 +188,23 @@ public class DelayableWriteableTests extends OpenSearchTestCase {
         assertThat(roundTripped.expand(), equalTo(original.expand()));
     }
 
-    private <T extends Writeable> DelayableWriteable<T> roundTrip(DelayableWriteable<T> original,
-            Writeable.Reader<T> reader, Version version) throws IOException {
-        return copyInstance(original, writableRegistry(), (out, d) -> d.writeTo(out),
-            in -> DelayableWriteable.delayed(reader, in), version);
+    private <T extends Writeable> DelayableWriteable<T> roundTrip(
+        DelayableWriteable<T> original,
+        Writeable.Reader<T> reader,
+        Version version
+    ) throws IOException {
+        return copyInstance(
+            original,
+            writableRegistry(),
+            (out, d) -> d.writeTo(out),
+            in -> DelayableWriteable.delayed(reader, in),
+            version
+        );
     }
 
     @Override
     protected NamedWriteableRegistry writableRegistry() {
-        return new NamedWriteableRegistry(singletonList(
-                new NamedWriteableRegistry.Entry(Example.class, "example", Example::new)));
+        return new NamedWriteableRegistry(singletonList(new NamedWriteableRegistry.Entry(Example.class, "example", Example::new)));
     }
 
     private static Version randomOldVersion() {

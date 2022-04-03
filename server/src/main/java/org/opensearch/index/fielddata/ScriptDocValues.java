@@ -131,8 +131,10 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         @Override
         public Long get(int index) {
             if (count == 0) {
-                throw new IllegalStateException("A document doesn't have a value for a field! " +
-                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
+                throw new IllegalStateException(
+                    "A document doesn't have a value for a field! "
+                        + "Use doc[<field>].size()==0 to check if a document is missing a field!"
+                );
             }
             return values[index];
         }
@@ -170,13 +172,15 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         @Override
         public JodaCompatibleZonedDateTime get(int index) {
             if (count == 0) {
-                throw new IllegalStateException("A document doesn't have a value for a field! " +
-                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
+                throw new IllegalStateException(
+                    "A document doesn't have a value for a field! "
+                        + "Use doc[<field>].size()==0 to check if a document is missing a field!"
+                );
             }
             if (index >= count) {
                 throw new IndexOutOfBoundsException(
-                        "attempted to fetch the [" + index + "] date when there are only ["
-                                + count + "] dates.");
+                    "attempted to fetch the [" + index + "] date when there are only [" + count + "] dates."
+                );
             }
             return dates[index];
         }
@@ -259,8 +263,10 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         @Override
         public Double get(int index) {
             if (count == 0) {
-                throw new IllegalStateException("A document doesn't have a value for a field! " +
-                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
+                throw new IllegalStateException(
+                    "A document doesn't have a value for a field! "
+                        + "Use doc[<field>].size()==0 to check if a document is missing a field!"
+                );
             }
             return values[index];
         }
@@ -304,7 +310,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                 int oldLength = values.length;
                 values = ArrayUtil.grow(values, count);
                 for (int i = oldLength; i < values.length; ++i) {
-                values[i] = new GeoPoint();
+                    values[i] = new GeoPoint();
                 }
             }
         }
@@ -340,8 +346,10 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         @Override
         public GeoPoint get(int index) {
             if (count == 0) {
-                throw new IllegalStateException("A document doesn't have a value for a field! " +
-                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
+                throw new IllegalStateException(
+                    "A document doesn't have a value for a field! "
+                        + "Use doc[<field>].size()==0 to check if a document is missing a field!"
+                );
             }
             final GeoPoint point = values[index];
             return new GeoPoint(point.lat(), point.lon());
@@ -378,8 +386,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         public double geohashDistance(String geohash) {
             GeoPoint point = getValue();
-            return GeoUtils.arcDistance(point.lat(), point.lon(), Geohash.decodeLatitude(geohash),
-                Geohash.decodeLongitude(geohash));
+            return GeoUtils.arcDistance(point.lat(), point.lon(), Geohash.decodeLatitude(geohash), Geohash.decodeLongitude(geohash));
         }
 
         public double geohashDistanceWithDefault(String geohash, double defaultValue) {
@@ -428,8 +435,10 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         @Override
         public Boolean get(int index) {
             if (count == 0) {
-                throw new IllegalStateException("A document doesn't have a value for a field! " +
-                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
+                throw new IllegalStateException(
+                    "A document doesn't have a value for a field! "
+                        + "Use doc[<field>].size()==0 to check if a document is missing a field!"
+                );
             }
             return values[index];
         }
@@ -440,12 +449,10 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         private static boolean[] grow(boolean[] array, int minSize) {
-            assert minSize >= 0 : "size must be positive (got " + minSize
-                    + "): likely integer overflow?";
+            assert minSize >= 0 : "size must be positive (got " + minSize + "): likely integer overflow?";
             if (array.length < minSize) {
                 return Arrays.copyOf(array, ArrayUtil.oversize(minSize, 1));
-            } else
-                return array;
+            } else return array;
         }
 
     }
@@ -504,8 +511,10 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         @Override
         public final String get(int index) {
             if (count == 0) {
-                throw new IllegalStateException("A document doesn't have a value for a field! " +
-                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
+                throw new IllegalStateException(
+                    "A document doesn't have a value for a field! "
+                        + "Use doc[<field>].size()==0 to check if a document is missing a field!"
+                );
             }
             return bytesToString(values[index].get());
         }
@@ -531,8 +540,10 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         @Override
         public BytesRef get(int index) {
             if (count == 0) {
-                throw new IllegalStateException("A document doesn't have a value for a field! " +
-                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
+                throw new IllegalStateException(
+                    "A document doesn't have a value for a field! "
+                        + "Use doc[<field>].size()==0 to check if a document is missing a field!"
+                );
             }
             /**
              * We need to make a copy here because {@link BinaryScriptDocValues} might reuse the

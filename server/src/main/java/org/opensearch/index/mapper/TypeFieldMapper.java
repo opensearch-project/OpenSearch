@@ -59,8 +59,8 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TypeFieldType.class);
 
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using the _type field " +
-        "in queries and aggregations is deprecated, prefer to use a field instead.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using the _type field "
+        + "in queries and aggregations is deprecated, prefer to use a field instead.";
 
     public static void emitTypesDeprecationWarning() {
         deprecationLogger.deprecate("query_with_types", TYPES_DEPRECATION_MESSAGE);
@@ -106,7 +106,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup lookup, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
 
@@ -126,8 +126,16 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-                                ShapeRelation relation, ZoneId timeZone, DateMathParser parser, QueryShardContext context) {
+        public Query rangeQuery(
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            ShapeRelation relation,
+            ZoneId timeZone,
+            DateMathParser parser,
+            QueryShardContext context
+        ) {
             emitTypesDeprecationWarning();
             BytesRef lower = (BytesRef) lowerTerm;
             BytesRef upper = (BytesRef) upperTerm;
@@ -178,7 +186,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         if (fieldType.indexOptions() == IndexOptions.NONE && !fieldType.stored()) {
             return;
         }
-        context.doc().add(new Field(fieldType().name(), context.sourceToParse().type(), fieldType));
+        context.doc().add(new Field(fieldType().name(), MapperService.SINGLE_MAPPING_NAME, fieldType));
         if (fieldType().hasDocValues()) {
             context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(MapperService.SINGLE_MAPPING_NAME)));
         }

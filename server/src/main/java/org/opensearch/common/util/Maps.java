@@ -52,8 +52,9 @@ public class Maps {
         if (left == null || right == null || left.size() != right.size()) {
             return false;
         }
-        return left.entrySet().stream()
-                .allMatch(e -> right.containsKey(e.getKey()) && Objects.deepEquals(e.getValue(), right.get(e.getKey())));
+        return left.entrySet()
+            .stream()
+            .allMatch(e -> right.containsKey(e.getKey()) && Objects.deepEquals(e.getValue(), right.get(e.getKey())));
     }
 
 }

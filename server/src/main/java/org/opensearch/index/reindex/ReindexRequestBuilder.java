@@ -39,19 +39,24 @@ import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
-public class ReindexRequestBuilder extends
-        AbstractBulkIndexByScrollRequestBuilder<ReindexRequest, ReindexRequestBuilder> {
+public class ReindexRequestBuilder extends AbstractBulkIndexByScrollRequestBuilder<ReindexRequest, ReindexRequestBuilder> {
     private final IndexRequestBuilder destination;
 
-    public ReindexRequestBuilder(OpenSearchClient client,
-                                 ActionType<BulkByScrollResponse> action) {
-        this(client, action, new SearchRequestBuilder(client, SearchAction.INSTANCE),
-                new IndexRequestBuilder(client, IndexAction.INSTANCE));
+    public ReindexRequestBuilder(OpenSearchClient client, ActionType<BulkByScrollResponse> action) {
+        this(
+            client,
+            action,
+            new SearchRequestBuilder(client, SearchAction.INSTANCE),
+            new IndexRequestBuilder(client, IndexAction.INSTANCE)
+        );
     }
 
-    private ReindexRequestBuilder(OpenSearchClient client,
-                                  ActionType<BulkByScrollResponse> action,
-                                  SearchRequestBuilder search, IndexRequestBuilder destination) {
+    private ReindexRequestBuilder(
+        OpenSearchClient client,
+        ActionType<BulkByScrollResponse> action,
+        SearchRequestBuilder search,
+        IndexRequestBuilder destination
+    ) {
         super(client, action, search, new ReindexRequest(search.request(), destination.request()));
         this.destination = destination;
     }
@@ -70,14 +75,6 @@ public class ReindexRequestBuilder extends
      */
     public ReindexRequestBuilder destination(String index) {
         destination.setIndex(index);
-        return this;
-    }
-
-    /**
-     * Set the destination index and type.
-     */
-    public ReindexRequestBuilder destination(String index, String type) {
-        destination.setIndex(index).setType(type);
         return this;
     }
 

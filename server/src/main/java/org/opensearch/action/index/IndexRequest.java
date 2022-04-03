@@ -47,7 +47,6 @@ import org.opensearch.client.Requests;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
@@ -77,7 +76,7 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * Index request to index a typed JSON document into a specific index and make it searchable. Best
  * created using {@link org.opensearch.client.Requests#indexRequest(String)}.
  *
- * The index requires the {@link #index()}, {@link #type(String)}, {@link #id(String)} and
+ * The index requires the {@link #index()}, {@link #id(String)} and
  * {@link #source(byte[], XContentType)} to be set.
  *
  * The source (content to index) can be set in its bytes form using ({@link #source(byte[], XContentType)}),
@@ -103,8 +102,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     private static final ShardId NO_SHARD_ID = null;
 
-    // Set to null initially so we can know to override in bulk requests that have a default type.
-    private String type;
     private String id;
     @Nullable
     private String routing;
@@ -143,15 +140,14 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     public IndexRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
-        type = in.readOptionalString();
+        if (in.getVersion().before(Version.V_2_0_0)) {
+            String type = in.readOptionalString();
+            assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
+        }
         id = in.readOptionalString();
         routing = in.readOptionalString();
         if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
             in.readOptionalString(); // _parent
-        }
-        if (in.getVersion().before(LegacyESVersion.V_6_0_0_alpha1)) {
-            in.readOptionalString(); // timestamp
-            in.readOptionalTimeValue(); // ttl
         }
         source = in.readBytesReference();
         opType = OpType.fromId(in.readByte());
@@ -171,13 +167,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         } else {
             contentType = null;
         }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_6_0)) {
-            ifSeqNo = in.readZLong();
-            ifPrimaryTerm = in.readVLong();
-        } else {
-            ifSeqNo = UNASSIGNED_SEQ_NO;
-            ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
-        }
+        ifSeqNo = in.readZLong();
+        ifPrimaryTerm = in.readVLong();
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             requireAlias = in.readBoolean();
         } else {
@@ -190,41 +181,12 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     /**
-     * Constructs a new index request against the specific index. The {@link #type(String)}
+     * Constructs a new index request against the specific index. The
      * {@link #source(byte[], XContentType)} must be set.
      */
     public IndexRequest(String index) {
         super(NO_SHARD_ID);
         this.index = index;
-    }
-
-    /**
-     * Constructs a new index request against the specific index and type. The
-     * {@link #source(byte[], XContentType)} must be set.
-     * @deprecated Types are in the process of being removed. Use {@link #IndexRequest(String)} instead.
-     */
-    @Deprecated
-    public IndexRequest(String index, String type) {
-        super(NO_SHARD_ID);
-        this.index = index;
-        this.type = type;
-    }
-
-    /**
-     * Constructs a new index request against the index, type, id and using the source.
-     *
-     * @param index The index to index into
-     * @param type  The type to index into
-     * @param id    The id of document
-     *
-     * @deprecated Types are in the process of being removed. Use {@link #IndexRequest(String)} with {@link #id(String)} instead.
-     */
-    @Deprecated
-    public IndexRequest(String index, String type, String id) {
-        super(NO_SHARD_ID);
-        this.index = index;
-        this.type = type;
-        this.id = id;
     }
 
     @Override
@@ -233,9 +195,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (source == null) {
             validationException = addValidationError("source is missing", validationException);
         }
-        if (Strings.isEmpty(type())) {
-            validationException = addValidationError("type is missing", validationException);
-        }
         if (contentType == null) {
             validationException = addValidationError("content type is missing", validationException);
         }
@@ -243,27 +202,33 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         final long resolvedVersion = resolveVersionDefaults();
         if (opType == OpType.CREATE) {
             if (versionType != VersionType.INTERNAL) {
-                validationException = addValidationError("create operations only support internal versioning. use index instead",
-                    validationException);
+                validationException = addValidationError(
+                    "create operations only support internal versioning. use index instead",
+                    validationException
+                );
                 return validationException;
             }
 
             if (resolvedVersion != Versions.MATCH_DELETED) {
-                validationException = addValidationError("create operations do not support explicit versions. use index instead",
-                    validationException);
+                validationException = addValidationError(
+                    "create operations do not support explicit versions. use index instead",
+                    validationException
+                );
                 return validationException;
             }
 
             if (ifSeqNo != UNASSIGNED_SEQ_NO || ifPrimaryTerm != UNASSIGNED_PRIMARY_TERM) {
-                validationException = addValidationError("create operations do not support compare and set. use index instead",
-                    validationException);
+                validationException = addValidationError(
+                    "create operations do not support compare and set. use index instead",
+                    validationException
+                );
                 return validationException;
             }
         }
 
         if (id == null) {
-            if (versionType != VersionType.INTERNAL ||
-                (resolvedVersion != Versions.MATCH_DELETED && resolvedVersion != Versions.MATCH_ANY)) {
+            if (versionType != VersionType.INTERNAL
+                || (resolvedVersion != Versions.MATCH_DELETED && resolvedVersion != Versions.MATCH_ANY)) {
                 validationException = addValidationError("an id must be provided if version type or value are set", validationException);
             }
         }
@@ -271,8 +236,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
 
         if (id != null && id.getBytes(StandardCharsets.UTF_8).length > 512) {
-            validationException = addValidationError("id [" + id + "] is too long, must be no longer than 512 bytes but was: " +
-                            id.getBytes(StandardCharsets.UTF_8).length, validationException);
+            validationException = addValidationError(
+                "id [" + id + "] is too long, must be no longer than 512 bytes but was: " + id.getBytes(StandardCharsets.UTF_8).length,
+                validationException
+            );
         }
 
         if (pipeline != null && pipeline.isEmpty()) {
@@ -299,44 +266,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return contentType;
     }
 
-    /**
-     * The type of the indexed document.
-     * @deprecated Types are in the process of being removed.
-     */
-    @Deprecated
-    @Override
-    public String type() {
-        if (type == null) {
-            return MapperService.SINGLE_MAPPING_NAME;
-        }
-        return type;
-    }
-
-    /**
-     * Sets the type of the indexed document.
-     * @deprecated Types are in the process of being removed.
-     */
-    @Deprecated
-    @Override
-    public IndexRequest type(String type) {
-        this.type = type;
-        return this;
-    }
-
-    /**
-     * Set the default type supplied to a bulk
-     * request if this individual request's type is null
-     * or empty
-     * @deprecated Types are in the process of being removed.
-     */
-    @Deprecated
-    @Override
-    public IndexRequest defaultTypeIfNull(String defaultType) {
-        if (Strings.isNullOrEmpty(type)) {
-            type = defaultType;
-        }
-        return this;
-    }
     /**
      * The id of the indexed document. If not set, will be automatically generated.
      */
@@ -508,8 +437,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             throw new IllegalArgumentException("The number of object passed must be even but was [" + source.length + "]");
         }
         if (source.length == 2 && source[0] instanceof BytesReference && source[1] instanceof Boolean) {
-            throw new IllegalArgumentException("you are using the removed method for source with bytes and unsafe flag, the unsafe flag"
-                + " was removed, please just use source(BytesReference)");
+            throw new IllegalArgumentException(
+                "you are using the removed method for source with bytes and unsafe flag, the unsafe flag"
+                    + " was removed, please just use source(BytesReference)"
+            );
         }
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
@@ -579,7 +510,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this;
     }
 
-
     /**
      * Set to {@code true} to force this index to use {@link OpType#CREATE}.
      */
@@ -637,7 +567,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     public IndexRequest setIfSeqNo(long seqNo) {
         if (seqNo < 0 && seqNo != UNASSIGNED_SEQ_NO) {
-            throw new IllegalArgumentException("sequence numbers must be non negative. got [" +  seqNo + "].");
+            throw new IllegalArgumentException("sequence numbers must be non negative. got [" + seqNo + "].");
         }
         ifSeqNo = seqNo;
         return this;
@@ -682,12 +612,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this.versionType;
     }
 
-
     public void process(Version indexCreatedVersion, @Nullable MappingMetadata mappingMd, String concreteIndex) {
         if (mappingMd != null) {
             // might as well check for routing here
-            if (mappingMd.routing().required() && routing == null) {
-                throw new RoutingMissingException(concreteIndex, type(), id);
+            if (mappingMd.routingRequired() && routing == null) {
+                throw new RoutingMissingException(concreteIndex, id);
             }
         }
 
@@ -701,13 +630,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             assert ifSeqNo == UNASSIGNED_SEQ_NO;
             assert ifPrimaryTerm == UNASSIGNED_PRIMARY_TERM;
             autoGeneratedTimestamp = Math.max(0, System.currentTimeMillis()); // extra paranoia
-            String uid;
-            if (indexCreatedVersion.onOrAfter(LegacyESVersion.V_6_0_0_beta1)) {
-                uid = UUIDs.base64UUID();
-            } else {
-                uid = UUIDs.legacyBase64UUID();
-            }
-            id(uid);
+            id(UUIDs.base64UUID());
         }
     }
 
@@ -718,8 +641,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     public void checkAutoIdWithOpTypeCreateSupportedByVersion(Version version) {
         if (id == null && opType == OpType.CREATE && version.before(LegacyESVersion.V_7_5_0)) {
-            throw new IllegalArgumentException("optype create not supported for indexing requests without explicit id until all nodes " +
-                "are on version 7.5.0 or higher");
+            throw new IllegalArgumentException(
+                "optype create not supported for indexing requests without explicit id until all nodes " + "are on version 7.5.0 or higher"
+            );
         }
     }
 
@@ -738,20 +662,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     private void writeBody(StreamOutput out) throws IOException {
-        // A 7.x request allows null types but if deserialized in a 6.x node will cause nullpointer exceptions.
-        // So we use the type accessor method here to make the type non-null (will default it to "_doc").
-        out.writeOptionalString(type());
+        if (out.getVersion().before(Version.V_2_0_0)) {
+            out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
+        }
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
         if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
             out.writeOptionalString(null); // _parent
-        }
-        if (out.getVersion().before(LegacyESVersion.V_6_0_0_alpha1)) {
-            // Serialize a fake timestamp. 5.x expect this value to be set by the #process method so we can't use null.
-            // On the other hand, indices created on 5.x do not index the timestamp field.  Therefore passing a 0 (or any value) for
-            // the transport layer OK as it will be ignored.
-            out.writeOptionalString("0");
-            out.writeOptionalWriteable(null);
         }
         out.writeBytesReference(source);
         out.writeByte(opType.getId());
@@ -772,15 +689,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_6_0)) {
-            out.writeZLong(ifSeqNo);
-            out.writeVLong(ifPrimaryTerm);
-        } else if (ifSeqNo != UNASSIGNED_SEQ_NO || ifPrimaryTerm != UNASSIGNED_PRIMARY_TERM) {
-            assert false : "setIfMatch [" + ifSeqNo + "], currentDocTem [" + ifPrimaryTerm + "]";
-            throw new IllegalStateException(
-                "sequence number based compare and write is not supported until all nodes are on version 7.0 or higher. " +
-                    "Stream version [" + out.getVersion() + "]");
-        }
+        out.writeZLong(ifSeqNo);
+        out.writeVLong(ifPrimaryTerm);
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             out.writeBoolean(requireAlias);
         }
@@ -791,15 +701,17 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         String sSource = "_na_";
         try {
             if (source.length() > MAX_SOURCE_LENGTH_IN_TOSTRING) {
-                sSource = "n/a, actual length: [" + new ByteSizeValue(source.length()).toString() + "], max length: " +
-                    new ByteSizeValue(MAX_SOURCE_LENGTH_IN_TOSTRING).toString();
+                sSource = "n/a, actual length: ["
+                    + new ByteSizeValue(source.length()).toString()
+                    + "], max length: "
+                    + new ByteSizeValue(MAX_SOURCE_LENGTH_IN_TOSTRING).toString();
             } else {
                 sSource = XContentHelper.convertToJson(source, false);
             }
         } catch (Exception e) {
             // ignore
         }
-        return "index {[" + index + "][" + type() + "][" + id + "], source[" + sSource + "]}";
+        return "index {[" + index + "][" + id + "], source[" + sSource + "]}";
     }
 
     @Override

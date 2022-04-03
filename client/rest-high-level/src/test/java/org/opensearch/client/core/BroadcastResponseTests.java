@@ -49,8 +49,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 
-public class BroadcastResponseTests extends AbstractResponseTestCase<org.opensearch.action.support.broadcast.BroadcastResponse,
-        BroadcastResponse> {
+public class BroadcastResponseTests extends AbstractResponseTestCase<
+    org.opensearch.action.support.broadcast.BroadcastResponse,
+    BroadcastResponse> {
 
     private String index;
     private String id;
@@ -69,7 +70,8 @@ public class BroadcastResponseTests extends AbstractResponseTestCase<org.opensea
             final DefaultShardOperationFailedException failure = new DefaultShardOperationFailedException(
                 index,
                 randomValueOtherThanMany(shardIds::contains, () -> randomIntBetween(0, total - 1)),
-                new RetentionLeaseNotFoundException(id));
+                new RetentionLeaseNotFoundException(id)
+            );
             failures.add(failure);
             shardIds.add(failure.shardId());
         }
@@ -83,8 +85,10 @@ public class BroadcastResponseTests extends AbstractResponseTestCase<org.opensea
     }
 
     @Override
-    protected void assertInstances(org.opensearch.action.support.broadcast.BroadcastResponse serverTestInstance,
-                                   BroadcastResponse clientInstance) {
+    protected void assertInstances(
+        org.opensearch.action.support.broadcast.BroadcastResponse serverTestInstance,
+        BroadcastResponse clientInstance
+    ) {
         assertThat(clientInstance.shards().total(), equalTo(serverTestInstance.getTotalShards()));
         assertThat(clientInstance.shards().successful(), equalTo(serverTestInstance.getSuccessfulShards()));
         assertThat(clientInstance.shards().skipped(), equalTo(0));

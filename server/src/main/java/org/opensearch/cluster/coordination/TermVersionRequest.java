@@ -102,10 +102,6 @@ abstract class TermVersionRequest extends TransportRequest implements Writeable 
 
     @Override
     public String toString() {
-        return "TermVersionRequest{" +
-            "term=" + term +
-            ", version=" + version +
-            ", sourceNode=" + sourceNode +
-            '}';
+        return "TermVersionRequest{" + "term=" + term + ", version=" + version + ", sourceNode=" + sourceNode + '}';
     }
 }

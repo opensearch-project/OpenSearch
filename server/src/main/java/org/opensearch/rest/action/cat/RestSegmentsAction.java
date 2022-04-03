@@ -43,6 +43,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Strings;
 import org.opensearch.common.Table;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
@@ -58,11 +59,11 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 
 public class RestSegmentsAction extends AbstractCatAction {
 
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSegmentsAction.class);
+
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_cat/segments"),
-            new Route(GET, "/_cat/segments/{index}")));
+        return unmodifiableList(asList(new Route(GET, "/_cat/segments"), new Route(GET, "/_cat/segments/{index}")));
     }
 
     @Override
@@ -76,12 +77,13 @@ public class RestSegmentsAction extends AbstractCatAction {
     }
 
     @Override
-    protected RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
+    public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
 
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
+        clusterStateRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", clusterStateRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(clusterStateRequest, request, deprecationLogger, getName());
         clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices);
 
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
@@ -157,7 +159,7 @@ public class RestSegmentsAction extends AbstractCatAction {
                         table.addCell(segment.getNumDocs());
                         table.addCell(segment.getDeletedDocs());
                         table.addCell(segment.getSize());
-                        table.addCell(segment.getMemoryInBytes());
+                        table.addCell(0L);
                         table.addCell(segment.isCommitted());
                         table.addCell(segment.isSearch());
                         table.addCell(segment.getVersion());

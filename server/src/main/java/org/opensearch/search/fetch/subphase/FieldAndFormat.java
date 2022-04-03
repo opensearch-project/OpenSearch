@@ -32,7 +32,6 @@
 
 package org.opensearch.search.fetch.subphase;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
@@ -55,9 +54,10 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
     private static final ParseField FIELD_FIELD = new ParseField("field");
     private static final ParseField FORMAT_FIELD = new ParseField("format");
 
-
-    private static final ConstructingObjectParser<FieldAndFormat, Void> PARSER = new ConstructingObjectParser<>("docvalues_field",
-        a -> new FieldAndFormat((String) a[0], (String) a[1]));
+    private static final ConstructingObjectParser<FieldAndFormat, Void> PARSER = new ConstructingObjectParser<>(
+        "docvalues_field",
+        a -> new FieldAndFormat((String) a[0], (String) a[1])
+    );
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("field"));
         PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField("format"));
@@ -90,19 +90,13 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
     /** Serialization constructor. */
     public FieldAndFormat(StreamInput in) throws IOException {
         this.field = in.readString();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            format = in.readOptionalString();
-        } else {
-            format = null;
-        }
+        format = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            out.writeOptionalString(format);
-        }
+        out.writeOptionalString(format);
     }
 
     @Override
@@ -110,8 +104,7 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FieldAndFormat that = (FieldAndFormat) o;
-        return Objects.equals(field, that.field) &&
-            Objects.equals(format, that.format);
+        return Objects.equals(field, that.field) && Objects.equals(format, that.format);
     }
 
     @Override

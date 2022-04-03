@@ -78,8 +78,8 @@ import java.util.function.BiConsumer;
 
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -266,8 +266,6 @@ public class HttpReadWriteHandlerTests extends OpenSearchTestCase {
         httpResponse.addHeader(HttpHeaderNames.CONTENT_LENGTH.toString(), "0");
         return httpResponse;
     }
-
-
 
     private void prepareHandlerForResponse(HttpReadWriteHandler handler) throws IOException {
         HttpMethod method = randomBoolean() ? HttpMethod.GET : HttpMethod.HEAD;

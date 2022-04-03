@@ -90,7 +90,6 @@ public abstract class AbstractRefCounted implements RefCounted {
         return this.refCount.get();
     }
 
-
     /** gets the name of this instance */
     public String getName() {
         return name;

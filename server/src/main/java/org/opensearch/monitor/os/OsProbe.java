@@ -51,6 +51,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -197,7 +198,7 @@ public class OsProbe {
                 final String procLoadAvg = readProcLoadavg();
                 assert procLoadAvg.matches("(\\d+\\.\\d+\\s+){3}\\d+/\\d+\\s+\\d+");
                 final String[] fields = procLoadAvg.split("\\s+");
-                return new double[]{Double.parseDouble(fields[0]), Double.parseDouble(fields[1]), Double.parseDouble(fields[2])};
+                return new double[] { Double.parseDouble(fields[0]), Double.parseDouble(fields[1]), Double.parseDouble(fields[2]) };
             } catch (final IOException e) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("error reading /proc/loadavg", e);
@@ -211,7 +212,7 @@ public class OsProbe {
             }
             try {
                 final double oneMinuteLoadAverage = (double) getSystemLoadAverage.invoke(osMxBean);
-                return new double[]{oneMinuteLoadAverage >= 0 ? oneMinuteLoadAverage : -1, -1, -1};
+                return new double[] { oneMinuteLoadAverage >= 0 ? oneMinuteLoadAverage : -1, -1, -1 };
             } catch (IllegalAccessException | InvocationTargetException e) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("error reading one minute load average from operating system", e);
@@ -401,6 +402,7 @@ public class OsProbe {
         long numberOfPeriods = -1;
         long numberOfTimesThrottled = -1;
         long timeThrottledNanos = -1;
+
         for (final String line : lines) {
             final String[] fields = line.split("\\s+");
             switch (fields[0]) {
@@ -415,9 +417,17 @@ public class OsProbe {
                     break;
             }
         }
-        assert numberOfPeriods != -1;
-        assert numberOfTimesThrottled != -1;
-        assert timeThrottledNanos != -1;
+        if (isCpuStatWarningsLogged.getAndSet(true) == false) {
+            if (numberOfPeriods == -1) {
+                logger.warn("Expected to see nr_periods filed but found nothing");
+            }
+            if (numberOfTimesThrottled == -1) {
+                logger.warn("Expected to see nr_throttled filed but found nothing");
+            }
+            if (timeThrottledNanos == -1) {
+                logger.warn("Expected to see throttled_time filed but found nothing");
+            }
+        }
         return new OsStats.Cgroup.CpuStat(numberOfPeriods, numberOfTimesThrottled, timeThrottledNanos);
     }
 
@@ -440,7 +450,7 @@ public class OsProbe {
     @SuppressForbidden(reason = "access /sys/fs/cgroup/cpu")
     List<String> readSysFsCgroupCpuAcctCpuStat(final String controlGroup) throws IOException {
         final List<String> lines = Files.readAllLines(PathUtils.get("/sys/fs/cgroup/cpu", controlGroup, "cpu.stat"));
-        assert lines != null && lines.size() == 3;
+        assert lines != null && lines.isEmpty() == false;
         return lines;
     }
 
@@ -571,7 +581,8 @@ public class OsProbe {
                     cpuStat,
                     memoryControlGroup,
                     cgroupMemoryLimitInBytes,
-                    cgroupMemoryUsageInBytes);
+                    cgroupMemoryUsageInBytes
+                );
             }
         } catch (final IOException e) {
             logger.debug("error reading control group stats", e);
@@ -587,21 +598,29 @@ public class OsProbe {
         return OsProbeHolder.INSTANCE;
     }
 
-    OsProbe() {
+    private final Logger logger;
 
+    private AtomicBoolean isCpuStatWarningsLogged = new AtomicBoolean(false);
+
+    OsProbe() {
+        this(LogManager.getLogger(OsProbe.class));
     }
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    /*For testing purpose*/
+    OsProbe(final Logger logger) {
+        this.logger = logger;
+    }
 
     OsInfo osInfo(long refreshInterval, int allocatedProcessors) throws IOException {
         return new OsInfo(
-                refreshInterval,
-                Runtime.getRuntime().availableProcessors(),
-                allocatedProcessors,
-                Constants.OS_NAME,
-                getPrettyName(),
-                Constants.OS_ARCH,
-                Constants.OS_VERSION);
+            refreshInterval,
+            Runtime.getRuntime().availableProcessors(),
+            allocatedProcessors,
+            Constants.OS_NAME,
+            getPrettyName(),
+            Constants.OS_ARCH,
+            Constants.OS_VERSION
+        );
     }
 
     private String getPrettyName() throws IOException {
@@ -613,11 +632,13 @@ public class OsProbe {
              * wrapped in single- or double-quotes.
              */
             final List<String> etcOsReleaseLines = readOsRelease();
-            final List<String> prettyNameLines =
-                    etcOsReleaseLines.stream().filter(line -> line.startsWith("PRETTY_NAME")).collect(Collectors.toList());
+            final List<String> prettyNameLines = etcOsReleaseLines.stream()
+                .filter(line -> line.startsWith("PRETTY_NAME"))
+                .collect(Collectors.toList());
             assert prettyNameLines.size() <= 1 : prettyNameLines;
-            final Optional<String> maybePrettyNameLine =
-                    prettyNameLines.size() == 1 ? Optional.of(prettyNameLines.get(0)) : Optional.empty();
+            final Optional<String> maybePrettyNameLine = prettyNameLines.size() == 1
+                ? Optional.of(prettyNameLines.get(0))
+                : Optional.empty();
             if (maybePrettyNameLine.isPresent()) {
                 // we trim since some OS contain trailing space, for example, Oracle Linux Server 6.9 has a trailing space after the quote
                 final String trimmedPrettyNameLine = maybePrettyNameLine.get().trim();

@@ -141,8 +141,7 @@ public class IngestRequestConvertersTests extends OpenSearchTestCase {
         Request expectedRequest = IngestRequestConverters.simulatePipeline(request);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         endpoint.add("_ingest/pipeline");
-        if (pipelineId != null && !pipelineId.isEmpty())
-            endpoint.add(pipelineId);
+        if (pipelineId != null && !pipelineId.isEmpty()) endpoint.add(pipelineId);
         endpoint.add("_simulate");
         Assert.assertEquals(endpoint.toString(), expectedRequest.getEndpoint());
         Assert.assertEquals(HttpPost.METHOD_NAME, expectedRequest.getMethod());

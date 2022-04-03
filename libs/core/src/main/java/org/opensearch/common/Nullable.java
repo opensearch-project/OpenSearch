@@ -51,6 +51,6 @@ import java.lang.annotation.Target;
 @TypeQualifierNickname
 @CheckForNull
 @Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.PARAMETER, ElementType.FIELD, ElementType.METHOD})
+@Target({ ElementType.PARAMETER, ElementType.FIELD, ElementType.METHOD })
 public @interface Nullable {
 }

@@ -71,7 +71,7 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
             "-PcompileOnlyVersion=0.0.1",
             "-PcompileGroup=other.gradle:dummy-io",
             "-PcompileVersion=0.0.1"
-        ).buildAndFail();
+        ).build();
     }
 
     public void testViolationFoundAndCompileOnlyIgnored() {

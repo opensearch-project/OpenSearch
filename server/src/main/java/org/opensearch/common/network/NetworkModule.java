@@ -82,35 +82,48 @@ public final class NetworkModule {
     public static final String HTTP_TYPE_DEFAULT_KEY = "http.type.default";
     public static final String TRANSPORT_TYPE_DEFAULT_KEY = "transport.type.default";
 
-    public static final Setting<String> TRANSPORT_DEFAULT_TYPE_SETTING = Setting.simpleString(TRANSPORT_TYPE_DEFAULT_KEY,
-            Property.NodeScope);
+    public static final Setting<String> TRANSPORT_DEFAULT_TYPE_SETTING = Setting.simpleString(
+        TRANSPORT_TYPE_DEFAULT_KEY,
+        Property.NodeScope
+    );
     public static final Setting<String> HTTP_DEFAULT_TYPE_SETTING = Setting.simpleString(HTTP_TYPE_DEFAULT_KEY, Property.NodeScope);
     public static final Setting<String> HTTP_TYPE_SETTING = Setting.simpleString(HTTP_TYPE_KEY, Property.NodeScope);
     public static final Setting<String> TRANSPORT_TYPE_SETTING = Setting.simpleString(TRANSPORT_TYPE_KEY, Property.NodeScope);
 
     private final Settings settings;
-    private final boolean transportClient;
 
     private static final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
     private static final List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
 
     static {
-        registerAllocationCommand(CancelAllocationCommand::new, CancelAllocationCommand::fromXContent,
-            CancelAllocationCommand.COMMAND_NAME_FIELD);
-        registerAllocationCommand(MoveAllocationCommand::new, MoveAllocationCommand::fromXContent,
-            MoveAllocationCommand.COMMAND_NAME_FIELD);
-        registerAllocationCommand(AllocateReplicaAllocationCommand::new, AllocateReplicaAllocationCommand::fromXContent,
-            AllocateReplicaAllocationCommand.COMMAND_NAME_FIELD);
-        registerAllocationCommand(AllocateEmptyPrimaryAllocationCommand::new, AllocateEmptyPrimaryAllocationCommand::fromXContent,
-            AllocateEmptyPrimaryAllocationCommand.COMMAND_NAME_FIELD);
-        registerAllocationCommand(AllocateStalePrimaryAllocationCommand::new, AllocateStalePrimaryAllocationCommand::fromXContent,
-            AllocateStalePrimaryAllocationCommand.COMMAND_NAME_FIELD);
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(Task.Status.class, ReplicationTask.Status.NAME, ReplicationTask.Status::new));
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(Task.Status.class, RawTaskStatus.NAME, RawTaskStatus::new));
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(Task.Status.class, ResyncTask.Status.NAME, ResyncTask.Status::new));
+        registerAllocationCommand(
+            CancelAllocationCommand::new,
+            CancelAllocationCommand::fromXContent,
+            CancelAllocationCommand.COMMAND_NAME_FIELD
+        );
+        registerAllocationCommand(
+            MoveAllocationCommand::new,
+            MoveAllocationCommand::fromXContent,
+            MoveAllocationCommand.COMMAND_NAME_FIELD
+        );
+        registerAllocationCommand(
+            AllocateReplicaAllocationCommand::new,
+            AllocateReplicaAllocationCommand::fromXContent,
+            AllocateReplicaAllocationCommand.COMMAND_NAME_FIELD
+        );
+        registerAllocationCommand(
+            AllocateEmptyPrimaryAllocationCommand::new,
+            AllocateEmptyPrimaryAllocationCommand::fromXContent,
+            AllocateEmptyPrimaryAllocationCommand.COMMAND_NAME_FIELD
+        );
+        registerAllocationCommand(
+            AllocateStalePrimaryAllocationCommand::new,
+            AllocateStalePrimaryAllocationCommand::fromXContent,
+            AllocateStalePrimaryAllocationCommand.COMMAND_NAME_FIELD
+        );
+        namedWriteables.add(new NamedWriteableRegistry.Entry(Task.Status.class, ReplicationTask.Status.NAME, ReplicationTask.Status::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(Task.Status.class, RawTaskStatus.NAME, RawTaskStatus::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(Task.Status.class, ResyncTask.Status.NAME, ResyncTask.Status::new));
     }
 
     private final Map<String, Supplier<Transport>> transportFactories = new HashMap<>();
@@ -120,41 +133,55 @@ public final class NetworkModule {
     /**
      * Creates a network module that custom networking classes can be plugged into.
      * @param settings The settings for the node
-     * @param transportClient True if only transport classes should be allowed to be registered, false otherwise.
      */
-    public NetworkModule(Settings settings, boolean transportClient, List<NetworkPlugin> plugins, ThreadPool threadPool,
-                         BigArrays bigArrays,
-                         PageCacheRecycler pageCacheRecycler,
-                         CircuitBreakerService circuitBreakerService,
-                         NamedWriteableRegistry namedWriteableRegistry,
-                         NamedXContentRegistry xContentRegistry,
-                         NetworkService networkService, HttpServerTransport.Dispatcher dispatcher,
-                         ClusterSettings clusterSettings) {
+    public NetworkModule(
+        Settings settings,
+        List<NetworkPlugin> plugins,
+        ThreadPool threadPool,
+        BigArrays bigArrays,
+        PageCacheRecycler pageCacheRecycler,
+        CircuitBreakerService circuitBreakerService,
+        NamedWriteableRegistry namedWriteableRegistry,
+        NamedXContentRegistry xContentRegistry,
+        NetworkService networkService,
+        HttpServerTransport.Dispatcher dispatcher,
+        ClusterSettings clusterSettings
+    ) {
         this.settings = settings;
-        this.transportClient = transportClient;
         for (NetworkPlugin plugin : plugins) {
-            Map<String, Supplier<HttpServerTransport>> httpTransportFactory = plugin.getHttpTransports(settings, threadPool, bigArrays,
-                pageCacheRecycler, circuitBreakerService, xContentRegistry, networkService, dispatcher, clusterSettings);
-            if (transportClient == false) {
-                for (Map.Entry<String, Supplier<HttpServerTransport>> entry : httpTransportFactory.entrySet()) {
-                    registerHttpTransport(entry.getKey(), entry.getValue());
-                }
+            Map<String, Supplier<HttpServerTransport>> httpTransportFactory = plugin.getHttpTransports(
+                settings,
+                threadPool,
+                bigArrays,
+                pageCacheRecycler,
+                circuitBreakerService,
+                xContentRegistry,
+                networkService,
+                dispatcher,
+                clusterSettings
+            );
+            for (Map.Entry<String, Supplier<HttpServerTransport>> entry : httpTransportFactory.entrySet()) {
+                registerHttpTransport(entry.getKey(), entry.getValue());
             }
-            Map<String, Supplier<Transport>> transportFactory = plugin.getTransports(settings, threadPool, pageCacheRecycler,
-                circuitBreakerService, namedWriteableRegistry, networkService);
+            Map<String, Supplier<Transport>> transportFactory = plugin.getTransports(
+                settings,
+                threadPool,
+                pageCacheRecycler,
+                circuitBreakerService,
+                namedWriteableRegistry,
+                networkService
+            );
             for (Map.Entry<String, Supplier<Transport>> entry : transportFactory.entrySet()) {
                 registerTransport(entry.getKey(), entry.getValue());
             }
-            List<TransportInterceptor> transportInterceptors = plugin.getTransportInterceptors(namedWriteableRegistry,
-                threadPool.getThreadContext());
+            List<TransportInterceptor> transportInterceptors = plugin.getTransportInterceptors(
+                namedWriteableRegistry,
+                threadPool.getThreadContext()
+            );
             for (TransportInterceptor interceptor : transportInterceptors) {
                 registerTransportInterceptor(interceptor);
             }
         }
-    }
-
-    public boolean isTransportClient() {
-        return transportClient;
     }
 
     /** Adds a transport implementation that can be selected by setting {@link #TRANSPORT_TYPE_KEY}. */
@@ -167,9 +194,6 @@ public final class NetworkModule {
     /** Adds an http transport implementation that can be selected by setting {@link #HTTP_TYPE_KEY}. */
     // TODO: we need another name than "http transport"....so confusing with transportClient...
     private void registerHttpTransport(String key, Supplier<HttpServerTransport> factory) {
-        if (transportClient) {
-            throw new IllegalArgumentException("Cannot register http transport " + key + " for transport client");
-        }
         if (transportHttpFactories.putIfAbsent(key, factory) != null) {
             throw new IllegalArgumentException("transport for name: " + key + " is already registered");
         }
@@ -178,15 +202,18 @@ public final class NetworkModule {
     /**
      * Register an allocation command.
      * <p>
-     * This lives here instead of the more aptly named ClusterModule because the Transport client needs these to be registered.
+     * This lives here instead of the more aptly named ClusterModule because the Transport client needed these to be registered.
      * </p>
      * @param reader the reader to read it from a stream
      * @param parser the parser to read it from XContent
      * @param commandName the names under which the command should be parsed. The {@link ParseField#getPreferredName()} is special because
      *        it is the name under which the command's reader is registered.
      */
-    private static <T extends AllocationCommand> void registerAllocationCommand(Writeable.Reader<T> reader,
-            CheckedFunction<XContentParser, T, IOException> parser, ParseField commandName) {
+    private static <T extends AllocationCommand> void registerAllocationCommand(
+        Writeable.Reader<T> reader,
+        CheckedFunction<XContentParser, T, IOException> parser,
+        ParseField commandName
+    ) {
         namedXContents.add(new NamedXContentRegistry.Entry(AllocationCommand.class, commandName, parser));
         namedWriteables.add(new NamedWriteableRegistry.Entry(AllocationCommand.class, commandName.getPreferredName(), reader));
     }
@@ -250,9 +277,12 @@ public final class NetworkModule {
         }
 
         @Override
-        public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
-                                                                                        boolean forceExecution,
-                                                                                        TransportRequestHandler<T> actualHandler) {
+        public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
+            String action,
+            String executor,
+            boolean forceExecution,
+            TransportRequestHandler<T> actualHandler
+        ) {
             for (TransportInterceptor interceptor : this.transportInterceptors) {
                 actualHandler = interceptor.interceptHandler(action, executor, forceExecution, actualHandler);
             }

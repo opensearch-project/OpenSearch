@@ -110,7 +110,7 @@ public class HoltLinearModel extends MovAvgModel {
             case 1:
                 return new HoltLinearModel(this.alpha, newValue);
             default:
-                assert (false): "Random value fell outside of range [0-1]";
+                assert (false) : "Random value fell outside of range [0-1]";
                 return new HoltLinearModel(newValue, this.beta);    // This should never technically happen...
         }
     }
@@ -176,7 +176,6 @@ public class HoltLinearModel extends MovAvgModel {
         }
     };
 
-
     @Override
     public int hashCode() {
         return Objects.hash(alpha, beta);
@@ -191,10 +190,8 @@ public class HoltLinearModel extends MovAvgModel {
             return false;
         }
         HoltLinearModel other = (HoltLinearModel) obj;
-        return Objects.equals(alpha, other.alpha)
-                && Objects.equals(beta, other.beta);
+        return Objects.equals(alpha, other.alpha) && Objects.equals(beta, other.beta);
     }
-
 
     public static class HoltLinearModelBuilder implements MovAvgModelBuilder {
         private double alpha = DEFAULT_ALPHA;
@@ -243,4 +240,3 @@ public class HoltLinearModel extends MovAvgModel {
         }
     }
 }
-

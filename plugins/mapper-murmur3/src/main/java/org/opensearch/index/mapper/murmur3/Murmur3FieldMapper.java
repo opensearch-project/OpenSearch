@@ -44,7 +44,6 @@ import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.opensearch.index.mapper.FieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ParametrizedFieldMapper;
 import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.mapper.SourceValueFetcher;
@@ -96,7 +95,8 @@ public class Murmur3FieldMapper extends ParametrizedFieldMapper {
                 name,
                 new Murmur3FieldType(buildFullName(context), stored.getValue(), meta.getValue()),
                 multiFieldsBuilder.build(this, context),
-                copyTo.build());
+                copyTo.build()
+            );
         }
     }
 
@@ -120,8 +120,8 @@ public class Murmur3FieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return SourceValueFetcher.toString(name(), mapperService, format);
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+            return SourceValueFetcher.toString(name(), context, format);
         }
 
         @Override
@@ -130,10 +130,7 @@ public class Murmur3FieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    protected Murmur3FieldMapper(String simpleName,
-                                 MappedFieldType mappedFieldType,
-                                 MultiFields multiFields,
-                                 CopyTo copyTo) {
+    protected Murmur3FieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
     }
 
@@ -148,8 +145,7 @@ public class Murmur3FieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context)
-            throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         final Object value;
         if (context.externalValueSet()) {
             value = context.externalValue();

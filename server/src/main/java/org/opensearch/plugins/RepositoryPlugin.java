@@ -54,8 +54,12 @@ public interface RepositoryPlugin {
      * The key of the returned {@link Map} is the type name of the repository and
      * the value is a factory to construct the {@link Repository} interface.
      */
-    default Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                            ClusterService clusterService, RecoverySettings recoverySettings) {
+    default Map<String, Repository.Factory> getRepositories(
+        Environment env,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        RecoverySettings recoverySettings
+    ) {
         return Collections.emptyMap();
     }
 
@@ -68,8 +72,12 @@ public interface RepositoryPlugin {
      * The key of the returned {@link Map} is the type name of the repository and
      * the value is a factory to construct the {@link Repository} interface.
      */
-    default Map<String, Repository.Factory> getInternalRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                                    ClusterService clusterService, RecoverySettings recoverySettings) {
+    default Map<String, Repository.Factory> getInternalRepositories(
+        Environment env,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        RecoverySettings recoverySettings
+    ) {
         return Collections.emptyMap();
     }
 

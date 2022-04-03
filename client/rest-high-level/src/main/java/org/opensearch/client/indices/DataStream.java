@@ -53,8 +53,14 @@ public final class DataStream {
     @Nullable
     String indexTemplate;
 
-    public DataStream(String name, String timeStampField, List<String> indices, long generation, ClusterHealthStatus dataStreamStatus,
-                      @Nullable String indexTemplate) {
+    public DataStream(
+        String name,
+        String timeStampField,
+        List<String> indices,
+        long generation,
+        ClusterHealthStatus dataStreamStatus,
+        @Nullable String indexTemplate
+    ) {
         this.name = name;
         this.timeStampField = timeStampField;
         this.indices = indices;
@@ -95,18 +101,16 @@ public final class DataStream {
     public static final ParseField INDEX_TEMPLATE_FIELD = new ParseField("template");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream",
-        args -> {
-            String dataStreamName = (String) args[0];
-            String timeStampField = (String) ((Map<?, ?>) args[1]).get("name");
-            List<String> indices =
-                ((List<Map<String, String>>) args[2]).stream().map(m -> m.get("index_name")).collect(Collectors.toList());
-            Long generation = (Long) args[3];
-            String statusStr = (String) args[4];
-            ClusterHealthStatus status = ClusterHealthStatus.fromString(statusStr);
-            String indexTemplate = (String) args[5];
-            return new DataStream(dataStreamName, timeStampField, indices, generation, status, indexTemplate);
-        });
+    private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream", args -> {
+        String dataStreamName = (String) args[0];
+        String timeStampField = (String) ((Map<?, ?>) args[1]).get("name");
+        List<String> indices = ((List<Map<String, String>>) args[2]).stream().map(m -> m.get("index_name")).collect(Collectors.toList());
+        Long generation = (Long) args[3];
+        String statusStr = (String) args[4];
+        ClusterHealthStatus status = ClusterHealthStatus.fromString(statusStr);
+        String indexTemplate = (String) args[5];
+        return new DataStream(dataStreamName, timeStampField, indices, generation, status, indexTemplate);
+    });
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
@@ -126,12 +130,12 @@ public final class DataStream {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DataStream that = (DataStream) o;
-        return generation == that.generation &&
-            name.equals(that.name) &&
-            timeStampField.equals(that.timeStampField) &&
-            indices.equals(that.indices) &&
-            dataStreamStatus == that.dataStreamStatus &&
-            Objects.equals(indexTemplate, that.indexTemplate);
+        return generation == that.generation
+            && name.equals(that.name)
+            && timeStampField.equals(that.timeStampField)
+            && indices.equals(that.indices)
+            && dataStreamStatus == that.dataStreamStatus
+            && Objects.equals(indexTemplate, that.indexTemplate);
     }
 
     @Override

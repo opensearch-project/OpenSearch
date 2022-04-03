@@ -46,8 +46,11 @@ public class ParsedStringRareTerms extends ParsedRareTerms {
         return StringRareTerms.NAME;
     }
 
-    private static final ObjectParser<ParsedStringRareTerms, Void> PARSER =
-        new ObjectParser<>(ParsedStringRareTerms.class.getSimpleName(), true, ParsedStringRareTerms::new);
+    private static final ObjectParser<ParsedStringRareTerms, Void> PARSER = new ObjectParser<>(
+        ParsedStringRareTerms.class.getSimpleName(),
+        true,
+        ParsedStringRareTerms::new
+    );
 
     static {
         declareParsedTermsFields(PARSER, ParsedBucket::fromXContent);

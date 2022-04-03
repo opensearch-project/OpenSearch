@@ -67,8 +67,7 @@ public abstract class AbstractLeafGeoPointFieldData implements LeafGeoPointField
             }
 
             @Override
-            public void close() {
-            }
+            public void close() {}
 
             @Override
             public MultiGeoPointValues getGeoPointValues() {

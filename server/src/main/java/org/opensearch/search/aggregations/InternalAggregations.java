@@ -108,7 +108,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
 
     public static InternalAggregations readFrom(StreamInput in) throws IOException {
         final InternalAggregations res = from(in.readList(stream -> in.readNamedWriteable(InternalAggregation.class)));
-        if (in.getVersion().before(LegacyESVersion.V_7_8_0) && in.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
+        if (in.getVersion().before(LegacyESVersion.V_7_8_0)) {
             /*
              * Setting the pipeline tree source to null is here is correct but
              * only because we don't immediately pass the InternalAggregations
@@ -127,16 +127,12 @@ public final class InternalAggregations extends Aggregations implements Writeabl
             if (pipelineTreeForBwcSerialization == null) {
                 mergePipelineTreeForBWCSerialization(PipelineTree.EMPTY);
                 out.writeNamedWriteableList(getInternalAggregations());
-                if (out.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
-                    out.writeNamedWriteableList(emptyList());
-                }
+                out.writeNamedWriteableList(emptyList());
             } else {
                 PipelineAggregator.PipelineTree pipelineTree = pipelineTreeForBwcSerialization.get();
                 mergePipelineTreeForBWCSerialization(pipelineTree);
                 out.writeNamedWriteableList(getInternalAggregations());
-                if (out.getVersion().onOrAfter(LegacyESVersion.V_6_7_0)) {
-                    out.writeNamedWriteableList(pipelineTree.aggregators());
-                }
+                out.writeNamedWriteableList(pipelineTree.aggregators());
             }
         } else {
             out.writeNamedWriteableList(getInternalAggregations());
@@ -149,9 +145,8 @@ public final class InternalAggregations extends Aggregations implements Writeabl
      * 7.8.0.
      */
     public void mergePipelineTreeForBWCSerialization(PipelineAggregator.PipelineTree pipelineTree) {
-        getInternalAggregations().stream().forEach(agg -> {
-            agg.mergePipelineTreeForBWCSerialization(pipelineTree.subTree(agg.getName()));
-        });
+        getInternalAggregations().stream()
+            .forEach(agg -> { agg.mergePipelineTreeForBWCSerialization(pipelineTree.subTree(agg.getName())); });
     }
 
     /**
@@ -172,9 +167,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
         if (pipelineTreeForBwcSerialization == null) {
             return emptyList();
         }
-        return pipelineTreeForBwcSerialization.get().aggregators().stream()
-                .map(p -> (SiblingPipelineAggregator) p)
-                .collect(toList());
+        return pipelineTreeForBwcSerialization.get().aggregators().stream().map(p -> (SiblingPipelineAggregator) p).collect(toList());
     }
 
     /**
@@ -213,8 +206,11 @@ public final class InternalAggregations extends Aggregations implements Writeabl
      * aggregations (both embedded parent/sibling as well as top-level sibling pipelines)
      */
     public static InternalAggregations topLevelReduce(List<InternalAggregations> aggregationsList, ReduceContext context) {
-        InternalAggregations reduced = reduce(aggregationsList, context,
-                reducedAggregations -> new InternalAggregations(reducedAggregations, context.pipelineTreeForBwcSerialization()));
+        InternalAggregations reduced = reduce(
+            aggregationsList,
+            context,
+            reducedAggregations -> new InternalAggregations(reducedAggregations, context.pipelineTreeForBwcSerialization())
+        );
         if (reduced == null) {
             return null;
         }
@@ -245,8 +241,11 @@ public final class InternalAggregations extends Aggregations implements Writeabl
      *            older versions of Elasticsearch that require the pipeline aggregations to be returned
      *            as part of the aggregation tree
      */
-    public static InternalAggregations reduce(List<InternalAggregations> aggregationsList, ReduceContext context,
-            Function<List<InternalAggregation>, InternalAggregations> ctor) {
+    public static InternalAggregations reduce(
+        List<InternalAggregations> aggregationsList,
+        ReduceContext context,
+        Function<List<InternalAggregation>, InternalAggregations> ctor
+    ) {
         if (aggregationsList.isEmpty()) {
             return null;
         }
@@ -256,8 +255,10 @@ public final class InternalAggregations extends Aggregations implements Writeabl
         for (InternalAggregations aggregations : aggregationsList) {
             for (Aggregation aggregation : aggregations.aggregations) {
                 List<InternalAggregation> aggs = aggByName.computeIfAbsent(
-                        aggregation.getName(), k -> new ArrayList<>(aggregationsList.size()));
-                aggs.add((InternalAggregation)aggregation);
+                    aggregation.getName(),
+                    k -> new ArrayList<>(aggregationsList.size())
+                );
+                aggs.add((InternalAggregation) aggregation);
             }
         }
 
@@ -306,7 +307,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
 
         @Override
         public void writeByte(byte b) throws IOException {
-            ++ size;
+            ++size;
         }
 
         @Override

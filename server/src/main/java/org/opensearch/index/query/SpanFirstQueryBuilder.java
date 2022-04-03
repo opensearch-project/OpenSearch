@@ -32,9 +32,9 @@
 
 package org.opensearch.index.query;
 
+import org.apache.lucene.queries.spans.SpanFirstQuery;
+import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanFirstQuery;
-import org.apache.lucene.search.spans.SpanQuery;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
@@ -174,8 +174,7 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
 
     @Override
     protected boolean doEquals(SpanFirstQueryBuilder other) {
-        return Objects.equals(matchBuilder, other.matchBuilder) &&
-               Objects.equals(end, other.end);
+        return Objects.equals(matchBuilder, other.matchBuilder) && Objects.equals(end, other.end);
     }
 
     @Override

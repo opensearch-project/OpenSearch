@@ -61,10 +61,7 @@ public abstract class AbstractRequestTestCase<C extends ToXContent, S> extends O
         final BytesReference bytes = toShuffledXContent(clientTestInstance, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
 
         final XContent xContent = XContentFactory.xContent(xContentType);
-        final XContentParser parser = xContent.createParser(
-            xContentRegistry(),
-            LoggingDeprecationHandler.INSTANCE,
-            bytes.streamInput());
+        final XContentParser parser = xContent.createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, bytes.streamInput());
         final S serverInstance = doParseToServerInstance(parser);
         assertInstances(serverInstance, clientTestInstance);
     }

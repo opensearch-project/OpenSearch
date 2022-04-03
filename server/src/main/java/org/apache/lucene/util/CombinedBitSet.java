@@ -80,7 +80,7 @@ public final class CombinedBitSet extends BitSet implements Bits {
             if (prev == 0) {
                 return -1;
             }
-            prev = first.prevSetBit(prev-1);
+            prev = first.prevSetBit(prev - 1);
         }
         return prev;
     }
@@ -93,7 +93,7 @@ public final class CombinedBitSet extends BitSet implements Bits {
             if (next == length() - 1) {
                 return DocIdSetIterator.NO_MORE_DOCS;
             }
-            next = first.nextSetBit(next+1);
+            next = first.nextSetBit(next + 1);
         }
         return next;
     }
@@ -125,6 +125,11 @@ public final class CombinedBitSet extends BitSet implements Bits {
 
     @Override
     public void clear(int startIndex, int endIndex) {
+        throw new UnsupportedOperationException("not implemented");
+    }
+
+    @Override
+    public boolean getAndSet(int i) {
         throw new UnsupportedOperationException("not implemented");
     }
 }

@@ -118,9 +118,11 @@ interface SearchPhaseContext extends Executor {
      * @see org.opensearch.search.fetch.FetchSearchResult#getContextId()
      *
      */
-    default void sendReleaseSearchContext(ShardSearchContextId contextId,
-                                          Transport.Connection connection,
-                                          OriginalIndices originalIndices) {
+    default void sendReleaseSearchContext(
+        ShardSearchContextId contextId,
+        Transport.Connection connection,
+        OriginalIndices originalIndices
+    ) {
         if (connection != null) {
             getSearchTransport().sendFreeContext(connection, contextId, originalIndices);
         }

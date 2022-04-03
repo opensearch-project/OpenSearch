@@ -35,8 +35,6 @@ import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
-import org.opensearch.cluster.health.ClusterHealthStatus;
-import org.opensearch.cluster.health.ClusterStateHealth;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -56,10 +54,7 @@ public class ClusterHealthAllocationTests extends OpenSearchAllocationTestCase {
         assertEquals(ClusterHealthStatus.GREEN, getClusterHealthStatus(clusterState));
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test")
-                .settings(settings(Version.CURRENT))
-                .numberOfShards(2)
-                .numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
             .build();
         RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
         clusterState = ClusterState.builder(clusterState).metadata(metadata).routingTable(routingTable).build();
@@ -92,13 +87,18 @@ public class ClusterHealthAllocationTests extends OpenSearchAllocationTestCase {
 
     private ClusterState addNode(ClusterState clusterState, String nodeName, boolean isMaster) {
         DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder(clusterState.getNodes());
-        nodeBuilder.add(newNode(nodeName, Collections.singleton(isMaster ? DiscoveryNodeRole.MASTER_ROLE : DiscoveryNodeRole.DATA_ROLE)));
+        nodeBuilder.add(
+            newNode(nodeName, Collections.singleton(isMaster ? DiscoveryNodeRole.CLUSTER_MANAGER_ROLE : DiscoveryNodeRole.DATA_ROLE))
+        );
         return ClusterState.builder(clusterState).nodes(nodeBuilder).build();
     }
 
     private ClusterState removeNode(ClusterState clusterState, String nodeName, AllocationService allocationService) {
-        return allocationService.disassociateDeadNodes(ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder(clusterState.getNodes()).remove(nodeName)).build(), true, "reroute");
+        return allocationService.disassociateDeadNodes(
+            ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.getNodes()).remove(nodeName)).build(),
+            true,
+            "reroute"
+        );
     }
 
     private ClusterHealthStatus getClusterHealthStatus(ClusterState clusterState) {

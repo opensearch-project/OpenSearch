@@ -31,7 +31,6 @@
 
 package org.opensearch.search.aggregations;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -126,8 +125,7 @@ public abstract class InternalOrder extends BucketOrder {
                 return false;
             }
             Aggregation other = (Aggregation) obj;
-            return Objects.equals(path, other.path)
-                && Objects.equals(order, other.order);
+            return Objects.equals(path, other.path) && Objects.equals(order, other.order);
         }
     }
 
@@ -197,8 +195,8 @@ public abstract class InternalOrder extends BucketOrder {
         @Override
         public <T extends Bucket> Comparator<T> partiallyBuiltBucketComparator(ToLongFunction<T> ordinalReader, Aggregator aggregator) {
             List<Comparator<T>> comparators = orderElements.stream()
-                    .map(oe -> oe.partiallyBuiltBucketComparator(ordinalReader, aggregator))
-                    .collect(toList());
+                .map(oe -> oe.partiallyBuiltBucketComparator(ordinalReader, aggregator))
+                .collect(toList());
             return (lhs, rhs) -> {
                 Iterator<Comparator<T>> itr = comparators.iterator();
                 int result;
@@ -293,9 +291,7 @@ public abstract class InternalOrder extends BucketOrder {
                 return false;
             }
             SimpleOrder other = (SimpleOrder) obj;
-            return Objects.equals(id, other.id)
-                && Objects.equals(key, other.key)
-                && Objects.equals(order, other.order);
+            return Objects.equals(id, other.id) && Objects.equals(key, other.key) && Objects.equals(order, other.order);
         }
     }
 
@@ -420,10 +416,14 @@ public abstract class InternalOrder extends BucketOrder {
         public static BucketOrder readOrder(StreamInput in) throws IOException {
             byte id = in.readByte();
             switch (id) {
-                case COUNT_DESC_ID: return COUNT_DESC;
-                case COUNT_ASC_ID: return COUNT_ASC;
-                case KEY_DESC_ID: return KEY_DESC;
-                case KEY_ASC_ID: return KEY_ASC;
+                case COUNT_DESC_ID:
+                    return COUNT_DESC;
+                case COUNT_ASC_ID:
+                    return COUNT_ASC;
+                case KEY_DESC_ID:
+                    return KEY_DESC;
+                case KEY_ASC_ID:
+                    return KEY_ASC;
                 case Aggregation.ID:
                     boolean asc = in.readBoolean();
                     String key = in.readString();
@@ -450,28 +450,7 @@ public abstract class InternalOrder extends BucketOrder {
          * @throws IOException on error reading from the stream.
          */
         public static BucketOrder readHistogramOrder(StreamInput in, boolean bwcOrderFlag) throws IOException {
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_6_0_0_alpha2)) {
-                return Streams.readOrder(in);
-            } else { // backwards compat logic
-                if (bwcOrderFlag == false || in.readBoolean()) {
-                    // translate the old histogram order IDs to the new order objects
-                    byte id = in.readByte();
-                    switch (id) {
-                        case 1: return KEY_ASC;
-                        case 2: return KEY_DESC;
-                        case 3: return COUNT_ASC;
-                        case 4: return COUNT_DESC;
-                        case 0: // aggregation order stream logic is backwards compatible
-                            boolean asc = in.readBoolean();
-                            String key = in.readString();
-                            return new Aggregation(key, asc);
-                        default: // not expecting compound order ID
-                            throw new RuntimeException("unknown histogram order id [" + id + "]");
-                    }
-                } else { // default to _key asc if no order specified
-                    return KEY_ASC;
-                }
-            }
+            return Streams.readOrder(in);
         }
 
         /**
@@ -506,40 +485,7 @@ public abstract class InternalOrder extends BucketOrder {
          * @throws IOException on error writing to the stream.
          */
         public static void writeHistogramOrder(BucketOrder order, StreamOutput out, boolean bwcOrderFlag) throws IOException {
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_6_0_0_alpha2)) {
-                order.writeTo(out);
-            } else { // backwards compat logic
-                if(bwcOrderFlag) { // need to add flag that determines if order exists
-                    out.writeBoolean(true); // order always exists
-                }
-                if (order instanceof CompoundOrder) {
-                    // older versions do not support histogram compound order; the best we can do here is use the first order.
-                    order = ((CompoundOrder) order).orderElements.get(0);
-                }
-                if (order instanceof Aggregation) {
-                    // aggregation order stream logic is backwards compatible
-                    order.writeTo(out);
-                } else {
-                    // convert the new order IDs to the old histogram order IDs.
-                    byte id;
-                    switch (order.id()) {
-                        case COUNT_DESC_ID:
-                            id = 4;
-                            break;
-                        case COUNT_ASC_ID:
-                            id = 3;
-                            break;
-                        case KEY_DESC_ID:
-                            id = 2;
-                            break;
-                        case KEY_ASC_ID:
-                            id = 1;
-                            break;
-                        default: throw new RuntimeException("unknown order id [" + order.id() + "]");
-                    }
-                    out.writeByte(id);
-                }
-            }
+            order.writeTo(out);
         }
     }
 
@@ -548,8 +494,7 @@ public abstract class InternalOrder extends BucketOrder {
      */
     public static class Parser {
 
-        private static final DeprecationLogger deprecationLogger =
-                DeprecationLogger.getLogger(Parser.class);
+        private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Parser.class);
 
         /**
          * Parse a {@link BucketOrder} from {@link XContent}.
@@ -572,22 +517,22 @@ public abstract class InternalOrder extends BucketOrder {
                     } else if ("desc".equalsIgnoreCase(dir)) {
                         orderAsc = false;
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(),
-                            "Unknown order direction [" + dir + "]");
+                        throw new ParsingException(parser.getTokenLocation(), "Unknown order direction [" + dir + "]");
                     }
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                        "Unexpected token [" + token + "] for [order]");
+                    throw new ParsingException(parser.getTokenLocation(), "Unexpected token [" + token + "] for [order]");
                 }
             }
             if (orderKey == null) {
-                throw new ParsingException(parser.getTokenLocation(),
-                    "Must specify at least one field for [order]");
+                throw new ParsingException(parser.getTokenLocation(), "Must specify at least one field for [order]");
             }
             // _term and _time order deprecated in 6.0; replaced by _key
             if ("_term".equals(orderKey) || "_time".equals(orderKey)) {
-                deprecationLogger.deprecate("aggregation_order_key",
-                    "Deprecated aggregation order key [{}] used, replaced by [_key]", orderKey);
+                deprecationLogger.deprecate(
+                    "aggregation_order_key",
+                    "Deprecated aggregation order key [{}] used, replaced by [_key]",
+                    orderKey
+                );
             }
             switch (orderKey) {
                 case "_term":

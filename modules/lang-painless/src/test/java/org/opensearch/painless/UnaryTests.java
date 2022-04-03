@@ -75,9 +75,9 @@ public class UnaryTests extends ScriptTestCase {
     }
 
     public void testDefNotTypedRet() {
-        assertEquals((double)~1, exec("def x = (byte)1; double y = ~x; return y;"));
-        assertEquals((float)~1, exec("def x = (short)1; float y = ~x; return y;"));
-        assertEquals((long)~1, exec("def x = (char)1; long y = ~x; return y;"));
+        assertEquals((double) ~1, exec("def x = (byte)1; double y = ~x; return y;"));
+        assertEquals((float) ~1, exec("def x = (short)1; float y = ~x; return y;"));
+        assertEquals((long) ~1, exec("def x = (char)1; long y = ~x; return y;"));
         assertEquals(~1, exec("def x = 1; int y = ~x; return y;"));
     }
 
@@ -92,9 +92,9 @@ public class UnaryTests extends ScriptTestCase {
     }
 
     public void testDefNegTypedRet() {
-        assertEquals((double)-1, exec("def x = (byte)1; double y = -x; return y;"));
-        assertEquals((float)-1, exec("def x = (short)1; float y = -x; return y;"));
-        assertEquals((long)-1, exec("def x = (char)1; long y = -x; return y;"));
+        assertEquals((double) -1, exec("def x = (byte)1; double y = -x; return y;"));
+        assertEquals((float) -1, exec("def x = (short)1; float y = -x; return y;"));
+        assertEquals((long) -1, exec("def x = (char)1; long y = -x; return y;"));
         assertEquals(-1, exec("def x = 1; int y = -x; return y;"));
     }
 
@@ -109,9 +109,9 @@ public class UnaryTests extends ScriptTestCase {
     }
 
     public void testDefPlusTypedRet() {
-        assertEquals((double)-1, exec("def x = (byte)-1; double y = +x; return y;"));
-        assertEquals((float)-1, exec("def x = (short)-1; float y = +x; return y;"));
-        assertEquals((long)65535, exec("def x = (char)-1; long y = +x; return y;"));
+        assertEquals((double) -1, exec("def x = (byte)-1; double y = +x; return y;"));
+        assertEquals((float) -1, exec("def x = (short)-1; float y = +x; return y;"));
+        assertEquals((long) 65535, exec("def x = (char)-1; long y = +x; return y;"));
         assertEquals(-1, exec("def x = -1; int y = +x; return y;"));
     }
 }

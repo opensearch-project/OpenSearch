@@ -32,7 +32,7 @@
 
 package org.opensearch.cluster;
 
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -85,19 +85,24 @@ public final class DataStreamTestHelper {
     }
 
     public static String generateMapping(String timestampFieldName, String type) {
-        return "{\n" +
-            "      \"_data_stream_timestamp\": {\n" +
-            "        \"enabled\": true,\n" +
-            "        \"timestamp_field\": { \"name\": \"" + timestampFieldName + "\" }" +
-            "      }," +
-            "      \"properties\": {\n" +
-            "        \"" + timestampFieldName + "\": {\n" +
-            "          \"type\": \"" + type + "\"\n" +
-            "        }\n" +
-            "      }\n" +
-            "    }";
+        return "{\n"
+            + "      \"_data_stream_timestamp\": {\n"
+            + "        \"enabled\": true,\n"
+            + "        \"timestamp_field\": { \"name\": \""
+            + timestampFieldName
+            + "\" }"
+            + "      },"
+            + "      \"properties\": {\n"
+            + "        \""
+            + timestampFieldName
+            + "\": {\n"
+            + "          \"type\": \""
+            + type
+            + "\"\n"
+            + "        }\n"
+            + "      }\n"
+            + "    }";
     }
-
 
     public static List<Index> randomIndexInstances() {
         int numIndices = OpenSearchTestCase.randomIntBetween(0, 128);
@@ -158,6 +163,5 @@ public final class DataStreamTestHelper {
 
         return IndexMetadata.builder(name).settings(b).numberOfShards(1).numberOfReplicas(1).build();
     }
-
 
 }

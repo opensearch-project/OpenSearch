@@ -159,22 +159,38 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
     }
 
     public void testEnforcedCooldownPeriod() throws IOException {
-        final String repoName = createRepository(randomName(), Settings.builder().put(repositorySettings())
-            .put(S3Repository.COOLDOWN_PERIOD.getKey(), TEST_COOLDOWN_PERIOD).build());
+        final String repoName = createRepository(
+            randomName(),
+            Settings.builder().put(repositorySettings()).put(S3Repository.COOLDOWN_PERIOD.getKey(), TEST_COOLDOWN_PERIOD).build()
+        );
 
-        final SnapshotId fakeOldSnapshot = client().admin().cluster().prepareCreateSnapshot(repoName, "snapshot-old")
-            .setWaitForCompletion(true).setIndices().get().getSnapshotInfo().snapshotId();
+        final SnapshotId fakeOldSnapshot = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(repoName, "snapshot-old")
+            .setWaitForCompletion(true)
+            .setIndices()
+            .get()
+            .getSnapshotInfo()
+            .snapshotId();
         final RepositoriesService repositoriesService = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class);
         final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
         final RepositoryData repositoryData = getRepositoryData(repository);
-        final RepositoryData modifiedRepositoryData = repositoryData.withVersions(Collections.singletonMap(fakeOldSnapshot,
-            SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.minimumCompatibilityVersion()));
-        final BytesReference serialized = BytesReference.bytes(modifiedRepositoryData.snapshotsToXContent(XContentFactory.jsonBuilder(),
-            SnapshotsService.OLD_SNAPSHOT_FORMAT));
+        final RepositoryData modifiedRepositoryData = repositoryData.withVersions(
+            Collections.singletonMap(fakeOldSnapshot, SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.minimumCompatibilityVersion())
+        );
+        final BytesReference serialized = BytesReference.bytes(
+            modifiedRepositoryData.snapshotsToXContent(XContentFactory.jsonBuilder(), SnapshotsService.OLD_SNAPSHOT_FORMAT)
+        );
         PlainActionFuture.get(f -> repository.threadPool().generic().execute(ActionRunnable.run(f, () -> {
             try (InputStream stream = serialized.streamInput()) {
-                repository.blobStore().blobContainer(repository.basePath()).writeBlobAtomic(
-                    BlobStoreRepository.INDEX_FILE_PREFIX + modifiedRepositoryData.getGenId(), stream, serialized.length(), true);
+                repository.blobStore()
+                    .blobContainer(repository.basePath())
+                    .writeBlobAtomic(
+                        BlobStoreRepository.INDEX_FILE_PREFIX + modifiedRepositoryData.getGenId(),
+                        stream,
+                        serialized.length(),
+                        true
+                    );
             }
         })));
 
@@ -209,8 +225,12 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
         }
 
         @Override
-        protected S3Repository createRepository(RepositoryMetadata metadata, NamedXContentRegistry registry,
-                                                ClusterService clusterService, RecoverySettings recoverySettings) {
+        protected S3Repository createRepository(
+            RepositoryMetadata metadata,
+            NamedXContentRegistry registry,
+            ClusterService clusterService,
+            RecoverySettings recoverySettings
+        ) {
             return new S3Repository(metadata, registry, service, clusterService, recoverySettings) {
 
                 @Override
@@ -225,8 +245,7 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
                                 }
 
                                 @Override
-                                void ensureMultiPartUploadSize(long blobSize) {
-                                }
+                                void ensureMultiPartUploadSize(long blobSize) {}
                             };
                         }
                     };
@@ -307,10 +326,9 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
         }
 
         private boolean isMultiPartUpload(String request) {
-            return Regex.simpleMatch("POST /*/*?uploads", request) ||
-                Regex.simpleMatch("POST /*/*?*uploadId=*", request) ||
-                Regex.simpleMatch("PUT /*/*?*uploadId=*", request);
+            return Regex.simpleMatch("POST /*/*?uploads", request)
+                || Regex.simpleMatch("POST /*/*?*uploadId=*", request)
+                || Regex.simpleMatch("PUT /*/*?*uploadId=*", request);
         }
     }
 }
-

@@ -116,9 +116,9 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(taskId, request.taskId) &&
-                    allocationId == request.allocationId &&
-                    Objects.equals(exception, request.exception);
+            return Objects.equals(taskId, request.taskId)
+                && allocationId == request.allocationId
+                && Objects.equals(exception, request.exception);
         }
 
         @Override
@@ -127,8 +127,10 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
         }
     }
 
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<CompletionPersistentTaskAction.Request,
-            PersistentTaskResponse, CompletionPersistentTaskAction.RequestBuilder> {
+    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<
+        CompletionPersistentTaskAction.Request,
+        PersistentTaskResponse,
+        CompletionPersistentTaskAction.RequestBuilder> {
 
         protected RequestBuilder(OpenSearchClient client, CompletionPersistentTaskAction action) {
             super(client, action, new Request());
@@ -140,12 +142,23 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
         private final PersistentTasksClusterService persistentTasksClusterService;
 
         @Inject
-        public TransportAction(TransportService transportService, ClusterService clusterService,
-                               ThreadPool threadPool, ActionFilters actionFilters,
-                               PersistentTasksClusterService persistentTasksClusterService,
-                               IndexNameExpressionResolver indexNameExpressionResolver) {
-            super(CompletionPersistentTaskAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                Request::new, indexNameExpressionResolver);
+        public TransportAction(
+            TransportService transportService,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ActionFilters actionFilters,
+            PersistentTasksClusterService persistentTasksClusterService,
+            IndexNameExpressionResolver indexNameExpressionResolver
+        ) {
+            super(
+                CompletionPersistentTaskAction.NAME,
+                transportService,
+                clusterService,
+                threadPool,
+                actionFilters,
+                Request::new,
+                indexNameExpressionResolver
+            );
             this.persistentTasksClusterService = persistentTasksClusterService;
         }
 
@@ -166,13 +179,20 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
         }
 
         @Override
-        protected final void masterOperation(final Request request, ClusterState state,
-                                             final ActionListener<PersistentTaskResponse> listener) {
-            persistentTasksClusterService.completePersistentTask(request.taskId, request.allocationId, request.exception,
-                ActionListener.delegateFailure(listener,
-                    (delegatedListener, task) -> delegatedListener.onResponse(new PersistentTaskResponse(task))));
+        protected final void masterOperation(
+            final Request request,
+            ClusterState state,
+            final ActionListener<PersistentTaskResponse> listener
+        ) {
+            persistentTasksClusterService.completePersistentTask(
+                request.taskId,
+                request.allocationId,
+                request.exception,
+                ActionListener.delegateFailure(
+                    listener,
+                    (delegatedListener, task) -> delegatedListener.onResponse(new PersistentTaskResponse(task))
+                )
+            );
         }
     }
 }
-
-

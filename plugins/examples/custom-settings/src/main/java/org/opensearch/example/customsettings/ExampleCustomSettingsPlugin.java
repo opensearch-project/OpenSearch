@@ -58,12 +58,14 @@ public class ExampleCustomSettingsPlugin extends Plugin {
      */
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(ExampleCustomSettingsConfig.SIMPLE_SETTING,
-                             ExampleCustomSettingsConfig.BOOLEAN_SETTING,
-                             ExampleCustomSettingsConfig.VALIDATED_SETTING,
-                             ExampleCustomSettingsConfig.FILTERED_SETTING,
-                             ExampleCustomSettingsConfig.SECURED_SETTING,
-                             ExampleCustomSettingsConfig.LIST_SETTING);
+        return Arrays.asList(
+            ExampleCustomSettingsConfig.SIMPLE_SETTING,
+            ExampleCustomSettingsConfig.BOOLEAN_SETTING,
+            ExampleCustomSettingsConfig.VALIDATED_SETTING,
+            ExampleCustomSettingsConfig.FILTERED_SETTING,
+            ExampleCustomSettingsConfig.SECURED_SETTING,
+            ExampleCustomSettingsConfig.LIST_SETTING
+        );
     }
 
     @Override

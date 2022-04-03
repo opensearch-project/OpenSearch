@@ -33,9 +33,9 @@
 package org.opensearch.example.painlesswhitelist;
 
 /**
- * An example of a class to be whitelisted for use by painless scripts
+ * An example of a class to be allowlisted for use by painless scripts
  *
- * Each of the members and methods below are whitelisted for use in search scripts.
+ * Each of the members and methods below are allowlisted for use in search scripts.
  * See <a href="file:example_whitelist.txt">example_whitelist.txt</a>.
  */
 public class ExampleWhitelistedClass {
@@ -68,7 +68,7 @@ public class ExampleWhitelistedClass {
         return Integer.parseInt(x);
     }
 
-    // example method to attach annotations in whitelist
+    // example method to attach annotations in allowlist
     public void annotate() {
         // some logic here
     }

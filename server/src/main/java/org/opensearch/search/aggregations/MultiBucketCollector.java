@@ -189,7 +189,7 @@ public class MultiBucketCollector extends BucketCollector {
         @Override
         public void setScorer(Scorable scorer) throws IOException {
             if (cacheScores) {
-                scorer = new ScoreCachingWrappingScorer(scorer);
+                scorer = ScoreCachingWrappingScorer.wrap(scorer);
             }
             for (int i = 0; i < numCollectors; ++i) {
                 final LeafCollector c = collectors[i];
@@ -207,7 +207,7 @@ public class MultiBucketCollector extends BucketCollector {
         public void collect(int doc, long bucket) throws IOException {
             final LeafBucketCollector[] collectors = this.collectors;
             int numCollectors = this.numCollectors;
-            for (int i = 0; i < numCollectors; ) {
+            for (int i = 0; i < numCollectors;) {
                 final LeafBucketCollector collector = collectors[i];
                 try {
                     collector.collect(doc, bucket);

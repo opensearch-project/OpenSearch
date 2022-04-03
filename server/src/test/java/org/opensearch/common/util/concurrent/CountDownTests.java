@@ -41,7 +41,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-
 public class CountDownTests extends OpenSearchTestCase {
     public void testConcurrent() throws InterruptedException {
         final AtomicInteger count = new AtomicInteger(0);
@@ -60,7 +59,7 @@ public class CountDownTests extends OpenSearchTestCase {
                         throw new RuntimeException(e);
                     }
                     while (true) {
-                        if(frequently()) {
+                        if (frequently()) {
                             if (countDown.isCountedDown()) {
                                 break;
                             }
@@ -95,7 +94,7 @@ public class CountDownTests extends OpenSearchTestCase {
     public void testSingleThreaded() {
         int atLeast = scaledRandomIntBetween(10, 1000);
         final CountDown countDown = new CountDown(atLeast);
-        while(!countDown.isCountedDown()) {
+        while (!countDown.isCountedDown()) {
             atLeast--;
             if (countDown.countDown()) {
                 assertThat(atLeast, equalTo(0));

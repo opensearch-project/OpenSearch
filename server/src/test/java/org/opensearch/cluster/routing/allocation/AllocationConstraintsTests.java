@@ -13,7 +13,7 @@ import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocat
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 
-import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -21,8 +21,7 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
 
     public void testSettings() {
         Settings.Builder settings = Settings.builder();
-        ClusterSettings service = new ClusterSettings(Settings.builder().build(),
-            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterSettings service = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         BalancedShardsAllocator allocator = new BalancedShardsAllocator(settings.build(), service);
 
         settings = Settings.builder();

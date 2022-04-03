@@ -48,9 +48,9 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.text.Text;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
-import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.TextSearchInfo;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.FetchSubPhase.HitContext;
 
@@ -75,8 +75,10 @@ public class UnifiedHighlighter implements Highlighter {
     @Override
     public HighlightField highlight(FieldHighlightContext fieldContext) throws IOException {
         @SuppressWarnings("unchecked")
-        Map<String, CustomUnifiedHighlighter> cache = (Map<String, CustomUnifiedHighlighter>) fieldContext.cache
-            .computeIfAbsent(UnifiedHighlighter.class.getName(), k -> new HashMap<>());
+        Map<String, CustomUnifiedHighlighter> cache = (Map<String, CustomUnifiedHighlighter>) fieldContext.cache.computeIfAbsent(
+            UnifiedHighlighter.class.getName(),
+            k -> new HashMap<>()
+        );
         if (cache.containsKey(fieldContext.fieldName) == false) {
             cache.put(fieldContext.fieldName, buildHighlighter(fieldContext));
         }
@@ -86,7 +88,13 @@ public class UnifiedHighlighter implements Highlighter {
         FetchSubPhase.HitContext hitContext = fieldContext.hitContext;
 
         CheckedSupplier<String, IOException> loadFieldValues = () -> {
-            List<Object> fieldValues = loadFieldValues(highlighter, fieldType, field, hitContext, fieldContext.forceSource);
+            List<Object> fieldValues = loadFieldValues(
+                highlighter,
+                fieldContext.context.getQueryShardContext(),
+                fieldType,
+                hitContext,
+                fieldContext.forceSource
+            );
             if (fieldValues.size() == 0) {
                 return null;
             }
@@ -108,7 +116,7 @@ public class UnifiedHighlighter implements Highlighter {
         }
 
         if (field.fieldOptions().scoreOrdered()) {
-            //let's sort the snippets by score if needed
+            // let's sort the snippets by score if needed
             CollectionUtil.introSort(snippets, (o1, o2) -> Double.compare(o2.getScore(), o1.getScore()));
         }
 
@@ -125,12 +133,6 @@ public class UnifiedHighlighter implements Highlighter {
             ? HighlightUtils.Encoders.HTML
             : HighlightUtils.Encoders.DEFAULT;
         int maxAnalyzedOffset = fieldContext.context.getIndexSettings().getHighlightMaxAnalyzedOffset();
-        int keywordIgnoreAbove = Integer.MAX_VALUE;
-        if (fieldContext.fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
-            KeywordFieldMapper mapper = (KeywordFieldMapper) fieldContext.context.mapperService().documentMapper()
-                .mappers().getMapper(fieldContext.fieldName);
-            keywordIgnoreAbove = mapper.ignoreAbove();
-        }
         int numberOfFragments = fieldContext.field.fieldOptions().numberOfFragments();
         Analyzer analyzer = getAnalyzer(fieldContext.context.mapperService().documentMapper());
         PassageFormatter passageFormatter = getPassageFormatter(fieldContext.hitContext, fieldContext.field, encoder);
@@ -150,7 +152,7 @@ public class UnifiedHighlighter implements Highlighter {
             breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
             higlighterNumberOfFragments = numberOfFragments == 0 ? Integer.MAX_VALUE - 1 : numberOfFragments;
         } else {
-            //using paragraph separator we make sure that each field value holds a discrete passage for highlighting
+            // using paragraph separator we make sure that each field value holds a discrete passage for highlighting
             breakIterator = getBreakIterator(fieldContext.field);
             higlighterNumberOfFragments = numberOfFragments;
         }
@@ -167,16 +169,13 @@ public class UnifiedHighlighter implements Highlighter {
             fieldContext.field.fieldOptions().noMatchSize(),
             higlighterNumberOfFragments,
             fieldMatcher(fieldContext),
-            keywordIgnoreAbove,
             maxAnalyzedOffset
         );
     }
 
     protected PassageFormatter getPassageFormatter(HitContext hitContext, SearchHighlightContext.Field field, Encoder encoder) {
-        return new CustomPassageFormatter(field.fieldOptions().preTags()[0],
-            field.fieldOptions().postTags()[0], encoder);
+        return new CustomPassageFormatter(field.fieldOptions().preTags()[0], field.fieldOptions().postTags()[0], encoder);
     }
-
 
     protected Analyzer getAnalyzer(DocumentMapper docMapper) {
         return docMapper.mappers().indexAnalyzer();
@@ -184,26 +183,22 @@ public class UnifiedHighlighter implements Highlighter {
 
     protected List<Object> loadFieldValues(
         CustomUnifiedHighlighter highlighter,
+        QueryShardContext context,
         MappedFieldType fieldType,
-        SearchHighlightContext.Field field,
         FetchSubPhase.HitContext hitContext,
         boolean forceSource
     ) throws IOException {
-        List<Object> fieldValues = HighlightUtils.loadFieldValues(fieldType, hitContext, forceSource);
-        fieldValues = fieldValues.stream()
-            .map((s) -> convertFieldValue(fieldType, s))
-            .collect(Collectors.toList());
+        List<Object> fieldValues = HighlightUtils.loadFieldValues(fieldType, context, hitContext, forceSource);
+        fieldValues = fieldValues.stream().map((s) -> convertFieldValue(fieldType, s)).collect(Collectors.toList());
         return fieldValues;
     }
 
     protected BreakIterator getBreakIterator(SearchHighlightContext.Field field) {
         final SearchHighlightContext.FieldOptions fieldOptions = field.fieldOptions();
-        final Locale locale =
-            fieldOptions.boundaryScannerLocale() != null ? fieldOptions.boundaryScannerLocale() :
-                Locale.ROOT;
-        final HighlightBuilder.BoundaryScannerType type =
-            fieldOptions.boundaryScannerType()  != null ? fieldOptions.boundaryScannerType() :
-                HighlightBuilder.BoundaryScannerType.SENTENCE;
+        final Locale locale = fieldOptions.boundaryScannerLocale() != null ? fieldOptions.boundaryScannerLocale() : Locale.ROOT;
+        final HighlightBuilder.BoundaryScannerType type = fieldOptions.boundaryScannerType() != null
+            ? fieldOptions.boundaryScannerType()
+            : HighlightBuilder.BoundaryScannerType.SENTENCE;
         int maxLen = fieldOptions.fragmentCharSize();
         switch (type) {
             case SENTENCE:
@@ -228,8 +223,8 @@ public class UnifiedHighlighter implements Highlighter {
     }
 
     protected static String mergeFieldValues(List<Object> fieldValues, char valuesSeparator) {
-        //postings highlighter accepts all values in a single string, as offsets etc. need to match with content
-        //loaded from stored fields, we merge all values using a proper separator
+        // postings highlighter accepts all values in a single string, as offsets etc. need to match with content
+        // loaded from stored fields, we merge all values using a proper separator
         String rawValue = Strings.collectionToDelimitedString(fieldValues, String.valueOf(valuesSeparator));
         return rawValue.substring(0, Math.min(rawValue.length(), Integer.MAX_VALUE - 1));
     }
@@ -237,8 +232,7 @@ public class UnifiedHighlighter implements Highlighter {
     protected OffsetSource getOffsetSource(MappedFieldType fieldType) {
         TextSearchInfo tsi = fieldType.getTextSearchInfo();
         if (tsi.hasOffsets()) {
-            return tsi.termVectors() != TextSearchInfo.TermVector.NONE
-                ? OffsetSource.POSTINGS_WITH_TERM_VECTORS : OffsetSource.POSTINGS;
+            return tsi.termVectors() != TextSearchInfo.TermVector.NONE ? OffsetSource.POSTINGS_WITH_TERM_VECTORS : OffsetSource.POSTINGS;
         }
         if (tsi.termVectors() == TextSearchInfo.TermVector.OFFSETS) {
             return OffsetSource.TERM_VECTORS;

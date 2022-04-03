@@ -1,10 +1,7 @@
 ---
 "Copy settings during split index":
   - skip:
-      version: " - 6.9.99"
-      reason: expects warnings that pre-7.0.0 will not send
-      features: [arbitrary_key, warnings]
-
+        features: allowed_warnings
   - do:
       nodes.info:
         node_id: data:true
@@ -50,7 +47,7 @@
             index.number_of_replicas: 0
             index.number_of_shards: 2
             index.merge.scheduler.max_thread_count: 2
-      warnings:
+      allowed_warnings:
         - "parameter [copy_settings] is deprecated and will be removed in 8.0.0"
 
 

@@ -1,4 +1,4 @@
-OpenSearch uses [jUnit](https://junit.org/junit5/) for testing, it also uses randomness in the tests, that can be set using a seed, the following is a cheatsheet of options for running the tests for OpenSearch.
+OpenSearch uses [jUnit](https://junit.org/junit5/) for testing, it also uses randomness in the tests, that can be set using a seed. The following is a cheatsheet of options for running the tests for OpenSearch.
 
 - [Requirements](#requirements)
 - [Creating packages](#creating-packages)
@@ -64,7 +64,7 @@ In order to run OpenSearch from source without building a package, you can run i
 
 ### Launching and debugging from an IDE
 
-**NOTE:** If you have imported the project into IntelliJ according to the instructions in [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md#importing-the-project-into-intellij-idea), then a debug run configuration named **Debug OpenSearch** will be created for you and configured appropriately.
+**NOTE:** If you have imported the project into IntelliJ according to the instructions in [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md#intellij-idea), then a debug run configuration named **Debug OpenSearch** will be created for you and configured appropriately.
 
 To run OpenSearch in debug mode,
 
@@ -178,7 +178,7 @@ Change the logging level of OpenSearch (not Gradle)
 
     ./gradlew test -Dtests.opensearch.logger.level=DEBUG
 
-Print all the logging output from the test runs to the commandline even if tests are passing.
+Print all the logging output from the test runs to the command line even if tests are passing.
 
     ./gradlew test -Dtests.output=true
 
@@ -245,7 +245,7 @@ The YAML REST tests support all the options provided by the randomized runner, p
 
 -   `tests.rest.suite`: comma separated paths of the test suites to be run (by default loaded from /rest-api-spec/test). It is possible to run only a subset of the tests providing a sub-folder or even a single yaml file (the default /rest-api-spec/test prefix is optional when files are loaded from classpath) e.g. `-Dtests.rest.suite=index,get,create/10_with_id`
 
--   `tests.rest.blacklist`: comma separated globs that identify tests that are blacklisted and need to be skipped e.g. `-Dtests.rest.blacklist=index/**/Index document,get/10_basic/**`
+-   `tests.rest.blacklist`: comma separated globs that identify tests that are denylisted and need to be skipped e.g. `-Dtests.rest.blacklist=index/**/Index document,get/10_basic/**`
 
 Java REST tests can be run with the "javaRestTest" task.
 
@@ -260,7 +260,7 @@ yamlRestTest’s and javaRestTest’s are easy to identify, since they are found
 
 If in doubt about which command to use, simply run &lt;gradle path&gt;:check
 
-Note that the REST tests, like all the integration tests, can be run against an external cluster by specifying the `tests.cluster` property, which if present needs to contain a comma separated list of nodes to connect to (e.g. localhost:9300). A transport client will be created based on that and used for all the before|after test operations, and to extract the http addresses of the nodes so that REST requests can be sent to them.
+Note that the REST tests, like all the integration tests, can be run against an external cluster by specifying the `tests.cluster` property, which if present needs to contain a comma separated list of nodes to connect to (e.g. localhost:9300).
 
 # Testing packaging
 
@@ -363,7 +363,13 @@ These test tasks can use the `--tests`, `--info`, and `--debug` parameters just 
 
 # Testing backwards compatibility
 
-Backwards compatibility tests exist to test upgrading from each supported version to the current version. To run them all use:
+Backwards compatibility tests exist to test upgrading from each supported version to the current version.
+
+The test can be run for any versions which the current version will be compatible with. Tests are run for released versions download the distributions from the artifact repository, see [DistributionDownloadPlugin](./buildSrc/src/main/java/org/opensearch/gradle/DistributionDownloadPlugin.java) for the repository location. Tests are run for versions that are not yet released automatically check out the branch and build from source to get the distributions, see [BwcVersions](./buildSrc/src/main/java/org/opensearch/gradle/BwcVersions.java) and [distribution/bwc/build.gradle](./distribution/bwc/build.gradle) for more information.
+
+The minimum JDK versions for runtime and compiling need to be installed, and environment variables `JAVAx_HOME`, such as `JAVA8_HOME`, pointing to the JDK installations are required to run the tests against unreleased versions, since the distributions are created by building from source. The required JDK versions for each branch are located at [.ci/java-versions.properties](.ci/java-versions.properties), see [BwcSetupExtension](./buildSrc/src/main/java/org/opensearch/gradle/internal/BwcSetupExtension.java) for more information.
+
+To run all the backwards compatibility tests use:
 
     ./gradlew bwcTest
 
@@ -376,8 +382,6 @@ Use -Dtest.class and -Dtests.method to run a specific bwcTest test. For example 
     ./gradlew :qa:rolling-upgrade:v7.7.0#bwcTest \
      -Dtests.class=org.opensearch.upgrades.RecoveryIT \
      -Dtests.method=testHistoryUUIDIsGenerated
-
-Tests are run for versions that are not yet released but with which the current version will be compatible with. These are automatically checked out and built from source. See [BwcVersions](./buildSrc/src/main/java/org/opensearch/gradle/BwcVersions.java) and [distribution/bwc/build.gradle](./distribution/bwc/build.gradle) for more information.
 
 When running `./gradlew check`, minimal bwc checks are also run against compatible versions that are not yet released.
 
@@ -417,9 +421,11 @@ Unit tests are the preferred way to test some functionality: most of the time th
 
 The reason why `OpenSearchSingleNodeTestCase` exists is that all our components used to be very hard to set up in isolation, which had led us to having a number of integration tests but close to no unit tests. `OpenSearchSingleNodeTestCase` is a workaround for this issue which provides an easy way to spin up a node and get access to components that are hard to instantiate like `IndicesService`. Whenever practical, you should prefer unit tests.
 
-Many tests extend `OpenSearchIntegTestCase`, mostly because this is how most tests used to work in the early days of Elasticsearch. However, the complexity of these tests tends to make them hard to debug. Whenever the functionality that is being tested isn’t intimately dependent on how OpenSearch behaves as a cluster, it is recommended to write unit tests or REST tests instead.
+Finally, if the the functionality under test needs to be run in a cluster, there are two test classes to consider:
+  * `OpenSearchRestTestCase` will connect to an external cluster. This is a good option if the tests cases don't rely on a specific configuration of the test cluster. A test cluster is set up as part of the Gradle task running integration tests, and test cases using this class can connect to it. The configuration of the cluster is provided in the Gradle files.
+  * `OpenSearchIntegTestCase` will create a local cluster as part of each test case. The configuration of the cluster is controlled by the test class. This is a good option if different tests cases depend on different cluster configurations, as it would be impractical (and limit parallelization) to keep re-configuring (and re-starting) the external cluster for each test case. A good example of when this class might come in handy is for testing security features, where different cluster configurations are needed to fully test each one.
 
-In short, most new functionality should come with unit tests, and optionally REST tests to test integration.
+In short, most new functionality should come with unit tests, and optionally integration tests using either an external cluster or a local one if there's a need for more specific cluster configurations, as those are more costly and harder to maintain/debug.
 
 ### Refactor code to make it easier to test
 
@@ -439,7 +445,37 @@ Multi-threaded tests are often not reproducible due to the fact that there is no
 
 # Test coverage analysis
 
-Generating test coverage reports for OpenSearch is currently not possible through Gradle. However, it *is* possible to gain insight in code coverage using IntelliJ’s built-in coverage analysis tool that can measure coverage upon executing specific tests. Eclipse may also be able to do the same using the EclEmma plugin.
+The code coverage report can be generated through Gradle with [JaCoCo plugin](https://docs.gradle.org/current/userguide/jacoco_plugin.html).
+
+For unit test:
+
+    ./gradlew codeCoverageReportForUnitTest
+
+For integration test:
+
+    ./gradlew codeCoverageReportForIntegrationTest
+
+For the combined tests (unit and integration):
+
+    ./gradlew codeCoverageReport
+
+To generate coverage report for the combined tests after `check` task:
+
+    ./gradlew check -Dtests.coverage=true
+
+The code coverage report will be generated in `build/codeCoverageReport`, `build/codeCoverageReportForUnitTest` or `build/codeCoverageReportForIntegrationTest` correspondingly.
+
+The report will be in XML format only by default, but you can add the following parameter for HTML and CSV format.
+
+- To generate report in HTML format: `-Dtests.coverage.report.html=true`
+- To generate report in CSV format: `-Dtests.coverage.report.csv=true`
+- To NOT generate report in XML format: `-Dtests.coverage.report.xml=false`
+
+For example, to generate code coverage report in HTML format and not in XML format:
+
+    ./gradlew codeCoverageReport -Dtests.coverage.report.html=true -Dtests.coverage.report.xml=false
+
+Apart from using Gradle, it is also possible to gain insight in code coverage using IntelliJ’s built-in coverage analysis tool that can measure coverage upon executing specific tests. Eclipse may also be able to do the same using the EclEmma plugin.
 
 Please read your IDE documentation for how to attach a debugger to a JVM process.
 

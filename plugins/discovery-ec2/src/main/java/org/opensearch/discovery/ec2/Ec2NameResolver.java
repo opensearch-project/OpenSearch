@@ -67,7 +67,7 @@ import java.nio.charset.StandardCharsets;
  * @author Paul_Loy (keteracel)
  */
 class Ec2NameResolver implements CustomNameResolver {
-    
+
     private static final Logger logger = LogManager.getLogger(Ec2NameResolver.class);
 
     /**
@@ -129,7 +129,7 @@ class Ec2NameResolver implements CustomNameResolver {
     @Override
     public InetAddress[] resolveDefault() {
         return null; // using this, one has to explicitly specify _ec2_ in network setting
-//        return resolve(Ec2HostnameType.DEFAULT, false);
+        // return resolve(Ec2HostnameType.DEFAULT, false);
     }
 
     @Override

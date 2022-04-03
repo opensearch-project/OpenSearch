@@ -33,7 +33,6 @@
 package org.opensearch.cluster.metadata;
 
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.cluster.metadata.ClusterNameExpressionResolver;
 
 import java.util.Arrays;
 import java.util.HashSet;

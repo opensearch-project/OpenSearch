@@ -34,7 +34,6 @@ package org.opensearch.action.admin.indices.template.get;
 
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.test.AbstractWireSerializingTestCase;
-import org.opensearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
 
 import java.io.IOException;
 

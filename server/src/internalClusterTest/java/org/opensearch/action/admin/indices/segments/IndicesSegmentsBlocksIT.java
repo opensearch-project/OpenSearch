@@ -53,13 +53,17 @@ public class IndicesSegmentsBlocksIT extends OpenSearchIntegTestCase {
 
         int docs = between(10, 100);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex("test-blocks", "type", "" + i).setSource("test", "init").execute().actionGet();
+            client().prepareIndex("test-blocks").setId("" + i).setSource("test", "init").execute().actionGet();
         }
         client().admin().indices().prepareFlush("test-blocks").get();
 
         // Request is not blocked
-        for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY,
-            SETTING_READ_ONLY_ALLOW_DELETE)) {
+        for (String blockSetting : Arrays.asList(
+            SETTING_BLOCKS_READ,
+            SETTING_BLOCKS_WRITE,
+            SETTING_READ_ONLY,
+            SETTING_READ_ONLY_ALLOW_DELETE
+        )) {
             try {
                 enableIndexBlock("test-blocks", blockSetting);
                 IndicesSegmentResponse response = client().admin().indices().prepareSegments("test-blocks").execute().actionGet();

@@ -53,10 +53,22 @@ public class DeletePipelineTransportAction extends TransportMasterNodeAction<Del
     private final IngestService ingestService;
 
     @Inject
-    public DeletePipelineTransportAction(ThreadPool threadPool, IngestService ingestService, TransportService transportService,
-                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(DeletePipelineAction.NAME, transportService, ingestService.getClusterService(),
-            threadPool, actionFilters, DeletePipelineRequest::new, indexNameExpressionResolver);
+    public DeletePipelineTransportAction(
+        ThreadPool threadPool,
+        IngestService ingestService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            DeletePipelineAction.NAME,
+            transportService,
+            ingestService.getClusterService(),
+            threadPool,
+            actionFilters,
+            DeletePipelineRequest::new,
+            indexNameExpressionResolver
+        );
         this.ingestService = ingestService;
     }
 
@@ -71,8 +83,8 @@ public class DeletePipelineTransportAction extends TransportMasterNodeAction<Del
     }
 
     @Override
-    protected void masterOperation(DeletePipelineRequest request, ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
+    protected void masterOperation(DeletePipelineRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
+        throws Exception {
         ingestService.delete(request, listener);
     }
 

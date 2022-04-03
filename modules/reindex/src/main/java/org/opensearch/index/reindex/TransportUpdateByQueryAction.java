@@ -33,7 +33,6 @@
 package org.opensearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.ActionFilters;
@@ -47,7 +46,6 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.IndexFieldMapper;
 import org.opensearch.index.mapper.RoutingFieldMapper;
-import org.opensearch.index.mapper.TypeFieldMapper;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptService;
 import org.opensearch.tasks.Task;
@@ -65,10 +63,20 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     private final ClusterService clusterService;
 
     @Inject
-    public TransportUpdateByQueryAction(ThreadPool threadPool, ActionFilters actionFilters, Client client,
-                                        TransportService transportService, ScriptService scriptService, ClusterService clusterService) {
-        super(UpdateByQueryAction.NAME, transportService, actionFilters,
-            (Writeable.Reader<UpdateByQueryRequest>) UpdateByQueryRequest::new);
+    public TransportUpdateByQueryAction(
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        Client client,
+        TransportService transportService,
+        ScriptService scriptService,
+        ClusterService clusterService
+    ) {
+        super(
+            UpdateByQueryAction.NAME,
+            transportService,
+            actionFilters,
+            (Writeable.Reader<UpdateByQueryRequest>) UpdateByQueryRequest::new
+        );
         this.threadPool = threadPool;
         this.client = client;
         this.scriptService = scriptService;
@@ -78,14 +86,22 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     @Override
     protected void doExecute(Task task, UpdateByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
-        BulkByScrollParallelizationHelper.startSlicedAction(request, bulkByScrollTask, UpdateByQueryAction.INSTANCE, listener, client,
+        BulkByScrollParallelizationHelper.startSlicedAction(
+            request,
+            bulkByScrollTask,
+            UpdateByQueryAction.INSTANCE,
+            listener,
+            client,
             clusterService.localNode(),
             () -> {
                 ClusterState state = clusterService.state();
-                ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(),
-                    bulkByScrollTask);
-                new AsyncIndexBySearchAction(bulkByScrollTask, logger, assigningClient, threadPool, scriptService, request, state,
-                    listener).start();
+                ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(
+                    client,
+                    clusterService.localNode(),
+                    bulkByScrollTask
+                );
+                new AsyncIndexBySearchAction(bulkByScrollTask, logger, assigningClient, threadPool, scriptService, request, state, listener)
+                    .start();
             }
         );
     }
@@ -95,18 +111,17 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
      */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<UpdateByQueryRequest, TransportUpdateByQueryAction> {
 
-        private final boolean useSeqNoForCAS;
-
-        AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
-                                 ThreadPool threadPool, ScriptService scriptService, UpdateByQueryRequest request,
-                                 ClusterState clusterState, ActionListener<BulkByScrollResponse> listener) {
-            super(task,
-                // not all nodes support sequence number powered optimistic concurrency control, we fall back to version
-                clusterState.nodes().getMinNodeVersion().onOrAfter(LegacyESVersion.V_6_7_0) == false,
-                // all nodes support sequence number powered optimistic concurrency control and we can use it
-                clusterState.nodes().getMinNodeVersion().onOrAfter(LegacyESVersion.V_6_7_0),
-                logger, client, threadPool, request, listener, scriptService, null);
-            useSeqNoForCAS = clusterState.nodes().getMinNodeVersion().onOrAfter(LegacyESVersion.V_6_7_0);
+        AsyncIndexBySearchAction(
+            BulkByScrollTask task,
+            Logger logger,
+            ParentTaskAssigningClient client,
+            ThreadPool threadPool,
+            ScriptService scriptService,
+            UpdateByQueryRequest request,
+            ClusterState clusterState,
+            ActionListener<BulkByScrollResponse> listener
+        ) {
+            super(task, false, true, logger, client, threadPool, request, listener, scriptService, null);
         }
 
         @Override
@@ -122,7 +137,6 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         protected RequestWrapper<IndexRequest> buildRequest(ScrollableHitSource.Hit doc) {
             IndexRequest index = new IndexRequest();
             index.index(doc.getIndex());
-            index.type(doc.getType());
             index.id(doc.getId());
             index.source(doc.getSource(), doc.getXContentType());
             index.setIfSeqNo(doc.getSeqNo());
@@ -133,19 +147,18 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
 
         class UpdateByQueryScriptApplier extends ScriptApplier {
 
-            UpdateByQueryScriptApplier(WorkerBulkByScrollTaskState taskWorker, ScriptService scriptService, Script script,
-                                       Map<String, Object> params) {
+            UpdateByQueryScriptApplier(
+                WorkerBulkByScrollTaskState taskWorker,
+                ScriptService scriptService,
+                Script script,
+                Map<String, Object> params
+            ) {
                 super(taskWorker, scriptService, script, params);
             }
 
             @Override
             protected void scriptChangedIndex(RequestWrapper<?> request, Object to) {
                 throw new IllegalArgumentException("Modifying [" + IndexFieldMapper.NAME + "] not allowed");
-            }
-
-            @Override
-            protected void scriptChangedType(RequestWrapper<?> request, Object to) {
-                throw new IllegalArgumentException("Modifying [" + TypeFieldMapper.NAME + "] not allowed");
             }
 
             @Override

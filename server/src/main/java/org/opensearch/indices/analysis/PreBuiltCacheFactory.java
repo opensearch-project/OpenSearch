@@ -49,7 +49,11 @@ public class PreBuiltCacheFactory {
      * OPENSEARCH        Exactly one version per opensearch version is stored. Useful if you change an analyzer between opensearch
      *                   releases, when the lucene version does not change
      */
-    public enum CachingStrategy { ONE, LUCENE, OPENSEARCH }
+    public enum CachingStrategy {
+        ONE,
+        LUCENE,
+        OPENSEARCH
+    }
 
     public interface PreBuiltCache<T> {
 

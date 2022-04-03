@@ -43,8 +43,10 @@ import org.opensearch.common.xcontent.XContentType;
 import java.util.List;
 import java.util.Map;
 
-public class PutIndexTemplateRequestBuilder
-    extends MasterNodeOperationRequestBuilder<PutIndexTemplateRequest, AcknowledgedResponse, PutIndexTemplateRequestBuilder> {
+public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBuilder<
+    PutIndexTemplateRequest,
+    AcknowledgedResponse,
+    PutIndexTemplateRequestBuilder> {
 
     public PutIndexTemplateRequestBuilder(OpenSearchClient client, PutIndexTemplateAction action) {
         super(client, action, new PutIndexTemplateRequest());
@@ -122,12 +124,11 @@ public class PutIndexTemplateRequestBuilder
     /**
      * Adds mapping that will be added when the index template gets created.
      *
-     * @param type   The mapping type
      * @param source The mapping source
      * @param xContentType The type/format of the source
      */
-    public PutIndexTemplateRequestBuilder addMapping(String type, String source, XContentType xContentType) {
-        request.mapping(type, source, xContentType);
+    public PutIndexTemplateRequestBuilder setMapping(String source, XContentType xContentType) {
+        request.mapping(source, xContentType);
         return this;
     }
 
@@ -135,8 +136,8 @@ public class PutIndexTemplateRequestBuilder
      * A specialized simplified mapping source method, takes the form of simple properties definition:
      * ("field1", "type=string,store=true").
      */
-    public PutIndexTemplateRequestBuilder addMapping(String type, Object... source) {
-        request.mapping(type, source);
+    public PutIndexTemplateRequestBuilder setMapping(String... source) {
+        request.mapping(source);
         return this;
     }
 
@@ -194,22 +195,10 @@ public class PutIndexTemplateRequestBuilder
     /**
      * Adds mapping that will be added when the index template gets created.
      *
-     * @param type   The mapping type
      * @param source The mapping source
      */
-    public PutIndexTemplateRequestBuilder addMapping(String type, XContentBuilder source) {
-        request.mapping(type, source);
-        return this;
-    }
-
-    /**
-     * Adds mapping that will be added when the index gets created.
-     *
-     * @param type   The mapping type
-     * @param source The mapping source
-     */
-    public PutIndexTemplateRequestBuilder addMapping(String type, Map<String, Object> source) {
-        request.mapping(type, source);
+    public PutIndexTemplateRequestBuilder setMapping(XContentBuilder source) {
+        request.mapping(source);
         return this;
     }
 

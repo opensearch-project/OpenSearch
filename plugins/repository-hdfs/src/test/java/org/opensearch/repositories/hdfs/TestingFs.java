@@ -37,7 +37,7 @@ import org.apache.hadoop.fs.DelegateToFileSystem;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.RawLocalFileSystem;
 import org.apache.hadoop.fs.permission.FsPermission;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -75,7 +75,7 @@ public class TestingFs extends DelegateToFileSystem {
 
             @Override
             public void setPermission(org.apache.hadoop.fs.Path path, FsPermission permission) {
-               // no execution, thank you very much!
+                // no execution, thank you very much!
             }
 
             // pretend we don't support symlinks (which causes hadoop to want to do crazy things),
@@ -125,6 +125,6 @@ public class TestingFs extends DelegateToFileSystem {
 
     @Override
     public void checkPath(org.apache.hadoop.fs.Path path) {
-      // we do evil stuff, we admit it.
+        // we do evil stuff, we admit it.
     }
 }

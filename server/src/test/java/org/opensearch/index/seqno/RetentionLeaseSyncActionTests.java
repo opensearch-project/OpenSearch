@@ -33,7 +33,6 @@
 package org.opensearch.index.seqno;
 
 import org.opensearch.action.ActionListener;
-import org.opensearch.index.IndexingPressure;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.action.support.PlainActionFuture;
@@ -44,6 +43,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
@@ -58,11 +58,11 @@ import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class RetentionLeaseSyncActionTests extends OpenSearchTestCase {
 
@@ -78,12 +78,13 @@ public class RetentionLeaseSyncActionTests extends OpenSearchTestCase {
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
         transportService = transport.createTransportService(
-                clusterService.getSettings(),
-                threadPool,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                boundAddress -> clusterService.localNode(),
-                null,
-                Collections.emptySet());
+            clusterService.getSettings(),
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundAddress -> clusterService.localNode(),
+            null,
+            Collections.emptySet()
+        );
         transportService.start();
         transportService.acceptIncomingRequests();
         shardStateAction = new ShardStateAction(clusterService, transportService, null, null, threadPool);
@@ -113,27 +114,26 @@ public class RetentionLeaseSyncActionTests extends OpenSearchTestCase {
         when(indexShard.shardId()).thenReturn(shardId);
 
         final RetentionLeaseSyncAction action = new RetentionLeaseSyncAction(
-                Settings.EMPTY,
-                transportService,
-                clusterService,
-                indicesService,
-                threadPool,
-                shardStateAction,
-                new ActionFilters(Collections.emptySet()),
-                new IndexingPressure(Settings.EMPTY),
-                new SystemIndices(emptyMap()));
+            Settings.EMPTY,
+            transportService,
+            clusterService,
+            indicesService,
+            threadPool,
+            shardStateAction,
+            new ActionFilters(Collections.emptySet()),
+            new IndexingPressureService(Settings.EMPTY, clusterService),
+            new SystemIndices(emptyMap())
+        );
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
-        action.dispatchedShardOperationOnPrimary(request, indexShard,
-            ActionTestUtils.assertNoFailureListener(result -> {
-                    // the retention leases on the shard should be persisted
-                    verify(indexShard).persistRetentionLeases();
-                    // we should forward the request containing the current retention leases to the replica
-                    assertThat(result.replicaRequest(), sameInstance(request));
-                    // we should start with an empty replication response
-                    assertNull(result.finalResponseIfSuccessful.getShardInfo());
-                }
-            ));
+        action.dispatchedShardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
+            // the retention leases on the shard should be persisted
+            verify(indexShard).persistRetentionLeases();
+            // we should forward the request containing the current retention leases to the replica
+            assertThat(result.replicaRequest(), sameInstance(request));
+            // we should start with an empty replication response
+            assertNull(result.finalResponseIfSuccessful.getShardInfo());
+        }));
     }
 
     public void testRetentionLeaseSyncActionOnReplica() throws Exception {
@@ -151,15 +151,16 @@ public class RetentionLeaseSyncActionTests extends OpenSearchTestCase {
         when(indexShard.shardId()).thenReturn(shardId);
 
         final RetentionLeaseSyncAction action = new RetentionLeaseSyncAction(
-                Settings.EMPTY,
-                transportService,
-                clusterService,
-                indicesService,
-                threadPool,
-                shardStateAction,
-                new ActionFilters(Collections.emptySet()),
-                new IndexingPressure(Settings.EMPTY),
-                new SystemIndices(emptyMap()));
+            Settings.EMPTY,
+            transportService,
+            clusterService,
+            indicesService,
+            threadPool,
+            shardStateAction,
+            new ActionFilters(Collections.emptySet()),
+            new IndexingPressureService(Settings.EMPTY, clusterService),
+            new SystemIndices(emptyMap())
+        );
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
 
@@ -176,7 +177,6 @@ public class RetentionLeaseSyncActionTests extends OpenSearchTestCase {
         assertTrue(success.get());
     }
 
-
     public void testBlocks() {
         final IndicesService indicesService = mock(IndicesService.class);
 
@@ -192,15 +192,16 @@ public class RetentionLeaseSyncActionTests extends OpenSearchTestCase {
         when(indexShard.shardId()).thenReturn(shardId);
 
         final RetentionLeaseSyncAction action = new RetentionLeaseSyncAction(
-                Settings.EMPTY,
-                transportService,
-                clusterService,
-                indicesService,
-                threadPool,
-                shardStateAction,
-                new ActionFilters(Collections.emptySet()),
-                new IndexingPressure(Settings.EMPTY),
-                new SystemIndices(emptyMap()));
+            Settings.EMPTY,
+            transportService,
+            clusterService,
+            indicesService,
+            threadPool,
+            shardStateAction,
+            new ActionFilters(Collections.emptySet()),
+            new IndexingPressureService(Settings.EMPTY, clusterService),
+            new SystemIndices(emptyMap())
+        );
 
         assertNull(action.indexBlockLevel());
     }

@@ -238,8 +238,17 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     @Override
     protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent, Builder subFactoriesBuilder)
         throws IOException {
-        return new FiltersAggregatorFactory(name, filters, keyed, otherBucket, otherBucketKey, queryShardContext, parent,
-            subFactoriesBuilder, metadata);
+        return new FiltersAggregatorFactory(
+            name,
+            filters,
+            keyed,
+            otherBucket,
+            otherBucketKey,
+            queryShardContext,
+            parent,
+            subFactoriesBuilder,
+            metadata
+        );
     }
 
     @Override
@@ -264,8 +273,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         return builder;
     }
 
-    public static FiltersAggregationBuilder parse(String aggregationName, XContentParser parser)
-        throws IOException {
+    public static FiltersAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
 
         List<FiltersAggregator.KeyedFilter> filters = new ArrayList<>();
 
@@ -281,15 +289,19 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
                 if (OTHER_BUCKET_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     otherBucket = parser.booleanValue();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                        "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "]."
+                    );
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if (OTHER_BUCKET_KEY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     otherBucketKey = parser.text();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                        "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "]."
+                    );
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (FILTERS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -304,8 +316,10 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
                     }
                     keyed = true;
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                        "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "]."
+                    );
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (FILTERS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -318,12 +332,16 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
                         filters.add(new KeyedFilter(String.valueOf(i), builders.get(i)));
                     }
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                        "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "]."
+                    );
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(),
-                    "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "]."
+                );
             }
         }
 

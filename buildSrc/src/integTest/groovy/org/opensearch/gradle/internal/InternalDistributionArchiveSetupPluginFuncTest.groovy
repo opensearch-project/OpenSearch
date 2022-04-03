@@ -70,7 +70,7 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
 
         where:
         buildTaskName       | expectedOutputArchivePath
-        "buildDarwinTar" | "darwin-tar/build/distributions/opensearch.tar.gz"
+        "buildDarwinTar" | "darwin-tar/build/distributions/opensearch-min.tar.gz"
     }
 
     def "applies defaults to zip tasks"() {
@@ -91,7 +91,7 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
 
         where:
         buildTaskName       | expectedOutputArchivePath
-        "buildDarwinZip" | "darwin-zip/build/distributions/opensearch.zip"
+        "buildDarwinZip" | "darwin-zip/build/distributions/opensearch-min.zip"
     }
 
     def "registered distribution provides archives and directory variant"() {
@@ -148,8 +148,8 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
         then: "tar task executed and target folder contains plain tar"
         result.task(':buildProducerTar').outcome == TaskOutcome.SUCCESS
         result.task(':consumer:copyArchive').outcome == TaskOutcome.SUCCESS
-        file("producer-tar/build/distributions/opensearch.tar.gz").exists()
-        file("consumer/build/archives/opensearch.tar.gz").exists()
+        file("producer-tar/build/distributions/opensearch-min.tar.gz").exists()
+        file("consumer/build/archives/opensearch-min.tar.gz").exists()
 
         when:
         result = gradleRunner("copyDir", "-Pversion=1.0").build()

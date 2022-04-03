@@ -12,8 +12,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.elasticsearch.mock.orig.Mockito;
 import org.junit.Before;
+import org.mockito.Mockito;
 import org.opensearch.cli.MockTerminal;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;

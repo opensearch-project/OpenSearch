@@ -47,6 +47,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
@@ -68,7 +69,7 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class DocumentActionsIT extends OpenSearchIntegTestCase {
     protected void createIndex() {
-        OpenSearchAssertions.assertAcked(prepareCreate(getConcreteIndexName()).addMapping("type1", "name", "type=keyword,store=true"));
+        OpenSearchAssertions.assertAcked(prepareCreate(getConcreteIndexName()).setMapping("name", "type=keyword,store=true"));
     }
 
     protected String getConcreteIndexName() {
@@ -81,11 +82,14 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
         logger.info("Running Cluster Health");
         ensureGreen();
         logger.info("Indexing [type1/1]");
-        IndexResponse indexResponse = client().prepareIndex().setIndex("test").setType("type1").setId("1").setSource(source("1", "test"))
-                .setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        IndexResponse indexResponse = client().prepareIndex()
+            .setIndex("test")
+            .setId("1")
+            .setSource(source("1", "test"))
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            .get();
         assertThat(indexResponse.getIndex(), equalTo(getConcreteIndexName()));
         assertThat(indexResponse.getId(), equalTo("1"));
-        assertThat(indexResponse.getType(), equalTo("type1"));
         logger.info("Refreshing");
         RefreshResponse refreshResponse = refresh();
         assertThat(refreshResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
@@ -96,8 +100,10 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
         assertThat(indexExists("test1234565"), equalTo(false));
 
         logger.info("Clearing cache");
-        ClearIndicesCacheResponse clearIndicesCacheResponse = client().admin().indices().clearCache(clearIndicesCacheRequest("test")
-            .fieldDataCache(true).queryCache(true)).actionGet();
+        ClearIndicesCacheResponse clearIndicesCacheResponse = client().admin()
+            .indices()
+            .clearCache(clearIndicesCacheRequest("test").fieldDataCache(true).queryCache(true))
+            .actionGet();
         assertNoFailures(clearIndicesCacheResponse);
         assertThat(clearIndicesCacheResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 
@@ -110,18 +116,18 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
 
         logger.info("Get [type1/1]");
         for (int i = 0; i < 5; i++) {
-            getResult = client().prepareGet("test", "type1", "1").execute().actionGet();
+            getResult = client().prepareGet("test", "1").execute().actionGet();
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
             assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(Strings.toString(source("1", "test"))));
             assertThat("cycle(map) #" + i, (String) getResult.getSourceAsMap().get("name"), equalTo("test"));
-            getResult = client().get(getRequest("test").type("type1").id("1")).actionGet();
+            getResult = client().get(getRequest("test").id("1")).actionGet();
             assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(Strings.toString(source("1", "test"))));
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
         }
 
         logger.info("Get [type1/1] with script");
         for (int i = 0; i < 5; i++) {
-            getResult = client().prepareGet("test", "type1", "1").setStoredFields("name").execute().actionGet();
+            getResult = client().prepareGet("test", "1").setStoredFields("name").execute().actionGet();
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
             assertThat(getResult.isExists(), equalTo(true));
             assertThat(getResult.getSourceAsBytes(), nullValue());
@@ -130,28 +136,27 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
 
         logger.info("Get [type1/2] (should be empty)");
         for (int i = 0; i < 5; i++) {
-            getResult = client().get(getRequest("test").type("type1").id("2")).actionGet();
+            getResult = client().get(getRequest("test").id("2")).actionGet();
             assertThat(getResult.isExists(), equalTo(false));
         }
 
         logger.info("Delete [type1/1]");
-        DeleteResponse deleteResponse = client().prepareDelete("test", "type1", "1").execute().actionGet();
+        DeleteResponse deleteResponse = client().prepareDelete("test", "1").execute().actionGet();
         assertThat(deleteResponse.getIndex(), equalTo(getConcreteIndexName()));
         assertThat(deleteResponse.getId(), equalTo("1"));
-        assertThat(deleteResponse.getType(), equalTo("type1"));
         logger.info("Refreshing");
         client().admin().indices().refresh(refreshRequest("test")).actionGet();
 
         logger.info("Get [type1/1] (should be empty)");
         for (int i = 0; i < 5; i++) {
-            getResult = client().get(getRequest("test").type("type1").id("1")).actionGet();
+            getResult = client().get(getRequest("test").id("1")).actionGet();
             assertThat(getResult.isExists(), equalTo(false));
         }
 
         logger.info("Index [type1/1]");
-        client().index(indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
+        client().index(indexRequest("test").id("1").source(source("1", "test"))).actionGet();
         logger.info("Index [type1/2]");
-        client().index(indexRequest("test").type("type1").id("2").source(source("2", "test2"))).actionGet();
+        client().index(indexRequest("test").id("2").source(source("2", "test2"))).actionGet();
 
         logger.info("Flushing");
         FlushResponse flushResult = client().admin().indices().prepareFlush("test").execute().actionGet();
@@ -162,10 +167,10 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
 
         logger.info("Get [type1/1] and [type1/2]");
         for (int i = 0; i < 5; i++) {
-            getResult = client().get(getRequest("test").type("type1").id("1")).actionGet();
+            getResult = client().get(getRequest("test").id("1")).actionGet();
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
             assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(Strings.toString(source("1", "test"))));
-            getResult = client().get(getRequest("test").type("type1").id("2")).actionGet();
+            getResult = client().get(getRequest("test").id("2")).actionGet();
             String ste1 = getResult.getSourceAsString();
             String ste2 = Strings.toString(source("2", "test2"));
             assertThat("cycle #" + i, ste1, equalTo(ste2));
@@ -176,8 +181,11 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
         // check count
         for (int i = 0; i < 5; i++) {
             // test successful
-            SearchResponse countResponse = client().prepareSearch("test").setSize(0).setQuery(termQuery("_type", "type1"))
-                .execute().actionGet();
+            SearchResponse countResponse = client().prepareSearch("test")
+                .setSize(0)
+                .setQuery(termQuery("_type", MapperService.SINGLE_MAPPING_NAME))
+                .execute()
+                .actionGet();
             assertNoFailures(countResponse);
             assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
@@ -185,8 +193,11 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
 
             // count with no query is a match all one
             countResponse = client().prepareSearch("test").setSize(0).execute().actionGet();
-            assertThat("Failures " + countResponse.getShardFailures(), countResponse.getShardFailures() == null ? 0
-                : countResponse.getShardFailures().length, equalTo(0));
+            assertThat(
+                "Failures " + countResponse.getShardFailures(),
+                countResponse.getShardFailures() == null ? 0 : countResponse.getShardFailures().length,
+                equalTo(0)
+            );
             assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));
@@ -200,13 +211,14 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
         ensureGreen();
 
         BulkResponse bulkResponse = client().prepareBulk()
-                .add(client().prepareIndex().setIndex("test").setType("type1").setId("1").setSource(source("1", "test")))
-                .add(client().prepareIndex().setIndex("test").setType("type1").setId("2").setSource(source("2", "test")).setCreate(true))
-                .add(client().prepareIndex().setIndex("test").setType("type1").setSource(source("3", "test")))
-                .add(client().prepareIndex().setIndex("test").setType("type1").setCreate(true).setSource(source("4", "test")))
-                .add(client().prepareDelete().setIndex("test").setType("type1").setId("1"))
-                .add(client().prepareIndex().setIndex("test").setType("type1").setSource("{ xxx }", XContentType.JSON)) // failure
-                .execute().actionGet();
+            .add(client().prepareIndex().setIndex("test").setId("1").setSource(source("1", "test")))
+            .add(client().prepareIndex().setIndex("test").setId("2").setSource(source("2", "test")).setCreate(true))
+            .add(client().prepareIndex().setIndex("test").setSource(source("3", "test")))
+            .add(client().prepareIndex().setIndex("test").setCreate(true).setSource(source("4", "test")))
+            .add(client().prepareDelete().setIndex("test").setId("1"))
+            .add(client().prepareIndex().setIndex("test").setSource("{ xxx }", XContentType.JSON)) // failure
+            .execute()
+            .actionGet();
 
         assertThat(bulkResponse.hasFailures(), equalTo(true));
         assertThat(bulkResponse.getItems().length, equalTo(6));
@@ -214,54 +226,47 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
         assertThat(bulkResponse.getItems()[0].isFailed(), equalTo(false));
         assertThat(bulkResponse.getItems()[0].getOpType(), equalTo(OpType.INDEX));
         assertThat(bulkResponse.getItems()[0].getIndex(), equalTo(getConcreteIndexName()));
-        assertThat(bulkResponse.getItems()[0].getType(), equalTo("type1"));
         assertThat(bulkResponse.getItems()[0].getId(), equalTo("1"));
 
         assertThat(bulkResponse.getItems()[1].isFailed(), equalTo(false));
         assertThat(bulkResponse.getItems()[1].getOpType(), equalTo(OpType.CREATE));
         assertThat(bulkResponse.getItems()[1].getIndex(), equalTo(getConcreteIndexName()));
-        assertThat(bulkResponse.getItems()[1].getType(), equalTo("type1"));
         assertThat(bulkResponse.getItems()[1].getId(), equalTo("2"));
 
         assertThat(bulkResponse.getItems()[2].isFailed(), equalTo(false));
         assertThat(bulkResponse.getItems()[2].getOpType(), equalTo(OpType.INDEX));
         assertThat(bulkResponse.getItems()[2].getIndex(), equalTo(getConcreteIndexName()));
-        assertThat(bulkResponse.getItems()[2].getType(), equalTo("type1"));
         String generatedId3 = bulkResponse.getItems()[2].getId();
 
         assertThat(bulkResponse.getItems()[3].isFailed(), equalTo(false));
         assertThat(bulkResponse.getItems()[3].getOpType(), equalTo(OpType.CREATE));
         assertThat(bulkResponse.getItems()[3].getIndex(), equalTo(getConcreteIndexName()));
-        assertThat(bulkResponse.getItems()[3].getType(), equalTo("type1"));
         String generatedId4 = bulkResponse.getItems()[3].getId();
 
         assertThat(bulkResponse.getItems()[4].isFailed(), equalTo(false));
         assertThat(bulkResponse.getItems()[4].getOpType(), equalTo(OpType.DELETE));
         assertThat(bulkResponse.getItems()[4].getIndex(), equalTo(getConcreteIndexName()));
-        assertThat(bulkResponse.getItems()[4].getType(), equalTo("type1"));
         assertThat(bulkResponse.getItems()[4].getId(), equalTo("1"));
 
         assertThat(bulkResponse.getItems()[5].isFailed(), equalTo(true));
         assertThat(bulkResponse.getItems()[5].getOpType(), equalTo(OpType.INDEX));
         assertThat(bulkResponse.getItems()[5].getIndex(), equalTo(getConcreteIndexName()));
-        assertThat(bulkResponse.getItems()[5].getType(), equalTo("type1"));
 
         waitForRelocation(ClusterHealthStatus.GREEN);
         RefreshResponse refreshResponse = client().admin().indices().prepareRefresh("test").execute().actionGet();
         assertNoFailures(refreshResponse);
         assertThat(refreshResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 
-
         for (int i = 0; i < 5; i++) {
-            GetResponse getResult = client().get(getRequest("test").type("type1").id("1")).actionGet();
+            GetResponse getResult = client().get(getRequest("test").id("1")).actionGet();
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
             assertThat("cycle #" + i, getResult.isExists(), equalTo(false));
 
-            getResult = client().get(getRequest("test").type("type1").id("2")).actionGet();
+            getResult = client().get(getRequest("test").id("2")).actionGet();
             assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(Strings.toString(source("2", "test"))));
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
 
-            getResult = client().get(getRequest("test").type("type1").id(generatedId3)).actionGet();
+            getResult = client().get(getRequest("test").id(generatedId3)).actionGet();
             assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(Strings.toString(source("3", "test"))));
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
 

@@ -49,4 +49,3 @@ public class AnnotatedTextClientYamlTestSuiteIT extends OpenSearchClientYamlSuit
         return createParameters();
     }
 }
-

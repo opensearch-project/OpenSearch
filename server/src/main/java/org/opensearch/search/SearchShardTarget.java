@@ -51,8 +51,8 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
 
     private final Text nodeId;
     private final ShardId shardId;
-    //original indices are only needed in the coordinating node throughout the search request execution.
-    //no need to serialize them as part of SearchShardTarget.
+    // original indices are only needed in the coordinating node throughout the search request execution.
+    // no need to serialize them as part of SearchShardTarget.
     private final transient OriginalIndices originalIndices;
     private final String clusterAlias;
 
@@ -137,9 +137,9 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
             return false;
         }
         SearchShardTarget that = (SearchShardTarget) o;
-        return Objects.equals(nodeId, that.nodeId) &&
-            Objects.equals(shardId, that.shardId) &&
-            Objects.equals(clusterAlias, that.clusterAlias);
+        return Objects.equals(nodeId, that.nodeId)
+            && Objects.equals(shardId, that.shardId)
+            && Objects.equals(clusterAlias, that.clusterAlias);
     }
 
     @Override
@@ -149,8 +149,11 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
 
     @Override
     public String toString() {
-        String shardToString = "[" + RemoteClusterAware.buildRemoteIndexName(
-            clusterAlias, shardId.getIndexName()) + "][" + shardId.getId() + "]";
+        String shardToString = "["
+            + RemoteClusterAware.buildRemoteIndexName(clusterAlias, shardId.getIndexName())
+            + "]["
+            + shardId.getId()
+            + "]";
         if (nodeId == null) {
             return "[_na_]" + shardToString;
         }

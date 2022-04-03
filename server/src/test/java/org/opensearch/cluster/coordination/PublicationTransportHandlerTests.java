@@ -56,27 +56,40 @@ import static org.hamcrest.Matchers.instanceOf;
 public class PublicationTransportHandlerTests extends OpenSearchTestCase {
 
     public void testDiffSerializationFailure() {
-        DeterministicTaskQueue deterministicTaskQueue =
-            new DeterministicTaskQueue(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(), random());
+        DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
+            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(),
+            random()
+        );
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final DiscoveryNode localNode = new DiscoveryNode("localNode", buildNewFakeTransportAddress(), Version.CURRENT);
-        final TransportService transportService = new CapturingTransport().createTransportService(Settings.EMPTY,
+        final TransportService transportService = new CapturingTransport().createTransportService(
+            Settings.EMPTY,
             deterministicTaskQueue.getThreadPool(),
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> localNode,
-            clusterSettings, Collections.emptySet());
-        final PublicationTransportHandler handler = new PublicationTransportHandler(transportService,
-            writableRegistry(), pu -> null, (pu, l) -> {});
+            clusterSettings,
+            Collections.emptySet()
+        );
+        final PublicationTransportHandler handler = new PublicationTransportHandler(
+            transportService,
+            writableRegistry(),
+            pu -> null,
+            (pu, l) -> {}
+        );
         transportService.start();
         transportService.acceptIncomingRequests();
 
         final DiscoveryNode otherNode = new DiscoveryNode("otherNode", buildNewFakeTransportAddress(), Version.CURRENT);
-        final ClusterState clusterState = CoordinationStateTests.clusterState(2L, 1L,
+        final ClusterState clusterState = CoordinationStateTests.clusterState(
+            2L,
+            1L,
             DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(localNode.getId()).build(),
-            VotingConfiguration.EMPTY_CONFIG, VotingConfiguration.EMPTY_CONFIG, 0L);
+            VotingConfiguration.EMPTY_CONFIG,
+            VotingConfiguration.EMPTY_CONFIG,
+            0L
+        );
 
-        final ClusterState unserializableClusterState = new ClusterState(clusterState.version(),
-            clusterState.stateUUID(), clusterState) {
+        final ClusterState unserializableClusterState = new ClusterState(clusterState.version(), clusterState.stateUUID(), clusterState) {
             @Override
             public Diff<ClusterState> diff(ClusterState previousState) {
                 return new Diff<ClusterState>() {
@@ -94,8 +107,10 @@ public class PublicationTransportHandlerTests extends OpenSearchTestCase {
             }
         };
 
-        OpenSearchException e = expectThrows(OpenSearchException.class, () ->
-            handler.newPublicationContext(new ClusterChangedEvent("test", unserializableClusterState, clusterState)));
+        OpenSearchException e = expectThrows(
+            OpenSearchException.class,
+            () -> handler.newPublicationContext(new ClusterChangedEvent("test", unserializableClusterState, clusterState))
+        );
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IOException.class));
         assertThat(e.getCause().getMessage(), containsString("Simulated failure of diff serialization"));

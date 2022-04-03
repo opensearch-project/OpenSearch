@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
 
     @Override
@@ -72,7 +72,9 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> blocking repository");
         String blockedNode = blockNodeWithIndex("test-repo", "test-index");
-        dataNodeClient().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+        dataNodeClient().admin()
+            .cluster()
+            .prepareCreateSnapshot("test-repo", "test-snap")
             .setWaitForCompletion(false)
             .setIndices("test-index")
             .get();
@@ -93,7 +95,10 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
         assertBusy(() -> {
             final Snapshot snapshot = new Snapshot("test-repo", snapshotId);
             List<IndexShardSnapshotStatus.Stage> stages = snapshotShardsService.currentSnapshotShards(snapshot)
-                .values().stream().map(status -> status.asCopy().getStage()).collect(Collectors.toList());
+                .values()
+                .stream()
+                .map(status -> status.asCopy().getStage())
+                .collect(Collectors.toList());
             assertThat(stages, hasSize(shards));
             assertThat(stages, everyItem(equalTo(IndexShardSnapshotStatus.Stage.DONE)));
         }, 30L, TimeUnit.SECONDS);

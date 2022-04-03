@@ -93,7 +93,7 @@ import static java.util.Collections.emptyList;
 @State(Scope.Thread)
 @Fork(value = 1)
 public class TermsReduceBenchmark {
-    private final SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+    private final SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
     private final SearchPhaseController controller = new SearchPhaseController(
         namedWriteableRegistry,

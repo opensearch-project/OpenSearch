@@ -37,7 +37,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NoLockFactory;
-import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.store.SleepingLockWrapper;
 import org.apache.lucene.util.Constants;
 import org.opensearch.Version;
@@ -96,13 +95,13 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
         return new FsDirectoryFactory().newDirectory(idxSettings, path);
     }
 
-    private void doTestPreload(String...preload) throws IOException {
+    private void doTestPreload(String... preload) throws IOException {
         Settings build = Settings.builder()
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "mmapfs")
             .putList(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), preload)
             .build();
         Directory directory = newDirectory(build);
-        try (Directory dir = directory){
+        try (Directory dir = directory) {
             assertSame(dir, directory); // prevent warnings
             assertFalse(directory instanceof SleepingLockWrapper);
             if (preload.length == 0) {
@@ -121,12 +120,16 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
                 assertFalse(preLoadMMapDirectory.useDelegate("XXX"));
                 assertFalse(preLoadMMapDirectory.getPreload());
                 preLoadMMapDirectory.close();
-                expectThrows(AlreadyClosedException.class, () -> preLoadMMapDirectory.getDelegate().openInput("foo.bar",
-                    IOContext.DEFAULT));
+                expectThrows(
+                    AlreadyClosedException.class,
+                    () -> preLoadMMapDirectory.getDelegate().openInput("foo.bar", IOContext.DEFAULT)
+                );
             }
         }
-        expectThrows(AlreadyClosedException.class, () -> directory.openInput(randomBoolean() && preload.length != 0 ?
-            "foo." + preload[0] : "foo.bar", IOContext.DEFAULT));
+        expectThrows(
+            AlreadyClosedException.class,
+            () -> directory.openInput(randomBoolean() && preload.length != 0 ? "foo." + preload[0] : "foo.bar", IOContext.DEFAULT)
+        );
     }
 
     public void testStoreDirectory() throws IOException {
@@ -141,8 +144,7 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
     }
 
     private void doTestStoreDirectory(Path tempDir, String typeSettingValue, IndexModule.Type type) throws IOException {
-        Settings.Builder settingsBuilder = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
+        Settings.Builder settingsBuilder = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
         if (typeSettingValue != null) {
             settingsBuilder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), typeSettingValue);
         }
@@ -154,20 +156,17 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
                 case HYBRIDFS:
                     assertTrue(FsDirectoryFactory.isHybridFs(directory));
                     break;
+                // simplefs was removed in Lucene 9; support for enum is maintained for bwc
+                case SIMPLEFS:
                 case NIOFS:
                     assertTrue(type + " " + directory.toString(), directory instanceof NIOFSDirectory);
                     break;
                 case MMAPFS:
                     assertTrue(type + " " + directory.toString(), directory instanceof MMapDirectory);
                     break;
-                case SIMPLEFS:
-                    assertTrue(type + " " + directory.toString(), directory instanceof SimpleFSDirectory);
-                    break;
                 case FS:
                     if (Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
                         assertTrue(FsDirectoryFactory.isHybridFs(directory));
-                    } else if (Constants.WINDOWS) {
-                        assertTrue(directory.toString(), directory instanceof SimpleFSDirectory);
                     } else {
                         assertTrue(directory.toString(), directory instanceof NIOFSDirectory);
                     }

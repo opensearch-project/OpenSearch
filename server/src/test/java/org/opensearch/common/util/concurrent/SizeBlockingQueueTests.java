@@ -59,7 +59,6 @@ public class SizeBlockingQueueTests extends OpenSearchTestCase {
             sizeBlockingQueue.offer(i);
         }
 
-
         final int iterations = 1 << 16;
         final CyclicBarrier barrier = new CyclicBarrier(2);
 

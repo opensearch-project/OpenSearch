@@ -36,7 +36,6 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.DocWriteResponse;
-import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.bulk.BulkItemResponse.Failure;
 import org.opensearch.action.delete.DeleteResponseTests;
 import org.opensearch.action.index.IndexResponseTests;
@@ -58,7 +57,7 @@ import static org.hamcrest.Matchers.containsString;
 public class BulkItemResponseTests extends OpenSearchTestCase {
 
     public void testFailureToString() {
-        Failure failure = new Failure("index", "type", "id", new RuntimeException("test"));
+        Failure failure = new Failure("index", "id", new RuntimeException("test"));
         String toString = failure.toString();
         assertThat(toString, containsString("\"type\":\"runtime_exception\""));
         assertThat(toString, containsString("\"reason\":\"test\""));
@@ -102,16 +101,15 @@ public class BulkItemResponseTests extends OpenSearchTestCase {
 
         int itemId = randomIntBetween(0, 100);
         String index = randomAlphaOfLength(5);
-        String type = randomAlphaOfLength(5);
         String id = randomAlphaOfLength(5);
         DocWriteRequest.OpType opType = randomFrom(DocWriteRequest.OpType.values());
 
         final Tuple<Throwable, OpenSearchException> exceptions = randomExceptions();
 
         Exception bulkItemCause = (Exception) exceptions.v1();
-        Failure bulkItemFailure = new Failure(index, type, id, bulkItemCause);
+        Failure bulkItemFailure = new Failure(index, id, bulkItemCause);
         BulkItemResponse bulkItemResponse = new BulkItemResponse(itemId, opType, bulkItemFailure);
-        Failure expectedBulkItemFailure = new Failure(index, type, id, exceptions.v2(), ExceptionsHelper.status(bulkItemCause));
+        Failure expectedBulkItemFailure = new Failure(index, id, exceptions.v2(), ExceptionsHelper.status(bulkItemCause));
         BulkItemResponse expectedBulkItemResponse = new BulkItemResponse(itemId, opType, expectedBulkItemFailure);
         BytesReference originalBytes = toShuffledXContent(bulkItemResponse, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
 
@@ -134,7 +132,6 @@ public class BulkItemResponseTests extends OpenSearchTestCase {
     public static void assertBulkItemResponse(BulkItemResponse expected, BulkItemResponse actual) {
         assertEquals(expected.getItemId(), actual.getItemId());
         assertEquals(expected.getIndex(), actual.getIndex());
-        assertEquals(expected.getType(), actual.getType());
         assertEquals(expected.getId(), actual.getId());
         assertEquals(expected.getOpType(), actual.getOpType());
         assertEquals(expected.getVersion(), actual.getVersion());
@@ -145,7 +142,6 @@ public class BulkItemResponseTests extends OpenSearchTestCase {
             BulkItemResponse.Failure actualFailure = actual.getFailure();
 
             assertEquals(expectedFailure.getIndex(), actualFailure.getIndex());
-            assertEquals(expectedFailure.getType(), actualFailure.getType());
             assertEquals(expectedFailure.getId(), actualFailure.getId());
             assertEquals(expectedFailure.getMessage(), actualFailure.getMessage());
             assertEquals(expectedFailure.getStatus(), actualFailure.getStatus());
@@ -157,7 +153,7 @@ public class BulkItemResponseTests extends OpenSearchTestCase {
 
             IndexResponseTests.assertDocWriteResponse(expectedDocResponse, actualDocResponse);
             if (expected.getOpType() == DocWriteRequest.OpType.UPDATE) {
-                assertEquals(((UpdateResponse) expectedDocResponse).getGetResult(), ((UpdateResponse)actualDocResponse).getGetResult());
+                assertEquals(((UpdateResponse) expectedDocResponse).getGetResult(), ((UpdateResponse) actualDocResponse).getGetResult());
             }
         }
     }

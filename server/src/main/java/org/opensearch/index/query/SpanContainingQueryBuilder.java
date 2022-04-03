@@ -32,9 +32,9 @@
 
 package org.opensearch.index.query;
 
+import org.apache.lucene.queries.spans.SpanContainingQuery;
+import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanContainingQuery;
-import org.apache.lucene.search.spans.SpanQuery;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
@@ -48,7 +48,7 @@ import java.util.Objects;
 import static org.opensearch.index.query.SpanQueryBuilder.SpanQueryBuilderUtil.checkNoBoost;
 
 /**
- * Builder for {@link org.apache.lucene.search.spans.SpanContainingQuery}.
+ * Builder for {@link org.apache.lucene.queries.spans.SpanContainingQuery}.
  */
 public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContainingQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "span_containing";
@@ -141,16 +141,20 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
                     little = (SpanQueryBuilder) query;
                     checkNoBoost(NAME, currentFieldName, parser, little);
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "[span_containing] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[span_containing] query does not support [" + currentFieldName + "]"
+                    );
                 }
             } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                 boost = parser.floatValue();
             } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                 queryName = parser.text();
             } else {
-                throw new ParsingException(parser.getTokenLocation(),
-                        "[span_containing] query does not support [" + currentFieldName + "]");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "[span_containing] query does not support [" + currentFieldName + "]"
+                );
             }
         }
 
@@ -175,8 +179,7 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
 
     @Override
     protected boolean doEquals(SpanContainingQueryBuilder other) {
-        return Objects.equals(big, other.big) &&
-               Objects.equals(little, other.little);
+        return Objects.equals(big, other.big) && Objects.equals(little, other.little);
     }
 
     @Override

@@ -58,9 +58,9 @@ import static org.hamcrest.Matchers.hasSize;
  * This test checks that in-flight requests are limited on HTTP level and that requests that are excluded from limiting can pass.
  *
  * As the same setting is also used to limit in-flight requests on transport level, we avoid transport messages by forcing
- * a single node "cluster". We also force test infrastructure to use the node client instead of the transport client for the same reason.
+ * a single node "cluster".
  */
-@ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numClientNodes = 0, numDataNodes = 1, transportClientRatio = 0)
+@ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numClientNodes = 0, numDataNodes = 1)
 public class Netty4HttpRequestSizeLimitIT extends OpenSearchNetty4IntegTestCase {
 
     private static final ByteSizeValue LIMIT = new ByteSizeValue(2, ByteSizeUnit.KB);
@@ -94,7 +94,7 @@ public class Netty4HttpRequestSizeLimitIT extends OpenSearchNetty4IntegTestCase 
 
         List<Tuple<String, CharSequence>> requests = new ArrayList<>();
         for (int i = 0; i < 150; i++) {
-            requests.add(Tuple.tuple("/index/type/_bulk", bulkRequest));
+            requests.add(Tuple.tuple("/index/_bulk", bulkRequest));
         }
 
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
@@ -124,8 +124,7 @@ public class Netty4HttpRequestSizeLimitIT extends OpenSearchNetty4IntegTestCase 
 
         List<Tuple<String, CharSequence>> requestUris = new ArrayList<>();
         for (int i = 0; i < 1500; i++) {
-            requestUris.add(Tuple.tuple("/_cluster/settings",
-                "{ \"transient\": {\"search.default_search_timeout\": \"40s\" } }"));
+            requestUris.add(Tuple.tuple("/_cluster/settings", "{ \"transient\": {\"search.default_search_timeout\": \"40s\" } }"));
         }
 
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
@@ -149,8 +148,11 @@ public class Netty4HttpRequestSizeLimitIT extends OpenSearchNetty4IntegTestCase 
 
     private void assertAllInExpectedStatus(Collection<FullHttpResponse> responses, HttpResponseStatus expectedStatus) {
         long countUnexpectedStatus = responses.stream().filter(r -> r.status().equals(expectedStatus) == false).count();
-        assertThat("Expected all requests with status [" + expectedStatus + "] but [" + countUnexpectedStatus +
-            "] requests had a different one", countUnexpectedStatus, equalTo(0L));
+        assertThat(
+            "Expected all requests with status [" + expectedStatus + "] but [" + countUnexpectedStatus + "] requests had a different one",
+            countUnexpectedStatus,
+            equalTo(0L)
+        );
     }
 
 }

@@ -32,10 +32,11 @@
 
 package org.opensearch.action.search;
 
-import org.apache.lucene.store.ByteArrayDataInput;
-import org.apache.lucene.store.RAMOutputStream;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.io.stream.BytesStreamInput;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
@@ -57,7 +58,8 @@ final class TransportSearchHelper {
 
     static String buildScrollId(AtomicArray<? extends SearchPhaseResult> searchPhaseResults, Version version) {
         boolean includeContextUUID = version.onOrAfter(LegacyESVersion.V_7_7_0);
-        try (RAMOutputStream out = new RAMOutputStream()) {
+        try {
+            BytesStreamOutput out = new BytesStreamOutput();
             if (includeContextUUID) {
                 out.writeString(INCLUDE_CONTEXT_UUID);
             }
@@ -71,13 +73,13 @@ final class TransportSearchHelper {
                 SearchShardTarget searchShardTarget = searchPhaseResult.getSearchShardTarget();
                 if (searchShardTarget.getClusterAlias() != null) {
                     out.writeString(
-                        RemoteClusterAware.buildRemoteIndexName(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId()));
+                        RemoteClusterAware.buildRemoteIndexName(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId())
+                    );
                 } else {
                     out.writeString(searchShardTarget.getNodeId());
                 }
             }
-            byte[] bytes = new byte[(int) out.getFilePointer()];
-            out.writeTo(bytes, 0);
+            byte[] bytes = BytesReference.toBytes(out.bytes());
             return Base64.getUrlEncoder().encodeToString(bytes);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -87,7 +89,7 @@ final class TransportSearchHelper {
     static ParsedScrollId parseScrollId(String scrollId) {
         try {
             byte[] bytes = Base64.getUrlDecoder().decode(scrollId);
-            ByteArrayDataInput in = new ByteArrayDataInput(bytes);
+            BytesStreamInput in = new BytesStreamInput(bytes);
             final boolean includeContextUUID;
             final String type;
             final String firstChunk = in.readString();
@@ -109,7 +111,7 @@ final class TransportSearchHelper {
                     clusterAlias = null;
                 } else {
                     clusterAlias = target.substring(0, index);
-                    target = target.substring(index+1);
+                    target = target.substring(index + 1);
                 }
                 context[i] = new SearchContextIdForNode(clusterAlias, target, new ShardSearchContextId(contextUUID, id));
             }

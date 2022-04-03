@@ -178,7 +178,7 @@ public class CircleBuilder extends ShapeBuilder<Circle, org.opensearch.geometry.
 
     @Override
     public org.opensearch.geometry.Circle buildGeometry() {
-       return new org.opensearch.geometry.Circle(center.x, center.y, unit.toMeters(radius));
+        return new org.opensearch.geometry.Circle(center.x, center.y, unit.toMeters(radius));
     }
 
     @Override
@@ -209,8 +209,8 @@ public class CircleBuilder extends ShapeBuilder<Circle, org.opensearch.geometry.
             return false;
         }
         CircleBuilder other = (CircleBuilder) obj;
-        return Objects.equals(center, other.center) &&
-                Objects.equals(radius, other.radius) &&
-                Objects.equals(unit.ordinal(), other.unit.ordinal());
+        return Objects.equals(center, other.center)
+            && Objects.equals(radius, other.radius)
+            && Objects.equals(unit.ordinal(), other.unit.ordinal());
     }
 }

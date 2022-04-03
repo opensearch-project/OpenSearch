@@ -31,7 +31,6 @@
 
 package org.opensearch.transport;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
@@ -67,8 +66,7 @@ abstract class OutboundMessage extends NetworkMessage {
             variableHeaderLength = Math.toIntExact(bytesStream.position() - preHeaderPosition);
         }
 
-        try (CompressibleBytesOutputStream stream =
-                 new CompressibleBytesOutputStream(bytesStream, TransportStatus.isCompress(status))) {
+        try (CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bytesStream, TransportStatus.isCompress(status))) {
             stream.setVersion(version);
             stream.setFeatures(bytesStream.getFeatures());
 
@@ -119,8 +117,16 @@ abstract class OutboundMessage extends NetworkMessage {
         private final String[] features;
         private final String action;
 
-        Request(ThreadContext threadContext, String[] features, Writeable message, Version version, String action, long requestId,
-                boolean isHandshake, boolean compress) {
+        Request(
+            ThreadContext threadContext,
+            String[] features,
+            Writeable message,
+            Version version,
+            String action,
+            long requestId,
+            boolean isHandshake,
+            boolean compress
+        ) {
             super(threadContext, version, setStatus(compress, isHandshake, message), requestId, message);
             this.features = features;
             this.action = action;
@@ -129,9 +135,7 @@ abstract class OutboundMessage extends NetworkMessage {
         @Override
         protected void writeVariableHeader(StreamOutput stream) throws IOException {
             super.writeVariableHeader(stream);
-            if (version.onOrAfter(LegacyESVersion.V_6_3_0)) {
-                stream.writeStringArray(features);
-            }
+            stream.writeStringArray(features);
             stream.writeString(action);
         }
 
@@ -153,8 +157,15 @@ abstract class OutboundMessage extends NetworkMessage {
 
         private final Set<String> features;
 
-        Response(ThreadContext threadContext, Set<String> features, Writeable message, Version version, long requestId,
-                 boolean isHandshake, boolean compress) {
+        Response(
+            ThreadContext threadContext,
+            Set<String> features,
+            Writeable message,
+            Version version,
+            long requestId,
+            boolean isHandshake,
+            boolean compress
+        ) {
             super(threadContext, version, setStatus(compress, isHandshake, message), requestId, message);
             this.features = features;
         }

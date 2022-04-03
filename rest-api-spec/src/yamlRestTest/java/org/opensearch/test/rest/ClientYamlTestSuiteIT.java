@@ -35,13 +35,13 @@ package org.opensearch.test.rest;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
-import org.apache.lucene.util.TimeUnits;
+import org.apache.lucene.tests.util.TimeUnits;
 import org.opensearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.opensearch.test.rest.yaml.OpenSearchClientYamlSuiteTestCase;
 
 /** Rest integration test. Runs against a cluster started by {@code gradle integTest} */
 
-//The default 20 minutes timeout isn't always enough, but Darwin CI hosts are incredibly slow...
+// The default 20 minutes timeout isn't always enough, but Darwin CI hosts are incredibly slow...
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class ClientYamlTestSuiteIT extends OpenSearchClientYamlSuiteTestCase {
     public ClientYamlTestSuiteIT(ClientYamlTestCandidate testCandidate) {

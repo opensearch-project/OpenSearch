@@ -39,8 +39,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
@@ -51,8 +51,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import static org.hamcrest.Matchers.containsString;
 
 @LuceneTestCase.SuppressCodecs("*")
-@OpenSearchIntegTestCase.ClusterScope(
-    scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, minNumDataNodes = 0, maxNumDataNodes = 0)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, minNumDataNodes = 0, maxNumDataNodes = 0)
 public class RecoveryWithUnsupportedIndicesIT extends OpenSearchIntegTestCase {
 
     /**
@@ -91,8 +90,7 @@ public class RecoveryWithUnsupportedIndicesIT extends OpenSearchIntegTestCase {
         Files.move(src, dest);
         assertFalse(Files.exists(src));
         assertTrue(Files.exists(dest));
-        Settings.Builder builder = Settings.builder()
-            .put(Environment.PATH_DATA_SETTING.getKey(), dataDir.toAbsolutePath());
+        Settings.Builder builder = Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), dataDir.toAbsolutePath());
 
         return builder.build();
     }
@@ -102,8 +100,12 @@ public class RecoveryWithUnsupportedIndicesIT extends OpenSearchIntegTestCase {
 
         logger.info("Checking static index {}", indexName);
         Settings nodeSettings = prepareBackwardsDataDir(getDataPath("/indices/bwc").resolve(indexName + ".zip"));
-        assertThat(ExceptionsHelper.unwrap(
-            expectThrows(Exception.class, () -> internalCluster().startNode(nodeSettings)), CorruptStateException.class).getMessage(),
-            containsString("Format version is not supported"));
+        assertThat(
+            ExceptionsHelper.unwrap(
+                expectThrows(Exception.class, () -> internalCluster().startNode(nodeSettings)),
+                CorruptStateException.class
+            ).getMessage(),
+            containsString("Format version is not supported")
+        );
     }
 }

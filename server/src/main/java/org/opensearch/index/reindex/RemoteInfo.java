@@ -32,7 +32,6 @@
 
 package org.opensearch.index.reindex;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
@@ -87,8 +86,18 @@ public class RemoteInfo implements Writeable, ToXContentObject {
      */
     private final TimeValue connectTimeout;
 
-    public RemoteInfo(String scheme, String host, int port, String pathPrefix, BytesReference query, String username, String password,
-                      Map<String, String> headers, TimeValue socketTimeout, TimeValue connectTimeout) {
+    public RemoteInfo(
+        String scheme,
+        String host,
+        int port,
+        String pathPrefix,
+        BytesReference query,
+        String username,
+        String password,
+        Map<String, String> headers,
+        TimeValue socketTimeout,
+        TimeValue connectTimeout
+    ) {
         assert isQueryJson(query) : "Query does not appear to be JSON";
         this.scheme = requireNonNull(scheme, "[scheme] must be specified to reindex from a remote cluster");
         this.host = requireNonNull(host, "[host] must be specified to reindex from a remote cluster");
@@ -120,11 +129,7 @@ public class RemoteInfo implements Writeable, ToXContentObject {
         this.headers = unmodifiableMap(headers);
         socketTimeout = in.readTimeValue();
         connectTimeout = in.readTimeValue();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            pathPrefix = in.readOptionalString();
-        } else {
-            pathPrefix = null;
-        }
+        pathPrefix = in.readOptionalString();
     }
 
     @Override
@@ -142,9 +147,7 @@ public class RemoteInfo implements Writeable, ToXContentObject {
         }
         out.writeTimeValue(socketTimeout);
         out.writeTimeValue(connectTimeout);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            out.writeOptionalString(pathPrefix);
-        }
+        out.writeOptionalString(pathPrefix);
     }
 
     public String getScheme() {
@@ -226,9 +229,8 @@ public class RemoteInfo implements Writeable, ToXContentObject {
         if (password != null) {
             builder.field("password", password);
         }
-        builder.field("host", scheme + "://" + host + ":" + port +
-            (pathPrefix == null ? "" : "/" + pathPrefix));
-        if (headers.size() >0 ) {
+        builder.field("host", scheme + "://" + host + ":" + port + (pathPrefix == null ? "" : "/" + pathPrefix));
+        if (headers.size() > 0) {
             builder.field("headers", headers);
         }
         builder.field("socket_timeout", socketTimeout.getStringRep());
@@ -242,16 +244,16 @@ public class RemoteInfo implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RemoteInfo that = (RemoteInfo) o;
-        return port == that.port &&
-            Objects.equals(scheme, that.scheme) &&
-            Objects.equals(host, that.host) &&
-            Objects.equals(pathPrefix, that.pathPrefix) &&
-            Objects.equals(query, that.query) &&
-            Objects.equals(username, that.username) &&
-            Objects.equals(password, that.password) &&
-            Objects.equals(headers, that.headers) &&
-            Objects.equals(socketTimeout, that.socketTimeout) &&
-            Objects.equals(connectTimeout, that.connectTimeout);
+        return port == that.port
+            && Objects.equals(scheme, that.scheme)
+            && Objects.equals(host, that.host)
+            && Objects.equals(pathPrefix, that.pathPrefix)
+            && Objects.equals(query, that.query)
+            && Objects.equals(username, that.username)
+            && Objects.equals(password, that.password)
+            && Objects.equals(headers, that.headers)
+            && Objects.equals(socketTimeout, that.socketTimeout)
+            && Objects.equals(connectTimeout, that.connectTimeout);
     }
 
     @Override
@@ -274,8 +276,13 @@ public class RemoteInfo implements Writeable, ToXContentObject {
     }
 
     private static boolean isQueryJson(BytesReference bytesReference) {
-        try (XContentParser parser = QUERY_CONTENT_TYPE.createParser(NamedXContentRegistry.EMPTY,
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytesReference.streamInput())) {
+        try (
+            XContentParser parser = QUERY_CONTENT_TYPE.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                bytesReference.streamInput()
+            )
+        ) {
             Map<String, Object> query = parser.map();
             return true;
         } catch (IOException e) {

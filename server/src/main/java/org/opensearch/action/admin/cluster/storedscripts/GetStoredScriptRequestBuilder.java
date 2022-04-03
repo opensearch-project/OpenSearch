@@ -35,9 +35,10 @@ package org.opensearch.action.admin.cluster.storedscripts;
 import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
-public class GetStoredScriptRequestBuilder extends MasterNodeReadOperationRequestBuilder<GetStoredScriptRequest,
-        GetStoredScriptResponse, GetStoredScriptRequestBuilder> {
-
+public class GetStoredScriptRequestBuilder extends MasterNodeReadOperationRequestBuilder<
+    GetStoredScriptRequest,
+    GetStoredScriptResponse,
+    GetStoredScriptRequestBuilder> {
 
     public GetStoredScriptRequestBuilder(OpenSearchClient client, GetStoredScriptAction action) {
         super(client, action, new GetStoredScriptRequest());

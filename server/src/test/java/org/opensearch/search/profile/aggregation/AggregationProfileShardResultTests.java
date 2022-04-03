@@ -88,29 +88,35 @@ public class AggregationProfileShardResultTests extends OpenSearchTestCase {
         Map<String, Object> debug = new LinkedHashMap<>();
         debug.put("stuff", "stuff");
         debug.put("other_stuff", org.opensearch.common.collect.List.of("foo", "bar"));
-        ProfileResult profileResult = new ProfileResult("someType", "someDescription", breakdown, debug,6000L, Collections.emptyList());
+        ProfileResult profileResult = new ProfileResult("someType", "someDescription", breakdown, debug, 6000L, Collections.emptyList());
         profileResults.add(profileResult);
         AggregationProfileShardResult aggProfileResults = new AggregationProfileShardResult(profileResults);
         BytesReference xContent = toXContent(aggProfileResults, XContentType.JSON, false);
-        assertEquals("{\"aggregations\":["
-                        + "{\"type\":\"someType\","
-                            + "\"description\":\"someDescription\","
-                            + "\"time_in_nanos\":6000,"
-                            + "\"breakdown\":{\"timing1\":2000,\"timing2\":4000},"
-                            + "\"debug\":{\"stuff\":\"stuff\",\"other_stuff\":[\"foo\",\"bar\"]}"
-                        + "}"
-                   + "]}", xContent.utf8ToString());
+        assertEquals(
+            "{\"aggregations\":["
+                + "{\"type\":\"someType\","
+                + "\"description\":\"someDescription\","
+                + "\"time_in_nanos\":6000,"
+                + "\"breakdown\":{\"timing1\":2000,\"timing2\":4000},"
+                + "\"debug\":{\"stuff\":\"stuff\",\"other_stuff\":[\"foo\",\"bar\"]}"
+                + "}"
+                + "]}",
+            xContent.utf8ToString()
+        );
 
         xContent = toXContent(aggProfileResults, XContentType.JSON, true);
-        assertEquals("{\"aggregations\":["
-                        + "{\"type\":\"someType\","
-                            + "\"description\":\"someDescription\","
-                            + "\"time\":\"6micros\","
-                            + "\"time_in_nanos\":6000,"
-                            + "\"breakdown\":{\"timing1\":2000,\"timing2\":4000},"
-                            + "\"debug\":{\"stuff\":\"stuff\",\"other_stuff\":[\"foo\",\"bar\"]}"
-                        + "}"
-                   + "]}", xContent.utf8ToString());
+        assertEquals(
+            "{\"aggregations\":["
+                + "{\"type\":\"someType\","
+                + "\"description\":\"someDescription\","
+                + "\"time\":\"6micros\","
+                + "\"time_in_nanos\":6000,"
+                + "\"breakdown\":{\"timing1\":2000,\"timing2\":4000},"
+                + "\"debug\":{\"stuff\":\"stuff\",\"other_stuff\":[\"foo\",\"bar\"]}"
+                + "}"
+                + "]}",
+            xContent.utf8ToString()
+        );
     }
 
 }

@@ -33,8 +33,8 @@
 package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.BaseTokenStreamTestCase;
-import org.apache.lucene.analysis.MockTokenizer;
+import org.apache.lucene.tests.analysis.BaseTokenStreamTestCase;
+import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.analysis.Tokenizer;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -64,7 +64,7 @@ public class AnalysisPolishFactoryTests extends AnalysisFactoryTestCase {
     }
 
     public void testThreadSafety() throws IOException {
-        // TODO: is this the right boilerplate?  I forked this out of TransportAnalyzeAction.java:
+        // TODO: is this the right boilerplate? I forked this out of TransportAnalyzeAction.java:
         Settings settings = Settings.builder()
             // for _na_
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)

@@ -40,14 +40,14 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * Constructor represents the equivalent of a Java constructor available as a whitelisted class
+ * Constructor represents the equivalent of a Java constructor available as a allowlisted class
  * constructor within Painless. Constructors for Painless classes may be accessed exactly as
  * constructors for Java classes are using the 'new' keyword. Painless classes may have multiple
  * constructors as long as they comply with arity overloading described for {@link WhitelistClass}.
  */
 public final class WhitelistConstructor {
 
-    /** Information about where this constructor was whitelisted from. */
+    /** Information about where this constructor was allowlisted from. */
     public final String origin;
 
     /**
@@ -67,9 +67,12 @@ public final class WhitelistConstructor {
         if (painlessAnnotations.isEmpty()) {
             this.painlessAnnotations = Collections.emptyMap();
         } else {
-            this.painlessAnnotations = Collections.unmodifiableMap(Objects.requireNonNull(painlessAnnotations).stream()
+            this.painlessAnnotations = Collections.unmodifiableMap(
+                Objects.requireNonNull(painlessAnnotations)
+                    .stream()
                     .map(painlessAnnotation -> new AbstractMap.SimpleEntry<>(painlessAnnotation.getClass(), painlessAnnotation))
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+            );
         }
     }
 }

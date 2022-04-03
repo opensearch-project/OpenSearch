@@ -67,7 +67,7 @@ import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.IndexingPressure;
+import org.opensearch.index.IndexingPressureService;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.tasks.Task;
@@ -79,8 +79,6 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Captor;
-import org.mockito.MockitoAnnotations;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -93,16 +91,16 @@ import java.util.function.BiConsumer;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class TransportBulkActionIngestTests extends OpenSearchTestCase {
@@ -113,8 +111,7 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
     private static final String WITH_DEFAULT_PIPELINE = "index_with_default_pipeline";
     private static final String WITH_DEFAULT_PIPELINE_ALIAS = "alias_for_index_with_default_pipeline";
 
-    private static final Settings SETTINGS =
-        Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), true).build();
+    private static final Settings SETTINGS = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), true).build();
 
     private static final Thread DUMMY_WRITE_THREAD = new Thread(ThreadPool.Names.WRITE);
 
@@ -125,13 +122,9 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
     ThreadPool threadPool;
 
     /** Arguments to callbacks we want to capture, but which require generics, so we must use @Captor */
-    @Captor
     ArgumentCaptor<BiConsumer<Integer, Exception>> failureHandler;
-    @Captor
     ArgumentCaptor<BiConsumer<Thread, Exception>> completionHandler;
-    @Captor
     ArgumentCaptor<TransportResponseHandler<BulkResponse>> remoteResponseHandler;
-    @Captor
     ArgumentCaptor<Iterable<DocWriteRequest<?>>> bulkDocsItr;
 
     /** The actual action we want to test, with real indexing mocked */
@@ -157,22 +150,43 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         boolean indexCreated = true; // If set to false, will be set to true by call to createIndex
 
         TestTransportBulkAction() {
-            super(threadPool, transportService, clusterService, ingestService,
-                null, null, new ActionFilters(Collections.emptySet()), null,
+            super(
+                threadPool,
+                transportService,
+                clusterService,
+                ingestService,
+                null,
+                null,
+                new ActionFilters(Collections.emptySet()),
+                null,
                 new AutoCreateIndex(
-                    SETTINGS, new ClusterSettings(SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                    SETTINGS,
+                    new ClusterSettings(SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                     new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
                     new SystemIndices(emptyMap())
-                ), new IndexingPressure(SETTINGS), new SystemIndices(emptyMap())
+                ),
+                new IndexingPressureService(
+                    SETTINGS,
+                    new ClusterService(SETTINGS, new ClusterSettings(SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null)
+                ),
+                new SystemIndices(emptyMap())
             );
         }
+
         @Override
         protected boolean needToCheck() {
             return needToCheck;
         }
+
         @Override
-        void executeBulk(Task task, final BulkRequest bulkRequest, final long startTimeNanos, final ActionListener<BulkResponse> listener,
-                         final AtomicArray<BulkItemResponse> responses, Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
+        void executeBulk(
+            Task task,
+            final BulkRequest bulkRequest,
+            final long startTimeNanos,
+            final ActionListener<BulkResponse> listener,
+            final AtomicArray<BulkItemResponse> responses,
+            Map<String, IndexNotFoundException> indicesThatCannotBeCreated
+        ) {
             assertTrue(indexCreated);
             isExecuted = true;
         }
@@ -187,8 +201,13 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
     class TestSingleItemBulkWriteAction extends TransportSingleItemBulkWriteAction<IndexRequest, IndexResponse> {
 
         TestSingleItemBulkWriteAction(TestTransportBulkAction bulkAction) {
-            super(IndexAction.NAME, TransportBulkActionIngestTests.this.transportService,
-                    new ActionFilters(Collections.emptySet()), IndexRequest::new, bulkAction);
+            super(
+                IndexAction.NAME,
+                TransportBulkActionIngestTests.this.transportService,
+                new ActionFilters(Collections.emptySet()),
+                IndexRequest::new,
+                bulkAction
+            );
         }
     }
 
@@ -198,7 +217,12 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         threadPool = mock(ThreadPool.class);
         final ExecutorService direct = OpenSearchExecutors.newDirectExecutorService();
         when(threadPool.executor(anyString())).thenReturn(direct);
-        MockitoAnnotations.initMocks(this);
+
+        bulkDocsItr = ArgumentCaptor.forClass(Iterable.class);
+        failureHandler = ArgumentCaptor.forClass(BiConsumer.class);
+        completionHandler = ArgumentCaptor.forClass(BiConsumer.class);
+        remoteResponseHandler = ArgumentCaptor.forClass(TransportResponseHandler.class);
+
         // setup services that will be called by action
         transportService = mock(TransportService.class);
         clusterService = mock(ClusterService.class);
@@ -211,32 +235,50 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         remoteNode2 = mock(DiscoveryNode.class);
         nodes = mock(DiscoveryNodes.class);
         ImmutableOpenMap<String, DiscoveryNode> ingestNodes = ImmutableOpenMap.<String, DiscoveryNode>builder(2)
-            .fPut("node1", remoteNode1).fPut("node2", remoteNode2).build();
+            .fPut("node1", remoteNode1)
+            .fPut("node2", remoteNode2)
+            .build();
         when(nodes.getIngestNodes()).thenReturn(ingestNodes);
         when(nodes.getMinNodeVersion()).thenReturn(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
         ClusterState state = mock(ClusterState.class);
         when(state.getNodes()).thenReturn(nodes);
-        Metadata metadata = Metadata.builder().indices(ImmutableOpenMap.<String, IndexMetadata>builder()
-            .putAll(
-                MapBuilder.<String, IndexMetadata>newMapBuilder()
-                    .put(
-                        WITH_DEFAULT_PIPELINE,
-                        IndexMetadata.builder(WITH_DEFAULT_PIPELINE).settings(
-                            settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline")
-                                .build())
-                            .putAlias(
-                                AliasMetadata.builder(WITH_DEFAULT_PIPELINE_ALIAS).build()).numberOfShards(1).numberOfReplicas(1).build())
-                    .put(".system", IndexMetadata.builder(".system").settings(settings(Version.CURRENT)).system(true)
-                        .numberOfShards(1).numberOfReplicas(0).build())
-                    .map()
-                ).build()).build();
+        Metadata metadata = Metadata.builder()
+            .indices(
+                ImmutableOpenMap.<String, IndexMetadata>builder()
+                    .putAll(
+                        MapBuilder.<String, IndexMetadata>newMapBuilder()
+                            .put(
+                                WITH_DEFAULT_PIPELINE,
+                                IndexMetadata.builder(WITH_DEFAULT_PIPELINE)
+                                    .settings(
+                                        settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline").build()
+                                    )
+                                    .putAlias(AliasMetadata.builder(WITH_DEFAULT_PIPELINE_ALIAS).build())
+                                    .numberOfShards(1)
+                                    .numberOfReplicas(1)
+                                    .build()
+                            )
+                            .put(
+                                ".system",
+                                IndexMetadata.builder(".system")
+                                    .settings(settings(Version.CURRENT))
+                                    .system(true)
+                                    .numberOfShards(1)
+                                    .numberOfReplicas(0)
+                                    .build()
+                            )
+                            .map()
+                    )
+                    .build()
+            )
+            .build();
         when(state.getMetadata()).thenReturn(metadata);
         when(state.metadata()).thenReturn(metadata);
         when(clusterService.state()).thenReturn(state);
         doAnswer(invocation -> {
             ClusterChangedEvent event = mock(ClusterChangedEvent.class);
             when(event.state()).thenReturn(state);
-            ((ClusterStateApplier)invocation.getArguments()[0]).applyClusterState(event);
+            ((ClusterStateApplier) invocation.getArguments()[0]).applyClusterState(event);
             return null;
         }).when(clusterService).addStateApplier(any(ClusterStateApplier.class));
         // setup the mocked ingest service for capturing calls
@@ -248,33 +290,33 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
 
     public void testIngestSkipped() throws Exception {
         BulkRequest bulkRequest = new BulkRequest();
-        IndexRequest indexRequest = new IndexRequest("index", "type", "id");
+        IndexRequest indexRequest = new IndexRequest("index").id("id");
         indexRequest.source(emptyMap());
         bulkRequest.add(indexRequest);
-        action.execute(null, bulkRequest, ActionListener.wrap(response -> {}, exception -> {
-            throw new AssertionError(exception);
-        }));
+        action.execute(null, bulkRequest, ActionListener.wrap(response -> {}, exception -> { throw new AssertionError(exception); }));
         assertTrue(action.isExecuted);
-        verifyZeroInteractions(ingestService);
+        verifyNoInteractions(ingestService);
     }
 
     public void testSingleItemBulkActionIngestSkipped() throws Exception {
-        IndexRequest indexRequest = new IndexRequest("index", "type", "id");
+        IndexRequest indexRequest = new IndexRequest("index").id("id");
         indexRequest.source(emptyMap());
-        singleItemBulkWriteAction.execute(null, indexRequest, ActionListener.wrap(response -> {}, exception -> {
-            throw new AssertionError(exception);
-        }));
+        singleItemBulkWriteAction.execute(
+            null,
+            indexRequest,
+            ActionListener.wrap(response -> {}, exception -> { throw new AssertionError(exception); })
+        );
         assertTrue(action.isExecuted);
-        verifyZeroInteractions(ingestService);
+        verifyNoInteractions(ingestService);
     }
 
     public void testIngestLocal() throws Exception {
         Exception exception = new Exception("fake exception");
         BulkRequest bulkRequest = new BulkRequest();
-        IndexRequest indexRequest1 = new IndexRequest("index", "type", "id");
+        IndexRequest indexRequest1 = new IndexRequest("index").id("id");
         indexRequest1.source(emptyMap());
         indexRequest1.setPipeline("testpipeline");
-        IndexRequest indexRequest2 = new IndexRequest("index", "type", "id");
+        IndexRequest indexRequest2 = new IndexRequest("index").id("id");
         indexRequest2.source(emptyMap());
         indexRequest2.setPipeline("testpipeline");
         bulkRequest.add(indexRequest1);
@@ -282,23 +324,27 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
 
         AtomicBoolean responseCalled = new AtomicBoolean(false);
         AtomicBoolean failureCalled = new AtomicBoolean(false);
-        action.execute(null, bulkRequest, ActionListener.wrap(
-            response -> {
-                BulkItemResponse itemResponse = response.iterator().next();
-                assertThat(itemResponse.getFailure().getMessage(), containsString("fake exception"));
-                responseCalled.set(true);
-            },
-            e -> {
-                assertThat(e, sameInstance(exception));
-                failureCalled.set(true);
-            }));
+        action.execute(null, bulkRequest, ActionListener.wrap(response -> {
+            BulkItemResponse itemResponse = response.iterator().next();
+            assertThat(itemResponse.getFailure().getMessage(), containsString("fake exception"));
+            responseCalled.set(true);
+        }, e -> {
+            assertThat(e, sameInstance(exception));
+            failureCalled.set(true);
+        }));
 
         // check failure works, and passes through to the listener
         assertFalse(action.isExecuted); // haven't executed yet
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
-        verify(ingestService).executeBulkRequest(eq(bulkRequest.numberOfActions()), bulkDocsItr.capture(),
-            failureHandler.capture(), completionHandler.capture(), any(), eq(Names.WRITE));
+        verify(ingestService).executeBulkRequest(
+            eq(bulkRequest.numberOfActions()),
+            bulkDocsItr.capture(),
+            failureHandler.capture(),
+            completionHandler.capture(),
+            any(),
+            eq(Names.WRITE)
+        );
         completionHandler.getValue().accept(null, exception);
         assertTrue(failureCalled.get());
 
@@ -309,31 +355,33 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
-        verifyZeroInteractions(transportService);
+        verifyNoInteractions(transportService);
     }
 
     public void testSingleItemBulkActionIngestLocal() throws Exception {
         Exception exception = new Exception("fake exception");
-        IndexRequest indexRequest = new IndexRequest("index", "type", "id");
+        IndexRequest indexRequest = new IndexRequest("index").id("id");
         indexRequest.source(emptyMap());
         indexRequest.setPipeline("testpipeline");
         AtomicBoolean responseCalled = new AtomicBoolean(false);
         AtomicBoolean failureCalled = new AtomicBoolean(false);
-        singleItemBulkWriteAction.execute(null, indexRequest, ActionListener.wrap(
-                response -> {
-                    responseCalled.set(true);
-                },
-                e -> {
-                    assertThat(e, sameInstance(exception));
-                    failureCalled.set(true);
-                }));
+        singleItemBulkWriteAction.execute(null, indexRequest, ActionListener.wrap(response -> { responseCalled.set(true); }, e -> {
+            assertThat(e, sameInstance(exception));
+            failureCalled.set(true);
+        }));
 
         // check failure works, and passes through to the listener
         assertFalse(action.isExecuted); // haven't executed yet
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
-        verify(ingestService).executeBulkRequest(eq(1), bulkDocsItr.capture(), failureHandler.capture(),
-            completionHandler.capture(), any(), eq(Names.WRITE));
+        verify(ingestService).executeBulkRequest(
+            eq(1),
+            bulkDocsItr.capture(),
+            failureHandler.capture(),
+            completionHandler.capture(),
+            any(),
+            eq(Names.WRITE)
+        );
         completionHandler.getValue().accept(null, exception);
         assertTrue(failureCalled.get());
 
@@ -342,7 +390,7 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
-        verifyZeroInteractions(transportService);
+        verifyNoInteractions(transportService);
     }
 
     public void testIngestSystemLocal() throws Exception {
@@ -359,23 +407,27 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
 
         AtomicBoolean responseCalled = new AtomicBoolean(false);
         AtomicBoolean failureCalled = new AtomicBoolean(false);
-        ActionTestUtils.execute(action, null, bulkRequest, ActionListener.wrap(
-            response -> {
-                BulkItemResponse itemResponse = response.iterator().next();
-                assertThat(itemResponse.getFailure().getMessage(), containsString("fake exception"));
-                responseCalled.set(true);
-            },
-            e -> {
-                assertThat(e, sameInstance(exception));
-                failureCalled.set(true);
-            }));
+        ActionTestUtils.execute(action, null, bulkRequest, ActionListener.wrap(response -> {
+            BulkItemResponse itemResponse = response.iterator().next();
+            assertThat(itemResponse.getFailure().getMessage(), containsString("fake exception"));
+            responseCalled.set(true);
+        }, e -> {
+            assertThat(e, sameInstance(exception));
+            failureCalled.set(true);
+        }));
 
         // check failure works, and passes through to the listener
         assertFalse(action.isExecuted); // haven't executed yet
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
-        verify(ingestService).executeBulkRequest(eq(bulkRequest.numberOfActions()), bulkDocsItr.capture(),
-            failureHandler.capture(), completionHandler.capture(), any(), eq(Names.SYSTEM_WRITE));
+        verify(ingestService).executeBulkRequest(
+            eq(bulkRequest.numberOfActions()),
+            bulkDocsItr.capture(),
+            failureHandler.capture(),
+            completionHandler.capture(),
+            any(),
+            eq(Names.SYSTEM_WRITE)
+        );
         completionHandler.getValue().accept(null, exception);
         assertTrue(failureCalled.get());
 
@@ -386,26 +438,22 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
-        verifyZeroInteractions(transportService);
+        verifyNoInteractions(transportService);
     }
 
     public void testIngestForward() throws Exception {
         localIngest = false;
         BulkRequest bulkRequest = new BulkRequest();
-        IndexRequest indexRequest = new IndexRequest("index", "type", "id");
+        IndexRequest indexRequest = new IndexRequest("index").id("id");
         indexRequest.source(emptyMap());
         indexRequest.setPipeline("testpipeline");
         bulkRequest.add(indexRequest);
         BulkResponse bulkResponse = mock(BulkResponse.class);
         AtomicBoolean responseCalled = new AtomicBoolean(false);
-        ActionListener<BulkResponse> listener = ActionListener.wrap(
-            response -> {
-                responseCalled.set(true);
-                assertSame(bulkResponse, response);
-            },
-            e -> {
-                throw new AssertionError(e);
-            });
+        ActionListener<BulkResponse> listener = ActionListener.wrap(response -> {
+            responseCalled.set(true);
+            assertSame(bulkResponse, response);
+        }, e -> { throw new AssertionError(e); });
         action.execute(null, bulkRequest, listener);
 
         // should not have executed ingest locally
@@ -437,19 +485,15 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
 
     public void testSingleItemBulkActionIngestForward() throws Exception {
         localIngest = false;
-        IndexRequest indexRequest = new IndexRequest("index", "type", "id");
+        IndexRequest indexRequest = new IndexRequest("index").id("id");
         indexRequest.source(emptyMap());
         indexRequest.setPipeline("testpipeline");
         IndexResponse indexResponse = mock(IndexResponse.class);
         AtomicBoolean responseCalled = new AtomicBoolean(false);
-        ActionListener<IndexResponse> listener = ActionListener.wrap(
-                response -> {
-                    responseCalled.set(true);
-                    assertSame(indexResponse, response);
-                },
-                e -> {
-                    throw new AssertionError(e);
-                });
+        ActionListener<IndexResponse> listener = ActionListener.wrap(response -> {
+            responseCalled.set(true);
+            assertSame(indexResponse, response);
+        }, e -> { throw new AssertionError(e); });
         singleItemBulkWriteAction.execute(null, indexRequest, listener);
 
         // should not have executed ingest locally
@@ -483,37 +527,35 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
     }
 
     public void testUseDefaultPipeline() throws Exception {
-        validateDefaultPipeline(new IndexRequest(WITH_DEFAULT_PIPELINE, "type", "id"));
+        validateDefaultPipeline(new IndexRequest(WITH_DEFAULT_PIPELINE).id("id"));
     }
 
     public void testUseDefaultPipelineWithAlias() throws Exception {
-        validateDefaultPipeline(new IndexRequest(WITH_DEFAULT_PIPELINE_ALIAS, "type", "id"));
+        validateDefaultPipeline(new IndexRequest(WITH_DEFAULT_PIPELINE_ALIAS).id("id"));
     }
 
     public void testUseDefaultPipelineWithBulkUpsert() throws Exception {
-        String indexRequestName = randomFrom(new String[]{null, WITH_DEFAULT_PIPELINE, WITH_DEFAULT_PIPELINE_ALIAS});
+        String indexRequestName = randomFrom(new String[] { null, WITH_DEFAULT_PIPELINE, WITH_DEFAULT_PIPELINE_ALIAS });
         validatePipelineWithBulkUpsert(indexRequestName, WITH_DEFAULT_PIPELINE);
     }
 
     public void testUseDefaultPipelineWithBulkUpsertWithAlias() throws Exception {
-        String indexRequestName = randomFrom(new String[]{null, WITH_DEFAULT_PIPELINE, WITH_DEFAULT_PIPELINE_ALIAS});
+        String indexRequestName = randomFrom(new String[] { null, WITH_DEFAULT_PIPELINE, WITH_DEFAULT_PIPELINE_ALIAS });
         validatePipelineWithBulkUpsert(indexRequestName, WITH_DEFAULT_PIPELINE_ALIAS);
     }
 
     private void validatePipelineWithBulkUpsert(@Nullable String indexRequestIndexName, String updateRequestIndexName) throws Exception {
         Exception exception = new Exception("fake exception");
         BulkRequest bulkRequest = new BulkRequest();
-        IndexRequest indexRequest1 = new IndexRequest(indexRequestIndexName, "type", "id1").source(emptyMap());
-        IndexRequest indexRequest2 = new IndexRequest(indexRequestIndexName, "type", "id2").source(emptyMap());
-        IndexRequest indexRequest3 = new IndexRequest(indexRequestIndexName, "type", "id3").source(emptyMap());
-        UpdateRequest upsertRequest = new UpdateRequest(updateRequestIndexName, "type", "id1")
-            .upsert(indexRequest1).script(mockScript("1"));
-        UpdateRequest docAsUpsertRequest = new UpdateRequest(updateRequestIndexName, "type", "id2")
-            .doc(indexRequest2).docAsUpsert(true);
+        IndexRequest indexRequest1 = new IndexRequest(indexRequestIndexName).id("id1").source(emptyMap());
+        IndexRequest indexRequest2 = new IndexRequest(indexRequestIndexName).id("id2").source(emptyMap());
+        IndexRequest indexRequest3 = new IndexRequest(indexRequestIndexName).id("id3").source(emptyMap());
+        UpdateRequest upsertRequest = new UpdateRequest(updateRequestIndexName, "id1").upsert(indexRequest1).script(mockScript("1"));
+        UpdateRequest docAsUpsertRequest = new UpdateRequest(updateRequestIndexName, "id2").doc(indexRequest2).docAsUpsert(true);
         // this test only covers the mechanics that scripted bulk upserts will execute a default pipeline. However, in practice scripted
         // bulk upserts with a default pipeline are a bit surprising since the script executes AFTER the pipeline.
-        UpdateRequest scriptedUpsert = new UpdateRequest(updateRequestIndexName, "type", "id2")
-            .upsert(indexRequest3).script(mockScript("1"))
+        UpdateRequest scriptedUpsert = new UpdateRequest(updateRequestIndexName, "id2").upsert(indexRequest3)
+            .script(mockScript("1"))
             .scriptedUpsert(true);
         bulkRequest.add(upsertRequest).add(docAsUpsertRequest).add(scriptedUpsert);
 
@@ -522,23 +564,27 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         assertNull(indexRequest1.getPipeline());
         assertNull(indexRequest2.getPipeline());
         assertNull(indexRequest3.getPipeline());
-        action.execute(null, bulkRequest, ActionListener.wrap(
-            response -> {
-                BulkItemResponse itemResponse = response.iterator().next();
-                assertThat(itemResponse.getFailure().getMessage(), containsString("fake exception"));
-                responseCalled.set(true);
-            },
-            e -> {
-                assertThat(e, sameInstance(exception));
-                failureCalled.set(true);
-            }));
+        action.execute(null, bulkRequest, ActionListener.wrap(response -> {
+            BulkItemResponse itemResponse = response.iterator().next();
+            assertThat(itemResponse.getFailure().getMessage(), containsString("fake exception"));
+            responseCalled.set(true);
+        }, e -> {
+            assertThat(e, sameInstance(exception));
+            failureCalled.set(true);
+        }));
 
         // check failure works, and passes through to the listener
         assertFalse(action.isExecuted); // haven't executed yet
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
-        verify(ingestService).executeBulkRequest(eq(bulkRequest.numberOfActions()), bulkDocsItr.capture(),
-            failureHandler.capture(), completionHandler.capture(), any(), eq(Names.WRITE));
+        verify(ingestService).executeBulkRequest(
+            eq(bulkRequest.numberOfActions()),
+            bulkDocsItr.capture(),
+            failureHandler.capture(),
+            completionHandler.capture(),
+            any(),
+            eq(Names.WRITE)
+        );
         assertEquals(indexRequest1.getPipeline(), "default_pipeline");
         assertEquals(indexRequest2.getPipeline(), "default_pipeline");
         assertEquals(indexRequest3.getPipeline(), "default_pipeline");
@@ -552,32 +598,36 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
-        verifyZeroInteractions(transportService);
+        verifyNoInteractions(transportService);
     }
 
     public void testDoExecuteCalledTwiceCorrectly() throws Exception {
         Exception exception = new Exception("fake exception");
-        IndexRequest indexRequest = new IndexRequest("missing_index", "type", "id");
+        IndexRequest indexRequest = new IndexRequest("missing_index").id("id");
         indexRequest.setPipeline("testpipeline");
         indexRequest.source(emptyMap());
         AtomicBoolean responseCalled = new AtomicBoolean(false);
         AtomicBoolean failureCalled = new AtomicBoolean(false);
         action.needToCheck = true;
         action.indexCreated = false;
-        singleItemBulkWriteAction.execute(null, indexRequest, ActionListener.wrap(
-            response -> responseCalled.set(true),
-            e -> {
-                assertThat(e, sameInstance(exception));
-                failureCalled.set(true);
-            }));
+        singleItemBulkWriteAction.execute(null, indexRequest, ActionListener.wrap(response -> responseCalled.set(true), e -> {
+            assertThat(e, sameInstance(exception));
+            failureCalled.set(true);
+        }));
 
         // check failure works, and passes through to the listener
         assertFalse(action.isExecuted); // haven't executed yet
         assertFalse(action.indexCreated); // no index yet
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
-        verify(ingestService).executeBulkRequest(eq(1), bulkDocsItr.capture(), failureHandler.capture(),
-            completionHandler.capture(), any(), eq(Names.WRITE));
+        verify(ingestService).executeBulkRequest(
+            eq(1),
+            bulkDocsItr.capture(),
+            failureHandler.capture(),
+            completionHandler.capture(),
+            any(),
+            eq(Names.WRITE)
+        );
         completionHandler.getValue().accept(null, exception);
         assertFalse(action.indexCreated); // still no index yet, the ingest node failed.
         assertTrue(failureCalled.get());
@@ -588,39 +638,57 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         assertTrue(action.isExecuted);
         assertTrue(action.indexCreated); // now the index is created since we skipped the ingest node path.
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
-        verifyZeroInteractions(transportService);
+        verifyNoInteractions(transportService);
     }
 
-    public void testNotFindDefaultPipelineFromTemplateMatches(){
+    public void testNotFindDefaultPipelineFromTemplateMatches() {
         Exception exception = new Exception("fake exception");
-        IndexRequest indexRequest = new IndexRequest("missing_index", "type", "id");
+        IndexRequest indexRequest = new IndexRequest("missing_index").id("id");
         indexRequest.source(emptyMap());
         AtomicBoolean responseCalled = new AtomicBoolean(false);
         AtomicBoolean failureCalled = new AtomicBoolean(false);
-        singleItemBulkWriteAction.execute(null, indexRequest, ActionListener.wrap(
-            response -> responseCalled.set(true),
-            e -> {
-                assertThat(e, sameInstance(exception));
-                failureCalled.set(true);
-            }));
+        singleItemBulkWriteAction.execute(null, indexRequest, ActionListener.wrap(response -> responseCalled.set(true), e -> {
+            assertThat(e, sameInstance(exception));
+            failureCalled.set(true);
+        }));
         assertEquals(IngestService.NOOP_PIPELINE_NAME, indexRequest.getPipeline());
-        verifyZeroInteractions(ingestService);
+        verifyNoInteractions(ingestService);
 
     }
 
-    public void testFindDefaultPipelineFromTemplateMatch(){
+    public void testFindDefaultPipelineFromTemplateMatch() {
         Exception exception = new Exception("fake exception");
         ClusterState state = clusterService.state();
 
         ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templateMetadataBuilder = ImmutableOpenMap.builder();
-        templateMetadataBuilder.put("template1", IndexTemplateMetadata.builder("template1").patterns(Arrays.asList("missing_index"))
-            .order(1).settings(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline1").build()).build());
-        templateMetadataBuilder.put("template2", IndexTemplateMetadata.builder("template2").patterns(Arrays.asList("missing_*"))
-            .order(2).settings(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline2").build()).build());
-        templateMetadataBuilder.put("template3", IndexTemplateMetadata.builder("template3").patterns(Arrays.asList("missing*"))
-            .order(3).build());
-        templateMetadataBuilder.put("template4", IndexTemplateMetadata.builder("template4").patterns(Arrays.asList("nope"))
-            .order(4).settings(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline4").build()).build());
+        templateMetadataBuilder.put(
+            "template1",
+            IndexTemplateMetadata.builder("template1")
+                .patterns(Arrays.asList("missing_index"))
+                .order(1)
+                .settings(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline1").build())
+                .build()
+        );
+        templateMetadataBuilder.put(
+            "template2",
+            IndexTemplateMetadata.builder("template2")
+                .patterns(Arrays.asList("missing_*"))
+                .order(2)
+                .settings(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline2").build())
+                .build()
+        );
+        templateMetadataBuilder.put(
+            "template3",
+            IndexTemplateMetadata.builder("template3").patterns(Arrays.asList("missing*")).order(3).build()
+        );
+        templateMetadataBuilder.put(
+            "template4",
+            IndexTemplateMetadata.builder("template4")
+                .patterns(Arrays.asList("nope"))
+                .order(4)
+                .settings(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline4").build())
+                .build()
+        );
 
         Metadata metadata = mock(Metadata.class);
         when(state.metadata()).thenReturn(metadata);
@@ -629,33 +697,41 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         when(metadata.getTemplates()).thenReturn(templateMetadataBuilder.build());
         when(metadata.indices()).thenReturn(ImmutableOpenMap.of());
 
-        IndexRequest indexRequest = new IndexRequest("missing_index", "type", "id");
+        IndexRequest indexRequest = new IndexRequest("missing_index").id("id");
         indexRequest.source(emptyMap());
         AtomicBoolean responseCalled = new AtomicBoolean(false);
         AtomicBoolean failureCalled = new AtomicBoolean(false);
-        singleItemBulkWriteAction.execute(null, indexRequest, ActionListener.wrap(
-            response -> responseCalled.set(true),
-            e -> {
-                assertThat(e, sameInstance(exception));
-                failureCalled.set(true);
-            }));
+        singleItemBulkWriteAction.execute(null, indexRequest, ActionListener.wrap(response -> responseCalled.set(true), e -> {
+            assertThat(e, sameInstance(exception));
+            failureCalled.set(true);
+        }));
 
         assertEquals("pipeline2", indexRequest.getPipeline());
-        verify(ingestService).executeBulkRequest(eq(1), bulkDocsItr.capture(), failureHandler.capture(),
-            completionHandler.capture(), any(), eq(Names.WRITE));
+        verify(ingestService).executeBulkRequest(
+            eq(1),
+            bulkDocsItr.capture(),
+            failureHandler.capture(),
+            completionHandler.capture(),
+            any(),
+            eq(Names.WRITE)
+        );
     }
 
     public void testFindDefaultPipelineFromV2TemplateMatch() {
         Exception exception = new Exception("fake exception");
 
-        ComposableIndexTemplate t1 = new ComposableIndexTemplate(Collections.singletonList("missing_*"),
+        ComposableIndexTemplate t1 = new ComposableIndexTemplate(
+            Collections.singletonList("missing_*"),
             new Template(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline2").build(), null, null),
-            null, null, null, null, null);
+            null,
+            null,
+            null,
+            null,
+            null
+        );
 
         ClusterState state = clusterService.state();
-        Metadata metadata = Metadata.builder()
-            .put("my-template", t1)
-            .build();
+        Metadata metadata = Metadata.builder().put("my-template", t1).build();
         when(state.metadata()).thenReturn(metadata);
         when(state.getMetadata()).thenReturn(metadata);
 
@@ -663,16 +739,21 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         indexRequest.source(emptyMap());
         AtomicBoolean responseCalled = new AtomicBoolean(false);
         AtomicBoolean failureCalled = new AtomicBoolean(false);
-        singleItemBulkWriteAction.execute(null, indexRequest, ActionListener.wrap(
-            response -> responseCalled.set(true),
-            e -> {
-                assertThat(e, sameInstance(exception));
-                failureCalled.set(true);
-            }));
+        singleItemBulkWriteAction.execute(null, indexRequest, ActionListener.wrap(response -> responseCalled.set(true), e -> {
+            assertThat(e, sameInstance(exception));
+            failureCalled.set(true);
+        }));
 
         assertEquals("pipeline2", indexRequest.getPipeline());
-        verify(ingestService).executeBulkRequest(eq(1), bulkDocsItr.capture(), failureHandler.capture(),
-            completionHandler.capture(), any(), eq(Names.WRITE));
+
+        verify(ingestService).executeBulkRequest(
+            eq(1),
+            bulkDocsItr.capture(),
+            failureHandler.capture(),
+            completionHandler.capture(),
+            any(),
+            eq(Names.WRITE)
+        );
     }
 
     private void validateDefaultPipeline(IndexRequest indexRequest) {
@@ -681,21 +762,23 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         AtomicBoolean responseCalled = new AtomicBoolean(false);
         AtomicBoolean failureCalled = new AtomicBoolean(false);
         assertNull(indexRequest.getPipeline());
-        singleItemBulkWriteAction.execute(null, indexRequest, ActionListener.wrap(
-            response -> {
-                responseCalled.set(true);
-            },
-            e -> {
-                assertThat(e, sameInstance(exception));
-                failureCalled.set(true);
-            }));
+        singleItemBulkWriteAction.execute(null, indexRequest, ActionListener.wrap(response -> { responseCalled.set(true); }, e -> {
+            assertThat(e, sameInstance(exception));
+            failureCalled.set(true);
+        }));
 
         // check failure works, and passes through to the listener
         assertFalse(action.isExecuted); // haven't executed yet
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
-        verify(ingestService).executeBulkRequest(eq(1), bulkDocsItr.capture(), failureHandler.capture(),
-            completionHandler.capture(), any(), eq(Names.WRITE));
+        verify(ingestService).executeBulkRequest(
+            eq(1),
+            bulkDocsItr.capture(),
+            failureHandler.capture(),
+            completionHandler.capture(),
+            any(),
+            eq(Names.WRITE)
+        );
         assertEquals(indexRequest.getPipeline(), "default_pipeline");
         completionHandler.getValue().accept(null, exception);
         assertTrue(failureCalled.get());
@@ -705,6 +788,6 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
-        verifyZeroInteractions(transportService);
+        verifyNoInteractions(transportService);
     }
 }

@@ -47,22 +47,15 @@ import org.opensearch.script.Script;
 import java.util.Map;
 
 public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<UpdateRequest, UpdateResponse, UpdateRequestBuilder>
-        implements WriteRequestBuilder<UpdateRequestBuilder> {
+    implements
+        WriteRequestBuilder<UpdateRequestBuilder> {
 
     public UpdateRequestBuilder(OpenSearchClient client, UpdateAction action) {
         super(client, action, new UpdateRequest());
     }
 
-    public UpdateRequestBuilder(OpenSearchClient client, UpdateAction action, String index, String type, String id) {
-        super(client, action, new UpdateRequest(index, type, id));
-    }
-
-    /**
-     * Sets the type of the indexed document.
-     */
-    public UpdateRequestBuilder setType(String type) {
-        request.type(type);
-        return this;
+    public UpdateRequestBuilder(OpenSearchClient client, UpdateAction action, String index, String id) {
+        super(client, action, new UpdateRequest(index, id));
     }
 
     /**
@@ -370,7 +363,6 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         request.detectNoop(detectNoop);
         return this;
     }
-
 
     /**
      * Sets whether the script should be run in the case of an insert

@@ -49,8 +49,8 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
@@ -100,8 +100,7 @@ public class GoogleCloudStorageBlobStoreContainerTests extends OpenSearchTestCas
         final GoogleCloudStorageService storageService = mock(GoogleCloudStorageService.class);
         when(storageService.client(any(String.class), any(String.class), any(GoogleCloudStorageOperationsStats.class))).thenReturn(storage);
 
-        try (BlobStore store = new GoogleCloudStorageBlobStore("bucket", "test", "repo", storageService,
-            randomIntBetween(1, 8) * 1024)) {
+        try (BlobStore store = new GoogleCloudStorageBlobStore("bucket", "test", "repo", storageService, randomIntBetween(1, 8) * 1024)) {
             final BlobContainer container = store.blobContainer(new BlobPath());
 
             IOException e = expectThrows(IOException.class, () -> container.deleteBlobsIgnoringIfNotExists(blobs));

@@ -59,8 +59,9 @@ public class ImportYmlConfigTaskTests extends OpenSearchTestCase {
         taskInput.setEsConfig(esConfig);
         task.accept(new Tuple<>(taskInput, terminal));
         Settings settings = Settings.builder().loadFromPath(taskInput.getOpenSearchConfig().resolve("opensearch.yml")).build();
-        assertThat(settings.keySet(), contains("cluster.name", "node.name", "path.data", "path.logs"));
+        assertThat(settings.keySet(), contains("cluster.name", "http.port", "node.name", "path.data", "path.logs"));
         assertThat(settings.get("cluster.name"), is("my-cluster"));
+        assertThat(settings.get("http.port"), is("42123"));
         assertThat(settings.get("node.name"), is("node-x"));
         assertThat(settings.get("path.data"), is("[/mnt/data_1, /mnt/data_2]"));
         assertThat(settings.get("path.logs"), is("/var/log/eslogs"));

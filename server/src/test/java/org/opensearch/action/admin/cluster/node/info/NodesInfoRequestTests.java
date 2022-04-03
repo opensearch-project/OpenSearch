@@ -35,7 +35,6 @@ package org.opensearch.action.admin.cluster.node.info;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.action.admin.cluster.node.info.NodesInfoRequest;
 
 import java.util.HashSet;
 import java.util.Set;

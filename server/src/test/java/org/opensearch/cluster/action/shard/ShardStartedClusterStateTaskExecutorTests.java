@@ -76,11 +76,15 @@ public class ShardStartedClusterStateTaskExecutorTests extends OpenSearchAllocat
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        AllocationService allocationService = createAllocationService(Settings.builder()
-            .put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
-            .build());
-        executor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService,
-            ShardStartedClusterStateTaskExecutorTests::neverReroutes, () -> Priority.NORMAL, logger);
+        AllocationService allocationService = createAllocationService(
+            Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE).build()
+        );
+        executor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(
+            allocationService,
+            ShardStartedClusterStateTaskExecutorTests::neverReroutes,
+            () -> Priority.NORMAL,
+            logger
+        );
     }
 
     public void testEmptyTaskListProducesSameClusterState() throws Exception {
@@ -126,22 +130,21 @@ public class ShardStartedClusterStateTaskExecutorTests extends OpenSearchAllocat
 
     public void testNonInitializingShardAreMarkedAsSuccessful() throws Exception {
         final String indexName = "test";
-        final ClusterState clusterState = stateWithAssignedPrimariesAndReplicas(new String[]{indexName}, randomIntBetween(2, 10), 1);
+        final ClusterState clusterState = stateWithAssignedPrimariesAndReplicas(new String[] { indexName }, randomIntBetween(2, 10), 1);
 
         final IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
-        final List<StartedShardEntry> tasks = IntStream.range(0, randomIntBetween(1, indexMetadata.getNumberOfShards()))
-            .mapToObj(i -> {
-                final ShardId shardId = new ShardId(indexMetadata.getIndex(), i);
-                final IndexShardRoutingTable shardRoutingTable = clusterState.routingTable().shardRoutingTable(shardId);
-                final String allocationId;
-                if (randomBoolean()) {
-                    allocationId = shardRoutingTable.primaryShard().allocationId().getId();
-                } else {
-                    allocationId = shardRoutingTable.replicaShards().iterator().next().allocationId().getId();
-                }
-                final long primaryTerm = indexMetadata.primaryTerm(shardId.id());
-                return new StartedShardEntry(shardId, allocationId, primaryTerm, "test");
-            }).collect(Collectors.toList());
+        final List<StartedShardEntry> tasks = IntStream.range(0, randomIntBetween(1, indexMetadata.getNumberOfShards())).mapToObj(i -> {
+            final ShardId shardId = new ShardId(indexMetadata.getIndex(), i);
+            final IndexShardRoutingTable shardRoutingTable = clusterState.routingTable().shardRoutingTable(shardId);
+            final String allocationId;
+            if (randomBoolean()) {
+                allocationId = shardRoutingTable.primaryShard().allocationId().getId();
+            } else {
+                allocationId = shardRoutingTable.replicaShards().iterator().next().allocationId().getId();
+            }
+            final long primaryTerm = indexMetadata.primaryTerm(shardId.id());
+            return new StartedShardEntry(shardId, allocationId, primaryTerm, "test");
+        }).collect(Collectors.toList());
 
         final ClusterStateTaskExecutor.ClusterTasksResult result = executeTasks(clusterState, tasks);
         assertSame(clusterState, result.resultingState);
@@ -214,17 +217,21 @@ public class ShardStartedClusterStateTaskExecutorTests extends OpenSearchAllocat
 
         ClusterState clusterState = state(indexName, randomBoolean(), ShardRoutingState.INITIALIZING, ShardRoutingState.INITIALIZING);
         clusterState = ClusterState.builder(clusterState)
-            .metadata(Metadata.builder(clusterState.metadata())
-                .put(IndexMetadata.builder(clusterState.metadata().index(indexName))
-                    .primaryTerm(shard, primaryTerm)
-                    .build(), true)
-                .build())
+            .metadata(
+                Metadata.builder(clusterState.metadata())
+                    .put(IndexMetadata.builder(clusterState.metadata().index(indexName)).primaryTerm(shard, primaryTerm).build(), true)
+                    .build()
+            )
             .build();
         final ShardId shardId = new ShardId(clusterState.metadata().index(indexName).getIndex(), shard);
         final String primaryAllocationId = clusterState.routingTable().shardRoutingTable(shardId).primaryShard().allocationId().getId();
         {
-            final StartedShardEntry task =
-                new StartedShardEntry(shardId, primaryAllocationId, primaryTerm - 1, "primary terms does not match on primary");
+            final StartedShardEntry task = new StartedShardEntry(
+                shardId,
+                primaryAllocationId,
+                primaryTerm - 1,
+                "primary terms does not match on primary"
+            );
 
             final ClusterStateTaskExecutor.ClusterTasksResult result = executeTasks(clusterState, singletonList(task));
             assertSame(clusterState, result.resultingState);
@@ -236,8 +243,12 @@ public class ShardStartedClusterStateTaskExecutorTests extends OpenSearchAllocat
             assertSame(clusterState, result.resultingState);
         }
         {
-            final StartedShardEntry task =
-                new StartedShardEntry(shardId, primaryAllocationId, primaryTerm, "primary terms match on primary");
+            final StartedShardEntry task = new StartedShardEntry(
+                shardId,
+                primaryAllocationId,
+                primaryTerm,
+                "primary terms match on primary"
+            );
 
             final ClusterStateTaskExecutor.ClusterTasksResult result = executeTasks(clusterState, singletonList(task));
             assertNotSame(clusterState, result.resultingState);
@@ -251,8 +262,13 @@ public class ShardStartedClusterStateTaskExecutorTests extends OpenSearchAllocat
         }
         {
             final long replicaPrimaryTerm = randomBoolean() ? primaryTerm : primaryTerm - 1;
-            final String replicaAllocationId = clusterState.routingTable().shardRoutingTable(shardId).replicaShards().iterator().next()
-                .allocationId().getId();
+            final String replicaAllocationId = clusterState.routingTable()
+                .shardRoutingTable(shardId)
+                .replicaShards()
+                .iterator()
+                .next()
+                .allocationId()
+                .getId();
 
             final StartedShardEntry task = new StartedShardEntry(shardId, replicaAllocationId, replicaPrimaryTerm, "test on replica");
 
@@ -267,8 +283,8 @@ public class ShardStartedClusterStateTaskExecutorTests extends OpenSearchAllocat
         }
     }
 
-    private ClusterStateTaskExecutor.ClusterTasksResult executeTasks(final ClusterState state,
-                                                                     final List<StartedShardEntry> tasks) throws Exception {
+    private ClusterStateTaskExecutor.ClusterTasksResult executeTasks(final ClusterState state, final List<StartedShardEntry> tasks)
+        throws Exception {
         final ClusterStateTaskExecutor.ClusterTasksResult<StartedShardEntry> result = executor.execute(state, tasks);
         assertThat(result, notNullValue());
         return result;

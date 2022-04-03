@@ -35,7 +35,6 @@ package org.opensearch.common.bytes;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.BytesRefIterator;
-import org.apache.lucene.util.FutureObjects;
 import org.apache.lucene.util.RamUsageEstimator;
 
 import java.io.IOException;
@@ -68,8 +67,9 @@ public final class CompositeBytesReference extends AbstractBytesReference {
     }
 
     private CompositeBytesReference(BytesReference... references) {
-        assert references.length > 1
-                : "Should not build composite reference from less than two references but received [" + references.length + "]";
+        assert references.length > 1 : "Should not build composite reference from less than two references but received ["
+            + references.length
+            + "]";
         this.references = Objects.requireNonNull(references, "references must not be null");
         this.offsets = new int[references.length];
         long ramBytesUsed = 0;
@@ -83,14 +83,12 @@ public final class CompositeBytesReference extends AbstractBytesReference {
             offset += reference.length();
             ramBytesUsed += reference.ramBytesUsed();
         }
-        this.ramBytesUsed = ramBytesUsed
-            + (Integer.BYTES * offsets.length + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER) // offsets
+        this.ramBytesUsed = ramBytesUsed + (Integer.BYTES * offsets.length + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER) // offsets
             + (references.length * RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER) // references
             + Integer.BYTES // length
             + Long.BYTES; // ramBytesUsed
         length = offset;
     }
-
 
     @Override
     public byte get(int index) {
@@ -101,7 +99,7 @@ public final class CompositeBytesReference extends AbstractBytesReference {
     @Override
     public int indexOf(byte marker, int from) {
         final int remainingBytes = Math.max(length - from, 0);
-        FutureObjects.checkFromIndexSize(from, remainingBytes, length);
+        Objects.checkFromIndexSize(from, remainingBytes, length);
 
         int result = -1;
         if (length == 0) {
@@ -133,7 +131,7 @@ public final class CompositeBytesReference extends AbstractBytesReference {
 
     @Override
     public BytesReference slice(int from, int length) {
-        FutureObjects.checkFromIndexSize(from, length, this.length);
+        Objects.checkFromIndexSize(from, length, this.length);
 
         if (length == 0) {
             return BytesArray.EMPTY;
@@ -154,7 +152,7 @@ public final class CompositeBytesReference extends AbstractBytesReference {
         }
         // now adjust slices in front and at the end
         inSlice[0] = inSlice[0].slice(inSliceOffset, inSlice[0].length() - inSliceOffset);
-        inSlice[inSlice.length-1] = inSlice[inSlice.length-1].slice(0, to - offsets[limit]);
+        inSlice[inSlice.length - 1] = inSlice[inSlice.length - 1].slice(0, to - offsets[limit]);
         return new CompositeBytesReference(inSlice);
     }
 
@@ -211,6 +209,6 @@ public final class CompositeBytesReference extends AbstractBytesReference {
 
     @Override
     public long ramBytesUsed() {
-       return ramBytesUsed;
+        return ramBytesUsed;
     }
 }

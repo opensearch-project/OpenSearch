@@ -50,7 +50,6 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.index.VersionType;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.script.Script;
 import org.opensearch.search.sort.SortOrder;
@@ -75,8 +74,7 @@ import static org.opensearch.index.VersionType.INTERNAL;
  * of reasons, not least of which that scripts are allowed to change the destination request in drastic ways, including changing the index
  * to which documents are written.
  */
-public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequest>
-                            implements CompositeIndicesRequest, ToXContentObject {
+public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequest> implements CompositeIndicesRequest, ToXContentObject {
     /**
      * Prototype for index requests.
      */
@@ -150,11 +148,11 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             return true;
         }
         switch (destination.routing()) {
-        case "keep":
-        case "discard":
-            return true;
-        default:
-            return false;
+            case "keep":
+            case "discard":
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -164,16 +162,6 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     public ReindexRequest setSourceIndices(String... sourceIndices) {
         if (sourceIndices != null) {
             this.getSearchRequest().indices(sourceIndices);
-        }
-        return this;
-    }
-
-    /**
-     * Set the document types which need to be copied from the source indices
-     */
-    public ReindexRequest setSourceDocTypes(String... docTypes) {
-        if (docTypes != null) {
-            this.getSearchRequest().types(docTypes);
         }
         return this;
     }
@@ -217,14 +205,6 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         if (destIndex != null) {
             this.getDestination().index(destIndex);
         }
-        return this;
-    }
-
-    /**
-     * Set the document type for the destination index
-     */
-    public ReindexRequest setDestDocType(String docType) {
-        this.getDestination().type(docType);
         return this;
     }
 
@@ -314,9 +294,6 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         }
         searchToString(b);
         b.append(" to [").append(destination.index()).append(']');
-        if (destination.type() != null) {
-            b.append('[').append(destination.type()).append(']');
-        }
         return b.toString();
     }
 
@@ -331,10 +308,6 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
                 builder.rawField("query", remoteInfo.getQuery().streamInput(), RemoteInfo.QUERY_CONTENT_TYPE.type());
             }
             builder.array("index", getSearchRequest().indices());
-            String[] types = getSearchRequest().types();
-            if (types.length > 0) {
-                builder.array("type", types);
-            }
             getSearchRequest().source().innerToXContent(builder, params);
             builder.endObject();
         }
@@ -342,10 +315,6 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             // build destination
             builder.startObject("dest");
             builder.field("index", getDestination().index());
-            String type = getDestination().type();
-            if (type != null && type.equals(MapperService.SINGLE_MAPPING_NAME) == false) {
-                builder.field("type", getDestination().type());
-            }
             if (getDestination().routing() != null) {
                 builder.field("routing", getDestination().routing());
             }
@@ -384,27 +353,21 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             if (indices != null) {
                 request.getSearchRequest().indices(indices);
             }
-            String[] types = extractStringArray(source, "type");
-            if (types != null) {
-                deprecationLogger.deprecate("reindex_with_types", TYPES_DEPRECATION_MESSAGE);
-                request.getSearchRequest().types(types);
-            }
             request.setRemoteInfo(buildRemoteInfo(source));
             XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
             builder.map(source);
-            try (InputStream stream = BytesReference.bytes(builder).streamInput();
-                 XContentParser innerParser = parser.contentType().xContent()
-                     .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), stream)) {
+            try (
+                InputStream stream = BytesReference.bytes(builder).streamInput();
+                XContentParser innerParser = parser.contentType()
+                    .xContent()
+                    .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), stream)
+            ) {
                 request.getSearchRequest().source().parseXContent(innerParser, false);
             }
         };
 
         ObjectParser<IndexRequest, Void> destParser = new ObjectParser<>("dest");
         destParser.declareString(IndexRequest::index, new ParseField("index"));
-        destParser.declareString((request, type) -> {
-            deprecationLogger.deprecate("reindex_with_types", TYPES_DEPRECATION_MESSAGE);
-            request.type(type);
-        }, new ParseField("type"));
         destParser.declareString(IndexRequest::routing, new ParseField("routing"));
         destParser.declareString(IndexRequest::opType, new ParseField("op_type"));
         destParser.declareString(IndexRequest::setPipeline, new ParseField("pipeline"));
@@ -413,8 +376,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         PARSER.declareField(sourceParser::parse, new ParseField("source"), ObjectParser.ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), c), new ParseField("dest"), ObjectParser.ValueType.OBJECT);
         PARSER.declareInt(ReindexRequest::setMaxDocsValidateIdentical, new ParseField("max_docs", "size"));
-        PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p)), new ParseField("script"),
-            ObjectParser.ValueType.OBJECT);
+        PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p)), new ParseField("script"), ObjectParser.ValueType.OBJECT);
         PARSER.declareString(ReindexRequest::setConflicts, new ParseField("conflicts"));
     }
 
@@ -461,8 +423,10 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
                 throw new URISyntaxException(hostInRequest, "The port was not defined in the [host]");
             }
         } catch (URISyntaxException ex) {
-            throw new IllegalArgumentException("[host] must be of the form [scheme]://[host]:[port](/[pathPrefix])? but was ["
-                + hostInRequest + "]", ex);
+            throw new IllegalArgumentException(
+                "[host] must be of the form [scheme]://[host]:[port](/[pathPrefix])? but was [" + hostInRequest + "]",
+                ex
+            );
         }
 
         String scheme = uri.getScheme();
@@ -479,10 +443,21 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         TimeValue connectTimeout = extractTimeValue(remote, "connect_timeout", RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
         if (false == remote.isEmpty()) {
             throw new IllegalArgumentException(
-                "Unsupported fields in [remote]: [" + Strings.collectionToCommaDelimitedString(remote.keySet()) + "]");
+                "Unsupported fields in [remote]: [" + Strings.collectionToCommaDelimitedString(remote.keySet()) + "]"
+            );
         }
-        return new RemoteInfo(scheme, host, port, pathPrefix, RemoteInfo.queryForRemote(source),
-            username, password, headers, socketTimeout, connectTimeout);
+        return new RemoteInfo(
+            scheme,
+            host,
+            port,
+            pathPrefix,
+            RemoteInfo.queryForRemote(source),
+            username,
+            password,
+            headers,
+            socketTimeout,
+            connectTimeout
+        );
     }
 
     private static String extractString(Map<String, Object> source, String name) {
@@ -511,7 +486,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             }
         }
         @SuppressWarnings("unchecked") // We just checked....
-            Map<String, String> safe = (Map<String, String>) map;
+        Map<String, String> safe = (Map<String, String>) map;
         return safe;
     }
 
@@ -522,8 +497,9 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
 
     static void setMaxDocsValidateIdentical(AbstractBulkByScrollRequest<?> request, int maxDocs) {
         if (request.getMaxDocs() != AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES && request.getMaxDocs() != maxDocs) {
-            throw new IllegalArgumentException("[max_docs] set to two different values [" + request.getMaxDocs() + "]" +
-                " and [" + maxDocs + "]");
+            throw new IllegalArgumentException(
+                "[max_docs] set to two different values [" + request.getMaxDocs() + "]" + " and [" + maxDocs + "]"
+            );
         } else {
             request.setMaxDocs(maxDocs);
         }

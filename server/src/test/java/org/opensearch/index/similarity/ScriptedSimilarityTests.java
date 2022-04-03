@@ -52,7 +52,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Version;
 import org.opensearch.script.SimilarityScript;
 import org.opensearch.script.SimilarityWeightScript;
@@ -74,20 +74,25 @@ public class ScriptedSimilarityTests extends OpenSearchTestCase {
 
     private void doTestSameNormsAsBM25(boolean discountOverlaps) {
         ScriptedSimilarity sim1 = new ScriptedSimilarity("foobar", null, "foobaz", null, discountOverlaps);
-        BM25Similarity sim2 = new BM25Similarity();
-        sim2.setDiscountOverlaps(discountOverlaps);
+        BM25Similarity sim2 = new BM25Similarity(discountOverlaps);
         for (int iter = 0; iter < 100; ++iter) {
             final int length = TestUtil.nextInt(random(), 1, 100);
             final int position = random().nextInt(length);
             final int numOverlaps = random().nextInt(length);
             int maxTermFrequency = TestUtil.nextInt(random(), 1, 10);
             int uniqueTermCount = TestUtil.nextInt(random(), 1, 10);
-            FieldInvertState state = new FieldInvertState(Version.LATEST.major, "foo", IndexOptions.DOCS_AND_FREQS, position, length,
-                    numOverlaps, 100, maxTermFrequency, uniqueTermCount);
-            assertEquals(
-                    sim2.computeNorm(state),
-                    sim1.computeNorm(state),
-                    0f);
+            FieldInvertState state = new FieldInvertState(
+                Version.LATEST.major,
+                "foo",
+                IndexOptions.DOCS_AND_FREQS,
+                position,
+                length,
+                numOverlaps,
+                100,
+                maxTermFrequency,
+                uniqueTermCount
+            );
+            assertEquals(sim2.computeNorm(state), sim1.computeNorm(state), 0f);
         }
     }
 
@@ -97,15 +102,19 @@ public class ScriptedSimilarityTests extends OpenSearchTestCase {
             return new SimilarityScript() {
 
                 @Override
-                public double execute(double weight, ScriptedSimilarity.Query query,
-                        ScriptedSimilarity.Field field, ScriptedSimilarity.Term term,
-                        ScriptedSimilarity.Doc doc) {
+                public double execute(
+                    double weight,
+                    ScriptedSimilarity.Query query,
+                    ScriptedSimilarity.Field field,
+                    ScriptedSimilarity.Term term,
+                    ScriptedSimilarity.Doc doc
+                ) {
 
                     StackTraceElement[] stackTraceElements = Thread.currentThread().getStackTrace();
-                    if (Arrays.stream(stackTraceElements).anyMatch(ste -> {
-                        return ste.getClassName().endsWith(".TermScorer") &&
-                                ste.getMethodName().equals("score");
-                            }) == false) {
+                    if (Arrays.stream(stackTraceElements)
+                        .anyMatch(
+                            ste -> { return ste.getClassName().endsWith(".TermScorer") && ste.getMethodName().equals("score"); }
+                        ) == false) {
                         // this might happen when computing max scores
                         return Float.MAX_VALUE;
                     }
@@ -152,10 +161,12 @@ public class ScriptedSimilarityTests extends OpenSearchTestCase {
         w.close();
         IndexSearcher searcher = new IndexSearcher(r);
         searcher.setSimilarity(sim);
-        Query query = new BoostQuery(new BooleanQuery.Builder()
-                .add(new TermQuery(new Term("f", "foo")), Occur.SHOULD)
+        Query query = new BoostQuery(
+            new BooleanQuery.Builder().add(new TermQuery(new Term("f", "foo")), Occur.SHOULD)
                 .add(new TermQuery(new Term("match", "yes")), Occur.FILTER)
-                .build(), 3.2f);
+                .build(),
+            3.2f
+        );
         TopDocs topDocs = searcher.search(query, 1);
         assertEquals(1, topDocs.totalHits.value);
         assertTrue(called.get());
@@ -170,8 +181,7 @@ public class ScriptedSimilarityTests extends OpenSearchTestCase {
             return new SimilarityWeightScript() {
 
                 @Override
-                public double execute(ScriptedSimilarity.Query query, ScriptedSimilarity.Field field,
-                    ScriptedSimilarity.Term term) {
+                public double execute(ScriptedSimilarity.Query query, ScriptedSimilarity.Field field, ScriptedSimilarity.Term term) {
                     assertEquals(3, field.getDocCount());
                     assertEquals(5, field.getSumDocFreq());
                     assertEquals(6, field.getSumTotalTermFreq());
@@ -191,15 +201,19 @@ public class ScriptedSimilarityTests extends OpenSearchTestCase {
             return new SimilarityScript() {
 
                 @Override
-                public double execute(double weight, ScriptedSimilarity.Query query,
-                        ScriptedSimilarity.Field field, ScriptedSimilarity.Term term,
-                        ScriptedSimilarity.Doc doc) {
+                public double execute(
+                    double weight,
+                    ScriptedSimilarity.Query query,
+                    ScriptedSimilarity.Field field,
+                    ScriptedSimilarity.Term term,
+                    ScriptedSimilarity.Doc doc
+                ) {
 
                     StackTraceElement[] stackTraceElements = Thread.currentThread().getStackTrace();
-                    if (Arrays.stream(stackTraceElements).anyMatch(ste -> {
-                        return ste.getClassName().endsWith(".TermScorer") &&
-                                ste.getMethodName().equals("score");
-                            }) == false) {
+                    if (Arrays.stream(stackTraceElements)
+                        .anyMatch(
+                            ste -> { return ste.getClassName().endsWith(".TermScorer") && ste.getMethodName().equals("score"); }
+                        ) == false) {
                         // this might happen when computing max scores
                         return Float.MAX_VALUE;
                     }

@@ -42,9 +42,9 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
  * Request builder for {@link IndicesShardStoresRequest}
  */
 public class IndicesShardStoreRequestBuilder extends MasterNodeReadOperationRequestBuilder<
-        IndicesShardStoresRequest,
-        IndicesShardStoresResponse,
-        IndicesShardStoreRequestBuilder> {
+    IndicesShardStoresRequest,
+    IndicesShardStoresResponse,
+    IndicesShardStoreRequestBuilder> {
 
     public IndicesShardStoreRequestBuilder(OpenSearchClient client, ActionType<IndicesShardStoresResponse> action, String... indices) {
         super(client, action, new IndicesShardStoresRequest(indices));

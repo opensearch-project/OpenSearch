@@ -60,7 +60,7 @@ public class JdkDownloadPluginTests extends GradleUnitTestCase {
             "11.0.2+33",
             "linux",
             "x64",
-            "unknown vendor [unknown] for jdk [testjdk], must be one of [adoptopenjdk, openjdk]"
+            "unknown vendor [unknown] for jdk [testjdk], must be one of [adoptium, adoptopenjdk, openjdk]"
         );
     }
 
@@ -92,7 +92,7 @@ public class JdkDownloadPluginTests extends GradleUnitTestCase {
             "11.0.2+33",
             "unknown",
             "x64",
-            "unknown platform [unknown] for jdk [testjdk], must be one of [darwin, linux, windows, mac]"
+            "unknown platform [unknown] for jdk [testjdk], must be one of [darwin, freebsd, linux, mac, windows]"
         );
     }
 

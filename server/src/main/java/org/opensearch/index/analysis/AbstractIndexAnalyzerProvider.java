@@ -33,7 +33,6 @@
 package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.util.Version;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.AbstractIndexComponent;
 import org.opensearch.index.IndexSettings;
@@ -41,8 +40,6 @@ import org.opensearch.index.IndexSettings;
 public abstract class AbstractIndexAnalyzerProvider<T extends Analyzer> extends AbstractIndexComponent implements AnalyzerProvider<T> {
 
     private final String name;
-
-    protected final Version version;
 
     /**
      * Constructs a new analyzer component, with the index name and its settings and the analyzer name.
@@ -53,7 +50,6 @@ public abstract class AbstractIndexAnalyzerProvider<T extends Analyzer> extends 
     public AbstractIndexAnalyzerProvider(IndexSettings indexSettings, String name, Settings settings) {
         super(indexSettings);
         this.name = name;
-        this.version = Analysis.parseAnalysisVersion(this.indexSettings.getSettings(), settings, logger);
     }
 
     /**

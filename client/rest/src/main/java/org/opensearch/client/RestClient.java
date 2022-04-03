@@ -125,16 +125,23 @@ public class RestClient implements Closeable {
     final List<Header> defaultHeaders;
     private final String pathPrefix;
     private final AtomicInteger lastNodeIndex = new AtomicInteger(0);
-    private final ConcurrentMap<HttpHost, DeadHostState> blacklist = new ConcurrentHashMap<>();
+    private final ConcurrentMap<HttpHost, DeadHostState> denylist = new ConcurrentHashMap<>();
     private final FailureListener failureListener;
     private final NodeSelector nodeSelector;
     private volatile NodeTuple<List<Node>> nodeTuple;
     private final WarningsHandler warningsHandler;
     private final boolean compressionEnabled;
 
-    RestClient(CloseableHttpAsyncClient client, Header[] defaultHeaders, List<Node> nodes, String pathPrefix,
-            FailureListener failureListener, NodeSelector nodeSelector, boolean strictDeprecationMode,
-            boolean compressionEnabled) {
+    RestClient(
+        CloseableHttpAsyncClient client,
+        Header[] defaultHeaders,
+        List<Node> nodes,
+        String pathPrefix,
+        FailureListener failureListener,
+        NodeSelector nodeSelector,
+        boolean strictDeprecationMode,
+        boolean compressionEnabled
+    ) {
         this.client = client;
         this.defaultHeaders = Collections.unmodifiableList(Arrays.asList(defaultHeaders));
         this.failureListener = failureListener;
@@ -185,7 +192,7 @@ public class RestClient implements Closeable {
             port = 443;
         }
 
-        String url = decodedParts[1]  + "." + domain;
+        String url = decodedParts[1] + "." + domain;
         return builder(new HttpHost(url, port, "https"));
     }
 
@@ -238,9 +245,8 @@ public class RestClient implements Closeable {
             nodesByHost.put(node.getHost(), node);
             authCache.put(node.getHost(), new BasicScheme());
         }
-        this.nodeTuple = new NodeTuple<>(
-                Collections.unmodifiableList(new ArrayList<>(nodesByHost.values())), authCache);
-        this.blacklist.clear();
+        this.nodeTuple = new NodeTuple<>(Collections.unmodifiableList(new ArrayList<>(nodesByHost.values())), authCache);
+        this.denylist.clear();
     }
 
     /**
@@ -289,14 +295,13 @@ public class RestClient implements Closeable {
         return performRequest(nextNodes(), internalRequest, null);
     }
 
-    private Response performRequest(final NodeTuple<Iterator<Node>> nodeTuple,
-                                    final InternalRequest request,
-                                    Exception previousException) throws IOException {
+    private Response performRequest(final NodeTuple<Iterator<Node>> nodeTuple, final InternalRequest request, Exception previousException)
+        throws IOException {
         RequestContext context = request.createContextForNextAttempt(nodeTuple.nodes.next(), nodeTuple.authCache);
         HttpResponse httpResponse;
         try {
             httpResponse = client.execute(context.requestProducer, context.asyncResponseConsumer, context.context, null).get();
-        } catch(Exception e) {
+        } catch (Exception e) {
             RequestLogger.logFailedRequest(logger, request.httpRequest, context.node, e);
             onFailure(context.node);
             Exception cause = extractAndWrapCause(e);
@@ -344,11 +349,11 @@ public class RestClient implements Closeable {
         }
         ResponseException responseException = new ResponseException(response);
         if (isRetryStatus(statusCode)) {
-            //mark host dead and retry against next one
+            // mark host dead and retry against next one
             onFailure(node);
             return new ResponseOrResponseException(responseException);
         }
-        //mark host alive and don't retry, as the error should be a request problem
+        // mark host alive and don't retry, as the error should be a request problem
         onResponse(node);
         throw responseException;
     }
@@ -381,9 +386,11 @@ public class RestClient implements Closeable {
         }
     }
 
-    private void performRequestAsync(final NodeTuple<Iterator<Node>> nodeTuple,
-                                     final InternalRequest request,
-                                     final FailureTrackingResponseListener listener) {
+    private void performRequestAsync(
+        final NodeTuple<Iterator<Node>> nodeTuple,
+        final InternalRequest request,
+        final FailureTrackingResponseListener listener
+    ) {
         request.cancellable.runIfNotCancelled(() -> {
             final RequestContext context = request.createContextForNextAttempt(nodeTuple.nodes.next(), nodeTuple.authCache);
             client.execute(context.requestProducer, context.asyncResponseConsumer, context.context, new FutureCallback<HttpResponse>() {
@@ -401,7 +408,7 @@ public class RestClient implements Closeable {
                                 listener.onDefinitiveFailure(responseOrResponseException.responseException);
                             }
                         }
-                    } catch(Exception e) {
+                    } catch (Exception e) {
                         listener.onDefinitiveFailure(e);
                     }
                 }
@@ -417,7 +424,7 @@ public class RestClient implements Closeable {
                         } else {
                             listener.onDefinitiveFailure(failure);
                         }
-                    } catch(Exception e) {
+                    } catch (Exception e) {
                         listener.onDefinitiveFailure(e);
                     }
                 }
@@ -441,7 +448,7 @@ public class RestClient implements Closeable {
      */
     private NodeTuple<Iterator<Node>> nextNodes() throws IOException {
         NodeTuple<List<Node>> nodeTuple = this.nodeTuple;
-        Iterable<Node> hosts = selectNodes(nodeTuple, blacklist, lastNodeIndex, nodeSelector);
+        Iterable<Node> hosts = selectNodes(nodeTuple, denylist, lastNodeIndex, nodeSelector);
         return new NodeTuple<>(hosts.iterator(), nodeTuple.authCache);
     }
 
@@ -449,15 +456,19 @@ public class RestClient implements Closeable {
      * Select nodes to try and sorts them so that the first one will be tried initially, then the following ones
      * if the previous attempt failed and so on. Package private for testing.
      */
-    static Iterable<Node> selectNodes(NodeTuple<List<Node>> nodeTuple, Map<HttpHost, DeadHostState> blacklist,
-                                      AtomicInteger lastNodeIndex, NodeSelector nodeSelector) throws IOException {
+    static Iterable<Node> selectNodes(
+        NodeTuple<List<Node>> nodeTuple,
+        Map<HttpHost, DeadHostState> denylist,
+        AtomicInteger lastNodeIndex,
+        NodeSelector nodeSelector
+    ) throws IOException {
         /*
          * Sort the nodes into living and dead lists.
          */
-        List<Node> livingNodes = new ArrayList<>(Math.max(0, nodeTuple.nodes.size() - blacklist.size()));
-        List<DeadNode> deadNodes = new ArrayList<>(blacklist.size());
+        List<Node> livingNodes = new ArrayList<>(Math.max(0, nodeTuple.nodes.size() - denylist.size()));
+        List<DeadNode> deadNodes = new ArrayList<>(denylist.size());
         for (Node node : nodeTuple.nodes) {
-            DeadHostState deadness = blacklist.get(node.getHost());
+            DeadHostState deadness = denylist.get(node.getHost());
             if (deadness == null || deadness.shallBeRetried()) {
                 livingNodes.add(node);
             } else {
@@ -505,8 +516,9 @@ public class RestClient implements Closeable {
                 return singletonList(Collections.min(selectedDeadNodes).node);
             }
         }
-        throw new IOException("NodeSelector [" + nodeSelector + "] rejected all nodes, "
-                + "living " + livingNodes + " and dead " + deadNodes);
+        throw new IOException(
+            "NodeSelector [" + nodeSelector + "] rejected all nodes, " + "living " + livingNodes + " and dead " + deadNodes
+        );
     }
 
     /**
@@ -514,9 +526,9 @@ public class RestClient implements Closeable {
      * Receives as an argument the host that was used for the successful request.
      */
     private void onResponse(Node node) {
-        DeadHostState removedHost = this.blacklist.remove(node.getHost());
+        DeadHostState removedHost = this.denylist.remove(node.getHost());
         if (logger.isDebugEnabled() && removedHost != null) {
-            logger.debug("removed [" + node + "] from blacklist");
+            logger.debug("removed [" + node + "] from denylist");
         }
     }
 
@@ -525,19 +537,20 @@ public class RestClient implements Closeable {
      * Receives as an argument the host that was used for the failed attempt.
      */
     private void onFailure(Node node) {
-        while(true) {
-            DeadHostState previousDeadHostState =
-                blacklist.putIfAbsent(node.getHost(), new DeadHostState(DeadHostState.DEFAULT_TIME_SUPPLIER));
+        while (true) {
+            DeadHostState previousDeadHostState = denylist.putIfAbsent(
+                node.getHost(),
+                new DeadHostState(DeadHostState.DEFAULT_TIME_SUPPLIER)
+            );
             if (previousDeadHostState == null) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("added [" + node + "] to blacklist");
+                    logger.debug("added [" + node + "] to denylist");
                 }
                 break;
             }
-            if (blacklist.replace(node.getHost(), previousDeadHostState,
-                    new DeadHostState(previousDeadHostState))) {
+            if (denylist.replace(node.getHost(), previousDeadHostState, new DeadHostState(previousDeadHostState))) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("updated [" + node + "] already in blacklist");
+                    logger.debug("updated [" + node + "] already in denylist");
                 }
                 break;
             }
@@ -555,7 +568,7 @@ public class RestClient implements Closeable {
     }
 
     private static boolean isRetryStatus(int statusCode) {
-        switch(statusCode) {
+        switch (statusCode) {
             case 502:
             case 503:
             case 504:
@@ -571,7 +584,7 @@ public class RestClient implements Closeable {
     }
 
     private static HttpRequestBase createHttpRequest(String method, URI uri, HttpEntity entity, boolean compressionEnabled) {
-        switch(method.toUpperCase(Locale.ROOT)) {
+        switch (method.toUpperCase(Locale.ROOT)) {
             case HttpDeleteWithEntity.METHOD_NAME:
                 return addRequestBody(new HttpDeleteWithEntity(uri), entity, compressionEnabled);
             case HttpGetWithEntity.METHOD_NAME:
@@ -601,7 +614,7 @@ public class RestClient implements Closeable {
                 if (compressionEnabled) {
                     entity = new ContentCompressingEntity(entity);
                 }
-                ((HttpEntityEnclosingRequestBase)httpRequest).setEntity(entity);
+                ((HttpEntityEnclosingRequestBase) httpRequest).setEntity(entity);
             } else {
                 throw new UnsupportedOperationException(httpRequest.getMethod() + " with body is not supported");
             }
@@ -630,7 +643,7 @@ public class RestClient implements Closeable {
                 uriBuilder.addParameter(param.getKey(), param.getValue());
             }
             return uriBuilder.build();
-        } catch(URISyntaxException e) {
+        } catch (URISyntaxException e) {
             throw new IllegalArgumentException(e.getMessage(), e);
         }
     }
@@ -705,8 +718,8 @@ public class RestClient implements Closeable {
     }
 
     /**
-     * Contains a reference to a blacklisted node and the time until it is
-     * revived. We use this so we can do a single pass over the blacklist.
+     * Contains a reference to a denylisted node and the time until it is
+     * revived. We use this so we can do a single pass over the denylist.
      */
     private static class DeadNode implements Comparable<DeadNode> {
         final Node node;
@@ -765,7 +778,7 @@ public class RestClient implements Closeable {
         InternalRequest(Request request) {
             this.request = request;
             Map<String, String> params = new HashMap<>(request.getParameters());
-            //ignore is a special parameter supported by the clients, shouldn't be sent to es
+            // ignore is a special parameter supported by the clients, shouldn't be sent to es
             String ignoreString = params.remove("ignore");
             this.ignoreErrorCodes = getIgnoreErrorCodes(ignoreString, request.getMethod());
             URI uri = buildUri(pathPrefix, request.getEndpoint(), params);
@@ -773,8 +786,9 @@ public class RestClient implements Closeable {
             this.cancellable = Cancellable.fromRequest(httpRequest);
             setHeaders(httpRequest, request.getOptions().getHeaders());
             setRequestConfig(httpRequest, request.getOptions().getRequestConfig());
-            this.warningsHandler = request.getOptions().getWarningsHandler() == null ?
-                RestClient.this.warningsHandler : request.getOptions().getWarningsHandler();
+            this.warningsHandler = request.getOptions().getWarningsHandler() == null
+                ? RestClient.this.warningsHandler
+                : request.getOptions().getWarningsHandler();
         }
 
         private void setHeaders(HttpRequest httpRequest, Collection<Header> requestHeaders) {
@@ -814,10 +828,11 @@ public class RestClient implements Closeable {
 
         RequestContext(InternalRequest request, Node node, AuthCache authCache) {
             this.node = node;
-            //we stream the request body if the entity allows for it
+            // we stream the request body if the entity allows for it
             this.requestProducer = HttpAsyncMethods.create(node.getHost(), request.httpRequest);
-            this.asyncResponseConsumer =
-                request.request.getOptions().getHttpAsyncResponseConsumerFactory().createHttpAsyncResponseConsumer();
+            this.asyncResponseConsumer = request.request.getOptions()
+                .getHttpAsyncResponseConsumerFactory()
+                .createHttpAsyncResponseConsumer();
             this.context = HttpClientContext.create();
             context.setAuthCache(authCache);
         }
@@ -827,7 +842,7 @@ public class RestClient implements Closeable {
         Set<Integer> ignoreErrorCodes;
         if (ignoreString == null) {
             if (HttpHead.METHOD_NAME.equals(requestMethod)) {
-                //404 never causes error if returned for a HEAD request
+                // 404 never causes error if returned for a HEAD request
                 ignoreErrorCodes = Collections.singleton(404);
             } else {
                 ignoreErrorCodes = Collections.emptySet();
@@ -836,7 +851,7 @@ public class RestClient implements Closeable {
             String[] ignoresArray = ignoreString.split(",");
             ignoreErrorCodes = new HashSet<>();
             if (HttpHead.METHOD_NAME.equals(requestMethod)) {
-                //404 never causes error if returned for a HEAD request
+                // 404 never causes error if returned for a HEAD request
                 ignoreErrorCodes.add(404);
             }
             for (String ignoreCode : ignoresArray) {
@@ -874,12 +889,12 @@ public class RestClient implements Closeable {
             throw new RuntimeException("thread waiting for the response was interrupted", exception);
         }
         if (exception instanceof ExecutionException) {
-            ExecutionException executionException = (ExecutionException)exception;
+            ExecutionException executionException = (ExecutionException) exception;
             Throwable t = executionException.getCause() == null ? executionException : executionException.getCause();
             if (t instanceof Error) {
-                throw (Error)t;
+                throw (Error) t;
             }
-            exception = (Exception)t;
+            exception = (Exception) t;
         }
         if (exception instanceof ConnectTimeoutException) {
             ConnectTimeoutException e = new ConnectTimeoutException(exception.getMessage());
@@ -897,7 +912,9 @@ public class RestClient implements Closeable {
             return e;
         }
         if (exception instanceof SSLHandshakeException) {
-            SSLHandshakeException e = new SSLHandshakeException(exception.getMessage());
+            SSLHandshakeException e = new SSLHandshakeException(
+                exception.getMessage() + "\nSee https://opensearch.org/docs/latest/clients/java-rest-high-level/ for troubleshooting."
+            );
             e.initCause(exception);
             return e;
         }
@@ -909,7 +926,7 @@ public class RestClient implements Closeable {
         if (exception instanceof IOException) {
             return new IOException(exception.getMessage(), exception);
         }
-        if (exception instanceof RuntimeException){
+        if (exception instanceof RuntimeException) {
             return new RuntimeException(exception.getMessage(), exception);
         }
         return new RuntimeException("error while performing request", exception);

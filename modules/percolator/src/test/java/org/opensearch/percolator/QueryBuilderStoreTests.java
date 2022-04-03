@@ -41,7 +41,7 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
-import org.opensearch.LegacyESVersion;
+import org.mockito.Mockito;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.CheckedFunction;
@@ -56,7 +56,6 @@ import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.TermQueryBuilder;
-import org.elasticsearch.mock.orig.Mockito;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.test.OpenSearchTestCase;
@@ -71,13 +70,13 @@ public class QueryBuilderStoreTests extends OpenSearchTestCase {
 
     @Override
     protected NamedWriteableRegistry writableRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedWriteableRegistry(searchModule.getNamedWriteables());
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
@@ -88,17 +87,17 @@ public class QueryBuilderStoreTests extends OpenSearchTestCase {
             config.setMergePolicy(NoMergePolicy.INSTANCE);
             Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
             BinaryFieldMapper fieldMapper = PercolatorFieldMapper.Builder.createQueryBuilderFieldBuilder(
-                new Mapper.BuilderContext(settings, new ContentPath(0)));
+                new Mapper.BuilderContext(settings, new ContentPath(0))
+            );
 
-            Version version = LegacyESVersion.V_6_0_0_beta2;
+            Version version = Version.CURRENT;
             try (IndexWriter indexWriter = new IndexWriter(directory, config)) {
                 for (int i = 0; i < queryBuilders.length; i++) {
                     queryBuilders[i] = new TermQueryBuilder(randomAlphaOfLength(4), randomAlphaOfLength(8));
                     ParseContext parseContext = mock(ParseContext.class);
                     ParseContext.Document document = new ParseContext.Document();
                     when(parseContext.doc()).thenReturn(document);
-                    PercolatorFieldMapper.createQueryBuilderField(version,
-                        fieldMapper, queryBuilders[i], parseContext);
+                    PercolatorFieldMapper.createQueryBuilderField(version, fieldMapper, queryBuilders[i], parseContext);
                     indexWriter.addDocument(document);
                 }
             }
@@ -107,8 +106,9 @@ public class QueryBuilderStoreTests extends OpenSearchTestCase {
             when(queryShardContext.indexVersionCreated()).thenReturn(version);
             when(queryShardContext.getWriteableRegistry()).thenReturn(writableRegistry());
             when(queryShardContext.getXContentRegistry()).thenReturn(xContentRegistry());
-            when(queryShardContext.getForField(fieldMapper.fieldType()))
-                .thenReturn(new BytesBinaryIndexFieldData(fieldMapper.name(), CoreValuesSourceType.BYTES));
+            when(queryShardContext.getForField(fieldMapper.fieldType())).thenReturn(
+                new BytesBinaryIndexFieldData(fieldMapper.name(), CoreValuesSourceType.BYTES)
+            );
             when(queryShardContext.fieldMapper(Mockito.anyString())).thenAnswer(invocation -> {
                 final String fieldName = (String) invocation.getArguments()[0];
                 return new KeywordFieldMapper.KeywordFieldType(fieldName);

@@ -62,8 +62,10 @@ public class MedianAbsoluteDeviationAggregationBuilder extends LeafOnly<ValuesSo
 
     private static final ParseField COMPRESSION_FIELD = new ParseField("compression");
 
-    public static final ObjectParser<MedianAbsoluteDeviationAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, MedianAbsoluteDeviationAggregationBuilder::new);
+    public static final ObjectParser<MedianAbsoluteDeviationAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
+        NAME,
+        MedianAbsoluteDeviationAggregationBuilder::new
+    );
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
         PARSER.declareDouble(MedianAbsoluteDeviationAggregationBuilder::compression, COMPRESSION_FIELD);
@@ -84,9 +86,11 @@ public class MedianAbsoluteDeviationAggregationBuilder extends LeafOnly<ValuesSo
         compression = in.readDouble();
     }
 
-    protected MedianAbsoluteDeviationAggregationBuilder(MedianAbsoluteDeviationAggregationBuilder clone,
-                                                        AggregatorFactories.Builder factoriesBuilder,
-                                                        Map<String, Object> metadata) {
+    protected MedianAbsoluteDeviationAggregationBuilder(
+        MedianAbsoluteDeviationAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
         this.compression = clone.compression;
     }
@@ -104,7 +108,8 @@ public class MedianAbsoluteDeviationAggregationBuilder extends LeafOnly<ValuesSo
     public MedianAbsoluteDeviationAggregationBuilder compression(double compression) {
         if (compression <= 0d) {
             throw new IllegalArgumentException(
-                "[" + COMPRESSION_FIELD.getPreferredName() + "] must be greater than 0. Found [" + compression + "] in [" + name + "]");
+                "[" + COMPRESSION_FIELD.getPreferredName() + "] must be greater than 0. Found [" + compression + "] in [" + name + "]"
+            );
         }
         this.compression = compression;
         return this;
@@ -126,13 +131,21 @@ public class MedianAbsoluteDeviationAggregationBuilder extends LeafOnly<ValuesSo
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
-                                                       ValuesSourceConfig config,
-                                                       AggregatorFactory parent,
-                                                       AggregatorFactories.Builder subFactoriesBuilder)
-        throws IOException {
-        return new MedianAbsoluteDeviationAggregatorFactory(name, config, queryShardContext,
-            parent, subFactoriesBuilder, metadata, compression);
+    protected ValuesSourceAggregatorFactory innerBuild(
+        QueryShardContext queryShardContext,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
+        return new MedianAbsoluteDeviationAggregatorFactory(
+            name,
+            config,
+            queryShardContext,
+            parent,
+            subFactoriesBuilder,
+            metadata,
+            compression
+        );
     }
 
     @Override

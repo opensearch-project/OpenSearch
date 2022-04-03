@@ -53,10 +53,8 @@ public class GetComposableIndexTemplatesResponseTests extends OpenSearchTestCase
             this::createParser,
             GetComposableIndexTemplatesResponseTests::createTestInstance,
             GetComposableIndexTemplatesResponseTests::toXContent,
-            GetComposableIndexTemplatesResponse::fromXContent)
-            .supportsUnknownFields(true)
-            .randomFieldsExcludeFilter(a -> true)
-            .test();
+            GetComposableIndexTemplatesResponse::fromXContent
+        ).supportsUnknownFields(true).randomFieldsExcludeFilter(a -> true).test();
     }
 
     private static GetComposableIndexTemplatesResponse createTestInstance() {

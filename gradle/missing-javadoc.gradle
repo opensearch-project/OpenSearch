@@ -7,6 +7,9 @@
  */
 
 import javax.annotation.Nullable
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
+import org.gradle.internal.jvm.Jvm
 
 /**
  * Checks for missing javadocs.
@@ -92,7 +95,6 @@ configure([
   project(":client:client-benchmark-noop-api-plugin"),
   project(":client:rest-high-level"),
   project(":client:test"),
-  project(":client:transport"),
   project(":distribution:tools:java-version-checker"),
   project(":distribution:tools:keystore-cli"),
   project(":distribution:tools:launchers"),
@@ -178,6 +180,8 @@ configure([
 class MissingJavadocTask extends DefaultTask {
   @InputFiles
   @SkipWhenEmpty
+  @IgnoreEmptyDirectories
+  @PathSensitive(PathSensitivity.RELATIVE)
   SourceDirectorySet srcDirSet;
 
   @OutputDirectory
@@ -300,9 +304,7 @@ class MissingJavadocTask extends DefaultTask {
 
     def javadocCmd = {
       if (executable == null) {
-        JavaInstallationRegistry registry = project.extensions.getByType(JavaInstallationRegistry)
-        JavaInstallation currentJvm = registry.installationForCurrentVirtualMachine.get()
-        return currentJvm.jdk.get().javadocExecutable.asFile
+        return Jvm.current().javadocExecutable
       } else {
         return project.file(executable)
       }

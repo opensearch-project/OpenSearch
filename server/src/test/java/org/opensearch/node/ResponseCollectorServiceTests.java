@@ -63,9 +63,11 @@ public class ResponseCollectorServiceTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadpool = new TestThreadPool("response_collector_tests");
-        clusterService = new ClusterService(Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadpool);
+        clusterService = new ClusterService(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            threadpool
+        );
         collector = new ResponseCollectorService(clusterService);
     }
 
@@ -88,7 +90,7 @@ public class ResponseCollectorServiceTests extends OpenSearchTestCase {
      * Test that concurrently adding values and removing nodes does not cause exceptions
      */
     public void testConcurrentAddingAndRemoving() throws Exception {
-        String[] nodes = new String[] {"a", "b", "c", "d"};
+        String[] nodes = new String[] { "a", "b", "c", "d" };
 
         final CountDownLatch latch = new CountDownLatch(5);
 
@@ -103,7 +105,12 @@ public class ResponseCollectorServiceTests extends OpenSearchTestCase {
                 if (randomBoolean()) {
                     collector.removeNode(randomFrom(nodes));
                 }
-                collector.addNodeStatistics(randomFrom(nodes), randomIntBetween(1,100), randomIntBetween(1,100), randomIntBetween(1,100));
+                collector.addNodeStatistics(
+                    randomFrom(nodes),
+                    randomIntBetween(1, 100),
+                    randomIntBetween(1, 100),
+                    randomIntBetween(1, 100)
+                );
             }
         };
 
@@ -134,15 +141,19 @@ public class ResponseCollectorServiceTests extends OpenSearchTestCase {
     }
 
     public void testNodeRemoval() throws Exception {
-        collector.addNodeStatistics("node1", randomIntBetween(1,100), randomIntBetween(1,100), randomIntBetween(1,100));
-        collector.addNodeStatistics("node2", randomIntBetween(1,100), randomIntBetween(1,100), randomIntBetween(1,100));
+        collector.addNodeStatistics("node1", randomIntBetween(1, 100), randomIntBetween(1, 100), randomIntBetween(1, 100));
+        collector.addNodeStatistics("node2", randomIntBetween(1, 100), randomIntBetween(1, 100), randomIntBetween(1, 100));
 
-        ClusterState previousState = ClusterState.builder(new ClusterName("cluster")).nodes(DiscoveryNodes.builder()
-                .add(DiscoveryNode.createLocal(Settings.EMPTY, new TransportAddress(TransportAddress.META_ADDRESS, 9200), "node1"))
-                .add(DiscoveryNode.createLocal(Settings.EMPTY, new TransportAddress(TransportAddress.META_ADDRESS, 9201), "node2")))
-                .build();
-        ClusterState newState = ClusterState.builder(previousState).nodes(DiscoveryNodes.builder(previousState.nodes())
-                .remove("node2")).build();
+        ClusterState previousState = ClusterState.builder(new ClusterName("cluster"))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(DiscoveryNode.createLocal(Settings.EMPTY, new TransportAddress(TransportAddress.META_ADDRESS, 9200), "node1"))
+                    .add(DiscoveryNode.createLocal(Settings.EMPTY, new TransportAddress(TransportAddress.META_ADDRESS, 9201), "node2"))
+            )
+            .build();
+        ClusterState newState = ClusterState.builder(previousState)
+            .nodes(DiscoveryNodes.builder(previousState.nodes()).remove("node2"))
+            .build();
         ClusterChangedEvent event = new ClusterChangedEvent("test", newState, previousState);
 
         collector.clusterChanged(event);

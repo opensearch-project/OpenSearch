@@ -74,12 +74,24 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
     protected Transport build(Settings settings, final Version version, ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         NetworkService networkService = new NetworkService(Collections.emptyList());
-        return new NioTransport(settings, version, threadPool, networkService, new MockPageCacheRecycler(settings),
-            namedWriteableRegistry, new NoneCircuitBreakerService(), new NioGroupFactory(settings, logger)) {
+        return new NioTransport(
+            settings,
+            version,
+            threadPool,
+            networkService,
+            new MockPageCacheRecycler(settings),
+            namedWriteableRegistry,
+            new NoneCircuitBreakerService(),
+            new NioGroupFactory(settings, logger)
+        ) {
 
             @Override
-            public void executeHandshake(DiscoveryNode node, TcpChannel channel, ConnectionProfile profile,
-                                         ActionListener<Version> listener) {
+            public void executeHandshake(
+                DiscoveryNode node,
+                TcpChannel channel,
+                ConnectionProfile profile,
+                ActionListener<Version> listener
+            ) {
                 if (doHandshake) {
                     super.executeHandshake(node, channel, profile, listener);
                 } else {
@@ -91,8 +103,15 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
 
     public void testConnectException() throws UnknownHostException {
         try {
-            serviceA.connectToNode(new DiscoveryNode("C", new TransportAddress(InetAddress.getByName("localhost"), 9876),
-                emptyMap(), emptySet(),Version.CURRENT));
+            serviceA.connectToNode(
+                new DiscoveryNode(
+                    "C",
+                    new TransportAddress(InetAddress.getByName("localhost"), 9876),
+                    emptyMap(),
+                    emptySet(),
+                    Version.CURRENT
+                )
+            );
             fail("Expected ConnectTransportException");
         } catch (ConnectTransportException e) {
             assertThat(e.getMessage(), containsString("connect_exception"));
@@ -103,11 +122,14 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
     }
 
     public void testDefaultKeepAliveSettings() throws IOException {
-        assumeTrue("setting default keepalive options not supported on this platform",
-            (IOUtils.LINUX || IOUtils.MAC_OS_X) &&
-                JavaVersion.current().compareTo(JavaVersion.parse("11")) >= 0);
-        try (MockTransportService serviceC = buildService("TS_C", Version.CURRENT, Settings.EMPTY);
-             MockTransportService serviceD = buildService("TS_D", Version.CURRENT, Settings.EMPTY)) {
+        assumeTrue(
+            "setting default keepalive options not supported on this platform",
+            (IOUtils.LINUX || IOUtils.MAC_OS_X) && JavaVersion.current().compareTo(JavaVersion.parse("11")) >= 0
+        );
+        try (
+            MockTransportService serviceC = buildService("TS_C", Version.CURRENT, Settings.EMPTY);
+            MockTransportService serviceD = buildService("TS_D", Version.CURRENT, Settings.EMPTY)
+        ) {
             serviceC.start();
             serviceC.acceptIncomingRequests();
             serviceD.start();

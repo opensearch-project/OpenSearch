@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.routing.allocation.decider;
 
-import org.opensearch.action.admin.indices.shrink.ResizeAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RoutingNode;
@@ -71,17 +70,14 @@ public class ResizeAllocationDecider extends AllocationDecider {
                 return Decision.ALWAYS;
             }
 
-            ShardId shardId = indexMetadata.getNumberOfShards() == sourceIndexMetadata.getNumberOfShards() ?
-                IndexMetadata.selectCloneShard(shardRouting.id(), sourceIndexMetadata, indexMetadata.getNumberOfShards()) :
-                IndexMetadata.selectSplitShard(shardRouting.id(), sourceIndexMetadata, indexMetadata.getNumberOfShards());
+            ShardId shardId = indexMetadata.getNumberOfShards() == sourceIndexMetadata.getNumberOfShards()
+                ? IndexMetadata.selectCloneShard(shardRouting.id(), sourceIndexMetadata, indexMetadata.getNumberOfShards())
+                : IndexMetadata.selectSplitShard(shardRouting.id(), sourceIndexMetadata, indexMetadata.getNumberOfShards());
             ShardRouting sourceShardRouting = allocation.routingNodes().activePrimary(shardId);
             if (sourceShardRouting == null) {
                 return allocation.decision(Decision.NO, NAME, "source primary shard [%s] is not active", shardId);
             }
             if (node != null) { // we might get called from the 2 param canAllocate method..
-                if (node.node().getVersion().before(ResizeAction.COMPATIBILITY_VERSION)) {
-                    return allocation.decision(Decision.NO, NAME, "node [%s] is too old to split a shard", node.nodeId());
-                }
                 if (sourceShardRouting.currentNodeId().equals(node.nodeId())) {
                     return allocation.decision(Decision.YES, NAME, "source primary is allocated on this node");
                 } else {

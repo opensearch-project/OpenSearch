@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.block;
 
-
 import java.util.EnumSet;
 
 public enum ClusterBlockLevel {

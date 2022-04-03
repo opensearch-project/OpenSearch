@@ -46,14 +46,13 @@ import java.util.Map;
 
 public class GlobalAggregator extends BucketsAggregator implements SingleBucketAggregator {
 
-    public GlobalAggregator(String name, AggregatorFactories subFactories, SearchContext aggregationContext,
-            Map<String, Object> metadata) throws IOException {
+    public GlobalAggregator(String name, AggregatorFactories subFactories, SearchContext aggregationContext, Map<String, Object> metadata)
+        throws IOException {
         super(name, subFactories, aggregationContext, null, CardinalityUpperBound.ONE, metadata);
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         return new LeafBucketCollectorBase(sub, null) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -65,15 +64,22 @@ public class GlobalAggregator extends BucketsAggregator implements SingleBucketA
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0: "global aggregator can only be a top level aggregator";
-        return buildAggregationsForSingleBucket(owningBucketOrds, (owningBucketOrd, subAggregationResults) ->
-            new InternalGlobal(name, bucketDocCount(owningBucketOrd), subAggregationResults, metadata())
+        assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0 : "global aggregator can only be a top level aggregator";
+        return buildAggregationsForSingleBucket(
+            owningBucketOrds,
+            (owningBucketOrd, subAggregationResults) -> new InternalGlobal(
+                name,
+                bucketDocCount(owningBucketOrd),
+                subAggregationResults,
+                metadata()
+            )
         );
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         throw new UnsupportedOperationException(
-                "global aggregations cannot serve as sub-aggregations, hence should never be called on #buildEmptyAggregations");
+            "global aggregations cannot serve as sub-aggregations, hence should never be called on #buildEmptyAggregations"
+        );
     }
 }

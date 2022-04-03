@@ -32,7 +32,7 @@
 
 package org.opensearch.search.aggregations.bucket.composite;
 
-import org.opensearch.LegacyESVersion;
+import org.opensearch.Version;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -40,6 +40,7 @@ import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.script.Script;
+import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.aggregations.support.ValueType;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
@@ -49,6 +50,8 @@ import org.opensearch.search.sort.SortOrder;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Objects;
+
+import static org.opensearch.search.aggregations.bucket.missing.MissingOrder.fromString;
 
 /**
  * A {@link ValuesSource} builder for {@link CompositeAggregationBuilder}
@@ -60,6 +63,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     private Script script = null;
     private ValueType userValueTypeHint = null;
     private boolean missingBucket = false;
+    private MissingOrder missingOrder = MissingOrder.DEFAULT;
     private SortOrder order = SortOrder.ASC;
     private String format = null;
 
@@ -76,21 +80,12 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (in.readBoolean()) {
             this.userValueTypeHint = ValueType.readFromStream(in);
         }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            this.missingBucket = in.readBoolean();
-        } else {
-            this.missingBucket = false;
-        }
-        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            // skip missing value for BWC
-            in.readGenericValue();
+        this.missingBucket = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
+            this.missingOrder = MissingOrder.readFromStream(in);
         }
         this.order = SortOrder.readFromStream(in);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
-            this.format = in.readOptionalString();
-        } else {
-            this.format = null;
-        }
+        this.format = in.readOptionalString();
     }
 
     @Override
@@ -107,17 +102,12 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (hasValueType) {
             userValueTypeHint.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_4_0)) {
-            out.writeBoolean(missingBucket);
-        }
-        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            // write missing value for BWC
-            out.writeGenericValue(null);
+        out.writeBoolean(missingBucket);
+        if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
+            missingOrder.writeTo(out);
         }
         order.writeTo(out);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
-            out.writeOptionalString(format);
-        }
+        out.writeOptionalString(format);
         innerWriteTo(out);
     }
 
@@ -141,6 +131,9 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (format != null) {
             builder.field("format", format);
         }
+        if (MissingOrder.isDefault(missingOrder) == false) {
+            builder.field(MissingOrder.NAME, missingOrder.toString());
+        }
         builder.field("order", order);
         doXContentBody(builder, params);
         builder.endObject();
@@ -159,12 +152,13 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
 
         @SuppressWarnings("unchecked")
         AB that = (AB) o;
-        return Objects.equals(field, that.field()) &&
-            Objects.equals(script, that.script()) &&
-            Objects.equals(userValueTypeHint, that.userValuetypeHint()) &&
-            Objects.equals(missingBucket, that.missingBucket()) &&
-            Objects.equals(order, that.order()) &&
-            Objects.equals(format, that.format());
+        return Objects.equals(field, that.field())
+            && Objects.equals(script, that.script())
+            && Objects.equals(userValueTypeHint, that.userValuetypeHint())
+            && Objects.equals(missingBucket, that.missingBucket())
+            && Objects.equals(missingOrder, that.missingOrder())
+            && Objects.equals(order, that.order())
+            && Objects.equals(format, that.format());
     }
 
     public String name() {
@@ -248,6 +242,29 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     }
 
     /**
+     * Sets the {@link MissingOrder} to use to order missing value.
+     */
+    public AB missingOrder(MissingOrder missingOrder) {
+        this.missingOrder = missingOrder;
+        return (AB) this;
+    }
+
+    /**
+     * Sets the {@link MissingOrder} to use to order missing value.
+     * @param missingOrder "first", "last" or "default".
+     */
+    public AB missingOrder(String missingOrder) {
+        return missingOrder(fromString(missingOrder));
+    }
+
+    /**
+     * Missing value order. {@link MissingOrder}.
+     */
+    public MissingOrder missingOrder() {
+        return missingOrder;
+    }
+
+    /**
      * Sets the {@link SortOrder} to use to sort values produced this source
      */
     @SuppressWarnings("unchecked")
@@ -258,7 +275,6 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         this.order = SortOrder.fromString(order);
         return (AB) this;
     }
-
 
     /**
      * Sets the {@link SortOrder} to use to sort values produced this source
@@ -302,14 +318,25 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
      *  @param queryShardContext   The shard context for this source.
      * @param config    The {@link ValuesSourceConfig} for this source.
      */
-    protected abstract CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext,
-                                                                ValuesSourceConfig config) throws IOException;
+    protected abstract CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config)
+        throws IOException;
 
     protected abstract ValuesSourceType getDefaultValuesSourceType();
 
     public final CompositeValuesSourceConfig build(QueryShardContext queryShardContext) throws IOException {
-        ValuesSourceConfig config = ValuesSourceConfig.resolve(queryShardContext,
-            userValueTypeHint, field, script, null, timeZone(), format, getDefaultValuesSourceType());
+        if (missingBucket == false && missingOrder != MissingOrder.DEFAULT) {
+            throw new IllegalArgumentException(MissingOrder.NAME + " require missing_bucket is true");
+        }
+        ValuesSourceConfig config = ValuesSourceConfig.resolve(
+            queryShardContext,
+            userValueTypeHint,
+            field,
+            script,
+            null,
+            timeZone(),
+            format,
+            getDefaultValuesSourceType()
+        );
         return innerBuild(queryShardContext, config);
     }
 

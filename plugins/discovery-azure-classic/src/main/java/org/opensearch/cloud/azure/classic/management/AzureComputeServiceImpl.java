@@ -56,10 +56,8 @@ import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 
-public class AzureComputeServiceImpl extends AbstractLifecycleComponent
-    implements AzureComputeService {
+public class AzureComputeServiceImpl extends AbstractLifecycleComponent implements AzureComputeService {
     private static final Logger logger = LogManager.getLogger(AzureComputeServiceImpl.class);
-
 
     private final ComputeManagementClient client;
     private final String serviceName;
@@ -89,8 +87,15 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent
             Configuration configuration = new Configuration(builder);
             configuration.setProperty(Configuration.PROPERTY_LOG_HTTP_REQUESTS, logger.isTraceEnabled());
 
-            Configuration managementConfig = ManagementConfiguration.configure(null, configuration,
-                    Management.ENDPOINT_SETTING.get(settings), subscriptionId, keystorePath, keystorePassword, keystoreType);
+            Configuration managementConfig = ManagementConfiguration.configure(
+                null,
+                configuration,
+                Management.ENDPOINT_SETTING.get(settings),
+                subscriptionId,
+                keystorePath,
+                keystorePassword,
+                keystoreType
+            );
 
             logger.debug("creating new Azure client for [{}], [{}]", subscriptionId, serviceName);
             client = ComputeManagementService.create(managementConfig);
@@ -111,20 +116,20 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent
     public HostedServiceGetDetailedResponse getServiceDetails() {
         SpecialPermission.check();
         try {
-            return AccessController.doPrivileged((PrivilegedExceptionAction<HostedServiceGetDetailedResponse>)
-                () -> client.getHostedServicesOperations().getDetailed(serviceName));
+            return AccessController.doPrivileged(
+                (PrivilegedExceptionAction<HostedServiceGetDetailedResponse>) () -> client.getHostedServicesOperations()
+                    .getDetailed(serviceName)
+            );
         } catch (PrivilegedActionException e) {
             throw new AzureServiceRemoteException("can not get list of azure nodes", e.getCause());
         }
     }
 
     @Override
-    protected void doStart() throws OpenSearchException {
-    }
+    protected void doStart() throws OpenSearchException {}
 
     @Override
-    protected void doStop() throws OpenSearchException {
-    }
+    protected void doStop() throws OpenSearchException {}
 
     @Override
     protected void doClose() throws OpenSearchException {

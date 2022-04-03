@@ -1,5 +1,5 @@
 {
-  "task" : {
+  "_doc" : {
     "_meta": {
       "version": 3
     },
@@ -14,6 +14,9 @@
             "type": "keyword"
           },
           "cancellable": {
+            "type": "boolean"
+          },
+          "cancelled": {
             "type": "boolean"
           },
           "id": {

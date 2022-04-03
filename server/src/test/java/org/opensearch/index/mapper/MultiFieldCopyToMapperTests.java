@@ -25,15 +25,12 @@
  * under the License.
  */
 
-
 /*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
  */
 
 package org.opensearch.index.mapper;
-
-import org.opensearch.index.mapper.MapperServiceTestCase;
 
 import static org.hamcrest.core.IsEqual.equalTo;
 

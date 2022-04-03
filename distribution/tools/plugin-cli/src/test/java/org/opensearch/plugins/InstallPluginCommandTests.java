@@ -35,7 +35,7 @@ package org.opensearch.plugins;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.bouncycastle.bcpg.ArmoredOutputStream;
 import org.bouncycastle.bcpg.BCPGOutputStream;
 import org.bouncycastle.bcpg.HashAlgorithmTags;
@@ -828,6 +828,31 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         }
     }
 
+    public void testPluginsHelpNonOptionArgumentsOutput() throws Exception {
+        MockTerminal terminal = new MockTerminal();
+        new InstallPluginCommand() {
+            @Override
+            protected boolean addShutdownHook() {
+                return false;
+            }
+        }.main(new String[] { "--help" }, terminal);
+        try (BufferedReader reader = new BufferedReader(new StringReader(terminal.getOutput()))) {
+
+            // grab first line of --help output
+            String line = reader.readLine();
+
+            // find the beginning of Non-option arguments list
+            while (line.contains("Non-option arguments:") == false) {
+                line = reader.readLine();
+            }
+
+            // check that non option agrument list contains correct string
+            line = reader.readLine();
+            assertThat(line, containsString("<name|Zip File|URL>"));
+
+        }
+    }
+
     public void testInstallMisspelledOfficialPlugins() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
 
@@ -935,8 +960,8 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
                     String checksum = shaCalculator.apply(zipbytes);
                     Files.write(shaFile, checksum.getBytes(StandardCharsets.UTF_8));
                     return shaFile.toUri().toURL();
-                } else if ((url + ".asc").equals(urlString)) {
-                    final Path ascFile = temp.apply("asc").resolve("downloaded.zip" + ".asc");
+                } else if ((url + ".sig").equals(urlString)) {
+                    final Path ascFile = temp.apply("sig").resolve("downloaded.zip" + ".sig");
                     final byte[] zipBytes = Files.readAllBytes(pluginZip);
                     final String asc = signature.apply(zipBytes, secretKey);
                     Files.write(ascFile, asc.getBytes(StandardCharsets.UTF_8));

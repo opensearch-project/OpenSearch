@@ -123,7 +123,7 @@ class PluginBuildPlugin implements Plugin<Project> {
             naming.clear()
             naming {
                 Tests {
-                    baseClass 'org.apache.lucene.util.LuceneTestCase'
+                    baseClass 'org.apache.lucene.tests.util.LuceneTestCase'
                 }
                 IT {
                     baseClass 'org.opensearch.test.OpenSearchIntegTestCase'
@@ -175,7 +175,7 @@ class PluginBuildPlugin implements Plugin<Project> {
             compileOnly "org.locationtech.jts:jts-core:${project.versions.jts}"
             compileOnly "org.apache.logging.log4j:log4j-api:${project.versions.log4j}"
             compileOnly "org.apache.logging.log4j:log4j-core:${project.versions.log4j}"
-            compileOnly "org.elasticsearch:jna:${project.versions.jna}"
+            compileOnly "net.java.dev.jna:jna:${project.versions.jna}"
         }
     }
 

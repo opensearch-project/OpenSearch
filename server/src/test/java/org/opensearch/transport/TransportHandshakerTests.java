@@ -64,8 +64,17 @@ public class TransportHandshakerTests extends OpenSearchTestCase {
         String nodeId = "node-id";
         channel = mock(TcpChannel.class);
         requestSender = mock(TransportHandshaker.HandshakeRequestSender.class);
-        node = new DiscoveryNode(nodeId, nodeId, nodeId, "host", "host_address", buildNewFakeTransportAddress(), Collections.emptyMap(),
-            Collections.emptySet(), Version.CURRENT);
+        node = new DiscoveryNode(
+            nodeId,
+            nodeId,
+            nodeId,
+            "host",
+            "host_address",
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Collections.emptySet(),
+            Version.CURRENT
+        );
         threadPool = new TestThreadPool("thread-poll");
         handshaker = new TransportHandshaker(Version.CURRENT, threadPool, requestSender);
     }
@@ -180,8 +189,10 @@ public class TransportHandshakerTests extends OpenSearchTestCase {
     }
 
     private Version getMinCompatibilityVersionForHandshakeRequest() {
-        if(Version.CURRENT.onOrAfter(Version.V_1_0_0) && Version.CURRENT.major == 1) {
+        if (Version.CURRENT.onOrAfter(Version.V_1_0_0) && Version.CURRENT.major == 1) {
             return Version.fromId(6079999);
+        } else if (Version.CURRENT.onOrAfter(Version.V_2_0_0) && Version.CURRENT.major == 2) {
+            return Version.fromId(7099999);
         }
         return Version.CURRENT.minimumCompatibilityVersion();
     }

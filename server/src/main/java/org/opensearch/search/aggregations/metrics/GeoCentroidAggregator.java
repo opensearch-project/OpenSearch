@@ -114,9 +114,9 @@ final class GeoCentroidAggregator extends MetricsAggregator {
                     // update the sum
                     for (int i = 0; i < valueCount; ++i) {
                         GeoPoint value = values.nextValue();
-                        //latitude
+                        // latitude
                         compensatedSumLat.add(value.getLat());
-                        //longitude
+                        // longitude
                         compensatedSumLon.add(value.getLon());
                     }
                     lonSum.set(bucket, compensatedSumLon.value());
@@ -135,9 +135,9 @@ final class GeoCentroidAggregator extends MetricsAggregator {
         }
         final long bucketCount = counts.get(bucket);
         final GeoPoint bucketCentroid = (bucketCount > 0)
-                ? new GeoPoint(latSum.get(bucket) / bucketCount, lonSum.get(bucket) / bucketCount)
-                : null;
-        return new InternalGeoCentroid(name, bucketCentroid , bucketCount, metadata());
+            ? new GeoPoint(latSum.get(bucket) / bucketCount, lonSum.get(bucket) / bucketCount)
+            : null;
+        return new InternalGeoCentroid(name, bucketCentroid, bucketCount, metadata());
     }
 
     @Override

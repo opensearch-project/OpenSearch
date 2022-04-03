@@ -49,17 +49,12 @@ public class CustomQueryParserIT extends OpenSearchIntegTestCase {
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(DummyQueryParserPlugin.class);
-    }
-
-    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
         createIndex("test");
         ensureGreen();
-        client().prepareIndex("index", "type", "1").setSource("field", "value").get();
+        client().prepareIndex("index").setId("1").setSource("field", "value").get();
         refresh();
     }
 

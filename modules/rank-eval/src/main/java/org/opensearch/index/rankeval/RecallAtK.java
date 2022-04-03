@@ -103,7 +103,8 @@ public class RecallAtK implements EvaluationMetric {
         Integer k = (Integer) args[1];
         return new RecallAtK(
             relevantRatingThreshold == null ? DEFAULT_RELEVANT_RATING_THRESHOLD : relevantRatingThreshold,
-            k == null ? DEFAULT_K : k);
+            k == null ? DEFAULT_K : k
+        );
     });
 
     static {
@@ -167,8 +168,7 @@ public class RecallAtK implements EvaluationMetric {
      * @return recall at k for above {@link SearchResult} list.
      **/
     @Override
-    public EvalQueryQuality evaluate(String taskId, SearchHit[] hits,
-                                     List<RatedDocument> ratedDocs) {
+    public EvalQueryQuality evaluate(String taskId, SearchHit[] hits, List<RatedDocument> ratedDocs) {
 
         List<RatedSearchHit> ratedSearchHits = joinHitsWithRatings(hits, ratedDocs);
 
@@ -182,7 +182,7 @@ public class RecallAtK implements EvaluationMetric {
 
         int relevant = 0;
         for (RatedDocument rd : ratedDocs) {
-            if(isRelevant(rd.getRating())) {
+            if (isRelevant(rd.getRating())) {
                 relevant++;
             }
         }
@@ -207,8 +207,7 @@ public class RecallAtK implements EvaluationMetric {
             return false;
         }
         RecallAtK other = (RecallAtK) obj;
-        return Objects.equals(relevantRatingThreshold, other.relevantRatingThreshold)
-            && Objects.equals(k, other.k);
+        return Objects.equals(relevantRatingThreshold, other.relevantRatingThreshold) && Objects.equals(k, other.k);
     }
 
     @Override
@@ -233,8 +232,11 @@ public class RecallAtK implements EvaluationMetric {
             this.relevant = in.readVLong();
         }
 
-        private static final ConstructingObjectParser<Detail, Void> PARSER =
-            new ConstructingObjectParser<>(NAME, true, args -> new Detail((Integer) args[0], (Integer) args[1]));
+        private static final ConstructingObjectParser<Detail, Void> PARSER = new ConstructingObjectParser<>(
+            NAME,
+            true,
+            args -> new Detail((Integer) args[0], (Integer) args[1])
+        );
 
         static {
             PARSER.declareInt(constructorArg(), RELEVANT_DOCS_RETRIEVED_FIELD);
@@ -252,8 +254,7 @@ public class RecallAtK implements EvaluationMetric {
         }
 
         @Override
-        public XContentBuilder innerToXContent(XContentBuilder builder, Params params)
-            throws IOException {
+        public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(RELEVANT_DOCS_RETRIEVED_FIELD.getPreferredName(), relevantRetrieved);
             builder.field(RELEVANT_DOCS_FIELD.getPreferredName(), relevant);
             return builder;
@@ -281,8 +282,7 @@ public class RecallAtK implements EvaluationMetric {
                 return false;
             }
             RecallAtK.Detail other = (RecallAtK.Detail) obj;
-            return Objects.equals(relevantRetrieved, other.relevantRetrieved)
-                && Objects.equals(relevant, other.relevant);
+            return Objects.equals(relevantRetrieved, other.relevantRetrieved) && Objects.equals(relevant, other.relevant);
         }
 
         @Override

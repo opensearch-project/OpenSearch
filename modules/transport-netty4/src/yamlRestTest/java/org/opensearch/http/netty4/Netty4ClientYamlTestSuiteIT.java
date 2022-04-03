@@ -36,7 +36,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
-import org.apache.lucene.util.TimeUnits;
+import org.apache.lucene.tests.util.TimeUnits;
 import org.opensearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.opensearch.test.rest.yaml.OpenSearchClientYamlSuiteTestCase;
 import org.junit.BeforeClass;
@@ -48,6 +48,7 @@ public class Netty4ClientYamlTestSuiteIT extends OpenSearchClientYamlSuiteTestCa
     public static void muteInFips() {
         assumeFalse("We run with DEFAULT distribution in FIPS mode and default to security4 instead of netty4", inFipsJvm());
     }
+
     public Netty4ClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }

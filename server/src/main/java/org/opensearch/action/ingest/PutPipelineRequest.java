@@ -66,8 +66,7 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         xContentType = in.readEnum(XContentType.class);
     }
 
-    PutPipelineRequest() {
-    }
+    PutPipelineRequest() {}
 
     @Override
     public ActionRequestValidationException validate() {

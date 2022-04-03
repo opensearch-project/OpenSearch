@@ -74,9 +74,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
             optionallyAddMetric(in.readBoolean(), Metric.SCRIPT.metricName());
             optionallyAddMetric(in.readBoolean(), Metric.DISCOVERY.metricName());
             optionallyAddMetric(in.readBoolean(), Metric.INGEST.metricName());
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
-                optionallyAddMetric(in.readBoolean(), Metric.ADAPTIVE_SELECTION.metricName());
-            }
+            optionallyAddMetric(in.readBoolean(), Metric.ADAPTIVE_SELECTION.metricName());
         } else {
             requestedMetrics.addAll(in.readStringList());
         }
@@ -212,9 +210,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
             out.writeBoolean(Metric.SCRIPT.containedIn(requestedMetrics));
             out.writeBoolean(Metric.DISCOVERY.containedIn(requestedMetrics));
             out.writeBoolean(Metric.INGEST.containedIn(requestedMetrics));
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_6_1_0)) {
-                out.writeBoolean(Metric.ADAPTIVE_SELECTION.containedIn(requestedMetrics));
-            }
+            out.writeBoolean(Metric.ADAPTIVE_SELECTION.containedIn(requestedMetrics));
         } else {
             out.writeStringArray(requestedMetrics.toArray(new String[0]));
         }
@@ -238,7 +234,8 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         INGEST("ingest"),
         ADAPTIVE_SELECTION("adaptive_selection"),
         SCRIPT_CACHE("script_cache"),
-        INDEXING_PRESSURE("indexing_pressure"),;
+        INDEXING_PRESSURE("indexing_pressure"),
+        SHARD_INDEXING_PRESSURE("shard_indexing_pressure");
 
         private String metricName;
 

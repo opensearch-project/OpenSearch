@@ -68,16 +68,13 @@ public class GetPipelineResponseTests extends AbstractSerializingTestCase<GetPip
         builder.field("value", value);
         builder.endObject();
         builder.endObject();
-        return
-            new PipelineConfiguration(
-                pipelineId, BytesReference.bytes(builder), builder.contentType()
-            );
+        return new PipelineConfiguration(pipelineId, BytesReference.bytes(builder), builder.contentType());
     }
 
     private Map<String, PipelineConfiguration> createPipelineConfigMap() throws IOException {
         int numPipelines = randomInt(5);
         Map<String, PipelineConfiguration> pipelinesMap = new HashMap<>();
-        for (int i=0; i<numPipelines; i++) {
+        for (int i = 0; i < numPipelines; i++) {
             String pipelineId = "pipeline_" + i;
             pipelinesMap.put(pipelineId, createRandomPipeline(pipelineId));
         }
@@ -88,21 +85,15 @@ public class GetPipelineResponseTests extends AbstractSerializingTestCase<GetPip
         Map<String, PipelineConfiguration> pipelinesMap = createPipelineConfigMap();
         GetPipelineResponse response = new GetPipelineResponse(new ArrayList<>(pipelinesMap.values()));
         XContentBuilder builder = response.toXContent(getRandomXContentBuilder(), ToXContent.EMPTY_PARAMS);
-        XContentParser parser =
-            builder
-                .generator()
-                .contentType()
-                .xContent()
-                .createParser(
-                    xContentRegistry(),
-                    LoggingDeprecationHandler.INSTANCE,
-                    BytesReference.bytes(builder).streamInput()
-                );
+        XContentParser parser = builder.generator()
+            .contentType()
+            .xContent()
+            .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
         GetPipelineResponse parsedResponse = GetPipelineResponse.fromXContent(parser);
         List<PipelineConfiguration> actualPipelines = response.pipelines();
         List<PipelineConfiguration> parsedPipelines = parsedResponse.pipelines();
         assertEquals(actualPipelines.size(), parsedPipelines.size());
-        for (PipelineConfiguration pipeline: parsedPipelines) {
+        for (PipelineConfiguration pipeline : parsedPipelines) {
             assertTrue(pipelinesMap.containsKey(pipeline.getId()));
             assertEquals(pipelinesMap.get(pipeline.getId()).getConfigAsMap(), pipeline.getConfigAsMap());
         }

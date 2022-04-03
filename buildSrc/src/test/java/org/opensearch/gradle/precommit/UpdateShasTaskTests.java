@@ -86,19 +86,20 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
 
     @Test
     public void whenDependencyExistsButShaNotThenShouldCreateNewShaFile() throws IOException, NoSuchAlgorithmException {
-        project.getDependencies().add("compile", dependency);
+        project.getDependencies().add("compileClasspath", dependency);
 
         getLicensesDir(project).mkdir();
         task.updateShas();
 
-        Path groovySha = Files.list(getLicensesDir(project).toPath()).findFirst().get();
-
-        assertTrue(groovySha.toFile().getName().startsWith("groovy-all"));
+        assertTrue(
+            "Expected a sha file to exist with a name prefix of 'groovy-",
+            Files.list(getLicensesDir(project).toPath()).anyMatch(sha -> sha.toFile().getName().startsWith("groovy-"))
+        );
     }
 
     @Test
     public void whenDependencyAndWrongShaExistsThenShouldNotOverwriteShaFile() throws IOException, NoSuchAlgorithmException {
-        project.getDependencies().add("compile", dependency);
+        project.getDependencies().add("compileClasspath", dependency);
 
         File groovyJar = task.getParentTask().getDependencies().getFiles().iterator().next();
         String groovyShaName = groovyJar.getName() + ".sha1";
@@ -163,6 +164,6 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
     }
 
     private FileCollection getDependencies(Project project) {
-        return project.getConfigurations().getByName("compile");
+        return project.getConfigurations().getByName("compileClasspath");
     }
 }

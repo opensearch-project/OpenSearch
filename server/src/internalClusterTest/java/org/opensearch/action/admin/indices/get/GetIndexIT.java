@@ -35,11 +35,11 @@ package org.opensearch.action.admin.indices.get;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.get.GetIndexRequest.Feature;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -63,8 +63,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class GetIndexIT extends OpenSearchIntegTestCase {
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
-        assertAcked(prepareCreate("idx").addAlias(new Alias("alias_idx")).addMapping("type1", "{\"type1\":{}}", XContentType.JSON)
-                .setSettings(Settings.builder().put("number_of_shards", 1)).get());
+        assertAcked(prepareCreate("idx").addAlias(new Alias("alias_idx")).setSettings(Settings.builder().put("number_of_shards", 1)).get());
         ensureSearchable("idx");
         createIndex("empty_idx");
         ensureSearchable("idx", "empty_idx");
@@ -90,6 +89,19 @@ public class GetIndexIT extends OpenSearchIntegTestCase {
         }
     }
 
+    public void testUnknownIndexWithAllowNoIndices() {
+        GetIndexResponse response = client().admin()
+            .indices()
+            .prepareGetIndex()
+            .addIndices("missing_idx")
+            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
+            .get();
+        assertThat(response.indices(), notNullValue());
+        assertThat(response.indices().length, equalTo(0));
+        assertThat(response.mappings(), notNullValue());
+        assertThat(response.mappings().size(), equalTo(0));
+    }
+
     public void testEmpty() {
         GetIndexResponse response = client().admin().indices().prepareGetIndex().addIndices("empty_idx").get();
         String[] indices = response.indices();
@@ -102,8 +114,10 @@ public class GetIndexIT extends OpenSearchIntegTestCase {
     }
 
     public void testSimpleMapping() {
-        GetIndexResponse response = runWithRandomFeatureMethod(client().admin().indices().prepareGetIndex().addIndices("idx"),
-                Feature.MAPPINGS);
+        GetIndexResponse response = runWithRandomFeatureMethod(
+            client().admin().indices().prepareGetIndex().addIndices("idx"),
+            Feature.MAPPINGS
+        );
         String[] indices = response.indices();
         assertThat(indices, notNullValue());
         assertThat(indices.length, equalTo(1));
@@ -114,8 +128,10 @@ public class GetIndexIT extends OpenSearchIntegTestCase {
     }
 
     public void testSimpleAlias() {
-        GetIndexResponse response = runWithRandomFeatureMethod(client().admin().indices().prepareGetIndex().addIndices("idx"),
-                Feature.ALIASES);
+        GetIndexResponse response = runWithRandomFeatureMethod(
+            client().admin().indices().prepareGetIndex().addIndices("idx"),
+            Feature.ALIASES
+        );
         String[] indices = response.indices();
         assertThat(indices, notNullValue());
         assertThat(indices.length, equalTo(1));
@@ -126,8 +142,10 @@ public class GetIndexIT extends OpenSearchIntegTestCase {
     }
 
     public void testSimpleSettings() {
-        GetIndexResponse response = runWithRandomFeatureMethod(client().admin().indices().prepareGetIndex().addIndices("idx"),
-                Feature.SETTINGS);
+        GetIndexResponse response = runWithRandomFeatureMethod(
+            client().admin().indices().prepareGetIndex().addIndices("idx"),
+            Feature.SETTINGS
+        );
         String[] indices = response.indices();
         assertThat(indices, notNullValue());
         assertThat(indices.length, equalTo(1));
@@ -143,8 +161,10 @@ public class GetIndexIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < numFeatures; i++) {
             features.add(randomFrom(Feature.values()));
         }
-        GetIndexResponse response = runWithRandomFeatureMethod(client().admin().indices().prepareGetIndex().addIndices("idx"),
-                features.toArray(new Feature[features.size()]));
+        GetIndexResponse response = runWithRandomFeatureMethod(
+            client().admin().indices().prepareGetIndex().addIndices("idx"),
+            features.toArray(new Feature[features.size()])
+        );
         String[] indices = response.indices();
         assertThat(indices, notNullValue());
         assertThat(indices.length, equalTo(1));
@@ -172,8 +192,10 @@ public class GetIndexIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < numFeatures; i++) {
             features.add(randomFrom(Feature.values()));
         }
-        GetIndexResponse response = runWithRandomFeatureMethod(client().admin().indices().prepareGetIndex().addIndices("empty_idx"),
-                features.toArray(new Feature[features.size()]));
+        GetIndexResponse response = runWithRandomFeatureMethod(
+            client().admin().indices().prepareGetIndex().addIndices("empty_idx"),
+            features.toArray(new Feature[features.size()])
+        );
         String[] indices = response.indices();
         assertThat(indices, notNullValue());
         assertThat(indices.length, equalTo(1));
@@ -195,8 +217,12 @@ public class GetIndexIT extends OpenSearchIntegTestCase {
         for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY, SETTING_READ_ONLY_ALLOW_DELETE)) {
             try {
                 enableIndexBlock("idx", block);
-                GetIndexResponse response = client().admin().indices().prepareGetIndex().addIndices("idx")
-                        .addFeatures(Feature.MAPPINGS, Feature.ALIASES).get();
+                GetIndexResponse response = client().admin()
+                    .indices()
+                    .prepareGetIndex()
+                    .addIndices("idx")
+                    .addFeatures(Feature.MAPPINGS, Feature.ALIASES)
+                    .get();
                 String[] indices = response.indices();
                 assertThat(indices, notNullValue());
                 assertThat(indices.length, equalTo(1));
@@ -210,8 +236,10 @@ public class GetIndexIT extends OpenSearchIntegTestCase {
 
         try {
             enableIndexBlock("idx", SETTING_BLOCKS_METADATA);
-            assertBlocked(client().admin().indices().prepareGetIndex().addIndices("idx").addFeatures(Feature.MAPPINGS, Feature.ALIASES),
-                INDEX_METADATA_BLOCK);
+            assertBlocked(
+                client().admin().indices().prepareGetIndex().addIndices("idx").addFeatures(Feature.MAPPINGS, Feature.ALIASES),
+                INDEX_METADATA_BLOCK
+            );
         } finally {
             disableIndexBlock("idx", SETTING_BLOCKS_METADATA);
         }
@@ -243,24 +271,19 @@ public class GetIndexIT extends OpenSearchIntegTestCase {
     }
 
     private void assertMappings(GetIndexResponse response, String indexName) {
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = response.mappings();
+        ImmutableOpenMap<String, MappingMetadata> mappings = response.mappings();
         assertThat(mappings, notNullValue());
         assertThat(mappings.size(), equalTo(1));
-        ImmutableOpenMap<String, MappingMetadata> indexMappings = mappings.get(indexName);
+        MappingMetadata indexMappings = mappings.get(indexName);
         assertThat(indexMappings, notNullValue());
-        assertThat(indexMappings.size(), equalTo(1));
-        MappingMetadata mapping = indexMappings.get("type1");
-        assertThat(mapping, notNullValue());
-        assertThat(mapping.type(), equalTo("type1"));
     }
 
     private void assertEmptyOrOnlyDefaultMappings(GetIndexResponse response, String indexName) {
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = response.mappings();
+        ImmutableOpenMap<String, MappingMetadata> mappings = response.mappings();
         assertThat(mappings, notNullValue());
         assertThat(mappings.size(), equalTo(1));
-        ImmutableOpenMap<String, MappingMetadata> indexMappings = mappings.get(indexName);
-        assertThat(indexMappings, notNullValue());
-        assertThat(indexMappings.size(), equalTo(0));
+        MappingMetadata indexMappings = mappings.get(indexName);
+        assertEquals(indexMappings, MappingMetadata.EMPTY_MAPPINGS);
     }
 
     private void assertAliases(GetIndexResponse response, String indexName) {

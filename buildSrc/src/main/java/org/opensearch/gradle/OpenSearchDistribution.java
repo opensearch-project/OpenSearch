@@ -48,9 +48,10 @@ import java.util.Locale;
 public class OpenSearchDistribution implements Buildable, Iterable<File> {
 
     public enum Platform {
+        DARWIN,
+        FREEBSD,
         LINUX,
-        WINDOWS,
-        DARWIN;
+        WINDOWS;
 
         @Override
         public String toString() {
@@ -85,9 +86,10 @@ public class OpenSearchDistribution implements Buildable, Iterable<File> {
 
     // package private to tests can use
     public static final Platform CURRENT_PLATFORM = OS.<Platform>conditional()
+        .onFreeBSD(() -> Platform.FREEBSD)
         .onLinux(() -> Platform.LINUX)
-        .onWindows(() -> Platform.WINDOWS)
         .onMac(() -> Platform.DARWIN)
+        .onWindows(() -> Platform.WINDOWS)
         .supply();
 
     private final String name;

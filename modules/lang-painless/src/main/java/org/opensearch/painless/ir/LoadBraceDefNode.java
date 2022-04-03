@@ -80,9 +80,10 @@ public class LoadBraceDefNode extends ExpressionNode {
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeDebugInfo(getLocation());
         Type methodType = Type.getMethodType(
-                MethodWriter.getType(getExpressionType()),
-                MethodWriter.getType(def.class),
-                MethodWriter.getType(indexType));
+            MethodWriter.getType(getExpressionType()),
+            MethodWriter.getType(def.class),
+            MethodWriter.getType(indexType)
+        );
         methodWriter.invokeDefCall("arrayLoad", methodType, DefBootstrap.ARRAY_LOAD);
     }
 }

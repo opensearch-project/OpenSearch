@@ -25,7 +25,6 @@
  * under the License.
  */
 
-
 /*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
@@ -108,7 +107,7 @@ public class FilterPath {
     private static FilterPath parse(final String filter, final String segment) {
         int end = segment.length();
 
-        for (int i = 0; i < end; ) {
+        for (int i = 0; i < end;) {
             char c = segment.charAt(i);
 
             if (c == '.') {

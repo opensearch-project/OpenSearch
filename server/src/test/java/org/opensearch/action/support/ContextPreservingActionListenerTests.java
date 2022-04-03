@@ -35,7 +35,6 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.action.support.ContextPreservingActionListener;
 
 import java.io.IOException;
 
@@ -118,7 +117,7 @@ public class ContextPreservingActionListenerTests extends OpenSearchTestCase {
 
         assertNull(threadContext.getHeader("foo"));
         assertEquals(nonEmptyContext ? "value" : null, threadContext.getHeader("not empty"));
-}
+    }
 
     public void testOriginalContextIsWhenListenerThrows() throws Exception {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -174,12 +173,10 @@ public class ContextPreservingActionListenerTests extends OpenSearchTestCase {
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             final ActionListener<Void> delegate = new ActionListener<Void>() {
                 @Override
-                public void onResponse(Void aVoid) {
-                }
+                public void onResponse(Void aVoid) {}
 
                 @Override
-                public void onFailure(Exception e) {
-                }
+                public void onFailure(Exception e) {}
 
                 @Override
                 public String toString() {

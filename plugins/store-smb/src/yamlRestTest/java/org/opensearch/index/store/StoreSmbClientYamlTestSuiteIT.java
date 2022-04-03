@@ -49,4 +49,3 @@ public class StoreSmbClientYamlTestSuiteIT extends OpenSearchClientYamlSuiteTest
         return OpenSearchClientYamlSuiteTestCase.createParameters();
     }
 }
-

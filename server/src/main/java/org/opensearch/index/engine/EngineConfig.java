@@ -52,6 +52,7 @@ import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.TranslogConfig;
+import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
 import org.opensearch.indices.IndexingMemoryController;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.threadpool.ThreadPool;
@@ -70,6 +71,7 @@ public final class EngineConfig {
     private final ShardId shardId;
     private final IndexSettings indexSettings;
     private final ByteSizeValue indexingBufferSize;
+    private final TranslogDeletionPolicyFactory translogDeletionPolicyFactory;
     private volatile boolean enableGcDeletes = true;
     private final TimeValue flushMergesAfter;
     private final String codecName;
@@ -122,7 +124,8 @@ public final class EngineConfig {
             default:
                 if (Codec.availableCodecs().contains(s) == false) { // we don't error message the not officially supported ones
                     throw new IllegalArgumentException(
-                        "unknown value for [index.codec] must be one of [default, best_compression] but was: " + s);
+                        "unknown value for [index.codec] must be one of [default, best_compression] but was: " + s
+                    );
                 }
                 return s;
         }
@@ -135,26 +138,94 @@ public final class EngineConfig {
      * this setting won't be reflected re-enabled optimization until the engine is restarted or the index is closed and reopened.
      * The default is <code>true</code>
      */
-    public static final Setting<Boolean> INDEX_OPTIMIZE_AUTO_GENERATED_IDS = Setting.boolSetting("index.optimize_auto_generated_id", true,
-        Property.IndexScope, Property.Dynamic);
+    public static final Setting<Boolean> INDEX_OPTIMIZE_AUTO_GENERATED_IDS = Setting.boolSetting(
+        "index.optimize_auto_generated_id",
+        true,
+        Property.IndexScope,
+        Property.Dynamic
+    );
 
     private final TranslogConfig translogConfig;
+
+    public EngineConfig(
+        ShardId shardId,
+        ThreadPool threadPool,
+        IndexSettings indexSettings,
+        Engine.Warmer warmer,
+        Store store,
+        MergePolicy mergePolicy,
+        Analyzer analyzer,
+        Similarity similarity,
+        CodecService codecService,
+        Engine.EventListener eventListener,
+        QueryCache queryCache,
+        QueryCachingPolicy queryCachingPolicy,
+        TranslogConfig translogConfig,
+        TimeValue flushMergesAfter,
+        List<ReferenceManager.RefreshListener> externalRefreshListener,
+        List<ReferenceManager.RefreshListener> internalRefreshListener,
+        Sort indexSort,
+        CircuitBreakerService circuitBreakerService,
+        LongSupplier globalCheckpointSupplier,
+        Supplier<RetentionLeases> retentionLeasesSupplier,
+        LongSupplier primaryTermSupplier,
+        TombstoneDocSupplier tombstoneDocSupplier
+    ) {
+        this(
+            shardId,
+            threadPool,
+            indexSettings,
+            warmer,
+            store,
+            mergePolicy,
+            analyzer,
+            similarity,
+            codecService,
+            eventListener,
+            queryCache,
+            queryCachingPolicy,
+            translogConfig,
+            null,
+            flushMergesAfter,
+            externalRefreshListener,
+            internalRefreshListener,
+            indexSort,
+            circuitBreakerService,
+            globalCheckpointSupplier,
+            retentionLeasesSupplier,
+            primaryTermSupplier,
+            tombstoneDocSupplier
+        );
+    }
 
     /**
      * Creates a new {@link org.opensearch.index.engine.EngineConfig}
      */
-    public EngineConfig(ShardId shardId, ThreadPool threadPool,
-                        IndexSettings indexSettings, Engine.Warmer warmer, Store store,
-                        MergePolicy mergePolicy, Analyzer analyzer,
-                        Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
-                        QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
-                        TranslogConfig translogConfig, TimeValue flushMergesAfter,
-                        List<ReferenceManager.RefreshListener> externalRefreshListener,
-                        List<ReferenceManager.RefreshListener> internalRefreshListener, Sort indexSort,
-                        CircuitBreakerService circuitBreakerService, LongSupplier globalCheckpointSupplier,
-                        Supplier<RetentionLeases> retentionLeasesSupplier,
-                        LongSupplier primaryTermSupplier,
-                        TombstoneDocSupplier tombstoneDocSupplier) {
+    EngineConfig(
+        ShardId shardId,
+        ThreadPool threadPool,
+        IndexSettings indexSettings,
+        Engine.Warmer warmer,
+        Store store,
+        MergePolicy mergePolicy,
+        Analyzer analyzer,
+        Similarity similarity,
+        CodecService codecService,
+        Engine.EventListener eventListener,
+        QueryCache queryCache,
+        QueryCachingPolicy queryCachingPolicy,
+        TranslogConfig translogConfig,
+        TranslogDeletionPolicyFactory translogDeletionPolicyFactory,
+        TimeValue flushMergesAfter,
+        List<ReferenceManager.RefreshListener> externalRefreshListener,
+        List<ReferenceManager.RefreshListener> internalRefreshListener,
+        Sort indexSort,
+        CircuitBreakerService circuitBreakerService,
+        LongSupplier globalCheckpointSupplier,
+        Supplier<RetentionLeases> retentionLeasesSupplier,
+        LongSupplier primaryTermSupplier,
+        TombstoneDocSupplier tombstoneDocSupplier
+    ) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
@@ -183,6 +254,7 @@ public final class EngineConfig {
         this.queryCache = queryCache;
         this.queryCachingPolicy = queryCachingPolicy;
         this.translogConfig = translogConfig;
+        this.translogDeletionPolicyFactory = translogDeletionPolicyFactory;
         this.flushMergesAfter = flushMergesAfter;
         this.externalRefreshListener = externalRefreshListener;
         this.internalRefreshListener = internalRefreshListener;
@@ -295,7 +367,9 @@ public final class EngineConfig {
     /**
      * Returns the engines shard ID
      */
-    public ShardId getShardId() { return shardId; }
+    public ShardId getShardId() {
+        return shardId;
+    }
 
     /**
      * Returns the analyzer as the default analyzer in the engines {@link org.apache.lucene.index.IndexWriter}
@@ -337,7 +411,9 @@ public final class EngineConfig {
      * should be automatically flushed. This is used to free up transient disk usage of potentially large segments that
      * are written after the engine became inactive from an indexing perspective.
      */
-    public TimeValue getFlushMergesAfter() { return flushMergesAfter; }
+    public TimeValue getFlushMergesAfter() {
+        return flushMergesAfter;
+    }
 
     /**
      * The refresh listeners to add to Lucene for externally visible refreshes
@@ -349,8 +425,9 @@ public final class EngineConfig {
     /**
      * The refresh listeners to add to Lucene for internally visible refreshes. These listeners will also be invoked on external refreshes
      */
-    public List<ReferenceManager.RefreshListener> getInternalRefreshListener() { return internalRefreshListener;}
-
+    public List<ReferenceManager.RefreshListener> getInternalRefreshListener() {
+        return internalRefreshListener;
+    }
 
     /**
      * returns true if the engine is allowed to optimize indexing operations with an auto-generated ID
@@ -389,7 +466,7 @@ public final class EngineConfig {
         /**
          * Creates a tombstone document for a delete operation.
          */
-        ParsedDocument newDeleteTombstoneDoc(String type, String id);
+        ParsedDocument newDeleteTombstoneDoc(String id);
 
         /**
          * Creates a tombstone document for a noop operation.
@@ -400,5 +477,9 @@ public final class EngineConfig {
 
     public TombstoneDocSupplier getTombstoneDocSupplier() {
         return tombstoneDocSupplier;
+    }
+
+    public TranslogDeletionPolicyFactory getCustomTranslogDeletionPolicyFactory() {
+        return translogDeletionPolicyFactory;
     }
 }

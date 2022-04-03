@@ -98,8 +98,14 @@ public class ScriptModule {
             if (engine != null) {
                 ScriptEngine existing = engines.put(engine.getType(), engine);
                 if (existing != null) {
-                    throw new IllegalArgumentException("scripting language [" + engine.getType() + "] defined for engine [" +
-                        existing.getClass().getName() + "] and [" + engine.getClass().getName());
+                    throw new IllegalArgumentException(
+                        "scripting language ["
+                            + engine.getType()
+                            + "] defined for engine ["
+                            + existing.getClass().getName()
+                            + "] and ["
+                            + engine.getClass().getName()
+                    );
                 }
             }
         }

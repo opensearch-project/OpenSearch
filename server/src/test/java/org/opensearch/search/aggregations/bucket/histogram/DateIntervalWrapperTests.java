@@ -91,36 +91,37 @@ public class DateIntervalWrapperTests extends OpenSearchTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(0);
             try (StreamInput in = out.bytes().streamInput()) {
-                assertThat(DateIntervalWrapper.IntervalTypeEnum.fromStream(in),
-                    equalTo(DateIntervalWrapper.IntervalTypeEnum.NONE));
+                assertThat(DateIntervalWrapper.IntervalTypeEnum.fromStream(in), equalTo(DateIntervalWrapper.IntervalTypeEnum.NONE));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(1);
             try (StreamInput in = out.bytes().streamInput()) {
-                assertThat(DateIntervalWrapper.IntervalTypeEnum.fromStream(in),
-                    equalTo(DateIntervalWrapper.IntervalTypeEnum.FIXED));
+                assertThat(DateIntervalWrapper.IntervalTypeEnum.fromStream(in), equalTo(DateIntervalWrapper.IntervalTypeEnum.FIXED));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(2);
             try (StreamInput in = out.bytes().streamInput()) {
-                assertThat(DateIntervalWrapper.IntervalTypeEnum.fromStream(in),
-                    equalTo(DateIntervalWrapper.IntervalTypeEnum.CALENDAR));
+                assertThat(DateIntervalWrapper.IntervalTypeEnum.fromStream(in), equalTo(DateIntervalWrapper.IntervalTypeEnum.CALENDAR));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(3);
             try (StreamInput in = out.bytes().streamInput()) {
-                assertThat(DateIntervalWrapper.IntervalTypeEnum.fromStream(in),
-                    equalTo(DateIntervalWrapper.IntervalTypeEnum.LEGACY_INTERVAL));
+                assertThat(
+                    DateIntervalWrapper.IntervalTypeEnum.fromStream(in),
+                    equalTo(DateIntervalWrapper.IntervalTypeEnum.LEGACY_INTERVAL)
+                );
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(4);
             try (StreamInput in = out.bytes().streamInput()) {
-                assertThat(DateIntervalWrapper.IntervalTypeEnum.fromStream(in),
-                    equalTo(DateIntervalWrapper.IntervalTypeEnum.LEGACY_DATE_HISTO));
+                assertThat(
+                    DateIntervalWrapper.IntervalTypeEnum.fromStream(in),
+                    equalTo(DateIntervalWrapper.IntervalTypeEnum.LEGACY_DATE_HISTO)
+                );
             }
         }
     }
@@ -131,7 +132,7 @@ public class DateIntervalWrapperTests extends OpenSearchTestCase {
             try (StreamInput in = out.bytes().streamInput()) {
                 DateIntervalWrapper.IntervalTypeEnum.fromStream(in);
                 fail("Expected IOException");
-            } catch(IOException e) {
+            } catch (IOException e) {
                 assertThat(e.getMessage(), containsString("Unknown IntervalTypeEnum ordinal ["));
             }
 

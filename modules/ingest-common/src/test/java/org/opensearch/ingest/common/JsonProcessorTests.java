@@ -77,8 +77,12 @@ public class JsonProcessorTests extends OpenSearchTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
 
         Exception exception = expectThrows(IllegalArgumentException.class, () -> jsonProcessor.execute(ingestDocument));
-        assertThat(exception.getCause().getMessage(), containsString("Unrecognized token 'blah': " +
-            "was expecting (JSON String, Number, Array, Object or token 'null', 'true' or 'false')"));
+        assertThat(
+            exception.getCause().getMessage(),
+            containsString(
+                "Unrecognized token 'blah': " + "was expecting (JSON String, Number, Array, Object or token 'null', 'true' or 'false')"
+            )
+        );
     }
 
     public void testByteArray() {
@@ -90,9 +94,7 @@ public class JsonProcessorTests extends OpenSearchTestCase {
         Exception exception = expectThrows(IllegalArgumentException.class, () -> jsonProcessor.execute(ingestDocument));
         assertThat(
             exception.getCause().getMessage(),
-            containsString(
-                "Unrecognized token 'B': was expecting (JSON String, Number, Array, Object or token 'null', 'true' or 'false')"
-            )
+            containsString("Unrecognized token 'B': was expecting (JSON String, Number, Array, Object or token 'null', 'true' or 'false')")
         );
     }
 

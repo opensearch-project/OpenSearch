@@ -62,8 +62,7 @@ public class LongBounds implements ToXContentFragment, Writeable {
     static final ParseField MIN_FIELD = new ParseField("min");
     static final ParseField MAX_FIELD = new ParseField("max");
 
-    public static final ConstructingObjectParser<LongBounds, Void> PARSER = new ConstructingObjectParser<>(
-            "bounds", a -> {
+    public static final ConstructingObjectParser<LongBounds, Void> PARSER = new ConstructingObjectParser<>("bounds", a -> {
         assert a.length == 2;
         Long min = null;
         Long max = null;
@@ -177,8 +176,20 @@ public class LongBounds implements ToXContentFragment, Writeable {
             max = format.parseLong(maxAsStr, false, queryShardContext::nowInMillis);
         }
         if (min != null && max != null && min.compareTo(max) > 0) {
-            throw new IllegalArgumentException("[" + boundsName + ".min][" + min + "] cannot be greater than " +
-                    "[" + boundsName + ".max][" + max + "] for histogram aggregation [" + aggName + "]");
+            throw new IllegalArgumentException(
+                "["
+                    + boundsName
+                    + ".min]["
+                    + min
+                    + "] cannot be greater than "
+                    + "["
+                    + boundsName
+                    + ".max]["
+                    + max
+                    + "] for histogram aggregation ["
+                    + aggName
+                    + "]"
+            );
         }
         return new LongBounds(min, max, minAsStr, maxAsStr);
     }
@@ -186,9 +197,7 @@ public class LongBounds implements ToXContentFragment, Writeable {
     LongBounds round(Rounding rounding) {
         // Extended bounds shouldn't be effected by the offset
         Rounding effectiveRounding = rounding.withoutOffset();
-        return new LongBounds(
-                min != null ? effectiveRounding.round(min) : null,
-                max != null ? effectiveRounding.round(max) : null);
+        return new LongBounds(min != null ? effectiveRounding.round(min) : null, max != null ? effectiveRounding.round(max) : null);
     }
 
     @Override
@@ -221,9 +230,9 @@ public class LongBounds implements ToXContentFragment, Writeable {
         }
         LongBounds other = (LongBounds) obj;
         return Objects.equals(min, other.min)
-                && Objects.equals(max, other.max)
-                && Objects.equals(minAsStr, other.minAsStr)
-                && Objects.equals(maxAsStr, other.maxAsStr);
+            && Objects.equals(max, other.max)
+            && Objects.equals(minAsStr, other.minAsStr)
+            && Objects.equals(maxAsStr, other.maxAsStr);
     }
 
     public Long getMin() {

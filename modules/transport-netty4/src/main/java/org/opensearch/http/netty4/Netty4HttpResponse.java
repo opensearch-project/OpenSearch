@@ -64,4 +64,3 @@ public class Netty4HttpResponse extends DefaultFullHttpResponse implements HttpR
         return requestHeaders;
     }
 }
-

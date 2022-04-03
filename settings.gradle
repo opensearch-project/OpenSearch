@@ -10,7 +10,7 @@
  */
 
 plugins {
-  id "com.gradle.enterprise" version "3.5"
+  id "com.gradle.enterprise" version "3.9"
 }
 
 rootProject.name = "OpenSearch"
@@ -26,7 +26,6 @@ List projects = [
   'client:rest',
   'client:rest-high-level',
   'client:sniffer',
-  'client:transport',
   'client:test',
   'client:client-benchmark-noop-api-plugin',
   'client:benchmark',
@@ -35,7 +34,11 @@ List projects = [
   'distribution:archives:windows-zip',
   'distribution:archives:no-jdk-windows-zip',
   'distribution:archives:darwin-tar',
+  'distribution:archives:darwin-arm64-tar',
+  'distribution:archives:no-jdk-darwin-arm64-tar',
   'distribution:archives:no-jdk-darwin-tar',
+  'distribution:archives:freebsd-tar',
+  'distribution:archives:no-jdk-freebsd-tar',
   'distribution:archives:linux-arm64-tar',
   'distribution:archives:linux-tar',
   'distribution:archives:no-jdk-linux-tar',

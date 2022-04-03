@@ -34,6 +34,7 @@ package org.opensearch.search.profile.query;
 
 import org.apache.lucene.search.Query;
 import org.opensearch.search.profile.AbstractInternalProfileTree;
+import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.ProfileResult;
 
 /**
@@ -41,15 +42,20 @@ import org.opensearch.search.profile.ProfileResult;
  * generates {@link QueryProfileBreakdown} for each node in the tree.  It also finalizes the tree
  * and returns a list of {@link ProfileResult} that can be serialized back to the client
  */
-final class InternalQueryProfileTree extends AbstractInternalProfileTree<QueryProfileBreakdown, Query> {
+final class InternalQueryProfileTree extends AbstractInternalProfileTree<ContextualProfileBreakdown<QueryTimingType>, Query> {
 
     /** Rewrite time */
     private long rewriteTime;
     private long rewriteScratch;
+    private final boolean concurrent;
+
+    InternalQueryProfileTree(boolean concurrent) {
+        this.concurrent = concurrent;
+    }
 
     @Override
-    protected QueryProfileBreakdown createProfileBreakdown() {
-        return new QueryProfileBreakdown();
+    protected ContextualProfileBreakdown<QueryTimingType> createProfileBreakdown() {
+        return (concurrent) ? new ConcurrentQueryProfileBreakdown() : new QueryProfileBreakdown();
     }
 
     @Override

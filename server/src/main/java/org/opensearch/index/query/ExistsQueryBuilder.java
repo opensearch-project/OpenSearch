@@ -40,7 +40,6 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
@@ -132,12 +131,16 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
                 } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     boost = parser.floatValue();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + ExistsQueryBuilder.NAME +
-                            "] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[" + ExistsQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]"
+                    );
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(), "[" + ExistsQueryBuilder.NAME +
-                        "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "[" + ExistsQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]"
+                );
             }
         }
 
@@ -158,7 +161,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
 
     public static Query newFilter(QueryShardContext context, String fieldPattern, boolean checkRewrite) {
 
-       Collection<String> fields = getMappedField(context, fieldPattern);
+        Collection<String> fields = getMappedField(context, fieldPattern);
 
         if (fields.isEmpty()) {
             if (checkRewrite) {
@@ -166,10 +169,6 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
             } else {
                 return new MatchNoDocsQuery("unmapped field:" + fieldPattern);
             }
-        }
-
-        if (context.indexVersionCreated().before(LegacyESVersion.V_6_1_0)) {
-            return newLegacyExistsQuery(context, fields);
         }
 
         if (fields.size() == 1) {
@@ -180,22 +179,6 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         BooleanQuery.Builder boolFilterBuilder = new BooleanQuery.Builder();
         for (String field : fields) {
             boolFilterBuilder.add(newFieldExistsQuery(context, field), BooleanClause.Occur.SHOULD);
-        }
-        return new ConstantScoreQuery(boolFilterBuilder.build());
-    }
-
-    private static Query newLegacyExistsQuery(QueryShardContext context, Collection<String> fields) {
-        // We create TermsQuery directly here rather than using FieldNamesFieldType.termsQuery()
-        // so we don't end up with deprecation warnings
-        if (fields.size() == 1) {
-            Query filter = newLegacyExistsQuery(context, fields.iterator().next());
-            return new ConstantScoreQuery(filter);
-        }
-
-        BooleanQuery.Builder boolFilterBuilder = new BooleanQuery.Builder();
-        for (String field : fields) {
-            Query filter = newLegacyExistsQuery(context, field);
-            boolFilterBuilder.add(filter, BooleanClause.Occur.SHOULD);
         }
         return new ConstantScoreQuery(boolFilterBuilder.build());
     }
@@ -236,7 +219,8 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
      */
     private static Collection<String> getMappedField(QueryShardContext context, String fieldPattern) {
         final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
-            .getMapperService().fieldType(FieldNamesFieldMapper.NAME);
+            .getMapperService()
+            .fieldType(FieldNamesFieldMapper.NAME);
 
         if (fieldNamesFieldType == null) {
             // can only happen when no types exist, so no docs exist either

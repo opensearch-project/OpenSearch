@@ -76,12 +76,14 @@ public class ReaderContext implements Releasable {
 
     private Map<String, Object> context;
 
-    public ReaderContext(ShardSearchContextId id,
-                         IndexService indexService,
-                         IndexShard indexShard,
-                         Engine.SearcherSupplier searcherSupplier,
-                         long keepAliveInMillis,
-                         boolean singleSession) {
+    public ReaderContext(
+        ShardSearchContextId id,
+        IndexService indexService,
+        IndexShard indexShard,
+        Engine.SearcherSupplier searcherSupplier,
+        long keepAliveInMillis,
+        boolean singleSession
+    ) {
         this.id = id;
         this.indexService = indexService;
         this.indexShard = indexShard;

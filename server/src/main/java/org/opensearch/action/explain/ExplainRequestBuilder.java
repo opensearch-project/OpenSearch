@@ -48,16 +48,8 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
         super(client, action, new ExplainRequest());
     }
 
-    public ExplainRequestBuilder(OpenSearchClient client, ExplainAction action, String index, String type, String id) {
-        super(client, action, new ExplainRequest().index(index).type(type).id(id));
-    }
-
-    /**
-     * Sets the type to get a score explanation for.
-     */
-    public ExplainRequestBuilder setType(String type) {
-        request().type(type);
-        return this;
+    public ExplainRequestBuilder(OpenSearchClient client, ExplainAction action, String index, String id) {
+        super(client, action, new ExplainRequest().index(index).id(id));
     }
 
     /**
@@ -112,7 +104,8 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
      * Indicates whether the response should contain the stored _source
      */
     public ExplainRequestBuilder setFetchSource(boolean fetch) {
-        FetchSourceContext fetchSourceContext = request.fetchSourceContext() != null ? request.fetchSourceContext()
+        FetchSourceContext fetchSourceContext = request.fetchSourceContext() != null
+            ? request.fetchSourceContext()
             : FetchSourceContext.FETCH_SOURCE;
         request.fetchSourceContext(new FetchSourceContext(fetch, fetchSourceContext.includes(), fetchSourceContext.excludes()));
         return this;
@@ -127,8 +120,9 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
      */
     public ExplainRequestBuilder setFetchSource(@Nullable String include, @Nullable String exclude) {
         return setFetchSource(
-                include == null ? Strings.EMPTY_ARRAY : new String[]{include},
-                exclude == null ? Strings.EMPTY_ARRAY : new String[]{exclude});
+            include == null ? Strings.EMPTY_ARRAY : new String[] { include },
+            exclude == null ? Strings.EMPTY_ARRAY : new String[] { exclude }
+        );
     }
 
     /**
@@ -139,7 +133,8 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
      * @param excludes An optional list of exclude (optionally wildcarded) pattern to filter the returned _source
      */
     public ExplainRequestBuilder setFetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
-        FetchSourceContext fetchSourceContext = request.fetchSourceContext() != null ? request.fetchSourceContext()
+        FetchSourceContext fetchSourceContext = request.fetchSourceContext() != null
+            ? request.fetchSourceContext()
             : FetchSourceContext.FETCH_SOURCE;
         request.fetchSourceContext(new FetchSourceContext(fetchSourceContext.fetchSource(), includes, excludes));
         return this;

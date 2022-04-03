@@ -39,8 +39,8 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.test.AbstractXContentTestCase;
-import org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -77,58 +77,60 @@ public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIn
         PutIndexTemplateRequest request2 = new PutIndexTemplateRequest("bar");
         {
             XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-            builder.startObject().startObject("properties")
+            builder.startObject()
+                .startObject("properties")
                 .startObject("field1")
-                    .field("type", "text")
+                .field("type", "text")
                 .endObject()
                 .startObject("field2")
-                    .startObject("properties")
-                        .startObject("field21")
-                            .field("type", "keyword")
-                        .endObject()
-                    .endObject()
-                .endObject()
-            .endObject().endObject();
-            request1.mapping("type1", builder);
-            builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-            builder.startObject().startObject("type1")
                 .startObject("properties")
-                    .startObject("field1")
-                        .field("type", "text")
-                    .endObject()
-                    .startObject("field2")
-                        .startObject("properties")
-                            .startObject("field21")
-                                .field("type", "keyword")
-                            .endObject()
-                        .endObject()
-                    .endObject()
+                .startObject("field21")
+                .field("type", "keyword")
                 .endObject()
-            .endObject().endObject();
-            request2.mapping("type1", builder);
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+            request1.mapping(builder);
+            builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            builder.startObject()
+                .startObject("properties")
+                .startObject("field1")
+                .field("type", "text")
+                .endObject()
+                .startObject("field2")
+                .startObject("properties")
+                .startObject("field21")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+            request2.mapping(builder);
             assertEquals(request1.mappings(), request2.mappings());
         }
         {
             request1 = new PutIndexTemplateRequest("foo");
             request2 = new PutIndexTemplateRequest("bar");
             String nakedMapping = "{\"properties\": {\"foo\": {\"type\": \"integer\"}}}";
-            request1.mapping("type2", nakedMapping, XContentType.JSON);
-            request2.mapping("type2", "{\"type2\": " + nakedMapping + "}", XContentType.JSON);
+            request1.mapping(nakedMapping, XContentType.JSON);
+            request2.mapping(nakedMapping, XContentType.JSON);
             assertEquals(request1.mappings(), request2.mappings());
         }
         {
             request1 = new PutIndexTemplateRequest("foo");
             request2 = new PutIndexTemplateRequest("bar");
-            Map<String , Object> nakedMapping = MapBuilder.<String, Object>newMapBuilder()
-                    .put("properties", MapBuilder.<String, Object>newMapBuilder()
-                            .put("bar", MapBuilder.<String, Object>newMapBuilder()
-                                    .put("type", "scaled_float")
-                                    .put("scaling_factor", 100)
-                            .map())
-                    .map())
-            .map();
-            request1.mapping("type3", nakedMapping);
-            request2.mapping("type3", MapBuilder.<String, Object>newMapBuilder().put("type3", nakedMapping).map());
+            Map<String, Object> nakedMapping = MapBuilder.<String, Object>newMapBuilder()
+                .put(
+                    "properties",
+                    MapBuilder.<String, Object>newMapBuilder()
+                        .put("bar", MapBuilder.<String, Object>newMapBuilder().put("type", "scaled_float").put("scaling_factor", 100).map())
+                        .map()
+                )
+                .map();
+            request1.mapping(nakedMapping);
+            request2.mapping(MapBuilder.<String, Object>newMapBuilder().put(MapperService.SINGLE_MAPPING_NAME, nakedMapping).map());
             assertEquals(request1.mappings(), request2.mappings());
         }
     }
@@ -159,10 +161,18 @@ public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIn
         }
         if (randomBoolean()) {
             try {
-                request.mapping("doc", XContentFactory.jsonBuilder().startObject()
-                    .startObject("doc").startObject("properties")
-                    .startObject("field-" + randomInt()).field("type", randomFrom("keyword", "text")).endObject()
-                    .endObject().endObject().endObject());
+                request.mapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("doc")
+                        .startObject("properties")
+                        .startObject("field-" + randomInt())
+                        .field("type", randomFrom("keyword", "text"))
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                );
             } catch (IOException ex) {
                 throw new UncheckedIOException(ex);
             }

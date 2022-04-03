@@ -31,9 +31,9 @@
 
 package org.opensearch.common.blobstore.fs;
 
-import org.apache.lucene.mockfile.FilterFileSystemProvider;
-import org.apache.lucene.mockfile.FilterSeekableByteChannel;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
+import org.apache.lucene.tests.mockfile.FilterSeekableByteChannel;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.PathUtilsForTesting;
@@ -89,8 +89,11 @@ public class FsBlobContainerTests extends OpenSearchTestCase {
         final Path path = PathUtils.get(createTempDir().toString());
         Files.write(path.resolve(blobName), blobData);
 
-        final FsBlobContainer container =
-            new FsBlobContainer(new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false), BlobPath.cleanPath(), path);
+        final FsBlobContainer container = new FsBlobContainer(
+            new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false),
+            BlobPath.cleanPath(),
+            path
+        );
         assertThat(totalBytesRead.get(), equalTo(0L));
 
         final long start = randomLongBetween(0L, Math.max(0L, blobData.length - 1));

@@ -40,6 +40,7 @@ import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
+import org.opensearch.Version;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
@@ -49,6 +50,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -77,7 +79,6 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         public static final String END_OFFSET = "end_offset";
         public static final String PAYLOAD = "payload";
         public static final String _INDEX = "_index";
-        public static final String _TYPE = "_type";
         public static final String _ID = "_id";
         public static final String _VERSION = "_version";
         public static final String FOUND = "found";
@@ -89,7 +90,6 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
     private BytesReference termVectors;
     private BytesReference headerRef;
     private String index;
-    private String type;
     private String id;
     private long docVersion;
     private boolean exists = false;
@@ -104,18 +104,19 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
     int[] currentEndOffset = new int[0];
     BytesReference[] currentPayloads = new BytesReference[0];
 
-    public TermVectorsResponse(String index, String type, String id) {
+    public TermVectorsResponse(String index, String id) {
         this.index = index;
-        this.type = type;
         this.id = id;
     }
 
-    TermVectorsResponse() {
-    }
+    TermVectorsResponse() {}
 
     TermVectorsResponse(StreamInput in) throws IOException {
         index = in.readString();
-        type = in.readString();
+        if (in.getVersion().before(Version.V_2_0_0)) {
+            // ignore deprecated/removed type
+            in.readString();
+        }
         id = in.readString();
         docVersion = in.readVLong();
         exists = in.readBoolean();
@@ -130,7 +131,10 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
-        out.writeString(type);
+        if (out.getVersion().before(Version.V_2_0_0)) {
+            // send empty array to previous version since types are no longer supported
+            out.writeString(MapperService.SINGLE_MAPPING_NAME);
+        }
         out.writeString(id);
         out.writeVLong(docVersion);
         final boolean docExists = isExists();
@@ -181,11 +185,9 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         assert index != null;
-        assert type != null;
         assert id != null;
         builder.startObject();
         builder.field(FieldStrings._INDEX, index);
-        builder.field(FieldStrings._TYPE, type);
         if (!isArtificial()) {
             builder.field(FieldStrings._ID, id);
         }
@@ -206,8 +208,8 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         return builder;
     }
 
-    private void buildField(XContentBuilder builder, final CharsRefBuilder spare,
-                            Fields theFields, Iterator<String> fieldIter) throws IOException {
+    private void buildField(XContentBuilder builder, final CharsRefBuilder spare, Fields theFields, Iterator<String> fieldIter)
+        throws IOException {
         String fieldName = fieldIter.next();
         builder.startObject(fieldName);
         Terms curTerms = theFields.terms(fieldName);
@@ -223,8 +225,13 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         builder.endObject();
     }
 
-    private void buildTerm(XContentBuilder builder, final CharsRefBuilder spare, Terms curTerms,
-                           TermsEnum termIter, BoostAttribute boostAtt) throws IOException {
+    private void buildTerm(
+        XContentBuilder builder,
+        final CharsRefBuilder spare,
+        Terms curTerms,
+        TermsEnum termIter,
+        BoostAttribute boostAtt
+    ) throws IOException {
         // start term, optimized writing
         BytesRef term = termIter.next();
         spare.copyUTF8Bytes(term);
@@ -246,8 +253,8 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         // boolean that says if these values actually were requested.
         // However, we can assume that they were not if the statistic values are
         // <= 0.
-        assert (((termIter.docFreq() > 0) && (termIter.totalTermFreq() > 0)) ||
-            ((termIter.docFreq() == -1) && (termIter.totalTermFreq() == -1)));
+        assert (((termIter.docFreq() > 0) && (termIter.totalTermFreq() > 0))
+            || ((termIter.docFreq() == -1) && (termIter.totalTermFreq() == -1)));
         int docFreq = termIter.docFreq();
         if (docFreq > 0) {
             builder.field(FieldStrings.DOC_FREQ, docFreq);
@@ -333,9 +340,20 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
             assert ((sumTotalTermFrequencies == -1)) : "docCount was -1 but sumTotalTermFrequencies ain't!";
         } else {
             throw new IllegalStateException(
-                    "Something is wrong with the field statistics of the term vector request: Values are " + "\n"
-                            + FieldStrings.SUM_DOC_FREQ + " " + sumDocFreq + "\n" + FieldStrings.DOC_COUNT + " " + docCount + "\n"
-                            + FieldStrings.SUM_TTF + " " + sumTotalTermFrequencies);
+                "Something is wrong with the field statistics of the term vector request: Values are "
+                    + "\n"
+                    + FieldStrings.SUM_DOC_FREQ
+                    + " "
+                    + sumDocFreq
+                    + "\n"
+                    + FieldStrings.DOC_COUNT
+                    + " "
+                    + docCount
+                    + "\n"
+                    + FieldStrings.SUM_TTF
+                    + " "
+                    + sumTotalTermFrequencies
+            );
         }
     }
 
@@ -358,16 +376,25 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
     }
 
     public void setExists(boolean exists) {
-         this.exists = exists;
+        this.exists = exists;
     }
 
-    public void setFields(Fields termVectorsByField, Set<String> selectedFields,
-                          EnumSet<TermVectorsRequest.Flag> flags, Fields topLevelFields) throws IOException {
+    public void setFields(
+        Fields termVectorsByField,
+        Set<String> selectedFields,
+        EnumSet<TermVectorsRequest.Flag> flags,
+        Fields topLevelFields
+    ) throws IOException {
         setFields(termVectorsByField, selectedFields, flags, topLevelFields, null);
     }
 
-    public void setFields(Fields termVectorsByField, Set<String> selectedFields, EnumSet<TermVectorsRequest.Flag> flags,
-                          Fields topLevelFields, TermVectorsFilter termVectorsFilter) throws IOException {
+    public void setFields(
+        Fields termVectorsByField,
+        Set<String> selectedFields,
+        EnumSet<TermVectorsRequest.Flag> flags,
+        Fields topLevelFields,
+        TermVectorsFilter termVectorsFilter
+    ) throws IOException {
         TermVectorsWriter tvw = new TermVectorsWriter(this);
 
         if (termVectorsByField != null) {
@@ -394,10 +421,6 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
 
     public String getIndex() {
         return index;
-    }
-
-    public String getType() {
-        return type;
     }
 
     public String getId() {

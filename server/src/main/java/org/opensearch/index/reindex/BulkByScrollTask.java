@@ -115,7 +115,8 @@ public class BulkByScrollTask extends CancellableTask {
         }
 
         List<BulkByScrollTask.StatusOrException> sliceStatuses = Arrays.asList(
-            new BulkByScrollTask.StatusOrException[leaderState.getSlices()]);
+            new BulkByScrollTask.StatusOrException[leaderState.getSlices()]
+        );
         for (TaskInfo t : sliceInfo) {
             BulkByScrollTask.Status status = (BulkByScrollTask.Status) t.getStatus();
             sliceStatuses.set(status.getSliceId(), new BulkByScrollTask.StatusOrException(status));
@@ -321,8 +322,20 @@ public class BulkByScrollTask extends CancellableTask {
             if (sliceStatuses.isEmpty()) {
                 try {
                     return new Status(
-                        sliceId, total, updated, created, deleted, batches, versionConflicts, noops, bulkRetries,
-                        searchRetries, throttled, requestsPerSecond, reasonCancelled, throttledUntil
+                        sliceId,
+                        total,
+                        updated,
+                        created,
+                        deleted,
+                        batches,
+                        versionConflicts,
+                        noops,
+                        bulkRetries,
+                        searchRetries,
+                        throttled,
+                        requestsPerSecond,
+                        reasonCancelled,
+                        throttledUntil
                     );
                 } catch (NullPointerException npe) {
                     throw new IllegalArgumentException("a required field is null when building Status");
@@ -422,7 +435,9 @@ public class BulkByScrollTask extends CancellableTask {
             parser.declareString(StatusBuilder::setReasonCancelled, new ParseField(CANCELED_FIELD));
             parser.declareLong(StatusBuilder::setThrottledUntil, new ParseField(THROTTLED_UNTIL_RAW_FIELD));
             parser.declareObjectArray(
-                StatusBuilder::setSliceStatuses, (p, c) -> StatusOrException.fromXContent(p), new ParseField(SLICES_FIELD)
+                StatusBuilder::setSliceStatuses,
+                (p, c) -> StatusOrException.fromXContent(p),
+                new ParseField(SLICES_FIELD)
             );
         }
 
@@ -442,9 +457,22 @@ public class BulkByScrollTask extends CancellableTask {
         private final TimeValue throttledUntil;
         private final List<StatusOrException> sliceStatuses;
 
-        public Status(Integer sliceId, long total, long updated, long created, long deleted, int batches, long versionConflicts, long noops,
-                long bulkRetries, long searchRetries, TimeValue throttled, float requestsPerSecond, @Nullable String reasonCancelled,
-                TimeValue throttledUntil) {
+        public Status(
+            Integer sliceId,
+            long total,
+            long updated,
+            long created,
+            long deleted,
+            int batches,
+            long versionConflicts,
+            long noops,
+            long bulkRetries,
+            long searchRetries,
+            TimeValue throttled,
+            float requestsPerSecond,
+            @Nullable String reasonCancelled,
+            TimeValue throttledUntil
+        ) {
             this.sliceId = sliceId == null ? null : checkPositive(sliceId, "sliceId");
             this.total = checkPositive(total, "total");
             this.updated = checkPositive(updated, "updated");
@@ -581,8 +609,7 @@ public class BulkByScrollTask extends CancellableTask {
          * {@link StatusOrException#fromXContent(XContentParser)} tries to peek at a field first before deciding
          * what needs to be it cannot use an {@link ObjectParser}.
          */
-        public XContentBuilder innerXContent(XContentBuilder builder, Params params)
-                throws IOException {
+        public XContentBuilder innerXContent(XContentBuilder builder, Params params) throws IOException {
             if (sliceId != null) {
                 builder.field(SLICE_ID_FIELD, sliceId);
             }
@@ -597,7 +624,8 @@ public class BulkByScrollTask extends CancellableTask {
             builder.field(BATCHES_FIELD, batches);
             builder.field(VERSION_CONFLICTS_FIELD, versionConflicts);
             builder.field(NOOPS_FIELD, noops);
-            builder.startObject(RETRIES_FIELD); {
+            builder.startObject(RETRIES_FIELD);
+            {
                 builder.field(RETRIES_BULK_FIELD, bulkRetries);
                 builder.field(RETRIES_SEARCH_FIELD, searchRetries);
             }
@@ -625,7 +653,7 @@ public class BulkByScrollTask extends CancellableTask {
         public static Status fromXContent(XContentParser parser) throws IOException {
             XContentParser.Token token;
             if (parser.currentToken() == Token.START_OBJECT) {
-                 token = parser.nextToken();
+                token = parser.nextToken();
             } else {
                 token = parser.nextToken();
             }
@@ -832,8 +860,21 @@ public class BulkByScrollTask extends CancellableTask {
         @Override
         public int hashCode() {
             return Objects.hash(
-                sliceId, total, updated, created, deleted, batches, versionConflicts, noops, searchRetries,
-                bulkRetries, throttled, requestsPerSecond, reasonCancelled, throttledUntil, sliceStatuses
+                sliceId,
+                total,
+                updated,
+                created,
+                deleted,
+                batches,
+                versionConflicts,
+                noops,
+                searchRetries,
+                bulkRetries,
+                throttled,
+                requestsPerSecond,
+                reasonCancelled,
+                throttledUntil,
+                sliceStatuses
             );
         }
 
@@ -841,21 +882,20 @@ public class BulkByScrollTask extends CancellableTask {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Status other = (Status) o;
-            return
-                Objects.equals(sliceId, other.sliceId) &&
-                    total == other.total &&
-                    (!includeUpdated || updated == other.updated) &&
-                    (!includeCreated || created == other.created) &&
-                    deleted == other.deleted &&
-                    batches == other.batches &&
-                    versionConflicts == other.versionConflicts &&
-                    noops == other.noops &&
-                    searchRetries == other.searchRetries &&
-                    bulkRetries == other.bulkRetries &&
-                    Objects.equals(throttled, other.throttled) &&
-                    requestsPerSecond == other.requestsPerSecond &&
-                    Objects.equals(reasonCancelled, other.reasonCancelled) &&
-                    Objects.equals(throttledUntil, other.throttledUntil);
+            return Objects.equals(sliceId, other.sliceId)
+                && total == other.total
+                && (!includeUpdated || updated == other.updated)
+                && (!includeCreated || created == other.created)
+                && deleted == other.deleted
+                && batches == other.batches
+                && versionConflicts == other.versionConflicts
+                && noops == other.noops
+                && searchRetries == other.searchRetries
+                && bulkRetries == other.bulkRetries
+                && Objects.equals(throttled, other.throttled)
+                && requestsPerSecond == other.requestsPerSecond
+                && Objects.equals(reasonCancelled, other.reasonCancelled)
+                && Objects.equals(throttledUntil, other.throttledUntil);
         }
 
         @Override
@@ -901,7 +941,6 @@ public class BulkByScrollTask extends CancellableTask {
             EXPECTED_EXCEPTION_FIELDS.add("error");
             EXPECTED_EXCEPTION_FIELDS.add("root_cause");
         }
-
 
         public StatusOrException(Status status) {
             this.status = status;
@@ -981,10 +1020,8 @@ public class BulkByScrollTask extends CancellableTask {
                     String fieldName = parser.currentName();
                     // weird way to ignore unknown tokens
                     if (Status.FIELDS_SET.contains(fieldName)) {
-                        return new StatusOrException(
-                            Status.innerFromXContent(parser)
-                        );
-                    } else if (EXPECTED_EXCEPTION_FIELDS.contains(fieldName)){
+                        return new StatusOrException(Status.innerFromXContent(parser));
+                    } else if (EXPECTED_EXCEPTION_FIELDS.contains(fieldName)) {
                         return new StatusOrException(OpenSearchException.innerFromXContent(parser, false));
                     } else {
                         // Ignore unknown tokens
@@ -1017,8 +1054,7 @@ public class BulkByScrollTask extends CancellableTask {
                 return false;
             }
             BulkByScrollTask.StatusOrException other = (StatusOrException) obj;
-            return Objects.equals(status, other.status)
-                    && Objects.equals(exception, other.exception);
+            return Objects.equals(status, other.status) && Objects.equals(exception, other.exception);
         }
 
         @Override

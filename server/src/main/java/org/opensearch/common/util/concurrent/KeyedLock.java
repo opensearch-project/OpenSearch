@@ -32,7 +32,6 @@
 
 package org.opensearch.common.util.concurrent;
 
-
 import org.opensearch.common.lease.Releasable;
 
 import java.util.concurrent.ConcurrentMap;
@@ -144,7 +143,6 @@ public final class KeyedLock<T> {
         }
         assert decrementAndGet >= 0 : decrementAndGet + " must be >= 0 but wasn't";
     }
-
 
     private final class ReleasableLock implements Releasable {
         final T key;

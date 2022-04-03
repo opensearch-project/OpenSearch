@@ -58,14 +58,16 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends OpenSearchIntegTest
     private volatile boolean installPlugin;
 
     public IngestProcessorNotInstalledOnAllNodesIT() throws IOException {
-        pipelineSource = BytesReference.bytes(jsonBuilder().startObject()
+        pipelineSource = BytesReference.bytes(
+            jsonBuilder().startObject()
                 .startArray("processors")
-                    .startObject()
-                        .startObject("test")
-                        .endObject()
-                    .endObject()
+                .startObject()
+                .startObject("test")
+                .endObject()
+                .endObject()
                 .endArray()
-                .endObject());
+                .endObject()
+        );
     }
 
     @Override
@@ -119,8 +121,10 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends OpenSearchIntegTest
 
         assertNotNull(pipeline);
         assertThat(pipeline.getId(), equalTo("_id"));
-        assertThat(pipeline.getDescription(), equalTo("this is a place holder pipeline, " +
-            "because pipeline with id [_id] could not be loaded"));
+        assertThat(
+            pipeline.getDescription(),
+            equalTo("this is a place holder pipeline, " + "because pipeline with id [_id] could not be loaded")
+        );
     }
 
 }

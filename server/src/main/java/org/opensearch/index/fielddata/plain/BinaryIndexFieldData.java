@@ -63,6 +63,7 @@ public class BinaryIndexFieldData implements IndexFieldData<BinaryDVLeafFieldDat
             return new BinaryIndexFieldData(name, valuesSourceType);
         }
     }
+
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
 
@@ -81,7 +82,6 @@ public class BinaryIndexFieldData implements IndexFieldData<BinaryDVLeafFieldDat
         return valuesSourceType;
     }
 
-
     @Override
     public BinaryDVLeafFieldData load(LeafReaderContext context) {
         return new BinaryDVLeafFieldData(context.reader(), fieldName);
@@ -93,15 +93,27 @@ public class BinaryIndexFieldData implements IndexFieldData<BinaryDVLeafFieldDat
     }
 
     @Override
-    public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested,
-            boolean reverse) {
+    public SortField sortField(
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        XFieldComparatorSource.Nested nested,
+        boolean reverse
+    ) {
         XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
         return new SortField(getFieldName(), source, reverse);
     }
 
     @Override
-    public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
-            SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+    public BucketedSort newBucketedSort(
+        BigArrays bigArrays,
+        Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested,
+        SortOrder sortOrder,
+        DocValueFormat format,
+        int bucketSize,
+        BucketedSort.ExtraData extra
+    ) {
         throw new IllegalArgumentException("only supported on numeric fields");
     }
 }

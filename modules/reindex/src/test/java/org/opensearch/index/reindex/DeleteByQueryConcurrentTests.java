@@ -49,13 +49,13 @@ import static org.hamcrest.Matchers.equalTo;
 public class DeleteByQueryConcurrentTests extends ReindexTestCase {
 
     public void testConcurrentDeleteByQueriesOnDifferentDocs() throws Throwable {
-        final Thread[] threads =  new Thread[scaledRandomIntBetween(2, 5)];
+        final Thread[] threads = new Thread[scaledRandomIntBetween(2, 5)];
         final long docs = randomIntBetween(1, 50);
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < docs; i++) {
             for (int t = 0; t < threads.length; t++) {
-                builders.add(client().prepareIndex("test", "doc").setSource("field", t));
+                builders.add(client().prepareIndex("test").setSource("field", t));
             }
         }
         indexRandom(true, true, true, builders);
@@ -69,8 +69,10 @@ public class DeleteByQueryConcurrentTests extends ReindexTestCase {
                 try {
                     start.await();
 
-                    assertThat(deleteByQuery().source("_all").filter(termQuery("field", threadNum)).refresh(true).get(),
-                            matcher().deleted(docs));
+                    assertThat(
+                        deleteByQuery().source("_all").filter(termQuery("field", threadNum)).refresh(true).get(),
+                        matcher().deleted(docs)
+                    );
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
@@ -94,11 +96,11 @@ public class DeleteByQueryConcurrentTests extends ReindexTestCase {
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < docs; i++) {
-            builders.add(client().prepareIndex("test", "doc", String.valueOf(i)).setSource("foo", "bar"));
+            builders.add(client().prepareIndex("test").setId(String.valueOf(i)).setSource("foo", "bar"));
         }
         indexRandom(true, true, true, builders);
 
-        final Thread[] threads =  new Thread[scaledRandomIntBetween(2, 9)];
+        final Thread[] threads = new Thread[scaledRandomIntBetween(2, 9)];
 
         final CountDownLatch start = new CountDownLatch(1);
         final MatchQueryBuilder query = matchQuery("foo", "bar");

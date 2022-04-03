@@ -92,9 +92,9 @@ public class OpenSearchJsonLayout extends AbstractStringLayout {
     protected OpenSearchJsonLayout(String typeName, Charset charset, String[] opensearchMessageFields) {
         super(charset);
         this.patternLayout = PatternLayout.newBuilder()
-                                          .withPattern(pattern(typeName, opensearchMessageFields))
-                                          .withAlwaysWriteExceptions(false)
-                                          .build();
+            .withPattern(pattern(typeName, opensearchMessageFields))
+            .withAlwaysWriteExceptions(false)
+            .build();
     }
 
     private String pattern(String type, String[] opensearchMessageFields) {
@@ -115,7 +115,6 @@ public class OpenSearchJsonLayout extends AbstractStringLayout {
         }
         return createPattern(map, Stream.of(opensearchMessageFields).collect(Collectors.toSet()));
     }
-
 
     private String createPattern(Map<String, Object> map, Set<String> opensearchMessageFields) {
         StringBuilder sb = new StringBuilder();
@@ -161,9 +160,7 @@ public class OpenSearchJsonLayout extends AbstractStringLayout {
     }
 
     @PluginFactory
-    public static OpenSearchJsonLayout createLayout(String type,
-                                                    Charset charset,
-                                                    String[] opensearchmessagefields) {
+    public static OpenSearchJsonLayout createLayout(String type, Charset charset, String[] opensearchmessagefields) {
         return new OpenSearchJsonLayout(type, charset, opensearchmessagefields);
     }
 
@@ -172,7 +169,8 @@ public class OpenSearchJsonLayout extends AbstractStringLayout {
     }
 
     public static class Builder<B extends OpenSearchJsonLayout.Builder<B>> extends AbstractStringLayout.Builder<B>
-        implements org.apache.logging.log4j.core.util.Builder<OpenSearchJsonLayout> {
+        implements
+            org.apache.logging.log4j.core.util.Builder<OpenSearchJsonLayout> {
 
         @PluginAttribute("type_name")
         String type;
@@ -189,7 +187,7 @@ public class OpenSearchJsonLayout extends AbstractStringLayout {
 
         @Override
         public OpenSearchJsonLayout build() {
-            String[] split = Strings.isNullOrEmpty(opensearchMessageFields) ? new String[]{} : opensearchMessageFields.split(",");
+            String[] split = Strings.isNullOrEmpty(opensearchMessageFields) ? new String[] {} : opensearchMessageFields.split(",");
             return OpenSearchJsonLayout.createLayout(type, charset, split);
         }
 

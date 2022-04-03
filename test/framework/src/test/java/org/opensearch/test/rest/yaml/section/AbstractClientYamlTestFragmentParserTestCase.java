@@ -35,7 +35,6 @@ package org.opensearch.test.rest.yaml.section;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.test.rest.yaml.section.ExecutableSection;
 import org.junit.After;
 
 import static org.hamcrest.Matchers.nullValue;
@@ -52,7 +51,7 @@ public abstract class AbstractClientYamlTestFragmentParserTestCase extends OpenS
         super.tearDown();
         // test may be skipped so we did not create a parser instance
         if (parser != null) {
-            //next token can be null even in the middle of the document (e.g. with "---"), but not too many consecutive times
+            // next token can be null even in the middle of the document (e.g. with "---"), but not too many consecutive times
             assertThat(parser.currentToken(), nullValue());
             assertThat(parser.nextToken(), nullValue());
             assertThat(parser.nextToken(), nullValue());

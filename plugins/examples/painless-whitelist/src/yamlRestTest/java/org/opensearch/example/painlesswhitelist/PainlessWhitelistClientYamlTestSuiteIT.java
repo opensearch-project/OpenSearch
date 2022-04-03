@@ -48,4 +48,3 @@ public class PainlessWhitelistClientYamlTestSuiteIT extends OpenSearchClientYaml
         return OpenSearchClientYamlSuiteTestCase.createParameters();
     }
 }
-

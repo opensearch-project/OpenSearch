@@ -63,59 +63,55 @@ public class ExistsIT extends OpenSearchIntegTestCase {
         createIndex("test");
         SearchResponse resp = client().prepareSearch("test").setQuery(QueryBuilders.existsQuery("foo")).get();
         assertSearchResponse(resp);
-        resp = client().prepareSearch("test").setQuery(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("foo")))
-                .get();
+        resp = client().prepareSearch("test").setQuery(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("foo"))).get();
         assertSearchResponse(resp);
     }
 
     public void testExists() throws Exception {
         XContentBuilder mapping = XContentBuilder.builder(JsonXContent.jsonXContent)
             .startObject()
-                .startObject("type")
-                    .startObject("properties")
-                        .startObject("foo")
-                            .field("type", "text")
-                        .endObject()
-                        .startObject("bar")
-                            .field("type", "object")
-                            .startObject("properties")
-                                .startObject("foo")
-                                    .field("type", "text")
-                                .endObject()
-                                .startObject("bar")
-                                    .field("type", "object")
-                                    .startObject("properties")
-                                        .startObject("bar")
-                                            .field("type", "text")
-                                        .endObject()
-                                    .endObject()
-                                .endObject()
-                                .startObject("baz")
-                                    .field("type", "long")
-                                .endObject()
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject()
+            .startObject("properties")
+            .startObject("foo")
+            .field("type", "text")
+            .endObject()
+            .startObject("bar")
+            .field("type", "object")
+            .startObject("properties")
+            .startObject("foo")
+            .field("type", "text")
+            .endObject()
+            .startObject("bar")
+            .field("type", "object")
+            .startObject("properties")
+            .startObject("bar")
+            .field("type", "text")
+            .endObject()
+            .endObject()
+            .endObject()
+            .startObject("baz")
+            .field("type", "long")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate("idx").addMapping("type", mapping));
+        assertAcked(client().admin().indices().prepareCreate("idx").setMapping(mapping));
         Map<String, Object> barObject = new HashMap<>();
         barObject.put("foo", "bar");
         barObject.put("bar", singletonMap("bar", "foo"));
         @SuppressWarnings("unchecked")
         final Map<String, Object>[] sources = new Map[] {
-                // simple property
-                singletonMap("foo", "bar"),
-                // object fields
-                singletonMap("bar", barObject),
-                singletonMap("bar", singletonMap("baz", 42)),
-                // empty doc
-                emptyMap()
-        };
+            // simple property
+            singletonMap("foo", "bar"),
+            // object fields
+            singletonMap("bar", barObject),
+            singletonMap("bar", singletonMap("baz", 42)),
+            // empty doc
+            emptyMap() };
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (Map<String, Object> source : sources) {
-            reqs.add(client().prepareIndex("idx", "type").setSource(source));
+            reqs.add(client().prepareIndex("idx").setSource(source));
         }
         // We do NOT index dummy documents, otherwise the type for these dummy documents
         // would have _field_names indexed while the current type might not which might
@@ -143,17 +139,32 @@ public class ExistsIT extends OpenSearchIntegTestCase {
             SearchResponse resp = client().prepareSearch("idx").setQuery(QueryBuilders.existsQuery(fieldName)).get();
             assertSearchResponse(resp);
             try {
-                assertEquals(String.format(Locale.ROOT, "exists(%s, %d) mapping: %s response: %s", fieldName, count,
-                        Strings.toString(mapping), resp), count, resp.getHits().getTotalHits().value);
+                assertEquals(
+                    String.format(
+                        Locale.ROOT,
+                        "exists(%s, %d) mapping: %s response: %s",
+                        fieldName,
+                        count,
+                        Strings.toString(mapping),
+                        resp
+                    ),
+                    count,
+                    resp.getHits().getTotalHits().value
+                );
             } catch (AssertionError e) {
                 for (SearchHit searchHit : allDocs.getHits()) {
                     final String index = searchHit.getIndex();
-                    final String type = searchHit.getType();
                     final String id = searchHit.getId();
-                    final ExplainResponse explanation = client().prepareExplain(index, type, id)
-                            .setQuery(QueryBuilders.existsQuery(fieldName)).get();
-                    logger.info("Explanation for [{}] / [{}] / [{}]: [{}]", fieldName, id, searchHit.getSourceAsString(),
-                            explanation.getExplanation());
+                    final ExplainResponse explanation = client().prepareExplain(index, id)
+                        .setQuery(QueryBuilders.existsQuery(fieldName))
+                        .get();
+                    logger.info(
+                        "Explanation for [{}] / [{}] / [{}]: [{}]",
+                        fieldName,
+                        id,
+                        searchHit.getSourceAsString(),
+                        explanation.getExplanation()
+                    );
                 }
                 throw e;
             }
@@ -163,35 +174,33 @@ public class ExistsIT extends OpenSearchIntegTestCase {
     public void testFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("type")
-                    .startObject("properties")
-                        .startObject("bar")
-                            .field("type", "long")
-                        .endObject()
-                        .startObject("foo")
-                            .field("type", "object")
-                            .startObject("properties")
-                                .startObject("bar")
-                                    .field("type", "double")
-                                .endObject()
-                            .endObject()
-                        .endObject()
-                        .startObject("foo-bar")
-                            .field("type", "alias")
-                            .field("path", "foo.bar")
-                        .endObject()
-                    .endObject()
-                .endObject()
+            .startObject("properties")
+            .startObject("bar")
+            .field("type", "long")
+            .endObject()
+            .startObject("foo")
+            .field("type", "object")
+            .startObject("properties")
+            .startObject("bar")
+            .field("type", "double")
+            .endObject()
+            .endObject()
+            .endObject()
+            .startObject("foo-bar")
+            .field("type", "alias")
+            .field("path", "foo.bar")
+            .endObject()
+            .endObject()
             .endObject();
-        assertAcked(prepareCreate("idx").addMapping("type", mapping));
+        assertAcked(prepareCreate("idx").setMapping(mapping));
         ensureGreen("idx");
 
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
-        indexRequests.add(client().prepareIndex("idx", "type").setSource(emptyMap()));
-        indexRequests.add(client().prepareIndex("idx", "type").setSource(emptyMap()));
-        indexRequests.add(client().prepareIndex("idx", "type").setSource("bar", 3));
-        indexRequests.add(client().prepareIndex("idx", "type").setSource("foo", singletonMap("bar", 2.718)));
-        indexRequests.add(client().prepareIndex("idx", "type").setSource("foo", singletonMap("bar", 6.283)));
+        indexRequests.add(client().prepareIndex("idx").setSource(emptyMap()));
+        indexRequests.add(client().prepareIndex("idx").setSource(emptyMap()));
+        indexRequests.add(client().prepareIndex("idx").setSource("bar", 3));
+        indexRequests.add(client().prepareIndex("idx").setSource("foo", singletonMap("bar", 2.718)));
+        indexRequests.add(client().prepareIndex("idx").setSource("foo", singletonMap("bar", 6.283)));
         indexRandom(true, false, indexRequests);
 
         Map<String, Integer> expected = new LinkedHashMap<>();
@@ -204,9 +213,7 @@ public class ExistsIT extends OpenSearchIntegTestCase {
             String fieldName = entry.getKey();
             int expectedCount = entry.getValue();
 
-            SearchResponse response = client().prepareSearch("idx")
-                .setQuery(QueryBuilders.existsQuery(fieldName))
-                .get();
+            SearchResponse response = client().prepareSearch("idx").setQuery(QueryBuilders.existsQuery(fieldName)).get();
             assertSearchResponse(response);
             assertHitCount(response, expectedCount);
         }
@@ -215,32 +222,28 @@ public class ExistsIT extends OpenSearchIntegTestCase {
     public void testFieldAliasWithNoDocValues() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("type")
-                    .startObject("properties")
-                        .startObject("foo")
-                            .field("type", "long")
-                            .field("doc_values", false)
-                        .endObject()
-                        .startObject("foo-alias")
-                            .field("type", "alias")
-                            .field("path", "foo")
-                        .endObject()
-                    .endObject()
-                .endObject()
+            .startObject("properties")
+            .startObject("foo")
+            .field("type", "long")
+            .field("doc_values", false)
+            .endObject()
+            .startObject("foo-alias")
+            .field("type", "alias")
+            .field("path", "foo")
+            .endObject()
+            .endObject()
             .endObject();
-        assertAcked(prepareCreate("idx").addMapping("type", mapping));
+        assertAcked(prepareCreate("idx").setMapping(mapping));
         ensureGreen("idx");
 
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
-        indexRequests.add(client().prepareIndex("idx", "type").setSource(emptyMap()));
-        indexRequests.add(client().prepareIndex("idx", "type").setSource(emptyMap()));
-        indexRequests.add(client().prepareIndex("idx", "type").setSource("foo", 3));
-        indexRequests.add(client().prepareIndex("idx", "type").setSource("foo", 43));
+        indexRequests.add(client().prepareIndex("idx").setSource(emptyMap()));
+        indexRequests.add(client().prepareIndex("idx").setSource(emptyMap()));
+        indexRequests.add(client().prepareIndex("idx").setSource("foo", 3));
+        indexRequests.add(client().prepareIndex("idx").setSource("foo", 43));
         indexRandom(true, false, indexRequests);
 
-        SearchResponse response = client().prepareSearch("idx")
-            .setQuery(QueryBuilders.existsQuery("foo-alias"))
-            .get();
+        SearchResponse response = client().prepareSearch("idx").setQuery(QueryBuilders.existsQuery("foo-alias")).get();
         assertSearchResponse(response);
         assertHitCount(response, 2);
     }

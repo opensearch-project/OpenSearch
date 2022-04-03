@@ -47,7 +47,6 @@ import org.opensearch.cluster.ClusterName;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.env.Environment;
-import org.opensearch.node.Node;
 
 public class InternalSettingsPreparer {
 
@@ -55,8 +54,8 @@ public class InternalSettingsPreparer {
     private static final String TEXT_PROMPT_VALUE = "${prompt.text}";
 
     /**
-     * Prepares settings for the transport client by gathering all
-     * opensearch system properties and setting defaults.
+     * TODO: Refactor this as transport client is removed and this used to prepare settings for the transport client by
+     * gathering all opensearch system properties and setting defaults.
      */
     public static Settings prepareSettings(Settings input) {
         Settings.Builder output = Settings.builder();
@@ -74,8 +73,12 @@ public class InternalSettingsPreparer {
      * @param defaultNodeName supplier for the default node.name if the setting isn't defined
      * @return the {@link Environment}
      */
-    public static Environment prepareEnvironment(Settings input, Map<String, String> properties,
-            Path configPath, Supplier<String> defaultNodeName) {
+    public static Environment prepareEnvironment(
+        Settings input,
+        Map<String, String> properties,
+        Path configPath,
+        Supplier<String> defaultNodeName
+    ) {
         // just create enough settings to build the environment, to get the config dir
         Settings.Builder output = Settings.builder();
         initializeSettings(output, input, properties);
@@ -119,17 +122,19 @@ public class InternalSettingsPreparer {
      */
     private static void checkSettingsForTerminalDeprecation(final Settings.Builder output) throws SettingsException {
         // This method to be removed in 8.0.0, as it was deprecated in 6.0 and removed in 7.0
-        assert Version.CURRENT.major != 8: "Logic pertaining to config driven prompting should be removed";
+        assert Version.CURRENT.major != 8 : "Logic pertaining to config driven prompting should be removed";
         for (String setting : output.keys()) {
             final String value = output.get(setting);
             if (value != null) {
                 switch (value) {
                     case SECRET_PROMPT_VALUE:
-                        throw new SettingsException("Config driven secret prompting was deprecated in 6.0.0. Use the keystore" +
-                            " for secure settings.");
+                        throw new SettingsException(
+                            "Config driven secret prompting was deprecated in 6.0.0. Use the keystore" + " for secure settings."
+                        );
                     case TEXT_PROMPT_VALUE:
-                        throw new SettingsException("Config driven text prompting was deprecated in 6.0.0. Use the keystore" +
-                            " for secure settings.");
+                        throw new SettingsException(
+                            "Config driven text prompting was deprecated in 6.0.0. Use the keystore" + " for secure settings."
+                        );
                 }
             }
         }

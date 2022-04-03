@@ -34,7 +34,6 @@ import org.opensearch.common.inject.binder.AnnotatedElementBuilder;
 import org.opensearch.common.inject.binder.LinkedBindingBuilder;
 import org.opensearch.common.inject.spi.Message;
 
-
 /**
  * A module whose configuration information is hidden from its environment by default. Only bindings
  * that are explicitly exposed will be available to other modules and to the users of the injector.

@@ -61,7 +61,6 @@ import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
-import org.opensearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.action.admin.indices.open.OpenIndexRequest;
@@ -98,8 +97,8 @@ public class Requests {
     }
 
     /**
-     * Create an index request against a specific index. Note the {@link IndexRequest#type(String)} must be
-     * set as well and optionally the {@link IndexRequest#id(String)}.
+     * Create an index request against a specific index.
+     * Note that setting {@link IndexRequest#id(String)} is optional.
      *
      * @param index The index name to index the request against
      * @return The index request
@@ -110,8 +109,8 @@ public class Requests {
     }
 
     /**
-     * Creates a delete request against a specific index. Note the {@link DeleteRequest#type(String)} and
-     * {@link DeleteRequest#id(String)} must be set.
+     * Creates a delete request against a specific index.
+     * Note that  {@link DeleteRequest#id(String)} must be set.
      *
      * @param index The index name to delete from
      * @return The delete request
@@ -130,7 +129,7 @@ public class Requests {
 
     /**
      * Creates a get request to get the JSON source from an index based on a type and id. Note, the
-     * {@link GetRequest#type(String)} and {@link GetRequest#id(String)} must be set.
+     * {@link GetRequest#id(String)} must be set.
      *
      * @param index The index to get the JSON source from
      * @return The get request
@@ -176,6 +175,7 @@ public class Requests {
     public static IndicesShardStoresRequest indicesShardStoresRequest(String... indices) {
         return new IndicesShardStoresRequest(indices);
     }
+
     /**
      * Creates an indices exists request.
      *
@@ -271,17 +271,6 @@ public class Requests {
      */
     public static FlushRequest flushRequest(String... indices) {
         return new FlushRequest(indices);
-    }
-
-    /**
-     * Creates a synced flush indices request.
-     *
-     * @param indices The indices to sync flush. Use {@code null} or {@code _all} to execute against all indices
-     * @return The synced flush request
-     * @see org.opensearch.client.IndicesAdminClient#syncedFlush(SyncedFlushRequest)
-     */
-    public static SyncedFlushRequest syncedFlushRequest(String... indices) {
-        return new SyncedFlushRequest(indices);
     }
 
     /**
@@ -504,7 +493,6 @@ public class Requests {
     public static VerifyRepositoryRequest verifyRepositoryRequest(String name) {
         return new VerifyRepositoryRequest(name);
     }
-
 
     /**
      * Creates new snapshot

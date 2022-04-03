@@ -35,6 +35,7 @@ package org.opensearch.common.lucene.search.function;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.opensearch.OpenSearchException;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -55,26 +56,45 @@ public class FieldValueFactorFunction extends ScoreFunction {
     private final String field;
     private final float boostFactor;
     private final Modifier modifier;
+    private final String functionName;
+
     /**
      * Value used if the document is missing the field.
      */
     private final Double missing;
     private final IndexNumericFieldData indexFieldData;
 
-    public FieldValueFactorFunction(String field, float boostFactor, Modifier modifierType, Double missing,
-            IndexNumericFieldData indexFieldData) {
+    public FieldValueFactorFunction(
+        String field,
+        float boostFactor,
+        Modifier modifierType,
+        Double missing,
+        IndexNumericFieldData indexFieldData
+    ) {
+        this(field, boostFactor, modifierType, missing, indexFieldData, null);
+    }
+
+    public FieldValueFactorFunction(
+        String field,
+        float boostFactor,
+        Modifier modifierType,
+        Double missing,
+        IndexNumericFieldData indexFieldData,
+        @Nullable String functionName
+    ) {
         super(CombineFunction.MULTIPLY);
         this.field = field;
         this.boostFactor = boostFactor;
         this.modifier = modifierType;
         this.indexFieldData = indexFieldData;
         this.missing = missing;
+        this.functionName = functionName;
     }
 
     @Override
     public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) {
         final SortedNumericDoubleValues values;
-        if(indexFieldData == null) {
+        if (indexFieldData == null) {
             values = FieldData.emptySortedNumericDoubles();
         } else {
             values = this.indexFieldData.load(ctx).getDoubleValues();
@@ -97,8 +117,12 @@ public class FieldValueFactorFunction extends ScoreFunction {
                 double val = value * boostFactor;
                 double result = modifier.apply(val);
                 if (result < 0f) {
-                    String message = "field value function must not produce negative scores, but got: " +
-                            "[" + result + "] for field value: [" + value + "]";
+                    String message = "field value function must not produce negative scores, but got: "
+                        + "["
+                        + result
+                        + "] for field value: ["
+                        + value
+                        + "]";
                     if (modifier == Modifier.LN) {
                         message += "; consider using ln1p or ln2p instead of ln to avoid negative scores";
                     } else if (modifier == Modifier.LOG) {
@@ -115,9 +139,16 @@ public class FieldValueFactorFunction extends ScoreFunction {
                 String defaultStr = missing != null ? "?:" + missing : "";
                 double score = score(docId, subQueryScore.getValue().floatValue());
                 return Explanation.match(
-                        (float) score,
-                        String.format(Locale.ROOT,
-                                "field value function: %s(doc['%s'].value%s * factor=%s)", modifierStr, field, defaultStr, boostFactor));
+                    (float) score,
+                    String.format(
+                        Locale.ROOT,
+                        "field value function" + Functions.nameOrEmptyFunc(functionName) + ": %s(doc['%s'].value%s * factor=%s)",
+                        modifierStr,
+                        field,
+                        defaultStr,
+                        boostFactor
+                    )
+                );
             }
         };
     }
@@ -130,9 +161,9 @@ public class FieldValueFactorFunction extends ScoreFunction {
     @Override
     protected boolean doEquals(ScoreFunction other) {
         FieldValueFactorFunction fieldValueFactorFunction = (FieldValueFactorFunction) other;
-        return this.boostFactor == fieldValueFactorFunction.boostFactor &&
-                Objects.equals(this.field, fieldValueFactorFunction.field) &&
-                Objects.equals(this.modifier, fieldValueFactorFunction.modifier);
+        return this.boostFactor == fieldValueFactorFunction.boostFactor
+            && Objects.equals(this.field, fieldValueFactorFunction.field)
+            && Objects.equals(this.modifier, fieldValueFactorFunction.modifier);
     }
 
     @Override

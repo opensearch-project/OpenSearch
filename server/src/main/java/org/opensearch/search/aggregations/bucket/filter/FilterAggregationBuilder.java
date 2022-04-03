@@ -72,8 +72,11 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
         this.filter = filter;
     }
 
-    protected FilterAggregationBuilder(FilterAggregationBuilder clone,
-                                       AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected FilterAggregationBuilder(
+        FilterAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
         this.filter = clone.filter;
     }
@@ -111,8 +114,11 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
     }
 
     @Override
-    protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
-                                        AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+    protected AggregatorFactory doBuild(
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
         return new FilterAggregatorFactory(name, filter, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 

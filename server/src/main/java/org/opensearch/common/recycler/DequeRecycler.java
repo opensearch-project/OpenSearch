@@ -32,7 +32,6 @@
 
 package org.opensearch.common.recycler;
 
-
 import java.util.Deque;
 
 /**
@@ -97,8 +96,7 @@ public class DequeRecycler<T> extends AbstractRecycler<T> {
             if (recycle) {
                 c.recycle(value);
                 deque.addFirst(value);
-            }
-            else {
+            } else {
                 c.destroy(value);
             }
             value = null;

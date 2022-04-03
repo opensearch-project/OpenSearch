@@ -112,7 +112,6 @@ public abstract class AbstractHttpFixture {
                             final long requestId = requests.getAndIncrement();
                             final String method = exchange.getRequestMethod();
 
-
                             final Map<String, String> headers = new HashMap<>();
                             for (Map.Entry<String, List<String>> header : exchange.getRequestHeaders().entrySet()) {
                                 headers.put(header.getKey(), exchange.getRequestHeaders().getFirst(header.getKey()));
@@ -207,11 +206,7 @@ public abstract class AbstractHttpFixture {
 
         @Override
         public String toString() {
-            return "Response{" +
-                "status=" + status +
-                ", headers=" + headers +
-                ", body=" + new String(body, UTF_8) +
-                '}';
+            return "Response{" + "status=" + status + ", headers=" + headers + ", body=" + new String(body, UTF_8) + '}';
         }
     }
 
@@ -231,8 +226,8 @@ public abstract class AbstractHttpFixture {
             this.id = id;
             this.method = Objects.requireNonNull(method);
             this.uri = Objects.requireNonNull(uri);
-            this.headers =  Objects.requireNonNull(headers);
-            this.body =  Objects.requireNonNull(body);
+            this.headers = Objects.requireNonNull(headers);
+            this.body = Objects.requireNonNull(body);
 
             final Map<String, String> params = new HashMap<>();
             if (uri.getQuery() != null && uri.getQuery().length() > 0) {
@@ -296,13 +291,19 @@ public abstract class AbstractHttpFixture {
 
         @Override
         public String toString() {
-            return "Request{" +
-                "method='" + method + '\'' +
-                ", uri=" + uri +
-                ", parameters=" + parameters +
-                ", headers=" + headers +
-                ", body=" + body +
-                '}';
+            return "Request{"
+                + "method='"
+                + method
+                + '\''
+                + ", uri="
+                + uri
+                + ", parameters="
+                + parameters
+                + ", headers="
+                + headers
+                + ", body="
+                + body
+                + '}';
         }
     }
 

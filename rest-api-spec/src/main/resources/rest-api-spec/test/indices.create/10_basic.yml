@@ -1,9 +1,5 @@
 ---
 "Create index with mappings":
-
-  - skip:
-      version: " - 6.99.99"
-      reason:  include_type_name defaults to true before 7.0.0
   - do:
       indices.create:
         index: test_index
@@ -19,10 +15,6 @@
 
 ---
 "Create index with settings":
-
-  - skip:
-      version: " - 6.99.99"
-      reason:  include_type_name defaults to true before 7.0.0
   - do:
       indices.create:
         index: test_index
@@ -38,10 +30,6 @@
 
 ---
 "Create index":
-
-  - skip:
-      version: " - 6.99.99"
-      reason:  include_type_name defaults to true before 7.0.0
   - do:
       indices.create:
         index: test_index
@@ -51,10 +39,6 @@
 
 ---
 "Create index with wait_for_active_shards set to all":
-
-  - skip:
-      version: " - 6.99.99"
-      reason:  include_type_name defaults to true before 7.0.0
   - do:
       indices.create:
         index: test_index
@@ -68,10 +52,6 @@
 
 ---
 "Create index with aliases":
-
-  - skip:
-      version: " - 6.99.99"
-      reason:  include_type_name defaults to true before 7.0.0
   - do:
       indices.create:
         index: test_index
@@ -102,9 +82,6 @@
 
 ---
 "Create index with write aliases":
-  - skip:
-      version: " - 6.99.99"
-      reason: is_write_index is not implemented in ES <= 6.x
   - do:
       indices.create:
         index: test_index
@@ -135,39 +112,3 @@
             properties:
               "":
                 type:     keyword
-
----
-"Create index with explicit _doc type":
-  - skip:
-      version: " - 6.99.99"
-      reason: include_type_name defaults to true before 7.0
-  - do:
-      catch: bad_request
-      indices.create:
-        index: test_index
-        body:
-          mappings:
-            _doc:
-              properties:
-                field:
-                  type: keyword
-
-  - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "The mapping definition cannot be nested under a type [_doc] unless include_type_name is set to true." }
-
----
-"Create index without soft deletes":
-  - skip:
-      version:  " - 7.5.99"
-      reason:   "indices without soft deletes are deprecated in 7.6"
-      features: "warnings"
-
-  - do:
-      warnings:
-        - Creating indices with soft-deletes disabled is deprecated and will be removed in future OpenSearch versions.
-          Please do not specify value for setting [index.soft_deletes.enabled] of index [test_index].
-      indices.create:
-        index: test_index
-        body:
-          settings:
-            soft_deletes.enabled: false

@@ -171,10 +171,12 @@ public abstract class AbstractAzureComputeServiceTestCase extends OpenSearchInte
          * network addresses for Azure instances running on the same host but different ports.
          */
         @Override
-        protected AzureSeedHostsProvider createSeedHostsProvider(final Settings settings,
-                                                                 final AzureComputeService azureComputeService,
-                                                                 final TransportService transportService,
-                                                                 final NetworkService networkService) {
+        protected AzureSeedHostsProvider createSeedHostsProvider(
+            final Settings settings,
+            final AzureComputeService azureComputeService,
+            final TransportService transportService,
+            final NetworkService networkService
+        ) {
             return new AzureSeedHostsProvider(settings, azureComputeService, transportService, networkService) {
                 @Override
                 protected String resolveInstanceAddress(final HostType hostType, final RoleInstance instance) {

@@ -56,32 +56,34 @@ import static org.hamcrest.Matchers.sameInstance;
 public class DateFormattersTests extends OpenSearchTestCase {
 
     public void testWeekBasedDates() {
-        assumeFalse("won't work in jdk8 " +
-                "because SPI mechanism is not looking at classpath - needs ISOCalendarDataProvider in jre's ext/libs",
-            JavaVersion.current().equals(JavaVersion.parse("8")));
+        assumeFalse(
+            "won't work in jdk8 " + "because SPI mechanism is not looking at classpath - needs ISOCalendarDataProvider in jre's ext/libs",
+            JavaVersion.current().equals(JavaVersion.parse("8"))
+        );
 
         // as per WeekFields.ISO first week starts on Monday and has minimum 4 days
         DateFormatter dateFormatter = DateFormatters.forPattern("YYYY-ww");
 
         // first week of 2016 starts on Monday 2016-01-04 as previous week in 2016 has only 3 days
-        assertThat(DateFormatters.from(dateFormatter.parse("2016-01")) ,
-            equalTo(ZonedDateTime.of(2016,01,04, 0,0,0,0,ZoneOffset.UTC)));
+        assertThat(
+            DateFormatters.from(dateFormatter.parse("2016-01")),
+            equalTo(ZonedDateTime.of(2016, 01, 04, 0, 0, 0, 0, ZoneOffset.UTC))
+        );
 
         // first week of 2015 starts on Monday 2014-12-29 because 4days belong to 2019
-        assertThat(DateFormatters.from(dateFormatter.parse("2015-01")) ,
-            equalTo(ZonedDateTime.of(2014,12,29, 0,0,0,0,ZoneOffset.UTC)));
-
+        assertThat(
+            DateFormatters.from(dateFormatter.parse("2015-01")),
+            equalTo(ZonedDateTime.of(2014, 12, 29, 0, 0, 0, 0, ZoneOffset.UTC))
+        );
 
         // as per WeekFields.ISO first week starts on Monday and has minimum 4 days
-         dateFormatter = DateFormatters.forPattern("YYYY");
+        dateFormatter = DateFormatters.forPattern("YYYY");
 
         // first week of 2016 starts on Monday 2016-01-04 as previous week in 2016 has only 3 days
-        assertThat(DateFormatters.from(dateFormatter.parse("2016")) ,
-            equalTo(ZonedDateTime.of(2016,01,04, 0,0,0,0,ZoneOffset.UTC)));
+        assertThat(DateFormatters.from(dateFormatter.parse("2016")), equalTo(ZonedDateTime.of(2016, 01, 04, 0, 0, 0, 0, ZoneOffset.UTC)));
 
         // first week of 2015 starts on Monday 2014-12-29 because 4days belong to 2019
-        assertThat(DateFormatters.from(dateFormatter.parse("2015")) ,
-            equalTo(ZonedDateTime.of(2014,12,29, 0,0,0,0,ZoneOffset.UTC)));
+        assertThat(DateFormatters.from(dateFormatter.parse("2015")), equalTo(ZonedDateTime.of(2014, 12, 29, 0, 0, 0, 0, ZoneOffset.UTC)));
     }
 
     // this is not in the duelling tests, because the epoch millis parser in joda time drops the milliseconds after the comma
@@ -93,16 +95,127 @@ public class DateFormattersTests extends OpenSearchTestCase {
             Instant instant = Instant.from(formatter.parse("12345"));
             assertThat(instant.getEpochSecond(), is(12L));
             assertThat(instant.getNano(), is(345_000_000));
+            assertThat(formatter.format(instant), is("12345"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
         }
         {
             Instant instant = Instant.from(formatter.parse("0"));
             assertThat(instant.getEpochSecond(), is(0L));
             assertThat(instant.getNano(), is(0));
+            assertThat(formatter.format(instant), is("0"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-123000.123456"));
+            assertThat(instant.getEpochSecond(), is(-124L));
+            assertThat(instant.getNano(), is(999876544));
+            assertThat(formatter.format(instant), is("-123000.123456"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
         }
         {
             Instant instant = Instant.from(formatter.parse("123.123456"));
             assertThat(instant.getEpochSecond(), is(0L));
             assertThat(instant.getNano(), is(123123456));
+            assertThat(formatter.format(instant), is("123.123456"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-123.123456"));
+            assertThat(instant.getEpochSecond(), is(-1L));
+            assertThat(instant.getNano(), is(876876544));
+            assertThat(formatter.format(instant), is("-123.123456"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-6789123.123456"));
+            assertThat(instant.getEpochSecond(), is(-6790L));
+            assertThat(instant.getNano(), is(876876544));
+            assertThat(formatter.format(instant), is("-6789123.123456"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("6789123.123456"));
+            assertThat(instant.getEpochSecond(), is(6789L));
+            assertThat(instant.getNano(), is(123123456));
+            assertThat(formatter.format(instant), is("6789123.123456"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-6250000430768.25"));
+            assertThat(instant.getEpochSecond(), is(-6250000431L));
+            assertThat(instant.getNano(), is(231750000));
+            assertThat(formatter.format(instant), is("-6250000430768.25"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-6250000430768.75"));
+            assertThat(instant.getEpochSecond(), is(-6250000431L));
+            assertThat(instant.getNano(), is(231250000));
+            assertThat(formatter.format(instant), is("-6250000430768.75"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-6250000430768.00"));
+            assertThat(instant.getEpochSecond(), is(-6250000431L));
+            assertThat(instant.getNano(), is(232000000));
+            assertThat(formatter.format(instant), is("-6250000430768")); // remove .00 precision
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-6250000431000.250000"));
+            assertThat(instant.getEpochSecond(), is(-6250000432L));
+            assertThat(instant.getNano(), is(999750000));
+            assertThat(formatter.format(instant), is("-6250000431000.25"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-6250000431000.000001"));
+            assertThat(instant.getEpochSecond(), is(-6250000432L));
+            assertThat(instant.getNano(), is(999999999));
+            assertThat(formatter.format(instant), is("-6250000431000.000001"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-6250000431000.75"));
+            assertThat(instant.getEpochSecond(), is(-6250000432L));
+            assertThat(instant.getNano(), is(999250000));
+            assertThat(formatter.format(instant), is("-6250000431000.75"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-6250000431000.00"));
+            assertThat(instant.getEpochSecond(), is(-6250000431L));
+            assertThat(instant.getNano(), is(0));
+            assertThat(formatter.format(instant), is("-6250000431000"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-6250000431000"));
+            assertThat(instant.getEpochSecond(), is(-6250000431L));
+            assertThat(instant.getNano(), is(0));
+            assertThat(formatter.format(instant), is("-6250000431000"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-6250000430768"));
+            assertThat(instant.getEpochSecond(), is(-6250000431L));
+            assertThat(instant.getNano(), is(232000000));
+            assertThat(formatter.format(instant), is("-6250000430768"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("1680000430768"));
+            assertThat(instant.getEpochSecond(), is(1680000430L));
+            assertThat(instant.getNano(), is(768000000));
+            assertThat(formatter.format(instant), is("1680000430768"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-0.12345"));
+            assertThat(instant.getEpochSecond(), is(-1L));
+            assertThat(instant.getNano(), is(999876550));
+            assertThat(formatter.format(instant), is("-0.12345"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
         }
     }
 
@@ -141,8 +254,6 @@ public class DateFormattersTests extends OpenSearchTestCase {
         assertThat(e.getMessage(), is("failed to parse date field [1234.1234567890] with format [epoch_second]"));
     }
 
-
-
     public void testEpochMilliParsersWithDifferentFormatters() {
         DateFormatter formatter = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
         TemporalAccessor accessor = formatter.parse("123");
@@ -152,18 +263,22 @@ public class DateFormattersTests extends OpenSearchTestCase {
 
     public void testParsersWithMultipleInternalFormats() throws Exception {
         ZonedDateTime first = DateFormatters.from(
-            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("2018-05-15T17:14:56+0100"));
+            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("2018-05-15T17:14:56+0100")
+        );
         ZonedDateTime second = DateFormatters.from(
-            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("2018-05-15T17:14:56+01:00"));
+            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("2018-05-15T17:14:56+01:00")
+        );
         assertThat(first, is(second));
     }
 
     public void testNanoOfSecondWidth() throws Exception {
         ZonedDateTime first = DateFormatters.from(
-            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("1970-01-01T00:00:00.1"));
+            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("1970-01-01T00:00:00.1")
+        );
         assertThat(first.getNano(), is(100000000));
         ZonedDateTime second = DateFormatters.from(
-            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("1970-01-01T00:00:00.000000001"));
+            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("1970-01-01T00:00:00.000000001")
+        );
         assertThat(second.getNano(), is(1));
     }
 
@@ -181,11 +296,12 @@ public class DateFormattersTests extends OpenSearchTestCase {
     }
 
     public void testEqualsAndHashcode() {
-        assertThat(DateFormatters.forPattern("strict_date_optional_time"),
-            sameInstance(DateFormatters.forPattern("strict_date_optional_time")));
+        assertThat(
+            DateFormatters.forPattern("strict_date_optional_time"),
+            sameInstance(DateFormatters.forPattern("strict_date_optional_time"))
+        );
         assertThat(DateFormatters.forPattern("YYYY"), equalTo(DateFormatters.forPattern("YYYY")));
-        assertThat(DateFormatters.forPattern("YYYY").hashCode(),
-            is(DateFormatters.forPattern("YYYY").hashCode()));
+        assertThat(DateFormatters.forPattern("YYYY").hashCode(), is(DateFormatters.forPattern("YYYY").hashCode()));
 
         // different timezone, thus not equals
         assertThat(DateFormatters.forPattern("YYYY").withZone(ZoneId.of("CET")), not(equalTo(DateFormatters.forPattern("YYYY"))));
@@ -222,20 +338,69 @@ public class DateFormattersTests extends OpenSearchTestCase {
         long seconds = randomLongBetween(0, 130L * 365 * 86400); // from 1970 epoch till around 2100
         long nanos = randomLongBetween(0, 999_999_999L);
         Instant instant = Instant.ofEpochSecond(seconds, nanos);
+        {
+            DateFormatter millisFormatter = DateFormatter.forPattern("epoch_millis");
+            String millis = millisFormatter.format(instant);
+            Instant millisInstant = Instant.from(millisFormatter.parse(millis));
+            assertThat(millisInstant.toEpochMilli(), is(instant.toEpochMilli()));
+            assertThat(millisFormatter.format(Instant.ofEpochSecond(42, 0)), is("42000"));
+            assertThat(millisFormatter.format(Instant.ofEpochSecond(42, 123456789L)), is("42123.456789"));
 
-        DateFormatter millisFormatter = DateFormatter.forPattern("epoch_millis");
-        String millis = millisFormatter.format(instant);
-        Instant millisInstant = Instant.from(millisFormatter.parse(millis));
-        assertThat(millisInstant.toEpochMilli(), is(instant.toEpochMilli()));
-        assertThat(millisFormatter.format(Instant.ofEpochSecond(42, 0)), is("42000"));
-        assertThat(millisFormatter.format(Instant.ofEpochSecond(42, 123456789L)), is("42123.456789"));
+            DateFormatter secondsFormatter = DateFormatter.forPattern("epoch_second");
+            String formattedSeconds = secondsFormatter.format(instant);
+            Instant secondsInstant = Instant.from(secondsFormatter.parse(formattedSeconds));
+            assertThat(secondsInstant.getEpochSecond(), is(instant.getEpochSecond()));
 
-        DateFormatter secondsFormatter = DateFormatter.forPattern("epoch_second");
-        String formattedSeconds = secondsFormatter.format(instant);
-        Instant secondsInstant = Instant.from(secondsFormatter.parse(formattedSeconds));
-        assertThat(secondsInstant.getEpochSecond(), is(instant.getEpochSecond()));
+            assertThat(secondsFormatter.format(Instant.ofEpochSecond(42, 0)), is("42"));
+        }
+        {
+            DateFormatter isoFormatter = DateFormatters.forPattern("strict_date_optional_time_nanos");
+            DateFormatter millisFormatter = DateFormatter.forPattern("epoch_millis");
+            String millis = millisFormatter.format(instant);
+            String iso8601 = isoFormatter.format(instant);
 
-        assertThat(secondsFormatter.format(Instant.ofEpochSecond(42, 0)), is("42"));
+            Instant millisInstant = Instant.from(millisFormatter.parse(millis));
+            Instant isoInstant = Instant.from(isoFormatter.parse(iso8601));
+
+            assertThat(millisInstant.toEpochMilli(), is(isoInstant.toEpochMilli()));
+            assertThat(millisInstant.getEpochSecond(), is(isoInstant.getEpochSecond()));
+            assertThat(millisInstant.getNano(), is(isoInstant.getNano()));
+        }
+    }
+
+    public void testEpochFormattingNegativeEpoch() {
+        long seconds = randomLongBetween(-130L * 365 * 86400, 0); // around 1840 till 1970 epoch
+        long nanos = randomLongBetween(0, 999_999_999L);
+        Instant instant = Instant.ofEpochSecond(seconds, nanos);
+
+        {
+            DateFormatter millisFormatter = DateFormatter.forPattern("epoch_millis");
+            String millis = millisFormatter.format(instant);
+            Instant millisInstant = Instant.from(millisFormatter.parse(millis));
+            assertThat(millisInstant.toEpochMilli(), is(instant.toEpochMilli()));
+            assertThat(millisFormatter.format(Instant.ofEpochSecond(-42, 0)), is("-42000"));
+            assertThat(millisFormatter.format(Instant.ofEpochSecond(-42, 123456789L)), is("-41876.543211"));
+
+            DateFormatter secondsFormatter = DateFormatter.forPattern("epoch_second");
+            String formattedSeconds = secondsFormatter.format(instant);
+            Instant secondsInstant = Instant.from(secondsFormatter.parse(formattedSeconds));
+            assertThat(secondsInstant.getEpochSecond(), is(instant.getEpochSecond()));
+
+            assertThat(secondsFormatter.format(Instant.ofEpochSecond(42, 0)), is("42"));
+        }
+        {
+            DateFormatter isoFormatter = DateFormatters.forPattern("strict_date_optional_time_nanos");
+            DateFormatter millisFormatter = DateFormatter.forPattern("epoch_millis");
+            String millis = millisFormatter.format(instant);
+            String iso8601 = isoFormatter.format(instant);
+
+            Instant millisInstant = Instant.from(millisFormatter.parse(millis));
+            Instant isoInstant = Instant.from(isoFormatter.parse(iso8601));
+
+            assertThat(millisInstant.toEpochMilli(), is(isoInstant.toEpochMilli()));
+            assertThat(millisInstant.getEpochSecond(), is(isoInstant.getEpochSecond()));
+            assertThat(millisInstant.getNano(), is(isoInstant.getNano()));
+        }
     }
 
     public void testParsingStrictNanoDates() {
@@ -339,8 +504,13 @@ public class DateFormattersTests extends OpenSearchTestCase {
 
     public void testRoundupFormatterZone() {
         ZoneId zoneId = randomZone();
-        String format = randomFrom("epoch_second", "epoch_millis", "strict_date_optional_time", "uuuu-MM-dd'T'HH:mm:ss.SSS",
-            "strict_date_optional_time||date_optional_time");
+        String format = randomFrom(
+            "epoch_second",
+            "epoch_millis",
+            "strict_date_optional_time",
+            "uuuu-MM-dd'T'HH:mm:ss.SSS",
+            "strict_date_optional_time||date_optional_time"
+        );
         JavaDateFormatter formatter = (JavaDateFormatter) DateFormatter.forPattern(format).withZone(zoneId);
         JavaDateFormatter roundUpFormatter = formatter.getRoundupParser();
         assertThat(roundUpFormatter.zone(), is(zoneId));
@@ -349,8 +519,13 @@ public class DateFormattersTests extends OpenSearchTestCase {
 
     public void testRoundupFormatterLocale() {
         Locale locale = randomLocale(random());
-        String format = randomFrom("epoch_second", "epoch_millis", "strict_date_optional_time", "uuuu-MM-dd'T'HH:mm:ss.SSS",
-            "strict_date_optional_time||date_optional_time");
+        String format = randomFrom(
+            "epoch_second",
+            "epoch_millis",
+            "strict_date_optional_time",
+            "uuuu-MM-dd'T'HH:mm:ss.SSS",
+            "strict_date_optional_time||date_optional_time"
+        );
         JavaDateFormatter formatter = (JavaDateFormatter) DateFormatter.forPattern(format).withLocale(locale);
         JavaDateFormatter roundupParser = formatter.getRoundupParser();
         assertThat(roundupParser.locale(), is(locale));
@@ -359,8 +534,7 @@ public class DateFormattersTests extends OpenSearchTestCase {
 
     public void test0MillisAreFormatted() {
         DateFormatter formatter = DateFormatter.forPattern("strict_date_time");
-        Clock clock = Clock.fixed(ZonedDateTime.of(2019, 02, 8, 11, 43, 00, 0,
-            ZoneOffset.UTC).toInstant(), ZoneOffset.UTC);
+        Clock clock = Clock.fixed(ZonedDateTime.of(2019, 02, 8, 11, 43, 00, 0, ZoneOffset.UTC).toInstant(), ZoneOffset.UTC);
         String formatted = formatter.formatMillis(clock.millis());
         assertThat(formatted, is("2019-02-08T11:43:00.000Z"));
     }
@@ -407,37 +581,98 @@ public class DateFormattersTests extends OpenSearchTestCase {
 
     public void testWeek_yearDeprecation() {
         DateFormatter.forPattern("week_year");
-        assertWarnings("Format name \"week_year\" is deprecated and will be removed in a future version. " +
-                "Use \"weekyear\" format instead");
+        assertWarnings(
+            "Format name \"week_year\" is deprecated and will be removed in a future version. " + "Use \"weekyear\" format instead"
+        );
     }
 
     public void testCamelCaseDeprecation() {
-        String[] deprecatedNames = new String[]{
-            "basicDate", "basicDateTime", "basicDateTimeNoMillis", "basicOrdinalDate", "basicOrdinalDateTime",
-            "basicOrdinalDateTimeNoMillis", "basicTime", "basicTimeNoMillis", "basicTTime", "basicTTimeNoMillis",
-            "basicWeekDate", "basicWeekDateTime", "basicWeekDateTimeNoMillis", "dateHour", "dateHourMinute",
-            "dateHourMinuteSecond", "dateHourMinuteSecondFraction", "dateHourMinuteSecondMillis", "dateOptionalTime",
-            "dateTime", "dateTimeNoMillis", "hourMinute", "hourMinuteSecond", "hourMinuteSecondFraction", "hourMinuteSecondMillis",
-            "ordinalDate", "ordinalDateTime", "ordinalDateTimeNoMillis", "timeNoMillis",
-            "tTime", "tTimeNoMillis", "weekDate", "weekDateTime", "weekDateTimeNoMillis",
-            "weekyearWeek", "weekyearWeekDay",
-            "yearMonth", "yearMonthDay", "strictBasicWeekDate", "strictBasicWeekDateTime",
-            "strictBasicWeekDateTimeNoMillis", "strictDate", "strictDateHour", "strictDateHourMinute", "strictDateHourMinuteSecond",
-            "strictDateHourMinuteSecondFraction", "strictDateHourMinuteSecondMillis", "strictDateOptionalTime",
-            "strictDateOptionalTimeNanos", "strictDateTime", "strictDateTimeNoMillis", "strictHour", "strictHourMinute",
-            "strictHourMinuteSecond", "strictHourMinuteSecondFraction", "strictHourMinuteSecondMillis", "strictOrdinalDate",
-            "strictOrdinalDateTime", "strictOrdinalDateTimeNoMillis", "strictTime", "strictTimeNoMillis", "strictTTime",
-            "strictTTimeNoMillis", "strictWeekDate", "strictWeekDateTime", "strictWeekDateTimeNoMillis", "strictWeekyear",
+        String[] deprecatedNames = new String[] {
+            "basicDate",
+            "basicDateTime",
+            "basicDateTimeNoMillis",
+            "basicOrdinalDate",
+            "basicOrdinalDateTime",
+            "basicOrdinalDateTimeNoMillis",
+            "basicTime",
+            "basicTimeNoMillis",
+            "basicTTime",
+            "basicTTimeNoMillis",
+            "basicWeekDate",
+            "basicWeekDateTime",
+            "basicWeekDateTimeNoMillis",
+            "dateHour",
+            "dateHourMinute",
+            "dateHourMinuteSecond",
+            "dateHourMinuteSecondFraction",
+            "dateHourMinuteSecondMillis",
+            "dateOptionalTime",
+            "dateTime",
+            "dateTimeNoMillis",
+            "hourMinute",
+            "hourMinuteSecond",
+            "hourMinuteSecondFraction",
+            "hourMinuteSecondMillis",
+            "ordinalDate",
+            "ordinalDateTime",
+            "ordinalDateTimeNoMillis",
+            "timeNoMillis",
+            "tTime",
+            "tTimeNoMillis",
+            "weekDate",
+            "weekDateTime",
+            "weekDateTimeNoMillis",
+            "weekyearWeek",
+            "weekyearWeekDay",
+            "yearMonth",
+            "yearMonthDay",
+            "strictBasicWeekDate",
+            "strictBasicWeekDateTime",
+            "strictBasicWeekDateTimeNoMillis",
+            "strictDate",
+            "strictDateHour",
+            "strictDateHourMinute",
+            "strictDateHourMinuteSecond",
+            "strictDateHourMinuteSecondFraction",
+            "strictDateHourMinuteSecondMillis",
+            "strictDateOptionalTime",
+            "strictDateOptionalTimeNanos",
+            "strictDateTime",
+            "strictDateTimeNoMillis",
+            "strictHour",
+            "strictHourMinute",
+            "strictHourMinuteSecond",
+            "strictHourMinuteSecondFraction",
+            "strictHourMinuteSecondMillis",
+            "strictOrdinalDate",
+            "strictOrdinalDateTime",
+            "strictOrdinalDateTimeNoMillis",
+            "strictTime",
+            "strictTimeNoMillis",
+            "strictTTime",
+            "strictTTimeNoMillis",
+            "strictWeekDate",
+            "strictWeekDateTime",
+            "strictWeekDateTimeNoMillis",
+            "strictWeekyear",
             "strictWeekyearWeek",
-            "strictWeekyearWeekDay", "strictYear", "strictYearMonth", "strictYearMonthDay"
-        };
+            "strictWeekyearWeekDay",
+            "strictYear",
+            "strictYearMonth",
+            "strictYearMonthDay" };
         for (String name : deprecatedNames) {
             String snakeCaseName = FormatNames.forName(name).getSnakeCaseName();
 
             DateFormatter dateFormatter = DateFormatter.forPattern(name);
             assertThat(dateFormatter.pattern(), equalTo(name));
-            assertWarnings("Camel case format name " + name + " is deprecated and will be removed in a future version. " +
-                    "Use snake case name " + snakeCaseName + " instead.");
+            assertWarnings(
+                "Camel case format name "
+                    + name
+                    + " is deprecated and will be removed in a future version. "
+                    + "Use snake case name "
+                    + snakeCaseName
+                    + " instead."
+            );
 
             dateFormatter = DateFormatter.forPattern(snakeCaseName);
             assertThat(dateFormatter.pattern(), equalTo(snakeCaseName));
@@ -449,9 +684,6 @@ public class DateFormattersTests extends OpenSearchTestCase {
                 assertThat(dateFormatter.pattern(), equalTo(name));
 
                 String snakeCaseName = FormatNames.forName(name).getSnakeCaseName();
-                assertWarnings("Camel case format name " + name + " is deprecated and will be removed in a future version. " +
-                    "Use snake case name " + snakeCaseName + " instead.");
-
                 dateFormatter = Joda.forPattern(snakeCaseName);
                 assertThat(dateFormatter.pattern(), equalTo(snakeCaseName));
             }

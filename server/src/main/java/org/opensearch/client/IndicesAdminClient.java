@@ -66,9 +66,6 @@ import org.opensearch.action.admin.indices.exists.types.TypesExistsResponse;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.flush.FlushRequestBuilder;
 import org.opensearch.action.admin.indices.flush.FlushResponse;
-import org.opensearch.action.admin.indices.flush.SyncedFlushRequest;
-import org.opensearch.action.admin.indices.flush.SyncedFlushRequestBuilder;
-import org.opensearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequestBuilder;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
@@ -165,7 +162,6 @@ public interface IndicesAdminClient extends OpenSearchClient {
      * Indices exists.
      */
     IndicesExistsRequestBuilder prepareExists(String... indices);
-
 
     /**
      * Types exists.
@@ -427,35 +423,12 @@ public interface IndicesAdminClient extends OpenSearchClient {
      * @param listener A listener to be notified with a result
      * @see org.opensearch.client.Requests#flushRequest(String...)
      */
-    void flush(FlushRequest request, ActionListener <FlushResponse> listener);
+    void flush(FlushRequest request, ActionListener<FlushResponse> listener);
 
     /**
      * Explicitly flush one or more indices (releasing memory from the node).
      */
     FlushRequestBuilder prepareFlush(String... indices);
-
-    /**
-     * Explicitly sync flush one or more indices (write sync id to shards for faster recovery).
-     *
-     * @param request The sync flush request
-     * @return A result future
-     * @see org.opensearch.client.Requests#syncedFlushRequest(String...)
-     */
-    ActionFuture<SyncedFlushResponse> syncedFlush(SyncedFlushRequest request);
-
-    /**
-     * Explicitly sync flush one or more indices (write sync id to shards for faster recovery).
-     *
-     * @param request  The sync flush request
-     * @param listener A listener to be notified with a result
-     * @see org.opensearch.client.Requests#syncedFlushRequest(String...)
-     */
-    void syncedFlush(SyncedFlushRequest request, ActionListener <SyncedFlushResponse> listener);
-
-    /**
-     * Explicitly sync flush one or more indices (write sync id to shards for faster recovery).
-     */
-    SyncedFlushRequestBuilder prepareSyncedFlush(String... indices);
 
     /**
      * Explicitly force merge one or more indices into a the number of segments.

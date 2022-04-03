@@ -34,8 +34,8 @@ package org.opensearch.index.codec;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene87.Lucene87Codec;
-import org.apache.lucene.codecs.lucene87.Lucene87Codec.Mode;
+import org.apache.lucene.codecs.lucene91.Lucene91Codec;
+import org.apache.lucene.codecs.lucene91.Lucene91Codec.Mode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.index.mapper.MapperService;
@@ -60,13 +60,11 @@ public class CodecService {
     public CodecService(@Nullable MapperService mapperService, Logger logger) {
         final MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
         if (mapperService == null) {
-            codecs.put(DEFAULT_CODEC, new Lucene87Codec());
-            codecs.put(BEST_COMPRESSION_CODEC, new Lucene87Codec(Mode.BEST_COMPRESSION));
+            codecs.put(DEFAULT_CODEC, new Lucene91Codec());
+            codecs.put(BEST_COMPRESSION_CODEC, new Lucene91Codec(Mode.BEST_COMPRESSION));
         } else {
-            codecs.put(DEFAULT_CODEC,
-                    new PerFieldMappingPostingFormatCodec(Mode.BEST_SPEED, mapperService, logger));
-            codecs.put(BEST_COMPRESSION_CODEC,
-                    new PerFieldMappingPostingFormatCodec(Mode.BEST_COMPRESSION, mapperService, logger));
+            codecs.put(DEFAULT_CODEC, new PerFieldMappingPostingFormatCodec(Mode.BEST_SPEED, mapperService, logger));
+            codecs.put(BEST_COMPRESSION_CODEC, new PerFieldMappingPostingFormatCodec(Mode.BEST_COMPRESSION, mapperService, logger));
         }
         codecs.put(LUCENE_DEFAULT_CODEC, Codec.getDefault());
         for (String codec : Codec.availableCodecs()) {

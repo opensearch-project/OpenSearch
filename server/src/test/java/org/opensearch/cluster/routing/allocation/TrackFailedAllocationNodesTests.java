@@ -41,7 +41,6 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRoutingState;
-import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
 import org.opensearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.opensearch.common.settings.Settings;
@@ -66,7 +65,8 @@ public class TrackFailedAllocationNodesTests extends OpenSearchAllocationTestCas
         }
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(discoNodes)
-            .metadata(metadata).routingTable(RoutingTable.builder().addAsNew(metadata.index("idx")).build())
+            .metadata(metadata)
+            .routingTable(RoutingTable.builder().addAsNew(metadata.index("idx")).build())
             .build();
         clusterState = allocationService.reroute(clusterState, "reroute");
         Set<String> failedNodeIds = new HashSet<>();
@@ -75,9 +75,14 @@ public class TrackFailedAllocationNodesTests extends OpenSearchAllocationTestCas
         for (int i = 0; i < maxRetries; i++) {
             failedNodeIds.add(clusterState.routingTable().index("idx").shard(0).shards().get(0).currentNodeId());
             clusterState = allocationService.applyFailedShard(
-                clusterState, clusterState.routingTable().index("idx").shard(0).shards().get(0), randomBoolean());
-            assertThat(clusterState.routingTable().index("idx").shard(0).shards().get(0).unassignedInfo().getFailedNodeIds(),
-                equalTo(failedNodeIds));
+                clusterState,
+                clusterState.routingTable().index("idx").shard(0).shards().get(0),
+                randomBoolean()
+            );
+            assertThat(
+                clusterState.routingTable().index("idx").shard(0).shards().get(0).unassignedInfo().getFailedNodeIds(),
+                equalTo(failedNodeIds)
+            );
         }
 
         // reroute with retryFailed=true should discard the failedNodes
@@ -89,7 +94,10 @@ public class TrackFailedAllocationNodesTests extends OpenSearchAllocationTestCas
         clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
         assertThat(clusterState.routingTable().index("idx").shard(0).shards().get(0).state(), equalTo(ShardRoutingState.STARTED));
         clusterState = allocationService.applyFailedShard(
-            clusterState, clusterState.routingTable().index("idx").shard(0).shards().get(0), false);
+            clusterState,
+            clusterState.routingTable().index("idx").shard(0).shards().get(0),
+            false
+        );
         assertThat(clusterState.routingTable().index("idx").shard(0).shards().get(0).unassignedInfo().getFailedNodeIds(), empty());
     }
 }

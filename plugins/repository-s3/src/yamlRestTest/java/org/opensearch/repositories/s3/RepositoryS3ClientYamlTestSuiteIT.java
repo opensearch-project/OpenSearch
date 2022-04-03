@@ -49,4 +49,3 @@ public class RepositoryS3ClientYamlTestSuiteIT extends OpenSearchClientYamlSuite
         return OpenSearchClientYamlSuiteTestCase.createParameters();
     }
 }
-

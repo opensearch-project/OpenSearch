@@ -185,4 +185,3 @@ public class EwmaModel extends MovAvgModel {
         }
     }
 }
-

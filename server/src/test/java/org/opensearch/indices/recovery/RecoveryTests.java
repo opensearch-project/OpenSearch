@@ -110,16 +110,27 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             final IndexShard replica = shards.addReplica();
             final CountDownLatch recoveryBlocked = new CountDownLatch(1);
             final CountDownLatch releaseRecovery = new CountDownLatch(1);
-            Future<Void> future = shards.asyncRecoverReplica(replica,
-                (indexShard, node) -> new RecoveryDuringReplicationTests.BlockingTarget(RecoveryState.Stage.TRANSLOG,
-                    recoveryBlocked, releaseRecovery, indexShard, node, recoveryListener, logger));
+            Future<Void> future = shards.asyncRecoverReplica(
+                replica,
+                (indexShard, node) -> new RecoveryDuringReplicationTests.BlockingTarget(
+                    RecoveryState.Stage.TRANSLOG,
+                    recoveryBlocked,
+                    releaseRecovery,
+                    indexShard,
+                    node,
+                    recoveryListener,
+                    logger
+                )
+            );
             recoveryBlocked.await();
             IndexMetadata.Builder builder = IndexMetadata.builder(replica.indexSettings().getIndexMetadata());
-            builder.settings(Settings.builder().put(replica.indexSettings().getSettings())
-                .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
-                .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
-                // force a roll and flush
-                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "100b")
+            builder.settings(
+                Settings.builder()
+                    .put(replica.indexSettings().getSettings())
+                    .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
+                    .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
+                    // force a roll and flush
+                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "100b")
             );
             replica.indexSettings().updateIndexMetadata(builder.build());
             replica.onSettingsChanged();
@@ -133,85 +144,14 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
         }
     }
 
-    public void testRecoveryWithOutOfOrderDeleteWithTranslog() throws Exception {
-        /*
-         * The flow of this test:
-         * - delete #1
-         * - roll generation (to create gen 2)
-         * - index #0
-         * - index #3
-         * - flush (commit point has max_seqno 3, and local checkpoint 1 -> points at gen 2, previous commit point is maintained)
-         * - index #2
-         * - index #5
-         * - If flush and the translog retention disabled, delete #1 will be removed while index #0 is still retained and replayed.
-         */
-        Settings settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false).build();
-        try (ReplicationGroup shards = createGroup(1, settings)) {
-            shards.startAll();
-            // create out of order delete and index op on replica
-            final IndexShard orgReplica = shards.getReplicas().get(0);
-            final String indexName = orgReplica.shardId().getIndexName();
-            final long primaryTerm = orgReplica.getOperationPrimaryTerm();
-
-            // delete #1
-            orgReplica.advanceMaxSeqNoOfUpdatesOrDeletes(1); // manually advance msu for this delete
-            orgReplica.applyDeleteOperationOnReplica(1, primaryTerm, 2, "type", "id");
-            getTranslog(orgReplica).rollGeneration(); // isolate the delete in it's own generation
-            // index #0
-            orgReplica.applyIndexOperationOnReplica(0, primaryTerm, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
-                new SourceToParse(indexName, "type", "id", new BytesArray("{}"), XContentType.JSON));
-            // index #3
-            orgReplica.applyIndexOperationOnReplica(3, primaryTerm, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
-                new SourceToParse(indexName, "type", "id-3", new BytesArray("{}"), XContentType.JSON));
-            // Flushing a new commit with local checkpoint=1 allows to delete the translog gen #1.
-            orgReplica.flush(new FlushRequest().force(true).waitIfOngoing(true));
-            // index #2
-            orgReplica.applyIndexOperationOnReplica(2, primaryTerm, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
-                new SourceToParse(indexName, "type", "id-2", new BytesArray("{}"), XContentType.JSON));
-            orgReplica.sync(); // advance local checkpoint
-            orgReplica.updateGlobalCheckpointOnReplica(3L, "test");
-            // index #5 -> force NoOp #4.
-            orgReplica.applyIndexOperationOnReplica(5, primaryTerm, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
-                new SourceToParse(indexName, "type", "id-5", new BytesArray("{}"), XContentType.JSON));
-
-            final int translogOps;
-            if (randomBoolean()) {
-                if (randomBoolean()) {
-                    logger.info("--> flushing shard (translog will be trimmed)");
-                    IndexMetadata.Builder builder = IndexMetadata.builder(orgReplica.indexSettings().getIndexMetadata());
-                    builder.settings(Settings.builder().put(orgReplica.indexSettings().getSettings())
-                        .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
-                        .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1"));
-                    orgReplica.indexSettings().updateIndexMetadata(builder.build());
-                    orgReplica.onSettingsChanged();
-                    translogOps = 5; // 4 ops + seqno gaps (delete #1 is removed but index #0 will be replayed).
-                } else {
-                    logger.info("--> flushing shard (translog will be retained)");
-                    translogOps = 6; // 5 ops + seqno gaps
-                }
-                flushShard(orgReplica);
-            } else {
-                translogOps = 6; // 5 ops + seqno gaps
-            }
-
-            final IndexShard orgPrimary = shards.getPrimary();
-            shards.promoteReplicaToPrimary(orgReplica).get(); // wait for primary/replica sync to make sure seq# gap is closed.
-
-            IndexShard newReplica = shards.addReplicaWithExistingPath(orgPrimary.shardPath(), orgPrimary.routingEntry().currentNodeId());
-            shards.recoverReplica(newReplica);
-            shards.assertAllEqual(3);
-
-            assertThat(getTranslog(newReplica).totalOperations(), equalTo(translogOps));
-        }
-    }
-
     public void testRecoveryWithOutOfOrderDeleteWithSoftDeletes() throws Exception {
         Settings settings = Settings.builder()
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 10)
             // If soft-deletes is enabled, delete#1 will be reclaimed because its segment (segment_1) is fully deleted
             // index#0 will be retained if merge is disabled; otherwise it will be reclaimed because gcp=3 and retained_ops=0
-            .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false).build();
+            .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+            .build();
         try (ReplicationGroup shards = createGroup(1, settings)) {
             shards.startAll();
             // create out of order delete and index op on replica
@@ -221,31 +161,58 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
 
             // delete #1
             orgReplica.advanceMaxSeqNoOfUpdatesOrDeletes(1); // manually advance msu for this delete
-            orgReplica.applyDeleteOperationOnReplica(1, primaryTerm, 2, "type", "id");
+            orgReplica.applyDeleteOperationOnReplica(1, primaryTerm, 2, "id");
             orgReplica.flush(new FlushRequest().force(true)); // isolate delete#1 in its own translog generation and lucene segment
             // index #0
-            orgReplica.applyIndexOperationOnReplica(0, primaryTerm, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
-                new SourceToParse(indexName, "type", "id", new BytesArray("{}"), XContentType.JSON));
+            orgReplica.applyIndexOperationOnReplica(
+                0,
+                primaryTerm,
+                1,
+                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+                false,
+                new SourceToParse(indexName, "id", new BytesArray("{}"), XContentType.JSON)
+            );
             // index #3
-            orgReplica.applyIndexOperationOnReplica(3, primaryTerm, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
-                new SourceToParse(indexName, "type", "id-3", new BytesArray("{}"), XContentType.JSON));
+            orgReplica.applyIndexOperationOnReplica(
+                3,
+                primaryTerm,
+                1,
+                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+                false,
+                new SourceToParse(indexName, "id-3", new BytesArray("{}"), XContentType.JSON)
+            );
             // Flushing a new commit with local checkpoint=1 allows to delete the translog gen #1.
             orgReplica.flush(new FlushRequest().force(true).waitIfOngoing(true));
             // index #2
-            orgReplica.applyIndexOperationOnReplica(2, primaryTerm, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
-                new SourceToParse(indexName, "type", "id-2", new BytesArray("{}"), XContentType.JSON));
+            orgReplica.applyIndexOperationOnReplica(
+                2,
+                primaryTerm,
+                1,
+                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+                false,
+                new SourceToParse(indexName, "id-2", new BytesArray("{}"), XContentType.JSON)
+            );
             orgReplica.sync(); // advance local checkpoint
             orgReplica.updateGlobalCheckpointOnReplica(3L, "test");
             // index #5 -> force NoOp #4.
-            orgReplica.applyIndexOperationOnReplica(5, primaryTerm, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
-                new SourceToParse(indexName, "type", "id-5", new BytesArray("{}"), XContentType.JSON));
+            orgReplica.applyIndexOperationOnReplica(
+                5,
+                primaryTerm,
+                1,
+                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+                false,
+                new SourceToParse(indexName, "id-5", new BytesArray("{}"), XContentType.JSON)
+            );
 
             if (randomBoolean()) {
                 if (randomBoolean()) {
                     logger.info("--> flushing shard (translog/soft-deletes will be trimmed)");
                     IndexMetadata.Builder builder = IndexMetadata.builder(orgReplica.indexSettings().getIndexMetadata());
-                    builder.settings(Settings.builder().put(orgReplica.indexSettings().getSettings())
-                        .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0));
+                    builder.settings(
+                        Settings.builder()
+                            .put(orgReplica.indexSettings().getSettings())
+                            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0)
+                    );
                     orgReplica.indexSettings().updateIndexMetadata(builder.build());
                     orgReplica.onSettingsChanged();
                 }
@@ -258,7 +225,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             IndexShard newReplica = shards.addReplicaWithExistingPath(orgPrimary.shardPath(), orgPrimary.routingEntry().currentNodeId());
             shards.recoverReplica(newReplica);
             shards.assertAllEqual(3);
-            try (Translog.Snapshot snapshot = newReplica.getHistoryOperations("test", Engine.HistorySource.INDEX, 0)) {
+            try (Translog.Snapshot snapshot = newReplica.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean())) {
                 assertThat(snapshot, SnapshotMatchers.size(6));
             }
         }
@@ -280,8 +247,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             Translog.TranslogGeneration translogGeneration = getTranslog(replica).getGeneration();
             shards.removeReplica(replica);
             replica.close("test", false);
-            IndexWriterConfig iwc = new IndexWriterConfig(null)
-                .setCommitOnClose(false)
+            IndexWriterConfig iwc = new IndexWriterConfig(null).setCommitOnClose(false)
                 // we don't want merges to happen here - we call maybe merge on the engine
                 // later once we stared it up otherwise we would need to wait for it here
                 // we also don't specify a codec here and merges should use the engines for this index
@@ -292,8 +258,12 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             final String historyUUIDtoUse = UUIDs.randomBase64UUID(random());
             if (randomBoolean()) {
                 // create a new translog
-                translogUUIDtoUse = Translog.createEmptyTranslog(replica.shardPath().resolveTranslog(), flushedDocs,
-                    replica.shardId(), replica.getPendingPrimaryTerm());
+                translogUUIDtoUse = Translog.createEmptyTranslog(
+                    replica.shardPath().resolveTranslog(),
+                    flushedDocs,
+                    replica.shardId(),
+                    replica.getPendingPrimaryTerm()
+                );
             } else {
                 translogUUIDtoUse = translogGeneration.translogUUID;
             }
@@ -337,10 +307,15 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
         int numDocs = between(1, 100);
         long globalCheckpoint = 0;
         for (int i = 0; i < numDocs; i++) {
-            Engine.IndexResult result = primaryShard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-                new SourceToParse(primaryShard.shardId().getIndexName(), "_doc", Integer.toString(i), new BytesArray("{}"),
-                    XContentType.JSON),
-                SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
+            Engine.IndexResult result = primaryShard.applyIndexOperationOnPrimary(
+                Versions.MATCH_ANY,
+                VersionType.INTERNAL,
+                new SourceToParse(primaryShard.shardId().getIndexName(), Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                0,
+                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+                false
+            );
             assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
             if (randomBoolean()) {
                 globalCheckpoint = randomLongBetween(globalCheckpoint, i);
@@ -357,9 +332,14 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
                 super.prepareForTranslogOperations(totalTranslogOps, listener);
                 assertThat(replicaShard.getLastKnownGlobalCheckpoint(), equalTo(primaryShard.getLastKnownGlobalCheckpoint()));
             }
+
             @Override
-            public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetadata,
-                                   ActionListener<Void> listener) {
+            public void cleanFiles(
+                int totalTranslogOps,
+                long globalCheckpoint,
+                Store.MetadataSnapshot sourceMetadata,
+                ActionListener<Void> listener
+            ) {
                 assertThat(globalCheckpoint, equalTo(primaryShard.getLastKnownGlobalCheckpoint()));
                 super.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetadata, listener);
             }
@@ -399,8 +379,11 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
                 if (newReplica.indexSettings().isSoftDeleteEnabled()) {
                     assertThat(snapshot.totalOperations(), equalTo(0));
                 } else {
-                    assertThat("Sequence based recovery should keep existing translog",
-                        snapshot, SnapshotMatchers.size(initDocs + moreDocs));
+                    assertThat(
+                        "Sequence based recovery should keep existing translog",
+                        snapshot,
+                        SnapshotMatchers.size(initDocs + moreDocs)
+                    );
                 }
             }
             assertThat(newReplica.recoveryState().getTranslog().recoveredOperations(), equalTo(uncommittedDocs + moreDocs));
@@ -422,8 +405,10 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             final IndexShard replica = shards.addReplica();
             IndexMetadata.Builder builder = IndexMetadata.builder(replica.indexSettings().getIndexMetadata());
             long flushThreshold = RandomNumbers.randomLongBetween(random(), 100, translogSizeOnPrimary);
-            builder.settings(Settings.builder().put(replica.indexSettings().getSettings())
-                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), flushThreshold + "b")
+            builder.settings(
+                Settings.builder()
+                    .put(replica.indexSettings().getSettings())
+                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), flushThreshold + "b")
             );
             replica.indexSettings().updateIndexMetadata(builder.build());
             replica.onSettingsChanged();
@@ -461,18 +446,23 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             group.indexDocs(randomIntBetween(1, 10));
             allowShardFailures();
             IndexShard replica = group.addReplica();
-            expectThrows(Exception.class, () -> group.recoverReplica(replica,
-                (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, new PeerRecoveryTargetService.RecoveryListener() {
-                    @Override
-                    public void onRecoveryDone(RecoveryState state) {
-                        throw new AssertionError("recovery must fail");
-                    }
+            expectThrows(
+                Exception.class,
+                () -> group.recoverReplica(
+                    replica,
+                    (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, new PeerRecoveryTargetService.RecoveryListener() {
+                        @Override
+                        public void onRecoveryDone(RecoveryState state) {
+                            throw new AssertionError("recovery must fail");
+                        }
 
-                    @Override
-                    public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
-                        assertThat(ExceptionsHelper.unwrap(e, IOException.class).getMessage(), equalTo("simulated"));
-                    }
-                })));
+                        @Override
+                        public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
+                            assertThat(ExceptionsHelper.unwrap(e, IOException.class).getMessage(), equalTo("simulated"));
+                        }
+                    })
+                )
+            );
             expectThrows(AlreadyClosedException.class, () -> replica.refresh("test"));
             group.removeReplica(replica);
             replica.store().close();
@@ -490,7 +480,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             }
             int inflightDocs = scaledRandomIntBetween(1, 100);
             for (int i = 0; i < inflightDocs; i++) {
-                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "extra_" + i).source("{}", XContentType.JSON);
+                final IndexRequest indexRequest = new IndexRequest(index.getName()).id("extra_" + i).source("{}", XContentType.JSON);
                 final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
                 for (IndexShard replica : randomSubsetOf(shards.getReplicas())) {
                     indexOnReplica(bulkShardRequest, shards, replica);

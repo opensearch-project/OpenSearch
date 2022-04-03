@@ -42,8 +42,6 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.monitor.os.OsStats;
 import org.opensearch.node.NodeRoleSettings;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -74,9 +72,10 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
     }
 
     private void waitForNodes(int numNodes) {
-        ClusterHealthResponse actionGet = client().admin().cluster()
-                .health(Requests.clusterHealthRequest().waitForEvents(Priority.LANGUID)
-                    .waitForNodes(Integer.toString(numNodes))).actionGet();
+        ClusterHealthResponse actionGet = client().admin()
+            .cluster()
+            .health(Requests.clusterHealthRequest().waitForEvents(Priority.LANGUID).waitForNodes(Integer.toString(numNodes)))
+            .actionGet();
         assertThat(actionGet.isTimedOut(), is(false));
     }
 
@@ -86,6 +85,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         Map<String, Integer> expectedCounts = new HashMap<>();
         expectedCounts.put(DiscoveryNodeRole.DATA_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.MASTER_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.INGEST_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), 1);
         expectedCounts.put(ClusterStatsNodes.Counts.COORDINATING_ONLY, 0);
@@ -107,7 +107,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
                 roles.add(DiscoveryNodeRole.INGEST_ROLE);
             }
             if (isMasterNode) {
-                roles.add(DiscoveryNodeRole.MASTER_ROLE);
+                roles.add(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
             }
             if (isRemoteClusterClientNode) {
                 roles.add(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
@@ -130,6 +130,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
             }
             if (isMasterNode) {
                 incrementCountForRole(DiscoveryNodeRole.MASTER_ROLE.roleName(), expectedCounts);
+                incrementCountForRole(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(), expectedCounts);
             }
             if (isRemoteClusterClientNode) {
                 incrementCountForRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), expectedCounts);
@@ -275,12 +276,15 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
         assertTrue(response.getIndicesStats().getMappings().getFieldTypeStats().isEmpty());
 
-        client().admin().indices().prepareCreate("test1").addMapping(MapperService.SINGLE_MAPPING_NAME,
-            "{\"properties\":{\"foo\":{\"type\": \"keyword\"}}}", XContentType.JSON).get();
-        client().admin().indices().prepareCreate("test2")
-            .addMapping(MapperService.SINGLE_MAPPING_NAME,
-                "{\"properties\":{\"foo\":{\"type\": \"keyword\"},\"bar\":{\"properties\":{\"baz\":{\"type\":\"keyword\"}," +
-                "\"eggplant\":{\"type\":\"integer\"}}}}}", XContentType.JSON).get();
+        client().admin().indices().prepareCreate("test1").setMapping("{\"properties\":{\"foo\":{\"type\": \"keyword\"}}}").get();
+        client().admin()
+            .indices()
+            .prepareCreate("test2")
+            .setMapping(
+                "{\"properties\":{\"foo\":{\"type\": \"keyword\"},\"bar\":{\"properties\":{\"baz\":{\"type\":\"keyword\"},"
+                    + "\"eggplant\":{\"type\":\"integer\"}}}}}"
+            )
+            .get();
         response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getIndicesStats().getMappings().getFieldTypeStats().size(), equalTo(3));
         Set<IndexFeatureStats> stats = response.getIndicesStats().getMappings().getFieldTypeStats();

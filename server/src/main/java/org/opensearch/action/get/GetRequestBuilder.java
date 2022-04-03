@@ -53,15 +53,6 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
     }
 
     /**
-     * Sets the type of the document to fetch. If set to {@code null}, will use just the id to fetch the
-     * first document matching it.
-     */
-    public GetRequestBuilder setType(@Nullable String type) {
-        request.type(type);
-        return this;
-    }
-
-    /**
      * Sets the id of the document to fetch.
      */
     public GetRequestBuilder setId(String id) {
@@ -117,8 +108,9 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
      */
     public GetRequestBuilder setFetchSource(@Nullable String include, @Nullable String exclude) {
         return setFetchSource(
-                include == null ? Strings.EMPTY_ARRAY : new String[]{include},
-                exclude == null ? Strings.EMPTY_ARRAY : new String[]{exclude});
+            include == null ? Strings.EMPTY_ARRAY : new String[] { include },
+            exclude == null ? Strings.EMPTY_ARRAY : new String[] { exclude }
+        );
     }
 
     /**

@@ -34,7 +34,6 @@ package org.opensearch.analysis.common;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ngram.NGramTokenizer;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
@@ -71,9 +70,9 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
         // Populate with unicode categories from java.lang.Character
         for (Field field : Character.class.getFields()) {
             if (!field.getName().startsWith("DIRECTIONALITY")
-                    && Modifier.isPublic(field.getModifiers())
-                    && Modifier.isStatic(field.getModifiers())
-                    && field.getType() == byte.class) {
+                && Modifier.isPublic(field.getModifiers())
+                && Modifier.isStatic(field.getModifiers())
+                && field.getType() == byte.class) {
                 try {
                     matchers.put(field.getName().toLowerCase(Locale.ROOT), CharMatcher.ByUnicodeCategory.of(field.getByte(null)));
                 } catch (Exception e) {
@@ -96,8 +95,14 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
             CharMatcher matcher = MATCHERS.get(characterClass);
             if (matcher == null) {
                 if (characterClass.equals("custom") == false) {
-                    throw new IllegalArgumentException("Unknown token type: '" + characterClass + "', must be one of " + Stream
-                            .of(MATCHERS.keySet(), Collections.singleton("custom")).flatMap(x -> x.stream()).collect(Collectors.toSet()));
+                    throw new IllegalArgumentException(
+                        "Unknown token type: '"
+                            + characterClass
+                            + "', must be one of "
+                            + Stream.of(MATCHERS.keySet(), Collections.singleton("custom"))
+                                .flatMap(x -> x.stream())
+                                .collect(Collectors.toSet())
+                    );
                 }
                 String customCharacters = settings.get("custom_token_chars");
                 if (customCharacters == null) {
@@ -125,16 +130,15 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
         this.maxGram = settings.getAsInt("max_gram", NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
         int ngramDiff = maxGram - minGram;
         if (ngramDiff > maxAllowedNgramDiff) {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(LegacyESVersion.V_7_0_0)) {
-                throw new IllegalArgumentException(
-                    "The difference between max_gram and min_gram in NGram Tokenizer must be less than or equal to: ["
-                        + maxAllowedNgramDiff + "] but was [" + ngramDiff + "]. This limit can be set by changing the ["
-                        + IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey() + "] index level setting.");
-            } else {
-                deprecationLogger.deprecate("ngram_big_difference",
-                    "Deprecated big difference between max_gram and min_gram in NGram Tokenizer,"
-                    + "expected difference must be less than or equal to: [" + maxAllowedNgramDiff + "]");
-            }
+            throw new IllegalArgumentException(
+                "The difference between max_gram and min_gram in NGram Tokenizer must be less than or equal to: ["
+                    + maxAllowedNgramDiff
+                    + "] but was ["
+                    + ngramDiff
+                    + "]. This limit can be set by changing the ["
+                    + IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey()
+                    + "] index level setting."
+            );
         }
         this.matcher = parseTokenChars(settings);
     }

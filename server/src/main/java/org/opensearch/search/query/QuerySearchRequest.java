@@ -58,8 +58,12 @@ public class QuerySearchRequest extends TransportRequest implements IndicesReque
     private final OriginalIndices originalIndices;
     private final ShardSearchRequest shardSearchRequest;
 
-    public QuerySearchRequest(OriginalIndices originalIndices, ShardSearchContextId contextId,
-                              ShardSearchRequest shardSearchRequest, AggregatedDfs dfs) {
+    public QuerySearchRequest(
+        OriginalIndices originalIndices,
+        ShardSearchContextId contextId,
+        ShardSearchRequest shardSearchRequest,
+        AggregatedDfs dfs
+    ) {
         this.contextId = contextId;
         this.dfs = dfs;
         this.shardSearchRequest = shardSearchRequest;

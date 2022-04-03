@@ -33,7 +33,6 @@ package org.opensearch.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressorFactory;
@@ -120,10 +119,8 @@ public final class TransportLogger {
                 ThreadContext.readHeadersFromStream(streamInput);
 
                 if (isRequest) {
-                    if (streamInput.getVersion().onOrAfter(LegacyESVersion.V_6_3_0)) {
-                        // discard features
-                        streamInput.readStringArray();
-                    }
+                    // discard features
+                    streamInput.readStringArray();
                     sb.append(", action: ").append(streamInput.readString());
                 }
                 sb.append(']');

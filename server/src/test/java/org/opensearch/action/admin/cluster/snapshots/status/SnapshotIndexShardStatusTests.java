@@ -41,9 +41,6 @@ import org.opensearch.common.xcontent.XContentParserUtils;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.AbstractXContentTestCase;
-import org.opensearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStage;
-import org.opensearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStatus;
-import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStats;
 
 public class SnapshotIndexShardStatusTests extends AbstractXContentTestCase<SnapshotIndexShardStatus> {
 

@@ -44,7 +44,6 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.client.Client;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.ParsingException;
-import org.opensearch.common.Strings;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.lucene.search.Queries;
@@ -76,9 +75,6 @@ import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -105,7 +101,6 @@ public class QueryShardContext extends QueryRewriteContext {
     private final TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataService;
     private final int shardId;
     private final IndexSearcher searcher;
-    private String[] types = Strings.EMPTY_ARRAY;
     private boolean cacheable = true;
     private final SetOnce<Boolean> frozen = new SetOnce<>();
 
@@ -113,68 +108,142 @@ public class QueryShardContext extends QueryRewriteContext {
     private final Predicate<String> indexNameMatcher;
     private final BooleanSupplier allowExpensiveQueries;
 
-    public void setTypes(String... types) {
-        this.types = types;
-    }
-
-    public String[] getTypes() {
-        return types;
-    }
-
     private final Map<String, Query> namedQueries = new HashMap<>();
     private boolean allowUnmappedFields;
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
     private final ValuesSourceRegistry valuesSourceRegistry;
 
-    public QueryShardContext(int shardId,
-                             IndexSettings indexSettings,
-                             BigArrays bigArrays,
-                             BitsetFilterCache bitsetFilterCache,
-                             TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
-                             MapperService mapperService,
-                             SimilarityService similarityService,
-                             ScriptService scriptService,
-                             NamedXContentRegistry xContentRegistry,
-                             NamedWriteableRegistry namedWriteableRegistry,
-                             Client client,
-                             IndexSearcher searcher,
-                             LongSupplier nowInMillis,
-                             String clusterAlias,
-                             Predicate<String> indexNameMatcher,
-                             BooleanSupplier allowExpensiveQueries,
-                             ValuesSourceRegistry valuesSourceRegistry) {
-        this(shardId, indexSettings, bigArrays, bitsetFilterCache, indexFieldDataLookup, mapperService, similarityService,
-                scriptService, xContentRegistry, namedWriteableRegistry, client, searcher, nowInMillis, indexNameMatcher,
-                new Index(RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
-                        indexSettings.getIndex().getUUID()), allowExpensiveQueries, valuesSourceRegistry);
+    public QueryShardContext(
+        int shardId,
+        IndexSettings indexSettings,
+        BigArrays bigArrays,
+        BitsetFilterCache bitsetFilterCache,
+        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
+        MapperService mapperService,
+        SimilarityService similarityService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Client client,
+        IndexSearcher searcher,
+        LongSupplier nowInMillis,
+        String clusterAlias,
+        Predicate<String> indexNameMatcher,
+        BooleanSupplier allowExpensiveQueries,
+        ValuesSourceRegistry valuesSourceRegistry
+    ) {
+        this(
+            shardId,
+            indexSettings,
+            bigArrays,
+            bitsetFilterCache,
+            indexFieldDataLookup,
+            mapperService,
+            similarityService,
+            scriptService,
+            xContentRegistry,
+            namedWriteableRegistry,
+            client,
+            searcher,
+            nowInMillis,
+            clusterAlias,
+            indexNameMatcher,
+            allowExpensiveQueries,
+            valuesSourceRegistry,
+            false
+        );
+    }
+
+    public QueryShardContext(
+        int shardId,
+        IndexSettings indexSettings,
+        BigArrays bigArrays,
+        BitsetFilterCache bitsetFilterCache,
+        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
+        MapperService mapperService,
+        SimilarityService similarityService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Client client,
+        IndexSearcher searcher,
+        LongSupplier nowInMillis,
+        String clusterAlias,
+        Predicate<String> indexNameMatcher,
+        BooleanSupplier allowExpensiveQueries,
+        ValuesSourceRegistry valuesSourceRegistry,
+        boolean validate
+    ) {
+        this(
+            shardId,
+            indexSettings,
+            bigArrays,
+            bitsetFilterCache,
+            indexFieldDataLookup,
+            mapperService,
+            similarityService,
+            scriptService,
+            xContentRegistry,
+            namedWriteableRegistry,
+            client,
+            searcher,
+            nowInMillis,
+            indexNameMatcher,
+            new Index(
+                RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
+                indexSettings.getIndex().getUUID()
+            ),
+            allowExpensiveQueries,
+            valuesSourceRegistry,
+            validate
+        );
     }
 
     public QueryShardContext(QueryShardContext source) {
-        this(source.shardId, source.indexSettings, source.bigArrays, source.bitsetFilterCache, source.indexFieldDataService,
-            source.mapperService, source.similarityService, source.scriptService, source.getXContentRegistry(),
-            source.getWriteableRegistry(), source.client, source.searcher, source.nowInMillis, source.indexNameMatcher,
-            source.fullyQualifiedIndex, source.allowExpensiveQueries, source.valuesSourceRegistry);
+        this(
+            source.shardId,
+            source.indexSettings,
+            source.bigArrays,
+            source.bitsetFilterCache,
+            source.indexFieldDataService,
+            source.mapperService,
+            source.similarityService,
+            source.scriptService,
+            source.getXContentRegistry(),
+            source.getWriteableRegistry(),
+            source.client,
+            source.searcher,
+            source.nowInMillis,
+            source.indexNameMatcher,
+            source.fullyQualifiedIndex,
+            source.allowExpensiveQueries,
+            source.valuesSourceRegistry,
+            source.validate()
+        );
     }
 
-    private QueryShardContext(int shardId,
-                              IndexSettings indexSettings,
-                              BigArrays bigArrays,
-                              BitsetFilterCache bitsetFilterCache,
-                              TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
-                              MapperService mapperService,
-                              SimilarityService similarityService,
-                              ScriptService scriptService,
-                              NamedXContentRegistry xContentRegistry,
-                              NamedWriteableRegistry namedWriteableRegistry,
-                              Client client,
-                              IndexSearcher searcher,
-                              LongSupplier nowInMillis,
-                              Predicate<String> indexNameMatcher,
-                              Index fullyQualifiedIndex,
-                              BooleanSupplier allowExpensiveQueries,
-                              ValuesSourceRegistry valuesSourceRegistry) {
-        super(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
+    private QueryShardContext(
+        int shardId,
+        IndexSettings indexSettings,
+        BigArrays bigArrays,
+        BitsetFilterCache bitsetFilterCache,
+        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
+        MapperService mapperService,
+        SimilarityService similarityService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Client client,
+        IndexSearcher searcher,
+        LongSupplier nowInMillis,
+        Predicate<String> indexNameMatcher,
+        Index fullyQualifiedIndex,
+        BooleanSupplier allowExpensiveQueries,
+        ValuesSourceRegistry valuesSourceRegistry,
+        boolean validate
+    ) {
+        super(xContentRegistry, namedWriteableRegistry, client, nowInMillis, validate);
         this.shardId = shardId;
         this.similarityService = similarityService;
         this.mapperService = mapperService;
@@ -232,8 +301,11 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-        return (IFD) indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(),
-            () -> this.lookup().forkAndTrackFieldReferences(fieldType.name()));
+        return (IFD) indexFieldDataService.apply(
+            fieldType,
+            fullyQualifiedIndex.getName(),
+            () -> this.lookup().forkAndTrackFieldReferences(fieldType.name())
+        );
     }
 
     public void addNamedQuery(String name, Query query) {
@@ -255,6 +327,19 @@ public class QueryShardContext extends QueryRewriteContext {
         return mapperService.simpleMatchToFullName(pattern);
     }
 
+    /**
+     * Returns the {@link MappedFieldType} for the provided field name.
+     * If the field is not mapped, the behaviour depends on the index.query.parse.allow_unmapped_fields setting, which defaults to true.
+     * In case unmapped fields are allowed, null is returned when the field is not mapped.
+     * In case unmapped fields are not allowed, either an exception is thrown or the field is automatically mapped as a text field.
+     * @throws QueryShardException if unmapped fields are not allowed and automatically mapping unmapped fields as text is disabled.
+     * @see QueryShardContext#setAllowUnmappedFields(boolean)
+     * @see QueryShardContext#setMapUnmappedFieldAsString(boolean)
+     */
+    public MappedFieldType getFieldType(String name) {
+        return failIfFieldMappingNotFound(name, mapperService.fieldType(name));
+    }
+
     public MappedFieldType fieldMapper(String name) {
         return failIfFieldMappingNotFound(name, mapperService.fieldType(name));
     }
@@ -263,12 +348,20 @@ public class QueryShardContext extends QueryRewriteContext {
         return mapperService.getObjectMapper(name);
     }
 
+    public boolean isMetadataField(String field) {
+        return mapperService.isMetadataField(field);
+    }
+
+    public Set<String> sourcePath(String fullName) {
+        return mapperService.sourcePath(fullName);
+    }
+
     /**
-     * Returns s {@link DocumentMapper} instance for the given type.
-     * Delegates to {@link MapperService#documentMapper(String)}
+     * Returns s {@link DocumentMapper} instance.
+     * Delegates to {@link MapperService#documentMapper()}
      */
     public DocumentMapper documentMapper(String type) {
-        return mapperService.documentMapper(type);
+        return mapperService.documentMapper();
     }
 
     /**
@@ -309,24 +402,11 @@ public class QueryShardContext extends QueryRewriteContext {
         if (fieldMapping != null || allowUnmappedFields) {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
-            TextFieldMapper.Builder builder
-                = new TextFieldMapper.Builder(name, mapperService.getIndexAnalyzers());
+            TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, mapperService.getIndexAnalyzers());
             return builder.build(new Mapper.BuilderContext(indexSettings.getSettings(), new ContentPath(1))).fieldType();
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
         }
-    }
-
-    /**
-     * Returns the narrowed down explicit types, or, if not set, all types.
-     */
-    public Collection<String> queryTypes() {
-        String[] types = getTypes();
-        if (types == null || types.length == 0 || (types.length == 1 && types[0].equals("_all"))) {
-            DocumentMapper mapper = getMapperService().documentMapper();
-            return mapper == null ? Collections.emptyList() : Collections.singleton(mapper.type());
-        }
-        return Arrays.asList(types);
     }
 
     private SearchLookup lookup = null;
@@ -338,8 +418,7 @@ public class QueryShardContext extends QueryRewriteContext {
         if (this.lookup == null) {
             this.lookup = new SearchLookup(
                 getMapperService(),
-                (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup),
-                types
+                (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup)
             );
         }
         return this.lookup;
@@ -355,8 +434,7 @@ public class QueryShardContext extends QueryRewriteContext {
          */
         return new SearchLookup(
             getMapperService(),
-            (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup),
-            types
+            (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup)
         );
     }
 
@@ -396,9 +474,9 @@ public class QueryShardContext extends QueryRewriteContext {
         try {
             QueryBuilder rewriteQuery = Rewriteable.rewrite(queryBuilder, this, true);
             return new ParsedQuery(filterOrQuery.apply(rewriteQuery), copyNamedQueries());
-        } catch(QueryShardException | ParsingException e) {
+        } catch (QueryShardException | ParsingException e) {
             throw e;
-        } catch(Exception e) {
+        } catch (Exception e) {
             throw new QueryShardException(this, "failed to create query: {}", e, e.getMessage());
         } finally {
             reset();

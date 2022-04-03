@@ -62,7 +62,7 @@ public class SourceFetchingIT extends OpenSearchIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value", "field2", "value2").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value", "field2", "value2").get();
         refresh();
 
         SearchResponse response = client().prepareSearch("test").setFetchSource(false).get();
@@ -80,7 +80,7 @@ public class SourceFetchingIT extends OpenSearchIntegTestCase {
         assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
         assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(0));
 
-        response = client().prepareSearch("test").setFetchSource(new String[]{"*"}, new String[]{"field2"}).get();
+        response = client().prepareSearch("test").setFetchSource(new String[] { "*" }, new String[] { "field2" }).get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
         assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
         assertThat((String) response.getHits().getAt(0).getSourceAsMap().get("field1"), equalTo("value"));
@@ -95,15 +95,15 @@ public class SourceFetchingIT extends OpenSearchIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource("field", "value").get();
+        client().prepareIndex("test").setId("1").setSource("field", "value").get();
         refresh();
 
-        SearchResponse response = client().prepareSearch("test").setFetchSource(new String[]{"*.notexisting","field"}, null).get();
+        SearchResponse response = client().prepareSearch("test").setFetchSource(new String[] { "*.notexisting", "field" }, null).get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
         assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
         assertThat((String) response.getHits().getAt(0).getSourceAsMap().get("field"), equalTo("value"));
 
-        response = client().prepareSearch("test").setFetchSource(new String[]{"field.notexisting.*","field"}, null).get();
+        response = client().prepareSearch("test").setFetchSource(new String[] { "field.notexisting.*", "field" }, null).get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
         assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
         assertThat((String) response.getHits().getAt(0).getSourceAsMap().get("field"), equalTo("value"));

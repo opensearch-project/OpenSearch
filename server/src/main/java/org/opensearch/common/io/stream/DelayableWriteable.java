@@ -65,6 +65,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
     public static <T extends Writeable> DelayableWriteable<T> referencing(T reference) {
         return new Referencing<>(reference);
     }
+
     /**
      * Build a {@linkplain DelayableWriteable} that copies a buffer from
      * the provided {@linkplain StreamInput} and deserializes the buffer
@@ -144,8 +145,12 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         private final NamedWriteableRegistry registry;
         private final BytesReference serialized;
 
-        private Serialized(Writeable.Reader<T> reader, Version serializedAtVersion,
-                NamedWriteableRegistry registry, BytesReference serialized) {
+        private Serialized(
+            Writeable.Reader<T> reader,
+            Version serializedAtVersion,
+            NamedWriteableRegistry registry,
+            BytesReference serialized
+        ) {
             this.reader = reader;
             this.serializedAtVersion = serializedAtVersion;
             this.registry = registry;
@@ -176,8 +181,11 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         @Override
         public T expand() {
             try {
-                try (StreamInput in = registry == null ?
-                        serialized.streamInput() : new NamedWriteableAwareStreamInput(serialized.streamInput(), registry)) {
+                try (
+                    StreamInput in = registry == null
+                        ? serialized.streamInput()
+                        : new NamedWriteableAwareStreamInput(serialized.streamInput(), registry)
+                ) {
                     in.setVersion(serializedAtVersion);
                     return reader.read(in);
                 }

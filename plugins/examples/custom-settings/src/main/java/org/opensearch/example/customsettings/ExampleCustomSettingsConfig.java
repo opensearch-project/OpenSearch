@@ -81,9 +81,12 @@ public class ExampleCustomSettingsConfig {
     /**
      * A setting that consists of a list of integers
      */
-    static final Setting<List<Integer>> LIST_SETTING =
-        Setting.listSetting("custom.list", Collections.emptyList(), Integer::valueOf, Property.NodeScope);
-
+    static final Setting<List<Integer>> LIST_SETTING = Setting.listSetting(
+        "custom.list",
+        Collections.emptyList(),
+        Integer::valueOf,
+        Property.NodeScope
+    );
 
     private final String simple;
     private final String validated;

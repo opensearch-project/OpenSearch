@@ -85,10 +85,14 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
     private final NamedXContentRegistry namedXContentRegistry;
 
     @Inject
-    public TransportRankEvalAction(ActionFilters actionFilters, Client client, TransportService transportService,
-                                   ScriptService scriptService, NamedXContentRegistry namedXContentRegistry) {
-        super(RankEvalAction.NAME, transportService, actionFilters,
-              (Writeable.Reader<RankEvalRequest>) RankEvalRequest::new);
+    public TransportRankEvalAction(
+        ActionFilters actionFilters,
+        Client client,
+        TransportService transportService,
+        ScriptService scriptService,
+        NamedXContentRegistry namedXContentRegistry
+    ) {
+        super(RankEvalAction.NAME, transportService, actionFilters, (Writeable.Reader<RankEvalRequest>) RankEvalRequest::new);
         this.scriptService = scriptService;
         this.namedXContentRegistry = namedXContentRegistry;
         this.client = client;
@@ -117,8 +121,14 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                 String templateId = ratedRequest.getTemplateId();
                 TemplateScript.Factory templateScript = scriptsWithoutParams.get(templateId);
                 String resolvedRequest = templateScript.newInstance(params).execute();
-                try (XContentParser subParser = createParser(namedXContentRegistry,
-                    LoggingDeprecationHandler.INSTANCE, new BytesArray(resolvedRequest), XContentType.JSON)) {
+                try (
+                    XContentParser subParser = createParser(
+                        namedXContentRegistry,
+                        LoggingDeprecationHandler.INSTANCE,
+                        new BytesArray(resolvedRequest),
+                        XContentType.JSON
+                    )
+                ) {
                     evaluationRequest = SearchSourceBuilder.fromXContent(subParser, false);
                     // check for parts that should not be part of a ranking evaluation request
                     validateEvaluatedQuery(evaluationRequest);
@@ -146,8 +156,15 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             msearchRequest.add(searchRequest);
         }
         assert ratedRequestsInSearch.size() == msearchRequest.requests().size();
-        client.multiSearch(msearchRequest, new RankEvalActionListener(listener, metric,
-                ratedRequestsInSearch.toArray(new RatedRequest[ratedRequestsInSearch.size()]), errors));
+        client.multiSearch(
+            msearchRequest,
+            new RankEvalActionListener(
+                listener,
+                metric,
+                ratedRequestsInSearch.toArray(new RatedRequest[ratedRequestsInSearch.size()]),
+                errors
+            )
+        );
     }
 
     class RankEvalActionListener implements ActionListener<MultiSearchResponse> {
@@ -158,8 +175,12 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         private final Map<String, Exception> errors;
         private final EvaluationMetric metric;
 
-        RankEvalActionListener(ActionListener<RankEvalResponse> listener, EvaluationMetric metric, RatedRequest[] specifications,
-                Map<String, Exception> errors) {
+        RankEvalActionListener(
+            ActionListener<RankEvalResponse> listener,
+            EvaluationMetric metric,
+            RatedRequest[] specifications,
+            Map<String, Exception> errors
+        ) {
             this.listener = listener;
             this.metric = metric;
             this.errors = errors;

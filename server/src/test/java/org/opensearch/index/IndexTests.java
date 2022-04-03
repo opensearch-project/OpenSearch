@@ -43,7 +43,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-import static org.apache.lucene.util.TestUtil.randomSimpleString;
+import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -53,8 +53,10 @@ public class IndexTests extends OpenSearchTestCase {
         assertEquals("[name/uuid]", new Index("name", "uuid").toString());
         assertEquals("[name]", new Index("name", ClusterState.UNKNOWN_UUID).toString());
 
-        Index random = new Index(randomSimpleString(random(), 1, 100),
-                usually() ? UUIDs.randomBase64UUID(random()) : ClusterState.UNKNOWN_UUID);
+        Index random = new Index(
+            randomSimpleString(random(), 1, 100),
+            usually() ? UUIDs.randomBase64UUID(random()) : ClusterState.UNKNOWN_UUID
+        );
         assertThat(random.toString(), containsString(random.getName()));
         if (ClusterState.UNKNOWN_UUID.equals(random.getUUID())) {
             assertThat(random.toString(), not(containsString(random.getUUID())));

@@ -41,7 +41,6 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.text.Text;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
@@ -83,7 +82,6 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
     public static SearchHit createTestItem(XContentType xContentType, boolean withOptionalInnerHits, boolean transportSerialization) {
         int internalId = randomInt();
         String uid = randomAlphaOfLength(10);
-        Text type = new Text(randomAlphaOfLengthBetween(5, 10));
         NestedIdentity nestedIdentity = null;
         if (randomBoolean()) {
             nestedIdentity = NestedIdentityTests.createTestItem(randomIntBetween(0, 2));
@@ -97,7 +95,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
             }
         }
 
-        SearchHit hit = new SearchHit(internalId, uid, type, nestedIdentity, documentFields, metaFields);
+        SearchHit hit = new SearchHit(internalId, uid, nestedIdentity, documentFields, metaFields);
         if (frequently()) {
             if (rarely()) {
                 hit.score(Float.NaN);
@@ -144,8 +142,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
             if (innerHitsSize > 0) {
                 Map<String, SearchHits> innerHits = new HashMap<>(innerHitsSize);
                 for (int i = 0; i < innerHitsSize; i++) {
-                    innerHits.put(randomAlphaOfLength(5),
-                        SearchHitsTests.createTestItem(xContentType, false, transportSerialization));
+                    innerHits.put(randomAlphaOfLength(5), SearchHitsTests.createTestItem(xContentType, false, transportSerialization));
                 }
                 hit.setInnerHits(innerHits);
             }
@@ -153,8 +150,14 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         if (transportSerialization && randomBoolean()) {
             String index = randomAlphaOfLengthBetween(5, 10);
             String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
-            hit.shard(new SearchShardTarget(randomAlphaOfLengthBetween(5, 10),
-                new ShardId(new Index(index, randomAlphaOfLengthBetween(5, 10)), randomInt()), clusterAlias, OriginalIndices.NONE));
+            hit.shard(
+                new SearchShardTarget(
+                    randomAlphaOfLengthBetween(5, 10),
+                    new ShardId(new Index(index, randomAlphaOfLengthBetween(5, 10)), randomInt()),
+                    clusterAlias,
+                    OriginalIndices.NONE
+                )
+            );
         }
         return hit;
     }
@@ -198,8 +201,11 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         XContentType xContentType = randomFrom(XContentType.values());
         SearchHit searchHit = createTestItem(xContentType, true, true);
         BytesReference originalBytes = toXContent(searchHit, xContentType, true);
-        Predicate<String> pathsToExclude = path -> path.endsWith("highlight") || path.contains("fields") || path.contains("_source")
-                || path.contains("inner_hits") || path.isEmpty();
+        Predicate<String> pathsToExclude = path -> path.endsWith("highlight")
+            || path.contains("fields")
+            || path.contains("_source")
+            || path.contains("inner_hits")
+            || path.isEmpty();
         BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, pathsToExclude, random());
 
         SearchHit parsed;
@@ -226,46 +232,49 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         }
         assertEquals("my_index", parsed.getIndex());
         assertEquals(1, parsed.getScore(), Float.MIN_VALUE);
-        assertNull(parsed.getType());
         assertNull(parsed.getId());
     }
 
     public void testToXContent() throws IOException {
-        SearchHit searchHit = new SearchHit(1, "id1", new Text("type"), Collections.emptyMap(), Collections.emptyMap());
+        SearchHit searchHit = new SearchHit(1, "id1", Collections.emptyMap(), Collections.emptyMap());
         searchHit.score(1.5f);
         XContentBuilder builder = JsonXContent.contentBuilder();
         searchHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"_type\":\"type\",\"_id\":\"id1\",\"_score\":1.5}", Strings.toString(builder));
+        assertEquals("{\"_id\":\"id1\",\"_score\":1.5}", Strings.toString(builder));
     }
 
     public void testSerializeShardTarget() throws Exception {
         String clusterAlias = randomBoolean() ? null : "cluster_alias";
-        SearchShardTarget target = new SearchShardTarget("_node_id", new ShardId(new Index("_index", "_na_"), 0),
-            clusterAlias, OriginalIndices.NONE);
+        SearchShardTarget target = new SearchShardTarget(
+            "_node_id",
+            new ShardId(new Index("_index", "_na_"), 0),
+            clusterAlias,
+            OriginalIndices.NONE
+        );
 
         Map<String, SearchHits> innerHits = new HashMap<>();
-        SearchHit innerHit1 = new SearchHit(0, "_id", new Text("_type"), null, null);
+        SearchHit innerHit1 = new SearchHit(0, "_id", null, null);
         innerHit1.shard(target);
-        SearchHit innerInnerHit2 = new SearchHit(0, "_id", new Text("_type"), null, null);
+        SearchHit innerInnerHit2 = new SearchHit(0, "_id", null, null);
         innerInnerHit2.shard(target);
-        innerHits.put("1", new SearchHits(new SearchHit[]{innerInnerHit2}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f));
+        innerHits.put("1", new SearchHits(new SearchHit[] { innerInnerHit2 }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f));
         innerHit1.setInnerHits(innerHits);
-        SearchHit innerHit2 = new SearchHit(0, "_id", new Text("_type"), null, null);
+        SearchHit innerHit2 = new SearchHit(0, "_id", null, null);
         innerHit2.shard(target);
-        SearchHit innerHit3 = new SearchHit(0, "_id", new Text("_type"), null, null);
+        SearchHit innerHit3 = new SearchHit(0, "_id", null, null);
         innerHit3.shard(target);
 
         innerHits = new HashMap<>();
-        SearchHit hit1 = new SearchHit(0, "_id", new Text("_type"), null, null);
-        innerHits.put("1", new SearchHits(new SearchHit[]{innerHit1, innerHit2}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f));
-        innerHits.put("2", new SearchHits(new SearchHit[]{innerHit3}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f));
+        SearchHit hit1 = new SearchHit(0, "_id", null, null);
+        innerHits.put("1", new SearchHits(new SearchHit[] { innerHit1, innerHit2 }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f));
+        innerHits.put("2", new SearchHits(new SearchHit[] { innerHit3 }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f));
         hit1.shard(target);
         hit1.setInnerHits(innerHits);
 
-        SearchHit hit2 = new SearchHit(0, "_id", new Text("_type"), null, null);
+        SearchHit hit2 = new SearchHit(0, "_id", null, null);
         hit2.shard(target);
 
-        SearchHits hits = new SearchHits(new SearchHit[]{hit1, hit2}, new TotalHits(2, TotalHits.Relation.EQUAL_TO), 1f);
+        SearchHits hits = new SearchHits(new SearchHit[] { hit1, hit2 }, new TotalHits(2, TotalHits.Relation.EQUAL_TO), 1f);
 
         Version version = VersionUtils.randomVersion(random());
         SearchHits results = copyWriteable(hits, getNamedWriteableRegistry(), SearchHits::new, version);
@@ -289,7 +298,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
     }
 
     public void testNullSource() {
-        SearchHit searchHit = new SearchHit(0, "_id", new Text("_type"), null, null);
+        SearchHit searchHit = new SearchHit(0, "_id", null, null);
 
         assertThat(searchHit.getSourceAsMap(), nullValue());
         assertThat(searchHit.getSourceRef(), nullValue());
@@ -309,15 +318,17 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
 
     public void testWeirdScriptFields() throws Exception {
         {
-            XContentParser parser = createParser(XContentType.JSON.xContent(), "{\n" +
-                    "  \"_index\": \"twitter\",\n" +
-                    "  \"_type\": \"tweet\",\n" +
-                    "  \"_id\": \"1\",\n" +
-                    "  \"_score\": 1.0,\n" +
-                    "  \"fields\": {\n" +
-                    "    \"result\": [null]\n" +
-                    "  }\n" +
-                    "}");
+            XContentParser parser = createParser(
+                XContentType.JSON.xContent(),
+                "{\n"
+                    + "  \"_index\": \"twitter\",\n"
+                    + "  \"_id\": \"1\",\n"
+                    + "  \"_score\": 1.0,\n"
+                    + "  \"fields\": {\n"
+                    + "    \"result\": [null]\n"
+                    + "  }\n"
+                    + "}"
+            );
             SearchHit searchHit = SearchHit.fromXContent(parser);
             Map<String, DocumentField> fields = searchHit.getFields();
             assertEquals(1, fields.size());
@@ -327,15 +338,17 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
             assertNull(result.getValues().get(0));
         }
         {
-            XContentParser parser = createParser(XContentType.JSON.xContent(), "{\n" +
-                    "  \"_index\": \"twitter\",\n" +
-                    "  \"_type\": \"tweet\",\n" +
-                    "  \"_id\": \"1\",\n" +
-                    "  \"_score\": 1.0,\n" +
-                    "  \"fields\": {\n" +
-                    "    \"result\": [{}]\n" +
-                    "  }\n" +
-                    "}");
+            XContentParser parser = createParser(
+                XContentType.JSON.xContent(),
+                "{\n"
+                    + "  \"_index\": \"twitter\",\n"
+                    + "  \"_id\": \"1\",\n"
+                    + "  \"_score\": 1.0,\n"
+                    + "  \"fields\": {\n"
+                    + "    \"result\": [{}]\n"
+                    + "  }\n"
+                    + "}"
+            );
 
             SearchHit searchHit = SearchHit.fromXContent(parser);
             Map<String, DocumentField> fields = searchHit.getFields();
@@ -349,17 +362,19 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
             assertEquals(0, map.size());
         }
         {
-            XContentParser parser = createParser(JsonXContent.jsonXContent, "{\n" +
-                    "  \"_index\": \"twitter\",\n" +
-                    "  \"_type\": \"tweet\",\n" +
-                    "  \"_id\": \"1\",\n" +
-                    "  \"_score\": 1.0,\n" +
-                    "  \"fields\": {\n" +
-                    "    \"result\": [\n" +
-                    "      []\n" +
-                    "    ]\n" +
-                    "  }\n" +
-                    "}");
+            XContentParser parser = createParser(
+                JsonXContent.jsonXContent,
+                "{\n"
+                    + "  \"_index\": \"twitter\",\n"
+                    + "  \"_id\": \"1\",\n"
+                    + "  \"_score\": 1.0,\n"
+                    + "  \"fields\": {\n"
+                    + "    \"result\": [\n"
+                    + "      []\n"
+                    + "    ]\n"
+                    + "  }\n"
+                    + "}"
+            );
 
             SearchHit searchHit = SearchHit.fromXContent(parser);
             Map<String, DocumentField> fields = searchHit.getFields();
@@ -407,7 +422,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
                 assertNull(parser.nextToken());
             }
             assertThat(parsed.getFields().size(), equalTo(1));
-            assertThat(parsed.getFields().get("bar").getValues(), equalTo( Collections.singletonList("value")));
+            assertThat(parsed.getFields().get("bar").getValues(), equalTo(Collections.singletonList("value")));
         }
 
         Map<String, DocumentField> metadata = new HashMap<>();
@@ -423,7 +438,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
                 assertNull(parser.nextToken());
             }
             assertThat(parsed.getFields().size(), equalTo(1));
-            assertThat(parsed.getFields().get("bar").getValues(), equalTo( Collections.singletonList("value")));
+            assertThat(parsed.getFields().get("bar").getValues(), equalTo(Collections.singletonList("value")));
             assertNull(parsed.getFields().get("_routing"));
         }
 

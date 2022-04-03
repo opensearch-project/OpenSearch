@@ -45,7 +45,6 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
-
 public class RolloverRequestTests extends OpenSearchTestCase {
     public void testConstructorAndFieldAssignments() {
         // test constructor
@@ -62,7 +61,7 @@ public class RolloverRequestTests extends OpenSearchTestCase {
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(new TimeValue(10));
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(2000));
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(10000L);
-        Condition<?>[] expectedConditions = new Condition<?>[] {maxAgeCondition, maxSizeCondition, maxDocsCondition};
+        Condition<?>[] expectedConditions = new Condition<?>[] { maxAgeCondition, maxSizeCondition, maxDocsCondition };
         rolloverRequest.addMaxIndexAgeCondition(maxAgeCondition.value());
         rolloverRequest.addMaxIndexSizeCondition(maxSizeCondition.value());
         rolloverRequest.addMaxIndexDocsCondition(maxDocsCondition.value());
@@ -71,8 +70,7 @@ public class RolloverRequestTests extends OpenSearchTestCase {
     }
 
     public void testValidation() {
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
-            new RolloverRequest(null, null));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new RolloverRequest(null, null));
         assertEquals("The index alias cannot be null!", exception.getMessage());
     }
 }

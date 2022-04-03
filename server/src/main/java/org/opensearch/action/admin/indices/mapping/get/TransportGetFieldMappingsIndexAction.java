@@ -56,12 +56,10 @@ import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.indices.TypeMissingException;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -72,8 +70,9 @@ import static java.util.Collections.singletonMap;
 /**
  * Transport action used to retrieve the mappings related to fields that belong to a specific index
  */
-public class TransportGetFieldMappingsIndexAction
-        extends TransportSingleShardAction<GetFieldMappingsIndexRequest, GetFieldMappingsResponse> {
+public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAction<
+    GetFieldMappingsIndexRequest,
+    GetFieldMappingsResponse> {
 
     private static final String ACTION_NAME = GetFieldMappingsAction.NAME + "[index]";
 
@@ -81,18 +80,31 @@ public class TransportGetFieldMappingsIndexAction
     private final IndicesService indicesService;
 
     @Inject
-    public TransportGetFieldMappingsIndexAction(ClusterService clusterService, TransportService transportService,
-                                                IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
-                                                IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                GetFieldMappingsIndexRequest::new, ThreadPool.Names.MANAGEMENT);
+    public TransportGetFieldMappingsIndexAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        IndicesService indicesService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            ACTION_NAME,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
+            indexNameExpressionResolver,
+            GetFieldMappingsIndexRequest::new,
+            ThreadPool.Names.MANAGEMENT
+        );
         this.clusterService = clusterService;
         this.indicesService = indicesService;
     }
 
     @Override
     protected boolean resolveIndex(GetFieldMappingsIndexRequest request) {
-        //internal action, index already resolved
+        // internal action, index already resolved
         return false;
     }
 
@@ -110,30 +122,9 @@ public class TransportGetFieldMappingsIndexAction
         Predicate<String> metadataFieldPredicate = (f) -> indicesService.isMetadataField(indexCreatedVersion, f);
         Predicate<String> fieldPredicate = metadataFieldPredicate.or(indicesService.getFieldFilter().apply(shardId.getIndexName()));
 
-        DocumentMapper mapper = indexService.mapperService().documentMapper();
-        Collection<String> typeIntersection;
-        if (request.types().length == 0) {
-            typeIntersection = mapper == null
-                    ? Collections.emptySet()
-                    : Collections.singleton(mapper.type());
-        } else {
-            typeIntersection = mapper != null && Regex.simpleMatch(request.types(), mapper.type())
-                    ? Collections.singleton(mapper.type())
-                    : Collections.emptySet();
-            if (typeIntersection.isEmpty()) {
-                throw new TypeMissingException(shardId.getIndex(), request.types());
-            }
-        }
-
-        Map<String, Map<String, FieldMappingMetadata>> typeMappings = new HashMap<>();
-        for (String type : typeIntersection) {
-            DocumentMapper documentMapper = indexService.mapperService().documentMapper(type);
-            Map<String, FieldMappingMetadata> fieldMapping = findFieldMappingsByType(fieldPredicate, documentMapper, request);
-            if (!fieldMapping.isEmpty()) {
-                typeMappings.put(type, fieldMapping);
-            }
-        }
-        return new GetFieldMappingsResponse(singletonMap(shardId.getIndexName(), Collections.unmodifiableMap(typeMappings)));
+        DocumentMapper documentMapper = indexService.mapperService().documentMapper();
+        Map<String, FieldMappingMetadata> fieldMapping = findFieldMappings(fieldPredicate, documentMapper, request);
+        return new GetFieldMappingsResponse(singletonMap(shardId.getIndexName(), fieldMapping));
     }
 
     @Override
@@ -183,9 +174,14 @@ public class TransportGetFieldMappingsIndexAction
         }
     };
 
-    private static Map<String, FieldMappingMetadata> findFieldMappingsByType(Predicate<String> fieldPredicate,
-                                                                             DocumentMapper documentMapper,
-                                                                             GetFieldMappingsIndexRequest request) {
+    private static Map<String, FieldMappingMetadata> findFieldMappings(
+        Predicate<String> fieldPredicate,
+        DocumentMapper documentMapper,
+        GetFieldMappingsIndexRequest request
+    ) {
+        if (documentMapper == null) {
+            return Collections.emptyMap();
+        }
         Map<String, FieldMappingMetadata> fieldMappings = new HashMap<>();
         final MappingLookup allFieldMappers = documentMapper.mappers();
         for (String field : request.fields()) {
@@ -196,8 +192,7 @@ public class TransportGetFieldMappingsIndexAction
             } else if (Regex.isSimpleMatchPattern(field)) {
                 for (Mapper fieldMapper : allFieldMappers) {
                     if (Regex.simpleMatch(field, fieldMapper.name())) {
-                        addFieldMapper(fieldPredicate,  fieldMapper.name(),
-                                fieldMapper, fieldMappings, request.includeDefaults());
+                        addFieldMapper(fieldPredicate, fieldMapper.name(), fieldMapper, fieldMappings, request.includeDefaults());
                     }
                 }
             } else {
@@ -205,24 +200,30 @@ public class TransportGetFieldMappingsIndexAction
                 Mapper fieldMapper = allFieldMappers.getMapper(field);
                 if (fieldMapper != null) {
                     addFieldMapper(fieldPredicate, field, fieldMapper, fieldMappings, request.includeDefaults());
-                } else if (request.probablySingleFieldRequest()) {
-                    fieldMappings.put(field, FieldMappingMetadata.NULL);
                 }
             }
         }
         return Collections.unmodifiableMap(fieldMappings);
     }
 
-    private static void addFieldMapper(Predicate<String> fieldPredicate,
-                                       String field, Mapper fieldMapper, Map<String, FieldMappingMetadata> fieldMappings,
-                                       boolean includeDefaults) {
+    private static void addFieldMapper(
+        Predicate<String> fieldPredicate,
+        String field,
+        Mapper fieldMapper,
+        Map<String, FieldMappingMetadata> fieldMappings,
+        boolean includeDefaults
+    ) {
         if (fieldMappings.containsKey(field)) {
             return;
         }
         if (fieldPredicate.test(field)) {
             try {
-                BytesReference bytes = XContentHelper.toXContent(fieldMapper, XContentType.JSON,
-                        includeDefaults ? includeDefaultsParams : ToXContent.EMPTY_PARAMS, false);
+                BytesReference bytes = XContentHelper.toXContent(
+                    fieldMapper,
+                    XContentType.JSON,
+                    includeDefaults ? includeDefaultsParams : ToXContent.EMPTY_PARAMS,
+                    false
+                );
                 fieldMappings.put(field, new FieldMappingMetadata(fieldMapper.name(), bytes));
             } catch (IOException e) {
                 throw new OpenSearchException("failed to serialize XContent of field [" + field + "]", e);

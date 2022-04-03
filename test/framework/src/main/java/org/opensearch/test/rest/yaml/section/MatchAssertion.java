@@ -57,7 +57,7 @@ import static org.junit.Assert.assertThat;
 public class MatchAssertion extends Assertion {
     public static MatchAssertion parse(XContentParser parser) throws IOException {
         XContentLocation location = parser.getTokenLocation();
-        Tuple<String,Object> stringObjectTuple = ParserUtils.parseTuple(parser);
+        Tuple<String, Object> stringObjectTuple = ParserUtils.parseTuple(parser);
         return new MatchAssertion(location, stringObjectTuple.v1(), stringObjectTuple.v2());
     }
 
@@ -69,17 +69,23 @@ public class MatchAssertion extends Assertion {
 
     @Override
     protected void doAssert(Object actualValue, Object expectedValue) {
-        //if the value is wrapped into / it is a regexp (e.g. /s+d+/)
+        // if the value is wrapped into / it is a regexp (e.g. /s+d+/)
         if (expectedValue instanceof String) {
             String expValue = ((String) expectedValue).trim();
             if (expValue.length() > 2 && expValue.startsWith("/") && expValue.endsWith("/")) {
-                assertThat("field [" + getField() + "] was expected to be of type String but is an instanceof [" +
-                        safeClass(actualValue) + "]", actualValue, instanceOf(String.class));
+                assertThat(
+                    "field [" + getField() + "] was expected to be of type String but is an instanceof [" + safeClass(actualValue) + "]",
+                    actualValue,
+                    instanceOf(String.class)
+                );
                 String stringValue = (String) actualValue;
                 String regex = expValue.substring(1, expValue.length() - 1);
                 logger.trace("assert that [{}] matches [{}]", stringValue, regex);
-                assertThat("field [" + getField() + "] was expected to match the provided regex but didn't",
-                        stringValue, RegexMatcher.matches(regex, Pattern.COMMENTS));
+                assertThat(
+                    "field [" + getField() + "] was expected to match the provided regex but didn't",
+                    stringValue,
+                    RegexMatcher.matches(regex, Pattern.COMMENTS)
+                );
                 return;
             }
         }
@@ -93,9 +99,12 @@ public class MatchAssertion extends Assertion {
 
         if (actualValue.getClass().equals(safeClass(expectedValue)) == false) {
             if (actualValue instanceof Number && expectedValue instanceof Number) {
-                //Double 1.0 is equal to Integer 1
-                assertThat("field [" + getField() + "] doesn't match the expected value",
-                        ((Number) actualValue).doubleValue(), equalTo(((Number) expectedValue).doubleValue()));
+                // Double 1.0 is equal to Integer 1
+                assertThat(
+                    "field [" + getField() + "] doesn't match the expected value",
+                    ((Number) actualValue).doubleValue(),
+                    equalTo(((Number) expectedValue).doubleValue())
+                );
                 return;
             }
         }

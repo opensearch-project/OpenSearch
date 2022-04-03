@@ -35,7 +35,7 @@ package org.opensearch.repositories.gcs;
 import com.google.auth.Credentials;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;
-
+import org.hamcrest.Matchers;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Setting;
@@ -43,7 +43,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
-import org.hamcrest.Matchers;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -51,9 +50,9 @@ import java.util.Base64;
 import java.util.Locale;
 import java.util.UUID;
 
-import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
 
@@ -63,36 +62,50 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
         final TimeValue readTimeValue = TimeValue.timeValueNanos(randomIntBetween(0, 2000000));
         final String applicationName = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
         final String endpoint = randomFrom("http://", "https://")
-                + randomFrom("www.opensearch.org", "www.googleapis.com", "localhost/api", "google.com/oauth")
-                + ":" + randomIntBetween(1, 65535);
+            + randomFrom("www.opensearch.org", "www.googleapis.com", "localhost/api", "google.com/oauth")
+            + ":"
+            + randomIntBetween(1, 65535);
         final String projectIdName = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
         final Settings settings = Settings.builder()
-                .put(GoogleCloudStorageClientSettings.CONNECT_TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
-                        connectTimeValue.getStringRep())
-                .put(GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
-                        readTimeValue.getStringRep())
-                .put(GoogleCloudStorageClientSettings.APPLICATION_NAME_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
-                        applicationName)
-                .put(GoogleCloudStorageClientSettings.ENDPOINT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), endpoint)
-                .put(GoogleCloudStorageClientSettings.PROJECT_ID_SETTING.getConcreteSettingForNamespace(clientName).getKey(), projectIdName)
-                .build();
+            .put(
+                GoogleCloudStorageClientSettings.CONNECT_TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
+                connectTimeValue.getStringRep()
+            )
+            .put(
+                GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
+                readTimeValue.getStringRep()
+            )
+            .put(
+                GoogleCloudStorageClientSettings.APPLICATION_NAME_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
+                applicationName
+            )
+            .put(GoogleCloudStorageClientSettings.ENDPOINT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), endpoint)
+            .put(GoogleCloudStorageClientSettings.PROJECT_ID_SETTING.getConcreteSettingForNamespace(clientName).getKey(), projectIdName)
+            .build();
         final GoogleCloudStorageService service = new GoogleCloudStorageService();
         service.refreshAndClearCache(GoogleCloudStorageClientSettings.load(settings));
         GoogleCloudStorageOperationsStats statsCollector = new GoogleCloudStorageOperationsStats("bucket");
-        final IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> service.client("another_client", "repo", statsCollector));
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> service.client("another_client", "repo", statsCollector)
+        );
         assertThat(e.getMessage(), Matchers.startsWith("Unknown client name"));
         assertSettingDeprecationsAndWarnings(
-                new Setting<?>[] { GoogleCloudStorageClientSettings.APPLICATION_NAME_SETTING.getConcreteSettingForNamespace(clientName) });
+            new Setting<?>[] { GoogleCloudStorageClientSettings.APPLICATION_NAME_SETTING.getConcreteSettingForNamespace(clientName) }
+        );
         final Storage storage = service.client(clientName, "repo", statsCollector);
         assertThat(storage.getOptions().getApplicationName(), Matchers.containsString(applicationName));
         assertThat(storage.getOptions().getHost(), Matchers.is(endpoint));
         assertThat(storage.getOptions().getProjectId(), Matchers.is(projectIdName));
         assertThat(storage.getOptions().getTransportOptions(), Matchers.instanceOf(HttpTransportOptions.class));
-        assertThat(((HttpTransportOptions) storage.getOptions().getTransportOptions()).getConnectTimeout(),
-                Matchers.is((int) connectTimeValue.millis()));
-        assertThat(((HttpTransportOptions) storage.getOptions().getTransportOptions()).getReadTimeout(),
-                Matchers.is((int) readTimeValue.millis()));
+        assertThat(
+            ((HttpTransportOptions) storage.getOptions().getTransportOptions()).getConnectTimeout(),
+            Matchers.is((int) connectTimeValue.millis())
+        );
+        assertThat(
+            ((HttpTransportOptions) storage.getOptions().getTransportOptions()).getReadTimeout(),
+            Matchers.is((int) readTimeValue.millis())
+        );
         assertThat(storage.getOptions().getCredentials(), Matchers.nullValue(Credentials.class));
     }
 
@@ -113,8 +126,10 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
             final Storage client12 = storageService.client("gcs2", "repo2", statsCollector);
             assertThat(client12.getOptions().getProjectId(), equalTo("project_gcs12"));
             // client 3 is missing
-            final IllegalArgumentException e1 =
-                expectThrows(IllegalArgumentException.class, () -> storageService.client("gcs3", "repo3", statsCollector));
+            final IllegalArgumentException e1 = expectThrows(
+                IllegalArgumentException.class,
+                () -> storageService.client("gcs3", "repo3", statsCollector)
+            );
             assertThat(e1.getMessage(), containsString("Unknown client name [gcs3]."));
             // update client settings
             plugin.reload(settings2);
@@ -126,8 +141,10 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
             // old client 2 not changed
             assertThat(client12.getOptions().getProjectId(), equalTo("project_gcs12"));
             // new client2 is gone
-            final IllegalArgumentException e2 =
-                expectThrows(IllegalArgumentException.class, () -> storageService.client("gcs2", "repo2", statsCollector));
+            final IllegalArgumentException e2 = expectThrows(
+                IllegalArgumentException.class,
+                () -> storageService.client("gcs2", "repo2", statsCollector)
+            );
             assertThat(e2.getMessage(), containsString("Unknown client name [gcs2]."));
             // client 3 emerged
             final Storage client23 = storageService.client("gcs3", "repo3", statsCollector);
@@ -142,12 +159,13 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
         try (GoogleCloudStoragePlugin plugin = new GoogleCloudStoragePlugin(settings)) {
             final GoogleCloudStorageService storageService = plugin.storageService;
 
-            final Storage repo1Client =
-                storageService.client("gcs1", "repo1", new GoogleCloudStorageOperationsStats("bucket"));
-            final Storage repo2Client =
-                storageService.client("gcs1", "repo2", new GoogleCloudStorageOperationsStats("bucket"));
-            final Storage repo1ClientSecondInstance =
-                storageService.client("gcs1", "repo1", new GoogleCloudStorageOperationsStats("bucket"));
+            final Storage repo1Client = storageService.client("gcs1", "repo1", new GoogleCloudStorageOperationsStats("bucket"));
+            final Storage repo2Client = storageService.client("gcs1", "repo2", new GoogleCloudStorageOperationsStats("bucket"));
+            final Storage repo1ClientSecondInstance = storageService.client(
+                "gcs1",
+                "repo1",
+                new GoogleCloudStorageOperationsStats("bucket")
+            );
 
             assertNotSame(repo1Client, repo2Client);
             assertSame(repo1Client, repo1ClientSecondInstance);
@@ -160,13 +178,13 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
         final KeyPair keyPair = keyPairGenerator.generateKeyPair();
         final String encodedKey = Base64.getEncoder().encodeToString(keyPair.getPrivate().getEncoded());
         final XContentBuilder serviceAccountBuilder = jsonBuilder().startObject()
-                .field("type", "service_account")
-                .field("project_id", projectId)
-                .field("private_key_id", UUID.randomUUID().toString())
-                .field("private_key", "-----BEGIN PRIVATE KEY-----\n" + encodedKey + "\n-----END PRIVATE KEY-----\n")
-                .field("client_email", "integration_test@appspot.gserviceaccount.com")
-                .field("client_id", "client_id")
-                .endObject();
+            .field("type", "service_account")
+            .field("project_id", projectId)
+            .field("private_key_id", UUID.randomUUID().toString())
+            .field("private_key", "-----BEGIN PRIVATE KEY-----\n" + encodedKey + "\n-----END PRIVATE KEY-----\n")
+            .field("client_email", "integration_test@appspot.gserviceaccount.com")
+            .field("client_id", "client_id")
+            .endObject();
         return BytesReference.toBytes(BytesReference.bytes(serviceAccountBuilder));
     }
 

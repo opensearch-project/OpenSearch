@@ -56,17 +56,39 @@ import java.util.function.Function;
 import static java.util.Collections.emptyList;
 
 public class TransportReindexAction extends HandledTransportAction<ReindexRequest, BulkByScrollResponse> {
-    public static final Setting<List<String>> REMOTE_CLUSTER_WHITELIST =
-            Setting.listSetting("reindex.remote.whitelist", emptyList(), Function.identity(), Property.NodeScope);
+    static final Setting<List<String>> REMOTE_CLUSTER_WHITELIST = Setting.listSetting(
+        "reindex.remote.whitelist",
+        emptyList(),
+        Function.identity(),
+        Property.NodeScope,
+        Property.Deprecated
+    );
+    // The setting below is going to replace the above.
+    // To keep backwards compatibility, the old usage is remained, and it's also used as the fallback for the new usage.
+    public static final Setting<List<String>> REMOTE_CLUSTER_ALLOWLIST = Setting.listSetting(
+        "reindex.remote.allowlist",
+        REMOTE_CLUSTER_WHITELIST,
+        Function.identity(),
+        Property.NodeScope
+    );
     public static Optional<RemoteReindexExtension> remoteExtension = Optional.empty();
 
     private final ReindexValidator reindexValidator;
     private final Reindexer reindexer;
 
     @Inject
-    public TransportReindexAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService, ScriptService scriptService,
-            AutoCreateIndex autoCreateIndex, Client client, TransportService transportService, ReindexSslConfig sslConfig) {
+    public TransportReindexAction(
+        Settings settings,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ClusterService clusterService,
+        ScriptService scriptService,
+        AutoCreateIndex autoCreateIndex,
+        Client client,
+        TransportService transportService,
+        ReindexSslConfig sslConfig
+    ) {
         super(ReindexAction.NAME, transportService, actionFilters, ReindexRequest::new);
         this.reindexValidator = new ReindexValidator(settings, clusterService, indexNameExpressionResolver, autoCreateIndex);
         this.reindexer = new Reindexer(clusterService, client, threadPool, scriptService, sslConfig, remoteExtension);

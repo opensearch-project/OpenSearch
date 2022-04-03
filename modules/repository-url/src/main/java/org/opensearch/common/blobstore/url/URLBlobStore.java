@@ -66,8 +66,8 @@ public class URLBlobStore implements BlobStore {
      */
     public URLBlobStore(Settings settings, URL path) {
         this.path = path;
-        this.bufferSizeInBytes = (int) settings.getAsBytesSize("repositories.uri.buffer_size",
-            new ByteSizeValue(100, ByteSizeUnit.KB)).getBytes();
+        this.bufferSizeInBytes = (int) settings.getAsBytesSize("repositories.uri.buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB))
+            .getBytes();
     }
 
     @Override

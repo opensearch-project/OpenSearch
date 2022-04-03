@@ -32,6 +32,7 @@
 package org.opensearch.test;
 
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.opensearch.action.OriginalIndices;
@@ -70,6 +71,7 @@ import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.suggest.SuggestionSearchContext;
@@ -80,13 +82,17 @@ import java.util.List;
 import java.util.Map;
 
 public class TestSearchContext extends SearchContext {
-    public static final SearchShardTarget SHARD_TARGET =
-        new SearchShardTarget("test", new ShardId("test", "test", 0), null, OriginalIndices.NONE);
+    public static final SearchShardTarget SHARD_TARGET = new SearchShardTarget(
+        "test",
+        new ShardId("test", "test", 0),
+        null,
+        OriginalIndices.NONE
+    );
 
     final BigArrays bigArrays;
     final IndexService indexService;
     final BitsetFilterCache fixedBitSetFilterCache;
-    final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
+    final Map<Class<?>, CollectorManager<? extends Collector, ReduceableSearchResult>> queryCollectorManagers = new HashMap<>();
     final IndexShard indexShard;
     final QuerySearchResult queryResult = new QuerySearchResult();
     final QueryShardContext queryShardContext;
@@ -105,8 +111,10 @@ public class TestSearchContext extends SearchContext {
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
     private SearchContextAggregations aggregations;
     private ScrollContext scrollContext;
+    private FieldDoc searchAfter;
+    private Profilers profilers;
+    private CollapseContext collapse;
 
-    private final long originNanoTime = System.nanoTime();
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
 
     public TestSearchContext(BigArrays bigArrays, IndexService indexService) {
@@ -129,8 +137,12 @@ public class TestSearchContext extends SearchContext {
         this(queryShardContext, indexShard, searcher, null);
     }
 
-    public TestSearchContext(QueryShardContext queryShardContext, IndexShard indexShard,
-                             ContextIndexSearcher searcher, ScrollContext scrollContext) {
+    public TestSearchContext(
+        QueryShardContext queryShardContext,
+        IndexShard indexShard,
+        ContextIndexSearcher searcher,
+        ScrollContext scrollContext
+    ) {
         this.bigArrays = null;
         this.indexService = null;
         this.fixedBitSetFilterCache = null;
@@ -145,8 +157,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void preProcess(boolean rewrite) {
-    }
+    public void preProcess(boolean rewrite) {}
 
     @Override
     public Query buildFilteredQuery(Query query) {
@@ -220,8 +231,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void highlight(SearchHighlightContext highlight) {
-    }
+    public void highlight(SearchHighlightContext highlight) {}
 
     @Override
     public SuggestionSearchContext suggest() {
@@ -229,8 +239,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void suggest(SuggestionSearchContext suggest) {
-    }
+    public void suggest(SuggestionSearchContext suggest) {}
 
     @Override
     public List<RescoreContext> rescore() {
@@ -326,8 +335,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void timeout(TimeValue timeout) {
-    }
+    public void timeout(TimeValue timeout) {}
 
     @Override
     public int terminateAfter() {
@@ -389,23 +397,25 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext searchAfter(FieldDoc searchAfter) {
-        return null;
+    public SearchContext searchAfter(FieldDoc searchAfterDoc) {
+        this.searchAfter = searchAfterDoc;
+        return this;
     }
 
     @Override
     public FieldDoc searchAfter() {
-        return null;
+        return searchAfter;
     }
 
     @Override
     public SearchContext collapse(CollapseContext collapse) {
-        return null;
+        this.collapse = collapse;
+        return this;
     }
 
     @Override
     public CollapseContext collapse() {
-        return null;
+        return collapse;
     }
 
     @Override
@@ -461,7 +471,6 @@ public class TestSearchContext extends SearchContext {
         this.size = size;
     }
 
-
     @Override
     public SearchContext size(int size) {
         return null;
@@ -498,8 +507,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void explain(boolean explain) {
-    }
+    public void explain(boolean explain) {}
 
     @Override
     public List<String> groupStats() {
@@ -507,8 +515,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void groupStats(List<String> groupStats) {
-    }
+    public void groupStats(List<String> groupStats) {}
 
     @Override
     public boolean version() {
@@ -516,8 +523,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void version(boolean version) {
-    }
+    public void version(boolean version) {}
 
     @Override
     public boolean seqNoAndPrimaryTerm() {
@@ -586,8 +592,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void doClose() {
-    }
+    public void doClose() {}
 
     @Override
     public long getRelativeTimeInMillis() {
@@ -596,11 +601,13 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public Profilers getProfilers() {
-        return null; // no profiling
+        return profilers;
     }
 
     @Override
-    public Map<Class<?>, Collector> queryCollectors() {return queryCollectors;}
+    public Map<Class<?>, CollectorManager<? extends Collector, ReduceableSearchResult>> queryCollectorManagers() {
+        return queryCollectorManagers;
+    }
 
     @Override
     public QueryShardContext getQueryShardContext() {
@@ -630,5 +637,22 @@ public class TestSearchContext extends SearchContext {
     @Override
     public ReaderContext readerContext() {
         throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Clean the query results by consuming all of it
+     */
+    public TestSearchContext withCleanQueryResult() {
+        queryResult.consumeAll();
+        profilers = null;
+        return this;
+    }
+
+    /**
+     * Add profilers to the query
+     */
+    public TestSearchContext withProfilers() {
+        this.profilers = new Profilers(searcher);
+        return this;
     }
 }

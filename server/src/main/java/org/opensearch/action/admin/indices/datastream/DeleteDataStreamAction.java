@@ -154,9 +154,14 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         private final MetadataDeleteIndexService deleteIndexService;
 
         @Inject
-        public TransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               MetadataDeleteIndexService deleteIndexService) {
+        public TransportAction(
+            TransportService transportService,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ActionFilters actionFilters,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            MetadataDeleteIndexService deleteIndexService
+        ) {
             super(NAME, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver);
             this.deleteIndexService = deleteIndexService;
         }
@@ -172,31 +177,33 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         }
 
         @Override
-        protected void masterOperation(Request request, ClusterState state,
-                                       ActionListener<AcknowledgedResponse> listener) throws Exception {
-            clusterService.submitStateUpdateTask("remove-data-stream [" + Strings.arrayToCommaDelimitedString(request.names) + "]",
+        protected void masterOperation(Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
+            throws Exception {
+            clusterService.submitStateUpdateTask(
+                "remove-data-stream [" + Strings.arrayToCommaDelimitedString(request.names) + "]",
                 new ClusterStateUpdateTask(Priority.HIGH) {
 
-                @Override
-                public TimeValue timeout() {
-                    return request.masterNodeTimeout();
-                }
+                    @Override
+                    public TimeValue timeout() {
+                        return request.masterNodeTimeout();
+                    }
 
-                @Override
-                public void onFailure(String source, Exception e) {
-                    listener.onFailure(e);
-                }
+                    @Override
+                    public void onFailure(String source, Exception e) {
+                        listener.onFailure(e);
+                    }
 
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    return removeDataStream(deleteIndexService, currentState, request);
-                }
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        return removeDataStream(deleteIndexService, currentState, request);
+                    }
 
-                @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    listener.onResponse(new AcknowledgedResponse(true));
+                    @Override
+                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        listener.onResponse(new AcknowledgedResponse(true));
+                    }
                 }
-            });
+            );
         }
 
         static ClusterState removeDataStream(MetadataDeleteIndexService deleteIndexService, ClusterState currentState, Request request) {
@@ -213,8 +220,11 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
             }
 
             if (snapshottingDataStreams.isEmpty() == false) {
-                throw new SnapshotInProgressException("Cannot delete data streams that are being snapshotted: " + snapshottingDataStreams +
-                    ". Try again after snapshot finishes or cancel the currently running snapshot.");
+                throw new SnapshotInProgressException(
+                    "Cannot delete data streams that are being snapshotted: "
+                        + snapshottingDataStreams
+                        + ". Try again after snapshot finishes or cancel the currently running snapshot."
+                );
             }
 
             Set<Index> backingIndicesToRemove = new HashSet<>();

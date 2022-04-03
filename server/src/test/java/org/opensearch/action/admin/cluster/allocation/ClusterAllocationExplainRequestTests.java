@@ -34,14 +34,16 @@ package org.opensearch.action.admin.cluster.allocation;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 
 public class ClusterAllocationExplainRequestTests extends OpenSearchTestCase {
 
     public void testSerialization() throws Exception {
-        ClusterAllocationExplainRequest request =
-                new ClusterAllocationExplainRequest(randomAlphaOfLength(4), randomIntBetween(0, Integer.MAX_VALUE), randomBoolean(),
-                                                       randomBoolean() ? randomAlphaOfLength(5) : null);
+        ClusterAllocationExplainRequest request = new ClusterAllocationExplainRequest(
+            randomAlphaOfLength(4),
+            randomIntBetween(0, Integer.MAX_VALUE),
+            randomBoolean(),
+            randomBoolean() ? randomAlphaOfLength(5) : null
+        );
         request.includeYesDecisions(randomBoolean());
         request.includeDiskInfo(randomBoolean());
         BytesStreamOutput output = new BytesStreamOutput();

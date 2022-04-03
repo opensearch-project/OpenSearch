@@ -109,16 +109,16 @@ public class FsProbe {
                     final long sectorsRead = Long.parseLong(fields[5]);
                     final long writesCompleted = Long.parseLong(fields[7]);
                     final long sectorsWritten = Long.parseLong(fields[9]);
-                    final FsInfo.DeviceStats deviceStats =
-                            new FsInfo.DeviceStats(
-                                    majorDeviceNumber,
-                                    minorDeviceNumber,
-                                    deviceName,
-                                    readsCompleted,
-                                    sectorsRead,
-                                    writesCompleted,
-                                    sectorsWritten,
-                                    deviceMap.get(Tuple.tuple(majorDeviceNumber, minorDeviceNumber)));
+                    final FsInfo.DeviceStats deviceStats = new FsInfo.DeviceStats(
+                        majorDeviceNumber,
+                        minorDeviceNumber,
+                        deviceName,
+                        readsCompleted,
+                        sectorsRead,
+                        writesCompleted,
+                        sectorsWritten,
+                        deviceMap.get(Tuple.tuple(majorDeviceNumber, minorDeviceNumber))
+                    );
                     devicesStats.add(deviceStats);
                 }
             }
@@ -127,8 +127,10 @@ public class FsProbe {
         } catch (Exception e) {
             // do not fail Elasticsearch if something unexpected
             // happens here
-            logger.debug(() -> new ParameterizedMessage(
-                    "unexpected exception processing /proc/diskstats for devices {}", devicesNumbers), e);
+            logger.debug(
+                () -> new ParameterizedMessage("unexpected exception processing /proc/diskstats for devices {}", devicesNumbers),
+                e
+            );
             return null;
         }
     }

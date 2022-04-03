@@ -188,10 +188,19 @@ public class StoredFieldsContext implements Writeable {
             }
             return fromList(list);
         } else {
-            throw new ParsingException(parser.getTokenLocation(),
-                "Expected [" + XContentParser.Token.VALUE_STRING + "] or ["
-                    + XContentParser.Token.START_ARRAY + "] in [" + fieldName + "] but found [" + token + "]",
-                parser.getTokenLocation());
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "Expected ["
+                    + XContentParser.Token.VALUE_STRING
+                    + "] or ["
+                    + XContentParser.Token.START_ARRAY
+                    + "] in ["
+                    + fieldName
+                    + "] but found ["
+                    + token
+                    + "]",
+                parser.getTokenLocation()
+            );
         }
     }
 

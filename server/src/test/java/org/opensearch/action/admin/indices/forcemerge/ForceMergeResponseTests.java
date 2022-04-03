@@ -35,14 +35,17 @@ package org.opensearch.action.admin.indices.forcemerge;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.test.AbstractBroadcastResponseTestCase;
-import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 
 import java.util.List;
 
 public class ForceMergeResponseTests extends AbstractBroadcastResponseTestCase<ForceMergeResponse> {
     @Override
-    protected ForceMergeResponse createTestInstance(int totalShards, int successfulShards, int failedShards,
-                                                    List<DefaultShardOperationFailedException> failures) {
+    protected ForceMergeResponse createTestInstance(
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<DefaultShardOperationFailedException> failures
+    ) {
         return new ForceMergeResponse(totalShards, successfulShards, failedShards, failures);
     }
 

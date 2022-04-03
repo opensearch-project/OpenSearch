@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.cluster.settings;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -57,16 +56,25 @@ public class ClusterUpdateSettingsResponseTests extends AbstractSerializingTestC
     @Override
     protected ClusterUpdateSettingsResponse mutateInstance(ClusterUpdateSettingsResponse response) {
         int i = randomIntBetween(0, 2);
-        switch(i) {
+        switch (i) {
             case 0:
-                return new ClusterUpdateSettingsResponse(response.isAcknowledged() == false,
-                        response.transientSettings, response.persistentSettings);
+                return new ClusterUpdateSettingsResponse(
+                    response.isAcknowledged() == false,
+                    response.transientSettings,
+                    response.persistentSettings
+                );
             case 1:
-                return new ClusterUpdateSettingsResponse(response.isAcknowledged(), mutateSettings(response.transientSettings),
-                        response.persistentSettings);
+                return new ClusterUpdateSettingsResponse(
+                    response.isAcknowledged(),
+                    mutateSettings(response.transientSettings),
+                    response.persistentSettings
+                );
             case 2:
-                return new ClusterUpdateSettingsResponse(response.isAcknowledged(), response.transientSettings,
-                        mutateSettings(response.persistentSettings));
+                return new ClusterUpdateSettingsResponse(
+                    response.isAcknowledged(),
+                    response.transientSettings,
+                    mutateSettings(response.persistentSettings)
+                );
             default:
                 throw new UnsupportedOperationException();
         }
@@ -116,6 +124,6 @@ public class ClusterUpdateSettingsResponseTests extends AbstractSerializingTestC
 
     public void testOldSerialisation() throws IOException {
         ClusterUpdateSettingsResponse original = createTestInstance();
-        assertSerialization(original, VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_6_0_0, LegacyESVersion.V_6_4_0));
+        assertSerialization(original, VersionUtils.randomIndexCompatibleVersion(random()));
     }
 }

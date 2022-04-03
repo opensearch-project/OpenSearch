@@ -67,8 +67,13 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
     private final NodeClient client;
 
     @Inject
-    public TransportSearchTemplateAction(TransportService transportService, ActionFilters actionFilters,
-                                         ScriptService scriptService, NamedXContentRegistry xContentRegistry, NodeClient client) {
+    public TransportSearchTemplateAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        NodeClient client
+    ) {
         super(SearchTemplateAction.NAME, transportService, actionFilters, SearchTemplateRequest::new);
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
@@ -105,11 +110,18 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         }
     }
 
-    static SearchRequest convert(SearchTemplateRequest searchTemplateRequest, SearchTemplateResponse response, ScriptService scriptService,
-                                 NamedXContentRegistry xContentRegistry) throws IOException {
-        Script script = new Script(searchTemplateRequest.getScriptType(),
-            searchTemplateRequest.getScriptType() == ScriptType.STORED ? null : TEMPLATE_LANG, searchTemplateRequest.getScript(),
-                searchTemplateRequest.getScriptParams() == null ? Collections.emptyMap() : searchTemplateRequest.getScriptParams());
+    static SearchRequest convert(
+        SearchTemplateRequest searchTemplateRequest,
+        SearchTemplateResponse response,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry
+    ) throws IOException {
+        Script script = new Script(
+            searchTemplateRequest.getScriptType(),
+            searchTemplateRequest.getScriptType() == ScriptType.STORED ? null : TEMPLATE_LANG,
+            searchTemplateRequest.getScript(),
+            searchTemplateRequest.getScriptParams() == null ? Collections.emptyMap() : searchTemplateRequest.getScriptParams()
+        );
         TemplateScript compiledScript = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(script.getParams());
         String source = compiledScript.execute();
         response.setSource(new BytesArray(source));
@@ -119,8 +131,10 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
             return null;
         }
 
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, source)) {
+        try (
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, source)
+        ) {
             SearchSourceBuilder builder = SearchSourceBuilder.searchSource();
             builder.parseXContent(parser, false);
             builder.explain(searchTemplateRequest.isExplain());
@@ -143,9 +157,14 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
                 searchSourceBuilder.trackTotalHitsUpTo(trackTotalHitsUpTo);
             } else if (searchSourceBuilder.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_ACCURATE
                 && searchSourceBuilder.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
-                throw new IllegalArgumentException("[" + RestSearchAction.TOTAL_HITS_AS_INT_PARAM + "] cannot be used " +
-                    "if the tracking of total hits is not accurate, got " + searchSourceBuilder.trackTotalHitsUpTo());
-            }
+                    throw new IllegalArgumentException(
+                        "["
+                            + RestSearchAction.TOTAL_HITS_AS_INT_PARAM
+                            + "] cannot be used "
+                            + "if the tracking of total hits is not accurate, got "
+                            + searchSourceBuilder.trackTotalHitsUpTo()
+                    );
+                }
         }
     }
 }

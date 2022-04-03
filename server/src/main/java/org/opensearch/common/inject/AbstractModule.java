@@ -90,8 +90,7 @@ public abstract class AbstractModule implements Module {
     /**
      * @see Binder#bindScope(Class, Scope)
      */
-    protected void bindScope(Class<? extends Annotation> scopeAnnotation,
-                             Scope scope) {
+    protected void bindScope(Class<? extends Annotation> scopeAnnotation, Scope scope) {
         binder.bindScope(scopeAnnotation, scope);
     }
 
@@ -211,8 +210,7 @@ public abstract class AbstractModule implements Module {
      * @see Binder#convertToTypes
      * @since 2.0
      */
-    protected void convertToTypes(Matcher<? super TypeLiteral<?>> typeMatcher,
-                                  TypeConverter converter) {
+    protected void convertToTypes(Matcher<? super TypeLiteral<?>> typeMatcher, TypeConverter converter) {
         binder.convertToTypes(typeMatcher, converter);
     }
 
@@ -245,8 +243,7 @@ public abstract class AbstractModule implements Module {
      *      org.opensearch.common.inject.spi.TypeListener)
      * @since 2.0
      */
-    protected void bindListener(Matcher<? super TypeLiteral<?>> typeMatcher,
-                                TypeListener listener) {
+    protected void bindListener(Matcher<? super TypeLiteral<?>> typeMatcher, TypeListener listener) {
         binder.bindListener(typeMatcher, listener);
     }
 }

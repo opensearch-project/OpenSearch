@@ -1,13 +1,8 @@
 ---
-"Test cat nodes output":
-
-  - do:
-      cat.nodes: {}
-
-  - match:
-      $body: |
-        /  #ip                          heap.percent        ram.percent     cpu         load_1m                load_5m                load_15m               node.role                   master          name
-        ^  ((\d{1,3}\.){3}\d{1,3}  \s+  \d+            \s+  \d*         \s+ (-)?\d* \s+ ((-)?\d*(\.\d+)?)? \s+ ((-)?\d*(\.\d+)?)?\s+  ((-)?\d*(\.\d+)?)? \s+ (-|[cdhilmrstvw]{1,11}) \s+ [-*x]     \s+   (\S+\s?)+     \n)+  $/
+"Test cat nodes output - before 2.0.0":
+  - skip:
+      version: "2.0.0 - "
+      reason: "master is replaced by cluster_manager in 2.0.0"
 
   - do:
       cat.nodes:
@@ -17,6 +12,29 @@
       $body: |
         /^  ip                     \s+  heap\.percent   \s+  ram\.percent \s+ cpu      \s+ load_1m            \s+ load_5m            \s+ load_15m           \s+ node\.role              \s+  master   \s+   name  \n
            ((\d{1,3}\.){3}\d{1,3}  \s+  \d+             \s+  \d*          \s+ (-)?\d* \s+  ((-)?\d*(\.\d+)?)? \s+ ((-)?\d*(\.\d+)?)? \s+ ((-)?\d*(\.\d+)?)? \s+ (-|[cdhilmrstvw]{1,11}) \s+  [-*x]    \s+   (\S+\s?)+     \n)+  $/
+
+---
+"Test cat nodes output":
+  - skip:
+      version: " - 1.4.99"
+      reason: "cluster_manager is introduced in 2.0.0"
+
+  - do:
+      cat.nodes: {}
+
+  - match:
+      $body: |
+        /  #ip                          heap.percent        ram.percent     cpu         load_1m                load_5m                load_15m               node.role                   cluster_manager       name
+        ^  ((\d{1,3}\.){3}\d{1,3}  \s+  \d+            \s+  \d*         \s+ (-)?\d* \s+ ((-)?\d*(\.\d+)?)? \s+ ((-)?\d*(\.\d+)?)?\s+  ((-)?\d*(\.\d+)?)? \s+ (-|[cdhilmrstvw]{1,11}) \s+ [-*x]            \s+  (\S+\s?)+     \n)+  $/
+
+  - do:
+      cat.nodes:
+        v: true
+
+  - match:
+      $body: |
+        /^  ip                     \s+  heap\.percent   \s+  ram\.percent \s+ cpu      \s+ load_1m            \s+ load_5m            \s+ load_15m           \s+ node\.role              \s+  cluster_manager   \s+   name  \n
+           ((\d{1,3}\.){3}\d{1,3}  \s+  \d+             \s+  \d*          \s+ (-)?\d* \s+  ((-)?\d*(\.\d+)?)? \s+ ((-)?\d*(\.\d+)?)? \s+ ((-)?\d*(\.\d+)?)? \s+ (-|[cdhilmrstvw]{1,11}) \s+  [-*x]             \s+   (\S+\s?)+     \n)+  $/
 
   - do:
       cat.nodes:

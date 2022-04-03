@@ -39,7 +39,6 @@ import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.monitor.os.OsInfo;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
-import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -72,7 +71,8 @@ public class NodeInfoTests extends OpenSearchTestCase {
             null,
             null,
             null,
-            null);
+            null
+        );
 
         // OsInfo is absent
         assertThat(nodeInfo.getInfo(OsInfo.class), nullValue());

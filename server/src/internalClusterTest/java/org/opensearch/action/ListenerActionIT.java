@@ -36,7 +36,6 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.client.Client;
 import org.opensearch.client.Requests;
-import org.opensearch.client.transport.TransportClient;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.concurrent.CountDownLatch;
@@ -49,7 +48,7 @@ public class ListenerActionIT extends OpenSearchIntegTestCase {
         final AtomicReference<String> threadName = new AtomicReference<>();
         Client client = client();
 
-        IndexRequest request = new IndexRequest("test", "type", "1");
+        IndexRequest request = new IndexRequest("test").id("1");
         if (randomBoolean()) {
             // set the source, without it, we will have a verification failure
             request.source(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
@@ -72,11 +71,6 @@ public class ListenerActionIT extends OpenSearchIntegTestCase {
 
         latch.await();
 
-        boolean shouldBeThreaded = TransportClient.CLIENT_TYPE.equals(Client.CLIENT_TYPE_SETTING_S.get(client.settings()));
-        if (shouldBeThreaded) {
-            assertTrue(threadName.get().contains("listener"));
-        } else {
-            assertFalse(threadName.get().contains("listener"));
-        }
+        assertFalse(threadName.get().contains("listener"));
     }
 }

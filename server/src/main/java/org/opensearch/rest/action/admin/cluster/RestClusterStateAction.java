@@ -40,6 +40,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.Strings;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.xcontent.ToXContent;
@@ -71,6 +72,12 @@ public class RestClusterStateAction extends BaseRestHandler {
         this.settingsFilter = settingsFilter;
     }
 
+    // TODO: Remove the DeprecationLogger after removing MASTER_ROLE.
+    // It's used to log deprecation when request parameter 'metric' contains 'master_node'.
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestClusterStateAction.class);
+    private static final String DEPRECATED_MESSAGE_MASTER_NODE =
+        "Deprecated value [master_node] used for parameter [metric]. To promote inclusive language, please use [cluster_manager_node] instead. It will be unsupported in a future major version.";
+
     @Override
     public String getName() {
         return "cluster_state_action";
@@ -78,10 +85,13 @@ public class RestClusterStateAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_cluster/state"),
-            new Route(GET, "/_cluster/state/{metric}"),
-            new Route(GET, "/_cluster/state/{metric}/{indices}")));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "/_cluster/state"),
+                new Route(GET, "/_cluster/state/{metric}"),
+                new Route(GET, "/_cluster/state/{metric}/{indices}")
+            )
+        );
     }
 
     @Override
@@ -109,13 +119,24 @@ public class RestClusterStateAction extends BaseRestHandler {
         if (request.hasParam("metric")) {
             EnumSet<ClusterState.Metric> metrics = ClusterState.Metric.parseString(request.param("metric"), true);
             // do not ask for what we do not need.
-            clusterStateRequest.nodes(metrics.contains(ClusterState.Metric.NODES) || metrics.contains(ClusterState.Metric.MASTER_NODE));
+            clusterStateRequest.nodes(
+                metrics.contains(ClusterState.Metric.NODES)
+                    || metrics.contains(ClusterState.Metric.MASTER_NODE)
+                    || metrics.contains(ClusterState.Metric.CLUSTER_MANAGER_NODE)
+            );
+            // TODO: Remove the DeprecationLogger after removing MASTER_ROLE.
+            // Because "_all" value will add all Metric into metrics set, for prevent deprecation message shown in that case,
+            // add the check of validating metrics set doesn't contain all enum elements.
+            if (!metrics.equals(EnumSet.allOf(ClusterState.Metric.class)) && metrics.contains(ClusterState.Metric.MASTER_NODE)) {
+                deprecationLogger.deprecate("cluster_state_metric_parameter_master_node_value", DEPRECATED_MESSAGE_MASTER_NODE);
+            }
             /*
              * there is no distinction in Java api between routing_table and routing_nodes, it's the same info set over the wire, one single
              * flag to ask for it
              */
             clusterStateRequest.routingTable(
-                    metrics.contains(ClusterState.Metric.ROUTING_TABLE) || metrics.contains(ClusterState.Metric.ROUTING_NODES));
+                metrics.contains(ClusterState.Metric.ROUTING_TABLE) || metrics.contains(ClusterState.Metric.ROUTING_NODES)
+            );
             clusterStateRequest.metadata(metrics.contains(ClusterState.Metric.METADATA));
             clusterStateRequest.blocks(metrics.contains(ClusterState.Metric.BLOCKS));
             clusterStateRequest.customs(metrics.contains(ClusterState.Metric.CUSTOMS));
@@ -131,7 +152,9 @@ public class RestClusterStateAction extends BaseRestHandler {
                 }
                 builder.field(Fields.CLUSTER_NAME, response.getClusterName().value());
                 ToXContent.Params params = new ToXContent.DelegatingMapParams(
-                    singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API), request);
+                    singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API),
+                    request
+                );
                 response.getState().toXContent(builder, params);
                 builder.endObject();
                 return new BytesRestResponse(RestStatus.OK, builder);

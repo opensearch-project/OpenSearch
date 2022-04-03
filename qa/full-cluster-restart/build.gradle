@@ -92,7 +92,7 @@ configurations {
 }
 
 TaskProvider testJar = tasks.register("testJar", Jar) {
-  appendix 'test'
+  archiveAppendix = 'test'
   from sourceSets.test.output
 }
 

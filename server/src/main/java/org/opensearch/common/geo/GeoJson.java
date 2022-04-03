@@ -90,8 +90,7 @@ public final class GeoJson {
         this.validator = validator;
     }
 
-    public Geometry fromXContent(XContentParser parser)
-        throws IOException {
+    public Geometry fromXContent(XContentParser parser) throws IOException {
         try (XContentSubParser subParser = new XContentSubParser(parser)) {
             Geometry geometry = PARSER.apply(subParser, this);
             validator.validate(geometry);
@@ -243,7 +242,7 @@ public final class GeoJson {
                 for (Geometry g : collection) {
                     geometries.add(toMap(g));
                 }
-                root.put(FIELD_GEOMETRIES.getPreferredName(),  geometries);
+                root.put(FIELD_GEOMETRIES.getPreferredName(), geometries);
                 return null;
             }
 
@@ -358,28 +357,38 @@ public final class GeoJson {
         return root;
     }
 
-    private static final ConstructingObjectParser<Geometry, GeoJson> PARSER =
-        new ConstructingObjectParser<>("geojson", true, (a, c) -> {
-            String type = (String) a[0];
-            CoordinateNode coordinates = (CoordinateNode) a[1];
-            @SuppressWarnings("unchecked") List<Geometry> geometries = (List<Geometry>) a[2];
-            Boolean orientation = orientationFromString((String) a[3]);
-            DistanceUnit.Distance radius = (DistanceUnit.Distance) a[4];
-            return createGeometry(type, geometries, coordinates, orientation, c.rightOrientation, c.coerce, radius);
-        });
+    private static final ConstructingObjectParser<Geometry, GeoJson> PARSER = new ConstructingObjectParser<>("geojson", true, (a, c) -> {
+        String type = (String) a[0];
+        CoordinateNode coordinates = (CoordinateNode) a[1];
+        @SuppressWarnings("unchecked")
+        List<Geometry> geometries = (List<Geometry>) a[2];
+        Boolean orientation = orientationFromString((String) a[3]);
+        DistanceUnit.Distance radius = (DistanceUnit.Distance) a[4];
+        return createGeometry(type, geometries, coordinates, orientation, c.rightOrientation, c.coerce, radius);
+    });
 
     static {
         PARSER.declareString(constructorArg(), FIELD_TYPE);
-        PARSER.declareField(optionalConstructorArg(), (p, c) -> parseCoordinates(p), FIELD_COORDINATES,
-            ObjectParser.ValueType.VALUE_ARRAY);
+        PARSER.declareField(optionalConstructorArg(), (p, c) -> parseCoordinates(p), FIELD_COORDINATES, ObjectParser.ValueType.VALUE_ARRAY);
         PARSER.declareObjectArray(optionalConstructorArg(), PARSER, FIELD_GEOMETRIES);
         PARSER.declareString(optionalConstructorArg(), FIELD_ORIENTATION);
-        PARSER.declareField(optionalConstructorArg(), p -> DistanceUnit.Distance.parseDistance(p.text()), FIELD_RADIUS,
-            ObjectParser.ValueType.STRING);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            p -> DistanceUnit.Distance.parseDistance(p.text()),
+            FIELD_RADIUS,
+            ObjectParser.ValueType.STRING
+        );
     }
 
-    private static Geometry createGeometry(String type, List<Geometry> geometries, CoordinateNode coordinates, Boolean orientation,
-                                           boolean defaultOrientation, boolean coerce, DistanceUnit.Distance radius) {
+    private static Geometry createGeometry(
+        String type,
+        List<Geometry> geometries,
+        CoordinateNode coordinates,
+        Boolean orientation,
+        boolean defaultOrientation,
+        boolean coerce,
+        DistanceUnit.Distance radius
+    ) {
         ShapeType shapeType;
         if ("bbox".equalsIgnoreCase(type)) {
             shapeType = ShapeType.ENVELOPE;
@@ -460,9 +469,9 @@ public final class GeoJson {
     private static CoordinateNode parseCoordinates(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
         // Base cases
-        if (token != XContentParser.Token.START_ARRAY &&
-            token != XContentParser.Token.END_ARRAY &&
-            token != XContentParser.Token.VALUE_NULL) {
+        if (token != XContentParser.Token.START_ARRAY
+            && token != XContentParser.Token.END_ARRAY
+            && token != XContentParser.Token.VALUE_NULL) {
             return new CoordinateNode(parseCoordinate(parser));
         } else if (token == XContentParser.Token.VALUE_NULL) {
             throw new IllegalArgumentException("coordinates cannot contain NULL values)");
@@ -707,7 +716,6 @@ public final class GeoJson {
             return new MultiLine(lines);
         }
 
-
         public Polygon asPolygon(boolean orientation, boolean coerce) {
             if (coordinate != null) {
                 throw new OpenSearchException("expected a list of points but got a point");
@@ -739,7 +747,9 @@ public final class GeoJson {
             if (children.size() != 2) {
                 throw new OpenSearchParseException(
                     "invalid number of points [{}] provided for geo_shape [{}] when expecting an array of 2 coordinates",
-                    children.size(), ShapeType.ENVELOPE);
+                    children.size(),
+                    ShapeType.ENVELOPE
+                );
             }
             // verify coordinate bounds, correct if necessary
             Point uL = children.get(0).coordinate;

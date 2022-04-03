@@ -55,12 +55,17 @@ public class FlushBlocksIT extends OpenSearchIntegTestCase {
 
         int docs = between(10, 100);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex("test", "type", "" + i).setSource("test", "init").execute().actionGet();
+            client().prepareIndex("test").setId("" + i).setSource("test", "init").execute().actionGet();
         }
 
         // Request is not blocked
-        for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY, SETTING_BLOCKS_METADATA,
-            SETTING_READ_ONLY_ALLOW_DELETE)) {
+        for (String blockSetting : Arrays.asList(
+            SETTING_BLOCKS_READ,
+            SETTING_BLOCKS_WRITE,
+            SETTING_READ_ONLY,
+            SETTING_BLOCKS_METADATA,
+            SETTING_READ_ONLY_ALLOW_DELETE
+        )) {
             try {
                 enableIndexBlock("test", blockSetting);
                 FlushResponse response = client().admin().indices().prepareFlush("test").execute().actionGet();

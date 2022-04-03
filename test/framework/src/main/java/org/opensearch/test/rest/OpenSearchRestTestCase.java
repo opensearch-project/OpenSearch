@@ -71,7 +71,6 @@ import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.seqno.ReplicationTracker;
-import org.opensearch.indices.flush.SyncedFlushService;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.OpenSearchTestCase;
@@ -101,8 +100,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -127,15 +128,24 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     public static final String CLIENT_SOCKET_TIMEOUT = "client.socket.timeout";
     public static final String CLIENT_PATH_PREFIX = "client.path.prefix";
 
+    // This set will contain the warnings already asserted since we are eliminating logging duplicate warnings.
+    // This ensures that no matter in what order the tests run, the warning is asserted once.
+    private static Set<String> assertedWarnings = ConcurrentHashMap.newKeySet();
+
     /**
      * Convert the entity from a {@link Response} into a map of maps.
      */
     public static Map<String, Object> entityAsMap(Response response) throws IOException {
         XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
         // EMPTY and THROW are fine here because `.map` doesn't use named x content or deprecation
-        try (XContentParser parser = xContentType.xContent().createParser(
-                NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                response.getEntity().getContent())) {
+        try (
+            XContentParser parser = xContentType.xContent()
+                .createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    response.getEntity().getContent()
+                )
+        ) {
             return parser.map();
         }
     }
@@ -146,9 +156,14 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     public static List<Object> entityAsList(Response response) throws IOException {
         XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
         // EMPTY and THROW are fine here because `.map` doesn't use named x content or deprecation
-        try (XContentParser parser = xContentType.xContent().createParser(
-            NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-            response.getEntity().getContent())) {
+        try (
+            XContentParser parser = xContentType.xContent()
+                .createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    response.getEntity().getContent()
+                )
+        ) {
             return parser.list();
         }
     }
@@ -205,8 +220,10 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     protected String getTestRestCluster() {
         String cluster = System.getProperty("tests.rest.cluster");
         if (cluster == null) {
-            throw new RuntimeException("Must specify [tests.rest.cluster] system property with a comma delimited list of [host:port] "
-                + "to which to send REST requests");
+            throw new RuntimeException(
+                "Must specify [tests.rest.cluster] system property with a comma delimited list of [host:port] "
+                    + "to which to send REST requests"
+            );
         }
         return cluster;
     }
@@ -244,6 +261,9 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
 
         @Override
         public boolean warningsShouldFailRequest(List<String> warnings) {
+            if (warnings.isEmpty()) {
+                return false;
+            }
             if (isExclusivelyTargetingCurrentVersionCluster()) {
                 // absolute equality required in expected and actual.
                 Set<String> actual = new HashSet<>(warnings);
@@ -251,8 +271,8 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
             } else {
                 // Some known warnings can safely be ignored
                 for (String actualWarning : warnings) {
-                    if (false == allowedWarnings.contains(actualWarning) &&
-                        false == requiredSameVersionClusterWarnings.contains(actualWarning)) {
+                    if (false == allowedWarnings.contains(actualWarning)
+                        && false == requiredSameVersionClusterWarnings.contains(actualWarning)) {
                         return true;
                     }
                 }
@@ -262,8 +282,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
 
         private boolean isExclusivelyTargetingCurrentVersionCluster() {
             assertFalse("Node versions running in the cluster are missing", testNodeVersions.isEmpty());
-            return testNodeVersions.size() == 1 &&
-                    testNodeVersions.iterator().next().equals(Version.CURRENT);
+            return testNodeVersions.size() == 1 && testNodeVersions.iterator().next().equals(Version.CURRENT);
         }
 
     }
@@ -288,6 +307,18 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     }
 
     /**
+     * Filters out already asserted warnings and calls expectWarnings method.
+     * @param deprecationWarning expected warning
+     */
+    public static RequestOptions expectWarningsOnce(String deprecationWarning) {
+        if (assertedWarnings.contains(deprecationWarning)) {
+            return RequestOptions.DEFAULT;
+        }
+        assertedWarnings.add(deprecationWarning);
+        return expectWarnings(deprecationWarning);
+    }
+
+    /**
      * Creates RequestOptions designed to ignore [types removal] warnings but nothing else
      * @deprecated this method is only required while we deprecate types and can be removed in 8.0
      */
@@ -295,17 +326,17 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     public static RequestOptions allowTypesRemovalWarnings() {
         Builder builder = RequestOptions.DEFAULT.toBuilder();
         builder.setWarningsHandler(new WarningsHandler() {
-                @Override
-                public boolean warningsShouldFailRequest(List<String> warnings) {
-                    for (String warning : warnings) {
-                        if(warning.startsWith("[types removal]") == false) {
-                            //Something other than a types removal message - return true
-                            return true;
-                        }
+            @Override
+            public boolean warningsShouldFailRequest(List<String> warnings) {
+                for (String warning : warnings) {
+                    if (warning.startsWith("[types removal]") == false) {
+                        // Something other than a types removal message - return true
+                        return true;
                     }
-                    return false;
                 }
-            });
+                return false;
+            }
+        });
         return builder.build();
     }
 
@@ -322,10 +353,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     @After
     public final void cleanUpCluster() throws Exception {
         if (preserveClusterUponCompletion() == false) {
-            if (nodeVersions.stream().noneMatch(version -> version.before(LegacyESVersion.V_6_2_0))) {
-                // wait_for_no_initializing_shards added in 6.2
-                ensureNoInitializingShards();
-            }
+            ensureNoInitializingShards();
             wipeCluster();
             waitForClusterStateUpdatesToFinish();
             logIfThereAreRunningTasks();
@@ -389,8 +417,11 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
                  * the specified task filter.
                  */
                 if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
-                    try (BufferedReader responseReader = new BufferedReader(
-                            new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8))) {
+                    try (
+                        BufferedReader responseReader = new BufferedReader(
+                            new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8)
+                        )
+                    ) {
                         int activeTasks = 0;
                         String line;
                         final StringBuilder tasksListString = new StringBuilder();
@@ -493,21 +524,24 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
      * Returns whether to wait to make absolutely certain that all snapshots
      * have been deleted.
      */
-    protected boolean waitForAllSnapshotsWiped() { return false; }
+    protected boolean waitForAllSnapshotsWiped() {
+        return false;
+    }
 
     private void wipeCluster() throws Exception {
 
         // Clean up SLM policies before trying to wipe snapshots so that no new ones get started by SLM after wiping
-        if (nodeVersions.first().onOrAfter(LegacyESVersion.V_7_4_0)) { // SLM was introduced in version 7.4
+        if (nodeVersions.first().onOrAfter(LegacyESVersion.V_7_4_0) && nodeVersions.first().before(Version.V_1_0_0)) { // SLM was introduced
+                                                                                                                       // in version 7.4
             if (preserveSLMPoliciesUponCompletion() == false) {
                 // Clean up SLM policies before trying to wipe snapshots so that no new ones get started by SLM after wiping
                 deleteAllSLMPolicies();
             }
         }
 
-        SetOnce<Map<String, List<Map<?,?>>>> inProgressSnapshots = new SetOnce<>();
+        SetOnce<Map<String, List<Map<?, ?>>>> inProgressSnapshots = new SetOnce<>();
         if (waitForAllSnapshotsWiped()) {
-            AtomicReference<Map<String, List<Map<?,?>>>> snapshots = new AtomicReference<>();
+            AtomicReference<Map<String, List<Map<?, ?>>>> snapshots = new AtomicReference<>();
             try {
                 // Repeatedly delete the snapshots until there aren't any
                 assertBusy(() -> {
@@ -561,17 +595,17 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
             deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
             RequestOptions.Builder allowSystemIndexAccessWarningOptions = RequestOptions.DEFAULT.toBuilder();
             allowSystemIndexAccessWarningOptions.setWarningsHandler(warnings -> {
-                    if (warnings.size() == 0) {
-                        return false;
-                    } else if (warnings.size() > 1) {
-                        return true;
-                    }
-                    // We don't know exactly which indices we're cleaning up in advance, so just accept all system index access warnings.
-                    final String warning = warnings.get(0);
-                    final boolean isSystemIndexWarning = warning.contains("this request accesses system indices")
-                        && warning.contains("but in a future major version, direct access to system indices will be prevented by default");
-                    return isSystemIndexWarning == false;
-                });
+                if (warnings.size() == 0) {
+                    return false;
+                } else if (warnings.size() > 1) {
+                    return true;
+                }
+                // We don't know exactly which indices we're cleaning up in advance, so just accept all system index access warnings.
+                final String warning = warnings.get(0);
+                final boolean isSystemIndexWarning = warning.contains("this request accesses system indices")
+                    && warning.contains("but in a future major version, direct access to system indices will be prevented by default");
+                return isSystemIndexWarning == false;
+            });
             deleteRequest.setOptions(allowSystemIndexAccessWarningOptions);
             final Response response = adminClient().performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
@@ -654,7 +688,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
             }
             mustClear = true;
             clearCommand.startObject(type);
-            for (Object key: settings.keySet()) {
+            for (Object key : settings.keySet()) {
                 clearCommand.field(key + ".*").nullValue();
             }
             clearCommand.endObject();
@@ -694,7 +728,8 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
             Response response = adminClient().performRequest(new Request("GET", "/_slm/policy"));
             policies = entityAsMap(response);
         } catch (ResponseException e) {
-            if (RestStatus.METHOD_NOT_ALLOWED.getStatus() == e.getResponse().getStatusLine().getStatusCode()) {
+            if (RestStatus.METHOD_NOT_ALLOWED.getStatus() == e.getResponse().getStatusLine().getStatusCode()
+                || RestStatus.BAD_REQUEST.getStatus() == e.getResponse().getStatusLine().getStatusCode()) {
                 // If bad request returned, SLM is not enabled.
                 return;
             }
@@ -743,7 +778,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
                 List<?> tasks = (List<?>) entityAsMap(response).get("tasks");
                 if (false == tasks.isEmpty()) {
                     StringBuilder message = new StringBuilder("there are still running tasks:");
-                    for (Object task: tasks) {
+                    for (Object task : tasks) {
                         message.append('\n').append(task.toString());
                     }
                     fail(message.toString());
@@ -813,7 +848,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
                 SSLContext sslcontext = SSLContexts.custom().loadTrustMaterial(keyStore, null).build();
                 SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(sslcontext);
                 builder.setHttpClientConfigCallback(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy));
-            } catch (KeyStoreException |NoSuchAlgorithmException |KeyManagementException |CertificateException e) {
+            } catch (KeyStoreException | NoSuchAlgorithmException | KeyManagementException | CertificateException e) {
                 throw new RuntimeException("Error setting up ssl", e);
             }
         }
@@ -825,8 +860,10 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
         }
         builder.setDefaultHeaders(defaultHeaders);
         final String socketTimeoutString = settings.get(CLIENT_SOCKET_TIMEOUT);
-        final TimeValue socketTimeout =
-            TimeValue.parseTimeValue(socketTimeoutString == null ? "60s" : socketTimeoutString, CLIENT_SOCKET_TIMEOUT);
+        final TimeValue socketTimeout = TimeValue.parseTimeValue(
+            socketTimeoutString == null ? "60s" : socketTimeoutString,
+            CLIENT_SOCKET_TIMEOUT
+        );
         builder.setRequestConfigCallback(conf -> conf.setSocketTimeout(Math.toIntExact(socketTimeout.getMillis())));
         if (settings.hasValue(CLIENT_PATH_PREFIX)) {
             builder.setPathPrefix(settings.get(CLIENT_PATH_PREFIX));
@@ -884,8 +921,14 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
             if (e.getResponse().getStatusLine().getStatusCode() == HttpStatus.SC_REQUEST_TIMEOUT) {
                 try {
                     final Response clusterStateResponse = client.performRequest(new Request("GET", "/_cluster/state?pretty"));
-                    fail("timed out waiting for green state for index [" + index + "] " +
-                        "cluster state [" + EntityUtils.toString(clusterStateResponse.getEntity()) + "]");
+                    fail(
+                        "timed out waiting for green state for index ["
+                            + index
+                            + "] "
+                            + "cluster state ["
+                            + EntityUtils.toString(clusterStateResponse.getEntity())
+                            + "]"
+                    );
                 } catch (Exception inner) {
                     e.addSuppressed(inner);
                 }
@@ -926,9 +969,6 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
         entity += "}";
         if (settings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
             expectSoftDeletesWarning(request, name);
-        } else if (settings.hasValue(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey()) ||
-            settings.hasValue(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey())) {
-            expectTranslogRetentionWarning(request);
         }
         request.setJsonEntity(entity);
         client().performRequest(request);
@@ -951,41 +991,34 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
 
     protected static void expectSoftDeletesWarning(Request request, String indexName) {
         final List<String> esExpectedWarnings = Collections.singletonList(
-            "Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. " +
-                "Please do not specify value for setting [index.soft_deletes.enabled] of index [" + indexName + "].");
+            "Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. "
+                + "Please do not specify value for setting [index.soft_deletes.enabled] of index ["
+                + indexName
+                + "]."
+        );
         final List<String> opensearchExpectedWarnings = Collections.singletonList(
-            "Creating indices with soft-deletes disabled is deprecated and will be removed in future OpenSearch versions. " +
-                "Please do not specify value for setting [index.soft_deletes.enabled] of index [" + indexName + "].");
+            "Creating indices with soft-deletes disabled is deprecated and will be removed in future OpenSearch versions. "
+                + "Please do not specify value for setting [index.soft_deletes.enabled] of index ["
+                + indexName
+                + "]."
+        );
         final Builder requestOptions = RequestOptions.DEFAULT.toBuilder();
         if (nodeVersions.stream().allMatch(version -> version.onOrAfter(LegacyESVersion.V_7_6_0) && version.before(Version.V_1_0_0))) {
             requestOptions.setWarningsHandler(warnings -> warnings.equals(esExpectedWarnings) == false);
             request.setOptions(requestOptions);
-        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(LegacyESVersion.V_7_6_0)
-                && version.before(Version.V_1_0_0))) {
-            requestOptions.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(esExpectedWarnings) == false);
-            request.setOptions(requestOptions);
-        }
+        } else if (nodeVersions.stream()
+            .anyMatch(version -> version.onOrAfter(LegacyESVersion.V_7_6_0) && version.before(Version.V_1_0_0))) {
+                requestOptions.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(esExpectedWarnings) == false);
+                request.setOptions(requestOptions);
+            }
 
         if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_1_0_0))) {
             requestOptions.setWarningsHandler(warnings -> warnings.equals(opensearchExpectedWarnings) == false);
             request.setOptions(requestOptions);
         } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(Version.V_1_0_0))) {
-            requestOptions.setWarningsHandler(warnings -> warnings.isEmpty() == false
-                && warnings.equals(opensearchExpectedWarnings) == false);
-            request.setOptions(requestOptions);
-        }
-    }
-
-    protected static void expectTranslogRetentionWarning(Request request) {
-        final List<String> expectedWarnings = Collections.singletonList(
-            "Translog retention settings [index.translog.retention.age] "
-                + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
-        final Builder requestOptions = RequestOptions.DEFAULT.toBuilder();
-        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(LegacyESVersion.V_7_7_0))) {
-            requestOptions.setWarningsHandler(warnings -> warnings.equals(expectedWarnings) == false);
-            request.setOptions(requestOptions);
-        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(LegacyESVersion.V_7_7_0))) {
-            requestOptions.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false);
+            requestOptions.setWarningsHandler(
+                warnings -> warnings.isEmpty() == false && warnings.equals(opensearchExpectedWarnings) == false
+            );
             request.setOptions(requestOptions);
         }
     }
@@ -1002,7 +1035,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     @SuppressWarnings("unchecked")
     protected Map<String, Object> getIndexSettingsAsMap(String index) throws IOException {
         Map<String, Object> indexSettings = getIndexSettings(index);
-        return (Map<String, Object>)((Map<String, Object>) indexSettings.get(index)).get("settings");
+        return (Map<String, Object>) ((Map<String, Object>) indexSettings.get(index)).get("settings");
     }
 
     protected static boolean indexExists(String index) throws IOException {
@@ -1040,7 +1073,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
             endpoint = endpoint + "/" + alias;
         }
         Map<String, Object> getAliasResponse = getAsMap(endpoint);
-        return (Map<String, Object>)XContentMapValues.extractValue(index + ".aliases." + alias, getAliasResponse);
+        return (Map<String, Object>) XContentMapValues.extractValue(index + ".aliases." + alias, getAliasResponse);
     }
 
     protected static Map<String, Object> getAsMap(final String endpoint) throws IOException {
@@ -1050,8 +1083,11 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
 
     protected static Map<String, Object> responseAsMap(Response response) throws IOException {
         XContentType entityContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
-        Map<String, Object> responseEntity = XContentHelper.convertToMap(entityContentType.xContent(),
-                response.getEntity().getContent(), false);
+        Map<String, Object> responseEntity = XContentHelper.convertToMap(
+            entityContentType.xContent(),
+            response.getEntity().getContent(),
+            false
+        );
         assertNotNull(responseEntity);
         return responseEntity;
     }
@@ -1156,15 +1192,21 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
         final boolean alwaysExists = minimumNodeVersion().onOrAfter(LegacyESVersion.V_7_6_0);
         assertBusy(() -> {
             Map<String, Object> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
-            @SuppressWarnings("unchecked") Map<String, List<Map<String, ?>>> shards =
-                (Map<String, List<Map<String, ?>>>) XContentMapValues.extractValue("indices." + index + ".shards", stats);
+            @SuppressWarnings("unchecked")
+            Map<String, List<Map<String, ?>>> shards = (Map<String, List<Map<String, ?>>>) XContentMapValues.extractValue(
+                "indices." + index + ".shards",
+                stats
+            );
             for (List<Map<String, ?>> shard : shards.values()) {
                 for (Map<String, ?> copy : shard) {
                     Integer globalCheckpoint = (Integer) XContentMapValues.extractValue("seq_no.global_checkpoint", copy);
                     assertNotNull(globalCheckpoint);
                     assertThat(XContentMapValues.extractValue("seq_no.max_seq_no", copy), equalTo(globalCheckpoint));
-                    @SuppressWarnings("unchecked") List<Map<String, ?>> retentionLeases =
-                        (List<Map<String, ?>>) XContentMapValues.extractValue("retention_leases.leases", copy);
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, ?>> retentionLeases = (List<Map<String, ?>>) XContentMapValues.extractValue(
+                        "retention_leases.leases",
+                        copy
+                    );
                     if (alwaysExists == false && retentionLeases == null) {
                         continue;
                     }
@@ -1175,7 +1217,8 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
                         }
                     }
                     if (alwaysExists) {
-                        List<String> existingLeaseIds = retentionLeases.stream().map(lease -> (String) lease.get("id"))
+                        List<String> existingLeaseIds = retentionLeases.stream()
+                            .map(lease -> (String) lease.get("id"))
                             .collect(Collectors.toList());
                         List<String> expectedLeaseIds = shard.stream()
                             .map(shr -> (String) XContentMapValues.extractValue("routing.node", shr))
@@ -1210,19 +1253,27 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
         return minVersion;
     }
 
-    protected static void performSyncedFlush(String indexName, boolean retryOnConflict) throws Exception {
+    protected void syncedFlush(String indexName, boolean retryOnConflict) throws Exception {
         final Request request = new Request("POST", indexName + "/_flush/synced");
-        final List<String> expectedWarnings = Collections.singletonList(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE);
-        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(LegacyESVersion.V_7_6_0))) {
-            final Builder options = RequestOptions.DEFAULT.toBuilder();
-            options.setWarningsHandler(warnings -> warnings.equals(expectedWarnings) == false);
-            request.setOptions(options);
-        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(LegacyESVersion.V_7_6_0))) {
-            final Builder options = RequestOptions.DEFAULT.toBuilder();
+        final Builder options = RequestOptions.DEFAULT.toBuilder();
+        // 8.0 kept in warning message for legacy purposes TODO: changge to 3.0
+        final List<String> warningMessage = Arrays.asList(
+            "Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead."
+        );
+        final List<String> expectedWarnings = Arrays.asList(
+            "Synced flush was removed and a normal flush was performed instead. This transition will be removed in a future version."
+        );
+        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_2_0_0))) {
             options.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false);
-            request.setOptions(options);
+        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(LegacyESVersion.V_7_6_0))) {
+            options.setWarningsHandler(
+                warnings -> warnings.isEmpty() == false
+                    && warnings.equals(expectedWarnings) == false
+                    && warnings.equals(warningMessage) == false
+            );
         }
-        // We have to spin a synced-flush request because we fire the global checkpoint sync for the last write operation.
+        request.setOptions(options);
+        // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
         // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
         assertBusy(() -> {
             try {
@@ -1238,22 +1289,47 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
                 }
             }
         });
+        // ensure the global checkpoint is synced; otherwise we might trim the commit with syncId
+        ensureGlobalCheckpointSynced(indexName);
     }
 
-    static final Pattern CREATE_INDEX_MULTIPLE_MATCHING_TEMPLATES = Pattern.compile("^index \\[(.+)\\] matches multiple legacy " +
-        "templates \\[(.+)\\], composable templates will only match a single template$");
+    @SuppressWarnings("unchecked")
+    private void ensureGlobalCheckpointSynced(String index) throws Exception {
+        assertBusy(() -> {
+            Map<?, ?> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
+            List<Map<?, ?>> shardStats = (List<Map<?, ?>>) XContentMapValues.extractValue("indices." + index + ".shards.0", stats);
+            shardStats.stream()
+                .map(shard -> (Map<?, ?>) XContentMapValues.extractValue("seq_no", shard))
+                .filter(Objects::nonNull)
+                .forEach(seqNoStat -> {
+                    long globalCheckpoint = ((Number) XContentMapValues.extractValue("global_checkpoint", seqNoStat)).longValue();
+                    long localCheckpoint = ((Number) XContentMapValues.extractValue("local_checkpoint", seqNoStat)).longValue();
+                    long maxSeqNo = ((Number) XContentMapValues.extractValue("max_seq_no", seqNoStat)).longValue();
+                    assertThat(shardStats.toString(), localCheckpoint, equalTo(maxSeqNo));
+                    assertThat(shardStats.toString(), globalCheckpoint, equalTo(maxSeqNo));
+                });
+        }, 60, TimeUnit.SECONDS);
+    }
 
-    static final Pattern PUT_TEMPLATE_MULTIPLE_MATCHING_TEMPLATES = Pattern.compile("^index template \\[(.+)\\] has index patterns " +
-        "\\[(.+)\\] matching patterns from existing older templates \\[(.+)\\] with patterns \\((.+)\\); this template \\[(.+)\\] will " +
-        "take precedence during new index creation$");
+    static final Pattern CREATE_INDEX_MULTIPLE_MATCHING_TEMPLATES = Pattern.compile(
+        "^index \\[(.+)\\] matches multiple legacy " + "templates \\[(.+)\\], composable templates will only match a single template$"
+    );
+
+    static final Pattern PUT_TEMPLATE_MULTIPLE_MATCHING_TEMPLATES = Pattern.compile(
+        "^index template \\[(.+)\\] has index patterns "
+            + "\\[(.+)\\] matching patterns from existing older templates \\[(.+)\\] with patterns \\((.+)\\); this template \\[(.+)\\] will "
+            + "take precedence during new index creation$"
+    );
 
     protected static void useIgnoreMultipleMatchingTemplatesWarningsHandler(Request request) throws IOException {
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.setWarningsHandler(warnings -> {
             if (warnings.size() > 0) {
-                boolean matches = warnings.stream().anyMatch(
-                    message -> CREATE_INDEX_MULTIPLE_MATCHING_TEMPLATES.matcher(message).matches() ||
-                    PUT_TEMPLATE_MULTIPLE_MATCHING_TEMPLATES.matcher(message).matches());
+                boolean matches = warnings.stream()
+                    .anyMatch(
+                        message -> CREATE_INDEX_MULTIPLE_MATCHING_TEMPLATES.matcher(message).matches()
+                            || PUT_TEMPLATE_MULTIPLE_MATCHING_TEMPLATES.matcher(message).matches()
+                    );
                 return matches == false;
             } else {
                 return false;

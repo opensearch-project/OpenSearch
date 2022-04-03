@@ -74,8 +74,10 @@ public class Netty4UtilsTests extends OpenSearchTestCase {
         int sliceLength = randomIntBetween(ref.length() - sliceOffset, ref.length() - sliceOffset);
         ByteBuf buffer = Netty4Utils.toByteBuf(ref);
         BytesReference bytesReference = Netty4Utils.toBytesReference(buffer);
-        assertArrayEquals(BytesReference.toBytes(ref.slice(sliceOffset, sliceLength)),
-            BytesReference.toBytes(bytesReference.slice(sliceOffset, sliceLength)));
+        assertArrayEquals(
+            BytesReference.toBytes(ref.slice(sliceOffset, sliceLength)),
+            BytesReference.toBytes(bytesReference.slice(sliceOffset, sliceLength))
+        );
     }
 
     public void testToChannelBuffer() throws IOException {
@@ -101,8 +103,7 @@ public class Netty4UtilsTests extends OpenSearchTestCase {
             return new BytesArray(ref.toBytesRef());
         } else if (randomBoolean()) {
             BytesRef bytesRef = ref.toBytesRef();
-            return Netty4Utils.toBytesReference(Unpooled.wrappedBuffer(bytesRef.bytes, bytesRef.offset,
-                bytesRef.length));
+            return Netty4Utils.toBytesReference(Unpooled.wrappedBuffer(bytesRef.bytes, bytesRef.offset, bytesRef.length));
         } else {
             return ref;
         }

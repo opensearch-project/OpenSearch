@@ -36,7 +36,6 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.test.AbstractSerializingTestCase;
-import org.opensearch.action.admin.indices.shrink.ResizeResponse;
 
 public class ResizeResponseTests extends AbstractSerializingTestCase<ResizeResponse> {
 
@@ -77,8 +76,11 @@ public class ResizeResponseTests extends AbstractSerializingTestCase<ResizeRespo
                 return new ResizeResponse(acknowledged, shardsAcknowledged, response.index());
             }
         } else {
-            return new ResizeResponse(response.isAcknowledged(), response.isShardsAcknowledged(),
-                    response.index() + randomAlphaOfLengthBetween(2, 5));
+            return new ResizeResponse(
+                response.isAcknowledged(),
+                response.isShardsAcknowledged(),
+                response.index() + randomAlphaOfLengthBetween(2, 5)
+            );
         }
     }
 }

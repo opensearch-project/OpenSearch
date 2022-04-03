@@ -64,7 +64,9 @@ import static org.hamcrest.Matchers.containsString;
  * cluster....
  */
 public class ReindexSourceTargetValidationTests extends OpenSearchTestCase {
-    private static final ClusterState STATE = ClusterState.builder(new ClusterName("test")).metadata(Metadata.builder()
+    private static final ClusterState STATE = ClusterState.builder(new ClusterName("test"))
+        .metadata(
+            Metadata.builder()
                 .put(index("target", "target_alias", "target_multi"), true)
                 .put(index("target2", "target_multi"), true)
                 .put(index("target_with_write_index", true, "target_multi_with_write_index"), true)
@@ -74,12 +76,18 @@ public class ReindexSourceTargetValidationTests extends OpenSearchTestCase {
                 .put(index("bar"), true)
                 .put(index("baz"), true)
                 .put(index("source", "source_multi"), true)
-                .put(index("source2", "source_multi"), true)).build();
-    private static final IndexNameExpressionResolver INDEX_NAME_EXPRESSION_RESOLVER =
-        new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
-    private static final AutoCreateIndex AUTO_CREATE_INDEX = new AutoCreateIndex(Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), INDEX_NAME_EXPRESSION_RESOLVER,
-            new SystemIndices(new HashMap<>()));
+                .put(index("source2", "source_multi"), true)
+        )
+        .build();
+    private static final IndexNameExpressionResolver INDEX_NAME_EXPRESSION_RESOLVER = new IndexNameExpressionResolver(
+        new ThreadContext(Settings.EMPTY)
+    );
+    private static final AutoCreateIndex AUTO_CREATE_INDEX = new AutoCreateIndex(
+        Settings.EMPTY,
+        new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+        INDEX_NAME_EXPRESSION_RESOLVER,
+        new SystemIndices(new HashMap<>())
+    );
 
     private final BytesReference query = new BytesArray("{ \"foo\" : \"bar\" }");
 
@@ -106,16 +114,26 @@ public class ReindexSourceTargetValidationTests extends OpenSearchTestCase {
 
     public void testTargetIsAliasToMultipleIndicesWithoutWriteAlias() {
         Exception e = expectThrows(IllegalArgumentException.class, () -> succeeds("target_multi", "foo"));
-        assertThat(e.getMessage(), containsString("no write index is defined for alias [target_multi]. The write index may be explicitly " +
-                "disabled using is_write_index=false or the alias points to multiple indices without one being designated as a " +
-                "write index"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "no write index is defined for alias [target_multi]. The write index may be explicitly "
+                    + "disabled using is_write_index=false or the alias points to multiple indices without one being designated as a "
+                    + "write index"
+            )
+        );
     }
 
     public void testTargetIsAliasWithWriteIndexDisabled() {
         Exception e = expectThrows(IllegalArgumentException.class, () -> succeeds("target_alias_with_write_index_disabled", "foo"));
-        assertThat(e.getMessage(), containsString("no write index is defined for alias [target_alias_with_write_index_disabled]. " +
-            "The write index may be explicitly disabled using is_write_index=false or the alias points to multiple indices without one " +
-            "being designated as a write index"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "no write index is defined for alias [target_alias_with_write_index_disabled]. "
+                    + "The write index may be explicitly disabled using is_write_index=false or the alias points to multiple indices without one "
+                    + "being designated as a write index"
+            )
+        );
         succeeds("qux", "foo"); // writing directly into the index of which this is the alias works though
     }
 
@@ -128,11 +146,39 @@ public class ReindexSourceTargetValidationTests extends OpenSearchTestCase {
 
     public void testRemoteInfoSkipsValidation() {
         // The index doesn't have to exist
-        succeeds(new RemoteInfo(randomAlphaOfLength(5), "test", 9200, null, query, null, null, emptyMap(),
-                RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT), "does_not_exist", "target");
+        succeeds(
+            new RemoteInfo(
+                randomAlphaOfLength(5),
+                "test",
+                9200,
+                null,
+                query,
+                null,
+                null,
+                emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            ),
+            "does_not_exist",
+            "target"
+        );
         // And it doesn't matter if they are the same index. They are considered to be different because the remote one is, well, remote.
-        succeeds(new RemoteInfo(randomAlphaOfLength(5), "test", 9200, null, query, null, null, emptyMap(),
-                RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT), "target", "target");
+        succeeds(
+            new RemoteInfo(
+                randomAlphaOfLength(5),
+                "test",
+                9200,
+                null,
+                query,
+                null,
+                null,
+                emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            ),
+            "target",
+            "target"
+        );
     }
 
     private void fails(String target, String... sources) {
@@ -145,8 +191,14 @@ public class ReindexSourceTargetValidationTests extends OpenSearchTestCase {
     }
 
     private void succeeds(RemoteInfo remoteInfo, String target, String... sources) {
-        ReindexValidator.validateAgainstAliases(new SearchRequest(sources), new IndexRequest(target), remoteInfo,
-                INDEX_NAME_EXPRESSION_RESOLVER, AUTO_CREATE_INDEX, STATE);
+        ReindexValidator.validateAgainstAliases(
+            new SearchRequest(sources),
+            new IndexRequest(target),
+            remoteInfo,
+            INDEX_NAME_EXPRESSION_RESOLVER,
+            AUTO_CREATE_INDEX,
+            STATE
+        );
     }
 
     private static IndexMetadata index(String name, String... aliases) {
@@ -154,11 +206,14 @@ public class ReindexSourceTargetValidationTests extends OpenSearchTestCase {
     }
 
     private static IndexMetadata index(String name, @Nullable Boolean writeIndex, String... aliases) {
-        IndexMetadata.Builder builder = IndexMetadata.builder(name).settings(Settings.builder()
-                .put("index.version.created", Version.CURRENT.id)
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 1));
-        for (String alias: aliases) {
+        IndexMetadata.Builder builder = IndexMetadata.builder(name)
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", Version.CURRENT.id)
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 1)
+            );
+        for (String alias : aliases) {
             builder.putAlias(AliasMetadata.builder(alias).writeIndex(writeIndex).build());
         }
         return builder.build();

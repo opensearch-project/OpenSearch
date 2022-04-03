@@ -45,15 +45,15 @@ public class InvalidIndexNameException extends OpenSearchException {
         super("Invalid index name [" + name + "], " + desc);
         setIndex(name);
     }
+
     public InvalidIndexNameException(Index index, String name, String desc) {
         super("Invalid index name [" + name + "], " + desc);
         setIndex(index);
     }
 
-    public InvalidIndexNameException(StreamInput in) throws IOException{
+    public InvalidIndexNameException(StreamInput in) throws IOException {
         super(in);
     }
-
 
     @Override
     public RestStatus status() {

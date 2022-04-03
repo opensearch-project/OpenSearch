@@ -31,7 +31,6 @@
 
 package org.opensearch.index.fielddata;
 
-
 import java.io.IOException;
 
 /**

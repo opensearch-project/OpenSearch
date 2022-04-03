@@ -217,11 +217,7 @@ public class SearchAfterBuilderTests extends OpenSearchTestCase {
                 continue;
             }
             XContentBuilder xContent = XContentFactory.contentBuilder(type);
-            xContent.startObject()
-                .startArray("search_after")
-                    .value(new BigDecimal("9223372036854776003.3"))
-                .endArray()
-                .endObject();
+            xContent.startObject().startArray("search_after").value(new BigDecimal("9223372036854776003.3")).endArray().endObject();
             try (XContentParser parser = createParser(xContent)) {
                 parser.nextToken();
                 parser.nextToken();
@@ -282,13 +278,18 @@ public class SearchAfterBuilderTests extends OpenSearchTestCase {
             }
 
             @Override
-            public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) {
+            public FieldComparator<?> newComparator(String fieldname, int numHits, boolean enableSkipping, boolean reversed) {
                 return null;
             }
 
             @Override
-            public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format,
-                    int bucketSize, BucketedSort.ExtraData extra) {
+            public BucketedSort newBucketedSort(
+                BigArrays bigArrays,
+                SortOrder sortOrder,
+                DocValueFormat format,
+                int bucketSize,
+                BucketedSort.ExtraData extra
+            ) {
                 return null;
             }
         };

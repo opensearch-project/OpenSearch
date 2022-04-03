@@ -200,10 +200,6 @@ import org.opensearch.action.admin.indices.flush.FlushAction;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.flush.FlushRequestBuilder;
 import org.opensearch.action.admin.indices.flush.FlushResponse;
-import org.opensearch.action.admin.indices.flush.SyncedFlushAction;
-import org.opensearch.action.admin.indices.flush.SyncedFlushRequest;
-import org.opensearch.action.admin.indices.flush.SyncedFlushRequestBuilder;
-import org.opensearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequestBuilder;
@@ -347,7 +343,6 @@ import org.opensearch.action.search.SearchScrollAction;
 import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.action.search.SearchScrollRequestBuilder;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.action.support.ThreadedActionListener;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.termvectors.MultiTermVectorsAction;
 import org.opensearch.action.termvectors.MultiTermVectorsRequest;
@@ -385,14 +380,12 @@ public abstract class AbstractClient implements Client {
     protected final Settings settings;
     private final ThreadPool threadPool;
     private final Admin admin;
-    private final ThreadedActionListener.Wrapper threadedWrapper;
 
     public AbstractClient(Settings settings, ThreadPool threadPool) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.admin = new Admin(this);
-        this.logger =LogManager.getLogger(this.getClass());
-        this.threadedWrapper = new ThreadedActionListener.Wrapper(logger, settings, threadPool);
+        this.logger = LogManager.getLogger(this.getClass());
     }
 
     @Override
@@ -412,7 +405,9 @@ public abstract class AbstractClient implements Client {
 
     @Override
     public final <Request extends ActionRequest, Response extends ActionResponse> ActionFuture<Response> execute(
-        ActionType<Response> action, Request request) {
+        ActionType<Response> action,
+        Request request
+    ) {
         PlainActionFuture<Response> actionFuture = PlainActionFuture.newFuture();
         execute(action, request, actionFuture);
         return actionFuture;
@@ -423,13 +418,18 @@ public abstract class AbstractClient implements Client {
      */
     @Override
     public final <Request extends ActionRequest, Response extends ActionResponse> void execute(
-        ActionType<Response> action, Request request, ActionListener<Response> listener) {
-        listener = threadedWrapper.wrap(listener);
+        ActionType<Response> action,
+        Request request,
+        ActionListener<Response> listener
+    ) {
         doExecute(action, request, listener);
     }
 
-    protected abstract <Request extends ActionRequest, Response extends ActionResponse>
-    void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener);
+    protected abstract <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+        ActionType<Response> action,
+        Request request,
+        ActionListener<Response> listener
+    );
 
     @Override
     public ActionFuture<IndexResponse> index(final IndexRequest request) {
@@ -447,13 +447,8 @@ public abstract class AbstractClient implements Client {
     }
 
     @Override
-    public IndexRequestBuilder prepareIndex(String index, String type) {
-        return prepareIndex(index, type, null);
-    }
-
-    @Override
-    public IndexRequestBuilder prepareIndex(String index, String type, @Nullable String id) {
-        return prepareIndex().setIndex(index).setType(type).setId(id);
+    public IndexRequestBuilder prepareIndex(String index) {
+        return new IndexRequestBuilder(this, IndexAction.INSTANCE, index);
     }
 
     @Override
@@ -468,12 +463,12 @@ public abstract class AbstractClient implements Client {
 
     @Override
     public UpdateRequestBuilder prepareUpdate() {
-        return new UpdateRequestBuilder(this, UpdateAction.INSTANCE, null, null, null);
+        return new UpdateRequestBuilder(this, UpdateAction.INSTANCE, null, null);
     }
 
     @Override
-    public UpdateRequestBuilder prepareUpdate(String index, String type, String id) {
-        return new UpdateRequestBuilder(this, UpdateAction.INSTANCE, index, type, id);
+    public UpdateRequestBuilder prepareUpdate(String index, String id) {
+        return new UpdateRequestBuilder(this, UpdateAction.INSTANCE, index, id);
     }
 
     @Override
@@ -492,8 +487,8 @@ public abstract class AbstractClient implements Client {
     }
 
     @Override
-    public DeleteRequestBuilder prepareDelete(String index, String type, String id) {
-        return prepareDelete().setIndex(index).setType(type).setId(id);
+    public DeleteRequestBuilder prepareDelete(String index, String id) {
+        return prepareDelete().setIndex(index).setId(id);
     }
 
     @Override
@@ -512,8 +507,8 @@ public abstract class AbstractClient implements Client {
     }
 
     @Override
-    public BulkRequestBuilder prepareBulk(@Nullable String globalIndex, @Nullable String globalType) {
-        return new BulkRequestBuilder(this, BulkAction.INSTANCE, globalIndex, globalType);
+    public BulkRequestBuilder prepareBulk(@Nullable String globalIndex) {
+        return new BulkRequestBuilder(this, BulkAction.INSTANCE, globalIndex);
     }
 
     @Override
@@ -532,8 +527,8 @@ public abstract class AbstractClient implements Client {
     }
 
     @Override
-    public GetRequestBuilder prepareGet(String index, String type, String id) {
-        return prepareGet().setIndex(index).setType(type).setId(id);
+    public GetRequestBuilder prepareGet(String index, String id) {
+        return prepareGet().setIndex(index).setId(id);
     }
 
     @Override
@@ -612,8 +607,8 @@ public abstract class AbstractClient implements Client {
     }
 
     @Override
-    public TermVectorsRequestBuilder prepareTermVectors(String index, String type, String id) {
-        return new TermVectorsRequestBuilder(this, TermVectorsAction.INSTANCE, index, type, id);
+    public TermVectorsRequestBuilder prepareTermVectors(String index, String id) {
+        return new TermVectorsRequestBuilder(this, TermVectorsAction.INSTANCE, index, id);
     }
 
     @Override
@@ -632,8 +627,8 @@ public abstract class AbstractClient implements Client {
     }
 
     @Override
-    public ExplainRequestBuilder prepareExplain(String index, String type, String id) {
-        return new ExplainRequestBuilder(this, ExplainAction.INSTANCE, index, type, id);
+    public ExplainRequestBuilder prepareExplain(String index, String id) {
+        return new ExplainRequestBuilder(this, ExplainAction.INSTANCE, index, id);
     }
 
     @Override
@@ -707,13 +702,18 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public <Request extends ActionRequest, Response extends ActionResponse> ActionFuture<Response> execute(
-            ActionType<Response> action, Request request) {
+            ActionType<Response> action,
+            Request request
+        ) {
             return client.execute(action, request);
         }
 
         @Override
         public <Request extends ActionRequest, Response extends ActionResponse> void execute(
-            ActionType<Response> action, Request request, ActionListener<Response> listener) {
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {
             client.execute(action, request, listener);
         }
 
@@ -773,8 +773,10 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public void updateSettings(final ClusterUpdateSettingsRequest request,
-                                   final ActionListener<ClusterUpdateSettingsResponse> listener) {
+        public void updateSettings(
+            final ClusterUpdateSettingsRequest request,
+            final ActionListener<ClusterUpdateSettingsResponse> listener
+        ) {
             execute(ClusterUpdateSettingsAction.INSTANCE, request, listener);
         }
 
@@ -1008,7 +1010,6 @@ public abstract class AbstractClient implements Client {
             return new GetSnapshotsRequestBuilder(this, GetSnapshotsAction.INSTANCE, repository);
         }
 
-
         @Override
         public ActionFuture<AcknowledgedResponse> deleteSnapshot(DeleteSnapshotRequest request) {
             return execute(DeleteSnapshotAction.INSTANCE, request);
@@ -1023,7 +1024,6 @@ public abstract class AbstractClient implements Client {
         public DeleteSnapshotRequestBuilder prepareDeleteSnapshot(String repository, String... names) {
             return new DeleteSnapshotRequestBuilder(this, DeleteSnapshotAction.INSTANCE, repository, names);
         }
-
 
         @Override
         public ActionFuture<AcknowledgedResponse> deleteRepository(DeleteRepositoryRequest request) {
@@ -1099,7 +1099,6 @@ public abstract class AbstractClient implements Client {
         public RestoreSnapshotRequestBuilder prepareRestoreSnapshot(String repository, String snapshot) {
             return new RestoreSnapshotRequestBuilder(this, RestoreSnapshotAction.INSTANCE, repository, snapshot);
         }
-
 
         @Override
         public ActionFuture<SnapshotsStatusResponse> snapshotsStatus(SnapshotsStatusRequest request) {
@@ -1257,33 +1256,33 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public void putStoredScript(final PutStoredScriptRequest request, ActionListener<AcknowledgedResponse> listener){
+        public void putStoredScript(final PutStoredScriptRequest request, ActionListener<AcknowledgedResponse> listener) {
             execute(PutStoredScriptAction.INSTANCE, request, listener);
 
         }
 
         @Override
-        public ActionFuture<AcknowledgedResponse> putStoredScript(final PutStoredScriptRequest request){
+        public ActionFuture<AcknowledgedResponse> putStoredScript(final PutStoredScriptRequest request) {
             return execute(PutStoredScriptAction.INSTANCE, request);
         }
 
         @Override
-        public void deleteStoredScript(DeleteStoredScriptRequest request, ActionListener<AcknowledgedResponse> listener){
+        public void deleteStoredScript(DeleteStoredScriptRequest request, ActionListener<AcknowledgedResponse> listener) {
             execute(DeleteStoredScriptAction.INSTANCE, request, listener);
         }
 
         @Override
-        public ActionFuture<AcknowledgedResponse> deleteStoredScript(DeleteStoredScriptRequest request){
+        public ActionFuture<AcknowledgedResponse> deleteStoredScript(DeleteStoredScriptRequest request) {
             return execute(DeleteStoredScriptAction.INSTANCE, request);
         }
 
         @Override
-        public DeleteStoredScriptRequestBuilder prepareDeleteStoredScript(){
+        public DeleteStoredScriptRequestBuilder prepareDeleteStoredScript() {
             return new DeleteStoredScriptRequestBuilder(client, DeleteStoredScriptAction.INSTANCE);
         }
 
         @Override
-        public DeleteStoredScriptRequestBuilder prepareDeleteStoredScript(String id){
+        public DeleteStoredScriptRequestBuilder prepareDeleteStoredScript(String id) {
             return prepareDeleteStoredScript().setId(id);
         }
     }
@@ -1298,13 +1297,18 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public <Request extends ActionRequest, Response extends ActionResponse> ActionFuture<Response> execute(
-            ActionType<Response> action, Request request) {
+            ActionType<Response> action,
+            Request request
+        ) {
             return client.execute(action, request);
         }
 
         @Override
         public <Request extends ActionRequest, Response extends ActionResponse> void execute(
-            ActionType<Response> action, Request request, ActionListener<Response> listener) {
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {
             client.execute(action, request, listener);
         }
 
@@ -1505,21 +1509,6 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<SyncedFlushResponse> syncedFlush(SyncedFlushRequest request) {
-            return execute(SyncedFlushAction.INSTANCE, request);
-        }
-
-        @Override
-        public void syncedFlush(SyncedFlushRequest request, ActionListener<SyncedFlushResponse> listener) {
-            execute(SyncedFlushAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public SyncedFlushRequestBuilder prepareSyncedFlush(String... indices) {
-            return new SyncedFlushRequestBuilder(this, SyncedFlushAction.INSTANCE).setIndices(indices);
-        }
-
-        @Override
         public void getMappings(GetMappingsRequest request, ActionListener<GetMappingsResponse> listener) {
             execute(GetMappingsAction.INSTANCE, request, listener);
         }
@@ -1594,7 +1583,6 @@ public abstract class AbstractClient implements Client {
             return new UpgradeRequestBuilder(this, UpgradeAction.INSTANCE).setIndices(indices);
         }
 
-
         @Override
         public ActionFuture<UpgradeStatusResponse> upgradeStatus(final UpgradeStatusRequest request) {
             return execute(UpgradeStatusAction.INSTANCE, request);
@@ -1609,6 +1597,7 @@ public abstract class AbstractClient implements Client {
         public UpgradeStatusRequestBuilder prepareUpgradeStatus(String... indices) {
             return new UpgradeStatusRequestBuilder(this, UpgradeStatusAction.INSTANCE).setIndices(indices);
         }
+
         @Override
         public ActionFuture<RefreshResponse> refresh(final RefreshRequest request) {
             return execute(RefreshAction.INSTANCE, request);
@@ -1861,8 +1850,7 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public void resolveIndex(ResolveIndexAction.Request request,
-                                 ActionListener<ResolveIndexAction.Response> listener) {
+        public void resolveIndex(ResolveIndexAction.Request request, ActionListener<ResolveIndexAction.Response> listener) {
             execute(ResolveIndexAction.INSTANCE, request, listener);
         }
 
@@ -1876,8 +1864,11 @@ public abstract class AbstractClient implements Client {
     public Client filterWithHeader(Map<String, String> headers) {
         return new FilterClient(this) {
             @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse>
-            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
                 ThreadContext threadContext = threadPool().getThreadContext();
                 try (ThreadContext.StoredContext ctx = threadContext.stashAndMergeHeaders(headers)) {
                     super.doExecute(action, request, listener);

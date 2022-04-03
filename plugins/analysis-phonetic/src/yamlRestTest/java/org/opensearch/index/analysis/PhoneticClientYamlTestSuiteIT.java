@@ -49,4 +49,3 @@ public class PhoneticClientYamlTestSuiteIT extends OpenSearchClientYamlSuiteTest
         return OpenSearchClientYamlSuiteTestCase.createParameters();
     }
 }
-

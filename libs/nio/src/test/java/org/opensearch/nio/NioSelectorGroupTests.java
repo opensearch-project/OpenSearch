@@ -51,8 +51,13 @@ public class NioSelectorGroupTests extends OpenSearchTestCase {
     @SuppressWarnings("unchecked")
     public void setUp() throws Exception {
         super.setUp();
-        nioGroup = new NioSelectorGroup(daemonThreadFactory(Settings.EMPTY, "acceptor"), 1,
-            daemonThreadFactory(Settings.EMPTY, "selector"), 1, (s) -> new EventHandler(mock(Consumer.class), s));
+        nioGroup = new NioSelectorGroup(
+            daemonThreadFactory(Settings.EMPTY, "acceptor"),
+            1,
+            daemonThreadFactory(Settings.EMPTY, "selector"),
+            1,
+            (s) -> new EventHandler(mock(Consumer.class), s)
+        );
     }
 
     @Override
@@ -71,11 +76,15 @@ public class NioSelectorGroupTests extends OpenSearchTestCase {
     public void testCannotOperateAfterClose() throws IOException {
         nioGroup.close();
 
-        IllegalStateException ise = expectThrows(IllegalStateException.class,
-            () -> nioGroup.bindServerChannel(mock(InetSocketAddress.class), mock(ChannelFactory.class)));
+        IllegalStateException ise = expectThrows(
+            IllegalStateException.class,
+            () -> nioGroup.bindServerChannel(mock(InetSocketAddress.class), mock(ChannelFactory.class))
+        );
         assertEquals("NioGroup is closed.", ise.getMessage());
-        ise = expectThrows(IllegalStateException.class,
-            () -> nioGroup.openChannel(mock(InetSocketAddress.class), mock(ChannelFactory.class)));
+        ise = expectThrows(
+            IllegalStateException.class,
+            () -> nioGroup.openChannel(mock(InetSocketAddress.class), mock(ChannelFactory.class))
+        );
         assertEquals("NioGroup is closed.", ise.getMessage());
     }
 
@@ -87,9 +96,13 @@ public class NioSelectorGroupTests extends OpenSearchTestCase {
     @SuppressWarnings("unchecked")
     public void testExceptionAtStartIsHandled() throws IOException {
         RuntimeException ex = new RuntimeException();
-        CheckedRunnable<IOException> ctor = () -> new NioSelectorGroup(r -> {throw ex;}, 1,
+        CheckedRunnable<IOException> ctor = () -> new NioSelectorGroup(
+            r -> { throw ex; },
+            1,
             daemonThreadFactory(Settings.EMPTY, "selector"),
-            1, (s) -> new EventHandler(mock(Consumer.class), s));
+            1,
+            (s) -> new EventHandler(mock(Consumer.class), s)
+        );
         RuntimeException runtimeException = expectThrows(RuntimeException.class, ctor::run);
         assertSame(ex, runtimeException);
         // ctor starts threads. So we are testing that a failure to construct will stop threads. Our thread

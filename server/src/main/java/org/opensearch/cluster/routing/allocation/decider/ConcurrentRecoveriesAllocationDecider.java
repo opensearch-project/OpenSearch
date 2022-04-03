@@ -39,18 +39,23 @@ public class ConcurrentRecoveriesAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "cluster_concurrent_recoveries";
 
-
-    public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_RECOVERIES_SETTING =
-        Setting.intSetting("cluster.routing.allocation.cluster_concurrent_recoveries", -1, -1,
-            Property.Dynamic, Property.NodeScope);
+    public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_RECOVERIES_SETTING = Setting.intSetting(
+        "cluster.routing.allocation.cluster_concurrent_recoveries",
+        -1,
+        -1,
+        Property.Dynamic,
+        Property.NodeScope
+    );
 
     private volatile int clusterConcurrentRecoveries;
 
     public ConcurrentRecoveriesAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         this.clusterConcurrentRecoveries = CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_RECOVERIES_SETTING.get(settings);
         logger.debug("using [cluster_concurrent_rebalance] with [{}]", clusterConcurrentRecoveries);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_RECOVERIES_SETTING,
-            this::setClusterConcurrentRebalance);
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_RECOVERIES_SETTING,
+            this::setClusterConcurrentRebalance
+        );
     }
 
     private void setClusterConcurrentRebalance(int clusterConcurrentRecoveries) {
@@ -64,14 +69,23 @@ public class ConcurrentRecoveriesAllocationDecider extends AllocationDecider {
         }
         int relocatingShards = allocation.routingNodes().getRelocatingShardCount();
         if (relocatingShards >= clusterConcurrentRecoveries) {
-            return allocation.decision(Decision.THROTTLE, NAME,
+            return allocation.decision(
+                Decision.THROTTLE,
+                NAME,
                 "too many shards are concurrently relocating [%d], limit: [%d] cluster setting [%s=%d]",
-                relocatingShards, clusterConcurrentRecoveries, CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_RECOVERIES_SETTING.getKey(),
-                clusterConcurrentRecoveries);
+                relocatingShards,
+                clusterConcurrentRecoveries,
+                CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_RECOVERIES_SETTING.getKey(),
+                clusterConcurrentRecoveries
+            );
         }
-        return allocation.decision(Decision.YES, NAME,
+        return allocation.decision(
+            Decision.YES,
+            NAME,
             "below threshold [%d] for concurrent recoveries, current relocating shard count [%d]",
-            clusterConcurrentRecoveries, relocatingShards);
+            clusterConcurrentRecoveries,
+            relocatingShards
+        );
     }
 
     @Override

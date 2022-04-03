@@ -59,9 +59,7 @@ public class SimplePolishTokenFilterTests extends OpenSearchTestCase {
 
     private void testToken(String source, String expected) throws IOException {
         Index index = new Index("test", "_na_");
-        Settings settings = Settings.builder()
-                .put("index.analysis.filter.myStemmer.type", "polish_stem")
-                .build();
+        Settings settings = Settings.builder().put("index.analysis.filter.myStemmer.type", "polish_stem").build();
         TestAnalysis analysis = createTestAnalysis(index, settings, new AnalysisStempelPlugin());
 
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("myStemmer");

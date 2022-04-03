@@ -152,8 +152,7 @@ class CompletionStatsCache implements ReferenceManager.RefreshListener {
     }
 
     @Override
-    public void beforeRefresh() {
-    }
+    public void beforeRefresh() {}
 
     @Override
     public void afterRefresh(boolean didRefresh) {

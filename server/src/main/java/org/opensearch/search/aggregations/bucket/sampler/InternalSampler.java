@@ -65,8 +65,7 @@ public class InternalSampler extends InternalSingleBucketAggregation implements 
     }
 
     @Override
-    protected InternalSingleBucketAggregation newAggregation(String name, long docCount,
-            InternalAggregations subAggregations) {
+    protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
         return new InternalSampler(name, docCount, subAggregations, metadata);
     }
 }

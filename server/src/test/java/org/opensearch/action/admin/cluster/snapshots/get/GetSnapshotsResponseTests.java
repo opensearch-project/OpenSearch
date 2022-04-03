@@ -41,7 +41,6 @@ import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.snapshots.SnapshotInfoTests;
 import org.opensearch.snapshots.SnapshotShardFailure;
 import org.opensearch.test.AbstractSerializingTestCase;
-import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -66,9 +65,20 @@ public class GetSnapshotsResponseTests extends AbstractSerializingTestCase<GetSn
             String reason = randomBoolean() ? null : "reason";
             ShardId shardId = new ShardId("index", UUIDs.base64UUID(), 2);
             List<SnapshotShardFailure> shardFailures = Collections.singletonList(new SnapshotShardFailure("node-id", shardId, "reason"));
-            snapshots.add(new SnapshotInfo(snapshotId, Arrays.asList("index1", "index2"), Collections.singletonList("ds"),
-                System.currentTimeMillis(), reason, System.currentTimeMillis(), randomIntBetween(2, 3), shardFailures, randomBoolean(),
-                SnapshotInfoTests.randomUserMetadata()));
+            snapshots.add(
+                new SnapshotInfo(
+                    snapshotId,
+                    Arrays.asList("index1", "index2"),
+                    Collections.singletonList("ds"),
+                    System.currentTimeMillis(),
+                    reason,
+                    System.currentTimeMillis(),
+                    randomIntBetween(2, 3),
+                    shardFailures,
+                    randomBoolean(),
+                    SnapshotInfoTests.randomUserMetadata()
+                )
+            );
         }
         return new GetSnapshotsResponse(snapshots);
     }

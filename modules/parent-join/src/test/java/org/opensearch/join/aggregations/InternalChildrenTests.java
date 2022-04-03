@@ -56,14 +56,23 @@ public class InternalChildrenTests extends InternalSingleBucketAggregationTestCa
     @Override
     protected List<NamedXContentRegistry.Entry> getNamedXContents() {
         List<Entry> extendedNamedXContents = new ArrayList<>(super.getNamedXContents());
-        extendedNamedXContents.add(new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(ChildrenAggregationBuilder.NAME),
-                (p, c) -> ParsedChildren.fromXContent(p, (String) c)));
-        return extendedNamedXContents ;
+        extendedNamedXContents.add(
+            new NamedXContentRegistry.Entry(
+                Aggregation.class,
+                new ParseField(ChildrenAggregationBuilder.NAME),
+                (p, c) -> ParsedChildren.fromXContent(p, (String) c)
+            )
+        );
+        return extendedNamedXContents;
     }
 
     @Override
-    protected InternalChildren createTestInstance(String name, long docCount, InternalAggregations aggregations,
-            Map<String, Object> metadata) {
+    protected InternalChildren createTestInstance(
+        String name,
+        long docCount,
+        InternalAggregations aggregations,
+        Map<String, Object> metadata
+    ) {
         return new InternalChildren(name, docCount, aggregations, metadata);
     }
 

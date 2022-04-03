@@ -38,7 +38,6 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.index.VersionType;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
@@ -54,17 +53,10 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
 public class RestUpdateAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger =
-            DeprecationLogger.getLogger(RestUpdateAction.class);
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in " +
-        "document update requests is deprecated, use the endpoint /{index}/_update/{id} instead.";
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(POST, "/{index}/_update/{id}"),
-            // Deprecated typed endpoint.
-            new Route(POST, "/{index}/{type}/{id}/_update")));
+        return unmodifiableList(asList(new Route(POST, "/{index}/_update/{id}")));
     }
 
     @Override
@@ -75,14 +67,7 @@ public class RestUpdateAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         UpdateRequest updateRequest;
-        if (request.hasParam("type")) {
-            deprecationLogger.deprecate("update_with_types", TYPES_DEPRECATION_MESSAGE);
-            updateRequest = new UpdateRequest(request.param("index"),
-                request.param("type"),
-                request.param("id"));
-        } else {
-            updateRequest = new UpdateRequest(request.param("index"), request.param("id"));
-        }
+        updateRequest = new UpdateRequest(request.param("index"), request.param("id"));
 
         updateRequest.routing(request.param("routing"));
         updateRequest.timeout(request.paramAsTime("timeout", updateRequest.timeout()));
@@ -100,8 +85,10 @@ public class RestUpdateAction extends BaseRestHandler {
         updateRequest.retryOnConflict(request.paramAsInt("retry_on_conflict", updateRequest.retryOnConflict()));
         if (request.hasParam("version") || request.hasParam("version_type")) {
             final ActionRequestValidationException versioningError = new ActionRequestValidationException();
-            versioningError.addValidationError("internal versioning can not be used for optimistic concurrency control. " +
-                "Please use `if_seq_no` and `if_primary_term` instead");
+            versioningError.addValidationError(
+                "internal versioning can not be used for optimistic concurrency control. "
+                    + "Please use `if_seq_no` and `if_primary_term` instead"
+            );
             throw versioningError;
         }
 
@@ -125,8 +112,10 @@ public class RestUpdateAction extends BaseRestHandler {
             }
         });
 
-        return channel ->
-                client.update(updateRequest, new RestStatusToXContentListener<>(channel, r -> r.getLocation(updateRequest.routing())));
+        return channel -> client.update(
+            updateRequest,
+            new RestStatusToXContentListener<>(channel, r -> r.getLocation(updateRequest.routing()))
+        );
     }
 
 }

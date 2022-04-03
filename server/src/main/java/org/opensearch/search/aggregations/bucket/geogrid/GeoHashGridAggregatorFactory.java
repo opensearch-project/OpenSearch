@@ -60,10 +60,18 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory 
     private final int shardSize;
     private final GeoBoundingBox geoBoundingBox;
 
-    GeoHashGridAggregatorFactory(String name, ValuesSourceConfig config, int precision, int requiredSize,
-                                 int shardSize, GeoBoundingBox geoBoundingBox, QueryShardContext queryShardContext,
-                                 AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                                 Map<String, Object> metadata) throws IOException {
+    GeoHashGridAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        int precision,
+        int requiredSize,
+        int shardSize,
+        GeoBoundingBox geoBoundingBox,
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.precision = precision;
         this.requiredSize = requiredSize;
@@ -72,9 +80,7 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory 
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
         final InternalAggregation aggregation = new InternalGeoHashGrid(name, requiredSize, emptyList(), metadata);
         return new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
             @Override
@@ -85,10 +91,12 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory 
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                          Aggregator parent,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metadata) throws IOException {
+    protected Aggregator doCreateInternal(
+        SearchContext searchContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         return queryShardContext.getValuesSourceRegistry()
             .getAggregator(GeoHashGridAggregationBuilder.REGISTRY_KEY, config)
             .build(
@@ -140,6 +148,7 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory 
                     metadata
                 );
             },
-                true);
+            true
+        );
     }
 }

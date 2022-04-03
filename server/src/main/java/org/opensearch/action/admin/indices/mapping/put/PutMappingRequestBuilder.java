@@ -45,8 +45,10 @@ import java.util.Map;
 /**
  * Builder for a put mapping request
  */
-public class PutMappingRequestBuilder
-    extends AcknowledgedRequestBuilder<PutMappingRequest, AcknowledgedResponse, PutMappingRequestBuilder> {
+public class PutMappingRequestBuilder extends AcknowledgedRequestBuilder<
+    PutMappingRequest,
+    AcknowledgedResponse,
+    PutMappingRequestBuilder> {
 
     public PutMappingRequestBuilder(OpenSearchClient client, PutMappingAction action) {
         super(client, action, new PutMappingRequest());
@@ -69,14 +71,6 @@ public class PutMappingRequestBuilder
      */
     public PutMappingRequestBuilder setIndicesOptions(IndicesOptions options) {
         request.indicesOptions(options);
-        return this;
-    }
-
-    /**
-     * The type of the mappings.
-     */
-    public PutMappingRequestBuilder setType(String type) {
-        request.type(type);
         return this;
     }
 
@@ -108,7 +102,7 @@ public class PutMappingRequestBuilder
      * A specialized simplified mapping source method, takes the form of simple properties definition:
      * ("field1", "type=string,store=true").
      */
-    public PutMappingRequestBuilder setSource(Object... source) {
+    public PutMappingRequestBuilder setSource(String... source) {
         request.source(source);
         return this;
     }

@@ -60,16 +60,15 @@ public class ShardInfoIT extends OpenSearchIntegTestCase {
 
     public void testIndexAndDelete() throws Exception {
         prepareIndex(1);
-        IndexResponse indexResponse = client().prepareIndex("idx", "type").setSource("{}", XContentType.JSON).get();
+        IndexResponse indexResponse = client().prepareIndex("idx").setSource("{}", XContentType.JSON).get();
         assertShardInfo(indexResponse);
-        DeleteResponse deleteResponse = client().prepareDelete("idx", "type", indexResponse.getId()).get();
+        DeleteResponse deleteResponse = client().prepareDelete("idx", indexResponse.getId()).get();
         assertShardInfo(deleteResponse);
     }
 
     public void testUpdate() throws Exception {
         prepareIndex(1);
-        UpdateResponse updateResponse = client().prepareUpdate("idx", "type", "1").setDoc("{}", XContentType.JSON).setDocAsUpsert(true)
-            .get();
+        UpdateResponse updateResponse = client().prepareUpdate("idx", "1").setDoc("{}", XContentType.JSON).setDocAsUpsert(true).get();
         assertShardInfo(updateResponse);
     }
 
@@ -77,7 +76,7 @@ public class ShardInfoIT extends OpenSearchIntegTestCase {
         prepareIndex(1);
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (int i = 0; i < 10; i++) {
-            bulkRequestBuilder.add(client().prepareIndex("idx", "type").setSource("{}", XContentType.JSON));
+            bulkRequestBuilder.add(client().prepareIndex("idx").setSource("{}", XContentType.JSON));
         }
 
         BulkResponse bulkResponse = bulkRequestBuilder.get();
@@ -85,7 +84,7 @@ public class ShardInfoIT extends OpenSearchIntegTestCase {
         for (BulkItemResponse item : bulkResponse) {
             assertThat(item.isFailed(), equalTo(false));
             assertShardInfo(item.getResponse());
-            bulkRequestBuilder.add(client().prepareDelete("idx", "type", item.getId()));
+            bulkRequestBuilder.add(client().prepareDelete("idx", item.getId()));
         }
 
         bulkResponse = bulkRequestBuilder.get();
@@ -99,8 +98,7 @@ public class ShardInfoIT extends OpenSearchIntegTestCase {
         prepareIndex(1);
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (int i = 0; i < 10; i++) {
-            bulkRequestBuilder.add(client().prepareUpdate("idx", "type", Integer.toString(i)).setDoc("{}", XContentType.JSON)
-                .setDocAsUpsert(true));
+            bulkRequestBuilder.add(client().prepareUpdate("idx", Integer.toString(i)).setDoc("{}", XContentType.JSON).setDocAsUpsert(true));
         }
 
         BulkResponse bulkResponse = bulkRequestBuilder.get();
@@ -122,12 +120,13 @@ public class ShardInfoIT extends OpenSearchIntegTestCase {
         numCopies = randomIntBetween(numNodes, maxNumberOfCopies);
         logger.info("Number of copies: {}", numCopies);
 
-        assertAcked(prepareCreate("idx").setSettings(
+        assertAcked(
+            prepareCreate("idx").setSettings(
                 Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfPrimaryShards)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numCopies - 1))
-                .addMapping("type", "_routing", "required=" + routingRequired)
-                .get());
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfPrimaryShards)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numCopies - 1)
+            ).setMapping("_routing", "required=" + routingRequired).get()
+        );
         for (int i = 0; i < numberOfPrimaryShards; i++) {
             ensureActiveShardCopies(i, numNodes);
         }
@@ -149,14 +148,10 @@ public class ShardInfoIT extends OpenSearchIntegTestCase {
             assertThat(state.routingTable().index("idx").shard(shardId), not(nullValue()));
             assertThat(state.routingTable().index("idx").shard(shardId).activeShards().size(), equalTo(copyCount));
 
-            ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth("idx")
-                    .setWaitForNoRelocatingShards(true)
-                    .get();
+            ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth("idx").setWaitForNoRelocatingShards(true).get();
             assertThat(healthResponse.isTimedOut(), equalTo(false));
 
-            RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("idx")
-                    .setActiveOnly(true)
-                    .get();
+            RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("idx").setActiveOnly(true).get();
             assertThat(recoveryResponse.shardRecoveryStates().get("idx").size(), equalTo(0));
         });
     }

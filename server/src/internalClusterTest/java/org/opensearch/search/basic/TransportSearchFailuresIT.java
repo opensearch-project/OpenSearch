@@ -65,7 +65,7 @@ public class TransportSearchFailuresIT extends OpenSearchIntegTestCase {
 
     public void testFailedSearchWithWrongQuery() throws Exception {
         logger.info("Start Testing failed search with wrong query");
-        assertAcked(prepareCreate("test", 1).addMapping("type", "foo", "type=geo_point"));
+        assertAcked(prepareCreate("test", 1).setMapping("foo", "type=geo_point"));
 
         NumShards test = getNumShards("test");
 
@@ -79,8 +79,8 @@ public class TransportSearchFailuresIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < 5; i++) {
             try {
                 SearchResponse searchResponse = client().search(
-                        searchRequest("test").source(new SearchSourceBuilder().query(new MatchQueryBuilder("foo", "biz"))))
-                        .actionGet();
+                    searchRequest("test").source(new SearchSourceBuilder().query(new MatchQueryBuilder("foo", "biz")))
+                ).actionGet();
                 assertThat(searchResponse.getTotalShards(), equalTo(test.numPrimaries));
                 assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
                 assertThat(searchResponse.getFailedShards(), equalTo(test.numPrimaries));
@@ -92,15 +92,21 @@ public class TransportSearchFailuresIT extends OpenSearchIntegTestCase {
         }
 
         allowNodes("test", 2);
-        assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes(">=2").get()
-                .isTimedOut(), equalTo(false));
+        assertThat(
+            client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes(">=2").get().isTimedOut(),
+            equalTo(false)
+        );
 
         logger.info("Running Cluster Health");
-        ClusterHealthResponse clusterHealth = client()
-                .admin()
-                .cluster()
-                .health(clusterHealthRequest("test").waitForYellowStatus().waitForNoRelocatingShards(true).waitForEvents(Priority.LANGUID)
-                        .waitForActiveShards(test.totalNumShards)).actionGet();
+        ClusterHealthResponse clusterHealth = client().admin()
+            .cluster()
+            .health(
+                clusterHealthRequest("test").waitForYellowStatus()
+                    .waitForNoRelocatingShards(true)
+                    .waitForEvents(Priority.LANGUID)
+                    .waitForActiveShards(test.totalNumShards)
+            )
+            .actionGet();
         logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), anyOf(equalTo(ClusterHealthStatus.YELLOW), equalTo(ClusterHealthStatus.GREEN)));
@@ -114,8 +120,8 @@ public class TransportSearchFailuresIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < 5; i++) {
             try {
                 SearchResponse searchResponse = client().search(
-                        searchRequest("test").source(new SearchSourceBuilder().query(new MatchQueryBuilder("foo", "biz"))))
-                        .actionGet();
+                    searchRequest("test").source(new SearchSourceBuilder().query(new MatchQueryBuilder("foo", "biz")))
+                ).actionGet();
                 assertThat(searchResponse.getTotalShards(), equalTo(test.numPrimaries));
                 assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
                 assertThat(searchResponse.getFailedShards(), equalTo(test.numPrimaries));
@@ -130,7 +136,7 @@ public class TransportSearchFailuresIT extends OpenSearchIntegTestCase {
     }
 
     private void index(Client client, String id, String nameValue, int age) throws IOException {
-        client.index(Requests.indexRequest("test").type("type").id(id).source(source(id, nameValue, age))).actionGet();
+        client.index(Requests.indexRequest("test").id(id).source(source(id, nameValue, age))).actionGet();
     }
 
     private XContentBuilder source(String id, String nameValue, int age) throws IOException {
@@ -139,10 +145,10 @@ public class TransportSearchFailuresIT extends OpenSearchIntegTestCase {
             multi.append(" ").append(nameValue);
         }
         return jsonBuilder().startObject()
-                .field("id", id)
-                .field("name", nameValue + id)
-                .field("age", age)
-                .field("multi", multi.toString())
-                .endObject();
+            .field("id", id)
+            .field("name", nameValue + id)
+            .field("age", age)
+            .field("multi", multi.toString())
+            .endObject();
     }
 }

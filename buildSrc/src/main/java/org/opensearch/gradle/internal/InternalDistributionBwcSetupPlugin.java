@@ -33,9 +33,11 @@
 package org.opensearch.gradle.internal;
 
 import org.opensearch.gradle.BwcVersions;
+import org.opensearch.gradle.LoggedExec;
 import org.opensearch.gradle.Version;
 import org.opensearch.gradle.info.BuildParams;
 import org.opensearch.gradle.info.GlobalBuildInfoPlugin;
+import org.gradle.api.Action;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -158,7 +160,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         projects.addAll(asList("deb", "rpm"));
 
         if (bwcVersion.onOrAfter("7.0.0")) { // starting with 7.0 we bundle a jdk which means we have platform-specific archives
-            projects.addAll(asList("windows-zip", "darwin-tar", "linux-tar"));
+            projects.addAll(asList("darwin-tar", "linux-tar", "windows-zip"));
         } else { // prior to 7.0 we published only a single zip and tar archives
             projects.addAll(asList("zip", "tar"));
         }
@@ -204,24 +206,30 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         TaskProvider<Task> bwcTaskProvider
     ) {
         String bwcTaskName = buildBwcTaskName(projectName);
-        bwcSetupExtension.bwcTask(bwcTaskName, c -> {
-            c.getInputs().file(new File(project.getBuildDir(), "refspec"));
-            c.getOutputs().files(projectArtifact);
-            c.getOutputs().cacheIf("BWC distribution caching is disabled on 'master' branch", task -> {
-                String gitBranch = System.getenv("GIT_BRANCH");
-                return BuildParams.isCi() && (gitBranch == null || gitBranch.endsWith("master") == false);
-            });
-            c.args(projectPath.replace('/', ':') + ":assemble");
-            if (project.getGradle().getStartParameter().isBuildCacheEnabled()) {
-                c.args("--build-cache");
-            }
-            c.doLast(task -> {
-                if (projectArtifact.exists() == false) {
-                    throw new InvalidUserDataException(
-                        "Building " + bwcVersion.get() + " didn't generate expected file " + projectArtifact
-                    );
+        bwcSetupExtension.bwcTask(bwcTaskName, new Action<LoggedExec>() {
+            @Override
+            public void execute(LoggedExec c) {
+                c.getInputs().file(new File(project.getBuildDir(), "refspec"));
+                c.getOutputs().files(projectArtifact);
+                c.getOutputs().cacheIf("BWC distribution caching is disabled on 'master' branch", task -> {
+                    String gitBranch = System.getenv("GIT_BRANCH");
+                    return BuildParams.isCi() && (gitBranch == null || gitBranch.endsWith("master") == false);
+                });
+                c.args(projectPath.replace('/', ':') + ":assemble");
+                if (project.getGradle().getStartParameter().isBuildCacheEnabled()) {
+                    c.args("--build-cache");
                 }
-            });
+                c.doLast(new Action<Task>() {
+                    @Override
+                    public void execute(Task task) {
+                        if (projectArtifact.exists() == false) {
+                            throw new InvalidUserDataException(
+                                "Building " + bwcVersion.get() + " didn't generate expected file " + projectArtifact
+                            );
+                        }
+                    }
+                });
+            }
         });
         bwcTaskProvider.configure(t -> t.dependsOn(bwcTaskName));
     }
@@ -239,10 +247,17 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         DistributionProject(String name, String baseDir, Version version, String classifier, String extension, File checkoutDir) {
             this.name = name;
             this.projectPath = baseDir + "/" + name;
-            this.distFile = new File(
-                checkoutDir,
-                baseDir + "/" + name + "/build/distributions/opensearch-" + version + "-SNAPSHOT" + classifier + "." + extension
-            );
+            if (version.onOrAfter("1.1.0")) {
+                this.distFile = new File(
+                    checkoutDir,
+                    baseDir + "/" + name + "/build/distributions/opensearch-min-" + version + "-SNAPSHOT" + classifier + "." + extension
+                );
+            } else {
+                this.distFile = new File(
+                    checkoutDir,
+                    baseDir + "/" + name + "/build/distributions/opensearch-" + version + "-SNAPSHOT" + classifier + "." + extension
+                );
+            }
             // we only ported this down to the 7.x branch.
             if (version.onOrAfter("7.10.0") && (name.endsWith("zip") || name.endsWith("tar"))) {
                 this.expandedDistDir = new File(checkoutDir, baseDir + "/" + name + "/build/install");

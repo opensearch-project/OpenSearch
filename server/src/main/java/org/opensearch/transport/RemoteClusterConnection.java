@@ -86,8 +86,8 @@ final class RemoteClusterConnection implements Closeable {
         this.connectionStrategy = RemoteConnectionStrategy.buildStrategy(clusterAlias, transportService, remoteConnectionManager, settings);
         // we register the transport service here as a listener to make sure we notify handlers on disconnect etc.
         this.remoteConnectionManager.addListener(transportService);
-        this.skipUnavailable = RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE
-            .getConcreteSettingForNamespace(clusterAlias).get(settings);
+        this.skipUnavailable = RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace(clusterAlias)
+            .get(settings);
         this.threadPool = transportService.threadPool;
         initialConnectionTimeout = RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
     }
@@ -141,7 +141,11 @@ final class RemoteClusterConnection implements Closeable {
                 request.nodes(true);
                 request.local(true); // run this on the node that gets the request it's as good as any other
                 Transport.Connection connection = remoteConnectionManager.getAnyRemoteConnection();
-                transportService.sendRequest(connection, ClusterStateAction.NAME, request, TransportRequestOptions.EMPTY,
+                transportService.sendRequest(
+                    connection,
+                    ClusterStateAction.NAME,
+                    request,
+                    TransportRequestOptions.EMPTY,
                     new TransportResponseHandler<ClusterStateResponse>() {
 
                         @Override
@@ -164,7 +168,8 @@ final class RemoteClusterConnection implements Closeable {
                         public String executor() {
                             return ThreadPool.Names.SAME;
                         }
-                    });
+                    }
+                );
             }
         };
         try {

@@ -70,13 +70,19 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
 
     private BufferingNestedLeafBucketCollector bufferingNestedLeafBucketCollector;
 
-    NestedAggregator(String name, AggregatorFactories factories, ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper,
-                     SearchContext context, Aggregator parent, CardinalityUpperBound cardinality,
-                     Map<String, Object> metadata) throws IOException {
+    NestedAggregator(
+        String name,
+        AggregatorFactories factories,
+        ObjectMapper parentObjectMapper,
+        ObjectMapper childObjectMapper,
+        SearchContext context,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, factories, context, parent, cardinality, metadata);
 
-        Query parentFilter = parentObjectMapper != null ? parentObjectMapper.nestedTypeFilter()
-            : Queries.newNonNestedFilter(context.mapperService().getIndexSettings().getIndexVersionCreated());
+        Query parentFilter = parentObjectMapper != null ? parentObjectMapper.nestedTypeFilter() : Queries.newNonNestedFilter();
         this.parentFilter = context.bitsetFilterCache().getBitSetProducer(parentFilter);
         this.childFilter = childObjectMapper.nestedTypeFilter();
         this.collectsFromSingleBucket = cardinality.map(estimate -> estimate < 2);
@@ -136,8 +142,15 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        return buildAggregationsForSingleBucket(owningBucketOrds, (owningBucketOrd, subAggregationResults) ->
-            new InternalNested(name, bucketDocCount(owningBucketOrd), subAggregationResults, metadata()));
+        return buildAggregationsForSingleBucket(
+            owningBucketOrds,
+            (owningBucketOrd, subAggregationResults) -> new InternalNested(
+                name,
+                bucketDocCount(owningBucketOrd),
+                subAggregationResults,
+                metadata()
+            )
+        );
     }
 
     @Override
@@ -194,7 +207,6 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
                 return;
             }
 
-
             final int prevParentDoc = parentDocs.prevSetBit(currentParentDoc - 1);
             int childDocId = childDocs.docID();
             if (childDocId <= prevParentDoc) {
@@ -218,7 +230,9 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
         float score;
 
         @Override
-        public final float score() { return score; }
+        public final float score() {
+            return score;
+        }
 
         @Override
         public int docID() {

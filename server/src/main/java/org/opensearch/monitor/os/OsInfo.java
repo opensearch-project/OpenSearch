@@ -32,7 +32,6 @@
 
 package org.opensearch.monitor.os;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.TimeValue;
@@ -52,13 +51,14 @@ public class OsInfo implements ReportingService.Info {
     private final String version;
 
     public OsInfo(
-            final long refreshInterval,
-            final int availableProcessors,
-            final int allocatedProcessors,
-            final String name,
-            final String prettyName,
-            final String arch,
-            final String version) {
+        final long refreshInterval,
+        final int availableProcessors,
+        final int allocatedProcessors,
+        final String name,
+        final String prettyName,
+        final String arch,
+        final String version
+    ) {
         this.refreshInterval = refreshInterval;
         this.availableProcessors = availableProcessors;
         this.allocatedProcessors = allocatedProcessors;
@@ -73,11 +73,7 @@ public class OsInfo implements ReportingService.Info {
         this.availableProcessors = in.readInt();
         this.allocatedProcessors = in.readInt();
         this.name = in.readOptionalString();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_6_0)) {
-            this.prettyName = in.readOptionalString();
-        } else {
-            this.prettyName = null;
-        }
+        this.prettyName = in.readOptionalString();
         this.arch = in.readOptionalString();
         this.version = in.readOptionalString();
     }
@@ -88,9 +84,7 @@ public class OsInfo implements ReportingService.Info {
         out.writeInt(availableProcessors);
         out.writeInt(allocatedProcessors);
         out.writeOptionalString(name);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_6_0)) {
-            out.writeOptionalString(prettyName);
-        }
+        out.writeOptionalString(prettyName);
         out.writeOptionalString(arch);
         out.writeOptionalString(version);
     }

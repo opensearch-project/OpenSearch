@@ -32,27 +32,34 @@
 
 package org.opensearch.common.lucene.search;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
-import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.TypeFieldMapper;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.regex.Pattern;
 
 public class Queries {
@@ -65,7 +72,6 @@ public class Queries {
     public static Query newMatchNoDocsQuery(String reason) {
         return new MatchNoDocsQuery(reason);
     }
-
 
     public static Query newUnmappedFieldQuery(String field) {
         return newUnmappedFieldsQuery(Collections.singletonList(field));
@@ -86,17 +92,9 @@ public class Queries {
 
     /**
      * Creates a new non-nested docs query
-     * @param indexVersionCreated the index version created since newer indices can identify a parent field more efficiently
      */
-    public static Query newNonNestedFilter(Version indexVersionCreated) {
-        if (indexVersionCreated.onOrAfter(LegacyESVersion.V_6_1_0)) {
-            return new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME);
-        } else {
-            return new BooleanQuery.Builder()
-                .add(new MatchAllDocsQuery(), Occur.FILTER)
-                .add(newNestedFilter(), Occur.MUST_NOT)
-                .build();
-        }
+    public static Query newNonNestedFilter() {
+        return new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME);
     }
 
     public static BooleanQuery filtered(@Nullable Query query, @Nullable Query filter) {
@@ -112,10 +110,7 @@ public class Queries {
 
     /** Return a query that matches all documents but those that match the given query. */
     public static Query not(Query q) {
-        return new BooleanQuery.Builder()
-            .add(new MatchAllDocsQuery(), Occur.MUST)
-            .add(q, Occur.MUST_NOT)
-            .build();
+        return new BooleanQuery.Builder().add(new MatchAllDocsQuery(), Occur.MUST).add(q, Occur.MUST_NOT).build();
     }
 
     static boolean isNegativeQuery(Query q) {
@@ -123,8 +118,7 @@ public class Queries {
             return false;
         }
         List<BooleanClause> clauses = ((BooleanQuery) q).clauses();
-        return clauses.isEmpty() == false &&
-                clauses.stream().allMatch(BooleanClause::isProhibited);
+        return clauses.isEmpty() == false && clauses.stream().allMatch(BooleanClause::isProhibited);
     }
 
     public static Query fixNegativeQueryIfNeeded(Query q) {
@@ -172,7 +166,7 @@ public class Queries {
         if (query instanceof BooleanQuery) {
             return applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
         } else if (query instanceof ExtendedCommonTermsQuery) {
-            ((ExtendedCommonTermsQuery)query).setLowFreqMinimumNumberShouldMatch(minimumShouldMatch);
+            ((ExtendedCommonTermsQuery) query).setLowFreqMinimumNumberShouldMatch(minimumShouldMatch);
         }
         return query;
     }
@@ -194,8 +188,7 @@ public class Queries {
                 if (optionalClauseCount <= upperBound) {
                     return result;
                 } else {
-                    result = calculateMinShouldMatch
-                            (optionalClauseCount, parts[1]);
+                    result = calculateMinShouldMatch(optionalClauseCount, parts[1]);
                 }
             }
             return result;
@@ -216,4 +209,57 @@ public class Queries {
 
         return result < 0 ? 0 : result;
     }
+
+    public static Query newMatchNoDocsQueryWithoutRewrite(String reason) {
+        return new MatchNoDocsWithoutRewriteQuery(reason);
+    }
+
+    static class MatchNoDocsWithoutRewriteQuery extends Query {
+        private final String reason;
+
+        public MatchNoDocsWithoutRewriteQuery(String reason) {
+            this.reason = reason;
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            return new Weight(this) {
+                @Override
+                public Explanation explain(LeafReaderContext context, int doc) {
+                    return Explanation.noMatch(reason);
+                }
+
+                @Override
+                public Scorer scorer(LeafReaderContext context) {
+                    return null;
+                }
+
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    return true;
+                }
+            };
+        }
+
+        @Override
+        public String toString(String field) {
+            return "MatchNoDocsWithoutRewriteQuery(" + reason + ")";
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            // noop
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof MatchNoDocsWithoutRewriteQuery && Objects.equals(this.reason, ((MatchNoDocsWithoutRewriteQuery) o).reason);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hashCode(reason);
+        }
+    }
+
 }

@@ -92,8 +92,9 @@ public class ResolveIndexResponseTests extends AbstractSerializingTestCase<Respo
     private static ResolvedIndex createTestResolvedIndexInstance() {
         String name = randomAlphaOfLength(6);
         String[] aliases = randomStringArray(0, 5);
-        String[] attributes = randomSubsetOf(
-            org.opensearch.common.collect.List.of("open", "hidden", "frozen")).toArray(Strings.EMPTY_ARRAY);
+        String[] attributes = randomSubsetOf(org.opensearch.common.collect.List.of("open", "hidden", "frozen")).toArray(
+            Strings.EMPTY_ARRAY
+        );
         String dataStream = randomBoolean() ? randomAlphaOfLength(6) : null;
 
         return new ResolvedIndex(name, aliases, attributes, dataStream);
@@ -127,20 +128,25 @@ public class ResolveIndexResponseTests extends AbstractSerializingTestCase<Respo
         args -> new ResolvedIndex(
             (String) args[0],
             args[1] != null ? ((List<String>) args[1]).toArray(Strings.EMPTY_ARRAY) : new String[0],
-            ((List<String>) args[2]).toArray(Strings.EMPTY_ARRAY), (String) args[3]
-        ));
+            ((List<String>) args[2]).toArray(Strings.EMPTY_ARRAY),
+            (String) args[3]
+        )
+    );
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<Response, Void> RESPONSE_PARSER = new ConstructingObjectParser<>(
         "resolve_index_response",
-        args -> new Response((List<ResolvedIndex>) args[0], (List<ResolvedAlias>) args[1], (List<ResolvedDataStream>) args[2]));
+        args -> new Response((List<ResolvedIndex>) args[0], (List<ResolvedAlias>) args[1], (List<ResolvedDataStream>) args[2])
+    );
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<ResolvedAlias, Void> ALIAS_PARSER = new ConstructingObjectParser<>(
         "resolved_alias",
-        args -> new ResolvedAlias((String) args[0], ((List<String>) args[1]).toArray(Strings.EMPTY_ARRAY)));
+        args -> new ResolvedAlias((String) args[0], ((List<String>) args[1]).toArray(Strings.EMPTY_ARRAY))
+    );
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<ResolvedDataStream, Void> DATA_STREAM_PARSER = new ConstructingObjectParser<>(
         "resolved_data_stream",
-        args -> new ResolvedDataStream((String) args[0], ((List<String>) args[1]).toArray(Strings.EMPTY_ARRAY), (String) args[2]));
+        args -> new ResolvedDataStream((String) args[0], ((List<String>) args[1]).toArray(Strings.EMPTY_ARRAY), (String) args[2])
+    );
 
     static {
         INDEX_PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
@@ -151,8 +157,11 @@ public class ResolveIndexResponseTests extends AbstractSerializingTestCase<Respo
         ALIAS_PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), INDICES_FIELD);
         RESPONSE_PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> indexFromXContent(p), INDICES_FIELD);
         RESPONSE_PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> aliasFromXContent(p), ALIASES_FIELD);
-        RESPONSE_PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> dataStreamFromXContent(p),
-            DATA_STREAMS_FIELD);
+        RESPONSE_PARSER.declareObjectArray(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> dataStreamFromXContent(p),
+            DATA_STREAMS_FIELD
+        );
         DATA_STREAM_PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
         DATA_STREAM_PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), BACKING_INDICES_FIELD);
         DATA_STREAM_PARSER.declareString(ConstructingObjectParser.constructorArg(), TIMESTAMP_FIELD);

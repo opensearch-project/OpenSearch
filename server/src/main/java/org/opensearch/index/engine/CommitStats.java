@@ -76,7 +76,6 @@ public final class CommitStats implements Writeable, ToXContentFragment {
         return in.readOptionalWriteable(CommitStats::new);
     }
 
-
     public Map<String, String> getUserData() {
         return userData;
     }
@@ -88,20 +87,6 @@ public final class CommitStats implements Writeable, ToXContentFragment {
     /** base64 version of the commit id (see {@link SegmentInfos#getId()} */
     public String getId() {
         return id;
-    }
-
-    /**
-     * A raw version of the commit id (see {@link SegmentInfos#getId()}
-     */
-    public Engine.CommitId getRawCommitId() {
-        return new Engine.CommitId(Base64.getDecoder().decode(id));
-    }
-
-    /**
-     * The synced-flush id of the commit if existed.
-     */
-    public String syncId() {
-        return userData.get(InternalEngine.SYNC_COMMIT_ID);
     }
 
     /**

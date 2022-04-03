@@ -60,8 +60,11 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     private static final ParseField PERSISTENT = new ParseField("persistent");
     private static final ParseField TRANSIENT = new ParseField("transient");
 
-    private static final ObjectParser<ClusterUpdateSettingsRequest, Void> PARSER = new ObjectParser<>("cluster_update_settings_request",
-            false, ClusterUpdateSettingsRequest::new);
+    private static final ObjectParser<ClusterUpdateSettingsRequest, Void> PARSER = new ObjectParser<>(
+        "cluster_update_settings_request",
+        false,
+        ClusterUpdateSettingsRequest::new
+    );
 
     static {
         PARSER.declareObject((r, p) -> r.persistentSettings = p, (p, c) -> Settings.fromXContent(p), PERSISTENT);
@@ -77,8 +80,7 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
         persistentSettings = readSettingsFromStream(in);
     }
 
-    public ClusterUpdateSettingsRequest() {
-    }
+    public ClusterUpdateSettingsRequest() {}
 
     @Override
     public ActionRequestValidationException validate() {

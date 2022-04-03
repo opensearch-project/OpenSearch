@@ -89,10 +89,18 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     public static class Builder extends MetadataFieldMapper.Builder {
 
         private final Parameter<Boolean> enabled = Parameter.boolParam("enabled", false, m -> toType(m).enabled, Defaults.ENABLED);
-        private final Parameter<List<String>> includes
-            = Parameter.stringArrayParam("includes", false, m -> Arrays.asList(toType(m).includes), Collections.emptyList());
-        private final Parameter<List<String>> excludes
-            = Parameter.stringArrayParam("excludes", false, m -> Arrays.asList(toType(m).excludes), Collections.emptyList());
+        private final Parameter<List<String>> includes = Parameter.stringArrayParam(
+            "includes",
+            false,
+            m -> Arrays.asList(toType(m).includes),
+            Collections.emptyList()
+        );
+        private final Parameter<List<String>> excludes = Parameter.stringArrayParam(
+            "excludes",
+            false,
+            m -> Arrays.asList(toType(m).excludes),
+            Collections.emptyList()
+        );
 
         public Builder() {
             super(Defaults.NAME);
@@ -105,9 +113,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         @Override
         public SourceFieldMapper build(BuilderContext context) {
-            return new SourceFieldMapper(enabled.getValue(),
+            return new SourceFieldMapper(
+                enabled.getValue(),
                 includes.getValue().toArray(new String[0]),
-                excludes.getValue().toArray(new String[0]));
+                excludes.getValue().toArray(new String[0])
+            );
         }
     }
 
@@ -125,7 +135,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup lookup, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
 
@@ -180,7 +190,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             context.doc().add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
         }
 
-        if (originalSource != null && adaptedSource != originalSource && context.indexSettings().isSoftDeleteEnabled()) {
+        if (originalSource != null && adaptedSource != originalSource) {
             // if we omitted source or modified it we add the _recovery_source to ensure we have it for ops based recovery
             BytesRef ref = originalSource.toBytesRef();
             context.doc().add(new StoredField(RECOVERY_SOURCE_NAME, ref.bytes, ref.offset, ref.length));
@@ -194,8 +204,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             // Percolate and tv APIs may not set the source and that is ok, because these APIs will not index any data
             if (filter != null) {
                 // we don't update the context source if we filter, we want to keep it as is...
-                Tuple<XContentType, Map<String, Object>> mapTuple =
-                    XContentHelper.convertToMap(originalSource, true, contentType);
+                Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(originalSource, true, contentType);
                 Map<String, Object> filteredSource = filter.apply(mapTuple.v2());
                 BytesStreamOutput bStream = new BytesStreamOutput();
                 XContentType actualContentType = mapTuple.v1();

@@ -34,7 +34,6 @@ package org.opensearch.index.mapper;
 
 import org.opensearch.common.collect.Set;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.index.mapper.MockFieldMapper;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -94,11 +93,9 @@ public class FieldTypeLookupTests extends OpenSearchTestCase {
     }
 
     public void testSourcePathWithMultiFields() {
-        Mapper.BuilderContext context = new Mapper.BuilderContext(
-            MockFieldMapper.DEFAULT_SETTINGS, new ContentPath());
+        Mapper.BuilderContext context = new Mapper.BuilderContext(MockFieldMapper.DEFAULT_SETTINGS, new ContentPath());
 
-        MockFieldMapper field = new MockFieldMapper.Builder("field")
-            .addMultiField(new MockFieldMapper.Builder("field.subfield1"))
+        MockFieldMapper field = new MockFieldMapper.Builder("field").addMultiField(new MockFieldMapper.Builder("field.subfield1"))
             .addMultiField(new MockFieldMapper.Builder("field.subfield2"))
             .build(context);
 
@@ -110,16 +107,12 @@ public class FieldTypeLookupTests extends OpenSearchTestCase {
     }
 
     public void testSourcePathsWithCopyTo() {
-        Mapper.BuilderContext context = new Mapper.BuilderContext(
-            MockFieldMapper.DEFAULT_SETTINGS, new ContentPath());
+        Mapper.BuilderContext context = new Mapper.BuilderContext(MockFieldMapper.DEFAULT_SETTINGS, new ContentPath());
 
-        MockFieldMapper field = new MockFieldMapper.Builder("field")
-            .addMultiField(new MockFieldMapper.Builder("field.subfield1"))
+        MockFieldMapper field = new MockFieldMapper.Builder("field").addMultiField(new MockFieldMapper.Builder("field.subfield1"))
             .build(context);
 
-        MockFieldMapper otherField = new MockFieldMapper.Builder("other_field")
-            .copyTo("field")
-            .build(context);
+        MockFieldMapper otherField = new MockFieldMapper.Builder("other_field").copyTo("field").build(context);
 
         FieldTypeLookup lookup = new FieldTypeLookup(Arrays.asList(field, otherField), emptyList());
 

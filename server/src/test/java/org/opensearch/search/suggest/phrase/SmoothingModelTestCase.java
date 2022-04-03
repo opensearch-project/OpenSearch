@@ -131,8 +131,8 @@ public abstract class SmoothingModelTestCase extends OpenSearchTestCase {
         writer.addDocument(doc);
         DirectoryReader ir = DirectoryReader.open(writer);
 
-        WordScorer wordScorer = testModel.buildWordScorerFactory().newScorer(ir, MultiTerms.getTerms(ir, "field"), "field", 0.9d,
-                BytesRefs.toBytesRef(" "));
+        WordScorer wordScorer = testModel.buildWordScorerFactory()
+            .newScorer(ir, MultiTerms.getTerms(ir, "field"), "field", 0.9d, BytesRefs.toBytesRef(" "));
         assertWordScorer(wordScorer, testModel);
     }
 
@@ -160,7 +160,10 @@ public abstract class SmoothingModelTestCase extends OpenSearchTestCase {
     }
 
     private SmoothingModel copy(SmoothingModel original) throws IOException {
-        return OpenSearchTestCase.copyWriteable(original, namedWriteableRegistry,
-                namedWriteableRegistry.getReader(SmoothingModel.class, original.getWriteableName()));
+        return OpenSearchTestCase.copyWriteable(
+            original,
+            namedWriteableRegistry,
+            namedWriteableRegistry.getReader(SmoothingModel.class, original.getWriteableName())
+        );
     }
 }

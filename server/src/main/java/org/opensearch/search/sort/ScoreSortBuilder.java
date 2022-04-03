@@ -54,9 +54,13 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
 
     public static final String NAME = "_score";
     private static final SortFieldAndFormat SORT_SCORE = new SortFieldAndFormat(
-            new SortField(null, SortField.Type.SCORE), DocValueFormat.RAW);
+        new SortField(null, SortField.Type.SCORE),
+        DocValueFormat.RAW
+    );
     private static final SortFieldAndFormat SORT_SCORE_REVERSE = new SortFieldAndFormat(
-            new SortField(null, SortField.Type.SCORE, true), DocValueFormat.RAW);
+        new SortField(null, SortField.Type.SCORE, true),
+        DocValueFormat.RAW
+    );
 
     /**
      * Build a ScoreSortBuilder default to descending sort order.
@@ -120,7 +124,9 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
     public BucketedSort buildBucketedSort(QueryShardContext context, int bucketSize, BucketedSort.ExtraData extra) throws IOException {
         return new BucketedSort.ForFloats(context.bigArrays(), order, DocValueFormat.RAW, bucketSize, extra) {
             @Override
-            public boolean needsScores() { return true; }
+            public boolean needsScores() {
+                return true;
+            }
 
             @Override
             public Leaf forLeaf(LeafReaderContext ctx) throws IOException {

@@ -67,11 +67,11 @@ import static org.opensearch.common.unit.TimeValue.timeValueMillis;
  * because the version constants have been removed.
  */
 final class RemoteRequestBuilders {
-    private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(RemoteRequestBuilders.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RemoteRequestBuilders.class);
 
     static final String DEPRECATED_URL_ENCODED_INDEX_WARNING =
-        "Specifying index name using URL escaped index names for reindex from remote is deprecated. " +
-        "Instead specify index name without URL escaping.";
+        "Specifying index name using URL escaped index names for reindex from remote is deprecated. "
+            + "Instead specify index name without URL escaping.";
 
     private RemoteRequestBuilders() {}
 
@@ -79,7 +79,6 @@ final class RemoteRequestBuilders {
         // It is nasty to build paths with StringBuilder but we'll be careful....
         StringBuilder path = new StringBuilder("/");
         addIndices(path, searchRequest.indices());
-        addTypes(path, searchRequest.types());
         path.append("_search");
         Request request = new Request("POST", path.toString());
 
@@ -152,12 +151,14 @@ final class RemoteRequestBuilders {
         }
 
         // EMPTY is safe here because we're not calling namedObject
-        try (XContentBuilder entity = JsonXContent.contentBuilder();
-                XContentParser queryParser = XContentHelper
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, query)) {
+        try (
+            XContentBuilder entity = JsonXContent.contentBuilder();
+            XContentParser queryParser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, query)
+        ) {
             entity.startObject();
 
-            entity.field("query"); {
+            entity.field("query");
+            {
                 /* We're intentionally a bit paranoid here - copying the query
                  * as xcontent rather than writing a raw field. We don't want
                  * poorly written queries to escape. Ever. */
@@ -165,7 +166,8 @@ final class RemoteRequestBuilders {
                 XContentParser.Token shouldBeEof = queryParser.nextToken();
                 if (shouldBeEof != null) {
                     throw new OpenSearchException(
-                            "query was more than a single object. This first token after the object is [" + shouldBeEof + "]");
+                        "query was more than a single object. This first token after the object is [" + shouldBeEof + "]"
+                    );
                 }
             }
 
@@ -207,16 +209,6 @@ final class RemoteRequestBuilders {
         }
     }
 
-    private static void addTypes(StringBuilder path, String[] types) {
-        if (types == null || types.length == 0) {
-            return;
-        }
-        for (String indexOrType : types) {
-            checkIndexOrType("Type", indexOrType);
-        }
-        path.append(Strings.arrayToCommaDelimitedString(types)).append('/');
-    }
-
     private static void checkIndexOrType(String name, String indexOrType) {
         if (indexOrType.indexOf(',') >= 0) {
             throw new IllegalArgumentException(name + " containing [,] not supported but got [" + indexOrType + "]");
@@ -253,9 +245,7 @@ final class RemoteRequestBuilders {
         }
 
         try (XContentBuilder entity = JsonXContent.contentBuilder()) {
-            entity.startObject()
-                    .field("scroll_id", scroll)
-                .endObject();
+            entity.startObject().field("scroll_id", scroll).endObject();
             request.setJsonEntity(Strings.toString(entity));
         } catch (IOException e) {
             throw new OpenSearchException("failed to build scroll entity", e);
@@ -272,9 +262,7 @@ final class RemoteRequestBuilders {
             return request;
         }
         try (XContentBuilder entity = JsonXContent.contentBuilder()) {
-            entity.startObject()
-                    .array("scroll_id", scroll)
-                .endObject();
+            entity.startObject().array("scroll_id", scroll).endObject();
             request.setJsonEntity(Strings.toString(entity));
         } catch (IOException e) {
             throw new OpenSearchException("failed to build clear scroll entity", e);

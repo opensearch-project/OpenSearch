@@ -109,8 +109,10 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
             MapperParsingException.class,
             () -> mapper.parse(source(b -> b.startObject("field").field("foo", Arrays.asList(10, 20)).endObject()))
         );
-        assertEquals("[rank_features] fields take hashes that map a feature to a strictly positive float, but got unexpected token " +
-                "START_ARRAY", e.getCause().getMessage());
+        assertEquals(
+            "[rank_features] fields take hashes that map a feature to a strictly positive float, but got unexpected token " + "START_ARRAY",
+            e.getCause().getMessage()
+        );
 
         e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
             b.startArray("foo");
@@ -120,7 +122,10 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
             }
             b.endArray();
         })));
-        assertEquals("[rank_features] fields do not support indexing multiple values for the same rank feature [foo.field.bar] in " +
-                "the same document", e.getCause().getMessage());
+        assertEquals(
+            "[rank_features] fields do not support indexing multiple values for the same rank feature [foo.field.bar] in "
+                + "the same document",
+            e.getCause().getMessage()
+        );
     }
 }

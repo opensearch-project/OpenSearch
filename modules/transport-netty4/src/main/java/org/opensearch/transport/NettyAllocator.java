@@ -65,7 +65,8 @@ public class NettyAllocator {
         if (Booleans.parseBoolean(System.getProperty(USE_NETTY_DEFAULT), false)) {
             ALLOCATOR = ByteBufAllocator.DEFAULT;
             SUGGESTED_MAX_ALLOCATION_SIZE = 1024 * 1024;
-            DESCRIPTION = "[name=netty_default, suggested_max_allocation_size=" + new ByteSizeValue(SUGGESTED_MAX_ALLOCATION_SIZE)
+            DESCRIPTION = "[name=netty_default, suggested_max_allocation_size="
+                + new ByteSizeValue(SUGGESTED_MAX_ALLOCATION_SIZE)
                 + ", factors={opensearch.unsafe.use_netty_default_allocator=true}]";
         } else {
             final long heapSizeInBytes = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
@@ -85,11 +86,17 @@ public class NettyAllocator {
                 } else {
                     SUGGESTED_MAX_ALLOCATION_SIZE = 1024 * 1024;
                 }
-                DESCRIPTION = "[name=unpooled, suggested_max_allocation_size=" + new ByteSizeValue(SUGGESTED_MAX_ALLOCATION_SIZE)
-                    + ", factors={opensearch.unsafe.use_unpooled_allocator=" + System.getProperty(USE_UNPOOLED)
-                    + ", g1gc_enabled=" + g1gcEnabled
-                    + ", g1gc_region_size=" + g1gcRegionSize
-                    + ", heap_size=" + heapSize + "}]";
+                DESCRIPTION = "[name=unpooled, suggested_max_allocation_size="
+                    + new ByteSizeValue(SUGGESTED_MAX_ALLOCATION_SIZE)
+                    + ", factors={opensearch.unsafe.use_unpooled_allocator="
+                    + System.getProperty(USE_UNPOOLED)
+                    + ", g1gc_enabled="
+                    + g1gcEnabled
+                    + ", g1gc_region_size="
+                    + g1gcRegionSize
+                    + ", heap_size="
+                    + heapSize
+                    + "}]";
             } else {
                 int nHeapArena = PooledByteBufAllocator.defaultNumHeapArena();
                 int pageSize;
@@ -114,16 +121,31 @@ public class NettyAllocator {
                 int smallCacheSize = PooledByteBufAllocator.defaultSmallCacheSize();
                 int normalCacheSize = PooledByteBufAllocator.defaultNormalCacheSize();
                 boolean useCacheForAllThreads = PooledByteBufAllocator.defaultUseCacheForAllThreads();
-                delegate = new PooledByteBufAllocator(false, nHeapArena, 0, pageSize, maxOrder, tinyCacheSize,
-                    smallCacheSize, normalCacheSize, useCacheForAllThreads);
+                delegate = new PooledByteBufAllocator(
+                    false,
+                    nHeapArena,
+                    0,
+                    pageSize,
+                    maxOrder,
+                    tinyCacheSize,
+                    smallCacheSize,
+                    normalCacheSize,
+                    useCacheForAllThreads
+                );
                 int chunkSizeInBytes = pageSize << maxOrder;
                 ByteSizeValue chunkSize = new ByteSizeValue(chunkSizeInBytes);
                 SUGGESTED_MAX_ALLOCATION_SIZE = chunkSizeInBytes;
-                DESCRIPTION = "[name=opensearch_configured, chunk_size=" + chunkSize
-                    + ", suggested_max_allocation_size=" + new ByteSizeValue(SUGGESTED_MAX_ALLOCATION_SIZE)
-                    + ", factors={opensearch.unsafe.use_netty_default_chunk_and_page_size=" + useDefaultChunkAndPageSize()
-                    + ", g1gc_enabled=" + g1gcEnabled
-                    + ", g1gc_region_size=" + g1gcRegionSize + "}]";
+                DESCRIPTION = "[name=opensearch_configured, chunk_size="
+                    + chunkSize
+                    + ", suggested_max_allocation_size="
+                    + new ByteSizeValue(SUGGESTED_MAX_ALLOCATION_SIZE)
+                    + ", factors={opensearch.unsafe.use_netty_default_chunk_and_page_size="
+                    + useDefaultChunkAndPageSize()
+                    + ", g1gc_enabled="
+                    + g1gcEnabled
+                    + ", g1gc_region_size="
+                    + g1gcRegionSize
+                    + "}]";
             }
             ALLOCATOR = new NoDirectBuffers(delegate);
         }

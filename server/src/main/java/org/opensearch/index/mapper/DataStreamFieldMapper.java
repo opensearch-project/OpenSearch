@@ -33,12 +33,7 @@ public class DataStreamFieldMapper extends MetadataFieldMapper {
     }
 
     public static final class Builder extends MetadataFieldMapper.Builder {
-        final Parameter<Boolean> enabledParam = Parameter.boolParam(
-            "enabled",
-            false,
-            mapper -> toType(mapper).enabled,
-            Defaults.ENABLED
-        );
+        final Parameter<Boolean> enabledParam = Parameter.boolParam("enabled", false, mapper -> toType(mapper).enabled, Defaults.ENABLED);
 
         final Parameter<TimestampField> timestampFieldParam = new Parameter<>(
             "timestamp_field",
@@ -54,10 +49,7 @@ public class DataStreamFieldMapper extends MetadataFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Collections.unmodifiableList(Arrays.asList(
-                enabledParam,
-                timestampFieldParam
-            ));
+            return Collections.unmodifiableList(Arrays.asList(enabledParam, timestampFieldParam));
         }
 
         @Override
@@ -74,7 +66,7 @@ public class DataStreamFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + typeName() + "]");
         }
 

@@ -57,20 +57,32 @@ import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.TaskContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
+import org.apache.tools.ant.taskdefs.condition.Os;
 
 import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.function.BiConsumer;
+import java.util.Optional;
 
 public class TestFixturesPlugin implements Plugin<Project> {
 
     private static final Logger LOGGER = Logging.getLogger(TestFixturesPlugin.class);
     private static final String DOCKER_COMPOSE_THROTTLE = "dockerComposeThrottle";
     static final String DOCKER_COMPOSE_YML = "docker-compose.yml";
+
+    private static String[] DOCKER_COMPOSE_BINARIES_UNIX = { "/usr/local/bin/docker-compose", "/usr/bin/docker-compose" };
+
+    private static String[] DOCKER_COMPOSE_BINARIES_WINDOWS = {
+        System.getenv("PROGRAMFILES") + "\\Docker\\Docker\\resources\\bin\\docker-compose.exe" };
+
+    private static String[] DOCKER_COMPOSE_BINARIES = Os.isFamily(Os.FAMILY_WINDOWS)
+        ? DOCKER_COMPOSE_BINARIES_WINDOWS
+        : DOCKER_COMPOSE_BINARIES_UNIX;
 
     @Inject
     protected FileSystemOperations getFileSystemOperations() {
@@ -100,27 +112,42 @@ public class TestFixturesPlugin implements Plugin<Project> {
             project.getPluginManager().apply(BasePlugin.class);
             project.getPluginManager().apply(DockerComposePlugin.class);
 
-            TaskProvider<Task> preProcessFixture = project.getTasks().register("preProcessFixture", t -> {
-                t.getOutputs().dir(testfixturesDir);
-                t.doFirst(t2 -> {
-                    try {
-                        Files.createDirectories(testfixturesDir.toPath());
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                });
+            TaskProvider<Task> preProcessFixture = project.getTasks().register("preProcessFixture", new Action<Task>() {
+                @Override
+                public void execute(Task t) {
+                    t.getOutputs().dir(testfixturesDir);
+                    t.doFirst(new Action<Task>() {
+                        @Override
+                        public void execute(Task t2) {
+                            {
+                                try {
+                                    Files.createDirectories(testfixturesDir.toPath());
+                                } catch (IOException e) {
+                                    throw new UncheckedIOException(e);
+                                }
+                            }
+                        }
+                    });
+                }
             });
-            TaskProvider<Task> buildFixture = project.getTasks()
-                .register("buildFixture", t -> t.dependsOn(preProcessFixture, tasks.named("composeUp")));
+            TaskProvider<Task> buildFixture = project.getTasks().register("buildFixture", new Action<Task>() {
+                @Override
+                public void execute(Task t) {
+                    t.dependsOn(preProcessFixture, tasks.named("composeUp"));
+                }
+            });
 
-            TaskProvider<Task> postProcessFixture = project.getTasks().register("postProcessFixture", task -> {
-                task.dependsOn(buildFixture);
-                configureServiceInfoForTask(
-                    task,
-                    project,
-                    false,
-                    (name, port) -> task.getExtensions().getByType(ExtraPropertiesExtension.class).set(name, port)
-                );
+            TaskProvider<Task> postProcessFixture = project.getTasks().register("postProcessFixture", new Action<Task>() {
+                @Override
+                public void execute(Task task) {
+                    task.dependsOn(buildFixture);
+                    configureServiceInfoForTask(
+                        task,
+                        project,
+                        false,
+                        (name, port) -> task.getExtensions().getByType(ExtraPropertiesExtension.class).set(name, port)
+                    );
+                }
             });
 
             maybeSkipTask(dockerSupport, preProcessFixture);
@@ -128,11 +155,19 @@ public class TestFixturesPlugin implements Plugin<Project> {
             maybeSkipTask(dockerSupport, buildFixture);
 
             ComposeExtension composeExtension = project.getExtensions().getByType(ComposeExtension.class);
-            composeExtension.setUseComposeFiles(Collections.singletonList(DOCKER_COMPOSE_YML));
-            composeExtension.setRemoveContainers(true);
-            composeExtension.setExecutable(
-                project.file("/usr/local/bin/docker-compose").exists() ? "/usr/local/bin/docker-compose" : "/usr/bin/docker-compose"
-            );
+            composeExtension.getUseComposeFiles().set(Collections.singletonList(DOCKER_COMPOSE_YML));
+            composeExtension.getRemoveContainers().set(true);
+
+            // Increase the Docker Compose HTTP timeout to 120 sec (the default is 60)
+            final Integer timeout = ext.has("dockerComposeHttpTimeout") ? (Integer) ext.get("dockerComposeHttpTimeout") : 120;
+            composeExtension.getEnvironment().put("COMPOSE_HTTP_TIMEOUT", timeout);
+
+            Optional<String> dockerCompose = Arrays.asList(DOCKER_COMPOSE_BINARIES)
+                .stream()
+                .filter(path -> project.file(path).exists())
+                .findFirst();
+
+            composeExtension.getExecutable().set(dockerCompose.isPresent() ? dockerCompose.get() : "/usr/bin/docker");
 
             tasks.named("composeUp").configure(t -> {
                 // Avoid running docker-compose tasks in parallel in CI due to some issues on certain Linux distributions
@@ -176,7 +211,6 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 (name, host) -> task.getExtensions().getByType(SystemPropertyCommandLineArgumentProvider.class).systemProperty(name, host)
             );
         }));
-
     }
 
     private void maybeSkipTasks(TaskContainer tasks, Provider<DockerSupportService> dockerSupport, Class<? extends DefaultTask> taskClass) {

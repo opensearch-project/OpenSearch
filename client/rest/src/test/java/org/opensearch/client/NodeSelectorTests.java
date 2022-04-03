@@ -89,9 +89,13 @@ public class NodeSelectorTests extends RestClientTestCase {
         if (ingest) {
             roles.add("ingest");
         }
-        return new Node(new HttpHost("dummy"), Collections.<HttpHost>emptySet(),
-                randomAsciiAlphanumOfLength(5), randomAsciiAlphanumOfLength(5),
-                new Roles(roles),
-                Collections.<String, List<String>>emptyMap());
+        return new Node(
+            new HttpHost("dummy"),
+            Collections.<HttpHost>emptySet(),
+            randomAsciiAlphanumOfLength(5),
+            randomAsciiAlphanumOfLength(5),
+            new Roles(roles),
+            Collections.<String, List<String>>emptyMap()
+        );
     }
 }

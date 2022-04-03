@@ -35,8 +35,10 @@ package org.opensearch.action.ingest;
 import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
-public class GetPipelineRequestBuilder
-        extends MasterNodeReadOperationRequestBuilder<GetPipelineRequest, GetPipelineResponse, GetPipelineRequestBuilder> {
+public class GetPipelineRequestBuilder extends MasterNodeReadOperationRequestBuilder<
+    GetPipelineRequest,
+    GetPipelineResponse,
+    GetPipelineRequestBuilder> {
 
     public GetPipelineRequestBuilder(OpenSearchClient client, GetPipelineAction action) {
         super(client, action, new GetPipelineRequest());

@@ -38,7 +38,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.index.fielddata.AbstractSortedNumericDocValues;
 import org.opensearch.index.fielddata.AbstractSortedSetDocValues;
@@ -121,7 +121,7 @@ public class MissingValuesTests extends OpenSearchTestCase {
                 ords[i][j] = j;
             }
             for (int j = ords[i].length - 1; j >= 0; --j) {
-                final int maxOrd = j == ords[i].length - 1 ? numOrds : ords[i][j+1];
+                final int maxOrd = j == ords[i].length - 1 ? numOrds : ords[i][j + 1];
                 ords[i][j] = TestUtil.nextInt(random(), ords[i][j], maxOrd - 1);
             }
         }
@@ -171,8 +171,7 @@ public class MissingValuesTests extends OpenSearchTestCase {
                 assertTrue(withMissingReplaced.advanceExact(i));
                 if (ords[i].length > 0) {
                     for (int ord : ords[i]) {
-                        assertEquals(values[ord],
-                                withMissingReplaced.lookupOrd(withMissingReplaced.nextOrd()));
+                        assertEquals(values[ord], withMissingReplaced.lookupOrd(withMissingReplaced.nextOrd()));
                     }
                     assertEquals(SortedSetDocValues.NO_MORE_ORDS, withMissingReplaced.nextOrd());
                 } else {
@@ -226,7 +225,11 @@ public class MissingValuesTests extends OpenSearchTestCase {
         SortedSetDocValues sortedGlobalValues = asOrds(globalValues);
 
         LongUnaryOperator withMissingSegmentToGlobalOrd = MissingValues.getGlobalMapping(
-                sortedValues, sortedGlobalValues, segmentToGlobalOrd, missing);
+            sortedValues,
+            sortedGlobalValues,
+            segmentToGlobalOrd,
+            missing
+        );
         SortedSetDocValues withMissingValues = MissingValues.replaceMissing(sortedValues, missing);
         SortedSetDocValues withMissingGlobalValues = MissingValues.replaceMissing(sortedGlobalValues, missing);
 

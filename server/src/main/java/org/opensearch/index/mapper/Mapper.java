@@ -33,6 +33,8 @@
 package org.opensearch.index.mapper;
 
 import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.xcontent.ToXContentFragment;
@@ -68,6 +70,14 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
         public Version indexCreatedVersion() {
             return Version.indexCreated(indexSettings);
+        }
+
+        public Version indexCreatedVersionOrDefault(@Nullable Version defaultValue) {
+            if (defaultValue == null || hasIndexCreated(indexSettings)) {
+                return indexCreatedVersion();
+            } else {
+                return defaultValue;
+            }
         }
     }
 
@@ -107,10 +117,15 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             private final ScriptService scriptService;
 
-            public ParserContext(Function<String, SimilarityProvider> similarityLookupService,
-                                 MapperService mapperService, Function<String, TypeParser> typeParsers,
-                                 Version indexVersionCreated, Supplier<QueryShardContext> queryShardContextSupplier,
-                                 DateFormatter dateFormatter, ScriptService scriptService) {
+            public ParserContext(
+                Function<String, SimilarityProvider> similarityLookupService,
+                MapperService mapperService,
+                Function<String, TypeParser> typeParsers,
+                Version indexVersionCreated,
+                Supplier<QueryShardContext> queryShardContextSupplier,
+                DateFormatter dateFormatter,
+                ScriptService scriptService
+            ) {
                 this.similarityLookupService = similarityLookupService;
                 this.mapperService = mapperService;
                 this.typeParsers = typeParsers;
@@ -157,11 +172,17 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 return dateFormatter;
             }
 
-            public boolean isWithinMultiField() { return false; }
+            public boolean isWithinMultiField() {
+                return false;
+            }
 
-            protected Function<String, TypeParser> typeParsers() { return typeParsers; }
+            protected Function<String, TypeParser> typeParsers() {
+                return typeParsers;
+            }
 
-            protected Function<String, SimilarityProvider> similarityLookupService() { return similarityLookupService; }
+            protected Function<String, SimilarityProvider> similarityLookupService() {
+                return similarityLookupService;
+            }
 
             /**
              * The {@linkplain ScriptService} to compile scripts needed by the {@linkplain Mapper}.
@@ -176,12 +197,21 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             static class MultiFieldParserContext extends ParserContext {
                 MultiFieldParserContext(ParserContext in) {
-                    super(in.similarityLookupService(), in.mapperService(), in.typeParsers(),
-                            in.indexVersionCreated(), in.queryShardContextSupplier(), in.getDateFormatter(), in.scriptService());
+                    super(
+                        in.similarityLookupService(),
+                        in.mapperService(),
+                        in.typeParsers(),
+                        in.indexVersionCreated(),
+                        in.queryShardContextSupplier(),
+                        in.getDateFormatter(),
+                        in.scriptService()
+                    );
                 }
 
                 @Override
-                public boolean isWithinMultiField() { return true; }
+                public boolean isWithinMultiField() {
+                    return true;
+                }
             }
 
         }
@@ -220,4 +250,12 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      */
     public abstract void validate(MappingLookup mappers);
 
+    /**
+     * Check if settings have IndexMetadata.SETTING_INDEX_VERSION_CREATED setting.
+     * @param settings settings
+     * @return "true" if settings have IndexMetadata.SETTING_INDEX_VERSION_CREATED setting, "false" otherwise
+     */
+    protected static boolean hasIndexCreated(Settings settings) {
+        return settings.hasValue(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey());
+    }
 }

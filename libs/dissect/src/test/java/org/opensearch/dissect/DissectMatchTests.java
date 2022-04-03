@@ -51,8 +51,8 @@ public class DissectMatchTests extends OpenSearchTestCase {
     public void testValidAndFullyMatched() {
         int expectedMatches = randomIntBetween(1, 26);
         DissectMatch dissectMatch = new DissectMatch("", expectedMatches, expectedMatches, 0, 0);
-        IntStream.range(97, 97 + expectedMatches)  //allow for a-z values
-            .forEach(i -> dissectMatch.add(new DissectKey(new String(new byte[]{(byte) i}, StandardCharsets.UTF_8)), ""));
+        IntStream.range(97, 97 + expectedMatches)  // allow for a-z values
+            .forEach(i -> dissectMatch.add(new DissectKey(new String(new byte[] { (byte) i }, StandardCharsets.UTF_8)), ""));
         assertThat(dissectMatch.fullyMatched(), equalTo(true));
         assertThat(dissectMatch.isValid(dissectMatch.getResults()), equalTo(true));
     }
@@ -60,21 +60,21 @@ public class DissectMatchTests extends OpenSearchTestCase {
     public void testNotValidAndFullyMatched() {
         int expectedMatches = randomIntBetween(1, 26);
         DissectMatch dissectMatch = new DissectMatch("", expectedMatches, expectedMatches, 0, 0);
-        IntStream.range(97, 97 + expectedMatches - 1)  //allow for a-z values
-            .forEach(i -> dissectMatch.add(new DissectKey(new String(new byte[]{(byte) i}, StandardCharsets.UTF_8)), ""));
+        IntStream.range(97, 97 + expectedMatches - 1)  // allow for a-z values
+            .forEach(i -> dissectMatch.add(new DissectKey(new String(new byte[] { (byte) i }, StandardCharsets.UTF_8)), ""));
         assertThat(dissectMatch.fullyMatched(), equalTo(false));
         assertThat(dissectMatch.isValid(dissectMatch.getResults()), equalTo(false));
     }
 
-    public void testGetResultsIdempotent(){
+    public void testGetResultsIdempotent() {
         int expectedMatches = randomIntBetween(1, 26);
         DissectMatch dissectMatch = new DissectMatch("", expectedMatches, expectedMatches, 0, 0);
-        IntStream.range(97, 97 + expectedMatches)  //allow for a-z values
-            .forEach(i -> dissectMatch.add(new DissectKey(new String(new byte[]{(byte) i}, StandardCharsets.UTF_8)), ""));
+        IntStream.range(97, 97 + expectedMatches)  // allow for a-z values
+            .forEach(i -> dissectMatch.add(new DissectKey(new String(new byte[] { (byte) i }, StandardCharsets.UTF_8)), ""));
         assertThat(dissectMatch.getResults(), equalTo(dissectMatch.getResults()));
     }
 
-    public void testAppend(){
+    public void testAppend() {
         DissectMatch dissectMatch = new DissectMatch("-", 3, 1, 3, 0);
         dissectMatch.add(new DissectKey("+a"), "x");
         dissectMatch.add(new DissectKey("+a"), "y");
@@ -84,7 +84,7 @@ public class DissectMatchTests extends OpenSearchTestCase {
         assertThat(results, equalTo(MapBuilder.newMapBuilder().put("a", "x-y-z").map()));
     }
 
-    public void testAppendWithOrder(){
+    public void testAppendWithOrder() {
         DissectMatch dissectMatch = new DissectMatch("-", 3, 1, 3, 0);
         dissectMatch.add(new DissectKey("+a/3"), "x");
         dissectMatch.add(new DissectKey("+a"), "y");
@@ -94,7 +94,7 @@ public class DissectMatchTests extends OpenSearchTestCase {
         assertThat(results, equalTo(MapBuilder.newMapBuilder().put("a", "y-z-x").map()));
     }
 
-    public void testReference(){
+    public void testReference() {
         DissectMatch dissectMatch = new DissectMatch("-", 2, 1, 0, 1);
         dissectMatch.add(new DissectKey("&a"), "x");
         dissectMatch.add(new DissectKey("*a"), "y");

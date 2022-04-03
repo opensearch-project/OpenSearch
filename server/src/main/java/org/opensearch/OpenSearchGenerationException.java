@@ -51,7 +51,7 @@ public class OpenSearchGenerationException extends OpenSearchException {
         super(msg, cause);
     }
 
-    public OpenSearchGenerationException(StreamInput in) throws IOException{
+    public OpenSearchGenerationException(StreamInput in) throws IOException {
         super(in);
     }
 }

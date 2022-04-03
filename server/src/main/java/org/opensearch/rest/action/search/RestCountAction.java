@@ -37,7 +37,6 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.rest.BaseRestHandler;
@@ -59,20 +58,17 @@ import static org.opensearch.rest.action.RestActions.buildBroadcastShardsHeader;
 import static org.opensearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 
 public class RestCountAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestCountAction.class);
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
-        " Specifying types in count requests is deprecated.";
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_count"),
-            new Route(POST, "/_count"),
-            new Route(GET, "/{index}/_count"),
-            new Route(POST, "/{index}/_count"),
-            // Deprecated typed endpoints.
-            new Route(GET, "/{index}/{type}/_count"),
-            new Route(POST, "/{index}/{type}/_count")));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "/_count"),
+                new Route(POST, "/_count"),
+                new Route(GET, "/{index}/_count"),
+                new Route(POST, "/{index}/_count")
+            )
+        );
     }
 
     @Override
@@ -102,11 +98,6 @@ public class RestCountAction extends BaseRestHandler {
             searchSourceBuilder.minScore(minScore);
         }
 
-        if (request.hasParam("type")) {
-            deprecationLogger.deprecate("count_with_types", TYPES_DEPRECATION_MESSAGE);
-            countRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
-        }
-
         countRequest.preference(request.param("preference"));
 
         final int terminateAfter = request.paramAsInt("terminate_after", DEFAULT_TERMINATE_AFTER);
@@ -123,8 +114,15 @@ public class RestCountAction extends BaseRestHandler {
                     builder.field("terminated_early", response.isTerminatedEarly());
                 }
                 builder.field("count", response.getHits().getTotalHits().value);
-                buildBroadcastShardsHeader(builder, request, response.getTotalShards(), response.getSuccessfulShards(),
-                    0, response.getFailedShards(), response.getShardFailures());
+                buildBroadcastShardsHeader(
+                    builder,
+                    request,
+                    response.getTotalShards(),
+                    response.getSuccessfulShards(),
+                    0,
+                    response.getFailedShards(),
+                    response.getShardFailures()
+                );
 
                 builder.endObject();
                 return new BytesRestResponse(response.status(), builder);

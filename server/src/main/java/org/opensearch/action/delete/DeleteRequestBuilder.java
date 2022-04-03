@@ -42,7 +42,8 @@ import org.opensearch.index.VersionType;
  * A delete document action request builder.
  */
 public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteRequest, DeleteResponse, DeleteRequestBuilder>
-        implements WriteRequestBuilder<DeleteRequestBuilder> {
+    implements
+        WriteRequestBuilder<DeleteRequestBuilder> {
 
     public DeleteRequestBuilder(OpenSearchClient client, DeleteAction action) {
         super(client, action, new DeleteRequest());
@@ -50,14 +51,6 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
 
     public DeleteRequestBuilder(OpenSearchClient client, DeleteAction action, @Nullable String index) {
         super(client, action, new DeleteRequest(index));
-    }
-
-    /**
-     * Sets the type of the document to delete.
-     */
-    public DeleteRequestBuilder setType(String type) {
-        request.type(type);
-        return this;
     }
 
     /**

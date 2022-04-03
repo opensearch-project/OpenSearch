@@ -31,7 +31,6 @@
 
 package org.opensearch.cluster.coordination;
 
-import org.opensearch.cluster.coordination.LinearizabilityChecker;
 import org.opensearch.cluster.coordination.LinearizabilityChecker.History;
 import org.opensearch.cluster.coordination.LinearizabilityChecker.KeyedSpec;
 import org.opensearch.cluster.coordination.LinearizabilityChecker.SequentialSpec;

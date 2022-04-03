@@ -130,8 +130,7 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase2<IC
         assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
 
         mapper = createDocumentMapper(fieldMapping(b -> b.field("type", FIELD_TYPE).field("null_value", "1234")));
-        doc = mapper.parse(source(b -> {
-        }));
+        doc = mapper.parse(source(b -> {}));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(0, fields.length);
@@ -229,8 +228,10 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase2<IC
         assertEquals(IndexOptions.DOCS_AND_FREQS, fields[0].fieldType().indexOptions());
 
         for (String indexOptions : Arrays.asList("positions", "offsets")) {
-            Exception e = expectThrows(MapperParsingException.class,
-                () -> createDocumentMapper(fieldMapping(b -> b.field("type", FIELD_TYPE).field("index_options", indexOptions))));
+            Exception e = expectThrows(
+                MapperParsingException.class,
+                () -> createDocumentMapper(fieldMapping(b -> b.field("type", FIELD_TYPE).field("index_options", indexOptions)))
+            );
             assertThat(
                 e.getMessage(),
                 containsString("The [" + FIELD_TYPE + "] field does not support positions, got [index_options]=" + indexOptions)
@@ -288,7 +289,6 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase2<IC
         );
         assertThat(e.getMessage(), containsString("mapper [field] has different [collator]"));
     }
-
 
     public void testIgnoreAbove() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", FIELD_TYPE).field("ignore_above", 5)));

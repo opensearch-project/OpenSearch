@@ -48,7 +48,7 @@ public class EngineCreationFailureException extends EngineException {
         super(shardId, msg, cause);
     }
 
-    public EngineCreationFailureException(StreamInput in) throws IOException{
+    public EngineCreationFailureException(StreamInput in) throws IOException {
         super(in);
     }
 

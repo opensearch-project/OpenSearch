@@ -80,9 +80,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * - field collapsing is supported, but whenever inner_hits are requested, they will be retrieved by each cluster locally after the fetch
  * phase, through the {@link ExpandSearchPhase}. Such inner_hits are not merged together as part of hits reduction.
  */
-//TODO it may make sense to integrate the remote clusters responses as a shard response in the initial search phase and ignore hits coming
-//from the remote clusters in the fetch phase. This would be identical to the removed QueryAndFetch strategy except that only the remote
-//cluster response would have the fetch results.
+// TODO it may make sense to integrate the remote clusters responses as a shard response in the initial search phase and ignore hits coming
+// from the remote clusters in the fetch phase. This would be identical to the removed QueryAndFetch strategy except that only the remote
+// cluster response would have the fetch results.
 final class SearchResponseMerger {
     final int from;
     final int size;
@@ -91,8 +91,13 @@ final class SearchResponseMerger {
     private final InternalAggregation.ReduceContextBuilder aggReduceContextBuilder;
     private final List<SearchResponse> searchResponses = new CopyOnWriteArrayList<>();
 
-    SearchResponseMerger(int from, int size, int trackTotalHitsUpTo, TransportSearchAction.SearchTimeProvider searchTimeProvider,
-                         InternalAggregation.ReduceContextBuilder aggReduceContextBuilder) {
+    SearchResponseMerger(
+        int from,
+        int size,
+        int trackTotalHitsUpTo,
+        TransportSearchAction.SearchTimeProvider searchTimeProvider,
+        InternalAggregation.ReduceContextBuilder aggReduceContextBuilder
+    ) {
         this.from = from;
         this.size = size;
         this.trackTotalHitsUpTo = trackTotalHitsUpTo;
@@ -120,15 +125,15 @@ final class SearchResponseMerger {
      * so that all responses are merged into a single one.
      */
     SearchResponse getMergedResponse(SearchResponse.Clusters clusters) {
-        //if the search is only across remote clusters, none of them are available, and all of them have skip_unavailable set to true,
-        //we end up calling merge without anything to merge, we just return an empty search response
+        // if the search is only across remote clusters, none of them are available, and all of them have skip_unavailable set to true,
+        // we end up calling merge without anything to merge, we just return an empty search response
         if (searchResponses.size() == 0) {
             return SearchResponse.empty(searchTimeProvider::buildTookInMillis, clusters);
         }
         int totalShards = 0;
         int skippedShards = 0;
         int successfulShards = 0;
-        //the current reduce phase counts as one
+        // the current reduce phase counts as one
         int numReducePhases = 1;
         List<ShardSearchFailure> failures = new ArrayList<>();
         Map<String, ProfileShardResult> profileResults = new HashMap<>();
@@ -177,7 +182,7 @@ final class SearchResponseMerger {
 
             final TotalHits totalHits;
             if (searchHits.getTotalHits() == null) {
-                //in case we didn't track total hits, we get null from each cluster, but we need to set 0 eq to the TopDocs
+                // in case we didn't track total hits, we get null from each cluster, but we need to set 0 eq to the TopDocs
                 totalHits = new TotalHits(0, TotalHits.Relation.EQUAL_TO);
                 assert trackTotalHits == null || trackTotalHits == false;
                 trackTotalHits = false;
@@ -188,17 +193,20 @@ final class SearchResponseMerger {
             }
 
             TopDocs topDocs = searchHitsToTopDocs(searchHits, totalHits, shards);
-            topDocsStats.add(new TopDocsAndMaxScore(topDocs, searchHits.getMaxScore()),
-                searchResponse.isTimedOut(), searchResponse.isTerminatedEarly());
+            topDocsStats.add(
+                new TopDocsAndMaxScore(topDocs, searchHits.getMaxScore()),
+                searchResponse.isTimedOut(),
+                searchResponse.isTerminatedEarly()
+            );
             if (searchHits.getHits().length > 0) {
-                //there is no point in adding empty search hits and merging them with the others. Also, empty search hits always come
-                //without sort fields and collapse info, despite sort by field and/or field collapsing was requested, which causes
-                //issues reconstructing the proper TopDocs instance and breaks mergeTopDocs which expects the same type for each result.
+                // there is no point in adding empty search hits and merging them with the others. Also, empty search hits always come
+                // without sort fields and collapse info, despite sort by field and/or field collapsing was requested, which causes
+                // issues reconstructing the proper TopDocs instance and breaks mergeTopDocs which expects the same type for each result.
                 topDocsList.add(topDocs);
             }
         }
 
-        //after going through all the hits and collecting all their distinct shards, we assign shardIndex and set it to the ScoreDocs
+        // after going through all the hits and collecting all their distinct shards, we assign shardIndex and set it to the ScoreDocs
         setTopDocsShardIndex(shards, topDocsList);
         TopDocs topDocs = SearchPhaseController.mergeTopDocs(topDocsList, size, from);
         SearchHits mergedSearchHits = topDocsToSearchHits(topDocs, topDocsStats);
@@ -207,13 +215,29 @@ final class SearchResponseMerger {
         InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forFinalReduction());
         ShardSearchFailure[] shardFailures = failures.toArray(ShardSearchFailure.EMPTY_ARRAY);
         SearchProfileShardResults profileShardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
-        //make failures ordering consistent between ordinary search and CCS by looking at the shard they come from
+        // make failures ordering consistent between ordinary search and CCS by looking at the shard they come from
         Arrays.sort(shardFailures, FAILURES_COMPARATOR);
-        InternalSearchResponse response = new InternalSearchResponse(mergedSearchHits, reducedAggs, suggest, profileShardResults,
-            topDocsStats.timedOut, topDocsStats.terminatedEarly, numReducePhases);
+        InternalSearchResponse response = new InternalSearchResponse(
+            mergedSearchHits,
+            reducedAggs,
+            suggest,
+            profileShardResults,
+            topDocsStats.timedOut,
+            topDocsStats.terminatedEarly,
+            numReducePhases
+        );
         long tookInMillis = searchTimeProvider.buildTookInMillis();
-        return new SearchResponse(response, null, totalShards, successfulShards, skippedShards, tookInMillis, shardFailures,
-            clusters, null);
+        return new SearchResponse(
+            response,
+            null,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            shardFailures,
+            clusters,
+            null
+        );
     }
 
     private static final Comparator<ShardSearchFailure> FAILURES_COMPARATOR = new Comparator<ShardSearchFailure>() {
@@ -231,9 +255,9 @@ final class SearchResponseMerger {
                 return 1;
             }
             int shardIdCompare = shardId1.compareTo(shardId2);
-            //we could assume that the same shard id cannot come back from multiple clusters as even with same index name and shard index,
-            //the index uuid does not match. But the same cluster can be registered multiple times with different aliases, in which case
-            //we may get failures from the same index, yet with a different cluster alias in their shard target.
+            // we could assume that the same shard id cannot come back from multiple clusters as even with same index name and shard index,
+            // the index uuid does not match. But the same cluster can be registered multiple times with different aliases, in which case
+            // we may get failures from the same index, yet with a different cluster alias in their shard target.
             if (shardIdCompare != 0) {
                 return shardIdCompare;
             }
@@ -272,8 +296,13 @@ final class SearchResponseMerger {
         if (searchHits.getSortFields() != null) {
             if (searchHits.getCollapseField() != null) {
                 assert searchHits.getCollapseValues() != null;
-                topDocs = new CollapseTopFieldDocs(searchHits.getCollapseField(), totalHits, scoreDocs,
-                    searchHits.getSortFields(), searchHits.getCollapseValues());
+                topDocs = new CollapseTopFieldDocs(
+                    searchHits.getCollapseField(),
+                    totalHits,
+                    scoreDocs,
+                    searchHits.getSortFields(),
+                    searchHits.getCollapseValues()
+                );
             } else {
                 topDocs = new TopFieldDocs(totalHits, scoreDocs, searchHits.getSortFields());
             }
@@ -292,7 +321,7 @@ final class SearchResponseMerger {
                 sortValues = null;
             } else {
                 if (sortFields.length == 1 && sortFields[0].getType() == SortField.Type.SCORE) {
-                    sortValues = new Object[]{hit.getScore()};
+                    sortValues = new Object[] { hit.getScore() };
                 } else {
                     sortValues = hit.getRawSortValues();
                 }
@@ -304,7 +333,7 @@ final class SearchResponseMerger {
 
     private static void setTopDocsShardIndex(Map<ShardIdAndClusterAlias, Integer> shards, List<TopDocs> topDocsList) {
         assignShardIndex(shards);
-        //go through all the scoreDocs from each cluster and set their corresponding shardIndex
+        // go through all the scoreDocs from each cluster and set their corresponding shardIndex
         for (TopDocs topDocs : topDocsList) {
             for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
                 FieldDocAndSearchHit fieldDocAndSearchHit = (FieldDocAndSearchHit) scoreDoc;
@@ -316,8 +345,10 @@ final class SearchResponseMerger {
         }
     }
 
-    private static void setSuggestShardIndex(Map<ShardIdAndClusterAlias, Integer> shards,
-                                             Map<String, List<Suggest.Suggestion>> groupedSuggestions) {
+    private static void setSuggestShardIndex(
+        Map<ShardIdAndClusterAlias, Integer> shards,
+        Map<String, List<Suggest.Suggestion>> groupedSuggestions
+    ) {
         assignShardIndex(shards);
         for (List<Suggest.Suggestion> suggestions : groupedSuggestions.values()) {
             for (Suggest.Suggestion suggestion : suggestions) {
@@ -337,7 +368,7 @@ final class SearchResponseMerger {
     }
 
     private static void assignShardIndex(Map<ShardIdAndClusterAlias, Integer> shards) {
-        //assign a different shardIndex to each shard, based on their shardId natural ordering and their cluster alias
+        // assign a different shardIndex to each shard, based on their shardId natural ordering and their cluster alias
         int shardIndex = 0;
         for (Map.Entry<ShardIdAndClusterAlias, Integer> shard : shards.entrySet()) {
             shard.setValue(shardIndex++);
@@ -347,12 +378,12 @@ final class SearchResponseMerger {
     private static SearchHits topDocsToSearchHits(TopDocs topDocs, SearchPhaseController.TopDocsStats topDocsStats) {
         SearchHit[] searchHits;
         if (topDocs == null) {
-            //merged TopDocs is null whenever all clusters have returned empty hits
+            // merged TopDocs is null whenever all clusters have returned empty hits
             searchHits = new SearchHit[0];
         } else {
             searchHits = new SearchHit[topDocs.scoreDocs.length];
             for (int i = 0; i < topDocs.scoreDocs.length; i++) {
-                FieldDocAndSearchHit scoreDoc = (FieldDocAndSearchHit)topDocs.scoreDocs[i];
+                FieldDocAndSearchHit scoreDoc = (FieldDocAndSearchHit) topDocs.scoreDocs[i];
                 searchHits[i] = scoreDoc.searchHit;
             }
         }
@@ -360,21 +391,27 @@ final class SearchResponseMerger {
         String collapseField = null;
         Object[] collapseValues = null;
         if (topDocs instanceof TopFieldDocs) {
-            sortFields = ((TopFieldDocs)topDocs).fields;
+            sortFields = ((TopFieldDocs) topDocs).fields;
             if (topDocs instanceof CollapseTopFieldDocs) {
-                CollapseTopFieldDocs collapseTopFieldDocs = (CollapseTopFieldDocs)topDocs;
+                CollapseTopFieldDocs collapseTopFieldDocs = (CollapseTopFieldDocs) topDocs;
                 collapseField = collapseTopFieldDocs.field;
                 collapseValues = collapseTopFieldDocs.collapseValues;
             }
         }
-        return new SearchHits(searchHits, topDocsStats.getTotalHits(), topDocsStats.getMaxScore(),
-            sortFields, collapseField, collapseValues);
+        return new SearchHits(
+            searchHits,
+            topDocsStats.getTotalHits(),
+            topDocsStats.getMaxScore(),
+            sortFields,
+            collapseField,
+            collapseValues
+        );
     }
 
     private static final class FieldDocAndSearchHit extends FieldDoc {
         private final SearchHit searchHit;
 
-        //to simplify things, we use a FieldDoc all the time, even when only a ScoreDoc is needed, in which case fields are null.
+        // to simplify things, we use a FieldDoc all the time, even when only a ScoreDoc is needed, in which case fields are null.
         FieldDocAndSearchHit(int doc, float score, Object[] fields, SearchHit searchHit) {
             super(doc, score, fields);
             this.searchHit = searchHit;
@@ -407,8 +444,7 @@ final class SearchResponseMerger {
                 return false;
             }
             ShardIdAndClusterAlias that = (ShardIdAndClusterAlias) o;
-            return shardId.equals(that.shardId) &&
-                clusterAlias.equals(that.clusterAlias);
+            return shardId.equals(that.shardId) && clusterAlias.equals(that.clusterAlias);
         }
 
         @Override

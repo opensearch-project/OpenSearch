@@ -51,7 +51,7 @@ public final class LongHash extends AbstractHash {
         this(capacity, DEFAULT_MAX_LOAD_FACTOR, bigArrays);
     }
 
-    //Constructor with configurable capacity and load factor.
+    // Constructor with configurable capacity and load factor.
     public LongHash(long capacity, float maxLoadFactor, BigArrays bigArrays) {
         super(capacity, maxLoadFactor, bigArrays);
         keys = bigArrays.newLongArray(capacity, false);
@@ -69,7 +69,7 @@ public final class LongHash extends AbstractHash {
      */
     public long find(long key) {
         final long slot = slot(hash(key), mask);
-        for (long index = slot; ; index = nextSlot(index, mask)) {
+        for (long index = slot;; index = nextSlot(index, mask)) {
             final long id = id(index);
             if (id == -1 || keys.get(id) == key) {
                 return id;
@@ -80,7 +80,7 @@ public final class LongHash extends AbstractHash {
     private long set(long key, long id) {
         assert size < maxSize;
         final long slot = slot(hash(key), mask);
-        for (long index = slot; ; index = nextSlot(index, mask)) {
+        for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
                 id(index, id);
@@ -100,7 +100,7 @@ public final class LongHash extends AbstractHash {
 
     private void reset(long key, long id) {
         final long slot = slot(hash(key), mask);
-        for (long index = slot; ; index = nextSlot(index, mask)) {
+        for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
                 id(index, id);

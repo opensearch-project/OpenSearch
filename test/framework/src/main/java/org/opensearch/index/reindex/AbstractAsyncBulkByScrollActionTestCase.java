@@ -43,9 +43,8 @@ import org.junit.Before;
 import java.util.Collections;
 
 public abstract class AbstractAsyncBulkByScrollActionTestCase<
-                Request extends AbstractBulkByScrollRequest<Request>,
-                Response extends BulkByScrollResponse>
-        extends OpenSearchTestCase {
+    Request extends AbstractBulkByScrollRequest<Request>,
+    Response extends BulkByScrollResponse> extends OpenSearchTestCase {
     protected ThreadPool threadPool;
     protected BulkByScrollTask task;
 

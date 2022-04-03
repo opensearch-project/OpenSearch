@@ -48,7 +48,7 @@ import org.opensearch.test.transport.MockTransportService;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ClusterDisruptionCleanSettingsIT extends OpenSearchIntegTestCase {
 
     @Override
@@ -67,18 +67,20 @@ public class ClusterDisruptionCleanSettingsIT extends OpenSearchIntegTestCase {
         final String node_1 = internalCluster().startDataOnlyNode();
 
         logger.info("--> creating index [test] with one shard and on replica");
-        assertAcked(prepareCreate("test").setSettings(
-            Settings.builder().put(indexSettings())
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+        assertAcked(
+            prepareCreate("test").setSettings(
+                Settings.builder()
+                    .put(indexSettings())
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            )
         );
         ensureGreen("test");
 
         final String node_2 = internalCluster().startDataOnlyNode();
         List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
-            indexRequestBuilderList.add(client().prepareIndex().setIndex("test").setType("_doc")
-                .setSource("{\"int_field\":1}", XContentType.JSON));
+            indexRequestBuilderList.add(client().prepareIndex().setIndex("test").setSource("{\"int_field\":1}", XContentType.JSON));
         }
         indexRandom(true, indexRequestBuilderList);
 

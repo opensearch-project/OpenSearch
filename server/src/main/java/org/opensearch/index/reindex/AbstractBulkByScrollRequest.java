@@ -32,7 +32,6 @@
 
 package org.opensearch.index.reindex;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.search.SearchRequest;
@@ -180,9 +179,11 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         }
         if (false == (maxDocs == -1 || maxDocs > 0)) {
             e = addValidationError(
-                    "maxDocs should be greater than 0 if the request is limited to some number of documents or -1 if it isn't but it was ["
-                            + maxDocs + "]",
-                    e);
+                "maxDocs should be greater than 0 if the request is limited to some number of documents or -1 if it isn't but it was ["
+                    + maxDocs
+                    + "]",
+                e
+            );
         }
         if (searchRequest.source().slice() != null && slices != DEFAULT_SLICES) {
             e = addValidationError("can't specify both manual and automatic slicing at the same time", e);
@@ -254,14 +255,14 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      */
     public void setConflicts(String conflicts) {
         switch (conflicts) {
-        case "proceed":
-            setAbortOnVersionConflict(false);
-            return;
-        case "abort":
-            setAbortOnVersionConflict(true);
-            return;
-        default:
-            throw new IllegalArgumentException("conflicts may only be \"proceed\" or \"abort\" but was [" + conflicts + "]");
+            case "proceed":
+                setAbortOnVersionConflict(false);
+                return;
+            case "abort":
+                setAbortOnVersionConflict(true);
+                return;
+            default:
+                throw new IllegalArgumentException("conflicts may only be \"proceed\" or \"abort\" but was [" + conflicts + "]");
         }
     }
 
@@ -382,7 +383,8 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     public Self setRequestsPerSecond(float requestsPerSecond) {
         if (requestsPerSecond <= 0) {
             throw new IllegalArgumentException(
-                    "[requests_per_second] must be greater than 0. Use Float.POSITIVE_INFINITY to disable throttling.");
+                "[requests_per_second] must be greater than 0. Use Float.POSITIVE_INFINITY to disable throttling."
+            );
         }
         this.requestsPerSecond = requestsPerSecond;
         return self();
@@ -448,14 +450,18 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
             throw new IllegalArgumentException("Number of total slices must be at least 1 but was [" + totalSlices + "]");
         }
 
-        request.setAbortOnVersionConflict(abortOnVersionConflict).setRefresh(refresh).setTimeout(timeout)
-                .setWaitForActiveShards(activeShardCount).setRetryBackoffInitialTime(retryBackoffInitialTime).setMaxRetries(maxRetries)
-                // Parent task will store result
-                .setShouldStoreResult(false)
-                // Split requests per second between all slices
-                .setRequestsPerSecond(requestsPerSecond / totalSlices)
-                // Sub requests don't have workers
-                .setSlices(1);
+        request.setAbortOnVersionConflict(abortOnVersionConflict)
+            .setRefresh(refresh)
+            .setTimeout(timeout)
+            .setWaitForActiveShards(activeShardCount)
+            .setRetryBackoffInitialTime(retryBackoffInitialTime)
+            .setMaxRetries(maxRetries)
+            // Parent task will store result
+            .setShouldStoreResult(false)
+            // Split requests per second between all slices
+            .setRequestsPerSecond(requestsPerSecond / totalSlices)
+            // Sub requests don't have workers
+            .setSlices(1);
         if (maxDocs != MAX_DOCS_ALL_MATCHES) {
             // maxDocs is split between workers. This means the maxDocs might round
             // down!
@@ -484,13 +490,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         out.writeTimeValue(retryBackoffInitialTime);
         out.writeVInt(maxRetries);
         out.writeFloat(requestsPerSecond);
-        if (out.getVersion().before(LegacyESVersion.V_6_1_0) && slices == AUTO_SLICES) {
-            throw new IllegalArgumentException(
-                "Slices set as \"auto\" are not supported before version [" + LegacyESVersion.V_6_1_0 + "]. " +
-                "Found version [" + out.getVersion() + "]");
-        } else {
-            out.writeVInt(slices);
-        }
+        out.writeVInt(slices);
     }
 
     /**
@@ -502,9 +502,6 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
             b.append(Arrays.toString(searchRequest.indices()));
         } else {
             b.append("[all indices]");
-        }
-        if (searchRequest.types() != null && searchRequest.types().length != 0) {
-            b.append(Arrays.toString(searchRequest.types()));
         }
     }
 

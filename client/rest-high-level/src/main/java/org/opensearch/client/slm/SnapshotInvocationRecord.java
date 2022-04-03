@@ -50,9 +50,11 @@ public class SnapshotInvocationRecord implements ToXContentObject {
     private long timestamp;
     private String details;
 
-    public static final ConstructingObjectParser<SnapshotInvocationRecord, String> PARSER =
-        new ConstructingObjectParser<>("snapshot_policy_invocation_record", true,
-            a -> new SnapshotInvocationRecord((String) a[0], (long) a[1], (String) a[2]));
+    public static final ConstructingObjectParser<SnapshotInvocationRecord, String> PARSER = new ConstructingObjectParser<>(
+        "snapshot_policy_invocation_record",
+        true,
+        a -> new SnapshotInvocationRecord((String) a[0], (long) a[1], (String) a[2])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), SNAPSHOT_NAME);
@@ -101,9 +103,9 @@ public class SnapshotInvocationRecord implements ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SnapshotInvocationRecord that = (SnapshotInvocationRecord) o;
-        return getTimestamp() == that.getTimestamp() &&
-            Objects.equals(getSnapshotName(), that.getSnapshotName()) &&
-            Objects.equals(getDetails(), that.getDetails());
+        return getTimestamp() == that.getTimestamp()
+            && Objects.equals(getSnapshotName(), that.getSnapshotName())
+            && Objects.equals(getDetails(), that.getDetails());
     }
 
     @Override

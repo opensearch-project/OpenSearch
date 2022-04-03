@@ -86,12 +86,12 @@ public class PainlessExecuteRequestTests extends AbstractWireSerializingTestCase
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, false, Collections.emptyList()).getNamedWriteables());
+        return new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, false, Collections.emptyList()).getNamedXContents());
+        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
     }
 
     @Override
@@ -115,7 +115,7 @@ public class PainlessExecuteRequestTests extends AbstractWireSerializingTestCase
         assertEquals("Validation Failed: 1: only inline scripts are supported;", e.getMessage());
     }
 
-    private static ContextSetup randomContextSetup()  {
+    private static ContextSetup randomContextSetup() {
         String index = randomBoolean() ? randomAlphaOfLength(4) : null;
         QueryBuilder query = randomBoolean() ? new MatchAllQueryBuilder() : null;
         BytesReference doc = null;

@@ -33,7 +33,7 @@
 package org.opensearch.plugin.store.smb;
 
 import org.opensearch.index.store.smbmmapfs.SmbMmapFsDirectoryFactory;
-import org.opensearch.index.store.smbsimplefs.SmbSimpleFsDirectoryFactory;
+import org.opensearch.index.store.smbniofs.SmbNIOFsDirectoryFactory;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.plugins.Plugin;
 
@@ -47,7 +47,7 @@ public class SMBStorePlugin extends Plugin implements IndexStorePlugin {
     public Map<String, DirectoryFactory> getDirectoryFactories() {
         final Map<String, DirectoryFactory> indexStoreFactories = new HashMap<>(2);
         indexStoreFactories.put("smb_mmap_fs", new SmbMmapFsDirectoryFactory());
-        indexStoreFactories.put("smb_simple_fs", new SmbSimpleFsDirectoryFactory());
+        indexStoreFactories.put("smb_nio_fs", new SmbNIOFsDirectoryFactory());
         return Collections.unmodifiableMap(indexStoreFactories);
     }
 

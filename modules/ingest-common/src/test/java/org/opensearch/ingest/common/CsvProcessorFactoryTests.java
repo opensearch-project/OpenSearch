@@ -57,7 +57,7 @@ public class CsvProcessorFactoryTests extends OpenSearchTestCase {
         CsvProcessor csv = factory.create(null, "csv", null, properties);
         assertThat(csv, notNullValue());
         assertThat(csv.field, equalTo("field"));
-        assertThat(csv.headers, equalTo(new String[]{"target"}));
+        assertThat(csv.headers, equalTo(new String[] { "target" }));
         assertThat(csv.quote, equalTo('|'));
         assertThat(csv.separator, equalTo('/'));
         assertThat(csv.emptyValue, equalTo("empty"));

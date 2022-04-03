@@ -57,7 +57,8 @@ public class RestDeleteDataStreamAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(
-            Strings.splitStringByCommaToArray(request.param("name")));
+            Strings.splitStringByCommaToArray(request.param("name"))
+        );
         return channel -> client.admin().indices().deleteDataStream(deleteDataStreamRequest, new RestToXContentListener<>(channel));
     }
 }

@@ -92,10 +92,16 @@ public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIn
         }
         if (randomBoolean()) {
             try {
-                request.mapping(XContentFactory.jsonBuilder().startObject()
-                    .startObject("properties")
-                    .startObject("field-" + randomInt()).field("type", randomFrom("keyword", "text")).endObject()
-                    .endObject().endObject());
+                request.mapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("properties")
+                        .startObject("field-" + randomInt())
+                        .field("type", randomFrom("keyword", "text"))
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                );
             } catch (IOException ex) {
                 throw new UncheckedIOException(ex);
             }

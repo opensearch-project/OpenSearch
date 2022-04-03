@@ -438,8 +438,10 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
                 } else if (MIN_DOC_FREQ_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     tmpSuggestion.minDocFreq(parser.floatValue());
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                                                  "suggester[term] doesn't support field [" + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "suggester[term] doesn't support field [" + currentFieldName + "]"
+                    );
                 }
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "suggester[term] parsing failed on [" + currentFieldName + "]");
@@ -448,8 +450,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
 
         // now we should have field name, check and copy fields over to the suggestion builder we return
         if (fieldname == null) {
-            throw new OpenSearchParseException(
-                "the required field option [" + FIELDNAME_FIELD.getPreferredName() + "] is missing");
+            throw new OpenSearchParseException("the required field option [" + FIELDNAME_FIELD.getPreferredName() + "] is missing");
         }
         return new TermSuggestionBuilder(fieldname, tmpSuggestion);
     }
@@ -481,22 +482,32 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
 
     @Override
     protected boolean doEquals(TermSuggestionBuilder other) {
-        return Objects.equals(suggestMode, other.suggestMode) &&
-               Objects.equals(accuracy, other.accuracy) &&
-               Objects.equals(sort, other.sort) &&
-               Objects.equals(stringDistance, other.stringDistance) &&
-               Objects.equals(maxEdits, other.maxEdits) &&
-               Objects.equals(maxInspections, other.maxInspections) &&
-               Objects.equals(maxTermFreq, other.maxTermFreq) &&
-               Objects.equals(prefixLength, other.prefixLength) &&
-               Objects.equals(minWordLength, other.minWordLength) &&
-               Objects.equals(minDocFreq, other.minDocFreq);
+        return Objects.equals(suggestMode, other.suggestMode)
+            && Objects.equals(accuracy, other.accuracy)
+            && Objects.equals(sort, other.sort)
+            && Objects.equals(stringDistance, other.stringDistance)
+            && Objects.equals(maxEdits, other.maxEdits)
+            && Objects.equals(maxInspections, other.maxInspections)
+            && Objects.equals(maxTermFreq, other.maxTermFreq)
+            && Objects.equals(prefixLength, other.prefixLength)
+            && Objects.equals(minWordLength, other.minWordLength)
+            && Objects.equals(minDocFreq, other.minDocFreq);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(suggestMode, accuracy, sort, stringDistance, maxEdits, maxInspections,
-                            maxTermFreq, prefixLength, minWordLength, minDocFreq);
+        return Objects.hash(
+            suggestMode,
+            accuracy,
+            sort,
+            stringDistance,
+            maxEdits,
+            maxInspections,
+            maxTermFreq,
+            prefixLength,
+            minWordLength,
+            minDocFreq
+        );
     }
 
     /** An enum representing the valid suggest modes. */
@@ -519,7 +530,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
         ALWAYS {
             @Override
             public org.apache.lucene.search.spell.SuggestMode toLucene() {
-              return org.apache.lucene.search.spell.SuggestMode.SUGGEST_ALWAYS;
+                return org.apache.lucene.search.spell.SuggestMode.SUGGEST_ALWAYS;
             }
         };
 
@@ -602,7 +613,8 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
                     return NGRAM;
                 case "jaro_winkler":
                     return JARO_WINKLER;
-                default: throw new IllegalArgumentException("Illegal distance option " + str);
+                default:
+                    throw new IllegalArgumentException("Illegal distance option " + str);
             }
         }
 

@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.cluster.state;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
@@ -58,8 +57,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
 
-    public ClusterStateRequest() {
-    }
+    public ClusterStateRequest() {}
 
     public ClusterStateRequest(StreamInput in) throws IOException {
         super(in);
@@ -70,10 +68,8 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         customs = in.readBoolean();
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_6_6_0)) {
-            waitForTimeout = in.readTimeValue();
-            waitForMetadataVersion = in.readOptionalLong();
-        }
+        waitForTimeout = in.readTimeValue();
+        waitForMetadataVersion = in.readOptionalLong();
     }
 
     @Override
@@ -86,10 +82,8 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         out.writeBoolean(customs);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_6_6_0)) {
-            out.writeTimeValue(waitForTimeout);
-            out.writeOptionalLong(waitForMetadataVersion);
-        }
+        out.writeTimeValue(waitForTimeout);
+        out.writeOptionalLong(waitForMetadataVersion);
     }
 
     @Override
@@ -203,8 +197,9 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
 
     public ClusterStateRequest waitForMetadataVersion(long waitForMetadataVersion) {
         if (waitForMetadataVersion < 1) {
-            throw new IllegalArgumentException("provided waitForMetadataVersion should be >= 1, but instead is [" +
-                waitForMetadataVersion + "]");
+            throw new IllegalArgumentException(
+                "provided waitForMetadataVersion should be >= 1, but instead is [" + waitForMetadataVersion + "]"
+            );
         }
         this.waitForMetadataVersion = waitForMetadataVersion;
         return this;
