@@ -80,7 +80,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
     }
 
     // TODO: Remove the DeprecationLogger after removing MASTER_ROLE.
-    // It's used to log deprecation when request parameter 'metric' contains 'master_node'.
+    // It's used to log deprecation when request parameter 'metric' contains 'master_node', or request parameter 'master_timeout' is used.
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestClusterRerouteAction.class);
     private static final String DEPRECATED_MESSAGE_MASTER_NODE =
         "Deprecated value [master_node] used for parameter [metric]. To promote inclusive language, please use [cluster_manager_node] instead. It will be unsupported in a future major version.";
@@ -143,7 +143,8 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         clusterRerouteRequest.explain(request.paramAsBoolean("explain", clusterRerouteRequest.explain()));
         clusterRerouteRequest.timeout(request.paramAsTime("timeout", clusterRerouteRequest.timeout()));
         clusterRerouteRequest.setRetryFailed(request.paramAsBoolean("retry_failed", clusterRerouteRequest.isRetryFailed()));
-        clusterRerouteRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterRerouteRequest.masterNodeTimeout()));
+        clusterRerouteRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", clusterRerouteRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(clusterRerouteRequest, request, deprecationLogger, "cluster_reroute");
         request.applyContentParser(parser -> PARSER.parse(parser, clusterRerouteRequest, null));
         return clusterRerouteRequest;
     }
