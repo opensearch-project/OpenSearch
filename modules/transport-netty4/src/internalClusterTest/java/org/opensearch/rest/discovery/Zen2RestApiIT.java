@@ -176,7 +176,7 @@ public class Zen2RestApiIT extends OpenSearchNetty4IntegTestCase {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(400));
             assertThat(
                 e.getMessage(),
-                Matchers.containsString("add voting config exclusions request for [invalid] matched no master-eligible nodes")
+                Matchers.containsString("add voting config exclusions request for [invalid] matched no cluster-manager-eligible nodes")
             );
         }
     }

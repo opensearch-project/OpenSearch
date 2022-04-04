@@ -287,7 +287,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
         internalCluster().setBootstrapMasterNodeIndex(2);
         List<String> masterNodes = new ArrayList<>();
 
-        logger.info("--> start 1st master-eligible node");
+        logger.info("--> start 1st cluster-manager-eligible node");
         masterNodes.add(
             internalCluster().startMasterOnlyNode(
                 Settings.builder().put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build()
@@ -299,7 +299,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
             Settings.builder().put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build()
         ); // node ordinal 1
 
-        logger.info("--> start 2nd and 3rd master-eligible nodes and bootstrap");
+        logger.info("--> start 2nd and 3rd cluster-manager-eligible nodes and bootstrap");
         masterNodes.addAll(internalCluster().startMasterOnlyNodes(2)); // node ordinals 2 and 3
 
         logger.info("--> wait for all nodes to join the cluster");
@@ -335,19 +335,19 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
             assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
         });
 
-        logger.info("--> try to unsafely bootstrap 1st master-eligible node, while node lock is held");
+        logger.info("--> try to unsafely bootstrap 1st cluster-manager-eligible node, while node lock is held");
         Environment environmentMaster1 = TestEnvironment.newEnvironment(
             Settings.builder().put(internalCluster().getDefaultSettings()).put(master1DataPathSettings).build()
         );
         expectThrows(() -> unsafeBootstrap(environmentMaster1), UnsafeBootstrapMasterCommand.FAILED_TO_OBTAIN_NODE_LOCK_MSG);
 
-        logger.info("--> stop 1st master-eligible node and data-only node");
+        logger.info("--> stop 1st cluster-manager-eligible node and data-only node");
         NodeEnvironment nodeEnvironment = internalCluster().getMasterNodeInstance(NodeEnvironment.class);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNodes.get(0)));
         assertBusy(() -> internalCluster().getInstance(GatewayMetaState.class, dataNode).allPendingAsyncStatesWritten());
         internalCluster().stopRandomDataNode();
 
-        logger.info("--> unsafely-bootstrap 1st master-eligible node");
+        logger.info("--> unsafely-bootstrap 1st cluster-manager-eligible node");
         MockTerminal terminal = unsafeBootstrap(environmentMaster1, false, true);
         Metadata metadata = OpenSearchNodeCommand.createPersistedClusterStateService(Settings.EMPTY, nodeEnvironment.nodeDataPaths())
             .loadBestOnDiskState().metadata;
@@ -363,7 +363,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
             )
         );
 
-        logger.info("--> start 1st master-eligible node");
+        logger.info("--> start 1st cluster-manager-eligible node");
         String masterNode2 = internalCluster().startMasterOnlyNode(master1DataPathSettings);
 
         logger.info("--> detach-cluster on data-only node");
@@ -399,7 +399,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
         IndexMetadata indexMetadata = clusterService().state().metadata().index("test");
         assertThat(indexMetadata.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID), notNullValue());
 
-        logger.info("--> detach-cluster on 2nd and 3rd master-eligible nodes");
+        logger.info("--> detach-cluster on 2nd and 3rd cluster-manager-eligible nodes");
         Environment environmentMaster2 = TestEnvironment.newEnvironment(
             Settings.builder().put(internalCluster().getDefaultSettings()).put(master2DataPathSettings).build()
         );
@@ -409,7 +409,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
         );
         detachCluster(environmentMaster3, false);
 
-        logger.info("--> start 2nd and 3rd master-eligible nodes and ensure 4 nodes stable cluster");
+        logger.info("--> start 2nd and 3rd cluster-manager-eligible nodes and ensure 4 nodes stable cluster");
         bootstrappedNodes.add(internalCluster().startMasterOnlyNode(master2DataPathSettings));
         bootstrappedNodes.add(internalCluster().startMasterOnlyNode(master3DataPathSettings));
         ensureStableCluster(4);
@@ -422,7 +422,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
 
         Settings settings = Settings.builder().put(AUTO_IMPORT_DANGLING_INDICES_SETTING.getKey(), true).build();
 
-        logger.info("--> start mixed data and master-eligible node and bootstrap cluster");
+        logger.info("--> start mixed data and cluster-manager-eligible node and bootstrap cluster");
         String masterNode = internalCluster().startNode(settings); // node ordinal 0
 
         logger.info("--> start data-only node and ensure 2 nodes stable cluster");
@@ -457,7 +457,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
         );
         detachCluster(environment, false);
 
-        logger.info("--> stop master-eligible node, clear its data and start it again - new cluster should form");
+        logger.info("--> stop cluster-manager-eligible node, clear its data and start it again - new cluster should form");
         internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback() {
             @Override
             public boolean clearData(String nodeName) {

@@ -57,14 +57,14 @@ public class Reconfigurator {
      * the best resilience it makes automatic adjustments to the voting configuration as master nodes join or leave the cluster. Adjustments
      * that fix or increase the size of the voting configuration are always a good idea, but the wisdom of reducing the voting configuration
      * size is less clear. For instance, automatically reducing the voting configuration down to a single node means the cluster requires
-     * this node to operate, which is not resilient: if it broke we could restore every other master-eligible node in the cluster to health
+     * this node to operate, which is not resilient: if it broke we could restore every other cluster-manager-eligible node in the cluster to health
      * and still the cluster would be unavailable. However not reducing the voting configuration size can also hamper resilience: in a
      * five-node cluster we could lose two nodes and by reducing the voting configuration to the remaining three nodes we could tolerate the
      * loss of a further node before failing.
      *
      * We offer two options: either we auto-shrink the voting configuration as long as it contains more than three nodes, or we don't and we
      * require the user to control the voting configuration manually using the retirement API. The former, default, option, guarantees that
-     * as long as there have been at least three master-eligible nodes in the cluster and no more than one of them is currently unavailable,
+     * as long as there have been at least three cluster-manager-eligible nodes in the cluster and no more than one of them is currently unavailable,
      * then the cluster will still operate, which is what almost everyone wants. Manual control is for users who want different guarantees.
      */
     public static final Setting<Boolean> CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION = Setting.boolSetting(

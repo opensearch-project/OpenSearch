@@ -33,6 +33,7 @@
 package org.opensearch.search.query;
 
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
@@ -42,6 +43,7 @@ import org.apache.lucene.search.Weight;
 import org.opensearch.common.lucene.MinimumScoreCollector;
 import org.opensearch.common.lucene.search.FilteredCollector;
 import org.opensearch.search.profile.query.InternalProfileCollector;
+import org.opensearch.search.profile.query.InternalProfileCollectorManager;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -54,7 +56,7 @@ import static org.opensearch.search.profile.query.CollectorResult.REASON_SEARCH_
 import static org.opensearch.search.profile.query.CollectorResult.REASON_SEARCH_POST_FILTER;
 import static org.opensearch.search.profile.query.CollectorResult.REASON_SEARCH_TERMINATE_AFTER_COUNT;
 
-abstract class QueryCollectorContext {
+public abstract class QueryCollectorContext {
     private static final Collector EMPTY_COLLECTOR = new SimpleCollector() {
         @Override
         public void collect(int doc) {}
@@ -77,12 +79,26 @@ abstract class QueryCollectorContext {
      */
     abstract Collector create(Collector in) throws IOException;
 
+    abstract CollectorManager<?, ReduceableSearchResult> createManager(CollectorManager<?, ReduceableSearchResult> in) throws IOException;
+
     /**
      * Wraps this collector with a profiler
      */
     protected InternalProfileCollector createWithProfiler(InternalProfileCollector in) throws IOException {
         final Collector collector = create(in);
         return new InternalProfileCollector(collector, profilerName, in != null ? Collections.singletonList(in) : Collections.emptyList());
+    }
+
+    /**
+     * Wraps this collector manager with a profiler
+     */
+    protected InternalProfileCollectorManager createWithProfiler(InternalProfileCollectorManager in) throws IOException {
+        final CollectorManager<? extends Collector, ReduceableSearchResult> manager = createManager(in);
+        return new InternalProfileCollectorManager(
+            manager,
+            profilerName,
+            in != null ? Collections.singletonList(in) : Collections.emptyList()
+        );
     }
 
     /**
@@ -126,6 +142,11 @@ abstract class QueryCollectorContext {
             Collector create(Collector in) {
                 return new MinimumScoreCollector(in, minScore);
             }
+
+            @Override
+            CollectorManager<?, ReduceableSearchResult> createManager(CollectorManager<?, ReduceableSearchResult> in) throws IOException {
+                return new MinimumCollectorManager(in, minScore);
+            }
         };
     }
 
@@ -139,34 +160,57 @@ abstract class QueryCollectorContext {
                 final Weight filterWeight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
                 return new FilteredCollector(in, filterWeight);
             }
+
+            @Override
+            CollectorManager<?, ReduceableSearchResult> createManager(CollectorManager<?, ReduceableSearchResult> in) throws IOException {
+                final Weight filterWeight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+                return new FilteredCollectorManager(in, filterWeight);
+            }
         };
     }
 
     /**
-     * Creates a multi collector from the provided <code>subs</code>
+     * Creates a multi collector manager from the provided <code>subs</code>
      */
-    static QueryCollectorContext createMultiCollectorContext(Collection<Collector> subs) {
+    static QueryCollectorContext createMultiCollectorContext(
+        Collection<CollectorManager<? extends Collector, ReduceableSearchResult>> subs
+    ) {
         return new QueryCollectorContext(REASON_SEARCH_MULTI) {
             @Override
-            Collector create(Collector in) {
+            Collector create(Collector in) throws IOException {
                 List<Collector> subCollectors = new ArrayList<>();
                 subCollectors.add(in);
-                subCollectors.addAll(subs);
+                for (CollectorManager<? extends Collector, ReduceableSearchResult> manager : subs) {
+                    subCollectors.add(manager.newCollector());
+                }
                 return MultiCollector.wrap(subCollectors);
             }
 
             @Override
-            protected InternalProfileCollector createWithProfiler(InternalProfileCollector in) {
+            protected InternalProfileCollector createWithProfiler(InternalProfileCollector in) throws IOException {
                 final List<InternalProfileCollector> subCollectors = new ArrayList<>();
                 subCollectors.add(in);
-                if (subs.stream().anyMatch((col) -> col instanceof InternalProfileCollector == false)) {
-                    throw new IllegalArgumentException("non-profiling collector");
-                }
-                for (Collector collector : subs) {
+
+                for (CollectorManager<? extends Collector, ReduceableSearchResult> manager : subs) {
+                    final Collector collector = manager.newCollector();
+                    if (!(collector instanceof InternalProfileCollector)) {
+                        throw new IllegalArgumentException("non-profiling collector");
+                    }
                     subCollectors.add((InternalProfileCollector) collector);
                 }
+
                 final Collector collector = MultiCollector.wrap(subCollectors);
                 return new InternalProfileCollector(collector, REASON_SEARCH_MULTI, subCollectors);
+            }
+
+            @Override
+            CollectorManager<? extends Collector, ReduceableSearchResult> createManager(
+                CollectorManager<? extends Collector, ReduceableSearchResult> in
+            ) throws IOException {
+                final List<CollectorManager<?, ReduceableSearchResult>> managers = new ArrayList<>();
+                managers.add(in);
+                managers.addAll(subs);
+                return QueryCollectorManagerContext.createOpaqueCollectorManager(managers);
             }
         };
     }
@@ -191,6 +235,13 @@ abstract class QueryCollectorContext {
                 subCollectors.add(in);
                 this.collector = MultiCollector.wrap(subCollectors);
                 return collector;
+            }
+
+            @Override
+            CollectorManager<? extends Collector, ReduceableSearchResult> createManager(
+                CollectorManager<? extends Collector, ReduceableSearchResult> in
+            ) throws IOException {
+                return new EarlyTerminatingCollectorManager<>(in, numHits, true);
             }
         };
     }

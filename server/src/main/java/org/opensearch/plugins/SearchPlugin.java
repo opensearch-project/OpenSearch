@@ -32,6 +32,7 @@
 
 package org.opensearch.plugins;
 
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.opensearch.common.CheckedFunction;
@@ -40,6 +41,7 @@ import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.lucene.search.function.ScoreFunction;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.ContextParser;
 import org.opensearch.common.xcontent.XContent;
 import org.opensearch.common.xcontent.XContentParser;
@@ -61,6 +63,7 @@ import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.subphase.highlight.Highlighter;
+import org.opensearch.search.query.QueryPhaseSearcher;
 import org.opensearch.search.rescore.Rescorer;
 import org.opensearch.search.rescore.RescorerBuilder;
 import org.opensearch.search.sort.SortBuilder;
@@ -68,11 +71,14 @@ import org.opensearch.search.sort.SortParser;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.Suggester;
 import org.opensearch.search.suggest.SuggestionBuilder;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.TreeMap;
+import java.util.concurrent.ExecutorService;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
@@ -176,6 +182,36 @@ public interface SearchPlugin {
      */
     default List<RescorerSpec<?>> getRescorers() {
         return emptyList();
+    }
+
+    /**
+     * The new {@link QueryPhaseSearcher} added by this plugin. At the moment, only one {@link QueryPhaseSearcher} is supported per
+     * instance, the {@link IllegalStateException} is going to be thrown if more then one plugin tries to register
+     * {@link QueryPhaseSearcher} implementation.
+     */
+    default Optional<QueryPhaseSearcher> getQueryPhaseSearcher() {
+        return Optional.empty();
+    }
+
+    /**
+     * The executor service provider (registered through {@link Plugin#getExecutorBuilders(Settings)} to be used at search
+     * time by {@link IndexSearcher}. The {@link IllegalStateException} is going to be thrown if more then one
+     * plugin tries to register index searcher executor.
+     */
+    default Optional<ExecutorServiceProvider> getIndexSearcherExecutorProvider() {
+        return Optional.empty();
+    }
+
+    /**
+     * Executor service provider
+     */
+    interface ExecutorServiceProvider {
+        /**
+         * Provides an executor service instance
+         * @param threadPool thread pool
+         * @return executor service instance
+         */
+        ExecutorService getExecutor(ThreadPool threadPool);
     }
 
     /**

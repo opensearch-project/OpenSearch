@@ -344,7 +344,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
         assertThat(rootCause, instanceOf(IllegalArgumentException.class));
         assertThat(
             rootCause.getMessage(),
-            equalTo("add voting config exclusions request for [not-a-node] matched no master-eligible nodes")
+            equalTo("add voting config exclusions request for [not-a-node] matched no cluster-manager-eligible nodes")
         );
         assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }
@@ -368,7 +368,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
         assertThat(rootCause, instanceOf(IllegalArgumentException.class));
         assertThat(
             rootCause.getMessage(),
-            equalTo("add voting config exclusions request for [_all, master:false] matched no master-eligible nodes")
+            equalTo("add voting config exclusions request for [_all, master:false] matched no cluster-manager-eligible nodes")
         );
         assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }

@@ -1121,7 +1121,7 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         assertTrue(
-            "expected at least one master-eligible node left in " + nodes,
+            "expected at least one cluster-manager-eligible node left in " + nodes,
             nodes.isEmpty() || nodes.values().stream().anyMatch(NodeAndClient::isMasterEligible)
         );
 
@@ -1848,7 +1848,8 @@ public final class InternalTestCluster extends TestCluster {
         publishNode(nodeAndClient);
 
         if (callback.validateClusterForming() || excludedNodeIds.isEmpty() == false) {
-            // we have to validate cluster size to ensure that the restarted node has rejoined the cluster if it was master-eligible;
+            // we have to validate cluster size to ensure that the restarted node has rejoined the cluster if it was
+            // cluster-manager-eligible;
             validateClusterFormed();
         }
     }
@@ -1999,7 +2000,7 @@ public final class InternalTestCluster extends TestCluster {
 
     /**
      * Performs cluster bootstrap when node with index {@link #bootstrapMasterNodeIndex} is started
-     * with the names of all existing and new master-eligible nodes.
+     * with the names of all existing and new cluster-manager-eligible nodes.
      * Indexing starts from 0.
      * If {@link #bootstrapMasterNodeIndex} is -1 (default), this method does nothing.
      */

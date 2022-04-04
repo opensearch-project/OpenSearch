@@ -48,21 +48,21 @@ import static org.hamcrest.Matchers.nullValue;
 public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCase {
 
     public void testSkipMultiRange() {
-        SkipSection section = new SkipSection("6.0.0 - 6.1.0, 7.1.0 - 7.5.0", Collections.emptyList(), "foobar");
+        SkipSection section = new SkipSection("1.0.0 - 1.1.0, 2.1.0 - 2.5.0", Collections.emptyList(), "foobar");
 
         assertFalse(section.skip(Version.CURRENT));
-        assertFalse(section.skip(Version.fromString("6.2.0")));
-        assertFalse(section.skip(Version.fromString("7.0.0")));
-        assertFalse(section.skip(Version.fromString("7.6.0")));
+        assertFalse(section.skip(Version.fromString("1.2.0")));
+        assertFalse(section.skip(Version.fromString("2.0.0")));
+        assertFalse(section.skip(Version.fromString("2.6.0")));
 
-        assertTrue(section.skip(Version.fromString("6.0.0")));
-        assertTrue(section.skip(Version.fromString("6.1.0")));
-        assertTrue(section.skip(Version.fromString("7.1.0")));
-        assertTrue(section.skip(Version.fromString("7.5.0")));
+        assertTrue(section.skip(Version.fromString("1.0.0")));
+        assertTrue(section.skip(Version.fromString("1.1.0")));
+        assertTrue(section.skip(Version.fromString("2.1.0")));
+        assertTrue(section.skip(Version.fromString("2.5.0")));
 
-        section = new SkipSection("-  7.1.0, 7.2.0 - 7.5.0", Collections.emptyList(), "foobar");
-        assertTrue(section.skip(Version.fromString("7.0.0")));
-        assertTrue(section.skip(Version.fromString("7.3.0")));
+        section = new SkipSection("-  2.1.0, 2.2.0 - 2.5.0", Collections.emptyList(), "foobar");
+        assertTrue(section.skip(Version.fromString("2.0.0")));
+        assertTrue(section.skip(Version.fromString("2.3.0")));
     }
 
     public void testSkip() {

@@ -531,7 +531,8 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     private void wipeCluster() throws Exception {
 
         // Clean up SLM policies before trying to wipe snapshots so that no new ones get started by SLM after wiping
-        if (nodeVersions.first().onOrAfter(LegacyESVersion.V_7_4_0)) { // SLM was introduced in version 7.4
+        if (nodeVersions.first().onOrAfter(LegacyESVersion.V_7_4_0) && nodeVersions.first().before(Version.V_1_0_0)) { // SLM was introduced
+                                                                                                                       // in version 7.4
             if (preserveSLMPoliciesUponCompletion() == false) {
                 // Clean up SLM policies before trying to wipe snapshots so that no new ones get started by SLM after wiping
                 deleteAllSLMPolicies();
@@ -823,7 +824,8 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
         RestClientBuilder builder = RestClient.builder(hosts);
         configureClient(builder, settings);
-        builder.setStrictDeprecationMode(true);
+        // TODO: set the method argument to 'true' after PR https://github.com/opensearch-project/OpenSearch/pull/2683 merged.
+        builder.setStrictDeprecationMode(false);
         return builder.build();
     }
 

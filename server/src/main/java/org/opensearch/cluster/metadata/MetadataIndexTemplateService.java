@@ -915,11 +915,11 @@ public class MetadataIndexTemplateService {
         templateBuilder.patterns(request.indexPatterns);
         templateBuilder.settings(request.settings);
 
-        for (Map.Entry<String, String> entry : request.mappings.entrySet()) {
+        if (request.mappings != null) {
             try {
-                templateBuilder.putMapping(entry.getKey(), entry.getValue());
+                templateBuilder.putMapping(MapperService.SINGLE_MAPPING_NAME, request.mappings);
             } catch (Exception e) {
-                throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
+                throw new MapperParsingException("Failed to parse mapping: {}", e, request.mappings);
             }
         }
 
@@ -1511,7 +1511,7 @@ public class MetadataIndexTemplateService {
         Integer version;
         List<String> indexPatterns;
         Settings settings = Settings.Builder.EMPTY_SETTINGS;
-        Map<String, String> mappings = new HashMap<>();
+        String mappings = null;
         List<Alias> aliases = new ArrayList<>();
 
         TimeValue masterTimeout = MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
@@ -1541,18 +1541,13 @@ public class MetadataIndexTemplateService {
             return this;
         }
 
-        public PutRequest mappings(Map<String, String> mappings) {
-            this.mappings.putAll(mappings);
+        public PutRequest mappings(String mappings) {
+            this.mappings = mappings;
             return this;
         }
 
         public PutRequest aliases(Set<Alias> aliases) {
             this.aliases.addAll(aliases);
-            return this;
-        }
-
-        public PutRequest putMapping(String mappingType, String mappingSource) {
-            mappings.put(mappingType, mappingSource);
             return this;
         }
 
