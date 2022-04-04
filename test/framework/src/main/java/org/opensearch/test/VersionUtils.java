@@ -210,11 +210,11 @@ public class VersionUtils {
     }
 
     /**
-     * Get the version before {@code version}.
+     * Get the released version before {@code version}.
      */
     public static Version getPreviousVersion(Version version) {
-        for (int i = ALL_VERSIONS.size() - 1; i >= 0; i--) {
-            Version v = ALL_VERSIONS.get(i);
+        for (int i = RELEASED_VERSIONS.size() - 1; i >= 0; i--) {
+            Version v = RELEASED_VERSIONS.get(i);
             if (v.before(version)) {
                 return v;
             }
@@ -223,7 +223,7 @@ public class VersionUtils {
     }
 
     /**
-     * Get the version before {@link Version#CURRENT}.
+     * Get the released version before {@link Version#CURRENT}.
      */
     public static Version getPreviousVersion() {
         Version version = getPreviousVersion(Version.CURRENT);

@@ -255,8 +255,7 @@ public class VersionTests extends OpenSearchTestCase {
         Version expectedMinIndexCompat = VersionUtils.getFirstVersionOfMajor(candidates, opensearchMajor - 1);
         Version actualMinIndexCompat = opensearchVersion.minimumIndexCompatibilityVersion();
 
-        Version expectedMinCompat = VersionUtils.getPreviousVersion(opensearchVersion);
-        expectedMinCompat = Version.fromId((expectedMinCompat.major * 1000000 + expectedMinCompat.minor * 10000 + 99) ^ MASK);
+        Version expectedMinCompat = VersionUtils.lastFirstReleasedMinorFromMajor(VersionUtils.allOpenSearchVersions(), opensearchMajor - 1);
         Version actualMinCompat = opensearchVersion.minimumCompatibilityVersion();
         // since some legacy versions still support build (alpha, beta, RC) we check major minor revision only
         assertEquals(expectedMinIndexCompat.major, actualMinIndexCompat.major);

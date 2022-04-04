@@ -279,11 +279,16 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         return version.id >= id;
     }
 
-    // LegacyESVersion major 7 is equivalent to Version major 1
     public int compareMajor(Version other) {
-        int m = major == 1 ? 7 : major == 2 ? 8 : major == 3 ? 9 : major;
-        int om = other.major == 1 ? 7 : other.major == 2 ? 8 : major == 3 ? 9 : other.major;
-        return Integer.compare(m, om);
+        // comparing Legacy 7x for bwc
+        // todo: remove the following when removing legacy support in 3.0.0
+        if (major == 7 || other.major == 7) {
+            // opensearch v1.x and v2.x need major translation to compare w/ legacy versions
+            int m = major == 1 ? 7 : major == 2 ? 8 : major;
+            int om = other.major == 1 ? 7 : other.major == 2 ? 8 : other.major;
+            return Integer.compare(m, om);
+        }
+        return Integer.compare(major, other.major);
     }
 
     @Override
@@ -392,10 +397,10 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             bwcMajor = major - 1;
         }
         final int bwcMinor = 0;
-        // todo remove when LegacyESVersion is removed
         if (major == 3) {
             return Version.min(this, fromId((bwcMajor * 1000000 + bwcMinor * 10000 + 99) ^ MASK));
         }
+        // todo remove below when LegacyESVersion is removed in 3.0
         return Version.min(this, fromId((bwcMajor * 1000000 + bwcMinor * 10000 + 99)));
     }
 
@@ -409,12 +414,15 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         // OpenSearch version 2 is the functional equivalent of predecessor unreleased version "8"
         // todo refactor this logic after removing deprecated features
         int a = major;
-        if (major <= 3) {
-            a += 6; // for legacy compatibility up to version 3.0 (to compare minCompat)
-        }
         int b = version.major;
-        if (version.major <= 3) {
-            b += 6;
+
+        if (a == 7 || b == 7) {
+            if (major <= 2) {
+                a += 6; // for legacy compatibility up to version 2.x (to compare minCompat)
+            }
+            if (version.major <= 2) {
+                b += 6; // for legacy compatibility up to version 2.x (to compare minCompat)
+            }
         }
 
         assert compatible == false || Math.max(a, b) - Math.min(a, b) <= 1;
