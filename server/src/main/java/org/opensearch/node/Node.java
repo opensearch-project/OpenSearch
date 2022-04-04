@@ -348,11 +348,7 @@ public class Node implements Closeable {
             Settings tmpSettings = Settings.builder()
                 .put(initialEnvironment.settings())
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE)
-                .build();
-
-            // Enabling shard indexing backpressure node-attribute
-            tmpSettings = Settings.builder()
-                .put(tmpSettings)
+                // Enabling shard indexing backpressure node-attribute
                 .put(NODE_ATTRIBUTES.getKey() + SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY, "true")
                 .build();
 
