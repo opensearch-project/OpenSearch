@@ -1188,7 +1188,7 @@ public class MetadataCreateIndexService {
     }
 
     List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean forbidPrivateIndexSettings) {
-        List<String> validationErrors = validateIndexCustomPath(settings, env.sharedDataFile());
+        List<String> validationErrors = validateIndexCustomPath(settings, env.sharedDataDir());
         if (forbidPrivateIndexSettings) {
             validationErrors.addAll(validatePrivateSettingsNotExplicitlySet(settings, indexScopedSettings));
         }
