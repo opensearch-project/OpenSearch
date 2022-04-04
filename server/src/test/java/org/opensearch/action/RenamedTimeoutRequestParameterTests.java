@@ -15,7 +15,19 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.rest.BaseRestHandler;
+import org.opensearch.rest.action.cat.RestAllocationAction;
+import org.opensearch.rest.action.cat.RestRepositoriesAction;
+import org.opensearch.rest.action.cat.RestThreadPoolAction;
+import org.opensearch.rest.action.cat.RestMasterAction;
+import org.opensearch.rest.action.cat.RestShardsAction;
+import org.opensearch.rest.action.cat.RestPluginsAction;
+import org.opensearch.rest.action.cat.RestNodeAttrsAction;
 import org.opensearch.rest.action.cat.RestNodesAction;
+import org.opensearch.rest.action.cat.RestIndicesAction;
+import org.opensearch.rest.action.cat.RestTemplatesAction;
+import org.opensearch.rest.action.cat.RestPendingClusterTasksAction;
+import org.opensearch.rest.action.cat.RestSegmentsAction;
+import org.opensearch.rest.action.cat.RestSnapshotAction;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.threadpool.TestThreadPool;
@@ -77,7 +89,91 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     }
 
     public void testCatAllocation() {
+        RestAllocationAction action = new RestAllocationAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testCatIndices() {
+        RestIndicesAction action = new RestIndicesAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testCatClusterManager() {
+        RestMasterAction action = new RestMasterAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testCatNodeattrs() {
+        RestNodeAttrsAction action = new RestNodeAttrsAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testCatNodes() {
         RestNodesAction action = new RestNodesAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testCatPendingTasks() {
+        RestPendingClusterTasksAction action = new RestPendingClusterTasksAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testCatPlugins() {
+        RestPluginsAction action = new RestPluginsAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testCatRepositories() {
+        RestRepositoriesAction action = new RestRepositoriesAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testCatShards() {
+        RestShardsAction action = new RestShardsAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testCatSnapshots() {
+        RestSnapshotAction action = new RestSnapshotAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testCatTemplates() {
+        RestTemplatesAction action = new RestTemplatesAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testCatThreadPool() {
+        RestThreadPoolAction action = new RestThreadPoolAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testCatSegments() {
+        RestSegmentsAction action = new RestSegmentsAction();
         Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithBothParams(), client));
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
