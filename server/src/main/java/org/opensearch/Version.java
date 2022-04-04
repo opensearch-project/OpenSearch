@@ -285,7 +285,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public int compareMajor(Version other) {
         // comparing Legacy 7x for bwc
         // todo: remove the following when removing legacy support in 3.0.0
-        if (major == 7 || other.major == 7) {
+        if (major == 7 || other.major == 7 || major == 6 || other.major == 6) {
             // opensearch v1.x and v2.x need major translation to compare w/ legacy versions
             int m = major == 1 ? 7 : major == 2 ? 8 : major;
             int om = other.major == 1 ? 7 : other.major == 2 ? 8 : other.major;
@@ -419,7 +419,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         int a = major;
         int b = version.major;
 
-        if (a == 7 || b == 7) {
+        if (a == 7 || b == 7 || a == 6 || b == 6) {
             if (major <= 2) {
                 a += 6; // for legacy compatibility up to version 2.x (to compare minCompat)
             }
