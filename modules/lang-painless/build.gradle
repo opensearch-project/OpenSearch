@@ -155,7 +155,7 @@ configurations {
 }
 
 dependencies {
-  regenerate 'org.antlr:antlr4:4.5.3'
+  regenerate 'org.antlr:antlr4:4.9.3'
 }
 
 String grammarPath = 'src/main/antlr'
