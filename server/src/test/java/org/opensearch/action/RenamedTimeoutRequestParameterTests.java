@@ -15,22 +15,15 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.BaseRestHandler;
-import org.opensearch.rest.action.cat.RestAllocationAction;
-import org.opensearch.rest.action.cat.RestRepositoriesAction;
-import org.opensearch.rest.action.cat.RestThreadPoolAction;
-import org.opensearch.rest.action.cat.RestMasterAction;
-import org.opensearch.rest.action.cat.RestShardsAction;
-import org.opensearch.rest.action.cat.RestPluginsAction;
-import org.opensearch.rest.action.cat.RestNodeAttrsAction;
-import org.opensearch.rest.action.cat.RestNodesAction;
-import org.opensearch.rest.action.cat.RestIndicesAction;
-import org.opensearch.rest.action.cat.RestTemplatesAction;
-import org.opensearch.rest.action.cat.RestPendingClusterTasksAction;
-import org.opensearch.rest.action.cat.RestSegmentsAction;
-import org.opensearch.rest.action.cat.RestSnapshotAction;
+import org.opensearch.rest.action.admin.cluster.RestClusterGetSettingsAction;
+import org.opensearch.rest.action.admin.cluster.RestClusterHealthAction;
+import org.opensearch.rest.action.admin.cluster.RestClusterRerouteAction;
+import org.opensearch.rest.action.admin.cluster.RestClusterStateAction;
+import org.opensearch.rest.action.admin.cluster.RestClusterUpdateSettingsAction;
 import org.opensearch.rest.action.admin.cluster.dangling.RestDeleteDanglingIndexAction;
 import org.opensearch.rest.action.admin.cluster.dangling.RestImportDanglingIndexAction;
 import org.opensearch.rest.action.admin.indices.RestAddIndexBlockAction;
@@ -48,9 +41,25 @@ import org.opensearch.rest.action.admin.indices.RestPutMappingAction;
 import org.opensearch.rest.action.admin.indices.RestResizeHandler;
 import org.opensearch.rest.action.admin.indices.RestRolloverIndexAction;
 import org.opensearch.rest.action.admin.indices.RestUpdateSettingsAction;
+import org.opensearch.rest.action.cat.RestAllocationAction;
+import org.opensearch.rest.action.cat.RestRepositoriesAction;
+import org.opensearch.rest.action.cat.RestThreadPoolAction;
+import org.opensearch.rest.action.cat.RestMasterAction;
+import org.opensearch.rest.action.cat.RestShardsAction;
+import org.opensearch.rest.action.cat.RestPluginsAction;
+import org.opensearch.rest.action.cat.RestNodeAttrsAction;
+import org.opensearch.rest.action.cat.RestNodesAction;
+import org.opensearch.rest.action.cat.RestIndicesAction;
+import org.opensearch.rest.action.cat.RestTemplatesAction;
+import org.opensearch.rest.action.cat.RestPendingClusterTasksAction;
+import org.opensearch.rest.action.cat.RestSegmentsAction;
+import org.opensearch.rest.action.cat.RestSnapshotAction;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.threadpool.TestThreadPool;
+
+import java.io.IOException;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_SETTING;
@@ -196,6 +205,68 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     public void testCatSegments() {
         RestSegmentsAction action = new RestSegmentsAction();
         Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testClusterHealth() {
+        Exception e = assertThrows(
+            OpenSearchParseException.class,
+            () -> RestClusterHealthAction.fromRequest(getRestRequestWithBodyWithBothParams())
+        );
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testClusterReroute() throws IOException {
+        final SettingsFilter filter = new SettingsFilter(Collections.singleton("foo.filtered"));
+        RestClusterRerouteAction action = new RestClusterRerouteAction(filter);
+        Exception e = assertThrows(
+            OpenSearchParseException.class,
+            () -> action.prepareRequest(getRestRequestWithBodyWithBothParams(), client)
+        );
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testClusterState() throws IOException {
+        final SettingsFilter filter = new SettingsFilter(Collections.singleton("foo.filtered"));
+        RestClusterStateAction action = new RestClusterStateAction(filter);
+        Exception e = assertThrows(
+            OpenSearchParseException.class,
+            () -> action.prepareRequest(getRestRequestWithBodyWithBothParams(), client)
+        );
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testClusterGetSettings() throws IOException {
+        final SettingsFilter filter = new SettingsFilter(Collections.singleton("foo.filtered"));
+        RestClusterGetSettingsAction action = new RestClusterGetSettingsAction(null, null, filter);
+        Exception e = assertThrows(
+            OpenSearchParseException.class,
+            () -> action.prepareRequest(getRestRequestWithBodyWithBothParams(), client)
+        );
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testClusterUpdateSettings() throws IOException {
+        RestClusterUpdateSettingsAction action = new RestClusterUpdateSettingsAction();
+        Exception e = assertThrows(
+            OpenSearchParseException.class,
+            () -> action.prepareRequest(getRestRequestWithBodyWithBothParams(), client)
+        );
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testClusterPendingTasks() {
+        RestPendingClusterTasksAction action = new RestPendingClusterTasksAction();
+        Exception e = assertThrows(
+            OpenSearchParseException.class,
+            () -> action.prepareRequest(getRestRequestWithBodyWithBothParams(), client)
+        );
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
     }
