@@ -236,8 +236,6 @@ public class VersionTests extends OpenSearchTestCase {
             major = 7;
         } else if (opensearchMajor == 2) {
             major = 8;
-        } else if (opensearchMajor == 3) {
-            major = 9;
         }
         Version expected = VersionUtils.getFirstVersionOfMajor(candidates, major - 1);
         Version actual = opensearchVersion.minimumIndexCompatibilityVersion();
