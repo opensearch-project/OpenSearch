@@ -32,22 +32,7 @@
 
 package org.opensearch.search.aggregations.bucket.composite;
 
-import org.opensearch.LegacyESVersion;
-import org.opensearch.Version;
-import org.opensearch.common.geo.GeoBoundingBox;
-import org.opensearch.common.geo.GeoBoundingBoxTests;
-import org.opensearch.common.geo.GeoPoint;
-import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.test.VersionUtils;
-
-import java.io.IOException;
-import java.util.Collections;
-
-import static org.hamcrest.Matchers.equalTo;
 
 public class GeoTileGridValuesSourceBuilderTests extends OpenSearchTestCase {
 
@@ -56,28 +41,4 @@ public class GeoTileGridValuesSourceBuilderTests extends OpenSearchTestCase {
         expectThrows(IllegalArgumentException.class, () -> builder.format("format"));
     }
 
-    public void testBWCBounds() throws IOException {
-        Version noBoundsSupportVersion = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, LegacyESVersion.V_7_5_0);
-        GeoTileGridValuesSourceBuilder builder = new GeoTileGridValuesSourceBuilder("name");
-        if (randomBoolean()) {
-            builder.geoBoundingBox(GeoBoundingBoxTests.randomBBox());
-        }
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(LegacyESVersion.V_7_6_0);
-            builder.writeTo(output);
-            try (
-                StreamInput in = new NamedWriteableAwareStreamInput(
-                    output.bytes().streamInput(),
-                    new NamedWriteableRegistry(Collections.emptyList())
-                )
-            ) {
-                in.setVersion(noBoundsSupportVersion);
-                GeoTileGridValuesSourceBuilder readBuilder = new GeoTileGridValuesSourceBuilder(in);
-                assertThat(
-                    readBuilder.geoBoundingBox(),
-                    equalTo(new GeoBoundingBox(new GeoPoint(Double.NaN, Double.NaN), new GeoPoint(Double.NaN, Double.NaN)))
-                );
-            }
-        }
-    }
 }

@@ -32,12 +32,10 @@
 
 package org.opensearch.ingest;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -56,23 +54,6 @@ public class IngestStatsTests extends OpenSearchTestCase {
         IngestStats ingestStats = new IngestStats(totalStats, pipelineStats, processorStats);
         IngestStats serializedStats = serialize(ingestStats);
         assertIngestStats(ingestStats, serializedStats, true, true);
-    }
-
-    public void testBWCIngestProcessorTypeStats() throws IOException {
-        IngestStats.Stats totalStats = new IngestStats.Stats(50, 100, 200, 300);
-        List<IngestStats.PipelineStat> pipelineStats = createPipelineStats();
-        Map<String, List<IngestStats.ProcessorStat>> processorStats = createProcessorStats(pipelineStats);
-        IngestStats expectedIngestStats = new IngestStats(totalStats, pipelineStats, processorStats);
-
-        // legacy output logic
-        BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(VersionUtils.getPreviousVersion(LegacyESVersion.V_7_6_0));
-        expectedIngestStats.writeTo(out);
-
-        StreamInput in = out.bytes().streamInput();
-        in.setVersion(VersionUtils.getPreviousVersion(LegacyESVersion.V_7_6_0));
-        IngestStats serializedStats = new IngestStats(in);
-        assertIngestStats(expectedIngestStats, serializedStats, true, false);
     }
 
     private List<IngestStats.PipelineStat> createPipelineStats() {
