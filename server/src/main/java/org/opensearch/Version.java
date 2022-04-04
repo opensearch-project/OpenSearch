@@ -414,7 +414,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         boolean compatible = onOrAfter(version.minimumCompatibilityVersion()) && version.onOrAfter(minimumCompatibilityVersion());
 
         // OpenSearch version 1 is the functional equivalent of predecessor version 7
-        // OpenSearch version 2 is the functional equivalent of predecessor unreleased version "8"
+        // OpenSearch version 2 is the functional equivalent of predecessor version 8
         // todo refactor this logic after removing deprecated features
         int a = major;
         int b = version.major;
