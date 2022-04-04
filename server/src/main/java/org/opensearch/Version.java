@@ -83,7 +83,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_1_3_2 = new Version(1030299, org.apache.lucene.util.Version.LUCENE_8_10_1);
     public static final Version V_2_0_0 = new Version(2000099, org.apache.lucene.util.Version.LUCENE_9_1_0);
     public static final Version V_2_1_0 = new Version(2010099, org.apache.lucene.util.Version.LUCENE_9_1_0);
-    public static final Version CURRENT = V_2_1_0;
+    public static final Version V_3_0_0 = new Version(3000099, org.apache.lucene.util.Version.LUCENE_9_1_0);
+    public static final Version CURRENT = V_3_0_0;
 
     public static Version readVersion(StreamInput in) throws IOException {
         return fromId(in.readVInt());
@@ -261,6 +262,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         this.revision = (byte) ((id / 100) % 100);
         this.build = (byte) (id % 100);
         this.luceneVersion = Objects.requireNonNull(luceneVersion);
+        this.minCompatVersion = null;
+        this.minIndexCompatVersion = null;
     }
 
     public boolean after(Version version) {
@@ -282,7 +285,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public int compareMajor(Version other) {
         // comparing Legacy 7x for bwc
         // todo: remove the following when removing legacy support in 3.0.0
-        if (major == 7 || other.major == 7) {
+        if (major == 7 || other.major == 7 || major == 6 || other.major == 6) {
             // opensearch v1.x and v2.x need major translation to compare w/ legacy versions
             int m = major == 1 ? 7 : major == 2 ? 8 : major;
             int om = other.major == 1 ? 7 : other.major == 2 ? 8 : other.major;
@@ -313,11 +316,11 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
     // lazy initialized because we don't yet have the declared versions ready when instantiating the cached Version
     // instances
-    private Version minCompatVersion;
+    protected Version minCompatVersion = null;
 
     // lazy initialized because we don't yet have the declared versions ready when instantiating the cached Version
     // instances
-    private Version minIndexCompatVersion;
+    protected Version minIndexCompatVersion = null;
 
     /**
      * Returns the minimum compatible version based on the current
@@ -411,12 +414,12 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         boolean compatible = onOrAfter(version.minimumCompatibilityVersion()) && version.onOrAfter(minimumCompatibilityVersion());
 
         // OpenSearch version 1 is the functional equivalent of predecessor version 7
-        // OpenSearch version 2 is the functional equivalent of predecessor unreleased version "8"
+        // OpenSearch version 2 is the functional equivalent of predecessor version 8
         // todo refactor this logic after removing deprecated features
         int a = major;
         int b = version.major;
 
-        if (a == 7 || b == 7) {
+        if (a == 7 || b == 7 || a == 6 || b == 6) {
             if (major <= 2) {
                 a += 6; // for legacy compatibility up to version 2.x (to compare minCompat)
             }

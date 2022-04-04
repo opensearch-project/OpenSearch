@@ -213,11 +213,11 @@ public class VersionTests extends OpenSearchTestCase {
         int opensearchMajor = opensearchVersion.major;
         int major = opensearchMajor - 1;
         if (opensearchMajor == 1) {
-            major = 7;
+            major = 6;
         } else if (opensearchMajor == 2) {
-            major = 8;
+            major = 7;
         }
-        assertEquals(VersionUtils.lastFirstReleasedMinorFromMajor(candidates, major - 1), opensearchVersion.minimumCompatibilityVersion());
+        assertEquals(VersionUtils.lastFirstReleasedMinorFromMajor(candidates, major), opensearchVersion.minimumCompatibilityVersion());
     }
 
     /** test opensearch min index compatibility */
@@ -230,14 +230,7 @@ public class VersionTests extends OpenSearchTestCase {
         // opensearch 3.x minCompat is 1.{last minor version}.0
         // until 3.0 is staged the following line will only return legacy versions
         List<Version> candidates = opensearchVersion.major >= 3 ? VersionUtils.allOpenSearchVersions() : VersionUtils.allLegacyVersions();
-        int opensearchMajor = opensearchVersion.major;
-        int major = opensearchMajor - 1;
-        if (opensearchMajor == 1) {
-            major = 7;
-        } else if (opensearchMajor == 2) {
-            major = 8;
-        }
-        Version expected = VersionUtils.getFirstVersionOfMajor(candidates, major - 1);
+        Version expected = VersionUtils.getFirstVersionOfMajor(candidates, opensearchVersion.major - 1);
         Version actual = opensearchVersion.minimumIndexCompatibilityVersion();
         // since some legacy versions still support build (alpha, beta, RC) we check major minor revision only
         assertEquals(expected.major, actual.major);
@@ -433,7 +426,7 @@ public class VersionTests extends OpenSearchTestCase {
         } else {
             currentOrNextMajorVersion = currentMajorVersion;
         }
-        final Version lastMinorFromPreviousMajor = VersionUtils.allReleasedVersions()
+        final Version lastMinorFromPreviousMajor = VersionUtils.allOpenSearchVersions()
             .stream()
             .filter(v -> v.major == (currentOrNextMajorVersion.major == 1 ? 7 : currentOrNextMajorVersion.major - 1))
             .max(Version::compareTo)
