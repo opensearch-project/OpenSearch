@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.cluster.health;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -58,7 +57,6 @@ import org.opensearch.test.AbstractSerializingTestCase;
 import org.opensearch.test.OpenSearchTestCase;
 
 import org.hamcrest.Matchers;
-import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -147,69 +145,6 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
         assertThat(clusterHealth.getNumberOfNodes(), Matchers.equalTo(clusterStateHealth.getNumberOfNodes()));
         assertThat(clusterHealth.getNumberOfDataNodes(), Matchers.equalTo(clusterStateHealth.getNumberOfDataNodes()));
         assertThat(clusterHealth.hasDiscoveredMaster(), Matchers.equalTo(clusterStateHealth.hasDiscoveredMaster()));
-    }
-
-    public void testVersionCompatibleSerialization() throws IOException {
-        boolean hasDiscoveredMaster = false;
-        int indicesSize = randomInt(20);
-        Map<String, ClusterIndexHealth> indices = new HashMap<>(indicesSize);
-        if ("indices".equals(level) || "shards".equals(level)) {
-            for (int i = 0; i < indicesSize; i++) {
-                String indexName = randomAlphaOfLengthBetween(1, 5) + i;
-                indices.put(indexName, ClusterIndexHealthTests.randomIndexHealth(indexName, level));
-            }
-        }
-        ClusterStateHealth stateHealth = new ClusterStateHealth(
-            randomInt(100),
-            randomInt(100),
-            randomInt(100),
-            randomInt(100),
-            randomInt(100),
-            randomInt(100),
-            randomInt(100),
-            hasDiscoveredMaster,
-            randomDoubleBetween(0d, 100d, true),
-            randomFrom(ClusterHealthStatus.values()),
-            indices
-        );
-        // Create the Cluster Health Response object with discovered master as false,
-        // to verify serialization puts default value for the field
-        ClusterHealthResponse clusterHealth = new ClusterHealthResponse(
-            "test-cluster",
-            randomInt(100),
-            randomInt(100),
-            randomInt(100),
-            TimeValue.timeValueMillis(randomInt(10000)),
-            randomBoolean(),
-            stateHealth
-        );
-
-        BytesStreamOutput out_lt_1_0 = new BytesStreamOutput();
-        Version old_version = VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, LegacyESVersion.V_7_8_0);
-        out_lt_1_0.setVersion(old_version);
-        clusterHealth.writeTo(out_lt_1_0);
-
-        BytesStreamOutput out_gt_1_0 = new BytesStreamOutput();
-        Version new_version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
-        out_gt_1_0.setVersion(new_version);
-        clusterHealth.writeTo(out_gt_1_0);
-
-        // The serialized output byte stream will not be same; and different by a boolean field "discovered_master"
-        assertNotEquals(out_lt_1_0.size(), out_gt_1_0.size());
-        assertThat(out_gt_1_0.size() - out_lt_1_0.size(), Matchers.equalTo(1));
-
-        // Input stream constructed from Version 6_8 or less will not have field "discovered_master";
-        // hence fallback to default as no value retained
-        StreamInput in_lt_6_8 = out_lt_1_0.bytes().streamInput();
-        in_lt_6_8.setVersion(old_version);
-        clusterHealth = ClusterHealthResponse.readResponseFrom(in_lt_6_8);
-        assertThat(clusterHealth.hasDiscoveredMaster(), Matchers.equalTo(true));
-
-        // Input stream constructed from Version 7_0 and above will have field "discovered_master"; hence value will be retained
-        StreamInput in_gt_7_0 = out_gt_1_0.bytes().streamInput();
-        in_gt_7_0.setVersion(new_version);
-        clusterHealth = ClusterHealthResponse.readResponseFrom(in_gt_7_0);
-        assertThat(clusterHealth.hasDiscoveredMaster(), Matchers.equalTo(hasDiscoveredMaster));
     }
 
     ClusterHealthResponse maybeSerialize(ClusterHealthResponse clusterHealth) throws IOException {
