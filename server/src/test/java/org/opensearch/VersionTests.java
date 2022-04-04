@@ -245,6 +245,26 @@ public class VersionTests extends OpenSearchTestCase {
         assertEquals(expected.revision, actual.revision);
     }
 
+    /** test first version of opensearch compatibility that does not support legacy versions */
+    public void testOpenSearchPreLegacyRemoval() {
+        Version opensearchVersion = Version.fromString("3.0.0");
+        int opensearchMajor = opensearchVersion.major;
+        List<Version> candidates = VersionUtils.allOpenSearchVersions();
+        Version expectedMinIndexCompat = VersionUtils.getFirstVersionOfMajor(candidates, opensearchMajor - 1);
+        Version actualMinIndexCompat = opensearchVersion.minimumIndexCompatibilityVersion();
+
+        Version expectedMinCompat = VersionUtils.lastFirstReleasedMinorFromMajor(VersionUtils.allOpenSearchVersions(), opensearchMajor - 1);
+        Version actualMinCompat = opensearchVersion.minimumCompatibilityVersion();
+        // since some legacy versions still support build (alpha, beta, RC) we check major minor revision only
+        assertEquals(expectedMinIndexCompat.major, actualMinIndexCompat.major);
+        assertEquals(expectedMinIndexCompat.minor, actualMinIndexCompat.minor);
+        assertEquals(expectedMinIndexCompat.revision, actualMinIndexCompat.revision);
+
+        assertEquals(expectedMinCompat.major, actualMinCompat.major);
+        assertEquals(expectedMinCompat.minor, actualMinCompat.minor);
+        assertEquals(expectedMinCompat.revision, actualMinCompat.revision);
+    }
+
     public void testToString() {
         assertEquals("2.0.0-beta1", Version.fromString("2.0.0-beta1").toString());
         assertEquals("5.0.0-alpha1", Version.fromId(5000001).toString());
