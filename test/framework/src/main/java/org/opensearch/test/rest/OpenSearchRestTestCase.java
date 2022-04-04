@@ -824,8 +824,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
         RestClientBuilder builder = RestClient.builder(hosts);
         configureClient(builder, settings);
-        // TODO: set the method argument to 'true' after PR https://github.com/opensearch-project/OpenSearch/pull/2683 merged.
-        builder.setStrictDeprecationMode(false);
+        builder.setStrictDeprecationMode(true);
         return builder.build();
     }
 
