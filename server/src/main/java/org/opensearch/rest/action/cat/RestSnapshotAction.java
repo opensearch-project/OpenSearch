@@ -36,6 +36,7 @@ import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Table;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.rest.RestRequest;
@@ -58,6 +59,8 @@ import static org.opensearch.rest.RestRequest.Method.GET;
  */
 public class RestSnapshotAction extends AbstractCatAction {
 
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSnapshotAction.class);
+
     @Override
     public List<Route> routes() {
         return unmodifiableList(asList(new Route(GET, "/_cat/snapshots"), new Route(GET, "/_cat/snapshots/{repository}")));
@@ -69,13 +72,14 @@ public class RestSnapshotAction extends AbstractCatAction {
     }
 
     @Override
-    protected RestChannelConsumer doCatRequest(final RestRequest request, NodeClient client) {
+    public RestChannelConsumer doCatRequest(final RestRequest request, NodeClient client) {
         GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest().repository(request.param("repository"))
             .snapshots(new String[] { GetSnapshotsRequest.ALL_SNAPSHOTS });
 
         getSnapshotsRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", getSnapshotsRequest.ignoreUnavailable()));
 
-        getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));
+        getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", getSnapshotsRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(getSnapshotsRequest, request, deprecationLogger, getName());
 
         return channel -> client.admin()
             .cluster()
