@@ -77,7 +77,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
 
         expectThrows(
             IllegalStateException.class,
-            () -> JoinTaskExecutor.ensureIndexCompatibility(VersionUtils.getPreviousReleasedVersion(Version.CURRENT), metadata)
+            () -> JoinTaskExecutor.ensureIndexCompatibility(VersionUtils.getPreviousVersion(Version.CURRENT), metadata)
         );
     }
 

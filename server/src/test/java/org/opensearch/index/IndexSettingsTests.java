@@ -60,7 +60,7 @@ import static org.hamcrest.object.HasToString.hasToString;
 public class IndexSettingsTests extends OpenSearchTestCase {
 
     public void testRunListener() {
-        Version version = VersionUtils.getPreviousReleasedVersion();
+        Version version = VersionUtils.getPreviousVersion();
         Settings theSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .put(IndexMetadata.SETTING_INDEX_UUID, "0xdeadbeef")
@@ -86,7 +86,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
     }
 
     public void testSettingsUpdateValidator() {
-        Version version = VersionUtils.getPreviousReleasedVersion();
+        Version version = VersionUtils.getPreviousVersion();
         Settings theSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .put(IndexMetadata.SETTING_INDEX_UUID, "0xdeadbeef")
@@ -119,7 +119,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
     }
 
     public void testMergedSettingsArePassed() {
-        Version version = VersionUtils.getPreviousReleasedVersion();
+        Version version = VersionUtils.getPreviousVersion();
         Settings theSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .put(IndexMetadata.SETTING_INDEX_UUID, "0xdeadbeef")
@@ -157,7 +157,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
     }
 
     public void testSettingsConsistency() {
-        Version version = VersionUtils.getPreviousReleasedVersion();
+        Version version = VersionUtils.getPreviousVersion();
         IndexMetadata metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build());
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         assertEquals(version, settings.getIndexVersionCreated());

@@ -212,7 +212,7 @@ public class VersionUtils {
     }
 
     /**
-     * Get the version (released or unreleased) before {@code version}.
+     * Get the version before {@code version}.
      */
     public static Version getPreviousVersion(Version version) {
         for (int i = ALL_VERSIONS.size() - 1; i >= 0; i--) {
@@ -225,32 +225,10 @@ public class VersionUtils {
     }
 
     /**
-     * Get the released version before {@link Version#CURRENT}.
+     * Get the version before {@link Version#CURRENT}.
      */
     public static Version getPreviousVersion() {
         Version version = getPreviousVersion(Version.CURRENT);
-        assert version.before(Version.CURRENT);
-        return version;
-    }
-
-    /**
-     * Get the released version before {@code version}.
-     */
-    public static Version getPreviousReleasedVersion(Version version) {
-        for (int i = RELEASED_VERSIONS.size() - 1; i >= 0; i--) {
-            Version v = RELEASED_VERSIONS.get(i);
-            if (v.before(version)) {
-                return v;
-            }
-        }
-        throw new IllegalArgumentException("couldn't find any released versions before [" + version + "]");
-    }
-
-    /**
-     * Get the released version before {@link Version#CURRENT}.
-     */
-    public static Version getPreviousReleasedVersion() {
-        Version version = getPreviousReleasedVersion(Version.CURRENT);
         assert version.before(Version.CURRENT);
         return version;
     }
@@ -376,6 +354,6 @@ public class VersionUtils {
         // TODO: change this to minimumCompatibilityVersion(), but first need to remove released/unreleased
         // versions so getPreviousVerison returns the *actual* previous version. Otherwise eg 8.0.0 returns say 7.0.2 for previous,
         // but 7.2.0 for minimum compat
-        return randomVersionBetween(random, version.minimumIndexCompatibilityVersion(), getPreviousReleasedVersion(version));
+        return randomVersionBetween(random, version.minimumIndexCompatibilityVersion(), getPreviousVersion(version));
     }
 }

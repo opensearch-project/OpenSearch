@@ -95,7 +95,7 @@ public class VersionTests extends OpenSearchTestCase {
     }
 
     public void testMin() {
-        assertEquals(VersionUtils.getPreviousReleasedVersion(), Version.min(Version.CURRENT, VersionUtils.getPreviousReleasedVersion()));
+        assertEquals(VersionUtils.getPreviousVersion(), Version.min(Version.CURRENT, VersionUtils.getPreviousVersion()));
         assertEquals(LegacyESVersion.fromString("7.0.1"), Version.min(LegacyESVersion.fromString("7.0.1"), Version.CURRENT));
         Version version = VersionUtils.randomVersion(random());
         Version version1 = VersionUtils.randomVersion(random());
@@ -107,7 +107,7 @@ public class VersionTests extends OpenSearchTestCase {
     }
 
     public void testMax() {
-        assertEquals(Version.CURRENT, Version.max(Version.CURRENT, VersionUtils.getPreviousReleasedVersion()));
+        assertEquals(Version.CURRENT, Version.max(Version.CURRENT, VersionUtils.getPreviousVersion()));
         assertEquals(Version.CURRENT, Version.max(Version.fromString("1.0.1"), Version.CURRENT));
         Version version = VersionUtils.randomVersion(random());
         Version version1 = VersionUtils.randomVersion(random());

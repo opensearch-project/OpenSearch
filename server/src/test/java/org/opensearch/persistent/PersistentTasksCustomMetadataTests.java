@@ -281,7 +281,7 @@ public class PersistentTasksCustomMetadataTests extends AbstractDiffableSerializ
         PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder();
 
         Version minVersion = allReleasedVersions().stream().filter(Version::isRelease).findFirst().orElseThrow(NoSuchElementException::new);
-        final Version streamVersion = randomVersionBetween(random(), minVersion, VersionUtils.getPreviousReleasedVersion(Version.CURRENT));
+        final Version streamVersion = randomVersionBetween(random(), minVersion, VersionUtils.getPreviousVersion(Version.CURRENT));
         tasks.addTask(
             "test_compatible_version",
             TestPersistentTasksExecutor.NAME,
