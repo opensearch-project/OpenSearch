@@ -31,6 +31,8 @@
 
 package org.opensearch.upgrades;
 
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.util.EntityUtils;
 import org.opensearch.LegacyESVersion;
@@ -70,13 +72,13 @@ public class IndexingIT extends AbstractRollingTestCase {
             case OLD:
                 break;
             case MIXED:
-                Request waitForYellow = new Request("GET", "/_cluster/health");
+                Request waitForYellow = new Request(HttpGet.METHOD_NAME, "/_cluster/health");
                 waitForYellow.addParameter("wait_for_nodes", "3");
                 waitForYellow.addParameter("wait_for_status", "yellow");
                 client().performRequest(waitForYellow);
                 break;
             case UPGRADED:
-                Request waitForGreen = new Request("GET", "/_cluster/health/test_index,index_with_replicas,empty_index");
+                Request waitForGreen = new Request(HttpGet.METHOD_NAME, "/_cluster/health/test_index,index_with_replicas,empty_index");
                 waitForGreen.addParameter("wait_for_nodes", "3");
                 waitForGreen.addParameter("wait_for_status", "green");
                 // wait for long enough that we give delayed unassigned shards to stop being delayed
@@ -89,7 +91,7 @@ public class IndexingIT extends AbstractRollingTestCase {
         }
 
         if (CLUSTER_TYPE == ClusterType.OLD) {
-            Request createTestIndex = new Request("PUT", "/test_index");
+            Request createTestIndex = new Request(HttpPut.METHOD_NAME, "/test_index");
             createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
             useIgnoreMultipleMatchingTemplatesWarningsHandler(createTestIndex);
             client().performRequest(createTestIndex);
@@ -97,12 +99,12 @@ public class IndexingIT extends AbstractRollingTestCase {
                 "composable templates will only match a single template");
 
             String recoverQuickly = "{\"settings\": {\"index.unassigned.node_left.delayed_timeout\": \"100ms\"}}";
-            Request createIndexWithReplicas = new Request("PUT", "/index_with_replicas");
+            Request createIndexWithReplicas = new Request(HttpPut.METHOD_NAME, "/index_with_replicas");
             createIndexWithReplicas.setJsonEntity(recoverQuickly);
             useIgnoreMultipleMatchingTemplatesWarningsHandler(createIndexWithReplicas);
             client().performRequest(createIndexWithReplicas);
 
-            Request createEmptyIndex = new Request("PUT", "/empty_index");
+            Request createEmptyIndex = new Request(HttpPut.METHOD_NAME, "/empty_index");
             // Ask for recovery to be quick
             createEmptyIndex.setJsonEntity(recoverQuickly);
             useIgnoreMultipleMatchingTemplatesWarningsHandler(createEmptyIndex);
@@ -137,7 +139,7 @@ public class IndexingIT extends AbstractRollingTestCase {
 
         if (CLUSTER_TYPE != ClusterType.OLD) {
             bulk("test_index", "_" + CLUSTER_TYPE, 5);
-            Request toBeDeleted = new Request("PUT", "/test_index/_doc/to_be_deleted");
+            Request toBeDeleted = new Request(HttpPut.METHOD_NAME, "/test_index/_doc/to_be_deleted");
             toBeDeleted.addParameter("refresh", "true");
             toBeDeleted.setJsonEntity("{\"f1\": \"delete-me\"}");
             client().performRequest(toBeDeleted);
@@ -156,7 +158,7 @@ public class IndexingIT extends AbstractRollingTestCase {
         StringBuilder b = new StringBuilder();
         b.append("{\"create\": {\"_index\": \"").append(indexName).append("\"}}\n");
         b.append("{\"f1\": \"v\"}\n");
-        Request bulk = new Request("POST", "/_bulk");
+        Request bulk = new Request(HttpPost.METHOD_NAME, "/_bulk");
         bulk.addParameter("refresh", "true");
         bulk.setJsonEntity(b.toString());
 
@@ -168,10 +170,7 @@ public class IndexingIT extends AbstractRollingTestCase {
                 createIndex(indexName, settings.build());
                 break;
             case MIXED:
-                Request waitForGreen = new Request("GET", "/_cluster/health");
-                waitForGreen.addParameter("wait_for_nodes", "3");
-                client().performRequest(waitForGreen);
-
+                waitForClusterGreenStatus();
                 Version minNodeVersion = getMinNodeVersion();
                 if (minNodeVersion.before(LegacyESVersion.V_7_5_0)) {
                     ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(bulk));
@@ -206,53 +205,47 @@ public class IndexingIT extends AbstractRollingTestCase {
 
         switch (CLUSTER_TYPE) {
             case OLD:
-                Settings.Builder settings = Settings.builder()
-                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
                 Version minNodeVersion = getMinNodeVersion();
                 if (minNodeVersion.before(Version.V_2_0_0)) {
+                    Settings.Builder settings = Settings.builder()
+                        .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                        .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
                     createIndexWithDocMappings(indexName, settings.build(), typeMapping);
                     assertIndexMapping(indexName, mapping);
 
                     createTemplate(templateName, indexNamePattern, typeMapping);
                     createIndex(templateIndexName, settings.build());
                     assertIndexMapping(templateIndexName, mapping);
-                } else {
-                    createIndex(indexName, settings.build());
-                    createIndex(templateIndexName, settings.build());
-                }
-                bulk(indexName, CLUSTER_TYPE.name(), 1);
-                bulk(templateIndexName, CLUSTER_TYPE.name(), 1);
+                    bulk(indexName, CLUSTER_TYPE.name(), 1);
+                    bulk(templateIndexName, CLUSTER_TYPE.name(), 1);
 
-                createIndex(indexWithoutTypeName, settings.build());
-                bulk(indexWithoutTypeName, CLUSTER_TYPE.name(), 1);
+                    createIndex(indexWithoutTypeName, settings.build());
+                    bulk(indexWithoutTypeName, CLUSTER_TYPE.name(), 1);
+                }
                 break;
             case MIXED:
-                Request waitForGreen = new Request("GET", "/_cluster/health");
-                waitForGreen.addParameter("wait_for_nodes", "3");
-                client().performRequest(waitForGreen);
+                waitForClusterGreenStatus();
                 break;
             case UPGRADED:
-                Version currentNodeVersion = getMinNodeVersion();
-                assertTrue(currentNodeVersion.onOrAfter(Version.V_2_0_0));
+                if (UPGRADE_FROM_VERSION.before(Version.V_2_0_0)) {
+                    // Assert documents created with mapping prior to OS 2.0 are accessible.
+                    assertCount(indexName, 1, 1);
+                    bulk(indexName, CLUSTER_TYPE.name(), 1);
+                    // Assert the newly ingested documents are accessible
+                    assertCount(indexName, 2, 1);
 
-                // Assert documents created with mapping prior to OS 2.0 are accessible.
-                assertCount(indexName, 1, 1);
-                bulk(indexName, CLUSTER_TYPE.name(), 1);
-                // Assert the newly ingested documents are accessible
-                assertCount(indexName, 2, 1);
+                    // Assert documents created with mapping on index with template prior to OS 2.0 are accessible.
+                    assertCount(templateIndexName, 1, 1);
+                    bulk(templateIndexName, CLUSTER_TYPE.name(), 1);
+                    // Assert the newly ingested documents with template are accessible
+                    assertCount(templateIndexName, 2, 1);
 
-                // Assert documents created with mapping on index with template prior to OS 2.0 are accessible.
-                assertCount(templateIndexName, 1, 1);
-                bulk(templateIndexName, CLUSTER_TYPE.name(), 1);
-                // Assert the newly ingested documents with template are accessible
-                assertCount(templateIndexName, 2, 1);
-
-                // Assert documents created prior to OS 2.0 are accessible.
-                assertCount(indexWithoutTypeName, 1, 1);
-                // Test ingestion of new documents created using < OS2.0
-                bulk(indexWithoutTypeName, CLUSTER_TYPE.name(), 1);
-                assertCount(indexWithoutTypeName, 2, 1);
+                    // Assert documents created prior to OS 2.0 are accessible.
+                    assertCount(indexWithoutTypeName, 1, 1);
+                    // Test ingestion of new documents created using < OS2.0
+                    bulk(indexWithoutTypeName, CLUSTER_TYPE.name(), 1);
+                    assertCount(indexWithoutTypeName, 2, 1);
+                }
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
@@ -271,40 +264,34 @@ public class IndexingIT extends AbstractRollingTestCase {
 
         switch (CLUSTER_TYPE) {
             case OLD:
-                Settings.Builder settings = Settings.builder()
-                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
                 Version minNodeVersion = getMinNodeVersion();
                 if (minNodeVersion.before(Version.V_2_0_0)) {
+                    Settings.Builder settings = Settings.builder()
+                        .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                        .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
                     createIndexWithDocMappings(indexName, settings.build(), originalTypeMapping);
                     assertIndexMapping(indexName, originalMapping);
 
                     createIndexWithDocMappings(reindexName, settings.build(), newTypeMapping);
                     assertIndexMapping(reindexName, newMapping);
-                } else {
-                    createIndex(indexName, settings.build());
-                    createIndex(reindexName, settings.build());
+                    bulk(indexName, CLUSTER_TYPE.name(), 1);
                 }
-                bulk(indexName, CLUSTER_TYPE.name(), 1);
                 break;
             case MIXED:
-                Request waitForGreen = new Request("GET", "/_cluster/health");
-                waitForGreen.addParameter("wait_for_nodes", "3");
-                client().performRequest(waitForGreen);
+                waitForClusterGreenStatus();
                 break;
             case UPGRADED:
-                Version currentNodeVersion = getMinNodeVersion();
-                assertTrue(currentNodeVersion.onOrAfter(Version.V_2_0_0));
+                if (UPGRADE_FROM_VERSION.before(Version.V_2_0_0)) {
+                    // Assert documents created with mapping prior to OS 2.0 are accessible.
+                    assertCount(indexName, 1, 1);
+                    bulk(indexName, CLUSTER_TYPE.name(), 1);
+                    // Assert the newly ingested documents are accessible
+                    assertCount(indexName, 2, 1);
 
-                // Assert documents created with mapping prior to OS 2.0 are accessible.
-                assertCount(indexName, 1, 1);
-                bulk(indexName, CLUSTER_TYPE.name(), 1);
-                // Assert the newly ingested documents are accessible
-                assertCount(indexName, 2, 1);
-
-                reindex(indexName, reindexName);
-                assertCount(reindexName, 2, 1);
-                assertIndexMapping(reindexName, newMapping);
+                    reindex(indexName, reindexName);
+                    assertCount(reindexName, 2, 1);
+                    assertIndexMapping(reindexName, newMapping);
+                }
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
@@ -321,37 +308,36 @@ public class IndexingIT extends AbstractRollingTestCase {
 
         switch (CLUSTER_TYPE) {
             case OLD:
-                Settings.Builder settings = Settings.builder()
-                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
                 Version minNodeVersion = getMinNodeVersion();
                 if (minNodeVersion.before(Version.V_2_0_0)) {
+                    Settings.Builder settings = Settings.builder()
+                        .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                        .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
                     createIndexWithDocMappings(indexName, settings.build(), typeMapping);
                     assertIndexMapping(indexName, mapping);
-                } else {
-                    createIndex(indexName, settings.build());
-                }
-                bulk(indexName, CLUSTER_TYPE.name(), 1);
+                    bulk(indexName, CLUSTER_TYPE.name(), 1);
 
-                registerRepository(repositoryName,"fs", true, Settings.builder()
-                    .put("compress", true)
-                    .put("location", REPOSITORY_LOCATION)
-                    .build());
-                createSnapshot(repositoryName, snapshotName, true, indexName);
-                deleteIndex(indexName);
+                    registerRepository(repositoryName,"fs", true, Settings.builder()
+                        .put("compress", true)
+                        .put("location", REPOSITORY_LOCATION)
+                        .build());
+                    createSnapshotIfNotExists(repositoryName, snapshotName, true, indexName);
+                    deleteIndex(indexName);
+                }
                 break;
             case MIXED:
-                Request waitForGreen = new Request("GET", "/_cluster/health");
-                waitForGreen.addParameter("wait_for_nodes", "3");
-                client().performRequest(waitForGreen);
+                waitForClusterGreenStatus();
                 break;
             case UPGRADED:
-                Version currentNodeVersion = getMinNodeVersion();
-                assertTrue(currentNodeVersion.onOrAfter(Version.V_2_0_0));
-
-                assertFalse(indexExists(indexName));;
-                restoreSnapshot(repositoryName, snapshotName, true);
-                assertCount(indexName, 1);
+                if (UPGRADE_FROM_VERSION.before(Version.V_2_0_0)) {
+                    registerRepository(repositoryName,"fs", true, Settings.builder()
+                        .put("compress", true)
+                        .put("location", REPOSITORY_LOCATION)
+                        .build());
+                    assertFalse(indexExists(indexName));;
+                    restoreSnapshot(repositoryName, snapshotName, true);
+                    assertCount(indexName, 1);
+                }
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
@@ -364,7 +350,7 @@ public class IndexingIT extends AbstractRollingTestCase {
             b.append("{\"index\": {\"_index\": \"").append(index).append("\"}}\n");
             b.append("{\"f1\": \"v").append(i).append(valueSuffix).append("\", \"f2\": ").append(i).append("}\n");
         }
-        Request bulk = new Request("POST", "/_bulk");
+        Request bulk = new Request(HttpPost.METHOD_NAME, "/_bulk");
         bulk.addParameter("refresh", "true");
         bulk.setJsonEntity(b.toString());
         client().performRequest(bulk);
@@ -376,7 +362,7 @@ public class IndexingIT extends AbstractRollingTestCase {
 
     private Version getMinNodeVersion() throws IOException {
         Version minNodeVersion = null;
-        Map<?, ?> response = entityAsMap(client().performRequest(new Request("GET", "_nodes")));
+        Map<?, ?> response = entityAsMap(client().performRequest(new Request(HttpGet.METHOD_NAME, "_nodes")));
         Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
         for (Map.Entry<?, ?> node : nodes.entrySet()) {
             Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
@@ -391,7 +377,7 @@ public class IndexingIT extends AbstractRollingTestCase {
     }
 
     private void createIndexWithDocMappings(String index, Settings settings, String mapping) throws IOException {
-        Request createIndexWithMappingsRequest = new Request("PUT", "/" + index);
+        Request createIndexWithMappingsRequest = new Request(HttpPut.METHOD_NAME, "/" + index);
         String entity = "{\"settings\": " + Strings.toString(settings);
         if (mapping != null) {
             entity += ",\"mappings\" : {" + mapping + "}";
@@ -404,7 +390,7 @@ public class IndexingIT extends AbstractRollingTestCase {
     }
 
     private void createTemplate(String templateName, String indexPattern, String mapping) throws IOException {
-        Request templateRequest = new Request("PUT", "/_template/" + templateName);
+        Request templateRequest = new Request(HttpPut.METHOD_NAME, "/_template/" + templateName);
         String entity = "{\"index_patterns\": \"" + indexPattern + "\"";
         if (mapping != null) {
             entity += ",\"mappings\" : {" + mapping + "}";
@@ -417,7 +403,7 @@ public class IndexingIT extends AbstractRollingTestCase {
     }
 
     private void reindex(String originalIndex, String newIndex) throws IOException {
-        Request reIndexRequest = new Request("POST", "/_reindex/");
+        Request reIndexRequest = new Request(HttpPost.METHOD_NAME, "/_reindex/");
         String entity = "{ \"source\": { \"index\": \"" + originalIndex + "\" }, \"dest\": { \"index\": \"" + newIndex + "\" } }";
         reIndexRequest.setJsonEntity(entity);
         reIndexRequest.addParameter("refresh", "true");
@@ -425,14 +411,14 @@ public class IndexingIT extends AbstractRollingTestCase {
     }
 
     private void assertIndexMapping(String index, String mappings) throws IOException {
-        Request testIndexMappingRequest = new Request("GET", "/" + index + "/_mapping");
+        Request testIndexMappingRequest = new Request(HttpGet.METHOD_NAME, "/" + index + "/_mapping");
         Response testIndexMappingResponse = client().performRequest(testIndexMappingRequest);
         assertEquals("{\""+index+"\":{\"mappings\":{"+mappings+"}}}",
             EntityUtils.toString(testIndexMappingResponse.getEntity(), StandardCharsets.UTF_8));
     }
 
     private void assertCount(String index, int count, Integer totalShards) throws IOException {
-        Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
+        Request searchTestIndexRequest = new Request(HttpPost.METHOD_NAME, "/" + index + "/_search");
         searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
         if (totalShards != null) {
             searchTestIndexRequest.addParameter("filter_path", "hits.total,_shards");
@@ -451,11 +437,11 @@ public class IndexingIT extends AbstractRollingTestCase {
             EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8));
     }
 
-    static final Pattern TYPE_REMOVAL_WARNING = Pattern.compile(
+    private final Pattern TYPE_REMOVAL_WARNING = Pattern.compile(
         "^\\[types removal\\] (.+) include_type_name (.+) is deprecated\\. The parameter will be removed in the next major version\\.$"
     );
 
-    private void useIgnoreTypesRemovalWarningsHandler(Request request) throws IOException {
+    private void useIgnoreTypesRemovalWarningsHandler(Request request) {
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.setWarningsHandler(warnings -> {
             if (warnings.size() > 0) {
@@ -471,19 +457,29 @@ public class IndexingIT extends AbstractRollingTestCase {
         request.setOptions(options);
     }
 
-    protected static void createSnapshot(String repository, String snapshot, boolean waitForCompletion, String indexName) throws IOException {
-        final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot);
-        request.addParameter("wait_for_completion", Boolean.toString(waitForCompletion));
-        if (indexName != null) {
-            String entity = "{\"indices\" : \"" + indexName + "\"}";
-            request.setJsonEntity(entity);
-        }
+    private void createSnapshotIfNotExists(String repository, String snapshot, boolean waitForCompletion, String indexName) throws IOException {
+        final Request getSnapshotsRequest = new Request(HttpGet.METHOD_NAME, "_cat/snapshots/" + repository);
+        final Response getSnapshotsResponse = client().performRequest(getSnapshotsRequest);
+        if (!EntityUtils.toString(getSnapshotsResponse.getEntity(), StandardCharsets.UTF_8).contains(snapshot)) {
+            final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot);
+            request.addParameter("wait_for_completion", Boolean.toString(waitForCompletion));
+            if (indexName != null) {
+                String entity = "{\"indices\" : \"" + indexName + "\"}";
+                request.setJsonEntity(entity);
+            }
 
-        final Response response = client().performRequest(request);
-        assertEquals(
-            "Failed to create snapshot [" + snapshot + "] in repository [" + repository + "]: " + response,
-            response.getStatusLine().getStatusCode(), RestStatus.OK.getStatus()
-        );
+            final Response response = client().performRequest(request);
+            assertEquals(
+                "Failed to create snapshot [" + snapshot + "] in repository [" + repository + "]: " + response,
+                response.getStatusLine().getStatusCode(), RestStatus.OK.getStatus()
+            );
+        }
+    }
+
+    private void waitForClusterGreenStatus() throws IOException {
+        Request waitForGreen = new Request(HttpGet.METHOD_NAME, "/_cluster/health");
+        waitForGreen.addParameter("wait_for_nodes", "3");
+        client().performRequest(waitForGreen);
     }
 
     @Override
