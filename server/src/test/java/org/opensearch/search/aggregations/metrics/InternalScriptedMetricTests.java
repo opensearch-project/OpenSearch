@@ -290,11 +290,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
             original,
             getNamedWriteableRegistry(),
             InternalAggregation.class,
-            VersionUtils.randomVersionBetween(
-                random(),
-                LegacyESVersion.V_7_0_0,
-                VersionUtils.getPreviousReleasedVersion(LegacyESVersion.V_7_8_0)
-            )
+            VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_8_0))
         );
         assertThat(roundTripped, equalTo(original));
 
@@ -315,7 +311,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
                 VersionUtils.randomVersionBetween(
                     random(),
                     LegacyESVersion.V_7_0_0,
-                    VersionUtils.getPreviousReleasedVersion(LegacyESVersion.V_7_8_0)
+                    VersionUtils.getPreviousVersion(LegacyESVersion.V_7_8_0)
                 )
             )
         );

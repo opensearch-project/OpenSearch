@@ -39,7 +39,7 @@ public class DataStreamTemplateTests extends AbstractSerializingTestCase<DataStr
     }
 
     public void testBackwardCompatibleSerialization() throws Exception {
-        Version version = VersionUtils.getPreviousReleasedVersion(Version.V_1_0_0);
+        Version version = VersionUtils.getPreviousVersion(Version.V_1_0_0);
         BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(version);
 

@@ -73,7 +73,7 @@ public class EdgeNGramTokenizerTests extends OpenSearchTokenStreamTestCase {
             Version version = VersionUtils.randomVersionBetween(
                 random(),
                 LegacyESVersion.fromString("7.0.0"),
-                VersionUtils.getPreviousReleasedVersion(LegacyESVersion.fromString("7.3.0"))
+                VersionUtils.getPreviousVersion(LegacyESVersion.fromString("7.3.0"))
             );
             try (IndexAnalyzers indexAnalyzers = buildAnalyzers(version, "edge_ngram")) {
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
@@ -87,7 +87,7 @@ public class EdgeNGramTokenizerTests extends OpenSearchTokenStreamTestCase {
             Version version = VersionUtils.randomVersionBetween(
                 random(),
                 LegacyESVersion.fromString("7.0.0"),
-                VersionUtils.getPreviousReleasedVersion(LegacyESVersion.fromString("7.3.0"))
+                VersionUtils.getPreviousVersion(LegacyESVersion.fromString("7.3.0"))
             );
             try (IndexAnalyzers indexAnalyzers = buildAnalyzers(version, "edgeNGram")) {
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");

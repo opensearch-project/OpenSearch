@@ -449,7 +449,7 @@ public class AnalysisRegistryTests extends OpenSearchTestCase {
         assertWarnings("Using deprecated token filter [deprecated]");
 
         indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.getPreviousReleasedVersion())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.getPreviousVersion())
             .put("index.analysis.filter.deprecated.type", "deprecated_normalizer")
             .putList("index.analysis.normalizer.custom.filter", "lowercase", "deprecated_normalizer")
             .put("index.analysis.filter.deprecated.type", "deprecated")

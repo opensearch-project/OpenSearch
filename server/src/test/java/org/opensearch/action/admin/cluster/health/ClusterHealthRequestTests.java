@@ -78,11 +78,7 @@ public class ClusterHealthRequestTests extends OpenSearchTestCase {
             // Generate a random cluster health request in version < 7.2.0 and serializes it
             final BytesStreamOutput out = new BytesStreamOutput();
             out.setVersion(
-                randomVersionBetween(
-                    random(),
-                    VersionUtils.getFirstVersion(),
-                    VersionUtils.getPreviousReleasedVersion(LegacyESVersion.V_7_2_0)
-                )
+                randomVersionBetween(random(), VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion(LegacyESVersion.V_7_2_0))
             );
 
             final ClusterHealthRequest expected = randomRequest();
@@ -139,11 +135,7 @@ public class ClusterHealthRequestTests extends OpenSearchTestCase {
             // Serialize to node in version < 7.2.0
             final BytesStreamOutput out = new BytesStreamOutput();
             out.setVersion(
-                randomVersionBetween(
-                    random(),
-                    VersionUtils.getFirstVersion(),
-                    VersionUtils.getPreviousReleasedVersion(LegacyESVersion.V_7_2_0)
-                )
+                randomVersionBetween(random(), VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion(LegacyESVersion.V_7_2_0))
             );
             expected.writeTo(out);
 

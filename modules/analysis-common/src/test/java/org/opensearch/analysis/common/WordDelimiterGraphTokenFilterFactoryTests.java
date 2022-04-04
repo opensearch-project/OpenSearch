@@ -211,7 +211,7 @@ public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiter
                     VersionUtils.randomVersionBetween(
                         random(),
                         LegacyESVersion.V_7_0_0,
-                        VersionUtils.getPreviousReleasedVersion(LegacyESVersion.V_7_3_0)
+                        VersionUtils.getPreviousVersion(LegacyESVersion.V_7_3_0)
                     )
                 )
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
