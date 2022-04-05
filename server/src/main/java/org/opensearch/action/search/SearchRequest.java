@@ -251,9 +251,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
             finalReduce = true;
         }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            ccsMinimizeRoundtrips = in.readBoolean();
-        }
+        ccsMinimizeRoundtrips = in.readBoolean();
 
         if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
             cancelAfterTimeInterval = in.readOptionalTimeValue();
@@ -288,9 +286,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             out.writeVLong(absoluteStartMillis);
             out.writeBoolean(finalReduce);
         }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            out.writeBoolean(ccsMinimizeRoundtrips);
-        }
+        out.writeBoolean(ccsMinimizeRoundtrips);
 
         if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
             out.writeOptionalTimeValue(cancelAfterTimeInterval);

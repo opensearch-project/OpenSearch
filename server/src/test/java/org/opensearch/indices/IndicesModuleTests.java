@@ -51,7 +51,6 @@ import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.test.VersionUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -107,9 +106,8 @@ public class IndicesModuleTests extends OpenSearchTestCase {
         {
             Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
             assertFalse(module.getMapperRegistry().getMapperParsers().isEmpty());
-            assertFalse(module.getMapperRegistry().getMetadataMapperParsers(version).isEmpty());
-            Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = module.getMapperRegistry()
-                .getMetadataMapperParsers(version);
+            assertFalse(module.getMapperRegistry().getMetadataMapperParsers().isEmpty());
+            Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = module.getMapperRegistry().getMetadataMapperParsers();
             assertEquals(EXPECTED_METADATA_FIELDS.length, metadataMapperParsers.size());
             int i = 0;
             for (String field : metadataMapperParsers.keySet()) {
@@ -132,11 +130,10 @@ public class IndicesModuleTests extends OpenSearchTestCase {
         MapperRegistry registry = module.getMapperRegistry();
         assertThat(registry.getMapperParsers().size(), greaterThan(noPluginsModule.getMapperRegistry().getMapperParsers().size()));
         assertThat(
-            registry.getMetadataMapperParsers(Version.CURRENT).size(),
-            greaterThan(noPluginsModule.getMapperRegistry().getMetadataMapperParsers(Version.CURRENT).size())
+            registry.getMetadataMapperParsers().size(),
+            greaterThan(noPluginsModule.getMapperRegistry().getMetadataMapperParsers().size())
         );
-        Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = module.getMapperRegistry()
-            .getMetadataMapperParsers(Version.CURRENT);
+        Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = module.getMapperRegistry().getMetadataMapperParsers();
         Iterator<String> iterator = metadataMapperParsers.keySet().iterator();
         assertEquals(IgnoredFieldMapper.NAME, iterator.next());
         String last = null;
@@ -213,15 +210,13 @@ public class IndicesModuleTests extends OpenSearchTestCase {
 
     public void testFieldNamesIsLast() {
         IndicesModule module = new IndicesModule(Collections.emptyList());
-        Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
-        List<String> fieldNames = new ArrayList<>(module.getMapperRegistry().getMetadataMapperParsers(version).keySet());
+        List<String> fieldNames = new ArrayList<>(module.getMapperRegistry().getMetadataMapperParsers().keySet());
         assertEquals(FieldNamesFieldMapper.NAME, fieldNames.get(fieldNames.size() - 1));
     }
 
     public void testFieldNamesIsLastWithPlugins() {
         IndicesModule module = new IndicesModule(fakePlugins);
-        Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
-        List<String> fieldNames = new ArrayList<>(module.getMapperRegistry().getMetadataMapperParsers(version).keySet());
+        List<String> fieldNames = new ArrayList<>(module.getMapperRegistry().getMetadataMapperParsers().keySet());
         assertEquals(FieldNamesFieldMapper.NAME, fieldNames.get(fieldNames.size() - 1));
     }
 

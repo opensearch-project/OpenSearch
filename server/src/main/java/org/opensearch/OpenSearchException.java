@@ -1535,7 +1535,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             org.opensearch.cluster.coordination.CoordinationStateRejectedException.class,
             org.opensearch.cluster.coordination.CoordinationStateRejectedException::new,
             150,
-            LegacyESVersion.V_7_0_0
+            UNKNOWN_VERSION_ADDED
         ),
         SNAPSHOT_IN_PROGRESS_EXCEPTION(
             org.opensearch.snapshots.SnapshotInProgressException.class,

@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
 import org.opensearch.action.admin.indices.close.CloseIndexResponse;
@@ -215,7 +214,7 @@ public class MetadataIndexStateServiceTests extends OpenSearchTestCase {
                             buildNewFakeTransportAddress(),
                             emptyMap(),
                             new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES),
-                            LegacyESVersion.V_7_0_0
+                            Version.V_2_0_0
                         )
                     )
                     .add(
@@ -224,7 +223,7 @@ public class MetadataIndexStateServiceTests extends OpenSearchTestCase {
                             buildNewFakeTransportAddress(),
                             emptyMap(),
                             new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES),
-                            LegacyESVersion.V_7_2_0
+                            Version.V_2_1_0
                         )
                     )
             )

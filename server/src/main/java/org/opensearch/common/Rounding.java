@@ -459,20 +459,13 @@ public abstract class Rounding implements Writeable {
         }
 
         TimeUnitRounding(StreamInput in) throws IOException {
-            this(
-                DateTimeUnit.resolve(in.readByte()),
-                in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0) ? in.readZoneId() : DateUtils.of(in.readString())
-            );
+            this(DateTimeUnit.resolve(in.readByte()), in.readZoneId());
         }
 
         @Override
         public void innerWriteTo(StreamOutput out) throws IOException {
             out.writeByte(unit.getId());
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-                out.writeZoneId(timeZone);
-            } else {
-                out.writeString(DateUtils.zoneIdToDateTimeZone(timeZone).getID());
-            }
+            out.writeZoneId(timeZone);
         }
 
         @Override
@@ -924,17 +917,13 @@ public abstract class Rounding implements Writeable {
         }
 
         TimeIntervalRounding(StreamInput in) throws IOException {
-            this(in.readVLong(), in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0) ? in.readZoneId() : DateUtils.of(in.readString()));
+            this(in.readVLong(), in.readZoneId());
         }
 
         @Override
         public void innerWriteTo(StreamOutput out) throws IOException {
             out.writeVLong(interval);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-                out.writeZoneId(timeZone);
-            } else {
-                out.writeString(DateUtils.zoneIdToDateTimeZone(timeZone).getID());
-            }
+            out.writeZoneId(timeZone);
         }
 
         @Override

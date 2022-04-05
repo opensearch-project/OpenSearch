@@ -485,19 +485,10 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
         filters.add(PreConfiguredTokenFilter.singleton("dutch_stem", false, input -> new SnowballFilter(input, new DutchStemmer())));
         filters.add(PreConfiguredTokenFilter.singleton("edge_ngram", false, false, input -> new EdgeNGramTokenFilter(input, 1)));
         filters.add(PreConfiguredTokenFilter.openSearchVersion("edgeNGram", false, false, (reader, version) -> {
-            if (version.onOrAfter(LegacyESVersion.V_7_0_0)) {
-                throw new IllegalArgumentException(
-                    "The [edgeNGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
-                        + "Please change the filter name to [edge_ngram] instead."
-                );
-            } else {
-                deprecationLogger.deprecate(
-                    "edgeNGram_deprecation",
-                    "The [edgeNGram] token filter name is deprecated and will be removed in a future version. "
-                        + "Please change the filter name to [edge_ngram] instead."
-                );
-            }
-            return new EdgeNGramTokenFilter(reader, 1);
+            throw new IllegalArgumentException(
+                "The [edgeNGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
+                    + "Please change the filter name to [edge_ngram] instead."
+            );
         }));
         filters.add(
             PreConfiguredTokenFilter.singleton("elision", true, input -> new ElisionFilter(input, FrenchAnalyzer.DEFAULT_ARTICLES))
@@ -524,19 +515,10 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
         );
         filters.add(PreConfiguredTokenFilter.singleton("ngram", false, false, reader -> new NGramTokenFilter(reader, 1, 2, false)));
         filters.add(PreConfiguredTokenFilter.openSearchVersion("nGram", false, false, (reader, version) -> {
-            if (version.onOrAfter(LegacyESVersion.V_7_0_0)) {
-                throw new IllegalArgumentException(
-                    "The [nGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
-                        + "Please change the filter name to [ngram] instead."
-                );
-            } else {
-                deprecationLogger.deprecate(
-                    "nGram_deprecation",
-                    "The [nGram] token filter name is deprecated and will be removed in a future version. "
-                        + "Please change the filter name to [ngram] instead."
-                );
-            }
-            return new NGramTokenFilter(reader, 1, 2, false);
+            throw new IllegalArgumentException(
+                "The [nGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
+                    + "Please change the filter name to [ngram] instead."
+            );
         }));
         filters.add(PreConfiguredTokenFilter.singleton("persian_normalization", true, PersianNormalizationFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("porter_stem", false, PorterStemFilter::new));

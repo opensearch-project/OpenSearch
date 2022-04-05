@@ -32,7 +32,6 @@
 
 package org.opensearch.indices.mapper;
 
-import org.opensearch.Version;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MetadataFieldMapper;
 import org.opensearch.index.mapper.NestedPathFieldMapper;
@@ -81,15 +80,15 @@ public final class MapperRegistry {
      * Return a map of the meta mappers that have been registered. The
      * returned map uses the name of the field as a key.
      */
-    public Map<String, MetadataFieldMapper.TypeParser> getMetadataMapperParsers(Version indexCreatedVersion) {
-        return indexCreatedVersion.onOrAfter(Version.V_2_0_0) ? metadataMapperParsers : metadataMapperParsersPre20;
+    public Map<String, MetadataFieldMapper.TypeParser> getMetadataMapperParsers() {
+        return metadataMapperParsers;
     }
 
     /**
      * Returns true if the provided field is a registered metadata field, false otherwise
      */
-    public boolean isMetadataField(Version indexCreatedVersion, String field) {
-        return getMetadataMapperParsers(indexCreatedVersion).containsKey(field);
+    public boolean isMetadataField(String field) {
+        return getMetadataMapperParsers().containsKey(field);
     }
 
     /**

@@ -235,15 +235,12 @@ public class RecoveryIT extends AbstractRollingTestCase {
         assertThat("preference [" + preference + "]", actualDocs, equalTo(expectedCount));
     }
 
-    private String getNodeId(Predicate<Version> versionPredicate) throws IOException {
+    private String getNodeId() throws IOException {
         Response response = client().performRequest(new Request("GET", "_nodes"));
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
         for (String id : nodesAsMap.keySet()) {
-            Version version = Version.fromString(objectPath.evaluate("nodes." + id + ".version"));
-            if (versionPredicate.test(version)) {
-                return id;
-            }
+            return id;
         }
         return null;
     }
@@ -270,8 +267,9 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"));
                 break;
             case MIXED:
-                final String newNode = getNodeId(v -> v.equals(Version.CURRENT));
-                final String oldNode = getNodeId(v -> v.before(Version.CURRENT));
+                // todo: verify this test can be removed in 3.0.0
+                final String newNode = getNodeId();
+                final String oldNode = getNodeId();
                 // remove the replica and guaranteed the primary is placed on the old node
                 updateIndexSettings(index, Settings.builder()
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
@@ -348,7 +346,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 if (randomBoolean()) {
                     indexDocs(index, i, 1); // update
                 } else if (randomBoolean()) {
-                    if (getNodeId(v -> v.onOrAfter(LegacyESVersion.V_7_0_0)) == null) {
+                    if (getNodeId() == null) {
                         client().performRequest(new Request("DELETE", index + "/test/" + i));
                     } else {
                         client().performRequest(new Request("DELETE", index + "/_doc/" + i));

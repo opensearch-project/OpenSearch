@@ -32,8 +32,6 @@
 
 package org.opensearch.common.joda;
 
-import org.opensearch.LegacyESVersion;
-import org.opensearch.Version;
 import org.opensearch.common.Strings;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.time.DateFormatter;

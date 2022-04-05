@@ -34,7 +34,6 @@ package org.opensearch.analysis.common;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ngram.NGramTokenFilter;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
@@ -54,25 +53,15 @@ public class NGramTokenFilterFactory extends AbstractTokenFilterFactory {
         this.maxGram = settings.getAsInt("max_gram", 2);
         int ngramDiff = maxGram - minGram;
         if (ngramDiff > maxAllowedNgramDiff) {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(LegacyESVersion.V_7_0_0)) {
-                throw new IllegalArgumentException(
-                    "The difference between max_gram and min_gram in NGram Tokenizer must be less than or equal to: ["
-                        + maxAllowedNgramDiff
-                        + "] but was ["
-                        + ngramDiff
-                        + "]. This limit can be set by changing the ["
-                        + IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey()
-                        + "] index level setting."
-                );
-            } else {
-                deprecationLogger.deprecate(
-                    "ngram_big_difference",
-                    "Deprecated big difference between max_gram and min_gram in NGram Tokenizer,"
-                        + "expected difference must be less than or equal to: ["
-                        + maxAllowedNgramDiff
-                        + "]"
-                );
-            }
+            throw new IllegalArgumentException(
+                "The difference between max_gram and min_gram in NGram Tokenizer must be less than or equal to: ["
+                    + maxAllowedNgramDiff
+                    + "] but was ["
+                    + ngramDiff
+                    + "]. This limit can be set by changing the ["
+                    + IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey()
+                    + "] index level setting."
+            );
         }
         preserveOriginal = settings.getAsBoolean(PRESERVE_ORIG_KEY, false);
     }
