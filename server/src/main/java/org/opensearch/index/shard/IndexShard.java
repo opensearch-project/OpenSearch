@@ -305,8 +305,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final CheckpointRefreshListener checkpointRefreshListener;
 
-    private volatile ReplicationCheckpoint latestUnprocessedCheckpoint;
-    private volatile long latestSeqNo;
+    private volatile ReplicationCheckpoint latestReceivedCheckpoint;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -1447,7 +1446,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             this.shardId,
             getOperationPrimaryTerm(),
             latestSegmentInfos.getGeneration(),
-            Math.max(getProcessedLocalCheckpoint(), latestSeqNo),
+            getProcessedLocalCheckpoint(),
             latestSegmentInfos.getVersion()
         );
     }
@@ -3660,30 +3659,28 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final ReplicationCheckpoint requestCheckpoint = request.getCheckpoint();
         logger.debug("Checkpoint received {}", requestCheckpoint);
 
-        if (requestCheckpoint.isAheadOf(latestUnprocessedCheckpoint)) {
-            latestUnprocessedCheckpoint = requestCheckpoint;
+        if (requestCheckpoint.isAheadOf(latestReceivedCheckpoint)) {
+            latestReceivedCheckpoint = requestCheckpoint;
         }
 
-        if (isValidCheckpoint(requestCheckpoint) == false) return;
+        if (shouldProcessCheckpoint(requestCheckpoint) == false) return;
         try {
-            final ReplicationCheckpoint checkpoint = requestCheckpoint;
-            logger.debug("Processing new checkpoint {}", checkpoint);
+            logger.debug("Processing new checkpoint {}", requestCheckpoint);
             segmentReplicationReplicaService.startReplication(
-                checkpoint,
+                requestCheckpoint,
                 this,
                 source,
                 new SegmentReplicationReplicaService.SegmentReplicationListener() {
                     @Override
                     public void onReplicationDone(SegmentReplicationState state) {
-                        latestSeqNo = requestCheckpoint.getSeqNo();
                         logger.debug("Replication complete to {}", getLatestReplicationCheckpoint());
                         // if we received a checkpoint during the copy event that is ahead of this
                         // try and process it.
-                        if (latestUnprocessedCheckpoint.isAheadOf(getLatestReplicationCheckpoint())) {
+                        if (latestReceivedCheckpoint.isAheadOf(getLatestReplicationCheckpoint())) {
                             threadPool.generic()
                                 .execute(
                                     () -> onNewCheckpoint(
-                                        new PublishCheckpointRequest(latestUnprocessedCheckpoint),
+                                        new PublishCheckpointRequest(latestReceivedCheckpoint),
                                         source,
                                         segmentReplicationReplicaService
                                     )
@@ -3706,19 +3703,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    private boolean isValidCheckpoint(ReplicationCheckpoint requestCheckpoint) {
+    private boolean shouldProcessCheckpoint(ReplicationCheckpoint requestCheckpoint) {
         ReplicationCheckpoint localCheckpoint = getLatestReplicationCheckpoint();
         logger.debug("Local Checkpoint {}", getLatestReplicationCheckpoint());
-        if (localCheckpoint.equals(requestCheckpoint)) {
-            logger.debug("Ignore - Shard is already on checkpoint");
-            return false;
-        }
         if (state.equals(IndexShardState.STARTED) == false) {
             logger.debug("Ignore - shard is not started {} {}", recoveryState.getStage(), this.state);
             return false;
         }
         if (isReplicating()) {
             logger.debug("Ignore - shard is currently replicating to a checkpoint");
+            return false;
+        }
+        if (localCheckpoint.isAheadOf(requestCheckpoint)) {
+            logger.debug("Ignore - Shard is already on checkpoint {} that is ahead of {}", localCheckpoint, requestCheckpoint);
+            return false;
+        }
+        if (localCheckpoint.equals(requestCheckpoint)) {
+            logger.debug("Ignore - Shard is already on checkpoint {}", requestCheckpoint);
             return false;
         }
         return true;

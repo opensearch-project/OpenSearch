@@ -11,7 +11,6 @@ package org.opensearch.indices.replication;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.junit.Assert;
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.admin.indices.segments.IndexSegments;
 import org.opensearch.action.admin.indices.segments.IndexShardSegments;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
@@ -28,7 +27,6 @@ import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -179,45 +177,47 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         client().admin().indices().segments(new IndicesSegmentsRequest(), new ActionListener<>() {
             @Override
             public void onResponse(IndicesSegmentResponse indicesSegmentResponse) {
-                final Map<String, IndexSegments> indices = indicesSegmentResponse.getIndices();
-                for (Map.Entry<String, IndexSegments> indexSegmentsEntry : indices.entrySet()) {
-                    final IndexSegments value = indexSegmentsEntry.getValue();
-                    final Map<Integer, IndexShardSegments> shardGroup = value.getShards();
-                    for (IndexShardSegments shardEntry : shardGroup.values()) {
-                        // get a list of segments across the whole replication group.
-                        final ShardSegments[] shardSegments = shardEntry.getShards();
 
-                        // separate Primary & replica shards ShardSegments.
-                        final Map<Boolean, List<ShardSegments>> segmentListMap = Arrays.stream(shardSegments)
-                            .collect(Collectors.groupingBy(s -> s.getShardRouting().primary()));
-                        final Optional<ShardSegments> primaryOptional = segmentListMap.get(true).stream().findFirst();
-                        assertTrue("Primary segment list is present", primaryOptional.isPresent());
-                        final ShardSegments primaryShardSegments = primaryOptional.get();
-                        final List<ShardSegments> replicaShardSegments = segmentListMap.get(false);
+                List<ShardSegments[]> segmentsByIndex = indicesSegmentResponse.getIndices()
+                    .values()
+                    .stream() // get list of IndexSegments
+                    .flatMap(is -> is.getShards().values().stream()) // Map to shard replication group
+                    .map(IndexShardSegments::getShards) // get list of segments across replication group
+                    .collect(Collectors.toList());
 
-                        // create a map of the primary's segments keyed by segment name, allowing us to compare the same segment found on
-                        // replicas.
-                        final Map<String, Segment> primarySegmentsMap = primaryShardSegments.getSegments()
-                            .stream()
-                            .collect(Collectors.toMap(Segment::getName, Function.identity()));
+                // There will be an entry in the list for each index.
+                for (ShardSegments[] replicationGroupSegments : segmentsByIndex) {
 
-                        // For every replica, ensure that its segments are in the same state as on the primary.
-                        // It is possible the primary has not cleaned up old segments that are not required on replicas, so we can't do a
-                        // list comparison.
-                        // This equality check includes search/committed properties on the Segment. Combined with docCount checks,
-                        // this ensures are replica has correctly copied the latest segments and has all segments referenced by the latest
-                        // commit point, even if they are not searchable.
-                        assertEquals(
-                            "There should be a ShardSegment entry for each replica in the replicationGroup",
-                            numberOfReplicas,
-                            replicaShardSegments.size()
-                        );
-                        for (ShardSegments shardSegment : replicaShardSegments) {
-                            final List<Segment> segments = shardSegment.getSegments();
-                            for (Segment replicaSegment : segments) {
-                                final Segment primarySegment = primarySegmentsMap.get(replicaSegment.getName());
-                                assertEquals(replicaSegment, primarySegment);
-                            }
+                    // Separate Primary & replica shards ShardSegments.
+                    final Map<Boolean, List<ShardSegments>> segmentListMap = Arrays.stream(replicationGroupSegments)
+                        .collect(Collectors.groupingBy(s -> s.getShardRouting().primary()));
+                    final List<ShardSegments> primaryShardSegmentsList = segmentListMap.get(true);
+                    final List<ShardSegments> replicaShardSegments = segmentListMap.get(false);
+
+                    assertEquals("There should only be one primary in the replicationGroup", primaryShardSegmentsList.size(), 1);
+                    final ShardSegments primaryShardSegments = primaryShardSegmentsList.stream().findFirst().get();
+
+                    // create a map of the primary's segments keyed by segment name, allowing us to compare the same segment found on
+                    // replicas.
+                    final Map<String, Segment> primarySegmentsMap = primaryShardSegments.getSegments()
+                        .stream()
+                        .collect(Collectors.toMap(Segment::getName, Function.identity()));
+                    // For every replica, ensure that its segments are in the same state as on the primary.
+                    // It is possible the primary has not cleaned up old segments that are not required on replicas, so we can't do a
+                    // list comparison.
+                    // This equality check includes search/committed properties on the Segment. Combined with docCount checks,
+                    // this ensures the replica has correctly copied the latest segments and has all segments referenced by the latest
+                    // commit point, even if they are not searchable.
+                    assertEquals(
+                        "There should be a ShardSegment entry for each replica in the replicationGroup",
+                        numberOfReplicas,
+                        replicaShardSegments.size()
+                    );
+
+                    for (ShardSegments shardSegment : replicaShardSegments) {
+                        for (Segment replicaSegment : shardSegment.getSegments()) {
+                            final Segment primarySegment = primarySegmentsMap.get(replicaSegment.getName());
+                            assertEquals("Replica's segment should be identical to primary's version", replicaSegment, primarySegment);
                         }
                     }
                 }
