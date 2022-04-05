@@ -851,13 +851,7 @@ public class MetadataCreateIndexService {
             indexSettingsBuilder.put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion);
         }
         if (INDEX_NUMBER_OF_SHARDS_SETTING.exists(indexSettingsBuilder) == false) {
-            final int numberOfShards;
-            if (INDEX_NUMBER_OF_SHARDS_SETTING.exists(settings)) {
-                numberOfShards = INDEX_NUMBER_OF_SHARDS_SETTING.get(settings);
-            } else {
-                numberOfShards = getNumberOfShards(indexSettingsBuilder);
-            }
-            indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards);
+            indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, INDEX_NUMBER_OF_SHARDS_SETTING.get(settings));
         }
         if (INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettingsBuilder) == false) {
             indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings));
@@ -913,21 +907,6 @@ public class MetadataCreateIndexService {
                     + "or other file systems instead."
             );
         }
-    }
-
-    static int getNumberOfShards(final Settings.Builder indexSettingsBuilder) {
-        // TODO: this logic can be removed when the current major version is 8
-        assert Version.CURRENT.major == 1 || Version.CURRENT.major == 2;
-        final int numberOfShards;
-        final Version indexVersionCreated = Version.fromId(
-            Integer.parseInt(indexSettingsBuilder.get(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey()))
-        );
-        if (indexVersionCreated.before(LegacyESVersion.V_7_0_0)) {
-            numberOfShards = 5;
-        } else {
-            numberOfShards = INDEX_NUMBER_OF_SHARDS_SETTING.getDefault(Settings.EMPTY);
-        }
-        return numberOfShards;
     }
 
     /**
