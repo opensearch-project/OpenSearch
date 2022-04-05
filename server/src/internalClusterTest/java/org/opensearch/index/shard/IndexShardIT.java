@@ -247,7 +247,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
 
     public void testIndexDirIsDeletedWhenShardRemoved() throws Exception {
         Environment env = getInstanceFromNode(Environment.class);
-        Path idxPath = env.sharedDataFile().resolve(randomAlphaOfLength(10));
+        Path idxPath = env.sharedDataDir().resolve(randomAlphaOfLength(10));
         logger.info("--> idxPath: [{}]", idxPath);
         Settings idxSettings = Settings.builder().put(IndexMetadata.SETTING_DATA_PATH, idxPath).build();
         createIndex("test", idxSettings);
@@ -282,7 +282,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
 
     public void testIndexCanChangeCustomDataPath() throws Exception {
         final String index = "test-custom-data-path";
-        final Path sharedDataPath = getInstanceFromNode(Environment.class).sharedDataFile().resolve(randomAsciiLettersOfLength(10));
+        final Path sharedDataPath = getInstanceFromNode(Environment.class).sharedDataDir().resolve(randomAsciiLettersOfLength(10));
         final Path indexDataPath = sharedDataPath.resolve("start-" + randomAsciiLettersOfLength(10));
 
         logger.info("--> creating index [{}] with data_path [{}]", index, indexDataPath);
