@@ -90,7 +90,7 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
-import static org.opensearch.tasks.TaskManager.TASK_ID;
+import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
 
 public class TransportTasksActionTests extends TaskManagerTestCase {
 
@@ -651,6 +651,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         assertEquals(0, responses.failureCount());
     }
 
+/*
     public void testTaskIdPersistsInThreadContext() {
         Settings settings = Settings.builder().put(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.getKey(), true).build();
         setupTestNodes(settings);
@@ -699,6 +700,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         assertEquals(expectedTaskIdInThreadContext[0], actualTaskIdInThreadContext[0]);
         assertThat(taskIdsAddedToThreadContext, containsInAnyOrder(taskIdsRemovedFromThreadContext.toArray()));
     }
+*/
 
     /**
      * This test starts nodes actions that blocks on all nodes. While node actions are blocked in the middle of execution

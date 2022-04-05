@@ -82,7 +82,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
 
     public void processMessageReceived(Request request, TransportChannel channel) throws Exception {
         final Task task = taskManager.register(channel.getChannelType(), action, request);
-        ThreadContext.StoredContext storedContext = taskManager.addTaskIdInThreadContext(task);
+        ThreadContext.StoredContext storedContext = taskManager.taskExecutionStarted(task);
 
         Releasable unregisterTask = () -> taskManager.unregister(task);
         try {

@@ -16,7 +16,7 @@ import org.opensearch.common.util.concurrent.WrappedRunnable;
 import java.util.Objects;
 
 import static java.lang.Thread.currentThread;
-import static org.opensearch.tasks.TaskManager.TASK_ID;
+import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
 
 /**
  * Responsible for wrapping the original task's runnable and sending updates on when it starts and finishes to

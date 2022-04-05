@@ -66,7 +66,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
 import static org.mockito.Mockito.mock;
-import static org.opensearch.tasks.TaskManager.TASK_ID;
+import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
 
 public class TaskManagerTests extends OpenSearchTestCase {
     private ThreadPool threadPool;
@@ -96,7 +96,7 @@ public class TaskManagerTests extends OpenSearchTestCase {
         assertEquals(600000L, total);
     }
 
-    public void testAddTaskIdToThreadContext() {
+ /*   public void testAddTaskIdToThreadContext() {
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         final Task task = taskManager.register("transport", "test", new CancellableRequest("1"));
         String key = "KEY";
@@ -107,7 +107,7 @@ public class TaskManagerTests extends OpenSearchTestCase {
         threadPool.getThreadContext().putTransient(key, value);
         threadPool.getThreadContext().addResponseHeader(key, value);
 
-        ThreadContext.StoredContext storedContext = taskManager.addTaskIdInThreadContext(task);
+        ThreadContext.StoredContext storedContext = taskManager.taskExecutionStarted(task);
 
         // All headers should be preserved and Task Id should also be included in thread context
         verifyThreadContextFixedHeaders(key, value);
@@ -118,7 +118,7 @@ public class TaskManagerTests extends OpenSearchTestCase {
         // Post restore only task id should be removed from the thread context
         verifyThreadContextFixedHeaders(key, value);
         assertNull(threadPool.getThreadContext().getTransient(TASK_ID));
-    }
+    }*/
 
     private void verifyThreadContextFixedHeaders(String key, String value) {
         assertEquals(threadPool.getThreadContext().getHeader(key), value);

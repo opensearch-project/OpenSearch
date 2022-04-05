@@ -229,7 +229,7 @@ public abstract class TaskManagerTestCase extends OpenSearchTestCase {
             transportService.start();
             clusterService = createClusterService(threadPool, discoveryNode.get());
             clusterService.addStateApplier(transportService.getTaskManager());
-            taskResourceTrackingService = new TaskResourceTrackingService(settings, clusterService.getClusterSettings());
+            taskResourceTrackingService = new TaskResourceTrackingService(settings, clusterService.getClusterSettings(), threadPool);
             transportService.getTaskManager().setTaskResourceTrackingService(taskResourceTrackingService);
             ActionFilters actionFilters = new ActionFilters(emptySet());
             transportListTasksAction = new TransportListTasksAction(clusterService, transportService, actionFilters);

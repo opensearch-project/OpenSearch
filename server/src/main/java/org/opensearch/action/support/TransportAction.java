@@ -89,31 +89,39 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
          */
         final Releasable unregisterChildNode = registerChildNode(request.getParentTask());
         final Task task;
+
         try {
             task = taskManager.register("transport", actionName, request);
         } catch (TaskCancelledException e) {
             unregisterChildNode.close();
             throw e;
         }
-        execute(task, request, new ActionListener<Response>() {
-            @Override
-            public void onResponse(Response response) {
-                try {
-                    Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
-                } finally {
-                    listener.onResponse(response);
-                }
-            }
 
-            @Override
-            public void onFailure(Exception e) {
-                try {
-                    Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
-                } finally {
-                    listener.onFailure(e);
+        ThreadContext.StoredContext storedContext = taskManager.taskExecutionStarted(task);
+        try {
+            execute(task, request, new ActionListener<Response>() {
+                @Override
+                public void onResponse(Response response) {
+                    try {
+                        Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
+                    } finally {
+                        listener.onResponse(response);
+                    }
                 }
-            }
-        });
+
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
+                    } finally {
+                        listener.onFailure(e);
+                    }
+                }
+            });
+        } finally {
+            storedContext.close();
+        }
+
         return task;
     }
 
@@ -156,25 +164,18 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
      * Use this method when the transport action should continue to run in the context of the current task
      */
     public final void execute(Task task, Request request, ActionListener<Response> listener) {
-        ThreadContext.StoredContext storedContext = taskManager.addTaskIdInThreadContext(task);
-
-        try {
-            ActionRequestValidationException validationException = request.validate();
-            if (validationException != null) {
-                listener.onFailure(validationException);
-                return;
-            }
-
-            if (task != null && request.getShouldStoreResult()) {
-                listener = new TaskResultStoringActionListener<>(taskManager, task, listener);
-            }
-
-            RequestFilterChain<Request, Response> requestFilterChain = new RequestFilterChain<>(this, logger);
-            requestFilterChain.proceed(task, actionName, request, listener);
-
-        } finally {
-            storedContext.restore();
+        ActionRequestValidationException validationException = request.validate();
+        if (validationException != null) {
+            listener.onFailure(validationException);
+            return;
         }
+
+        if (task != null && request.getShouldStoreResult()) {
+            listener = new TaskResultStoringActionListener<>(taskManager, task, listener);
+        }
+
+        RequestFilterChain<Request, Response> requestFilterChain = new RequestFilterChain<>(this, logger);
+        requestFilterChain.proceed(task, actionName, request, listener);
     }
 
     protected abstract void doExecute(Task task, Request request, ActionListener<Response> listener);

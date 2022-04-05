@@ -1064,7 +1064,8 @@ public class Node implements Closeable {
 
         TaskResourceTrackingService taskResourceTrackingService = new TaskResourceTrackingService(
             settings(),
-            clusterService.getClusterSettings()
+            clusterService.getClusterSettings(),
+            injector.getInstance(ThreadPool.class)
         );
         transportService.getTaskManager().setTaskResourceTrackingService(taskResourceTrackingService);
 

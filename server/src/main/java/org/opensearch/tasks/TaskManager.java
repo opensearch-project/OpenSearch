@@ -86,8 +86,6 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_
  */
 public class TaskManager implements ClusterStateApplier {
 
-    public static final String TASK_ID = "TASK_ID";
-
     private static final Logger logger = LogManager.getLogger(TaskManager.class);
 
     private static final TimeValue WAIT_FOR_COMPLETION_POLL = timeValueMillis(100);
@@ -159,9 +157,6 @@ public class TaskManager implements ClusterStateApplier {
         if (logger.isTraceEnabled()) {
             logger.trace("register {} [{}] [{}] [{}]", task.getId(), type, action, task.getDescription());
         }
-        if (task.supportsResourceTracking()) {
-            taskResourceTrackingService.get().registerTask(task);
-        }
 
         if (task instanceof CancellableTask) {
             registerCancellableTask(task);
@@ -217,7 +212,7 @@ public class TaskManager implements ClusterStateApplier {
         logger.trace("unregister task for id: {}", task.getId());
 
         if (task.supportsResourceTracking()) {
-            taskResourceTrackingService.get().unregisterTask(task);
+            taskResourceTrackingService.get().stopTracking(task);
         }
 
         if (task instanceof CancellableTask) {
@@ -467,35 +462,8 @@ public class TaskManager implements ClusterStateApplier {
         throw new OpenSearchTimeoutException("Timed out waiting for completion of [{}]", task);
     }
 
-    /**
-     * Adds Task Id in the ThreadContext.
-     * <p>
-     * Stashes the existing ThreadContext and preserves all the existing ThreadContext's data in the new ThreadContext
-     * as well.
-     *
-     * @param task for which Task Id needs to be added in ThreadContext.
-     * @return StoredContext reference to restore the ThreadContext from which we created a new one.
-     * Caller can call context.restore() to get the existing ThreadContext back.
-     */
-    public ThreadContext.StoredContext addTaskIdInThreadContext(@Nullable Task task) {
-        if (task == null) {
-            return () -> {};
-        }
-
-        ThreadContext threadContext = threadPool.getThreadContext();
-
-        if (threadContext.getTransient(TASK_ID) != null) {
-            logger.warn(
-                "Task Id already present in the thread context. Thread Id: {}, Existing Task Id: {}, New Task Id: {}. Overwriting",
-                Thread.currentThread().getId(),
-                threadContext.getTransient(TASK_ID),
-                task.getId()
-            );
-        }
-
-        ThreadContext.StoredContext storedContext = threadContext.newStoredContext(true, Collections.singletonList(TASK_ID));
-        threadContext.putTransient(TASK_ID, task.getId());
-        return storedContext;
+    public ThreadContext.StoredContext taskExecutionStarted(Task task) {
+        return taskResourceTrackingService.get().startTracking(task);
     }
 
     public void refreshTasksInfo(Task... tasks) {

@@ -9,12 +9,16 @@
 package org.opensearch.tasks;
 
 import com.sun.management.ThreadMXBean;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.lang.management.ManagementFactory;
 import java.util.Collections;
@@ -28,19 +32,25 @@ import static org.opensearch.tasks.ResourceStatsType.WORKER_STATS;
  */
 public class TaskResourceTrackingService implements RunnableTaskExecutionListener {
 
+    private static final Logger logger = LogManager.getLogger(TaskManager.class);
+
     public static final Setting<Boolean> TASK_RESOURCE_TRACKING_ENABLED = Setting.boolSetting(
         "task_resource_tracking.enabled",
         false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    public static final String TASK_ID = "TASK_ID";
+
     private static final ThreadMXBean threadMXBean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
 
-    private final ConcurrentMapLong<Task> resourceAwareTasks = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
+    public final ConcurrentMapLong<Task> resourceAwareTasks = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
     private volatile boolean taskResourceTrackingEnabled;
+    private ThreadPool threadPool;
 
-    public TaskResourceTrackingService(Settings settings, ClusterSettings clusterSettings) {
+    public TaskResourceTrackingService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         this.taskResourceTrackingEnabled = TASK_RESOURCE_TRACKING_ENABLED.get(settings);
+        this.threadPool = threadPool;
 
         clusterSettings.addSettingsUpdateConsumer(TASK_RESOURCE_TRACKING_ENABLED, this::setTaskResourceTrackingEnabled);
     }
@@ -51,31 +61,44 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
             && threadMXBean.isThreadAllocatedMemoryEnabled();
     }
 
-    public void registerTask(Task task) {
-        if (isTaskResourceTrackingEnabled()) {
-            resourceAwareTasks.put(task.getId(), task);
+    public ThreadContext.StoredContext startTracking(Task task) {
+        if (task.supportsResourceTracking() == false || isTaskResourceTrackingEnabled() == false) {
+            return () -> {};
         }
+
+        resourceAwareTasks.put(task.getId(), task);
+        return addTaskIdToThreadContext(task);
+
     }
 
     /**
      * unregisters tasks registered earlier.
-     *
+     * <p>
      * It doesn't have feature enabled check to avoid any issues if setting was disable while the task was in progress.
-     *
+     * <p>
      * It's also responsible to stop tracking the current thread's resources against this task if not already done.
      * This happens when the thread handling the request itself calls the unregister method. So in this case unregister
      * happens before runnable finishes.
      *
      * @param task
      */
-    public void unregisterTask(Task task) {
-        if (!resourceAwareTasks.containsKey(task.getId())) {
-            return;
-        }
+    public void stopTracking(Task task) {
         if (isThreadWorkingOnTask(task, Thread.currentThread().getId())) {
             taskExecutionFinishedOnThread(task.getId(), Thread.currentThread().getId());
         }
-        resourceAwareTasks.remove(task.getId(), task);
+
+        assert validateNoActiveThread(task) : "No thread should be active when task is finished";
+
+        resourceAwareTasks.remove(task.getId());
+    }
+
+    private boolean validateNoActiveThread(Task task) {
+        for (List<ThreadResourceInfo> threadResourceInfos : task.getResourceStats().values()) {
+            for (ThreadResourceInfo threadResourceInfo : threadResourceInfos) {
+                if (threadResourceInfo.isActive()) return false;
+            }
+        }
+        return true;
     }
 
     public void refreshResourceStats(Task... tasks) {
@@ -154,4 +177,27 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
         }
         return false;
     }
+
+    /**
+     * Adds Task Id in the ThreadContext.
+     * <p>
+     * Stashes the existing ThreadContext and preserves all the existing ThreadContext's data in the new ThreadContext
+     * as well.
+     *
+     * @param task for which Task Id needs to be added in ThreadContext.
+     * @return StoredContext reference to restore the ThreadContext from which we created a new one.
+     * Caller can call context.restore() to get the existing ThreadContext back.
+     */
+    private ThreadContext.StoredContext addTaskIdToThreadContext(Task task) {
+        ThreadContext threadContext = threadPool.getThreadContext();
+
+        boolean noStaleTaskIdPresentInThreadContext = threadContext.getTransient(TASK_ID) == null
+            || resourceAwareTasks.containsKey((long) threadContext.getTransient(TASK_ID));
+        assert noStaleTaskIdPresentInThreadContext : "Stale Task Id shouldn't be present in thread context";
+
+        ThreadContext.StoredContext storedContext = threadContext.newStoredContext(true, Collections.singletonList(TASK_ID));
+        threadContext.putTransient(TASK_ID, task.getId());
+        return storedContext;
+    }
+
 }
