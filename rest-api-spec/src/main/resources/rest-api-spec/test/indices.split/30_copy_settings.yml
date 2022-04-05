@@ -49,10 +49,7 @@
             index.merge.scheduler.max_thread_count: 2
       allowed_warnings:
         - "parameter [copy_settings] is deprecated and will be removed in 8.0.0"
-        - "Deprecated parameter [master_timeout] used. 
-        To promote inclusive language, please use [cluster_manager_timeout] instead. 
-        It will be unsupported in a future major version."
-
+        - "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version."
 
   - do:
       cluster.health:
