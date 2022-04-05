@@ -1,6 +1,8 @@
 ---
 "tasks_list test":
   - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/opensearch-project/OpenSearch/issues/2757"
       features: [arbitrary_key]
 
   - do:
@@ -32,4 +34,3 @@
 
   - is_true: tasks
   - match: { tasks.0.headers.X-Opaque-Id: "That is me" }
-
