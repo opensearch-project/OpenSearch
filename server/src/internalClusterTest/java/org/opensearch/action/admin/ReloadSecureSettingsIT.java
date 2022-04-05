@@ -77,7 +77,7 @@ public class ReloadSecureSettingsIT extends OpenSearchIntegTestCase {
         final Environment environment = internalCluster().getInstance(Environment.class);
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
         // keystore file should be missing for this test case
-        Files.deleteIfExists(KeyStoreWrapper.keystorePath(environment.configFile()));
+        Files.deleteIfExists(KeyStoreWrapper.keystorePath(environment.configDir()));
         final int initialReloadCount = mockReloadablePlugin.getReloadCount();
         final CountDownLatch latch = new CountDownLatch(1);
         final SecureString emptyPassword = randomBoolean() ? new SecureString(new char[0]) : null;
@@ -130,10 +130,10 @@ public class ReloadSecureSettingsIT extends OpenSearchIntegTestCase {
         final int initialReloadCount = mockReloadablePlugin.getReloadCount();
         // invalid "keystore" file should be present in the config dir
         try (InputStream keystore = ReloadSecureSettingsIT.class.getResourceAsStream("invalid.txt.keystore")) {
-            if (Files.exists(environment.configFile()) == false) {
-                Files.createDirectory(environment.configFile());
+            if (Files.exists(environment.configDir()) == false) {
+                Files.createDirectory(environment.configDir());
             }
-            Files.copy(keystore, KeyStoreWrapper.keystorePath(environment.configFile()), StandardCopyOption.REPLACE_EXISTING);
+            Files.copy(keystore, KeyStoreWrapper.keystorePath(environment.configDir()), StandardCopyOption.REPLACE_EXISTING);
         }
         final CountDownLatch latch = new CountDownLatch(1);
         final SecureString emptyPassword = randomBoolean() ? new SecureString(new char[0]) : null;
@@ -452,7 +452,7 @@ public class ReloadSecureSettingsIT extends OpenSearchIntegTestCase {
     private SecureSettings writeEmptyKeystore(Environment environment, char[] password) throws Exception {
         final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
         try {
-            keyStoreWrapper.save(environment.configFile(), password);
+            keyStoreWrapper.save(environment.configDir(), password);
         } catch (final AccessControlException e) {
             if (e.getPermission() instanceof RuntimePermission && e.getPermission().getName().equals("accessUserInformation")) {
                 // this is expected: the save method is extra diligent and wants to make sure

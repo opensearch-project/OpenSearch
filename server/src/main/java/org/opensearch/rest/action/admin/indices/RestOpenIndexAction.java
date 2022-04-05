@@ -37,6 +37,7 @@ import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -49,6 +50,8 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
 public class RestOpenIndexAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestOpenIndexAction.class);
 
     @Override
     public List<Route> routes() {
@@ -64,7 +67,8 @@ public class RestOpenIndexAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         OpenIndexRequest openIndexRequest = new OpenIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
         openIndexRequest.timeout(request.paramAsTime("timeout", openIndexRequest.timeout()));
-        openIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", openIndexRequest.masterNodeTimeout()));
+        openIndexRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", openIndexRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(openIndexRequest, request, deprecationLogger, getName());
         openIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, openIndexRequest.indicesOptions()));
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {

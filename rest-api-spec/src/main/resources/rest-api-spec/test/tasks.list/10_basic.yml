@@ -32,4 +32,3 @@
 
   - is_true: tasks
   - match: { tasks.0.headers.X-Opaque-Id: "That is me" }
-

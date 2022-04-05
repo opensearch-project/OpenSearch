@@ -37,6 +37,7 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Strings;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -48,6 +49,8 @@ import java.util.List;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
 public class RestAddIndexBlockAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestAddIndexBlockAction.class);
 
     @Override
     public List<Route> routes() {
@@ -65,7 +68,8 @@ public class RestAddIndexBlockAction extends BaseRestHandler {
             IndexMetadata.APIBlock.fromName(request.param("block")),
             Strings.splitStringByCommaToArray(request.param("index"))
         );
-        addIndexBlockRequest.masterNodeTimeout(request.paramAsTime("master_timeout", addIndexBlockRequest.masterNodeTimeout()));
+        addIndexBlockRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", addIndexBlockRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(addIndexBlockRequest, request, deprecationLogger, getName());
         addIndexBlockRequest.timeout(request.paramAsTime("timeout", addIndexBlockRequest.timeout()));
         addIndexBlockRequest.indicesOptions(IndicesOptions.fromRequest(request, addIndexBlockRequest.indicesOptions()));
         return channel -> client.admin().indices().addBlock(addIndexBlockRequest, new RestToXContentListener<>(channel));

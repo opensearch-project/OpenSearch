@@ -47,7 +47,7 @@ public class UpgradeKeyStoreCommand extends BaseKeyStoreCommand {
 
     @Override
     protected void executeCommand(final Terminal terminal, final OptionSet options, final Environment env) throws Exception {
-        KeyStoreWrapper.upgrade(getKeyStore(), env.configFile(), getKeyStorePassword().getChars());
+        KeyStoreWrapper.upgrade(getKeyStore(), env.configDir(), getKeyStorePassword().getChars());
     }
 
 }

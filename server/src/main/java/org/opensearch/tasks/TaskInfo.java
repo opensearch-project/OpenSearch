@@ -142,7 +142,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         }
         parentTaskId = TaskId.readFromStream(in);
         headers = in.readMap(StreamInput::readString, StreamInput::readString);
-        if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_1_0)) {
             resourceStats = in.readOptionalWriteable(TaskResourceStats::new);
         } else {
             resourceStats = null;
@@ -164,7 +164,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         }
         parentTaskId.writeTo(out);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
-        if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_1_0)) {
             out.writeOptionalWriteable(resourceStats);
         }
     }
