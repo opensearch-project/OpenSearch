@@ -3,7 +3,7 @@
   - skip:
       version: " - 7.3.99"
       reason: index cloning was added in 7.4.0
-      features: [arbitrary_key]
+      features: [arbitrary_key, allowed_warnings]
 
   - do:
       nodes.info:
@@ -36,6 +36,8 @@
 
   # now we do an actual clone and copy settings
   - do:
+      allowed_warnings:
+        - "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version."
       indices.clone:
         index: "source"
         target: "copy-settings-target"
