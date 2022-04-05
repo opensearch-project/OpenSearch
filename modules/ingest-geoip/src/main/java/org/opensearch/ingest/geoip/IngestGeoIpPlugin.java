@@ -82,7 +82,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable
             throw new IllegalStateException("getProcessors called twice for geoip plugin!!");
         }
         final Path geoIpDirectory = getGeoIpDirectory(parameters);
-        final Path geoIpConfigDirectory = parameters.env.configFile().resolve("ingest-geoip");
+        final Path geoIpConfigDirectory = parameters.env.configDir().resolve("ingest-geoip");
         long cacheSize = CACHE_SIZE.get(parameters.env.settings());
         try {
             databaseReaders = loadDatabaseReaders(geoIpDirectory, geoIpConfigDirectory);
