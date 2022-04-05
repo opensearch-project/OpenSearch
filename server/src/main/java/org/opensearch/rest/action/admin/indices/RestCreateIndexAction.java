@@ -35,6 +35,7 @@ package org.opensearch.rest.action.admin.indices;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.index.mapper.MapperService;
@@ -52,6 +53,8 @@ import static java.util.Collections.singletonMap;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
 public class RestCreateIndexAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestIndexPutAliasAction.class);
 
     @Override
     public List<Route> routes() {
@@ -74,7 +77,8 @@ public class RestCreateIndexAction extends BaseRestHandler {
         }
 
         createIndexRequest.timeout(request.paramAsTime("timeout", createIndexRequest.timeout()));
-        createIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", createIndexRequest.masterNodeTimeout()));
+        createIndexRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", createIndexRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(createIndexRequest, request, deprecationLogger, getName());
         createIndexRequest.waitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
         return channel -> client.admin().indices().create(createIndexRequest, new RestToXContentListener<>(channel));
     }

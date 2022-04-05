@@ -1,5 +1,8 @@
 ---
 "Split index ignores target template mapping":
+  - skip:
+      features: allowed_warnings
+  
   # create index
   - do:
       indices.create:
@@ -48,6 +51,8 @@
 
   # now we do the actual split
   - do:
+      allowed_warnings:
+        - "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version."
       indices.split:
         index: "source"
         target: "target"
