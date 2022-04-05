@@ -178,8 +178,17 @@ public class Segment implements Writeable {
 
         Segment segment = (Segment) o;
 
-        return Objects.equals(name, segment.name);
-
+        return Objects.equals(name, segment.name)
+            && Objects.equals(docCount, segment.docCount)
+            && Objects.equals(delDocCount, segment.delDocCount)
+            && Objects.equals(sizeInBytes, segment.sizeInBytes)
+            && Objects.equals(search, segment.search)
+            && Objects.equals(committed, segment.committed)
+            && Objects.equals(attributes, segment.attributes)
+            && Objects.equals(version, segment.version)
+            && Objects.equals(compound, segment.compound)
+            && Objects.equals(mergeId, segment.mergeId)
+            && Objects.equals(generation, segment.generation);
     }
 
     @Override

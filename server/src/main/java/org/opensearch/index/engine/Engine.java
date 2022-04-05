@@ -235,7 +235,7 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public void updateCurrentInfos(SegmentInfos infos, long seqNo) throws IOException {}
+    public void finalizeReplication(SegmentInfos infos, Store.MetadataSnapshot expectedMetadata, long seqNo) throws IOException {}
 
     public long getProcessedLocalCheckpoint() {
         return 0L;
