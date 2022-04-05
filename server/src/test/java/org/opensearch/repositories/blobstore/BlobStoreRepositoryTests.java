@@ -262,7 +262,7 @@ public class BlobStoreRepositoryTests extends OpenSearchSingleNodeTestCase {
             .put(node().getEnvironment().settings())
             .put(FsRepository.REPOSITORIES_COMPRESS_SETTING.getKey(), true)
             .build();
-        Environment useCompressEnvironment = new Environment(useCompressSettings, node().getEnvironment().configFile());
+        Environment useCompressEnvironment = new Environment(useCompressSettings, node().getEnvironment().configDir());
 
         new FsRepository(metadata, useCompressEnvironment, null, BlobStoreTestUtil.mockClusterService(), null);
 

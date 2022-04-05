@@ -85,7 +85,7 @@ public class InternalSettingsPreparer {
         Environment environment = new Environment(output.build(), configPath);
 
         output = Settings.builder(); // start with a fresh output
-        Path path = environment.configFile().resolve("opensearch.yml");
+        Path path = environment.configDir().resolve("opensearch.yml");
         if (Files.exists(path)) {
             try {
                 output.loadFromPath(path);
