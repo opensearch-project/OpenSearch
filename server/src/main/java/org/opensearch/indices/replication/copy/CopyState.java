@@ -43,7 +43,8 @@ public class CopyState extends AbstractRefCounted {
             shardId,
             shard.getOperationPrimaryTerm(),
             segmentInfos.getGeneration(),
-            shard.getProcessedLocalCheckpoint()
+            shard.getProcessedLocalCheckpoint(),
+            segmentInfos.getVersion()
         );
 
         // Send files that are merged away in the latest SegmentInfos but not in the latest on disk Segments_N.

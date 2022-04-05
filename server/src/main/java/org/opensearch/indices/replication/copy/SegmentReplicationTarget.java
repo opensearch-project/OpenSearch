@@ -177,14 +177,6 @@ public class SegmentReplicationTarget extends ReplicationTarget {
             final Store store = store();
             store.incRef();
             try {
-                if (indexShard.getRetentionLeases().leases().isEmpty()) {
-                    // if empty, may be a fresh IndexShard, so write an empty leases file to disk
-                    indexShard.persistRetentionLeases();
-                    assert indexShard.loadRetentionLeases().leases().isEmpty();
-                } else {
-                    assert indexShard.assertRetentionLeasesPersisted();
-                }
-
                 // Deserialize the new SegmentInfos object sent from the primary.
                 final ReplicationCheckpoint responseCheckpoint = checkpointInfoResponse.getCheckpoint();
                 SegmentInfos infos = SegmentInfos.readCommit(
@@ -192,16 +184,8 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                     toIndexInput(checkpointInfoResponse.getInfosBytes()),
                     responseCheckpoint.getSegmentsGen()
                 );
-                // clean up the local store of old segment files
-                // and validate the latest segment infos against the snapshot sent from the primary shard.
-                store.cleanupAndVerify(
-                    "finalize - clean with in memory infos",
-                    checkpointInfoResponse.getSnapshot(),
-                    store.getMetadata(infos)
-                );
 
-                // Update the current infos reference on the Engine's reader.
-                indexShard.updateCurrentInfos(infos, responseCheckpoint.getSeqNo());
+                indexShard.finalizeReplication(infos, checkpointInfoResponse.getSnapshot(), responseCheckpoint.getSeqNo());
             } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
                 // this is a fatal exception at this stage.
                 // this means we transferred files from the remote that have not be checksummed and they are
