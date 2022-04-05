@@ -48,7 +48,6 @@ import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.common.Nullable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.Settings;
@@ -211,7 +210,7 @@ public class TaskManager implements ClusterStateApplier {
     public Task unregister(Task task) {
         logger.trace("unregister task for id: {}", task.getId());
 
-        if (task.supportsResourceTracking()) {
+        if (taskResourceTrackingService.get() != null && task.supportsResourceTracking()) {
             taskResourceTrackingService.get().stopTracking(task);
         }
 
@@ -463,6 +462,8 @@ public class TaskManager implements ClusterStateApplier {
     }
 
     public ThreadContext.StoredContext taskExecutionStarted(Task task) {
+        if (taskResourceTrackingService.get() == null) return () -> {};
+
         return taskResourceTrackingService.get().startTracking(task);
     }
 

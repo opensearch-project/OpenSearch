@@ -57,7 +57,6 @@ import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.node.Node;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.tasks.TaskManager;
-import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.tasks.MockTaskManager;
 import org.opensearch.threadpool.ThreadPool;
@@ -89,8 +88,6 @@ import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
-
-import static org.mockito.Mockito.mock;
 
 /**
  * A mock delegate service that allows to simulate different network topology failures.
@@ -253,8 +250,6 @@ public final class MockTransportService extends TransportService {
             new StubbableConnectionManager(new ClusterConnectionManager(settings, transport))
         );
         this.original = transport.getDelegate();
-
-        this.taskManager.setTaskResourceTrackingService(mock(TaskResourceTrackingService.class));
     }
 
     private static TransportAddress[] extractTransportAddresses(TransportService transportService) {

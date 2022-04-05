@@ -39,7 +39,6 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.RunnableTaskListenerFactory;
 import org.opensearch.threadpool.TestThreadPool;
@@ -66,7 +65,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
 import static org.mockito.Mockito.mock;
-import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
 
 public class TaskManagerTests extends OpenSearchTestCase {
     private ThreadPool threadPool;
@@ -96,7 +94,7 @@ public class TaskManagerTests extends OpenSearchTestCase {
         assertEquals(600000L, total);
     }
 
- /*   public void testAddTaskIdToThreadContext() {
+    /*   public void testAddTaskIdToThreadContext() {
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         final Task task = taskManager.register("transport", "test", new CancellableRequest("1"));
         String key = "KEY";
