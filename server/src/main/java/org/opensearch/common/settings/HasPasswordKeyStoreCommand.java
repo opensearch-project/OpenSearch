@@ -52,7 +52,7 @@ public class HasPasswordKeyStoreCommand extends KeyStoreAwareCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        final Path configFile = env.configFile();
+        final Path configFile = env.configDir();
         final KeyStoreWrapper keyStore = KeyStoreWrapper.load(configFile);
 
         // We handle error printing here so we can respect the "--silent" flag

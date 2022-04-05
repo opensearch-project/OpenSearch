@@ -102,7 +102,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             settings,
             null,
             null,
-            TestEnvironment.newEnvironment(settings).pluginsFile(),
+            TestEnvironment.newEnvironment(settings).pluginsDir(),
             Arrays.asList(classpathPlugins)
         );
     }

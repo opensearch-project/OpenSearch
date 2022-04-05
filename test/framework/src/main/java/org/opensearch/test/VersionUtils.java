@@ -108,9 +108,11 @@ public class VersionUtils {
             List<Version> lastMinorLine = stableVersions.get(stableVersions.size() - 1);
             if (lastMinorLine.get(lastMinorLine.size() - 1) instanceof LegacyESVersion == false) {
                 // if the last minor line is Legacy there are no more staged releases; do nothing
+                // otherwise the last minor line is (by definition) staged and unreleased
                 Version lastMinor = moveLastToUnreleased(stableVersions, unreleasedVersions);
+                // no more staged legacy bugfixes so skip;
                 if (lastMinor instanceof LegacyESVersion == false && lastMinor.revision == 0) {
-                    // no more staged legacy versions
+                    // this is not a legacy version; remove the staged bugfix
                     if (stableVersions.get(stableVersions.size() - 1).size() == 1) {
                         // a minor is being staged, which is also unreleased
                         moveLastToUnreleased(stableVersions, unreleasedVersions);
@@ -210,11 +212,11 @@ public class VersionUtils {
     }
 
     /**
-     * Get the released version before {@code version}.
+     * Get the version before {@code version}.
      */
     public static Version getPreviousVersion(Version version) {
-        for (int i = RELEASED_VERSIONS.size() - 1; i >= 0; i--) {
-            Version v = RELEASED_VERSIONS.get(i);
+        for (int i = ALL_VERSIONS.size() - 1; i >= 0; i--) {
+            Version v = ALL_VERSIONS.get(i);
             if (v.before(version)) {
                 return v;
             }
@@ -223,7 +225,7 @@ public class VersionUtils {
     }
 
     /**
-     * Get the released version before {@link Version#CURRENT}.
+     * Get the version before {@link Version#CURRENT}.
      */
     public static Version getPreviousVersion() {
         Version version = getPreviousVersion(Version.CURRENT);

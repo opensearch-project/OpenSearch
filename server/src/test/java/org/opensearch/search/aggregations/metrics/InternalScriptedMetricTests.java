@@ -32,7 +32,6 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.script.MockScriptEngine;
@@ -42,12 +41,10 @@ import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.aggregations.Aggregation.CommonFields;
-import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.opensearch.search.aggregations.ParsedAggregation;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.opensearch.test.InternalAggregationTestCase;
-import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -60,7 +57,6 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
-import static org.hamcrest.Matchers.equalTo;
 
 public class InternalScriptedMetricTests extends InternalAggregationTestCase<InternalScriptedMetric> {
 
@@ -275,46 +271,5 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
                 throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalScriptedMetric(name, aggregationsList, reduceScript, metadata);
-    }
-
-    public void testOldSerialization() throws IOException {
-        // A single element list looks like a fully reduced agg
-        InternalScriptedMetric original = new InternalScriptedMetric(
-            "test",
-            org.opensearch.common.collect.List.of("foo"),
-            new Script("test"),
-            null
-        );
-        original.mergePipelineTreeForBWCSerialization(PipelineTree.EMPTY);
-        InternalScriptedMetric roundTripped = (InternalScriptedMetric) copyNamedWriteable(
-            original,
-            getNamedWriteableRegistry(),
-            InternalAggregation.class,
-            VersionUtils.randomVersionBetween(random(), LegacyESVersion.V_7_0_0, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_8_0))
-        );
-        assertThat(roundTripped, equalTo(original));
-
-        // A multi-element list looks like a non-reduced agg
-        InternalScriptedMetric unreduced = new InternalScriptedMetric(
-            "test",
-            org.opensearch.common.collect.List.of("foo", "bar"),
-            new Script("test"),
-            null
-        );
-        unreduced.mergePipelineTreeForBWCSerialization(PipelineTree.EMPTY);
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> copyNamedWriteable(
-                unreduced,
-                getNamedWriteableRegistry(),
-                InternalAggregation.class,
-                VersionUtils.randomVersionBetween(
-                    random(),
-                    LegacyESVersion.V_7_0_0,
-                    VersionUtils.getPreviousVersion(LegacyESVersion.V_7_8_0)
-                )
-            )
-        );
-        assertThat(e.getMessage(), equalTo("scripted_metric doesn't support cross cluster search until 7.8.0"));
     }
 }
