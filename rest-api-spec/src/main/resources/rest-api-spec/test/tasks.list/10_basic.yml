@@ -1,8 +1,6 @@
 ---
 "tasks_list test":
   - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/opensearch-project/OpenSearch/issues/2757"
       features: [arbitrary_key]
 
   - do:
