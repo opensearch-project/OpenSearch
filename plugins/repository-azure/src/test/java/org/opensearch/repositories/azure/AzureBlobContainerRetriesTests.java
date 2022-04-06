@@ -231,8 +231,7 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
                         exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                         exchange.getResponseHeaders().add("Content-Length", String.valueOf(length));
                         exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
-                        exchange.getResponseHeaders()
-                            .add("Content-Range", String.format("bytes %d-%d/%d", rangeStart, bytes.length, bytes.length));
+                        exchange.getResponseHeaders().add("Content-Range", "bytes " + rangeStart + "-" + bytes.length + "/" + bytes.length);
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), length);
                         exchange.getResponseBody().write(bytes, rangeStart, length);
                         return;
@@ -282,7 +281,7 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
                         exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                         exchange.getResponseHeaders().add("Content-Length", String.valueOf(length));
                         exchange.getResponseHeaders()
-                            .add("Content-Range", String.format("bytes %d-%d/%d", rangeStart, rangeEnd.get(), bytes.length));
+                            .add("Content-Range", "bytes " + rangeStart + "-" + rangeEnd.get() + "/" + bytes.length);
                         exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), length);
                         exchange.getResponseBody().write(bytes, rangeStart, length);
