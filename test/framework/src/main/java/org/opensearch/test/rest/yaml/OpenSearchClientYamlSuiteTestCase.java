@@ -371,7 +371,7 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
         for (DenylistedPathPatternMatcher denylistedPathMatcher : denylistPathMatchers) {
             String testPath = testCandidate.getSuitePath() + "/" + testCandidate.getTestSection().getName();
             assumeFalse(
-                "[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted",
+                "[" + testCandidate.getTestPath() + "] skipped, reason: denylisted",
                 denylistedPathMatcher.isSuffixMatch(testPath)
             );
         }
