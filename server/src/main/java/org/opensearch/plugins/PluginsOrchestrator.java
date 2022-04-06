@@ -14,6 +14,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
@@ -21,6 +22,12 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.discovery.PluginRequest;
 import org.opensearch.discovery.PluginResponse;
 import org.opensearch.extensions.DiscoveryExtension;
+import org.opensearch.index.Index;
+import org.opensearch.index.IndexModule;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.IndicesModuleRequest;
+import org.opensearch.index.IndicesModuleResponse;
+import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.node.ReportingService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
@@ -29,6 +36,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,15 +44,18 @@ import java.util.List;
 
 public class PluginsOrchestrator implements ReportingService<PluginsAndModules> {
     public static final String REQUEST_EXTENSION_ACTION_NAME = "internal:discovery/extensions";
+    public static final String INDICES_EXTENSION_POINT_ACTION_NAME = "extensions:indices-module";
+
     private static final Logger logger = LogManager.getLogger(PluginsOrchestrator.class);
     private final Path extensionsPath;
     final List<DiscoveryExtension> pluginsConfigSet;
-    final TransportService transportService;
+    TransportService transportService;
+    final DiscoveryNode extensionNode;
 
-    public PluginsOrchestrator(Settings settings, Path extensionsPath, TransportService transportService) throws IOException {
+    public PluginsOrchestrator(Settings settings, Path extensionsPath) throws IOException {
         logger.info("PluginsOrchestrator initialized");
         this.extensionsPath = extensionsPath;
-        this.transportService = transportService;
+        this.transportService = null;
         this.pluginsConfigSet = new ArrayList<DiscoveryExtension>();
 
         /*
@@ -52,14 +63,15 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
          */
         pluginsDiscovery();
 
-        transportService.registerRequestHandler(
-            REQUEST_EXTENSION_ACTION_NAME,
-            ThreadPool.Names.GENERIC,
-            false,
-            false,
-            PluginRequest::new,
-            (request, channel, task) -> channel.sendResponse(handlePluginsRequest(request))
+        this.extensionNode = new DiscoveryNode(
+            "node_extension",
+            new TransportAddress(InetAddress.getByName("127.0.0.1"), 4532),
+            Version.CURRENT
         );
+    }
+
+    public void setTransportService(TransportService transportService) {
+        this.transportService = transportService;
     }
 
     @Override
@@ -104,7 +116,6 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
     }
 
     public void pluginsInitialize() {
-        final DiscoveryNode localNode = transportService.getLocalNode();
 
         final TransportResponseHandler<PluginResponse> pluginResponseHandler = new TransportResponseHandler<PluginResponse>() {
 
@@ -128,52 +139,7 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
                 return ThreadPool.Names.GENERIC;
             }
         };
-        logger.info(localNode.toString());
         try {
-            /*DiscoveryNode extensionNode = new DiscoveryNode(
-                "node_g",
-                new TransportAddress(InetAddress.getByName("127.0.0.1"), 65432),
-                Version.CURRENT
-            );*/
-            PluginInfo info = new PluginInfo(
-                "c",
-                "foo",
-                "dummy",
-                Version.CURRENT,
-                "1.8",
-                "dummyclass",
-                "c",
-                Collections.singletonList("foo"),
-                true
-            );
-
-            // DiscoveryExtension extensionNode = new DiscoveryExtension(
-            // "myfirstextension",
-            // "id",
-            // "extensionId",
-            // "hostName",
-            // "0.0.0.0",
-            // new TransportAddress(TransportAddress.META_ADDRESS, 9301),
-            // Collections.emptyMap(),
-            // Version.CURRENT,
-            // info
-            // );
-            // DiscoveryNode extensionNode = new DiscoveryNode(
-            // "myfirstextension",
-            // "id",
-            // "extensionId",
-            // "hostName",
-            // "0.0.0.0",
-            // new TransportAddress(TransportAddress.META_ADDRESS, 9301),
-            // Collections.emptyMap(),
-            // (Set<DiscoveryNodeRole>) DiscoveryNodeRole.MASTER_ROLE,
-            // Version.CURRENT
-            // );
-            DiscoveryNode extensionNode = new DiscoveryNode(
-                "node_extension",
-                new TransportAddress(InetAddress.getByName("127.0.0.1"), 4532),
-                Version.CURRENT
-            );
             transportService.connectToNode(extensionNode);
             transportService.sendRequest(
                 extensionNode,
@@ -187,8 +153,41 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
 
     }
 
-    PluginResponse handlePluginsRequest(PluginRequest pluginRequest) {
-        logger.info("Handling Plugins Request");
-        return null;
+    public void onIndexModule(IndexModule indexModule) throws UnknownHostException {
+        final TransportResponseHandler<IndicesModuleResponse> indicesModuleResponseHandler = new TransportResponseHandler<IndicesModuleResponse>() {
+
+            @Override
+            public IndicesModuleResponse read(StreamInput in) throws IOException {
+                return new IndicesModuleResponse(in);
+            }
+
+            @Override
+            public void handleResponse(IndicesModuleResponse response) {
+                logger.info("received {}", response);
+                if (response.getIndexEventListener() == true) {
+                    indexModule.addIndexEventListener(new IndexEventListener() {
+                        @Override
+                        public void beforeIndexCreated(Index index, Settings indexSettings) {
+                            beforeIndexCreatePO(index, indexSettings);
+                        }
+                    });
+                }
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                logger.debug(new ParameterizedMessage("IndicesModuleRequest failed"), exp);
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.GENERIC;
+            }
+        };
+        transportService.sendRequest(extensionNode, INDICES_EXTENSION_POINT_ACTION_NAME, new IndicesModuleRequest(indexModule), indicesModuleResponseHandler);
+    }
+
+    private void beforeIndexCreatePO(Index index, Settings indexSettings) {
+        logger.info("beforeIndexCreated event handler");
     }
 }

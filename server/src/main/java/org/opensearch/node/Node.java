@@ -404,6 +404,7 @@ public class Node implements Closeable {
                 initialEnvironment.pluginsDir(),
                 classpathPlugins
             );
+            this.pluginsOrchestrator = new PluginsOrchestrator(tmpSettings, initialEnvironment.extensionDir());
             final Settings settings = pluginsService.updatedSettings();
 
             final Set<DiscoveryNodeRole> additionalRoles = pluginsService.filterPlugins(Plugin.class)
@@ -615,6 +616,7 @@ public class Node implements Closeable {
             final IndicesService indicesService = new IndicesService(
                 settings,
                 pluginsService,
+                pluginsOrchestrator,
                 nodeEnvironment,
                 xContentRegistry,
                 analysisModule.getAnalysisRegistry(),
@@ -745,7 +747,7 @@ public class Node implements Closeable {
              * TODO: Understand the dependencies from plugins to initialize TransportService.
              *  This seems like a chicken and egg problem.
              */
-            this.pluginsOrchestrator = new PluginsOrchestrator(tmpSettings, initialEnvironment.extensionDir(), transportService);
+            this.pluginsOrchestrator.setTransportService(transportService);
             final GatewayMetaState gatewayMetaState = new GatewayMetaState();
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
             final SearchTransportService searchTransportService = new SearchTransportService(
