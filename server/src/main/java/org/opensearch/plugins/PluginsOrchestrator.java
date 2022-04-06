@@ -44,7 +44,7 @@ import java.util.List;
 
 public class PluginsOrchestrator implements ReportingService<PluginsAndModules> {
     public static final String REQUEST_EXTENSION_ACTION_NAME = "internal:discovery/extensions";
-    public static final String INDICES_EXTENSION_POINT_ACTION_NAME = "extensions:indices-module";
+    public static final String INDICES_EXTENSION_POINT_ACTION_NAME = "indices:internal/extensions";
 
     private static final Logger logger = LogManager.getLogger(PluginsOrchestrator.class);
     private final Path extensionsPath;
@@ -154,6 +154,7 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
     }
 
     public void onIndexModule(IndexModule indexModule) throws UnknownHostException {
+        logger.info("onIndexModule index:" + indexModule.getIndex());
         final TransportResponseHandler<IndicesModuleResponse> indicesModuleResponseHandler = new TransportResponseHandler<IndicesModuleResponse>() {
 
             @Override
@@ -184,7 +185,12 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
                 return ThreadPool.Names.GENERIC;
             }
         };
-        transportService.sendRequest(extensionNode, INDICES_EXTENSION_POINT_ACTION_NAME, new IndicesModuleRequest(indexModule), indicesModuleResponseHandler);
+        try {
+            logger.info("Sending request to extension");
+            transportService.sendRequest(extensionNode, INDICES_EXTENSION_POINT_ACTION_NAME, new IndicesModuleRequest(indexModule), indicesModuleResponseHandler);
+        } catch (Exception e) {
+            logger.error(e.toString());
+        }
     }
 
     private void beforeIndexCreatePO(Index index, Settings indexSettings) {
