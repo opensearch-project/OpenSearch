@@ -231,6 +231,8 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
                         exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                         exchange.getResponseHeaders().add("Content-Length", String.valueOf(length));
                         exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
+                        exchange.getResponseHeaders()
+                            .add("Content-Range", String.format("bytes %d-%d/%d", rangeStart, bytes.length, bytes.length));
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), length);
                         exchange.getResponseBody().write(bytes, rangeStart, length);
                         return;
@@ -247,7 +249,8 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
         final BlobContainer blobContainer = createBlobContainer(maxRetries);
         try (InputStream inputStream = blobContainer.readBlob("read_blob_max_retries")) {
             assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(inputStream)));
-            assertThat(countDownHead.isCountedDown(), is(true));
+            // No more getProperties() calls in BlobClientBase::openInputStream(), HEAD should not be invoked
+            assertThat(countDownHead.isCountedDown(), is(false));
             assertThat(countDownGet.isCountedDown(), is(true));
         }
     }
@@ -278,6 +281,8 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
                         assertThat(length, lessThanOrEqualTo(bytes.length - rangeStart));
                         exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                         exchange.getResponseHeaders().add("Content-Length", String.valueOf(length));
+                        exchange.getResponseHeaders()
+                            .add("Content-Range", String.format("bytes %d-%d/%d", rangeStart, rangeEnd.get(), bytes.length));
                         exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), length);
                         exchange.getResponseBody().write(bytes, rangeStart, length);
