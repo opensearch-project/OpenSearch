@@ -311,6 +311,10 @@ public class TransportCreatePITAction extends HandledTransportAction<CreatePITRe
         public TimeValue getCreateTime() {
             return createTime;
         }
+
+        public long getKeepAlive() {
+            return keepAlive;
+        }
     }
 
     public static class UpdatePitContextResponse extends TransportResponse {

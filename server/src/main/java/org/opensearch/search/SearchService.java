@@ -985,7 +985,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 throw new SearchContextMissingException(request.getSearchContextId());
             }
             readerContext.setPitId(request.getPitId());
-            readerContext.tryUpdateKeepAlive(maxKeepAlive);
+            readerContext.tryUpdateKeepAlive(request.getKeepAlive());
             readerContext.setCreateTimestamp(request.getCreateTime());
             listener.onResponse(new TransportCreatePITAction.UpdatePitContextResponse(request.getPitId()));
         } catch (Exception e) {
