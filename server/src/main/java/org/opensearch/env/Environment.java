@@ -91,6 +91,8 @@ public class Environment {
 
     private final Path pluginsDir;
 
+    private final Path extensionsDir;
+
     private final Path modulesDir;
 
     private final Path sharedDataDir;
@@ -135,6 +137,7 @@ public class Environment {
         tmpDir = Objects.requireNonNull(tmpPath);
 
         pluginsDir = homeFile.resolve("plugins");
+        extensionsDir = homeFile.resolve("extensions");
 
         List<String> dataPaths = PATH_DATA_SETTING.get(settings);
         if (nodeLocalStorage) {
@@ -304,6 +307,10 @@ public class Environment {
 
     public Path pluginsDir() {
         return pluginsDir;
+    }
+
+    public Path extensionDir() {
+        return extensionsDir;
     }
 
     public Path binDir() {
