@@ -370,10 +370,7 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
         // skip test if it matches one of the denylist globs
         for (DenylistedPathPatternMatcher denylistedPathMatcher : denylistPathMatchers) {
             String testPath = testCandidate.getSuitePath() + "/" + testCandidate.getTestSection().getName();
-            assumeFalse(
-                "[" + testCandidate.getTestPath() + "] skipped, reason: denylisted",
-                denylistedPathMatcher.isSuffixMatch(testPath)
-            );
+            assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: denylisted", denylistedPathMatcher.isSuffixMatch(testPath));
         }
 
         // skip test if the whole suite (yaml file) is disabled
