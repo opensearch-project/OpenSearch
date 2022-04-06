@@ -232,7 +232,7 @@ public class ClusterRerouteRequestTests extends OpenSearchTestCase {
             params.put("retry_failed", Boolean.toString(original.isRetryFailed()));
         }
         if (false == original.masterNodeTimeout().equals(MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT) || randomBoolean()) {
-            params.put("master_timeout", original.masterNodeTimeout().toString());
+            params.put("cluster_manager_timeout", original.masterNodeTimeout().toString());
         }
         if (original.getCommands() != null) {
             hasBody = true;

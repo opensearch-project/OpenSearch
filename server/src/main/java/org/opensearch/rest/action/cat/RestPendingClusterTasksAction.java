@@ -37,6 +37,7 @@ import org.opensearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.service.PendingClusterTask;
 import org.opensearch.common.Table;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
@@ -47,6 +48,8 @@ import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
 public class RestPendingClusterTasksAction extends AbstractCatAction {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestPendingClusterTasksAction.class);
 
     @Override
     public List<Route> routes() {
@@ -66,7 +69,10 @@ public class RestPendingClusterTasksAction extends AbstractCatAction {
     @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         PendingClusterTasksRequest pendingClusterTasksRequest = new PendingClusterTasksRequest();
-        pendingClusterTasksRequest.masterNodeTimeout(request.paramAsTime("master_timeout", pendingClusterTasksRequest.masterNodeTimeout()));
+        pendingClusterTasksRequest.masterNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", pendingClusterTasksRequest.masterNodeTimeout())
+        );
+        parseDeprecatedMasterTimeoutParameter(pendingClusterTasksRequest, request, deprecationLogger, getName());
         pendingClusterTasksRequest.local(request.paramAsBoolean("local", pendingClusterTasksRequest.local()));
         return channel -> client.admin()
             .cluster()

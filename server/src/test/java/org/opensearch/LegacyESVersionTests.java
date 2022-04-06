@@ -63,8 +63,8 @@ public class LegacyESVersionTests extends OpenSearchTestCase {
 
         // compare opensearch version to LegacyESVersion
         assertThat(Version.V_1_0_0.compareMajor(LegacyESVersion.V_7_0_0), is(0));
-        assertThat(Version.V_1_0_0.compareMajor(LegacyESVersion.fromString("6.3.0")), is(1));
-        assertThat(LegacyESVersion.fromString("6.3.0").compareMajor(Version.V_1_0_0), is(-1));
+        assertThat(Version.V_2_0_0.compareMajor(LegacyESVersion.fromString("7.3.0")), is(1));
+        assertThat(LegacyESVersion.fromString("7.3.0").compareMajor(Version.V_2_0_0), is(-1));
     }
 
     public void testMin() {

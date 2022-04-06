@@ -36,6 +36,7 @@ import org.opensearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -48,6 +49,8 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
 public class RestGetSettingsAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetSettingsAction.class);
 
     @Override
     public List<Route> routes() {
@@ -79,7 +82,8 @@ public class RestGetSettingsAction extends BaseRestHandler {
             .includeDefaults(renderDefaults)
             .names(names);
         getSettingsRequest.local(request.paramAsBoolean("local", getSettingsRequest.local()));
-        getSettingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSettingsRequest.masterNodeTimeout()));
+        getSettingsRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", getSettingsRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(getSettingsRequest, request, deprecationLogger, getName());
         return channel -> client.admin().indices().getSettings(getSettingsRequest, new RestToXContentListener<>(channel));
     }
 }
