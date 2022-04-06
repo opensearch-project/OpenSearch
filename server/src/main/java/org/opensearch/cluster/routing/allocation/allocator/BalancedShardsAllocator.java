@@ -109,6 +109,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Property.Dynamic,
         Property.NodeScope
     );
+    public static final Setting<Boolean> SHARD_MOVE_PRIMARY_FIRST_SETTING = Setting.boolSetting(
+        "cluster.routing.allocation.move.primary_first",
+        false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
     public static final Setting<Float> THRESHOLD_SETTING = Setting.floatSetting(
         "cluster.routing.allocation.balance.threshold",
         1.0f,
@@ -117,6 +123,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Property.NodeScope
     );
 
+    private volatile boolean movePrimaryFirst;
     private volatile WeightFunction weightFunction;
     private volatile float threshold;
 
@@ -128,8 +135,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     public BalancedShardsAllocator(Settings settings, ClusterSettings clusterSettings) {
         setWeightFunction(INDEX_BALANCE_FACTOR_SETTING.get(settings), SHARD_BALANCE_FACTOR_SETTING.get(settings));
         setThreshold(THRESHOLD_SETTING.get(settings));
+        clusterSettings.addSettingsUpdateConsumer(SHARD_MOVE_PRIMARY_FIRST_SETTING, this::setMovePrimaryFirst);
         clusterSettings.addSettingsUpdateConsumer(INDEX_BALANCE_FACTOR_SETTING, SHARD_BALANCE_FACTOR_SETTING, this::setWeightFunction);
         clusterSettings.addSettingsUpdateConsumer(THRESHOLD_SETTING, this::setThreshold);
+    }
+
+    private void setMovePrimaryFirst(boolean movePrimaryFirst) {
+        this.movePrimaryFirst = movePrimaryFirst;
     }
 
     private void setWeightFunction(float indexBalance, float shardBalanceFactor) {
@@ -146,7 +158,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             failAllocationOfNewPrimaries(allocation);
             return;
         }
-        final Balancer balancer = new Balancer(logger, allocation, weightFunction, threshold);
+        final Balancer balancer = new Balancer(logger, allocation, movePrimaryFirst, weightFunction, threshold);
         balancer.allocateUnassigned();
         balancer.moveShards();
         balancer.balance();
@@ -154,7 +166,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     @Override
     public ShardAllocationDecision decideShardAllocation(final ShardRouting shard, final RoutingAllocation allocation) {
-        Balancer balancer = new Balancer(logger, allocation, weightFunction, threshold);
+        Balancer balancer = new Balancer(logger, allocation, movePrimaryFirst, weightFunction, threshold);
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
         MoveDecision moveDecision = MoveDecision.NOT_TAKEN;
         if (shard.unassigned()) {
@@ -283,6 +295,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final Map<String, ModelNode> nodes;
         private final RoutingAllocation allocation;
         private final RoutingNodes routingNodes;
+        private final boolean movePrimaryFirst;
         private final WeightFunction weight;
 
         private final float threshold;
@@ -291,9 +304,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final NodeSorter sorter;
         private final Set<RoutingNode> inEligibleTargetNode;
 
-        public Balancer(Logger logger, RoutingAllocation allocation, WeightFunction weight, float threshold) {
+        public Balancer(Logger logger, RoutingAllocation allocation, boolean movePrimaryFirst, WeightFunction weight, float threshold) {
             this.logger = logger;
             this.allocation = allocation;
+            this.movePrimaryFirst = movePrimaryFirst;
             this.weight = weight;
             this.threshold = threshold;
             this.routingNodes = allocation.routingNodes();
@@ -725,7 +739,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             for (ModelNode currentNode : sorter.modelNodes) {
                 checkAndAddInEligibleTargetNode(currentNode.getRoutingNode());
             }
-            for (Iterator<ShardRouting> it = allocation.routingNodes().nodeInterleavedShardIterator(); it.hasNext();) {
+            boolean primariesThrottled = false;
+            for (Iterator<ShardRouting> it = allocation.routingNodes().nodeInterleavedShardIterator(movePrimaryFirst); it.hasNext();) {
                 // Verify if the cluster concurrent recoveries have been reached.
                 if (allocation.deciders().canMoveAnyShard(allocation).type() != Decision.Type.YES) {
                     logger.info(
@@ -745,11 +760,23 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
                 ShardRouting shardRouting = it.next();
 
+                // Ensure that replicas don't relocate if primaries are being throttled and primary first is enabled
+                if (movePrimaryFirst && primariesThrottled && !shardRouting.primary()) {
+                    logger.info(
+                        "Cannot move any replica shard in the cluster as movePrimaryFirst is enabled and primary shards"
+                            + "are being throttled. Skipping shard iteration"
+                    );
+                    return;
+                }
+
                 // Verify if the shard is allowed to move if outgoing recovery on the node hosting the primary shard
                 // is not being throttled.
                 Decision canMoveAwayDecision = allocation.deciders().canMoveAway(shardRouting, allocation);
                 if (canMoveAwayDecision.type() != Decision.Type.YES) {
                     if (logger.isDebugEnabled()) logger.debug("Cannot move away shard [{}] Skipping this shard", shardRouting);
+                    if (shardRouting.primary() && canMoveAwayDecision.type() == Type.THROTTLE) {
+                        primariesThrottled = true;
+                    }
                     continue;
                 }
 

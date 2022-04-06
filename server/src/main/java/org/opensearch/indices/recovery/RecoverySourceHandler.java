@@ -411,10 +411,8 @@ public class RecoverySourceHandler {
 
     private boolean isTargetSameHistory() {
         final String targetHistoryUUID = request.metadataSnapshot().getHistoryUUID();
-        assert targetHistoryUUID != null
-            || shard.indexSettings()
-                .getIndexVersionCreated()
-                .before(LegacyESVersion.V_6_0_0_rc1) : "incoming target history N/A but index was created after or on 6.0.0-rc1";
+        assert targetHistoryUUID != null || shard.indexSettings().getIndexVersionCreated().before(LegacyESVersion.V_6_0_0_rc1)
+            : "incoming target history N/A but index was created after or on 6.0.0-rc1";
         return targetHistoryUUID != null && targetHistoryUUID.equals(shard.getHistoryUUID());
     }
 
@@ -647,10 +645,8 @@ public class RecoverySourceHandler {
 
                 createRetentionLeaseStep.whenComplete(retentionLease -> {
                     final long lastKnownGlobalCheckpoint = shard.getLastKnownGlobalCheckpoint();
-                    assert retentionLease == null
-                        || retentionLease.retainingSequenceNumber() - 1 <= lastKnownGlobalCheckpoint : retentionLease
-                            + " vs "
-                            + lastKnownGlobalCheckpoint;
+                    assert retentionLease == null || retentionLease.retainingSequenceNumber() - 1 <= lastKnownGlobalCheckpoint
+                        : retentionLease + " vs " + lastKnownGlobalCheckpoint;
                     // Establishes new empty translog on the replica with global checkpoint set to lastKnownGlobalCheckpoint. We want
                     // the commit we just copied to be a safe commit on the replica, so why not set the global checkpoint on the replica
                     // to the max seqno of this commit? Because (in rare corner cases) this commit might not be a safe commit here on

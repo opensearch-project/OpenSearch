@@ -144,8 +144,8 @@ public class ElectMasterService {
         if (minimumMasterNodes < 1) {
             return true;
         }
-        assert candidates.stream().map(MasterCandidate::getNode).collect(Collectors.toSet()).size() == candidates
-            .size() : "duplicates ahead: " + candidates;
+        assert candidates.stream().map(MasterCandidate::getNode).collect(Collectors.toSet()).size() == candidates.size()
+            : "duplicates ahead: " + candidates;
         return candidates.size() >= minimumMasterNodes;
     }
 

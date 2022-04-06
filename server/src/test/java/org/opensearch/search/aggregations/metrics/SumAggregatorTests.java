@@ -208,31 +208,25 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     private void verifySummationOfDoubles(double[] values, double expected, double delta) throws IOException {
-        testAggregation(
-            sum("_name").field(FIELD_NAME),
-            new MatchAllDocsQuery(),
-            iw -> {
-                /*
-                 * The sum agg uses a Kahan sumation on the shard to limit
-                 * floating point errors. But it doesn't ship the sums to the
-                 * coordinating node, so floaing point error can creep in when
-                 * reducing many sums. The test framework aggregates each
-                 * segment as though it were a separate shard, then reduces
-                 * those togther. Fun. But it means we don't get the full
-                 * accuracy of the Kahan sumation. And *that* accuracy is
-                 * what this method is trying to test. So we have to stick
-                 * all the documents on the same leaf. `addDocuments` does
-                 * that.
-                 */
-                iw.addDocuments(
-                    Arrays.stream(values)
-                        .mapToObj(value -> singleton(new NumericDocValuesField(FIELD_NAME, NumericUtils.doubleToSortableLong(value))))
-                        .collect(toList())
-                );
-            },
-            result -> assertEquals(expected, result.getValue(), delta),
-            defaultFieldType(NumberType.DOUBLE)
-        );
+        testAggregation(sum("_name").field(FIELD_NAME), new MatchAllDocsQuery(), iw -> {
+            /*
+             * The sum agg uses a Kahan sumation on the shard to limit
+             * floating point errors. But it doesn't ship the sums to the
+             * coordinating node, so floaing point error can creep in when
+             * reducing many sums. The test framework aggregates each
+             * segment as though it were a separate shard, then reduces
+             * those togther. Fun. But it means we don't get the full
+             * accuracy of the Kahan sumation. And *that* accuracy is
+             * what this method is trying to test. So we have to stick
+             * all the documents on the same leaf. `addDocuments` does
+             * that.
+             */
+            iw.addDocuments(
+                Arrays.stream(values)
+                    .mapToObj(value -> singleton(new NumericDocValuesField(FIELD_NAME, NumericUtils.doubleToSortableLong(value))))
+                    .collect(toList())
+            );
+        }, result -> assertEquals(expected, result.getValue(), delta), defaultFieldType(NumberType.DOUBLE));
     }
 
     public void testUnmapped() throws IOException {

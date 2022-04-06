@@ -53,7 +53,7 @@ import java.util.Map;
  * shift operator, and dynamic array index normalize.
  * <p>
  * When a new type is encountered at the call site, we lookup from the appropriate
- * whitelist, and cache with a guard. If we encounter too many types, we stop caching.
+ * allowlist, and cache with a guard. If we encounter too many types, we stop caching.
  * <p>
  * Based on the cascaded inlining cache from the JSR 292 cookbook
  * (https://code.google.com/archive/p/jsr292-cookbook/, BSD license)
@@ -166,7 +166,7 @@ public final class DefBootstrap {
         }
 
         /**
-         * Does a slow lookup against the whitelist.
+         * Does a slow lookup against the allowlist.
          */
         private MethodHandle lookup(int flavor, String name, Class<?> receiver) throws Throwable {
             switch (flavor) {
@@ -470,10 +470,10 @@ public final class DefBootstrap {
      * In addition to ordinary parameters, we also take some parameters defined at the call site:
      * <ul>
      *   <li>{@code initialDepth}: initial call site depth. this is used to exercise megamorphic fallback.
-     *   <li>{@code flavor}: type of dynamic call it is (and which part of whitelist to look at).
+     *   <li>{@code flavor}: type of dynamic call it is (and which part of allowlist to look at).
      *   <li>{@code args}: flavor-specific args.
      * </ul>
-     * And we take the {@link PainlessLookup} used to compile the script for whitelist checking.
+     * And we take the {@link PainlessLookup} used to compile the script for allowlist checking.
      * <p>
      * see https://docs.oracle.com/javase/specs/jvms/se7/html/jvms-6.html#jvms-6.5.invokedynamic
      */

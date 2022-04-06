@@ -39,10 +39,16 @@ import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.http.IdleConnectionReaper;
+import com.amazonaws.http.SystemPropertyTlsKeyManagersProvider;
+import com.amazonaws.http.conn.ssl.SdkTLSSocketFactory;
+import com.amazonaws.internal.SdkSSLContext;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.internal.Constants;
 
+import org.apache.http.conn.ssl.DefaultHostnameVerifier;
+import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
+import org.apache.http.protocol.HttpContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
@@ -50,7 +56,15 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.settings.Settings;
 
+import javax.net.ssl.SSLContext;
 import java.io.Closeable;
+import java.io.IOException;
+import java.net.Authenticator;
+import java.net.InetSocketAddress;
+import java.net.PasswordAuthentication;
+import java.net.Proxy;
+import java.net.Socket;
+import java.security.SecureRandom;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -189,12 +203,32 @@ class S3Service implements Closeable {
         clientConfiguration.setResponseMetadataCacheSize(0);
         clientConfiguration.setProtocol(clientSettings.protocol);
 
-        if (Strings.hasText(clientSettings.proxyHost)) {
-            // TODO: remove this leniency, these settings should exist together and be validated
-            clientConfiguration.setProxyHost(clientSettings.proxyHost);
-            clientConfiguration.setProxyPort(clientSettings.proxyPort);
-            clientConfiguration.setProxyUsername(clientSettings.proxyUsername);
-            clientConfiguration.setProxyPassword(clientSettings.proxyPassword);
+        if (clientSettings.proxySettings != ProxySettings.NO_PROXY_SETTINGS) {
+            if (clientSettings.proxySettings.getType() == ProxySettings.ProxyType.SOCKS) {
+                SocketAccess.doPrivilegedVoid(() -> {
+                    if (clientSettings.proxySettings.isAuthenticated()) {
+                        Authenticator.setDefault(new Authenticator() {
+                            @Override
+                            protected PasswordAuthentication getPasswordAuthentication() {
+                                return new PasswordAuthentication(
+                                    clientSettings.proxySettings.getUsername(),
+                                    clientSettings.proxySettings.getPassword().toCharArray()
+                                );
+                            }
+                        });
+                    }
+                    clientConfiguration.getApacheHttpClientConfig()
+                        .setSslSocketFactory(createSocksSslConnectionSocketFactory(clientSettings.proxySettings.getAddress()));
+                });
+            } else {
+                if (clientSettings.proxySettings.getType() != ProxySettings.ProxyType.DIRECT) {
+                    clientConfiguration.setProxyProtocol(clientSettings.proxySettings.getType().toProtocol());
+                }
+                clientConfiguration.setProxyHost(clientSettings.proxySettings.getHostName());
+                clientConfiguration.setProxyPort(clientSettings.proxySettings.getPort());
+                clientConfiguration.setProxyUsername(clientSettings.proxySettings.getUsername());
+                clientConfiguration.setProxyPassword(clientSettings.proxySettings.getPassword());
+            }
         }
 
         if (Strings.hasLength(clientSettings.signerOverride)) {
@@ -206,6 +240,20 @@ class S3Service implements Closeable {
         clientConfiguration.setSocketTimeout(clientSettings.readTimeoutMillis);
 
         return clientConfiguration;
+    }
+
+    private static SSLConnectionSocketFactory createSocksSslConnectionSocketFactory(final InetSocketAddress address) {
+        // This part was taken from AWS settings
+        final SSLContext sslCtx = SdkSSLContext.getPreferredSSLContext(
+            new SystemPropertyTlsKeyManagersProvider().getKeyManagers(),
+            new SecureRandom()
+        );
+        return new SdkTLSSocketFactory(sslCtx, new DefaultHostnameVerifier()) {
+            @Override
+            public Socket createSocket(final HttpContext ctx) throws IOException {
+                return new Socket(new Proxy(Proxy.Type.SOCKS, address));
+            }
+        };
     }
 
     // pkg private for tests

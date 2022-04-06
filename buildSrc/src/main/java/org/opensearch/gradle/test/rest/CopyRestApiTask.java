@@ -164,7 +164,7 @@ public class CopyRestApiTask extends DefaultTask {
             getFileSystemOperations().copy(c -> {
                 c.from(getArchiveOperations().zipTree(coreConfig.getSingleFile()));
                 // this ends up as the same dir as outputDir
-                c.into(Objects.requireNonNull(getSourceSet().orElseThrow().getOutput().getResourcesDir()));
+                c.into(Objects.requireNonNull(getSourceSet().get().getOutput().getResourcesDir()));
                 if (includeCore.get().isEmpty()) {
                     c.include(REST_API_PREFIX + "/**");
                 } else {

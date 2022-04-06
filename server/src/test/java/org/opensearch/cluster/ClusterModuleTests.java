@@ -48,6 +48,7 @@ import org.opensearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
+import org.opensearch.cluster.routing.allocation.decider.NodeLoadAwareAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.RebalanceOnlyWhenActiveAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
@@ -236,7 +237,8 @@ public class ClusterModuleTests extends ModuleTestCase {
             DiskThresholdDecider.class,
             ThrottlingAllocationDecider.class,
             ShardsLimitAllocationDecider.class,
-            AwarenessAllocationDecider.class
+            AwarenessAllocationDecider.class,
+            NodeLoadAwareAllocationDecider.class
         );
         Collection<AllocationDecider> deciders = ClusterModule.createAllocationDeciders(
             Settings.EMPTY,
@@ -252,29 +254,29 @@ public class ClusterModuleTests extends ModuleTestCase {
     }
 
     public void testPre63CustomsFiltering() {
-        final String whiteListedClusterCustom = randomFrom(ClusterModule.PRE_6_3_CLUSTER_CUSTOMS_WHITE_LIST);
-        final String whiteListedMetadataCustom = randomFrom(ClusterModule.PRE_6_3_METADATA_CUSTOMS_WHITE_LIST);
+        final String allowListedClusterCustom = randomFrom(ClusterModule.PRE_6_3_CLUSTER_CUSTOMS_WHITE_LIST);
+        final String allowListedMetadataCustom = randomFrom(ClusterModule.PRE_6_3_METADATA_CUSTOMS_WHITE_LIST);
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .putCustom(whiteListedClusterCustom, new RestoreInProgress.Builder().build())
+            .putCustom(allowListedClusterCustom, new RestoreInProgress.Builder().build())
             .putCustom("other", new RestoreInProgress.Builder().build())
             .metadata(
                 Metadata.builder()
-                    .putCustom(whiteListedMetadataCustom, new RepositoriesMetadata(Collections.emptyList()))
+                    .putCustom(allowListedMetadataCustom, new RepositoriesMetadata(Collections.emptyList()))
                     .putCustom("other", new RepositoriesMetadata(Collections.emptyList()))
                     .build()
             )
             .build();
 
-        assertNotNull(clusterState.custom(whiteListedClusterCustom));
+        assertNotNull(clusterState.custom(allowListedClusterCustom));
         assertNotNull(clusterState.custom("other"));
-        assertNotNull(clusterState.metadata().custom(whiteListedMetadataCustom));
+        assertNotNull(clusterState.metadata().custom(allowListedMetadataCustom));
         assertNotNull(clusterState.metadata().custom("other"));
 
         final ClusterState fixedClusterState = ClusterModule.filterCustomsForPre63Clients(clusterState);
 
-        assertNotNull(fixedClusterState.custom(whiteListedClusterCustom));
+        assertNotNull(fixedClusterState.custom(allowListedClusterCustom));
         assertNull(fixedClusterState.custom("other"));
-        assertNotNull(fixedClusterState.metadata().custom(whiteListedMetadataCustom));
+        assertNotNull(fixedClusterState.metadata().custom(allowListedMetadataCustom));
         assertNull(fixedClusterState.metadata().custom("other"));
     }
 

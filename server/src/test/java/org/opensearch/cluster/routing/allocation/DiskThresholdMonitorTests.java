@@ -33,7 +33,6 @@ package org.opensearch.cluster.routing.allocation;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterInfo;
@@ -51,7 +50,6 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.common.Priority;
 import org.opensearch.common.collect.ImmutableOpenMap;
-import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.shard.ShardId;
@@ -659,25 +657,30 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
 
     private void assertNoLogging(DiskThresholdMonitor monitor, ImmutableOpenMap<String, DiskUsage> diskUsages)
         throws IllegalAccessException {
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation("any INFO message", DiskThresholdMonitor.class.getCanonicalName(), Level.INFO, "*")
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation("any WARN message", DiskThresholdMonitor.class.getCanonicalName(), Level.WARN, "*")
-        );
+        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(DiskThresholdMonitor.class))) {
+            mockAppender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation(
+                    "any INFO message",
+                    DiskThresholdMonitor.class.getCanonicalName(),
+                    Level.INFO,
+                    "*"
+                )
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation(
+                    "any WARN message",
+                    DiskThresholdMonitor.class.getCanonicalName(),
+                    Level.WARN,
+                    "*"
+                )
+            );
 
-        Logger diskThresholdMonitorLogger = LogManager.getLogger(DiskThresholdMonitor.class);
-        Loggers.addAppender(diskThresholdMonitorLogger, mockAppender);
+            for (int i = between(1, 3); i >= 0; i--) {
+                monitor.onNewInfo(clusterInfo(diskUsages));
+            }
 
-        for (int i = between(1, 3); i >= 0; i--) {
-            monitor.onNewInfo(clusterInfo(diskUsages));
+            mockAppender.assertAllExpectationsMatched();
         }
-
-        mockAppender.assertAllExpectationsMatched();
-        Loggers.removeAppender(diskThresholdMonitorLogger, mockAppender);
-        mockAppender.stop();
     }
 
     private void assertRepeatedWarningMessages(DiskThresholdMonitor monitor, ImmutableOpenMap<String, DiskUsage> diskUsages, String message)
@@ -701,28 +704,24 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
 
     private void assertLogging(DiskThresholdMonitor monitor, ImmutableOpenMap<String, DiskUsage> diskUsages, Level level, String message)
         throws IllegalAccessException {
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation("expected message", DiskThresholdMonitor.class.getCanonicalName(), level, message)
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "any message of another level",
-                DiskThresholdMonitor.class.getCanonicalName(),
-                level == Level.INFO ? Level.WARN : Level.INFO,
-                "*"
-            )
-        );
+        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(DiskThresholdMonitor.class))) {
+            mockAppender.start();
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation("expected message", DiskThresholdMonitor.class.getCanonicalName(), level, message)
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation(
+                    "any message of another level",
+                    DiskThresholdMonitor.class.getCanonicalName(),
+                    level == Level.INFO ? Level.WARN : Level.INFO,
+                    "*"
+                )
+            );
 
-        Logger diskThresholdMonitorLogger = LogManager.getLogger(DiskThresholdMonitor.class);
-        Loggers.addAppender(diskThresholdMonitorLogger, mockAppender);
+            monitor.onNewInfo(clusterInfo(diskUsages));
 
-        monitor.onNewInfo(clusterInfo(diskUsages));
-
-        mockAppender.assertAllExpectationsMatched();
-        Loggers.removeAppender(diskThresholdMonitorLogger, mockAppender);
-        mockAppender.stop();
+            mockAppender.assertAllExpectationsMatched();
+        }
     }
 
     private static ClusterInfo clusterInfo(ImmutableOpenMap<String, DiskUsage> diskUsages) {

@@ -76,11 +76,6 @@ import org.opensearch.common.unit.ByteSizeValue;
  *     Maximum number of segments to be merged at a time during "normal" merging.
  *     Default is <code>10</code>.
  *
- * <li><code>index.merge.policy.max_merge_at_once_explicit</code>:
- *
- *     Maximum number of segments to be merged at a time, during force merge or
- *     expungeDeletes. Default is <code>30</code>.
- *
  * <li><code>index.merge.policy.max_merged_segment</code>:
  *
  *     Maximum sized segment to produce during normal merging (not explicit
@@ -136,7 +131,6 @@ public final class MergePolicyConfig {
     public static final double DEFAULT_EXPUNGE_DELETES_ALLOWED = 10d;
     public static final ByteSizeValue DEFAULT_FLOOR_SEGMENT = new ByteSizeValue(2, ByteSizeUnit.MB);
     public static final int DEFAULT_MAX_MERGE_AT_ONCE = 10;
-    public static final int DEFAULT_MAX_MERGE_AT_ONCE_EXPLICIT = 30;
     public static final ByteSizeValue DEFAULT_MAX_MERGED_SEGMENT = new ByteSizeValue(5, ByteSizeUnit.GB);
     public static final double DEFAULT_SEGMENTS_PER_TIER = 10.0d;
     public static final double DEFAULT_RECLAIM_DELETES_WEIGHT = 2.0d;
@@ -169,10 +163,12 @@ public final class MergePolicyConfig {
         Property.Dynamic,
         Property.IndexScope
     );
+    @Deprecated
     public static final Setting<Integer> INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING = Setting.intSetting(
         "index.merge.policy.max_merge_at_once_explicit",
-        DEFAULT_MAX_MERGE_AT_ONCE_EXPLICIT,
+        30,
         2,
+        Property.Deprecated,
         Property.Dynamic,
         Property.IndexScope
     );
@@ -258,10 +254,6 @@ public final class MergePolicyConfig {
 
     void setMaxMergedSegment(ByteSizeValue maxMergedSegment) {
         mergePolicy.setMaxMergedSegmentMB(maxMergedSegment.getMbFrac());
-    }
-
-    void setMaxMergesAtOnceExplicit(Integer maxMergeAtOnceExplicit) {
-        mergePolicy.setMaxMergeAtOnceExplicit(maxMergeAtOnceExplicit);
     }
 
     void setMaxMergesAtOnce(Integer maxMergeAtOnce) {

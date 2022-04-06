@@ -850,8 +850,8 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService, (type, mapping) -> {
-            assert recoveryState.getRecoverySource()
-                .getType() == RecoverySource.Type.LOCAL_SHARDS : "mapping update consumer only required by local shards recovery";
+            assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
+                : "mapping update consumer only required by local shards recovery";
             client.admin()
                 .indices()
                 .preparePutMapping()
@@ -1633,7 +1633,21 @@ public class IndicesService extends AbstractLifecycleComponent
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
-        return new QueryRewriteContext(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
+        return getRewriteContext(nowInMillis, false);
+    }
+
+    /**
+     * Returns a new {@link QueryRewriteContext} for query validation with the given {@code now} provider
+     */
+    public QueryRewriteContext getValidationRewriteContext(LongSupplier nowInMillis) {
+        return getRewriteContext(nowInMillis, true);
+    }
+
+    /**
+     * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
+     */
+    private QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, boolean validate) {
+        return new QueryRewriteContext(xContentRegistry, namedWriteableRegistry, client, nowInMillis, validate);
     }
 
     /**

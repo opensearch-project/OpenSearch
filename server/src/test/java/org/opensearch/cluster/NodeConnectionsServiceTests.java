@@ -34,6 +34,7 @@ package org.opensearch.cluster;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
@@ -46,7 +47,6 @@ import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.component.Lifecycle;
 import org.opensearch.common.component.LifecycleListener;
-import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
@@ -352,10 +352,8 @@ public class NodeConnectionsServiceTests extends OpenSearchTestCase {
         for (DiscoveryNode disconnectedNode : disconnectedNodes) {
             transportService.disconnectFromNode(disconnectedNode);
         }
-        MockLogAppender appender = new MockLogAppender();
-        try {
-            appender.start();
-            Loggers.addAppender(LogManager.getLogger("org.opensearch.cluster.NodeConnectionsService"), appender);
+        final Logger logger = LogManager.getLogger("org.opensearch.cluster.NodeConnectionsService");
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(logger)) {
             for (DiscoveryNode targetNode : targetNodes) {
                 if (disconnectedNodes.contains(targetNode)) {
                     appender.addExpectation(
@@ -396,9 +394,6 @@ public class NodeConnectionsServiceTests extends OpenSearchTestCase {
 
             runTasksUntil(deterministicTaskQueue, CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.get(Settings.EMPTY).millis());
             appender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(LogManager.getLogger("org.opensearch.cluster.NodeConnectionsService"), appender);
-            appender.stop();
         }
         for (DiscoveryNode disconnectedNode : disconnectedNodes) {
             transportService.disconnectFromNode(disconnectedNode);
@@ -409,10 +404,8 @@ public class NodeConnectionsServiceTests extends OpenSearchTestCase {
         for (DiscoveryNode disconnectedNode : disconnectedNodes) {
             transportService.disconnectFromNode(disconnectedNode);
         }
-        appender = new MockLogAppender();
-        try {
-            appender.start();
-            Loggers.addAppender(LogManager.getLogger("org.opensearch.cluster.NodeConnectionsService"), appender);
+
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(logger)) {
             for (DiscoveryNode targetNode : targetNodes) {
                 if (disconnectedNodes.contains(targetNode) && newTargetNodes.get(targetNode.getId()) != null) {
                     appender.addExpectation(
@@ -493,9 +486,6 @@ public class NodeConnectionsServiceTests extends OpenSearchTestCase {
             service.connectToNodes(newTargetNodes, () -> {});
             deterministicTaskQueue.runAllRunnableTasks();
             appender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(LogManager.getLogger("org.opensearch.cluster.NodeConnectionsService"), appender);
-            appender.stop();
         }
     }
 

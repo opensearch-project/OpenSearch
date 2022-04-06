@@ -41,6 +41,7 @@ import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -374,4 +375,12 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertThat(e.getMessage(), containsString("Invalid format: [[test_format]]: Unknown pattern letter: t"));
     }
 
+    public void testUpdatesWithSameMappings() throws Exception {
+        for (final String type : types()) {
+            final DocumentMapper mapper = createDocumentMapper(rangeFieldMapping(type, b -> { b.field("store", true); }));
+
+            final Mapping mapping = mapper.mapping();
+            mapper.merge(mapping, MergeReason.MAPPING_UPDATE);
+        }
+    }
 }

@@ -38,7 +38,6 @@ import org.opensearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.test.OpenSearchTestCase;
@@ -51,57 +50,44 @@ import static org.mockito.Mockito.mock;
 
 @TestLogging(value = "org.opensearch.transport.TransportLogger:trace", reason = "to ensure we log network events on TRACE level")
 public class TransportLoggerTests extends OpenSearchTestCase {
+    public void testLoggingHandler() throws Exception {
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(LogManager.getLogger(TransportLogger.class))) {
+            final String writePattern = ".*\\[length: \\d+"
+                + ", request id: \\d+"
+                + ", type: request"
+                + ", version: .*"
+                + ", header size: \\d+B"
+                + ", action: cluster:monitor/stats]"
+                + " WRITE: \\d+B";
+            final MockLogAppender.LoggingExpectation writeExpectation = new MockLogAppender.PatternSeenEventExpectation(
+                "hot threads request",
+                TransportLogger.class.getCanonicalName(),
+                Level.TRACE,
+                writePattern
+            );
 
-    private MockLogAppender appender;
+            final String readPattern = ".*\\[length: \\d+"
+                + ", request id: \\d+"
+                + ", type: request"
+                + ", version: .*"
+                + ", header size: \\d+B"
+                + ", action: cluster:monitor/stats]"
+                + " READ: \\d+B";
 
-    public void setUp() throws Exception {
-        super.setUp();
-        appender = MockLogAppender.createStarted();
-        Loggers.addAppender(LogManager.getLogger(TransportLogger.class), appender);
-    }
+            final MockLogAppender.LoggingExpectation readExpectation = new MockLogAppender.PatternSeenEventExpectation(
+                "cluster monitor request",
+                TransportLogger.class.getCanonicalName(),
+                Level.TRACE,
+                readPattern
+            );
 
-    public void tearDown() throws Exception {
-        Loggers.removeAppender(LogManager.getLogger(TransportLogger.class), appender);
-        appender.stop();
-        super.tearDown();
-    }
-
-    public void testLoggingHandler() throws IOException {
-        final String writePattern = ".*\\[length: \\d+"
-            + ", request id: \\d+"
-            + ", type: request"
-            + ", version: .*"
-            + ", header size: \\d+B"
-            + ", action: cluster:monitor/stats]"
-            + " WRITE: \\d+B";
-        final MockLogAppender.LoggingExpectation writeExpectation = new MockLogAppender.PatternSeenEventExpectation(
-            "hot threads request",
-            TransportLogger.class.getCanonicalName(),
-            Level.TRACE,
-            writePattern
-        );
-
-        final String readPattern = ".*\\[length: \\d+"
-            + ", request id: \\d+"
-            + ", type: request"
-            + ", version: .*"
-            + ", header size: \\d+B"
-            + ", action: cluster:monitor/stats]"
-            + " READ: \\d+B";
-
-        final MockLogAppender.LoggingExpectation readExpectation = new MockLogAppender.PatternSeenEventExpectation(
-            "cluster monitor request",
-            TransportLogger.class.getCanonicalName(),
-            Level.TRACE,
-            readPattern
-        );
-
-        appender.addExpectation(writeExpectation);
-        appender.addExpectation(readExpectation);
-        BytesReference bytesReference = buildRequest();
-        TransportLogger.logInboundMessage(mock(TcpChannel.class), bytesReference.slice(6, bytesReference.length() - 6));
-        TransportLogger.logOutboundMessage(mock(TcpChannel.class), bytesReference);
-        appender.assertAllExpectationsMatched();
+            appender.addExpectation(writeExpectation);
+            appender.addExpectation(readExpectation);
+            BytesReference bytesReference = buildRequest();
+            TransportLogger.logInboundMessage(mock(TcpChannel.class), bytesReference.slice(6, bytesReference.length() - 6));
+            TransportLogger.logOutboundMessage(mock(TcpChannel.class), bytesReference);
+            appender.assertAllExpectationsMatched();
+        }
     }
 
     private BytesReference buildRequest() throws IOException {

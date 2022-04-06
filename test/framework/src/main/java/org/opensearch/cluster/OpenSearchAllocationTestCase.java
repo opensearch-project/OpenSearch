@@ -80,10 +80,8 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
     ) {
         @Override
         public Long getShardSize(ShardRouting shardRouting) {
-            assert shardRouting.recoverySource()
-                .getType() == RecoverySource.Type.SNAPSHOT : "Expecting a recovery source of type [SNAPSHOT] but got ["
-                    + shardRouting.recoverySource().getType()
-                    + ']';
+            assert shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT
+                : "Expecting a recovery source of type [SNAPSHOT] but got [" + shardRouting.recoverySource().getType() + ']';
             throw new UnsupportedOperationException();
         }
     };

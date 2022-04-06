@@ -42,7 +42,6 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.test.OpenSearchTestCase;
@@ -174,26 +173,20 @@ public class HandshakingTransportAddressConnectorTests extends OpenSearchTestCas
 
         FailureListener failureListener = new FailureListener();
 
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "message",
-                HandshakingTransportAddressConnector.class.getCanonicalName(),
-                Level.WARN,
-                "*completed handshake with [*] but followup connection failed*"
-            )
-        );
         Logger targetLogger = LogManager.getLogger(HandshakingTransportAddressConnector.class);
-        Loggers.addAppender(targetLogger, mockAppender);
+        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(targetLogger)) {
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "message",
+                    HandshakingTransportAddressConnector.class.getCanonicalName(),
+                    Level.WARN,
+                    "*completed handshake with [*] but followup connection failed*"
+                )
+            );
 
-        try {
             handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, failureListener);
             failureListener.assertFailure();
             mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(targetLogger, mockAppender);
-            mockAppender.stop();
         }
     }
 

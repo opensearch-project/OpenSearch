@@ -109,8 +109,8 @@ class BulkPrimaryExecutionContext {
 
     /** move to the next item to execute */
     private void advance() {
-        assert currentItemState == ItemProcessingState.COMPLETED
-            || currentIndex == -1 : "moving to next but current item wasn't completed (state: " + currentItemState + ")";
+        assert currentItemState == ItemProcessingState.COMPLETED || currentIndex == -1
+            : "moving to next but current item wasn't completed (state: " + currentItemState + ")";
         currentItemState = ItemProcessingState.INITIAL;
         currentIndex = findNextNonAborted(currentIndex + 1);
         retryCounter = 0;

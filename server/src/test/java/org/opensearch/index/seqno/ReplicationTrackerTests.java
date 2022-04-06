@@ -1160,23 +1160,21 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             equalTo(expectedLeaseIds)
         );
 
-        assertAsTimePasses.accept(
-            () -> {
-                // Leases still don't expire
-                assertThat(
-                    tracker.getRetentionLeases().leases().stream().map(RetentionLease::id).collect(Collectors.toSet()),
-                    equalTo(expectedLeaseIds)
-                );
+        assertAsTimePasses.accept(() -> {
+            // Leases still don't expire
+            assertThat(
+                tracker.getRetentionLeases().leases().stream().map(RetentionLease::id).collect(Collectors.toSet()),
+                equalTo(expectedLeaseIds)
+            );
 
-                // Also leases are renewed before reaching half the expiry time
-                // noinspection OptionalGetWithoutIsPresent
-                assertThat(
-                    tracker.getRetentionLeases() + " renewed before too long",
-                    tracker.getRetentionLeases().leases().stream().mapToLong(RetentionLease::timestamp).min().getAsLong(),
-                    greaterThanOrEqualTo(currentTimeMillis.get() - peerRecoveryRetentionLeaseRenewalTimeMillis)
-                );
-            }
-        );
+            // Also leases are renewed before reaching half the expiry time
+            // noinspection OptionalGetWithoutIsPresent
+            assertThat(
+                tracker.getRetentionLeases() + " renewed before too long",
+                tracker.getRetentionLeases().leases().stream().mapToLong(RetentionLease::timestamp).min().getAsLong(),
+                greaterThanOrEqualTo(currentTimeMillis.get() - peerRecoveryRetentionLeaseRenewalTimeMillis)
+            );
+        });
 
         IndexShardRoutingTable.Builder routingTableBuilder = new IndexShardRoutingTable.Builder(routingTable);
         for (ShardRouting replicaShard : routingTable.replicaShards()) {
@@ -1188,17 +1186,15 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
 
         tracker.updateFromMaster(initialClusterStateVersion + randomLongBetween(1, 10), ids(activeAllocationIds), routingTable);
 
-        assertAsTimePasses.accept(
-            () -> {
-                // Leases still don't expire
-                assertThat(
-                    tracker.getRetentionLeases().leases().stream().map(RetentionLease::id).collect(Collectors.toSet()),
-                    equalTo(expectedLeaseIds)
-                );
-                // ... and any extra peer recovery retention leases are expired immediately since the shard is fully active
-                tracker.addPeerRecoveryRetentionLease(randomAlphaOfLength(10), randomNonNegativeLong(), ActionListener.wrap(() -> {}));
-            }
-        );
+        assertAsTimePasses.accept(() -> {
+            // Leases still don't expire
+            assertThat(
+                tracker.getRetentionLeases().leases().stream().map(RetentionLease::id).collect(Collectors.toSet()),
+                equalTo(expectedLeaseIds)
+            );
+            // ... and any extra peer recovery retention leases are expired immediately since the shard is fully active
+            tracker.addPeerRecoveryRetentionLease(randomAlphaOfLength(10), randomNonNegativeLong(), ActionListener.wrap(() -> {}));
+        });
 
         tracker.renewPeerRecoveryRetentionLeases();
         assertTrue("expired extra lease", tracker.getRetentionLeases(true).v1());

@@ -50,7 +50,6 @@ public class ArabicAnalyzerProvider extends AbstractIndexAnalyzerProvider<Arabic
             Analysis.parseStopWords(env, settings, ArabicAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
-        arabicAnalyzer.setVersion(version);
     }
 
     @Override

@@ -80,7 +80,7 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
     }
 
     public PercentilesAggregationBuilder(StreamInput in) throws IOException {
-        super(in);
+        super(in, PERCENTS_FIELD);
     }
 
     public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {

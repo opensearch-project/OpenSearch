@@ -1,4 +1,4 @@
-# Example test using whitelisted members and methods
+# Example test using allowlisted members and methods
 
 "Whitelisted custom class":
     - do:

@@ -43,13 +43,13 @@ import java.util.Map;
 
 public class AnalysisPainlessExtension implements PainlessExtension {
 
-    private static final Whitelist WHITELIST = WhitelistLoader.loadFromResourceFiles(
+    private static final Whitelist ALLOWLIST = WhitelistLoader.loadFromResourceFiles(
         AnalysisPainlessExtension.class,
         "painless_whitelist.txt"
     );
 
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {
-        return Collections.singletonMap(AnalysisPredicateScript.CONTEXT, Collections.singletonList(WHITELIST));
+        return Collections.singletonMap(AnalysisPredicateScript.CONTEXT, Collections.singletonList(ALLOWLIST));
     }
 }

@@ -528,8 +528,8 @@ public class AllocationService {
 
     private void reroute(RoutingAllocation allocation) {
         assert hasDeadNodes(allocation) == false : "dead nodes should be explicitly cleaned up. See disassociateDeadNodes";
-        assert AutoExpandReplicas.getAutoExpandReplicaChanges(allocation.metadata(), allocation)
-            .isEmpty() : "auto-expand replicas out of sync with number of nodes in the cluster";
+        assert AutoExpandReplicas.getAutoExpandReplicaChanges(allocation.metadata(), allocation).isEmpty()
+            : "auto-expand replicas out of sync with number of nodes in the cluster";
         assert assertInitialized();
 
         removeDelayMarkers(allocation);
@@ -602,15 +602,13 @@ public class AllocationService {
         RoutingNodes routingNodes = routingAllocation.routingNodes();
         for (ShardRouting startedShard : startedShardEntries) {
             assert startedShard.initializing() : "only initializing shards can be started";
-            assert routingAllocation.metadata()
-                .index(startedShard.shardId().getIndex()) != null : "shard started for unknown index (shard entry: " + startedShard + ")";
-            assert startedShard == routingNodes.getByAllocationId(
-                startedShard.shardId(),
-                startedShard.allocationId().getId()
-            ) : "shard routing to start does not exist in routing table, expected: "
-                + startedShard
-                + " but was: "
-                + routingNodes.getByAllocationId(startedShard.shardId(), startedShard.allocationId().getId());
+            assert routingAllocation.metadata().index(startedShard.shardId().getIndex()) != null
+                : "shard started for unknown index (shard entry: " + startedShard + ")";
+            assert startedShard == routingNodes.getByAllocationId(startedShard.shardId(), startedShard.allocationId().getId())
+                : "shard routing to start does not exist in routing table, expected: "
+                    + startedShard
+                    + " but was: "
+                    + routingNodes.getByAllocationId(startedShard.shardId(), startedShard.allocationId().getId());
 
             routingNodes.startShard(logger, startedShard, routingAllocation.changes());
         }

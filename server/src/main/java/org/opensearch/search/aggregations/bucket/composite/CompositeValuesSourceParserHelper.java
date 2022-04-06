@@ -43,6 +43,7 @@ import org.opensearch.common.xcontent.ToXContent.Params;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.script.Script;
+import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
@@ -54,6 +55,7 @@ public class CompositeValuesSourceParserHelper {
     static <VB extends CompositeValuesSourceBuilder<VB>, T> void declareValuesSourceFields(AbstractObjectParser<VB, T> objectParser) {
         objectParser.declareField(VB::field, XContentParser::text, new ParseField("field"), ObjectParser.ValueType.STRING);
         objectParser.declareBoolean(VB::missingBucket, new ParseField("missing_bucket"));
+        objectParser.declareString(VB::missingOrder, new ParseField(MissingOrder.NAME));
 
         objectParser.declareField(VB::userValuetypeHint, p -> {
             ValueType valueType = ValueType.lenientParse(p.text());

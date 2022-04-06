@@ -36,17 +36,19 @@ import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
-
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.opensearch.repositories.s3.S3ClientSettings.PROTOCOL_SETTING;
+import static org.opensearch.repositories.s3.S3ClientSettings.PROXY_TYPE_SETTING;
 
 public class AwsS3ServiceImplTests extends OpenSearchTestCase {
 
@@ -140,14 +142,14 @@ public class AwsS3ServiceImplTests extends OpenSearchTestCase {
         final Settings settings = Settings.builder()
             .setSecureSettings(secureSettings)
             .put("s3.client.default.protocol", "http")
-            .put("s3.client.default.proxy.host", "aws_proxy_host")
+            .put("s3.client.default.proxy.host", "127.0.0.10")
             .put("s3.client.default.proxy.port", 8080)
             .put("s3.client.default.read_timeout", "10s")
             .build();
         launchAWSConfigurationTest(
             settings,
             Protocol.HTTP,
-            "aws_proxy_host",
+            "127.0.0.10",
             8080,
             "aws_proxy_username",
             "aws_proxy_password",
@@ -155,6 +157,60 @@ public class AwsS3ServiceImplTests extends OpenSearchTestCase {
             ClientConfiguration.DEFAULT_THROTTLE_RETRIES,
             10000
         );
+        assertWarnings(
+            "Using of "
+                + PROTOCOL_SETTING.getConcreteSettingForNamespace("default").getKey()
+                + " as proxy type is deprecated and will be removed in future releases. Please use "
+                + PROXY_TYPE_SETTING.getConcreteSettingForNamespace("default").getKey()
+                + " instead to specify proxy type."
+        );
+    }
+
+    public void testProxyTypeOverrideProtocolSettings() {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("s3.client.default.proxy.username", "aws_proxy_username");
+        secureSettings.setString("s3.client.default.proxy.password", "aws_proxy_password");
+        final Settings settings = Settings.builder()
+            .setSecureSettings(secureSettings)
+            .put("s3.client.default.protocol", "http")
+            .put("s3.client.default.proxy.type", "https")
+            .put("s3.client.default.proxy.host", "127.0.0.10")
+            .put("s3.client.default.proxy.port", 8080)
+            .put("s3.client.default.read_timeout", "10s")
+            .build();
+        launchAWSConfigurationTest(
+            settings,
+            Protocol.HTTP,
+            "127.0.0.10",
+            8080,
+            "aws_proxy_username",
+            "aws_proxy_password",
+            3,
+            ClientConfiguration.DEFAULT_THROTTLE_RETRIES,
+            10000
+        );
+    }
+
+    public void testSocksProxyConfiguration() throws IOException {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("s3.client.default.proxy.username", "aws_proxy_username");
+        secureSettings.setString("s3.client.default.proxy.password", "aws_proxy_password");
+        final Settings settings = Settings.builder()
+            .setSecureSettings(secureSettings)
+            .put("s3.client.default.proxy.type", "socks")
+            .put("s3.client.default.proxy.host", "127.0.0.10")
+            .put("s3.client.default.proxy.port", 8080)
+            .put("s3.client.default.read_timeout", "10s")
+            .build();
+
+        final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, "default");
+        final ClientConfiguration configuration = S3Service.buildConfiguration(clientSettings);
+
+        assertEquals(Protocol.HTTPS, configuration.getProtocol());
+        assertEquals(Protocol.HTTP, configuration.getProxyProtocol()); // default value in SDK
+        assertEquals(-1, configuration.getProxyPort());
+        assertNull(configuration.getProxyUsername());
+        assertNull(configuration.getProxyPassword());
     }
 
     public void testRepositoryMaxRetries() {

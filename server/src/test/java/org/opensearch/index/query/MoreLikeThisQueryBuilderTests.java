@@ -66,6 +66,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -83,6 +84,8 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     private static String[] randomFields;
     private static Item[] randomLikeItems;
     private static Item[] randomUnlikeItems;
+
+    private Set<String> assertedWarnings = new HashSet<>();
 
     @Before
     public void setup() {
@@ -480,8 +483,9 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         assertThat(query, instanceOf(MoreLikeThisQueryBuilder.class));
 
         MoreLikeThisQueryBuilder mltQuery = (MoreLikeThisQueryBuilder) query;
-        if (mltQuery.isTypeless() == false) {
+        if (mltQuery.isTypeless() == false && !assertedWarnings.contains(MoreLikeThisQueryBuilder.TYPES_DEPRECATION_MESSAGE)) {
             assertWarnings(MoreLikeThisQueryBuilder.TYPES_DEPRECATION_MESSAGE);
+            assertedWarnings.add(MoreLikeThisQueryBuilder.TYPES_DEPRECATION_MESSAGE);
         }
         return query;
     }

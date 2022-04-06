@@ -297,25 +297,22 @@ public final class ExceptionsHelper {
      * @param throwable the throwable to possibly throw on another thread
      */
     public static void maybeDieOnAnotherThread(final Throwable throwable) {
-        ExceptionsHelper.maybeError(throwable)
-            .ifPresent(
-                error -> {
-                    /*
-                     * Here be dragons. We want to rethrow this so that it bubbles up to the uncaught exception handler. Yet, sometimes the stack
-                     * contains statements that catch any throwable (e.g., Netty, and the JDK futures framework). This means that a rethrow here
-                     * will not bubble up to where we want it to. So, we fork a thread and throw the exception from there where we are sure the
-                     * stack does not contain statements that catch any throwable. We do not wrap the exception so as to not lose the original cause
-                     * during exit.
-                     */
-                    try {
-                        // try to log the current stack trace
-                        final String formatted = ExceptionsHelper.formatStackTrace(Thread.currentThread().getStackTrace());
-                        logger.error("fatal error\n{}", formatted);
-                    } finally {
-                        new Thread(() -> { throw error; }).start();
-                    }
-                }
-            );
+        ExceptionsHelper.maybeError(throwable).ifPresent(error -> {
+            /*
+             * Here be dragons. We want to rethrow this so that it bubbles up to the uncaught exception handler. Yet, sometimes the stack
+             * contains statements that catch any throwable (e.g., Netty, and the JDK futures framework). This means that a rethrow here
+             * will not bubble up to where we want it to. So, we fork a thread and throw the exception from there where we are sure the
+             * stack does not contain statements that catch any throwable. We do not wrap the exception so as to not lose the original cause
+             * during exit.
+             */
+            try {
+                // try to log the current stack trace
+                final String formatted = ExceptionsHelper.formatStackTrace(Thread.currentThread().getStackTrace());
+                logger.error("fatal error\n{}", formatted);
+            } finally {
+                new Thread(() -> { throw error; }).start();
+            }
+        });
     }
 
     /**

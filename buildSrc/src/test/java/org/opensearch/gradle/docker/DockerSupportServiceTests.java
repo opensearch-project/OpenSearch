@@ -33,6 +33,7 @@ package org.opensearch.gradle.docker;
 
 import org.opensearch.gradle.test.GradleIntegrationTestCase;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,7 +45,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public class DockerSupportServiceTests extends GradleIntegrationTestCase {
 
     public void testParseOsReleaseOnOracle() {
-        final List<String> lines = List.of(
+        final List<String> lines = Arrays.asList(
             "NAME=\"Oracle Linux Server\"",
             "VERSION=\"6.10\"",
             "ID=\"ol\"",
@@ -85,11 +86,15 @@ public class DockerSupportServiceTests extends GradleIntegrationTestCase {
      * Trailing whitespace should be removed
      */
     public void testRemoveTrailingWhitespace() {
-        final List<String> lines = List.of("NAME=\"Oracle Linux Server\"   ");
+        final List<String> lines = Arrays.asList("NAME=\"Oracle Linux Server\"   ");
 
         final Map<String, String> results = parseOsRelease(lines);
 
-        final Map<String, String> expected = Map.of("NAME", "oracle linux server");
+        final Map<String, String> expected = new HashMap<String, String>() {
+            {
+                put("NAME", "oracle linux server");
+            }
+        };
 
         assertThat(expected, equalTo(results));
     }
@@ -98,11 +103,15 @@ public class DockerSupportServiceTests extends GradleIntegrationTestCase {
      * Comments should be removed
      */
     public void testRemoveComments() {
-        final List<String> lines = List.of("# A comment", "NAME=\"Oracle Linux Server\"");
+        final List<String> lines = Arrays.asList("# A comment", "NAME=\"Oracle Linux Server\"");
 
         final Map<String, String> results = parseOsRelease(lines);
 
-        final Map<String, String> expected = Map.of("NAME", "oracle linux server");
+        final Map<String, String> expected = new HashMap<String, String>() {
+            {
+                put("NAME", "oracle linux server");
+            }
+        };
 
         assertThat(expected, equalTo(results));
     }

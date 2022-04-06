@@ -239,7 +239,8 @@ public class LegacyESVersion extends Version {
         return fromStringSlow(version);
     }
 
-    private static Version fromStringSlow(String version) {
+    // pkg private for usage in Version (todo: remove in 3.0)
+    static Version fromStringSlow(String version) {
         final boolean snapshot; // this is some BWC for 2.x and before indices
         if (snapshot = version.endsWith("-SNAPSHOT")) {
             version = version.substring(0, version.length() - 9);

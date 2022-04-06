@@ -36,10 +36,10 @@ setup:
 "Indices boost using object":
   - skip:
       reason: deprecation was added in 5.2.0
-      features: "warnings"
+      features: "allowed_warnings"
 
   - do:
-      warnings:
+      allowed_warnings:
         - 'Object format in indices_boost is deprecated, please use array format instead'
       search:
         rest_total_hits_as_int: true
@@ -52,7 +52,7 @@ setup:
   - match: { hits.hits.1._index: test_2 }
 
   - do:
-      warnings:
+      allowed_warnings:
         - 'Object format in indices_boost is deprecated, please use array format instead'
       search:
         rest_total_hits_as_int: true

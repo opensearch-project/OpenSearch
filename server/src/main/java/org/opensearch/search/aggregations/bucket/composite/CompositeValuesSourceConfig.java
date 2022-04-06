@@ -37,6 +37,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.sort.SortOrder;
 
@@ -62,6 +63,7 @@ public class CompositeValuesSourceConfig {
     private final DocValueFormat format;
     private final int reverseMul;
     private final boolean missingBucket;
+    private final MissingOrder missingOrder;
     private final boolean hasScript;
     private final SingleDimensionValuesSourceProvider singleDimensionValuesSourceProvider;
 
@@ -83,6 +85,7 @@ public class CompositeValuesSourceConfig {
         DocValueFormat format,
         SortOrder order,
         boolean missingBucket,
+        MissingOrder missingOrder,
         boolean hasScript,
         SingleDimensionValuesSourceProvider singleDimensionValuesSourceProvider
     ) {
@@ -94,6 +97,7 @@ public class CompositeValuesSourceConfig {
         this.missingBucket = missingBucket;
         this.hasScript = hasScript;
         this.singleDimensionValuesSourceProvider = singleDimensionValuesSourceProvider;
+        this.missingOrder = missingOrder;
     }
 
     /**
@@ -130,6 +134,13 @@ public class CompositeValuesSourceConfig {
      */
     boolean missingBucket() {
         return missingBucket;
+    }
+
+    /**
+     * Return the {@link MissingOrder} for the config.
+     */
+    MissingOrder missingOrder() {
+        return missingOrder;
     }
 
     /**

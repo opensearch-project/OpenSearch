@@ -252,11 +252,11 @@ public class SettingsUpdaterTests extends OpenSearchTestCase {
 
         final Settings toApplyUnset = Settings.builder().putNull("logger.org.opensearch").build();
         final ClusterState afterUnset = settingsUpdater.updateSettings(afterDebug, toApplyUnset, Settings.EMPTY, logger);
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { deprecatedSetting });
+        assertNoDeprecationWarnings();
 
         // we also check that if no settings are changed, deprecation logging still occurs
         settingsUpdater.updateSettings(afterUnset, toApplyUnset, Settings.EMPTY, logger);
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { deprecatedSetting });
+        assertNoDeprecationWarnings();
     }
 
     public void testUpdateWithUnknownAndSettings() {

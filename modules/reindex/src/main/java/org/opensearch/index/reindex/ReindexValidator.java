@@ -59,7 +59,7 @@ class ReindexValidator {
     static final String SORT_DEPRECATED_MESSAGE = "The sort option in reindex is deprecated. "
         + "Instead consider using query filtering to find the desired subset of data.";
 
-    private final CharacterRunAutomaton remoteWhitelist;
+    private final CharacterRunAutomaton remoteAllowlist;
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver resolver;
     private final AutoCreateIndex autoCreateIndex;
@@ -70,14 +70,14 @@ class ReindexValidator {
         IndexNameExpressionResolver resolver,
         AutoCreateIndex autoCreateIndex
     ) {
-        this.remoteWhitelist = buildRemoteWhitelist(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.get(settings));
+        this.remoteAllowlist = buildRemoteAllowlist(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.get(settings));
         this.clusterService = clusterService;
         this.resolver = resolver;
         this.autoCreateIndex = autoCreateIndex;
     }
 
     void initialValidation(ReindexRequest request) {
-        checkRemoteWhitelist(remoteWhitelist, request.getRemoteInfo());
+        checkRemoteAllowlist(remoteAllowlist, request.getRemoteInfo());
         ClusterState state = clusterService.state();
         validateAgainstAliases(
             request.getSearchRequest(),
@@ -93,32 +93,32 @@ class ReindexValidator {
         }
     }
 
-    static void checkRemoteWhitelist(CharacterRunAutomaton whitelist, RemoteInfo remoteInfo) {
+    static void checkRemoteAllowlist(CharacterRunAutomaton allowlist, RemoteInfo remoteInfo) {
         if (remoteInfo == null) {
             return;
         }
         String check = remoteInfo.getHost() + ':' + remoteInfo.getPort();
-        if (whitelist.run(check)) {
+        if (allowlist.run(check)) {
             return;
         }
-        String whiteListKey = TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey();
-        throw new IllegalArgumentException('[' + check + "] not whitelisted in " + whiteListKey);
+        String allowListKey = TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey();
+        throw new IllegalArgumentException('[' + check + "] not allowlisted in " + allowListKey);
     }
 
     /**
-     * Build the {@link CharacterRunAutomaton} that represents the reindex-from-remote whitelist and make sure that it doesn't whitelist
+     * Build the {@link CharacterRunAutomaton} that represents the reindex-from-remote allowlist and make sure that it doesn't allowlist
      * the world.
      */
-    static CharacterRunAutomaton buildRemoteWhitelist(List<String> whitelist) {
-        if (whitelist.isEmpty()) {
+    static CharacterRunAutomaton buildRemoteAllowlist(List<String> allowlist) {
+        if (allowlist.isEmpty()) {
             return new CharacterRunAutomaton(Automata.makeEmpty());
         }
-        Automaton automaton = Regex.simpleMatchToAutomaton(whitelist.toArray(Strings.EMPTY_ARRAY));
+        Automaton automaton = Regex.simpleMatchToAutomaton(allowlist.toArray(Strings.EMPTY_ARRAY));
         automaton = MinimizationOperations.minimize(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         if (Operations.isTotal(automaton)) {
             throw new IllegalArgumentException(
-                "Refusing to start because whitelist "
-                    + whitelist
+                "Refusing to start because allowlist "
+                    + allowlist
                     + " accepts all addresses. "
                     + "This would allow users to reindex-from-remote any URL they like effectively having OpenSearch make HTTP GETs "
                     + "for them."

@@ -33,6 +33,7 @@
 package org.opensearch.index.query.functionscore;
 
 import org.apache.lucene.search.Explanation;
+import org.opensearch.common.Nullable;
 
 /**
  * Implement this interface to provide a decay function that is executed on a
@@ -45,7 +46,7 @@ public interface DecayFunction {
 
     double evaluate(double value, double scale);
 
-    Explanation explainFunction(String valueString, double value, double scale);
+    Explanation explainFunction(String valueString, double value, double scale, @Nullable String functionName);
 
     /**
      * The final scale parameter is computed from the scale parameter given by

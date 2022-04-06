@@ -32,6 +32,7 @@
 
 package org.opensearch.index.query.functionscore;
 
+import org.opensearch.common.Nullable;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 
@@ -46,8 +47,27 @@ public class ScoreFunctionBuilders {
         return new ExponentialDecayFunctionBuilder(fieldName, origin, scale, null);
     }
 
+    public static ExponentialDecayFunctionBuilder exponentialDecayFunction(
+        String fieldName,
+        Object origin,
+        Object scale,
+        @Nullable String functionName
+    ) {
+        return new ExponentialDecayFunctionBuilder(fieldName, origin, scale, null, functionName);
+    }
+
     public static ExponentialDecayFunctionBuilder exponentialDecayFunction(String fieldName, Object origin, Object scale, Object offset) {
         return new ExponentialDecayFunctionBuilder(fieldName, origin, scale, offset);
+    }
+
+    public static ExponentialDecayFunctionBuilder exponentialDecayFunction(
+        String fieldName,
+        Object origin,
+        Object scale,
+        Object offset,
+        @Nullable String functionName
+    ) {
+        return new ExponentialDecayFunctionBuilder(fieldName, origin, scale, offset, functionName);
     }
 
     public static ExponentialDecayFunctionBuilder exponentialDecayFunction(
@@ -60,8 +80,28 @@ public class ScoreFunctionBuilders {
         return new ExponentialDecayFunctionBuilder(fieldName, origin, scale, offset, decay);
     }
 
+    public static ExponentialDecayFunctionBuilder exponentialDecayFunction(
+        String fieldName,
+        Object origin,
+        Object scale,
+        Object offset,
+        double decay,
+        @Nullable String functionName
+    ) {
+        return new ExponentialDecayFunctionBuilder(fieldName, origin, scale, offset, decay, functionName);
+    }
+
     public static GaussDecayFunctionBuilder gaussDecayFunction(String fieldName, Object origin, Object scale) {
         return new GaussDecayFunctionBuilder(fieldName, origin, scale, null);
+    }
+
+    public static GaussDecayFunctionBuilder gaussDecayFunction(
+        String fieldName,
+        Object origin,
+        Object scale,
+        @Nullable String functionName
+    ) {
+        return new GaussDecayFunctionBuilder(fieldName, origin, scale, null, functionName);
     }
 
     public static GaussDecayFunctionBuilder gaussDecayFunction(String fieldName, Object origin, Object scale, Object offset) {
@@ -70,6 +110,26 @@ public class ScoreFunctionBuilders {
 
     public static GaussDecayFunctionBuilder gaussDecayFunction(String fieldName, Object origin, Object scale, Object offset, double decay) {
         return new GaussDecayFunctionBuilder(fieldName, origin, scale, offset, decay);
+    }
+
+    public static GaussDecayFunctionBuilder gaussDecayFunction(
+        String fieldName,
+        Object origin,
+        Object scale,
+        Object offset,
+        double decay,
+        @Nullable String functionName
+    ) {
+        return new GaussDecayFunctionBuilder(fieldName, origin, scale, offset, decay, functionName);
+    }
+
+    public static LinearDecayFunctionBuilder linearDecayFunction(
+        String fieldName,
+        Object origin,
+        Object scale,
+        @Nullable String functionName
+    ) {
+        return new LinearDecayFunctionBuilder(fieldName, origin, scale, null, functionName);
     }
 
     public static LinearDecayFunctionBuilder linearDecayFunction(String fieldName, Object origin, Object scale) {
@@ -85,28 +145,69 @@ public class ScoreFunctionBuilders {
         Object origin,
         Object scale,
         Object offset,
+        @Nullable String functionName
+    ) {
+        return new LinearDecayFunctionBuilder(fieldName, origin, scale, offset, functionName);
+    }
+
+    public static LinearDecayFunctionBuilder linearDecayFunction(
+        String fieldName,
+        Object origin,
+        Object scale,
+        Object offset,
         double decay
     ) {
         return new LinearDecayFunctionBuilder(fieldName, origin, scale, offset, decay);
     }
 
+    public static LinearDecayFunctionBuilder linearDecayFunction(
+        String fieldName,
+        Object origin,
+        Object scale,
+        Object offset,
+        double decay,
+        @Nullable String functionName
+    ) {
+        return new LinearDecayFunctionBuilder(fieldName, origin, scale, offset, decay, functionName);
+    }
+
     public static ScriptScoreFunctionBuilder scriptFunction(Script script) {
-        return (new ScriptScoreFunctionBuilder(script));
+        return scriptFunction(script, null);
     }
 
     public static ScriptScoreFunctionBuilder scriptFunction(String script) {
-        return (new ScriptScoreFunctionBuilder(new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, script, emptyMap())));
+        return scriptFunction(script, null);
     }
 
     public static RandomScoreFunctionBuilder randomFunction() {
-        return new RandomScoreFunctionBuilder();
+        return randomFunction(null);
     }
 
     public static WeightBuilder weightFactorFunction(float weight) {
-        return (WeightBuilder) (new WeightBuilder().setWeight(weight));
+        return weightFactorFunction(weight, null);
     }
 
     public static FieldValueFactorFunctionBuilder fieldValueFactorFunction(String fieldName) {
-        return new FieldValueFactorFunctionBuilder(fieldName);
+        return fieldValueFactorFunction(fieldName, null);
+    }
+
+    public static ScriptScoreFunctionBuilder scriptFunction(Script script, @Nullable String functionName) {
+        return new ScriptScoreFunctionBuilder(script, functionName);
+    }
+
+    public static ScriptScoreFunctionBuilder scriptFunction(String script, @Nullable String functionName) {
+        return new ScriptScoreFunctionBuilder(new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, script, emptyMap()), functionName);
+    }
+
+    public static RandomScoreFunctionBuilder randomFunction(@Nullable String functionName) {
+        return new RandomScoreFunctionBuilder(functionName);
+    }
+
+    public static WeightBuilder weightFactorFunction(float weight, @Nullable String functionName) {
+        return (WeightBuilder) (new WeightBuilder(functionName).setWeight(weight));
+    }
+
+    public static FieldValueFactorFunctionBuilder fieldValueFactorFunction(String fieldName, @Nullable String functionName) {
+        return new FieldValueFactorFunctionBuilder(fieldName, functionName);
     }
 }

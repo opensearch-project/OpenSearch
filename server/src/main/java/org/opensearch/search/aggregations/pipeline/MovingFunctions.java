@@ -192,7 +192,7 @@ public class MovingFunctions {
     }
 
     /**
-     * Version of holt that can "forecast", not exposed as a whitelisted function for moving_fn scripts, but
+     * Version of holt that can "forecast", not exposed as an allowlisted function for moving_fn scripts, but
      * here as compatibility/code sharing for existing moving_avg agg.  Can be removed when moving_avg is gone.
      */
     public static double[] holtForecast(double[] values, double alpha, double beta, int numForecasts) {
@@ -268,7 +268,7 @@ public class MovingFunctions {
     }
 
     /**
-     * Version of holt-winters that can "forecast", not exposed as a whitelisted function for moving_fn scripts, but
+     * Version of holt-winters that can "forecast", not exposed as an allowlisted function for moving_fn scripts, but
      * here as compatibility/code sharing for existing moving_avg agg.  Can be removed when moving_avg is gone.
      */
     public static double[] holtWintersForecast(

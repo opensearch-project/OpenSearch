@@ -51,8 +51,8 @@ public class BindingsTests extends ScriptTestCase {
     @BeforeClass
     public static void beforeClass() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = newDefaultContexts();
-        List<Whitelist> whitelists = new ArrayList<>(Whitelist.BASE_WHITELISTS);
-        whitelists.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.opensearch.painless.test"));
+        List<Whitelist> allowlists = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+        allowlists.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.opensearch.painless.test"));
 
         InstanceBindingTestClass instanceBindingTestClass = new InstanceBindingTestClass(1);
         WhitelistInstanceBinding getter = new WhitelistInstanceBinding(
@@ -74,16 +74,16 @@ public class BindingsTests extends ScriptTestCase {
         List<WhitelistInstanceBinding> instanceBindingsList = new ArrayList<>();
         instanceBindingsList.add(getter);
         instanceBindingsList.add(setter);
-        Whitelist instanceBindingsWhitelist = new Whitelist(
+        Whitelist instanceBindingsAllowlist = new Whitelist(
             instanceBindingTestClass.getClass().getClassLoader(),
             Collections.emptyList(),
             Collections.emptyList(),
             Collections.emptyList(),
             instanceBindingsList
         );
-        whitelists.add(instanceBindingsWhitelist);
+        allowlists.add(instanceBindingsAllowlist);
 
-        contexts.put(BindingsTestScript.CONTEXT, whitelists);
+        contexts.put(BindingsTestScript.CONTEXT, allowlists);
         SCRIPT_ENGINE = new PainlessScriptEngine(Settings.EMPTY, contexts);
     }
 

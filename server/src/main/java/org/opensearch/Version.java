@@ -78,8 +78,13 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_1_2_1 = new Version(1020199, org.apache.lucene.util.Version.LUCENE_8_10_1);
     public static final Version V_1_2_2 = new Version(1020299, org.apache.lucene.util.Version.LUCENE_8_10_1);
     public static final Version V_1_2_3 = new Version(1020399, org.apache.lucene.util.Version.LUCENE_8_10_1);
+    public static final Version V_1_2_4 = new Version(1020499, org.apache.lucene.util.Version.LUCENE_8_10_1);
+    public static final Version V_1_2_5 = new Version(1020599, org.apache.lucene.util.Version.LUCENE_8_10_1);
     public static final Version V_1_3_0 = new Version(1030099, org.apache.lucene.util.Version.LUCENE_8_10_1);
-    public static final Version CURRENT = V_1_3_0;
+    public static final Version V_1_3_1 = new Version(1030199, org.apache.lucene.util.Version.LUCENE_8_10_1);
+    public static final Version V_1_3_2 = new Version(1030299, org.apache.lucene.util.Version.LUCENE_8_10_1);
+    public static final Version V_1_4_0 = new Version(1040099, org.apache.lucene.util.Version.LUCENE_8_10_1);
+    public static final Version CURRENT = V_1_4_0;
 
     public static Version readVersion(StreamInput in) throws IOException {
         return fromId(in.readVInt());
@@ -177,6 +182,19 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         final Version cached = LegacyESVersion.stringToVersion.get(version);
         if (cached != null) {
             return cached;
+        }
+        {
+            // get major string; remove when creating OpenSearch 3.0
+            String[] parts = version.split("[.-]");
+            if (parts.length < 3 || parts.length > 4) {
+                throw new IllegalArgumentException(
+                    "the version needs to contain major, minor, and revision, and optionally the build: " + version
+                );
+            }
+            int major = Integer.parseInt(parts[0]);
+            if (major > 3) {
+                return LegacyESVersion.fromStringSlow(version);
+            }
         }
         return fromStringSlow(version);
     }

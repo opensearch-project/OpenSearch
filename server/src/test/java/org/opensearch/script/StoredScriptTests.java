@@ -255,7 +255,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
             StoredScriptSource source = new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, "", Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
-            assertWarnings("empty templates should no longer be used");
+            assertNoDeprecationWarnings();
         }
     }
 

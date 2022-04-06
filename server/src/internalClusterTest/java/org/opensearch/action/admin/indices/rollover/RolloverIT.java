@@ -44,7 +44,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.AutoExpandReplicas;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.allocation.AllocationService;
-import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.ByteSizeUnit;
@@ -263,23 +262,21 @@ public class RolloverIT extends OpenSearchIntegTestCase {
         ensureGreen();
         Logger allocationServiceLogger = LogManager.getLogger(AllocationService.class);
 
-        MockLogAppender appender = new MockLogAppender();
-        appender.start();
-        appender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "no related message logged on dry run",
-                AllocationService.class.getName(),
-                Level.INFO,
-                "*test_index*"
-            )
-        );
-        Loggers.addAppender(allocationServiceLogger, appender);
+        final RolloverResponse response;
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(allocationServiceLogger)) {
+            appender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation(
+                    "no related message logged on dry run",
+                    AllocationService.class.getName(),
+                    Level.INFO,
+                    "*test_index*"
+                )
+            );
 
-        final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").dryRun(true).get();
+            response = client().admin().indices().prepareRolloverIndex("test_alias").dryRun(true).get();
 
-        appender.assertAllExpectationsMatched();
-        appender.stop();
-        Loggers.removeAppender(allocationServiceLogger, appender);
+            appender.assertAllExpectationsMatched();
+        }
 
         assertThat(response.getOldIndex(), equalTo("test_index-1"));
         assertThat(response.getNewIndex(), equalTo("test_index-000002"));

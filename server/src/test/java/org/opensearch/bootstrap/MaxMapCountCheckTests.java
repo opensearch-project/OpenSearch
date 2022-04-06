@@ -40,7 +40,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.io.PathUtils;
-import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.AbstractBootstrapCheckTestCase;
 import org.opensearch.test.MockLogAppender;
@@ -157,48 +156,42 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
             final IOException ioException = new IOException("fatal");
             when(reader.readLine()).thenThrow(ioException);
             final Logger logger = LogManager.getLogger("testGetMaxMapCountIOException");
-            final MockLogAppender appender = new MockLogAppender();
-            appender.start();
-            appender.addExpectation(
-                new ParameterizedMessageLoggingExpectation(
-                    "expected logged I/O exception",
-                    "testGetMaxMapCountIOException",
-                    Level.WARN,
-                    "I/O exception while trying to read [{}]",
-                    new Object[] { procSysVmMaxMapCountPath },
-                    e -> ioException == e
-                )
-            );
-            Loggers.addAppender(logger, appender);
-            assertThat(check.getMaxMapCount(logger), equalTo(-1L));
-            appender.assertAllExpectationsMatched();
-            verify(reader).close();
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
+            try (MockLogAppender appender = MockLogAppender.createForLoggers(logger)) {
+                appender.addExpectation(
+                    new ParameterizedMessageLoggingExpectation(
+                        "expected logged I/O exception",
+                        "testGetMaxMapCountIOException",
+                        Level.WARN,
+                        "I/O exception while trying to read [{}]",
+                        new Object[] { procSysVmMaxMapCountPath },
+                        e -> ioException == e
+                    )
+                );
+                assertThat(check.getMaxMapCount(logger), equalTo(-1L));
+                appender.assertAllExpectationsMatched();
+                verify(reader).close();
+            }
         }
 
         {
             reset(reader);
             when(reader.readLine()).thenReturn("eof");
             final Logger logger = LogManager.getLogger("testGetMaxMapCountNumberFormatException");
-            final MockLogAppender appender = new MockLogAppender();
-            appender.start();
-            appender.addExpectation(
-                new ParameterizedMessageLoggingExpectation(
-                    "expected logged number format exception",
-                    "testGetMaxMapCountNumberFormatException",
-                    Level.WARN,
-                    "unable to parse vm.max_map_count [{}]",
-                    new Object[] { "eof" },
-                    e -> e instanceof NumberFormatException && e.getMessage().equals("For input string: \"eof\"")
-                )
-            );
-            Loggers.addAppender(logger, appender);
-            assertThat(check.getMaxMapCount(logger), equalTo(-1L));
-            appender.assertAllExpectationsMatched();
-            verify(reader).close();
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
+            try (MockLogAppender appender = MockLogAppender.createForLoggers(logger)) {
+                appender.addExpectation(
+                    new ParameterizedMessageLoggingExpectation(
+                        "expected logged number format exception",
+                        "testGetMaxMapCountNumberFormatException",
+                        Level.WARN,
+                        "unable to parse vm.max_map_count [{}]",
+                        new Object[] { "eof" },
+                        e -> e instanceof NumberFormatException && e.getMessage().equals("For input string: \"eof\"")
+                    )
+                );
+                assertThat(check.getMaxMapCount(logger), equalTo(-1L));
+                appender.assertAllExpectationsMatched();
+                verify(reader).close();
+            }
         }
 
     }

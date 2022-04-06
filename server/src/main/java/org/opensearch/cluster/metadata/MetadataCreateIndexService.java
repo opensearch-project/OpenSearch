@@ -931,7 +931,7 @@ public class MetadataCreateIndexService {
         shardLimitValidator.validateShardLimit(indexSettings, currentState);
         if (indexSettings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
             DEPRECATION_LOGGER.deprecate(
-                "soft_deletes_disabled",
+                request.index() + "soft_deletes_disabled",
                 "Creating indices with soft-deletes disabled is deprecated and will be removed in future OpenSearch versions. "
                     + "Please do not specify value for setting [index.soft_deletes.enabled] of index ["
                     + request.index()
@@ -988,9 +988,8 @@ public class MetadataCreateIndexService {
                 routingNumShards = calculateNumRoutingShards(numTargetShards, indexVersionCreated);
             }
         } else {
-            assert IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(
-                indexSettings
-            ) == false : "index.number_of_routing_shards should not be present on the target index on resize";
+            assert IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(indexSettings) == false
+                : "index.number_of_routing_shards should not be present on the target index on resize";
             routingNumShards = sourceMetadata.getRoutingNumShards();
         }
         return routingNumShards;

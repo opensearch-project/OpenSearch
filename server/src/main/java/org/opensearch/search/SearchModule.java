@@ -34,6 +34,7 @@ package org.opensearch.search;
 
 import org.apache.lucene.search.BooleanQuery;
 import org.opensearch.common.NamedRegistry;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.geo.GeoShapeType;
 import org.opensearch.common.geo.ShapesAvailability;
@@ -112,6 +113,7 @@ import org.opensearch.plugins.SearchPlugin.ScoreFunctionSpec;
 import org.opensearch.plugins.SearchPlugin.SearchExtSpec;
 import org.opensearch.plugins.SearchPlugin.SearchExtensionSpec;
 import org.opensearch.plugins.SearchPlugin.SignificanceHeuristicSpec;
+import org.opensearch.plugins.SearchPlugin.SortSpec;
 import org.opensearch.plugins.SearchPlugin.SuggesterSpec;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.BaseAggregationBuilder;
@@ -273,6 +275,8 @@ import org.opensearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.opensearch.search.fetch.subphase.highlight.Highlighter;
 import org.opensearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.opensearch.search.fetch.subphase.highlight.UnifiedHighlighter;
+import org.opensearch.search.query.QueryPhase;
+import org.opensearch.search.query.QueryPhaseSearcher;
 import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.search.rescore.RescorerBuilder;
 import org.opensearch.search.sort.FieldSortBuilder;
@@ -293,11 +297,14 @@ import org.opensearch.search.suggest.phrase.SmoothingModel;
 import org.opensearch.search.suggest.phrase.StupidBackoff;
 import org.opensearch.search.suggest.term.TermSuggestion;
 import org.opensearch.search.suggest.term.TermSuggestionBuilder;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -330,6 +337,8 @@ public class SearchModule {
     private final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
     private final List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
     private final ValuesSourceRegistry valuesSourceRegistry;
+    private final QueryPhaseSearcher queryPhaseSearcher;
+    private final SearchPlugin.ExecutorServiceProvider indexSearcherExecutorProvider;
 
     /**
      * Constructs a new SearchModule object
@@ -348,7 +357,7 @@ public class SearchModule {
         registerScoreFunctions(plugins);
         registerQueryParsers(plugins);
         registerRescorers(plugins);
-        registerSorts();
+        registerSortParsers(plugins);
         registerValueFormats();
         registerSignificanceHeuristics(plugins);
         this.valuesSourceRegistry = registerAggregations(plugins);
@@ -358,6 +367,8 @@ public class SearchModule {
         registerSearchExts(plugins);
         registerShapes();
         registerIntervalsSourceProviders();
+        queryPhaseSearcher = registerQueryPhaseSearcher(plugins);
+        indexSearcherExecutorProvider = registerIndexSearcherExecutorProvider(plugins);
         namedWriteables.addAll(SortValue.namedWriteables());
     }
 
@@ -895,13 +906,6 @@ public class SearchModule {
         namedWriteables.add(new NamedWriteableRegistry.Entry(RescorerBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
     }
 
-    private void registerSorts() {
-        namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, GeoDistanceSortBuilder.NAME, GeoDistanceSortBuilder::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, ScoreSortBuilder.NAME, ScoreSortBuilder::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, ScriptSortBuilder.NAME, ScriptSortBuilder::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, FieldSortBuilder.NAME, FieldSortBuilder::new));
-    }
-
     private <T> void registerFromPlugin(List<SearchPlugin> plugins, Function<SearchPlugin, List<T>> producer, Consumer<T> consumer) {
         for (SearchPlugin plugin : plugins) {
             for (T t : producer.apply(plugin)) {
@@ -1227,6 +1231,20 @@ public class SearchModule {
         registerFromPlugin(plugins, SearchPlugin::getQueries, this::registerQuery);
     }
 
+    private void registerSortParsers(List<SearchPlugin> plugins) {
+        registerSort(new SortSpec<>(FieldSortBuilder.NAME, FieldSortBuilder::new, FieldSortBuilder::fromXContentObject));
+        registerSort(new SortSpec<>(ScriptSortBuilder.NAME, ScriptSortBuilder::new, ScriptSortBuilder::fromXContent));
+        registerSort(
+            new SortSpec<>(
+                new ParseField(GeoDistanceSortBuilder.NAME, GeoDistanceSortBuilder.ALTERNATIVE_NAME),
+                GeoDistanceSortBuilder::new,
+                GeoDistanceSortBuilder::fromXContent
+            )
+        );
+        registerSort(new SortSpec<>(ScoreSortBuilder.NAME, ScoreSortBuilder::new, ScoreSortBuilder::fromXContent));
+        registerFromPlugin(plugins, SearchPlugin::getSorts, this::registerSort);
+    }
+
     private void registerIntervalsSourceProviders() {
         namedWriteables.addAll(getIntervalsSourceProviderNamedWritables());
     }
@@ -1261,6 +1279,11 @@ public class SearchModule {
                 ),
                 new NamedWriteableRegistry.Entry(
                     IntervalsSourceProvider.class,
+                    IntervalsSourceProvider.Regexp.NAME,
+                    IntervalsSourceProvider.Regexp::new
+                ),
+                new NamedWriteableRegistry.Entry(
+                    IntervalsSourceProvider.class,
                     IntervalsSourceProvider.Fuzzy.NAME,
                     IntervalsSourceProvider.Fuzzy::new
                 )
@@ -1273,7 +1296,60 @@ public class SearchModule {
         namedXContents.add(new NamedXContentRegistry.Entry(QueryBuilder.class, spec.getName(), (p, c) -> spec.getParser().fromXContent(p)));
     }
 
+    private void registerSort(SortSpec<?> spec) {
+        namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
+        namedXContents.add(
+            new NamedXContentRegistry.Entry(
+                SortBuilder.class,
+                spec.getName(),
+                (p, c) -> spec.getParser().fromXContent(p, spec.getName().getPreferredName())
+            )
+        );
+    }
+
+    private QueryPhaseSearcher registerQueryPhaseSearcher(List<SearchPlugin> plugins) {
+        QueryPhaseSearcher searcher = null;
+
+        for (SearchPlugin plugin : plugins) {
+            final Optional<QueryPhaseSearcher> searcherOpt = plugin.getQueryPhaseSearcher();
+
+            if (searcher == null) {
+                searcher = searcherOpt.orElse(null);
+            } else if (searcherOpt.isPresent()) {
+                throw new IllegalStateException("Only one QueryPhaseSearcher is allowed, but more than one are provided by the plugins");
+            }
+        }
+
+        return searcher;
+    }
+
+    private SearchPlugin.ExecutorServiceProvider registerIndexSearcherExecutorProvider(List<SearchPlugin> plugins) {
+        SearchPlugin.ExecutorServiceProvider provider = null;
+
+        for (SearchPlugin plugin : plugins) {
+            final Optional<SearchPlugin.ExecutorServiceProvider> providerOpt = plugin.getIndexSearcherExecutorProvider();
+
+            if (provider == null) {
+                provider = providerOpt.orElse(null);
+            } else if (providerOpt.isPresent()) {
+                throw new IllegalStateException(
+                    "The index searcher executor is already assigned but more than one are provided by the plugins"
+                );
+            }
+        }
+
+        return provider;
+    }
+
     public FetchPhase getFetchPhase() {
         return new FetchPhase(fetchSubPhases);
+    }
+
+    public QueryPhase getQueryPhase() {
+        return (queryPhaseSearcher == null) ? new QueryPhase() : new QueryPhase(queryPhaseSearcher);
+    }
+
+    public @Nullable ExecutorService getIndexSearcherExecutor(ThreadPool pool) {
+        return (indexSearcherExecutorProvider == null) ? null : indexSearcherExecutorProvider.getExecutor(pool);
     }
 }

@@ -71,9 +71,8 @@ public abstract class TaskBatcher {
             return;
         }
         final BatchedTask firstTask = tasks.get(0);
-        assert tasks.stream()
-            .allMatch(t -> t.batchingKey == firstTask.batchingKey) : "tasks submitted in a batch should share the same batching key: "
-                + tasks;
+        assert tasks.stream().allMatch(t -> t.batchingKey == firstTask.batchingKey)
+            : "tasks submitted in a batch should share the same batching key: " + tasks;
         // convert to an identity map to check for dups based on task identity
         final Map<Object, BatchedTask> tasksIdentity = tasks.stream()
             .collect(
@@ -124,8 +123,8 @@ public abstract class TaskBatcher {
         if (toRemove.isEmpty() == false) {
             BatchedTask firstTask = toRemove.get(0);
             Object batchingKey = firstTask.batchingKey;
-            assert tasks.stream()
-                .allMatch(t -> t.batchingKey == batchingKey) : "tasks submitted in a batch should share the same batching key: " + tasks;
+            assert tasks.stream().allMatch(t -> t.batchingKey == batchingKey)
+                : "tasks submitted in a batch should share the same batching key: " + tasks;
             synchronized (tasksPerBatchingKey) {
                 LinkedHashSet<BatchedTask> existingTasks = tasksPerBatchingKey.get(batchingKey);
                 if (existingTasks != null) {

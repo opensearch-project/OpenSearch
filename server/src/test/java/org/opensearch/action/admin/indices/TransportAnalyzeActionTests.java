@@ -599,6 +599,5 @@ public class TransportAnalyzeActionTests extends OpenSearchTestCase {
 
         analyze = TransportAnalyzeAction.analyze(req, registry, mockIndexService(), maxTokenCount);
         assertEquals(1, analyze.getTokens().size());
-        assertWarnings("Using deprecated token filter [deprecated]");
     }
 }

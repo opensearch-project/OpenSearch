@@ -1971,7 +1971,12 @@ public class DateFormatters {
             String msg = "Camel case format name {} is deprecated and will be removed in a future version. "
                 + "Use snake case name {} instead.";
             deprecationLogger.getOrCompute()
-                .deprecate("camelCaseDateFormat", msg, formatName.getCamelCaseName(), formatName.getSnakeCaseName());
+                .deprecate(
+                    "camelCaseDateFormat_" + formatName.getCamelCaseName(),
+                    msg,
+                    formatName.getCamelCaseName(),
+                    formatName.getSnakeCaseName()
+                );
         }
 
         if (FormatNames.ISO8601.matches(input)) {

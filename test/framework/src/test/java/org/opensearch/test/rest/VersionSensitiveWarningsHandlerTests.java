@@ -52,7 +52,7 @@ public class VersionSensitiveWarningsHandlerTests extends OpenSearchTestCase {
         WarningsHandler handler = expectVersionSpecificWarnings(nodeVersions, (v) -> { v.current("expectedCurrent1"); });
         assertFalse(handler.warningsShouldFailRequest(Arrays.asList("expectedCurrent1")));
         assertTrue(handler.warningsShouldFailRequest(Arrays.asList("expectedCurrent1", "unexpected")));
-        assertTrue(handler.warningsShouldFailRequest(Collections.emptyList()));
+        assertFalse(handler.warningsShouldFailRequest(Collections.emptyList()));
 
     }
 

@@ -41,6 +41,7 @@ import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.common.xcontent.NamedObjectNotFoundException;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -53,13 +54,10 @@ import org.opensearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
-import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
 public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWriteable, ToXContentObject, Rewriteable<SortBuilder<?>> {
@@ -70,17 +68,6 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
     public static final ParseField ORDER_FIELD = new ParseField("order");
     public static final ParseField NESTED_FILTER_FIELD = new ParseField("nested_filter");
     public static final ParseField NESTED_PATH_FIELD = new ParseField("nested_path");
-
-    private static final Map<String, Parser<?>> PARSERS;
-    static {
-        Map<String, Parser<?>> parsers = new HashMap<>();
-        parsers.put(ScriptSortBuilder.NAME, ScriptSortBuilder::fromXContent);
-        parsers.put(GeoDistanceSortBuilder.NAME, GeoDistanceSortBuilder::fromXContent);
-        parsers.put(GeoDistanceSortBuilder.ALTERNATIVE_NAME, GeoDistanceSortBuilder::fromXContent);
-        parsers.put(ScoreSortBuilder.NAME, ScoreSortBuilder::fromXContent);
-        // FieldSortBuilder gets involved if the user specifies a name that isn't one of these.
-        PARSERS = unmodifiableMap(parsers);
-    }
 
     /**
      * Create a {@linkplain SortFieldAndFormat} from this builder.
@@ -155,9 +142,10 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
                     SortOrder order = SortOrder.fromString(parser.text());
                     sortFields.add(fieldOrScoreSort(fieldName).order(order));
                 } else {
-                    if (PARSERS.containsKey(fieldName)) {
-                        sortFields.add(PARSERS.get(fieldName).fromXContent(parser, fieldName));
-                    } else {
+                    try {
+                        SortBuilder<?> sort = parser.namedObject(SortBuilder.class, fieldName, null);
+                        sortFields.add(sort);
+                    } catch (NamedObjectNotFoundException err) {
                         sortFields.add(FieldSortBuilder.fromXContent(parser, fieldName));
                     }
                 }
@@ -288,11 +276,6 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         } catch (Exception e) {
             throw new ParsingException(parser.getTokenLocation(), "Expected " + NESTED_FILTER_FIELD.getPreferredName() + " element.", e);
         }
-    }
-
-    @FunctionalInterface
-    private interface Parser<T extends SortBuilder<?>> {
-        T fromXContent(XContentParser parser, String elementName) throws IOException;
     }
 
     @Override

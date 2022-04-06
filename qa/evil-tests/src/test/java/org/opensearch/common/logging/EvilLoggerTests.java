@@ -145,21 +145,6 @@ public class EvilLoggerTests extends OpenSearchTestCase {
                     }
                 }
 
-                /*
-                 * We have to manually check that each thread has the right warning headers in the thread context because the act of doing
-                 * this through the test framework on one thread would otherwise clear the thread context and we would be unable to assert
-                 * on the other threads.
-                 */
-                final List<String> warnings = threadContext.getResponseHeaders().get("Warning");
-                final Set<String> actualWarningValues =
-                        warnings.stream().map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, true))
-                            .collect(Collectors.toSet());
-                for (int j = 0; j < 128; j++) {
-                    assertThat(
-                            actualWarningValues,
-                            hasItem(HeaderWarning.escapeAndEncode("This is a maybe logged deprecation message" + j)));
-                }
-
                 try {
                     barrier.await();
                 } catch (final BrokenBarrierException | InterruptedException e) {
@@ -209,7 +194,9 @@ public class EvilLoggerTests extends OpenSearchTestCase {
         final int iterations = randomIntBetween(0, 128);
         for (int i = 0; i < iterations; i++) {
             setting.get(settings);
-            assertSettingDeprecationsAndWarnings(new Setting<?>[]{setting});
+            if (i == 0) {
+                assertSettingDeprecationsAndWarnings(new Setting<?>[]{setting});
+            }
         }
 
         final String deprecationPath =

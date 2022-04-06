@@ -65,7 +65,7 @@ public class LoggingDeprecationHandler implements DeprecationHandler {
     public void usedDeprecatedName(String parserName, Supplier<XContentLocation> location, String usedName, String modernName) {
         String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
         deprecationLogger.deprecate(
-            "deprecated_field",
+            usedName + "_deprecated_name",
             "{}Deprecated field [{}] used, expected [{}] instead",
             prefix,
             usedName,
@@ -76,14 +76,20 @@ public class LoggingDeprecationHandler implements DeprecationHandler {
     @Override
     public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith) {
         String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-        deprecationLogger.deprecate("deprecated_field", "{}Deprecated field [{}] used, replaced by [{}]", prefix, usedName, replacedWith);
+        deprecationLogger.deprecate(
+            usedName + "_deprecated_field",
+            "{}Deprecated field [{}] used, replaced by [{}]",
+            prefix,
+            usedName,
+            replacedWith
+        );
     }
 
     @Override
     public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName) {
         String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
         deprecationLogger.deprecate(
-            "deprecated_field",
+            usedName + "_deprecated_field",
             "{}Deprecated field [{}] used, this field is unused and will be removed entirely",
             prefix,
             usedName

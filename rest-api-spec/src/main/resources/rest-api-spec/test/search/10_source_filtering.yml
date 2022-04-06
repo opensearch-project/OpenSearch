@@ -176,9 +176,9 @@ setup:
   - skip:
       version: " - 6.99.99"
       reason: Only triggers warnings on 7.0+
-      features: warnings
+      features: allowed_warnings
   - do:
-      warnings:
+      allowed_warnings:
         - "[use_field_mapping] is a special format that was only used to ease the transition to 7.x. It has become the default and shouldn't be set explicitly anymore."
       search:
         body:

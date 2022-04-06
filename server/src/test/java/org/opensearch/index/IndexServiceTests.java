@@ -311,16 +311,14 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         // before that this is why we need to wait for the refresh task to be unscheduled and the first doc to be visible
         assertTrue(refreshTask.isClosed());
         refreshTask = indexService.getRefreshTask();
-        assertBusy(
-            () -> {
-                // this one either becomes visible due to a concurrently running scheduled refresh OR due to the force refresh
-                // we are running on updateMetadata if the interval changes
-                try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-                    TopDocs search = searcher.search(new MatchAllDocsQuery(), 10);
-                    assertEquals(1, search.totalHits.value);
-                }
+        assertBusy(() -> {
+            // this one either becomes visible due to a concurrently running scheduled refresh OR due to the force refresh
+            // we are running on updateMetadata if the interval changes
+            try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+                TopDocs search = searcher.search(new MatchAllDocsQuery(), 10);
+                assertEquals(1, search.totalHits.value);
             }
-        );
+        });
         assertFalse(refreshTask.isClosed());
         // refresh every millisecond
         client().prepareIndex("test", "test", "1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
@@ -330,25 +328,21 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
             .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "1ms"))
             .get();
         assertTrue(refreshTask.isClosed());
-        assertBusy(
-            () -> {
-                // this one becomes visible due to the force refresh we are running on updateMetadata if the interval changes
-                try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-                    TopDocs search = searcher.search(new MatchAllDocsQuery(), 10);
-                    assertEquals(2, search.totalHits.value);
-                }
+        assertBusy(() -> {
+            // this one becomes visible due to the force refresh we are running on updateMetadata if the interval changes
+            try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+                TopDocs search = searcher.search(new MatchAllDocsQuery(), 10);
+                assertEquals(2, search.totalHits.value);
             }
-        );
+        });
         client().prepareIndex("test", "test", "2").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
-        assertBusy(
-            () -> {
-                // this one becomes visible due to the scheduled refresh
-                try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-                    TopDocs search = searcher.search(new MatchAllDocsQuery(), 10);
-                    assertEquals(3, search.totalHits.value);
-                }
+        assertBusy(() -> {
+            // this one becomes visible due to the scheduled refresh
+            try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+                TopDocs search = searcher.search(new MatchAllDocsQuery(), 10);
+                assertEquals(3, search.totalHits.value);
             }
-        );
+        });
     }
 
     public void testAsyncFsyncActuallyWorks() throws Exception {

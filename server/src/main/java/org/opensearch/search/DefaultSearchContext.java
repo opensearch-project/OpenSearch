@@ -95,6 +95,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.function.LongSupplier;
 
 final class DefaultSearchContext extends SearchContext {
@@ -177,7 +178,9 @@ final class DefaultSearchContext extends SearchContext {
         TimeValue timeout,
         FetchPhase fetchPhase,
         boolean lowLevelCancellation,
-        Version minNodeVersion
+        Version minNodeVersion,
+        boolean validate,
+        Executor executor
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
@@ -198,7 +201,8 @@ final class DefaultSearchContext extends SearchContext {
             engineSearcher.getSimilarity(),
             engineSearcher.getQueryCache(),
             engineSearcher.getQueryCachingPolicy(),
-            lowLevelCancellation
+            lowLevelCancellation,
+            executor
         );
         this.relativeTimeSupplier = relativeTimeSupplier;
         this.timeout = timeout;
@@ -207,7 +211,8 @@ final class DefaultSearchContext extends SearchContext {
             request.shardId().id(),
             this.searcher,
             request::nowInMillis,
-            shardTarget.getClusterAlias()
+            shardTarget.getClusterAlias(),
+            validate
         );
         queryShardContext.setTypes(request.types());
         queryBoost = request.indexBoost();

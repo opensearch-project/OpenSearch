@@ -43,12 +43,16 @@ import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 
 public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder> {
+
+    private Set<String> assertedWarnings = new HashSet<>();
 
     @Override
     protected IdsQueryBuilder doCreateTestQueryBuilder() {
@@ -161,8 +165,9 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         assertThat(query, instanceOf(IdsQueryBuilder.class));
 
         IdsQueryBuilder idsQuery = (IdsQueryBuilder) query;
-        if (idsQuery.types().length > 0) {
+        if (idsQuery.types().length > 0 && !assertedWarnings.contains(IdsQueryBuilder.TYPES_DEPRECATION_MESSAGE)) {
             assertWarnings(IdsQueryBuilder.TYPES_DEPRECATION_MESSAGE);
+            assertedWarnings.add(IdsQueryBuilder.TYPES_DEPRECATION_MESSAGE);
         }
         return query;
     }

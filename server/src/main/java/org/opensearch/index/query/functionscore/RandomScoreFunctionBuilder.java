@@ -32,6 +32,7 @@
 package org.opensearch.index.query.functionscore;
 
 import org.opensearch.LegacyESVersion;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -58,6 +59,10 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
     private Integer seed;
 
     public RandomScoreFunctionBuilder() {}
+
+    public RandomScoreFunctionBuilder(@Nullable String functionName) {
+        setFunctionName(functionName);
+    }
 
     /**
      * Read from a stream.
@@ -171,7 +176,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
         final int salt = (context.index().getName().hashCode() << 10) | context.getShardId();
         if (seed == null) {
             // DocID-based random score generation
-            return new RandomScoreFunction(hash(context.nowInMillis()), salt, null);
+            return new RandomScoreFunction(hash(context.nowInMillis()), salt, null, getFunctionName());
         } else {
             final MappedFieldType fieldType;
             if (field != null) {
@@ -186,7 +191,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
             if (fieldType == null) {
                 if (context.getMapperService().documentMapper() == null) {
                     // no mappings: the index is empty anyway
-                    return new RandomScoreFunction(hash(context.nowInMillis()), salt, null);
+                    return new RandomScoreFunction(hash(context.nowInMillis()), salt, null, getFunctionName());
                 }
                 throw new IllegalArgumentException(
                     "Field [" + field + "] is not mapped on [" + context.index() + "] and cannot be used as a source of random numbers."
@@ -198,7 +203,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
             } else {
                 seed = hash(context.nowInMillis());
             }
-            return new RandomScoreFunction(seed, salt, context.getForField(fieldType));
+            return new RandomScoreFunction(seed, salt, context.getForField(fieldType), getFunctionName());
         }
     }
 
@@ -236,6 +241,8 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
                     }
                 } else if ("field".equals(currentFieldName)) {
                     randomScoreFunctionBuilder.setField(parser.text());
+                } else if (FunctionScoreQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    randomScoreFunctionBuilder.setFunctionName(parser.text());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), NAME + " query does not support [" + currentFieldName + "]");
                 }

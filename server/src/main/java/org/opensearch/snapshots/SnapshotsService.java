@@ -1924,8 +1924,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                assert readyDeletions(currentState)
-                    .v1() == currentState : "Deletes should have been set to ready by finished snapshot deletes and finalizations";
+                assert readyDeletions(currentState).v1() == currentState
+                    : "Deletes should have been set to ready by finished snapshot deletes and finalizations";
                 for (SnapshotDeletionsInProgress.Entry entry : currentState.custom(
                     SnapshotDeletionsInProgress.TYPE,
                     SnapshotDeletionsInProgress.EMPTY
@@ -2667,8 +2667,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         repositoriesService.getRepositoryData(deleteEntry.repository(), new ActionListener<RepositoryData>() {
             @Override
             public void onResponse(RepositoryData repositoryData) {
-                assert repositoryData
-                    .getGenId() == expectedRepoGen : "Repository generation should not change as long as a ready delete is found in the cluster state but found ["
+                assert repositoryData.getGenId() == expectedRepoGen
+                    : "Repository generation should not change as long as a ready delete is found in the cluster state but found ["
                         + expectedRepoGen
                         + "] in cluster state and ["
                         + repositoryData.getGenId()
@@ -2746,9 +2746,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                 @Override
                 protected void handleListeners(List<ActionListener<Void>> deleteListeners) {
-                    assert repositoryData.getSnapshotIds()
-                        .stream()
-                        .noneMatch(deleteEntry.getSnapshots()::contains) : "Repository data contained snapshot ids "
+                    assert repositoryData.getSnapshotIds().stream().noneMatch(deleteEntry.getSnapshots()::contains)
+                        : "Repository data contained snapshot ids "
                             + repositoryData.getSnapshotIds()
                             + " that should should been deleted by ["
                             + deleteEntry
@@ -2866,12 +2865,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             } else {
                 leaveRepoLoop(deleteEntry.repository());
-                assert readyDeletions.stream()
-                    .noneMatch(entry -> entry.repository().equals(deleteEntry.repository())) : "New finalizations "
-                        + newFinalizations
-                        + " added even though deletes "
-                        + readyDeletions
-                        + " are ready";
+                assert readyDeletions.stream().noneMatch(entry -> entry.repository().equals(deleteEntry.repository()))
+                    : "New finalizations " + newFinalizations + " added even though deletes " + readyDeletions + " are ready";
                 for (SnapshotsInProgress.Entry entry : newFinalizations) {
                     endSnapshot(entry, newState.metadata(), repositoryData);
                 }
@@ -3837,8 +3832,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         synchronized boolean assertConsistent() {
             assert (latestKnownMetaData == null && snapshotsToFinalize.isEmpty())
-                || (latestKnownMetaData != null
-                    && snapshotsToFinalize.isEmpty() == false) : "Should not hold on to metadata if there are no more queued snapshots";
+                || (latestKnownMetaData != null && snapshotsToFinalize.isEmpty() == false)
+                : "Should not hold on to metadata if there are no more queued snapshots";
             assert snapshotsToFinalize.values().stream().noneMatch(Collection::isEmpty) : "Found empty queue in " + snapshotsToFinalize;
             return true;
         }

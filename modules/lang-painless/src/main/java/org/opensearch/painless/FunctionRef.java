@@ -59,8 +59,8 @@ import static org.objectweb.asm.Opcodes.H_NEWINVOKESPECIAL;
  */
 public class FunctionRef {
     /**
-     * Creates a new FunctionRef which will resolve {@code type::call} from the whitelist.
-     * @param painlessLookup the whitelist against which this script is being compiled
+     * Creates a new FunctionRef which will resolve {@code type::call} from the allowlist.
+     * @param painlessLookup the allowlist against which this script is being compiled
      * @param functionTable user-defined and synthetic methods generated directly on the script class
      * @param location the character number within the script at compile-time
      * @param targetClass functional interface type to implement.

@@ -230,9 +230,8 @@ public class LocalCheckpointTracker {
     @SuppressForbidden(reason = "Object#notifyAll")
     private void updateCheckpoint(AtomicLong checkPoint, LongObjectHashMap<CountedBitSet> bitSetMap) {
         assert Thread.holdsLock(this);
-        assert getBitSetForSeqNo(bitSetMap, checkPoint.get() + 1).get(
-            seqNoToBitSetOffset(checkPoint.get() + 1)
-        ) : "updateCheckpoint is called but the bit following the checkpoint is not set";
+        assert getBitSetForSeqNo(bitSetMap, checkPoint.get() + 1).get(seqNoToBitSetOffset(checkPoint.get() + 1))
+            : "updateCheckpoint is called but the bit following the checkpoint is not set";
         try {
             // keep it simple for now, get the checkpoint one by one; in the future we can optimize and read words
             long bitSetKey = getBitSetKey(checkPoint.get());

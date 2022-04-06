@@ -96,8 +96,8 @@ public final class InFlightShardSnapshotStates {
             busyIds.computeIfAbsent(indexName, k -> new HashSet<>()).add(shardId);
             assert assertGenerationConsistency(generations, indexName, shardId, shardState.generation());
         } else if (shardState.state() == SnapshotsInProgress.ShardState.SUCCESS) {
-            assert busyIds.getOrDefault(indexName, Collections.emptySet())
-                .contains(shardId) == false : "Can't have a successful operation queued after an in-progress operation";
+            assert busyIds.getOrDefault(indexName, Collections.emptySet()).contains(shardId) == false
+                : "Can't have a successful operation queued after an in-progress operation";
             generations.computeIfAbsent(indexName, k -> new HashMap<>()).put(shardId, shardState.generation());
         }
     }

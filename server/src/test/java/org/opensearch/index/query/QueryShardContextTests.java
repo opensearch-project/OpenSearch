@@ -209,14 +209,10 @@ public class QueryShardContextTests extends OpenSearchTestCase {
     }
 
     public void testFielddataLookupSelfReference() {
-        QueryShardContext queryShardContext = createQueryShardContext(
-            "uuid",
-            null,
-            (field, leafLookup, docId) -> {
-                // simulate a runtime field that depends on itself e.g. field: doc['field']
-                return leafLookup.doc().get(field).toString();
-            }
-        );
+        QueryShardContext queryShardContext = createQueryShardContext("uuid", null, (field, leafLookup, docId) -> {
+            // simulate a runtime field that depends on itself e.g. field: doc['field']
+            return leafLookup.doc().get(field).toString();
+        });
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> collect("field", queryShardContext));
         assertEquals("Cyclic dependency detected while resolving runtime fields: field -> field", iae.getMessage());
     }

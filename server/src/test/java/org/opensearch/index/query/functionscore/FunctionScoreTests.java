@@ -88,6 +88,7 @@ import java.util.Collection;
 import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.hamcrest.core.IsNot.not;
@@ -283,7 +284,8 @@ public class FunctionScoreTests extends OpenSearchTestCase {
         0,
         GaussDecayFunctionBuilder.GAUSS_DECAY_FUNCTION,
         new IndexNumericFieldDataStub(),
-        MultiValueMode.MAX
+        MultiValueMode.MAX,
+        null
     );
     private static final ScoreFunction EXP_DECAY_FUNCTION = new DecayFunctionBuilder.NumericFieldDataScoreFunction(
         0,
@@ -292,7 +294,8 @@ public class FunctionScoreTests extends OpenSearchTestCase {
         0,
         ExponentialDecayFunctionBuilder.EXP_DECAY_FUNCTION,
         new IndexNumericFieldDataStub(),
-        MultiValueMode.MAX
+        MultiValueMode.MAX,
+        null
     );
     private static final ScoreFunction LIN_DECAY_FUNCTION = new DecayFunctionBuilder.NumericFieldDataScoreFunction(
         0,
@@ -301,7 +304,48 @@ public class FunctionScoreTests extends OpenSearchTestCase {
         0,
         LinearDecayFunctionBuilder.LINEAR_DECAY_FUNCTION,
         new IndexNumericFieldDataStub(),
-        MultiValueMode.MAX
+        MultiValueMode.MAX,
+        null
+    );
+
+    private static final ScoreFunction RANDOM_SCORE_FUNCTION_NAMED = new RandomScoreFunction(0, 0, new IndexFieldDataStub(), "func1");
+    private static final ScoreFunction FIELD_VALUE_FACTOR_FUNCTION_NAMED = new FieldValueFactorFunction(
+        "test",
+        1,
+        FieldValueFactorFunction.Modifier.LN,
+        1.0,
+        null,
+        "func1"
+    );
+    private static final ScoreFunction GAUSS_DECAY_FUNCTION_NAMED = new DecayFunctionBuilder.NumericFieldDataScoreFunction(
+        0,
+        1,
+        0.1,
+        0,
+        GaussDecayFunctionBuilder.GAUSS_DECAY_FUNCTION,
+        new IndexNumericFieldDataStub(),
+        MultiValueMode.MAX,
+        "func1"
+    );
+    private static final ScoreFunction EXP_DECAY_FUNCTION_NAMED = new DecayFunctionBuilder.NumericFieldDataScoreFunction(
+        0,
+        1,
+        0.1,
+        0,
+        ExponentialDecayFunctionBuilder.EXP_DECAY_FUNCTION,
+        new IndexNumericFieldDataStub(),
+        MultiValueMode.MAX,
+        "func1"
+    );
+    private static final ScoreFunction LIN_DECAY_FUNCTION_NAMED = new DecayFunctionBuilder.NumericFieldDataScoreFunction(
+        0,
+        1,
+        0.1,
+        0,
+        LinearDecayFunctionBuilder.LINEAR_DECAY_FUNCTION,
+        new IndexNumericFieldDataStub(),
+        MultiValueMode.MAX,
+        "func1"
     );
     private static final ScoreFunction WEIGHT_FACTOR_FUNCTION = new WeightFactorFunction(4);
     private static final String TEXT = "The way out is through.";
@@ -377,6 +421,58 @@ public class FunctionScoreTests extends OpenSearchTestCase {
         assertThat(
             functionExplanation.getDetails()[0].getDetails()[0].toString(),
             equalTo("1.0 = constant score 1.0 - no function provided\n")
+        );
+        assertThat(functionExplanation.getDetails()[0].getDetails()[1].toString(), equalTo("4.0 = weight\n"));
+        assertThat(functionExplanation.getDetails()[0].getDetails()[0].getDetails().length, equalTo(0));
+        assertThat(functionExplanation.getDetails()[0].getDetails()[1].getDetails().length, equalTo(0));
+    }
+
+    public void testExplainFunctionScoreQueryWithName() throws IOException {
+        Explanation functionExplanation = getFunctionScoreExplanation(searcher, RANDOM_SCORE_FUNCTION_NAMED);
+        checkFunctionScoreExplanation(functionExplanation, "random score function (seed: 0, field: test, _name: func1)");
+        assertThat(functionExplanation.getDetails()[0].getDetails().length, equalTo(0));
+
+        functionExplanation = getFunctionScoreExplanation(searcher, FIELD_VALUE_FACTOR_FUNCTION_NAMED);
+        checkFunctionScoreExplanation(functionExplanation, "field value function(_name: func1): ln(doc['test'].value?:1.0 * factor=1.0)");
+        assertThat(functionExplanation.getDetails()[0].getDetails().length, equalTo(0));
+
+        functionExplanation = getFunctionScoreExplanation(searcher, GAUSS_DECAY_FUNCTION_NAMED);
+        checkFunctionScoreExplanation(functionExplanation, "Function for field test:");
+        assertThat(
+            functionExplanation.getDetails()[0].getDetails()[0].toString(),
+            equalTo(
+                "0.1 = exp(-0.5*pow(MAX[Math.max(Math.abs"
+                    + "(1.0(=doc value) - 0.0(=origin))) - 0.0(=offset), 0)],2.0)/0.21714724095162594, _name: func1)\n"
+            )
+        );
+        assertThat(functionExplanation.getDetails()[0].getDetails()[0].getDetails().length, equalTo(0));
+
+        functionExplanation = getFunctionScoreExplanation(searcher, EXP_DECAY_FUNCTION_NAMED);
+        checkFunctionScoreExplanation(functionExplanation, "Function for field test:");
+        assertThat(
+            functionExplanation.getDetails()[0].getDetails()[0].toString(),
+            equalTo(
+                "0.1 = exp(- MAX[Math.max(Math.abs(1.0(=doc value) - 0.0(=origin))) - 0.0(=offset), 0)] * 2.3025850929940455, _name: func1)\n"
+            )
+        );
+        assertThat(functionExplanation.getDetails()[0].getDetails()[0].getDetails().length, equalTo(0));
+
+        functionExplanation = getFunctionScoreExplanation(searcher, LIN_DECAY_FUNCTION_NAMED);
+        checkFunctionScoreExplanation(functionExplanation, "Function for field test:");
+        assertThat(
+            functionExplanation.getDetails()[0].getDetails()[0].toString(),
+            equalTo(
+                "0.1 = max(0.0, ((1.1111111111111112"
+                    + " - MAX[Math.max(Math.abs(1.0(=doc value) - 0.0(=origin))) - 0.0(=offset), 0)])/1.1111111111111112, _name: func1)\n"
+            )
+        );
+        assertThat(functionExplanation.getDetails()[0].getDetails()[0].getDetails().length, equalTo(0));
+
+        functionExplanation = getFunctionScoreExplanation(searcher, new WeightFactorFunction(4, RANDOM_SCORE_FUNCTION_NAMED));
+        checkFunctionScoreExplanation(functionExplanation, "product of:");
+        assertThat(
+            functionExplanation.getDetails()[0].getDetails()[0].toString(),
+            endsWith("random score function (seed: 0, field: test, _name: func1)\n")
         );
         assertThat(functionExplanation.getDetails()[0].getDetails()[1].toString(), equalTo("4.0 = weight\n"));
         assertThat(functionExplanation.getDetails()[0].getDetails()[0].getDetails().length, equalTo(0));

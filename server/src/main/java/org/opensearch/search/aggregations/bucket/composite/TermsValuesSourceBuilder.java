@@ -43,6 +43,7 @@ import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.script.Script;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
@@ -68,6 +69,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
             boolean hasScript, // probably redundant with the config, but currently we check this two different ways...
             String format,
             boolean missingBucket,
+            MissingOrder missingOrder,
             SortOrder order
         );
     }
@@ -111,7 +113,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
         builder.register(
             REGISTRY_KEY,
             org.opensearch.common.collect.List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
-            (valuesSourceConfig, name, hasScript, format, missingBucket, order) -> {
+            (valuesSourceConfig, name, hasScript, format, missingBucket, missingOrder, order) -> {
                 final DocValueFormat docValueFormat;
                 if (format == null && valuesSourceConfig.valueSourceType() == CoreValuesSourceType.DATE) {
                     // defaults to the raw format on date fields (preserve timestamp as longs).
@@ -126,6 +128,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                     docValueFormat,
                     order,
                     missingBucket,
+                    missingOrder,
                     hasScript,
                     (
                         BigArrays bigArrays,
@@ -142,6 +145,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                                 vs::doubleValues,
                                 compositeValuesSourceConfig.format(),
                                 compositeValuesSourceConfig.missingBucket(),
+                                compositeValuesSourceConfig.missingOrder(),
                                 size,
                                 compositeValuesSourceConfig.reverseMul()
                             );
@@ -156,6 +160,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                                 rounding,
                                 compositeValuesSourceConfig.format(),
                                 compositeValuesSourceConfig.missingBucket(),
+                                compositeValuesSourceConfig.missingOrder(),
                                 size,
                                 compositeValuesSourceConfig.reverseMul()
                             );
@@ -170,13 +175,14 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
         builder.register(
             REGISTRY_KEY,
             org.opensearch.common.collect.List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
-            (valuesSourceConfig, name, hasScript, format, missingBucket, order) -> new CompositeValuesSourceConfig(
+            (valuesSourceConfig, name, hasScript, format, missingBucket, missingOrder, order) -> new CompositeValuesSourceConfig(
                 name,
                 valuesSourceConfig.fieldType(),
                 valuesSourceConfig.getValuesSource(),
                 valuesSourceConfig.format(),
                 order,
                 missingBucket,
+                missingOrder,
                 hasScript,
                 (
                     BigArrays bigArrays,
@@ -193,6 +199,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                             vs::globalOrdinalsValues,
                             compositeValuesSourceConfig.format(),
                             compositeValuesSourceConfig.missingBucket(),
+                            compositeValuesSourceConfig.missingOrder(),
                             size,
                             compositeValuesSourceConfig.reverseMul()
                         );
@@ -205,6 +212,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                             vs::bytesValues,
                             compositeValuesSourceConfig.format(),
                             compositeValuesSourceConfig.missingBucket(),
+                            compositeValuesSourceConfig.missingOrder(),
                             size,
                             compositeValuesSourceConfig.reverseMul()
                         );
@@ -224,6 +232,6 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
         return queryShardContext.getValuesSourceRegistry()
             .getAggregator(REGISTRY_KEY, config)
-            .apply(config, name, script() != null, format(), missingBucket(), order());
+            .apply(config, name, script() != null, format(), missingBucket(), missingOrder(), order());
     }
 }

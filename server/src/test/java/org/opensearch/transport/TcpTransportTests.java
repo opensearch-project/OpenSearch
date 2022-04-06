@@ -40,7 +40,6 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.component.Lifecycle;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.network.NetworkUtils;
 import org.opensearch.common.settings.Settings;
@@ -524,12 +523,7 @@ public class TcpTransportTests extends OpenSearchTestCase {
         MockLogAppender.LoggingExpectation... expectations
     ) throws IllegalAccessException {
         final TestThreadPool testThreadPool = new TestThreadPool("test");
-        MockLogAppender appender = new MockLogAppender();
-
-        try {
-            appender.start();
-
-            Loggers.addAppender(LogManager.getLogger(TcpTransport.class), appender);
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(LogManager.getLogger(TcpTransport.class))) {
             for (MockLogAppender.LoggingExpectation expectation : expectations) {
                 appender.addExpectation(expectation);
             }
@@ -568,8 +562,6 @@ public class TcpTransportTests extends OpenSearchTestCase {
             appender.assertAllExpectationsMatched();
 
         } finally {
-            Loggers.removeAppender(LogManager.getLogger(TcpTransport.class), appender);
-            appender.stop();
             ThreadPool.terminate(testThreadPool, 30, TimeUnit.SECONDS);
         }
     }

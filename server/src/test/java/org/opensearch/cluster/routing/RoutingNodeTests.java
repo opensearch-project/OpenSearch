@@ -41,6 +41,7 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.net.InetAddress;
+import java.util.Iterator;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -84,6 +85,29 @@ public class RoutingNodeTests extends OpenSearchTestCase {
         routingNode.add(relocatingShard0);
         assertThat(routingNode.getByShardId(new ShardId("test", IndexMetadata.INDEX_UUID_NA_VALUE, 3)), equalTo(initializingShard1));
         assertThat(routingNode.getByShardId(new ShardId("test", IndexMetadata.INDEX_UUID_NA_VALUE, 4)), equalTo(relocatingShard0));
+    }
+
+    public void testPrimaryFirstIterator() {
+        ShardRouting initializingShard3 = TestShardRouting.newShardRouting("test", 3, "node-1", false, ShardRoutingState.INITIALIZING);
+        ShardRouting relocatingShard4 = TestShardRouting.newShardRouting("test", 4, "node-1", "node-2", true, ShardRoutingState.RELOCATING);
+        ShardRouting initializingShard5 = TestShardRouting.newShardRouting("test", 5, "node-1", true, ShardRoutingState.INITIALIZING);
+        routingNode.add(initializingShard3);
+        routingNode.add(relocatingShard4);
+        routingNode.add(initializingShard5);
+        final Iterator<ShardRouting> shardRoutingIterator = routingNode.iterator();
+        assertTrue(shardRoutingIterator.hasNext());
+        assertThat(shardRoutingIterator.next(), equalTo(relocatingShard4));
+        assertTrue(shardRoutingIterator.hasNext());
+        assertThat(shardRoutingIterator.next(), equalTo(initializingShard5));
+        assertTrue(shardRoutingIterator.hasNext());
+        assertThat(shardRoutingIterator.next(), equalTo(unassignedShard0));
+        assertTrue(shardRoutingIterator.hasNext());
+        assertThat(shardRoutingIterator.next(), equalTo(initializingShard0));
+        assertTrue(shardRoutingIterator.hasNext());
+        assertThat(shardRoutingIterator.next(), equalTo(relocatingShard0));
+        assertTrue(shardRoutingIterator.hasNext());
+        assertThat(shardRoutingIterator.next(), equalTo(initializingShard3));
+        assertFalse(shardRoutingIterator.hasNext());
     }
 
     public void testUpdate() {

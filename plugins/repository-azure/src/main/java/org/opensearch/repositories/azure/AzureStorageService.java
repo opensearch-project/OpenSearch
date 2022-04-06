@@ -43,7 +43,6 @@ import com.azure.core.http.HttpPipelinePosition;
 import com.azure.core.http.HttpRequest;
 import com.azure.core.http.HttpResponse;
 import com.azure.core.http.ProxyOptions;
-import com.azure.core.http.ProxyOptions.Type;
 import com.azure.core.http.netty.NettyAsyncHttpClientBuilder;
 import com.azure.core.http.policy.HttpPipelinePolicy;
 import com.azure.core.util.Configuration;
@@ -64,13 +63,13 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.TimeValue;
 
-import java.net.InetSocketAddress;
-import java.net.Proxy;
+import java.net.Authenticator;
+import java.net.PasswordAuthentication;
 import java.net.URISyntaxException;
 import java.security.InvalidKeyException;
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -168,14 +167,39 @@ public class AzureStorageService implements AutoCloseable {
         final NioEventLoopGroup eventLoopGroup = new NioEventLoopGroup(new NioThreadFactory());
         final NettyAsyncHttpClientBuilder clientBuilder = new NettyAsyncHttpClientBuilder().eventLoopGroup(eventLoopGroup);
 
-        final Proxy proxy = azureStorageSettings.getProxy();
-        if (proxy != null) {
-            final Type type = Arrays.stream(Type.values())
-                .filter(t -> t.toProxyType().equals(proxy.type()))
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Unsupported proxy type: " + proxy.type()));
+        SocketAccess.doPrivilegedVoidException(() -> {
+            final ProxySettings proxySettings = azureStorageSettings.getProxySettings();
+            if (proxySettings != ProxySettings.NO_PROXY_SETTINGS) {
+                if (proxySettings.isAuthenticated()) {
+                    Authenticator.setDefault(new Authenticator() {
+                        @Override
+                        protected PasswordAuthentication getPasswordAuthentication() {
+                            return new PasswordAuthentication(proxySettings.getUsername(), proxySettings.getPassword().toCharArray());
+                        }
+                    });
+                }
+                clientBuilder.proxy(new ProxyOptions(proxySettings.getType().toProxyType(), proxySettings.getAddress()));
+            }
+        });
 
-            clientBuilder.proxy(new ProxyOptions(type, (InetSocketAddress) proxy.address()));
+        final TimeValue connectTimeout = azureStorageSettings.getConnectTimeout();
+        if (connectTimeout != null) {
+            clientBuilder.connectTimeout(Duration.ofMillis(connectTimeout.millis()));
+        }
+
+        final TimeValue writeTimeout = azureStorageSettings.getWriteTimeout();
+        if (writeTimeout != null) {
+            clientBuilder.writeTimeout(Duration.ofMillis(writeTimeout.millis()));
+        }
+
+        final TimeValue readTimeout = azureStorageSettings.getReadTimeout();
+        if (readTimeout != null) {
+            clientBuilder.readTimeout(Duration.ofMillis(readTimeout.millis()));
+        }
+
+        final TimeValue responseTimeout = azureStorageSettings.getResponseTimeout();
+        if (responseTimeout != null) {
+            clientBuilder.responseTimeout(Duration.ofMillis(responseTimeout.millis()));
         }
 
         builder.httpClient(clientBuilder.build());

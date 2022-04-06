@@ -91,9 +91,8 @@ public class RoutingNodesChangedObserver implements RoutingChangesObserver {
 
     @Override
     public void relocationSourceRemoved(ShardRouting removedReplicaRelocationSource) {
-        assert removedReplicaRelocationSource.primary() == false
-            && removedReplicaRelocationSource.isRelocationTarget() : "expected replica relocation target shard "
-                + removedReplicaRelocationSource;
+        assert removedReplicaRelocationSource.primary() == false && removedReplicaRelocationSource.isRelocationTarget()
+            : "expected replica relocation target shard " + removedReplicaRelocationSource;
         setChanged();
     }
 
@@ -108,11 +107,8 @@ public class RoutingNodesChangedObserver implements RoutingChangesObserver {
         assert oldReplica.initializing() && oldReplica.primary() == false : "expected initializing replica shard " + oldReplica;
         assert reinitializedReplica.initializing() && reinitializedReplica.primary() == false : "expected reinitialized replica shard "
             + reinitializedReplica;
-        assert oldReplica.allocationId()
-            .getId()
-            .equals(
-                reinitializedReplica.allocationId().getId()
-            ) == false : "expected allocation id to change for reinitialized replica shard (old: "
+        assert oldReplica.allocationId().getId().equals(reinitializedReplica.allocationId().getId()) == false
+            : "expected allocation id to change for reinitialized replica shard (old: "
                 + oldReplica
                 + " new: "
                 + reinitializedReplica

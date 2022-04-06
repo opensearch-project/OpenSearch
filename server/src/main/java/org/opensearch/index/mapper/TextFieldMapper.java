@@ -85,6 +85,7 @@ import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.opensearch.index.mapper.Mapper.TypeParser.ParserContext;
 import org.opensearch.index.query.IntervalBuilder;
+import org.opensearch.index.query.IntervalMode;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.similarity.SimilarityProvider;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
@@ -789,7 +790,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public IntervalsSource intervals(String text, int maxGaps, boolean ordered, NamedAnalyzer analyzer, boolean prefix)
+        public IntervalsSource intervals(String text, int maxGaps, IntervalMode mode, NamedAnalyzer analyzer, boolean prefix)
             throws IOException {
             if (getTextSearchInfo().hasPositions() == false) {
                 throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
@@ -805,7 +806,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
                 return Intervals.prefix(normalizedTerm);
             }
             IntervalBuilder builder = new IntervalBuilder(name(), analyzer == null ? getTextSearchInfo().getSearchAnalyzer() : analyzer);
-            return builder.analyzeText(text, maxGaps, ordered);
+            return builder.analyzeText(text, maxGaps, mode);
         }
 
         @Override

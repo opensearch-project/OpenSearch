@@ -41,6 +41,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.internal.ReaderContext;
+import org.opensearch.search.query.QueryPhase;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
@@ -91,10 +92,22 @@ public class MockSearchService extends SearchService {
         ThreadPool threadPool,
         ScriptService scriptService,
         BigArrays bigArrays,
+        QueryPhase queryPhase,
         FetchPhase fetchPhase,
         CircuitBreakerService circuitBreakerService
     ) {
-        super(clusterService, indicesService, threadPool, scriptService, bigArrays, fetchPhase, null, circuitBreakerService);
+        super(
+            clusterService,
+            indicesService,
+            threadPool,
+            scriptService,
+            bigArrays,
+            queryPhase,
+            fetchPhase,
+            null,
+            circuitBreakerService,
+            null
+        );
     }
 
     @Override
