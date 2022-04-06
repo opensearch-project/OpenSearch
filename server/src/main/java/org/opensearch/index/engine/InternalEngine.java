@@ -686,7 +686,7 @@ public class InternalEngine extends Engine {
     private DirectoryReader getDirectoryReader() throws IOException {
         // for segment replication: replicas should create the reader from store, we don't want an open IW on replicas.
         if (engineConfig.isReadOnly()) {
-            return DirectoryReader.open(store.directory());
+            return (SoftDeletesDirectoryReaderWrapper)DirectoryReader.open(store.directory());
         }
         return DirectoryReader.open(indexWriter);
     }
