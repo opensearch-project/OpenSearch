@@ -51,6 +51,7 @@ import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -144,6 +145,25 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         }
     }
 
+    // 
+    public void testNodeCountsWithDeprecatedMasterRole(){
+        int total = 1;
+        Settings settings = Settings.builder()
+                .putList(
+                        NodeRoleSettings.NODE_ROLES_SETTING.getKey(), Collections.singletonList(DiscoveryNodeRole.MASTER_ROLE.roleName())
+                )
+                .build();
+        internalCluster().startNode(settings);
+        waitForNodes(total);
+        
+        Map<String, Integer> expectedCounts = new HashMap<>();
+        expectedCounts.put(DiscoveryNodeRole.MASTER_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(), 1);
+
+        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+        assertCounts(response.getNodesStats().getCounts(), total, expectedCounts);
+    }
+    
     private static void incrementCountForRole(String role, Map<String, Integer> counts) {
         Integer count = counts.get(role);
         if (count == null) {
