@@ -435,6 +435,9 @@ public class TransportService extends AbstractLifecycleComponent
                  *   throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
                  * }
                  */
+                /*if (node.equals(remote) == false) {
+                    throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
+                }*/
                 return null;
             }));
         };
