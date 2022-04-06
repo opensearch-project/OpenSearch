@@ -34,6 +34,7 @@ package org.opensearch.rest.action.admin.indices;
 
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
@@ -46,6 +47,8 @@ import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
 public class RestIndicesAliasesAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestIndicesAliasesAction.class);
 
     @Override
     public String getName() {
@@ -60,7 +63,8 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
-        indicesAliasesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", indicesAliasesRequest.masterNodeTimeout()));
+        indicesAliasesRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", indicesAliasesRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(indicesAliasesRequest, request, deprecationLogger, getName());
         indicesAliasesRequest.timeout(request.paramAsTime("timeout", indicesAliasesRequest.timeout()));
         try (XContentParser parser = request.contentParser()) {
             IndicesAliasesRequest.PARSER.parse(parser, indicesAliasesRequest, null);

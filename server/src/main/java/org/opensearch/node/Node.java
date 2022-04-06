@@ -197,7 +197,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -388,18 +388,18 @@ public class Node implements Closeable {
             if (logger.isDebugEnabled()) {
                 logger.debug(
                     "using config [{}], data [{}], logs [{}], plugins [{}]",
-                    initialEnvironment.configFile(),
+                    initialEnvironment.configDir(),
                     Arrays.toString(initialEnvironment.dataFiles()),
-                    initialEnvironment.logsFile(),
-                    initialEnvironment.pluginsFile()
+                    initialEnvironment.logsDir(),
+                    initialEnvironment.pluginsDir()
                 );
             }
 
             this.pluginsService = new PluginsService(
                 tmpSettings,
-                initialEnvironment.configFile(),
-                initialEnvironment.modulesFile(),
-                initialEnvironment.pluginsFile(),
+                initialEnvironment.configDir(),
+                initialEnvironment.modulesDir(),
+                initialEnvironment.pluginsDir(),
                 classpathPlugins
             );
             final Settings settings = pluginsService.updatedSettings();
@@ -415,7 +415,7 @@ public class Node implements Closeable {
              * Create the environment based on the finalized view of the settings. This is to ensure that components get the same setting
              * values, no matter they ask for them from.
              */
-            this.environment = new Environment(settings, initialEnvironment.configFile(), Node.NODE_LOCAL_STORAGE_SETTING.get(settings));
+            this.environment = new Environment(settings, initialEnvironment.configDir(), Node.NODE_LOCAL_STORAGE_SETTING.get(settings));
             Environment.assertEquivalent(initialEnvironment, this.environment);
             nodeEnvironment = new NodeEnvironment(tmpSettings, environment);
             logger.info(
@@ -816,7 +816,7 @@ public class Node implements Closeable {
                 clusterService.getClusterSettings(),
                 pluginsService.filterPlugins(DiscoveryPlugin.class),
                 clusterModule.getAllocationService(),
-                environment.configFile(),
+                environment.configDir(),
                 gatewayMetaState,
                 rerouteService,
                 fsHealthService
@@ -1339,8 +1339,8 @@ public class Node implements Closeable {
 
     /** Writes a file to the logs dir containing the ports for the given transport type */
     private void writePortsFile(String type, BoundTransportAddress boundAddress) {
-        Path tmpPortsFile = environment.logsFile().resolve(type + ".ports.tmp");
-        try (BufferedWriter writer = Files.newBufferedWriter(tmpPortsFile, Charset.forName("UTF-8"))) {
+        Path tmpPortsFile = environment.logsDir().resolve(type + ".ports.tmp");
+        try (BufferedWriter writer = Files.newBufferedWriter(tmpPortsFile, StandardCharsets.UTF_8)) {
             for (TransportAddress address : boundAddress.boundAddresses()) {
                 InetAddress inetAddress = InetAddress.getByName(address.getAddress());
                 writer.write(NetworkAddress.format(new InetSocketAddress(inetAddress, address.getPort())) + "\n");
@@ -1348,7 +1348,7 @@ public class Node implements Closeable {
         } catch (IOException e) {
             throw new RuntimeException("Failed to write ports file", e);
         }
-        Path portsFile = environment.logsFile().resolve(type + ".ports");
+        Path portsFile = environment.logsDir().resolve(type + ".ports");
         try {
             Files.move(tmpPortsFile, portsFile, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException e) {

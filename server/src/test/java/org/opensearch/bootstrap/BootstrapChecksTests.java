@@ -818,5 +818,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         ensureChecksPass.accept(Settings.builder().putList(ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey()));
         ensureChecksPass.accept(Settings.builder().putList(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey()));
         ensureChecksPass.accept(Settings.builder().putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey()));
+        // Validate the deprecated setting is still valid during the node bootstrap.
+        ensureChecksPass.accept(Settings.builder().putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey()));
     }
 }

@@ -35,6 +35,7 @@ import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
@@ -50,6 +51,8 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
 public class RestIndexPutAliasAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestIndexPutAliasAction.class);
 
     @Override
     public List<Route> routes() {
@@ -124,7 +127,8 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
 
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
         indicesAliasesRequest.timeout(request.paramAsTime("timeout", indicesAliasesRequest.timeout()));
-        indicesAliasesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", indicesAliasesRequest.masterNodeTimeout()));
+        indicesAliasesRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", indicesAliasesRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(indicesAliasesRequest, request, deprecationLogger, getName());
 
         IndicesAliasesRequest.AliasActions aliasAction = AliasActions.add().indices(indices).alias(alias);
         if (routing != null) {

@@ -7,6 +7,9 @@
   # which node is the one with the highest version and that is the only one that can safely
   # be used to shrink the index.
 
+  - skip:
+      features: allowed_warnings
+
   - do:
       nodes.info:
         node_id: data:true
@@ -53,6 +56,8 @@
 
   # now we do the actual shrink
   - do:
+      allowed_warnings:
+        - "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version."
       indices.shrink:
         index: "source"
         target: "target"
