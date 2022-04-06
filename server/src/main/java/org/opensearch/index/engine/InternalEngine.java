@@ -90,6 +90,7 @@ import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.OpenSearchMergePolicy;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
@@ -322,11 +323,28 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void updateCurrentInfos(SegmentInfos infos, long seqNo) throws IOException {
+    public synchronized void finalizeReplication(SegmentInfos infos, Store.MetadataSnapshot expectedMetadata, long seqNo)
+        throws IOException {
         assert engineConfig.isReadOnly() : "Only replicas should update Infos";
+
+        store.incRef();
+        try {
+            refreshLastCommittedSegmentInfos();
+            // clean up the local store of old segment files
+            // and validate the latest segment infos against the snapshot sent from the primary shard.
+            store.cleanupAndVerify(
+                "finalize - clean with in memory infos",
+                expectedMetadata,
+                store.getMetadata(infos),
+                store.getMetadata(lastCommittedSegmentInfos)
+            );
+        } finally {
+            store.decRef();
+        }
+        // Update the current infos reference on the Engine's reader.
         externalReaderManager.internalReaderManager.updateSegments(infos);
-        externalReaderManager.maybeRefresh();
         localCheckpointTracker.fastForwardProcessedSeqNo(seqNo);
+        externalReaderManager.maybeRefresh();
     }
 
     private LocalCheckpointTracker createLocalCheckpointTracker(
