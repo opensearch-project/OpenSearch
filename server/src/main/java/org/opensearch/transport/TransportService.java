@@ -430,10 +430,11 @@ public class TransportService extends AbstractLifecycleComponent
                 final DiscoveryNode remote = resp.discoveryNode;
                 /*
                  * TODO: https://github.com/opensearch-project/OpenSearch/issues/2772
+                 *
+                 * if (node.equals(remote) == false) {
+                 *   throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
+                 * }
                  */
-		/*if (node.equals(remote) == false) {
-                    throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
-                }*/
                 return null;
             }));
         };
