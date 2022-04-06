@@ -149,12 +149,12 @@ class InheritingState implements State {
     }
 
     @Override
-    public boolean isBlacklisted(Key<?> key) {
+    public boolean isDenylisted(Key<?> key) {
         return denylistedKeys.contains(key);
     }
 
     @Override
-    public void clearBlacklisted() {
+    public void clearDenylisted() {
         denylistedKeys = new WeakKeySet();
     }
 
