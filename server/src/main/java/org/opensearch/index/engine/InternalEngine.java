@@ -704,7 +704,7 @@ public class InternalEngine extends Engine {
     private DirectoryReader getDirectoryReader() throws IOException {
         // for segment replication: replicas should create the reader from store, we don't want an open IW on replicas.
         if (engineConfig.isReadOnly()) {
-            return (SoftDeletesDirectoryReaderWrapper)DirectoryReader.open(store.directory());
+            return new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(store.directory()), Lucene.SOFT_DELETES_FIELD);
         }
         return DirectoryReader.open(indexWriter);
     }
@@ -1510,8 +1510,7 @@ public class InternalEngine extends Engine {
                 }
             }
             if (delete.origin().isFromTranslog() == false && deleteResult.getResultType() == Result.Type.SUCCESS) {
-                final Translog.Location location = translog.add(new Translog.Delete(delete, deleteResult));
-                deleteResult.setTranslogLocation(location);
+                addDeleteOperationToTranslog(delete, deleteResult);
             }
             localCheckpointTracker.markSeqNoAsProcessed(deleteResult.getSeqNo());
             if (deleteResult.getTranslogLocation() == null) {
@@ -1533,6 +1532,30 @@ public class InternalEngine extends Engine {
         }
         maybePruneDeletes();
         return deleteResult;
+    }
+
+    @Override
+    public Engine.DeleteResult addDeleteOperationToTranslog(Delete delete) throws IOException{
+        try (Releasable ignored = versionMap.acquireLock(delete.uid().bytes())) {
+            DeletionStrategy plan = deletionStrategyForOperation(delete);
+            DeleteResult deleteResult = new DeleteResult(
+                plan.versionOfDeletion,
+                delete.primaryTerm(),
+                delete.seqNo(),
+                plan.currentlyDeleted == false
+            );
+            addDeleteOperationToTranslog(delete, deleteResult);
+            deleteResult.setTook(System.nanoTime() - delete.startTime());
+            deleteResult.freeze();
+            return deleteResult;
+        }
+    }
+
+    private void addDeleteOperationToTranslog(Delete delete, DeleteResult deleteResult) throws IOException{
+        if(deleteResult.getResultType() == Result.Type.SUCCESS){
+            final Translog.Location location = translog.add(new Translog.Delete(delete, deleteResult));
+            deleteResult.setTranslogLocation(location);
+        }
     }
 
     private Exception tryAcquireInFlightDocs(Operation operation, int addingDocs) {
