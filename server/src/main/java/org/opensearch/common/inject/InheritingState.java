@@ -143,8 +143,8 @@ class InheritingState implements State {
     }
 
     @Override
-    public void blacklist(Key<?> key) {
-        parent.blacklist(key);
+    public void denylist(Key<?> key) {
+        parent.denylist(key);
         denylistedKeys.add(key);
     }
 

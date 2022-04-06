@@ -106,7 +106,7 @@ interface State {
         }
 
         @Override
-        public void blacklist(Key<?> key) {}
+        public void denylist(Key<?> key) {}
 
         @Override
         public boolean isDenylisted(Key<?> key) {
@@ -167,7 +167,7 @@ interface State {
      * denylist their bound keys on their parent injectors to prevent just-in-time bindings on the
      * parent injector that would conflict.
      */
-    void blacklist(Key<?> key);
+    void denylist(Key<?> key);
 
     /**
      * Returns true if {@code key} is forbidden from being bound in this injector. This indicates that

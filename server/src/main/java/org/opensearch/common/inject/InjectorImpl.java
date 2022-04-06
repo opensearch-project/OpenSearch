@@ -535,7 +535,7 @@ class InjectorImpl implements Injector, Lookups {
         }
 
         BindingImpl<T> binding = createJustInTimeBinding(key, errors);
-        state.parent().blacklist(key);
+        state.parent().denylist(key);
         jitBindings.put(key, binding);
         return binding;
     }
