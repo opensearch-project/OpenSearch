@@ -157,7 +157,9 @@ public class AzureHttpHandler implements HttpHandler {
                 exchange.getResponseHeaders().add("Content-Length", String.valueOf(length));
                 exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
                 exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
-                exchange.getResponseHeaders().add("Content-Range", String.format("bytes %d-%d/%d", start, Math.min(end, length), length));
+                exchange.getResponseHeaders()
+                    .add("Content-Range", "bytes " + start + "-" + Math.min(end, length) + "/" + blob.length());
+
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), length);
                 exchange.getResponseBody().write(blob.toBytesRef().bytes, start, length);
 
