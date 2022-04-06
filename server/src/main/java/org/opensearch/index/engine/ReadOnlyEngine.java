@@ -307,12 +307,6 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public DeleteResult addDeleteOperationToTranslog(Delete delete) throws IOException{
-        assert false : "this should not be called";
-        throw new UnsupportedOperationException("Translog operations are not supported on a read-only engine");
-    }
-
-    @Override
     public NoOpResult noOp(NoOp noOp) {
         assert false : "this should not be called";
         throw new UnsupportedOperationException("no-ops are not supported on a read-only engine");

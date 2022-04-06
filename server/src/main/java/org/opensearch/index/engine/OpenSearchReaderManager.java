@@ -92,9 +92,6 @@ class OpenSearchReaderManager extends ReferenceManager<OpenSearchDirectoryReader
         // If not using NRT repl.
         if (currentInfos == null) {
             reader = (OpenSearchDirectoryReader) DirectoryReader.openIfChanged(referenceToRefresh);
-            if (reader != null) {
-                logger.info("Num docs primary {}", reader.getDelegate().numDocs());
-            }
         } else {
             // Open a new reader, sharing any common segment readers with the old one:
             DirectoryReader innerReader = StandardDirectoryReader.open(referenceToRefresh.directory(), currentInfos, subs, null);

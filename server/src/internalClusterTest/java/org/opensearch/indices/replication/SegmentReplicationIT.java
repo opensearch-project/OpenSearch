@@ -8,9 +8,6 @@
 
 package org.opensearch.indices.replication;
 
-import org.opensearch.action.DocWriteResponse;
-import org.opensearch.action.delete.DeleteResponse;
-import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -125,45 +122,5 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         ensureGreen(INDEX_NAME);
         assertHitCount(client(nodeA).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 2);
         assertHitCount(client(nodeB).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 2);
-    }
-
-    public void testDelOps()throws Exception{
-        final String nodeA = internalCluster().startNode();
-        final String nodeB = internalCluster().startNode();
-
-        createIndex(
-            INDEX_NAME,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, SHARD_COUNT)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, REPLICA_COUNT)
-                .put(IndexMetadata.SETTING_SEGMENT_REPLICATION, true)
-                .build()
-        );
-        ensureGreen(INDEX_NAME);
-        IndexResponse index = client().prepareIndex(INDEX_NAME)
-            .setId("1")
-            .setSource("foo", "bar")
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
-            .get();
-//        indexRandom(true, client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", "bar"));
-        assertHitCount(client(nodeA).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 1);
-        assertHitCount(client(nodeB).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 1);
-
-        IndexResponse index2 = client().prepareIndex(INDEX_NAME)
-            .setId("2")
-            .setSource("fooo", "baar")
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
-            .get();
-
-//        indexRandom(true, client().prepareIndex(INDEX_NAME).setId("2").setSource("fooo", "baar"));
-        assertHitCount(client(nodeA).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 2);
-        assertHitCount(client(nodeB).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 2);
-
-        // Now delete with blockUntilRefresh
-        DeleteResponse delete = client().prepareDelete(INDEX_NAME, "1").setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL).get();
-        assertEquals(DocWriteResponse.Result.DELETED, delete.getResult());
-        assertFalse("request shouldn't have forced a refresh", delete.forcedRefresh());
-        assertHitCount(client(nodeA).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 1);
-        assertHitCount(client(nodeB).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 1);
     }
 }

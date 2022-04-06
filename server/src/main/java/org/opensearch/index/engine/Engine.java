@@ -369,8 +369,6 @@ public abstract class Engine implements Closeable {
      */
     public abstract DeleteResult delete(Delete delete) throws IOException;
 
-    public abstract DeleteResult addDeleteOperationToTranslog(Delete delete) throws IOException;
-
     public abstract NoOpResult noOp(NoOp noOp) throws IOException;
 
     /**
