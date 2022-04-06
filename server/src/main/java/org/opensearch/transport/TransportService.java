@@ -428,7 +428,10 @@ public class TransportService extends AbstractLifecycleComponent
             // We don't validate cluster names to allow for CCS connections.
             handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true, ActionListener.map(listener, resp -> {
                 final DiscoveryNode remote = resp.discoveryNode;
-                /*if (node.equals(remote) == false) {
+                /*
+                 * TODO: https://github.com/opensearch-project/OpenSearch/issues/2772
+                 */
+		/*if (node.equals(remote) == false) {
                     throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
                 }*/
                 return null;
