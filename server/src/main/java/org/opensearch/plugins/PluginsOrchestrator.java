@@ -168,8 +168,8 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
                 if (response.getIndexEventListener() == true) {
                     indexModule.addIndexEventListener(new IndexEventListener() {
                         @Override
-                        public void beforeIndexCreated(Index index, Settings indexSettings) {
-                            beforeIndexCreatePO(index, indexSettings);
+                        public void beforeIndexRemoved(Index index, Settings indexSettings) {
+                            beforeIndexRemovedPO(index, indexSettings);
                         }
                     });
                 }
@@ -177,7 +177,7 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
 
             @Override
             public void handleException(TransportException exp) {
-                logger.debug(new ParameterizedMessage("IndicesModuleRequest failed"), exp);
+                logger.error(new ParameterizedMessage("IndicesModuleRequest failed"), exp);
             }
 
             @Override
@@ -193,7 +193,7 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
         }
     }
 
-    private void beforeIndexCreatePO(Index index, Settings indexSettings) {
-        logger.info("beforeIndexCreated event handler");
+    private void beforeIndexRemovedPO(Index index, Settings indexSettings) {
+        logger.info("beforeIndexRemovedPO event handler");
     }
 }

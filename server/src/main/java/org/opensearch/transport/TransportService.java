@@ -679,10 +679,12 @@ public class TransportService extends AbstractLifecycleComponent
         final TransportResponseHandler<T> handler
     ) {
         final Transport.Connection connection;
+        logger.info("TransportService:sendRequest action=" + action);
         try {
             connection = getConnection(node);
         } catch (final NodeNotConnectedException ex) {
             // the caller might not handle this so we invoke the handler
+            logger.info("TransportService:sendRequest:catch");
             handler.handleException(ex);
             return;
         }
@@ -725,6 +727,7 @@ public class TransportService extends AbstractLifecycleComponent
         final TransportResponseHandler<T> handler
     ) {
         try {
+            logger.info("Action: " + action);
             final TransportResponseHandler<T> delegate;
             if (request.getParentTask().isSet()) {
                 // TODO: capture the connection instead so that we can cancel child tasks on the remote connections.
