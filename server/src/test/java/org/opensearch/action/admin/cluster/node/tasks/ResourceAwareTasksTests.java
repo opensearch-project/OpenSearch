@@ -602,7 +602,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
         setupTestNodes(settings);
         connectNodes(testNodes[0]);
 
-        runnableTaskListener.apply(testNodes[0].taskResourceTrackingService);
+        runnableTaskListener.accept(testNodes[0].taskResourceTrackingService);
     }
 
     private Throwable findActualException(Exception e) {

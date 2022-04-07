@@ -10,20 +10,20 @@ package org.opensearch.threadpool;
 
 import org.apache.lucene.util.SetOnce;
 
-import java.util.function.Function;
+import java.util.function.Consumer;
 
-public class RunnableTaskListenerFactory implements Function<RunnableTaskExecutionListener, RunnableTaskExecutionListener> {
+public class RunnableTaskListenerFactory implements Consumer<RunnableTaskExecutionListener> {
 
     private final SetOnce<RunnableTaskExecutionListener> listener = new SetOnce<>();
 
     @Override
-    public RunnableTaskExecutionListener apply(RunnableTaskExecutionListener runnableTaskExecutionListener) {
+    public void accept(RunnableTaskExecutionListener runnableTaskExecutionListener) {
         listener.set(runnableTaskExecutionListener);
-        return listener.get();
     }
 
     public RunnableTaskExecutionListener get() {
         assert listener.get() != null;
         return listener.get();
     }
+
 }

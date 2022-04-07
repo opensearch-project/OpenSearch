@@ -1066,7 +1066,7 @@ public class Node implements Closeable {
         transportService.getTaskManager().setTaskResourceTrackingService(taskResourceTrackingService);
 
         RunnableTaskListenerFactory runnableTaskListener = injector.getInstance(RunnableTaskListenerFactory.class);
-        runnableTaskListener.apply(taskResourceTrackingService);
+        runnableTaskListener.accept(taskResourceTrackingService);
 
         transportService.start();
         assert localNodeFactory.getNode() != null;
