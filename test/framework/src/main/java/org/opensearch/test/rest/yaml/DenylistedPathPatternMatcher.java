@@ -47,7 +47,7 @@ import java.util.regex.Pattern;
  *
  * Each denylist pattern is a suffix match on the path. Empty patterns are not allowed.
  */
-final class BlacklistedPathPatternMatcher {
+final class DenylistedPathPatternMatcher {
     private final Pattern pattern;
 
     /**
@@ -55,7 +55,7 @@ final class BlacklistedPathPatternMatcher {
      *
      * @param p The suffix pattern. Must be a non-empty string.
      */
-    BlacklistedPathPatternMatcher(String p) {
+    DenylistedPathPatternMatcher(String p) {
         // guard against accidentally matching everything as an empty string lead to the pattern ".*" which matches everything
         if (p == null || p.trim().isEmpty()) {
             throw new IllegalArgumentException("Empty denylist patterns are not supported");
