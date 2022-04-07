@@ -8,7 +8,6 @@
 
 package org.opensearch.tasks;
 
-import com.sun.management.ThreadMXBean;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -20,6 +19,8 @@ import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadMXBean;
+import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -39,7 +40,26 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
     );
     public static final String TASK_ID = "TASK_ID";
 
-    private static final ThreadMXBean threadMXBean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
+    private static ThreadMXBean threadMXBean;
+    private static Method isThreadAllocatedMemorySupported;
+    private static Method isThreadAllocatedMemoryEnabled;
+    private static Method getThreadAllocatedBytes;
+    private static Method getThreadCpuTime;
+
+    static {
+        try {
+            isThreadAllocatedMemorySupported = Class.forName("com.sun.management.ThreadMXBean").getMethod("isThreadAllocatedMemorySupported");
+            isThreadAllocatedMemoryEnabled = Class.forName("com.sun.management.ThreadMXBean").getMethod("isThreadAllocatedMemoryEnabled");
+            getThreadAllocatedBytes = Class.forName("com.sun.management.ThreadMXBean").getMethod("getThreadAllocatedBytes", long.class);
+            getThreadCpuTime = Class.forName("com.sun.management.ThreadMXBean").getMethod("getThreadCpuTime", long.class);
+            threadMXBean = ManagementFactory.getThreadMXBean();
+        } catch (Exception e) {
+            isThreadAllocatedMemorySupported = null;
+            isThreadAllocatedMemoryEnabled = null;
+            getThreadAllocatedBytes = null;
+            getThreadCpuTime = null;
+        }
+    }
 
     private final ConcurrentMapLong<Task> resourceAwareTasks = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
     private final ThreadPool threadPool;
@@ -58,9 +78,13 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
     }
 
     public boolean isTaskResourceTrackingEnabled() {
-        return taskResourceTrackingEnabled
-            && threadMXBean.isThreadAllocatedMemorySupported()
-            && threadMXBean.isThreadAllocatedMemoryEnabled();
+        try {
+            return taskResourceTrackingEnabled
+                && (boolean) isThreadAllocatedMemorySupported.invoke(threadMXBean)
+                && (boolean) isThreadAllocatedMemoryEnabled.invoke(threadMXBean);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /**
@@ -163,12 +187,16 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
     }
 
     private ResourceUsageMetric[] getResourceUsageMetricsForThread(long threadId) {
+        long bytes = 0;
+        try {
+            bytes = (long) getThreadAllocatedBytes.invoke(threadMXBean, threadId);
+        } catch (Exception e) {}
+
         ResourceUsageMetric currentMemoryUsage = new ResourceUsageMetric(
-            ResourceStats.MEMORY,
-            threadMXBean.getThreadAllocatedBytes(threadId)
+            ResourceStats.MEMORY, bytes
         );
         ResourceUsageMetric currentCPUUsage = new ResourceUsageMetric(ResourceStats.CPU, threadMXBean.getThreadCpuTime(threadId));
-        return new ResourceUsageMetric[] { currentMemoryUsage, currentCPUUsage };
+        return new ResourceUsageMetric[]{currentMemoryUsage, currentCPUUsage};
     }
 
     private boolean isThreadWorkingOnTask(Task task, long threadId) {
