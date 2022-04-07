@@ -174,6 +174,31 @@ public class OpenSearchExecutors {
         );
     }
 
+    public static OpenSearchThreadPoolExecutor newAutoQueueFixed(
+        String name,
+        int size,
+        int initialQueueCapacity,
+        int minQueueSize,
+        int maxQueueSize,
+        int frameSize,
+        TimeValue targetedResponseTime,
+        ThreadFactory threadFactory,
+        ThreadContext contextHolder
+    ) {
+        return newAutoQueueFixed(
+            name,
+            size,
+            initialQueueCapacity,
+            minQueueSize,
+            maxQueueSize,
+            frameSize,
+            targetedResponseTime,
+            threadFactory,
+            contextHolder,
+            null
+        );
+    }
+
     /**
      * Return a new executor that will automatically adjust the queue size based on queue throughput.
      *
