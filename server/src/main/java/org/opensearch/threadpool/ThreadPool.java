@@ -68,6 +68,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
@@ -189,7 +190,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     public ThreadPool(
         final Settings settings,
-        final RunnableTaskListenerFactory runnableTaskListener,
+        final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener,
         final ExecutorBuilder<?>... customBuilders
     ) {
         assert Node.NODE_NAME_SETTING.exists(settings);

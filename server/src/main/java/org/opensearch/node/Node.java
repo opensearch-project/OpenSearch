@@ -38,7 +38,7 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.tasks.TaskResourceTrackingService;
-import org.opensearch.threadpool.RunnableTaskListenerFactory;
+import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.Assertions;
 import org.opensearch.Build;
@@ -215,6 +215,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -326,6 +327,7 @@ public class Node implements Closeable {
     private final LocalNodeFactory localNodeFactory;
     private final NodeService nodeService;
     final NamedWriteableRegistry namedWriteableRegistry;
+    private final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener;
 
     public Node(Environment environment) {
         this(environment, Collections.emptyList(), true);
@@ -435,7 +437,7 @@ public class Node implements Closeable {
 
             final List<ExecutorBuilder<?>> executorBuilders = pluginsService.getExecutorBuilders(settings);
 
-            RunnableTaskListenerFactory runnableTaskListener = new RunnableTaskListenerFactory();
+            runnableTaskListener = new AtomicReference<>();
             final ThreadPool threadPool = new ThreadPool(settings, runnableTaskListener, executorBuilders.toArray(new ExecutorBuilder[0]));
             resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
             final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
@@ -943,7 +945,6 @@ public class Node implements Closeable {
                 b.bind(ShardLimitValidator.class).toInstance(shardLimitValidator);
                 b.bind(FsHealthService.class).toInstance(fsHealthService);
                 b.bind(SystemIndices.class).toInstance(systemIndices);
-                b.bind(RunnableTaskListenerFactory.class).toInstance(runnableTaskListener);
             });
             injector = modules.createInjector();
 
@@ -1064,9 +1065,7 @@ public class Node implements Closeable {
 
         TaskResourceTrackingService taskResourceTrackingService = injector.getInstance(TaskResourceTrackingService.class);
         transportService.getTaskManager().setTaskResourceTrackingService(taskResourceTrackingService);
-
-        RunnableTaskListenerFactory runnableTaskListener = injector.getInstance(RunnableTaskListenerFactory.class);
-        runnableTaskListener.accept(taskResourceTrackingService);
+        runnableTaskListener.set(taskResourceTrackingService);
 
         transportService.start();
         assert localNodeFactory.getNode() != null;

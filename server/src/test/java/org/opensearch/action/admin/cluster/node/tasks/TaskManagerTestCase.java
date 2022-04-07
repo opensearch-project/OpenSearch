@@ -62,7 +62,7 @@ import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.tasks.MockTaskManager;
-import org.opensearch.threadpool.RunnableTaskListenerFactory;
+import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -76,6 +76,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
@@ -91,11 +92,11 @@ public abstract class TaskManagerTestCase extends OpenSearchTestCase {
     protected ThreadPool threadPool;
     protected TestNode[] testNodes;
     protected int nodesCount;
-    protected RunnableTaskListenerFactory runnableTaskListener;
+    protected AtomicReference<RunnableTaskExecutionListener> runnableTaskListener;
 
     @Before
     public void setupThreadPool() {
-        runnableTaskListener = new RunnableTaskListenerFactory();
+        runnableTaskListener = new AtomicReference<>();
         threadPool = new TestThreadPool(TransportTasksActionTests.class.getSimpleName(), runnableTaskListener);
     }
 

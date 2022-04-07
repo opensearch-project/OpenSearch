@@ -40,7 +40,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.threadpool.RunnableTaskListenerFactory;
+import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.FakeTcpChannel;
@@ -60,6 +60,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Phaser;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -68,11 +69,11 @@ import static org.mockito.Mockito.mock;
 
 public class TaskManagerTests extends OpenSearchTestCase {
     private ThreadPool threadPool;
-    private RunnableTaskListenerFactory runnableTaskListener;
+    private AtomicReference<RunnableTaskExecutionListener> runnableTaskListener;
 
     @Before
     public void setupThreadPool() {
-        runnableTaskListener = new RunnableTaskListenerFactory();
+        runnableTaskListener = new AtomicReference<>();
         threadPool = new TestThreadPool(TransportTasksActionTests.class.getSimpleName(), runnableTaskListener);
     }
 

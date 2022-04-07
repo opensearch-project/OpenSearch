@@ -48,6 +48,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * A builder for executors that automatically adjust the queue length as needed, depending on
@@ -61,7 +62,7 @@ public final class AutoQueueAdjustingExecutorBuilder extends ExecutorBuilder<Aut
     private final Setting<Integer> maxQueueSizeSetting;
     private final Setting<TimeValue> targetedResponseTimeSetting;
     private final Setting<Integer> frameSizeSetting;
-    private final RunnableTaskListenerFactory runnableTaskListener;
+    private final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener;
 
     AutoQueueAdjustingExecutorBuilder(
         final Settings settings,
@@ -83,7 +84,7 @@ public final class AutoQueueAdjustingExecutorBuilder extends ExecutorBuilder<Aut
         final int minQueueSize,
         final int maxQueueSize,
         final int frameSize,
-        final RunnableTaskListenerFactory runnableTaskListener
+        final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener
     ) {
         super(name);
         final String prefix = "thread_pool." + name;

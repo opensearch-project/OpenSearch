@@ -40,7 +40,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.node.Node;
-import org.opensearch.threadpool.RunnableTaskListenerFactory;
+import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.threadpool.TaskAwareRunnable;
 
 import java.util.List;
@@ -57,6 +57,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 public class OpenSearchExecutors {
@@ -218,7 +219,7 @@ public class OpenSearchExecutors {
         TimeValue targetedResponseTime,
         ThreadFactory threadFactory,
         ThreadContext contextHolder,
-        RunnableTaskListenerFactory runnableTaskListener
+        AtomicReference<RunnableTaskExecutionListener> runnableTaskListener
     ) {
         if (initialQueueCapacity <= 0) {
             throw new IllegalArgumentException(

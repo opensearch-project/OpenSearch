@@ -16,11 +16,11 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.threadpool.RunnableTaskListenerFactory;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.opensearch.tasks.ResourceStats.MEMORY;
 import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
@@ -32,7 +32,7 @@ public class TaskResourceTrackingServiceTests extends OpenSearchTestCase {
 
     @Before
     public void setup() {
-        threadPool = new TestThreadPool(TransportTasksActionTests.class.getSimpleName(), new RunnableTaskListenerFactory());
+        threadPool = new TestThreadPool(TransportTasksActionTests.class.getSimpleName(), new AtomicReference<>());
         taskResourceTrackingService = new TaskResourceTrackingService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),

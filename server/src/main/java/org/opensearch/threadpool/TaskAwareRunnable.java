@@ -14,6 +14,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.concurrent.WrappedRunnable;
 
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.lang.Thread.currentThread;
 import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
@@ -28,9 +29,13 @@ public class TaskAwareRunnable extends AbstractRunnable implements WrappedRunnab
 
     private final Runnable original;
     private final ThreadContext threadContext;
-    private final RunnableTaskListenerFactory runnableTaskListener;
+    private final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener;
 
-    public TaskAwareRunnable(ThreadContext threadContext, final Runnable original, final RunnableTaskListenerFactory runnableTaskListener) {
+    public TaskAwareRunnable(
+        ThreadContext threadContext,
+        final Runnable original,
+        final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener
+    ) {
         this.original = original;
         this.threadContext = threadContext;
         this.runnableTaskListener = runnableTaskListener;
