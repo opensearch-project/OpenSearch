@@ -139,15 +139,15 @@ public final class ThreadContext implements Writeable {
         ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT;
 
         if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
-            threadContextStruct.putHeaders(
+            threadContextStruct = threadContextStruct.putHeaders(
                 MapBuilder.<String, String>newMapBuilder()
                     .put(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID))
                     .immutableMap()
             );
         }
 
-        if (context.requestHeaders.containsKey(TASK_ID)) {
-            threadContextStruct.putTransient(TASK_ID, context.transientHeaders.get(TASK_ID));
+        if (context.transientHeaders.containsKey(TASK_ID)) {
+            threadContextStruct = threadContextStruct.putTransient(TASK_ID, context.transientHeaders.get(TASK_ID));
         }
 
         threadLocal.set(threadContextStruct);
