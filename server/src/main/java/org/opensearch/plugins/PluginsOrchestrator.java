@@ -28,6 +28,7 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.IndicesModuleRequest;
 import org.opensearch.index.IndicesModuleResponse;
 import org.opensearch.index.shard.IndexEventListener;
+import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.node.ReportingService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
@@ -168,8 +169,8 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
                 if (response.getIndexEventListener() == true) {
                     indexModule.addIndexEventListener(new IndexEventListener() {
                         @Override
-                        public void beforeIndexRemoved(Index index, Settings indexSettings) {
-                            beforeIndexRemovedPO(index, indexSettings);
+                        public void beforeIndexRemoved(IndexService indexService, IndicesClusterStateService.AllocatedIndices.IndexRemovalReason reason) {
+                            beforeIndexRemovedPO();
                         }
                     });
                 }
@@ -193,7 +194,7 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
         }
     }
 
-    private void beforeIndexRemovedPO(Index index, Settings indexSettings) {
+    private void beforeIndexRemovedPO() {
         logger.info("beforeIndexRemovedPO event handler");
     }
 }
