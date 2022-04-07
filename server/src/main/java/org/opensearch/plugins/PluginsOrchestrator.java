@@ -25,6 +25,7 @@ import org.opensearch.extensions.DiscoveryExtension;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndicesModuleRequest;
 import org.opensearch.index.IndicesModuleResponse;
 import org.opensearch.index.shard.IndexEventListener;
@@ -42,6 +43,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 public class PluginsOrchestrator implements ReportingService<PluginsAndModules> {
     public static final String REQUEST_EXTENSION_ACTION_NAME = "internal:discovery/extensions";
@@ -156,6 +159,7 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
 
     public void onIndexModule(IndexModule indexModule) throws UnknownHostException {
         logger.info("onIndexModule index:" + indexModule.getIndex());
+        final CountDownLatch inProgressLatch = new CountDownLatch(1);
         final TransportResponseHandler<IndicesModuleResponse> indicesModuleResponseHandler = new TransportResponseHandler<IndicesModuleResponse>() {
 
             @Override
@@ -170,10 +174,11 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
                     indexModule.addIndexEventListener(new IndexEventListener() {
                         @Override
                         public void beforeIndexRemoved(IndexService indexService, IndicesClusterStateService.AllocatedIndices.IndexRemovalReason reason) {
-                            beforeIndexRemovedPO();
+                            logger.info("Index Event Listener is called");
                         }
                     });
                 }
+                inProgressLatch.countDown();
             }
 
             @Override
@@ -186,9 +191,12 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
                 return ThreadPool.Names.GENERIC;
             }
         };
+
         try {
             logger.info("Sending request to extension");
             transportService.sendRequest(extensionNode, INDICES_EXTENSION_POINT_ACTION_NAME, new IndicesModuleRequest(indexModule), indicesModuleResponseHandler);
+            inProgressLatch.await(100, TimeUnit.SECONDS);
+            logger.info("Recieved response from Extension");
         } catch (Exception e) {
             logger.error(e.toString());
         }
