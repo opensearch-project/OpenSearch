@@ -276,6 +276,41 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
         assertEquals(request.waitForActiveShards(), activeShardCount);
     }
 
+    // Validate the Action works correctly on a node with deprecated 'master' role
+    public void testPassNumRoutingShardsOnNodeWithDeprecatedMasterRole() {
+        final Set<DiscoveryNodeRole> roles = Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE);
+
+        ClusterState clusterState = ClusterState.builder(
+            createClusterState("source", 1, 0, Settings.builder().put("index.blocks.write", true).build())
+        )
+            .nodes(
+                DiscoveryNodes.builder().add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT))
+            )
+            .build();
+        AllocationService service = new AllocationService(
+            new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE
+        );
+
+        RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        // now we start the shard
+        routingTable = OpenSearchAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+
+        ResizeRequest resizeRequest = new ResizeRequest("target", "source");
+        resizeRequest.setResizeType(ResizeType.SPLIT);
+        resizeRequest.getTargetIndexRequest().settings(Settings.builder().put("index.number_of_shards", 2).build());
+        TransportResizeAction.prepareCreateIndexRequest(resizeRequest, clusterState, null, "source", "target");
+
+        resizeRequest.getTargetIndexRequest()
+            .settings(Settings.builder().put("index.number_of_routing_shards", 2).put("index.number_of_shards", 2).build());
+        TransportResizeAction.prepareCreateIndexRequest(resizeRequest, clusterState, null, "source", "target");
+    }
+
     private DiscoveryNode newNode(String nodeId) {
         final Set<DiscoveryNodeRole> roles = Collections.unmodifiableSet(
             new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE))

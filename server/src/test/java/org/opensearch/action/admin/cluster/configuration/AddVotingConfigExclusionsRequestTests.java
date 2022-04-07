@@ -456,18 +456,18 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
      */
     public void testResolveByNodeDescriptionWithDeprecatedMasterRole() {
         final DiscoveryNode localNode = new DiscoveryNode(
-                "local",
-                "local",
-                buildNewFakeTransportAddress(),
-                emptyMap(),
-                singleton(DiscoveryNodeRole.MASTER_ROLE),
-                Version.CURRENT
+            "local",
+            "local",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
         );
         final VotingConfigExclusion localNodeExclusion = new VotingConfigExclusion(localNode);
 
         final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
-                .nodes(new Builder().add(localNode).localNodeId(localNode.getId()))
-                .build();
+            .nodes(new Builder().add(localNode).localNodeId(localNode.getId()))
+            .build();
 
         assertThat(makeRequestWithNodeDescriptions("_local").resolveVotingConfigExclusions(clusterState), contains(localNodeExclusion));
         assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
@@ -475,43 +475,38 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
 
     public void testResolveByNodeIdWithDeprecatedMasterRole() {
         final DiscoveryNode node = new DiscoveryNode(
-                "nodeName",
-                "nodeId",
-                buildNewFakeTransportAddress(),
-                emptyMap(),
-                singleton(DiscoveryNodeRole.MASTER_ROLE),
-                Version.CURRENT
+            "nodeName",
+            "nodeId",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
         );
         final VotingConfigExclusion nodeExclusion = new VotingConfigExclusion(node);
 
-        final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
-                .nodes(new Builder().add(node))
-                .build();
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster")).nodes(new Builder().add(node)).build();
 
         assertThat(
-                new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY, new String[] { "nodeId" }, Strings.EMPTY_ARRAY, TimeValue.ZERO).resolveVotingConfigExclusions(clusterState), contains(nodeExclusion)
+            new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY, new String[] { "nodeId" }, Strings.EMPTY_ARRAY, TimeValue.ZERO)
+                .resolveVotingConfigExclusions(clusterState),
+            contains(nodeExclusion)
         );
     }
-    
+
     public void testResolveByNodeNameWithDeprecatedMasterRole() {
         final DiscoveryNode node = new DiscoveryNode(
-                "nodeName",
-                "nodeId",
-                buildNewFakeTransportAddress(),
-                emptyMap(),
-                singleton(DiscoveryNodeRole.MASTER_ROLE),
-                Version.CURRENT
+            "nodeName",
+            "nodeId",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
         );
         final VotingConfigExclusion nodeExclusion = new VotingConfigExclusion(node);
 
-        final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
-                .nodes(new Builder().add(node))
-                .build();
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster")).nodes(new Builder().add(node)).build();
 
-        assertThat(
-                new AddVotingConfigExclusionsRequest("nodeName").resolveVotingConfigExclusions(clusterState),
-                contains(nodeExclusion)
-        );
+        assertThat(new AddVotingConfigExclusionsRequest("nodeName").resolveVotingConfigExclusions(clusterState), contains(nodeExclusion));
     }
 
     private static AddVotingConfigExclusionsRequest makeRequestWithNodeDescriptions(String... nodeDescriptions) {

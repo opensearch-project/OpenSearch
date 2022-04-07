@@ -31,6 +31,10 @@
 
 package org.opensearch.action.support.master;
 
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionFuture;
@@ -68,10 +72,6 @@ import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.TransportService;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -81,12 +81,12 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-import static org.opensearch.test.ClusterServiceUtils.createClusterService;
-import static org.opensearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.opensearch.test.ClusterServiceUtils.createClusterService;
+import static org.opensearch.test.ClusterServiceUtils.setState;
 
-public class TransportMasterNodeActionTests extends OpenSearchTestCase {
+public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
     private static ThreadPool threadPool;
 
     private ClusterService clusterService;
@@ -121,14 +121,14 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
             "local_node",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         remoteNode = new DiscoveryNode(
             "remote_node",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         allNodes = new DiscoveryNode[] { localNode, remoteNode };
