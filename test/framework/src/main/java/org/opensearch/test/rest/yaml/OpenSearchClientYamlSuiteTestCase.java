@@ -116,7 +116,7 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
      */
     private static final String PATHS_SEPARATOR = "(?<!\\\\),";
 
-    private static List<BlacklistedPathPatternMatcher> denylistPathMatchers;
+    private static List<DenylistedPathPatternMatcher> denylistPathMatchers;
     private static ClientYamlTestExecutionContext restTestExecutionContext;
     private static ClientYamlTestExecutionContext adminExecutionContext;
     private static ClientYamlTestClient clientYamlTestClient;
@@ -157,11 +157,11 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
             final String[] denylist = resolvePathsProperty(REST_TESTS_DENYLIST, null);
             denylistPathMatchers = new ArrayList<>();
             for (final String entry : denylist) {
-                denylistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
+                denylistPathMatchers.add(new DenylistedPathPatternMatcher(entry));
             }
             final String[] denylistAdditions = resolvePathsProperty(REST_TESTS_DENYLIST_ADDITIONS, null);
             for (final String entry : denylistAdditions) {
-                denylistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
+                denylistPathMatchers.add(new DenylistedPathPatternMatcher(entry));
             }
         }
         assert restTestExecutionContext != null;
@@ -368,12 +368,9 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
 
     public void test() throws IOException {
         // skip test if it matches one of the denylist globs
-        for (BlacklistedPathPatternMatcher denylistedPathMatcher : denylistPathMatchers) {
+        for (DenylistedPathPatternMatcher denylistedPathMatcher : denylistPathMatchers) {
             String testPath = testCandidate.getSuitePath() + "/" + testCandidate.getTestSection().getName();
-            assumeFalse(
-                "[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted",
-                denylistedPathMatcher.isSuffixMatch(testPath)
-            );
+            assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: denylisted", denylistedPathMatcher.isSuffixMatch(testPath));
         }
 
         // skip test if the whole suite (yaml file) is disabled
