@@ -59,8 +59,9 @@ public class AggregationsIntegrationIT extends OpenSearchIntegTestCase {
     static int numDocs;
 
     private static final String LARGE_STRING = "a".repeat(2000);
-    private static final String LARGE_STRING_EXCEPTION_MESSAGE = "The length of regex [" + LARGE_STRING.length() +
-        "] used in the request has exceeded the allowed maximum";
+    private static final String LARGE_STRING_EXCEPTION_MESSAGE = "The length of regex ["
+        + LARGE_STRING.length()
+        + "] used in the request has exceeded the allowed maximum";
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
@@ -100,7 +101,8 @@ public class AggregationsIntegrationIT extends OpenSearchIntegTestCase {
     public void testLargeRegExTermsAggregation() {
         for (TermsAggregatorFactory.ExecutionMode executionMode : TermsAggregatorFactory.ExecutionMode.values()) {
             TermsAggregationBuilder termsAggregation = terms("my_terms").field("f")
-                .includeExclude(getLargeStringInclude()).executionHint(executionMode.toString());
+                .includeExclude(getLargeStringInclude())
+                .executionHint(executionMode.toString());
             runLargeStringAggregationTest(termsAggregation);
         }
     }
@@ -108,7 +110,8 @@ public class AggregationsIntegrationIT extends OpenSearchIntegTestCase {
     public void testLargeRegExSignificantTermsAggregation() {
         for (SignificantTermsAggregatorFactory.ExecutionMode executionMode : SignificantTermsAggregatorFactory.ExecutionMode.values()) {
             SignificantTermsAggregationBuilder significantTerms = new SignificantTermsAggregationBuilder("my_terms").field("f")
-                .includeExclude(getLargeStringInclude()).executionHint(executionMode.toString());
+                .includeExclude(getLargeStringInclude())
+                .executionHint(executionMode.toString());
             runLargeStringAggregationTest(significantTerms);
         }
     }
@@ -116,7 +119,8 @@ public class AggregationsIntegrationIT extends OpenSearchIntegTestCase {
     public void testLargeRegExRareTermsAggregation() {
         // currently this only supports "map" as an execution hint
         RareTermsAggregationBuilder rareTerms = new RareTermsAggregationBuilder("my_terms").field("f")
-            .includeExclude(getLargeStringInclude()).maxDocCount(2);
+            .includeExclude(getLargeStringInclude())
+            .maxDocCount(2);
         runLargeStringAggregationTest(rareTerms);
     }
 
@@ -128,9 +132,7 @@ public class AggregationsIntegrationIT extends OpenSearchIntegTestCase {
         boolean exceptionThrown = false;
         IncludeExclude include = new IncludeExclude(LARGE_STRING, null);
         try {
-            client().prepareSearch("index")
-                .addAggregation(aggregation)
-                .get();
+            client().prepareSearch("index").addAggregation(aggregation).get();
         } catch (SearchPhaseExecutionException ex) {
             exceptionThrown = true;
             Throwable nestedException = ex.getCause();
