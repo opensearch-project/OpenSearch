@@ -76,7 +76,7 @@ public class RecordingTaskManagerListener implements MockTaskManagerListener {
     public void waitForTaskCompletion(Task task) {}
 
     @Override
-    public void onThreadContextUpdate(Task task, Boolean taskIdAdded) {}
+    public void taskExecutionStarted(Task task, Boolean closeableInvoked) {}
 
     public synchronized List<Tuple<Boolean, TaskInfo>> getEvents() {
         return Collections.unmodifiableList(new ArrayList<>(events));

@@ -138,25 +138,30 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
             unregisterChildNode.close();
             throw e;
         }
-        execute(task, request, new ActionListener<Response>() {
-            @Override
-            public void onResponse(Response response) {
-                try {
-                    Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
-                } finally {
-                    listener.onResponse(task, response);
+        ThreadContext.StoredContext storedContext = taskManager.taskExecutionStarted(task);
+        try {
+            execute(task, request, new ActionListener<Response>() {
+                @Override
+                public void onResponse(Response response) {
+                    try {
+                        Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
+                    } finally {
+                        listener.onResponse(task, response);
+                    }
                 }
-            }
 
-            @Override
-            public void onFailure(Exception e) {
-                try {
-                    Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
-                } finally {
-                    listener.onFailure(task, e);
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
+                    } finally {
+                        listener.onFailure(task, e);
+                    }
                 }
-            }
-        });
+            });
+        } finally {
+            storedContext.close();
+        }
         return task;
     }
 

@@ -131,13 +131,13 @@ public class MockTaskManager extends TaskManager {
     @Override
     public ThreadContext.StoredContext taskExecutionStarted(Task task) {
         for (MockTaskManagerListener listener : listeners) {
-            listener.onThreadContextUpdate(task, true);
+            listener.taskExecutionStarted(task, false);
         }
 
         ThreadContext.StoredContext storedContext = super.taskExecutionStarted(task);
         return () -> {
             for (MockTaskManagerListener listener : listeners) {
-                listener.onThreadContextUpdate(task, false);
+                listener.taskExecutionStarted(task, true);
             }
             storedContext.restore();
         };

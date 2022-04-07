@@ -648,57 +648,6 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         assertEquals(0, responses.failureCount());
     }
 
-    /*
-    public void testTaskIdPersistsInThreadContext() {
-        Settings settings = Settings.builder().put(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.getKey(), true).build();
-        setupTestNodes(settings);
-        connectNodes(testNodes);
-
-        final List<Long> taskIdsAddedToThreadContext = new ArrayList<>();
-        final List<Long> taskIdsRemovedFromThreadContext = new ArrayList<>();
-        final long[] actualTaskIdInThreadContext = new long[1];
-        final long[] expectedTaskIdInThreadContext = new long[1];
-
-        ((MockTaskManager) testNodes[0].transportService.getTaskManager()).addListener(new MockTaskManagerListener() {
-            @Override
-            public void waitForTaskCompletion(Task task) {}
-
-            @Override
-            public void onThreadContextUpdate(Task task, Boolean taskIdAdded) {
-                if (taskIdAdded) {
-                    taskIdsAddedToThreadContext.add(task.getId());
-                } else {
-                    taskIdsRemovedFromThreadContext.add(task.getId());
-                }
-            }
-
-            @Override
-            public void onTaskRegistered(Task task) {}
-
-            @Override
-            public void onTaskUnregistered(Task task) {
-                if (task.getAction().equals("action1")) {
-                    expectedTaskIdInThreadContext[0] = task.getId();
-                    actualTaskIdInThreadContext[0] = threadPool.getThreadContext().getTransient(TASK_ID);
-                }
-            }
-        });
-
-        TestTasksAction action = new TestTasksAction("action1", testNodes[0].clusterService, testNodes[0].transportService) {
-            @Override
-            protected void taskOperation(TestTasksRequest request, Task task, ActionListener<TestTaskResponse> listener) {
-                listener.onResponse(new TestTaskResponse(testNodes[0].getNodeId()));
-            }
-        };
-        TestTasksRequest testTasksRequest = new TestTasksRequest();
-        testTasksRequest.setActions("action1");
-        ActionTestUtils.executeBlocking(action, testTasksRequest);
-
-        assertEquals(expectedTaskIdInThreadContext[0], actualTaskIdInThreadContext[0]);
-        assertThat(taskIdsAddedToThreadContext, containsInAnyOrder(taskIdsRemovedFromThreadContext.toArray()));
-    }
-    */
-
     /**
      * This test starts nodes actions that blocks on all nodes. While node actions are blocked in the middle of execution
      * it executes a tasks action that targets these blocked node actions. The test verifies that task actions are only
