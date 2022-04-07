@@ -48,7 +48,8 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
 
     static {
         try {
-            isThreadAllocatedMemorySupported = Class.forName("com.sun.management.ThreadMXBean").getMethod("isThreadAllocatedMemorySupported");
+            isThreadAllocatedMemorySupported = Class.forName("com.sun.management.ThreadMXBean")
+                .getMethod("isThreadAllocatedMemorySupported");
             isThreadAllocatedMemoryEnabled = Class.forName("com.sun.management.ThreadMXBean").getMethod("isThreadAllocatedMemoryEnabled");
             getThreadAllocatedBytes = Class.forName("com.sun.management.ThreadMXBean").getMethod("getThreadAllocatedBytes", long.class);
             getThreadCpuTime = Class.forName("com.sun.management.ThreadMXBean").getMethod("getThreadCpuTime", long.class);
@@ -192,11 +193,9 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
             bytes = (long) getThreadAllocatedBytes.invoke(threadMXBean, threadId);
         } catch (Exception e) {}
 
-        ResourceUsageMetric currentMemoryUsage = new ResourceUsageMetric(
-            ResourceStats.MEMORY, bytes
-        );
+        ResourceUsageMetric currentMemoryUsage = new ResourceUsageMetric(ResourceStats.MEMORY, bytes);
         ResourceUsageMetric currentCPUUsage = new ResourceUsageMetric(ResourceStats.CPU, threadMXBean.getThreadCpuTime(threadId));
-        return new ResourceUsageMetric[]{currentMemoryUsage, currentCPUUsage};
+        return new ResourceUsageMetric[] { currentMemoryUsage, currentCPUUsage };
     }
 
     private boolean isThreadWorkingOnTask(Task task, long threadId) {
