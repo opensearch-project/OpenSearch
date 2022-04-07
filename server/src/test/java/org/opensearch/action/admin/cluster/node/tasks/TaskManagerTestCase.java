@@ -232,7 +232,12 @@ public abstract class TaskManagerTestCase extends OpenSearchTestCase {
             taskResourceTrackingService = new TaskResourceTrackingService(settings, clusterService.getClusterSettings(), threadPool);
             transportService.getTaskManager().setTaskResourceTrackingService(taskResourceTrackingService);
             ActionFilters actionFilters = new ActionFilters(emptySet());
-            transportListTasksAction = new TransportListTasksAction(clusterService, transportService, actionFilters);
+            transportListTasksAction = new TransportListTasksAction(
+                clusterService,
+                transportService,
+                actionFilters,
+                taskResourceTrackingService
+            );
             transportCancelTasksAction = new TransportCancelTasksAction(clusterService, transportService, actionFilters);
             transportService.acceptIncomingRequests();
         }

@@ -43,13 +43,10 @@ import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
-import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.HashMap;
-
-import static org.mockito.Mockito.mock;
 
 public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
 

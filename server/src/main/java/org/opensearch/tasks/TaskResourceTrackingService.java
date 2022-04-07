@@ -9,8 +9,7 @@
 package org.opensearch.tasks;
 
 import com.sun.management.ThreadMXBean;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -32,8 +31,6 @@ import static org.opensearch.tasks.ResourceStatsType.WORKER_STATS;
  */
 public class TaskResourceTrackingService implements RunnableTaskExecutionListener {
 
-    private static final Logger logger = LogManager.getLogger(TaskManager.class);
-
     public static final Setting<Boolean> TASK_RESOURCE_TRACKING_ENABLED = Setting.boolSetting(
         "task_resource_tracking.enabled",
         false,
@@ -44,15 +41,20 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
 
     private static final ThreadMXBean threadMXBean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
 
-    public final ConcurrentMapLong<Task> resourceAwareTasks = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
+    private final ConcurrentMapLong<Task> resourceAwareTasks = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
+    private final ThreadPool threadPool;
     private volatile boolean taskResourceTrackingEnabled;
-    private ThreadPool threadPool;
 
+    @Inject
     public TaskResourceTrackingService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         this.taskResourceTrackingEnabled = TASK_RESOURCE_TRACKING_ENABLED.get(settings);
         this.threadPool = threadPool;
 
         clusterSettings.addSettingsUpdateConsumer(TASK_RESOURCE_TRACKING_ENABLED, this::setTaskResourceTrackingEnabled);
+    }
+
+    public void setTaskResourceTrackingEnabled(boolean taskResourceTrackingEnabled) {
+        this.taskResourceTrackingEnabled = taskResourceTrackingEnabled;
     }
 
     public boolean isTaskResourceTrackingEnabled() {
@@ -61,6 +63,15 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
             && threadMXBean.isThreadAllocatedMemoryEnabled();
     }
 
+    /**
+     * Executes logic only if task supports resource tracking and resource tracking setting is enabled.
+     * <p>
+     * 1. Starts tracking the task in map of resourceAwareTasks.
+     * 2. Adds Task Id in thread context to make sure it's available while task is processed across multiple threads.
+     *
+     * @param task for which resources needs to be tracked
+     * @return Autocloseable stored context to restore ThreadContext to the state before this method changed it.
+     */
     public ThreadContext.StoredContext startTracking(Task task) {
         if (task.supportsResourceTracking() == false || isTaskResourceTrackingEnabled() == false) {
             return () -> {};
@@ -72,15 +83,15 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
     }
 
     /**
-     * unregisters tasks registered earlier.
+     * Stops tracking task registered earlier for tracking.
      * <p>
      * It doesn't have feature enabled check to avoid any issues if setting was disable while the task was in progress.
      * <p>
      * It's also responsible to stop tracking the current thread's resources against this task if not already done.
-     * This happens when the thread handling the request itself calls the unregister method. So in this case unregister
+     * This happens when the thread executing the request logic itself calls the unregister method. So in this case unregister
      * happens before runnable finishes.
      *
-     * @param task
+     * @param task task which has finished and doesn't need resource tracking.
      */
     public void stopTracking(Task task) {
         if (isThreadWorkingOnTask(task, Thread.currentThread().getId())) {
@@ -92,15 +103,12 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
         resourceAwareTasks.remove(task.getId());
     }
 
-    private boolean validateNoActiveThread(Task task) {
-        for (List<ThreadResourceInfo> threadResourceInfos : task.getResourceStats().values()) {
-            for (ThreadResourceInfo threadResourceInfo : threadResourceInfos) {
-                if (threadResourceInfo.isActive()) return false;
-            }
-        }
-        return true;
-    }
-
+    /**
+     * Refreshes the resource stats for the tasks provided by looking into which threads are actively working on these
+     * and how much resources these have consumed till now.
+     *
+     * @param tasks for which resource stats needs to be refreshed.
+     */
     public void refreshResourceStats(Task... tasks) {
         if (isTaskResourceTrackingEnabled() == false) {
             return;
@@ -121,10 +129,6 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
                 }
             }
         });
-    }
-
-    public void setTaskResourceTrackingEnabled(boolean taskResourceTrackingEnabled) {
-        this.taskResourceTrackingEnabled = taskResourceTrackingEnabled;
     }
 
     /**
@@ -176,6 +180,15 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
             }
         }
         return false;
+    }
+
+    private boolean validateNoActiveThread(Task task) {
+        for (List<ThreadResourceInfo> threadResourceInfos : task.getResourceStats().values()) {
+            for (ThreadResourceInfo threadResourceInfo : threadResourceInfos) {
+                if (threadResourceInfo.isActive()) return false;
+            }
+        }
+        return true;
     }
 
     /**

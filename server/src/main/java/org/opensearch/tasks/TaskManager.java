@@ -461,14 +461,16 @@ public class TaskManager implements ClusterStateApplier {
         throw new OpenSearchTimeoutException("Timed out waiting for completion of [{}]", task);
     }
 
+    /**
+     * Takes actions when a task is registered and its execution starts
+     *
+     * @param task getting executed.
+     * @return AutoCloseable to free up resources (clean up thread context) when task execution block returns
+     */
     public ThreadContext.StoredContext taskExecutionStarted(Task task) {
         if (taskResourceTrackingService.get() == null) return () -> {};
 
         return taskResourceTrackingService.get().startTracking(task);
-    }
-
-    public void refreshTasksInfo(Task... tasks) {
-        taskResourceTrackingService.get().refreshResourceStats(tasks);
     }
 
     private static class CancellableTaskHolder {

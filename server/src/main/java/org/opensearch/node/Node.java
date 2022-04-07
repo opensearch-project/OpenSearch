@@ -1062,11 +1062,7 @@ public class Node implements Closeable {
         transportService.getTaskManager().setTaskResultsService(injector.getInstance(TaskResultsService.class));
         transportService.getTaskManager().setTaskCancellationService(new TaskCancellationService(transportService));
 
-        TaskResourceTrackingService taskResourceTrackingService = new TaskResourceTrackingService(
-            settings(),
-            clusterService.getClusterSettings(),
-            injector.getInstance(ThreadPool.class)
-        );
+        TaskResourceTrackingService taskResourceTrackingService = injector.getInstance(TaskResourceTrackingService.class);
         transportService.getTaskManager().setTaskResourceTrackingService(taskResourceTrackingService);
 
         RunnableTaskListenerFactory runnableTaskListener = injector.getInstance(RunnableTaskListenerFactory.class);

@@ -26,10 +26,14 @@ import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancelledException;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
+import org.opensearch.test.tasks.MockTaskManager;
+import org.opensearch.test.tasks.MockTaskManagerListener;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -37,6 +41,9 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
 
 public class ResourceAwareTasksTests extends TaskManagerTestCase {
 
@@ -242,7 +249,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
     }
 
     public void testBasicTaskResourceTracking() throws Exception {
-        setup(true);
+        setup(true, false);
 
         final AtomicReference<Throwable> throwableReference = new AtomicReference<>();
         final AtomicReference<NodesResponse> responseReference = new AtomicReference<>();
@@ -298,7 +305,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
     }
 
     public void testTaskResourceTrackingDuringTaskCancellation() throws Exception {
-        setup(true);
+        setup(true, false);
 
         final AtomicReference<Throwable> throwableReference = new AtomicReference<>();
         final AtomicReference<NodesResponse> responseReference = new AtomicReference<>();
@@ -366,7 +373,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
     }
 
     public void testTaskResourceTrackingDisabled() throws Exception {
-        setup(false);
+        setup(false, false);
 
         final AtomicReference<Throwable> throwableReference = new AtomicReference<>();
         final AtomicReference<NodesResponse> responseReference = new AtomicReference<>();
@@ -399,7 +406,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
     }
 
     public void testTaskResourceTrackingDisabledWhileTaskInProgress() throws Exception {
-        setup(true);
+        setup(true, false);
 
         final AtomicReference<Throwable> throwableReference = new AtomicReference<>();
         final AtomicReference<NodesResponse> responseReference = new AtomicReference<>();
@@ -455,7 +462,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
     }
 
     public void testTaskResourceTrackingEnabledWhileTaskInProgress() throws Exception {
-        setup(false);
+        setup(false, false);
 
         final AtomicReference<Throwable> throwableReference = new AtomicReference<>();
         final AtomicReference<NodesResponse> responseReference = new AtomicReference<>();
@@ -492,7 +499,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
     }
 
     public void testOnDemandRefreshWhileFetchingTasks() throws InterruptedException {
-        setup(true);
+        setup(true, false);
 
         final AtomicReference<Throwable> throwableReference = new AtomicReference<>();
         final AtomicReference<NodesResponse> responseReference = new AtomicReference<>();
@@ -535,8 +542,63 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
         assertTasksRequestFinishedSuccessfully(resourceTasks.size(), responseReference.get(), throwableReference.get());
     }
 
-    private void setup(boolean resourceTrackingEnabled) {
-        Settings settings = Settings.builder().put("task_resource_tracking.enabled", resourceTrackingEnabled).build();
+    public void testTaskIdPersistsInThreadContext() throws InterruptedException {
+        setup(true, true);
+
+        final List<Long> taskIdsAddedToThreadContext = new ArrayList<>();
+        final List<Long> taskIdsRemovedFromThreadContext = new ArrayList<>();
+        AtomicLong actualTaskIdInThreadContext = new AtomicLong(-1);
+        AtomicLong expectedTaskIdInThreadContext = new AtomicLong(-2);
+
+        ((MockTaskManager) testNodes[0].transportService.getTaskManager()).addListener(new MockTaskManagerListener() {
+            @Override
+            public void waitForTaskCompletion(Task task) {}
+
+            @Override
+            public void taskExecutionStarted(Task task, Boolean closeableInvoked) {
+                if (closeableInvoked) {
+                    taskIdsRemovedFromThreadContext.add(task.getId());
+                } else {
+                    taskIdsAddedToThreadContext.add(task.getId());
+                }
+            }
+
+            @Override
+            public void onTaskRegistered(Task task) {}
+
+            @Override
+            public void onTaskUnregistered(Task task) {
+                if (task.getAction().equals("internal:resourceAction[n]")) {
+                    expectedTaskIdInThreadContext.set(task.getId());
+                    actualTaskIdInThreadContext.set(threadPool.getThreadContext().getTransient(TASK_ID));
+                }
+            }
+        });
+
+        TaskTestContext taskTestContext = new TaskTestContext();
+        startResourceAwareNodesAction(testNodes[0], false, taskTestContext, new ActionListener<NodesResponse>() {
+            @Override
+            public void onResponse(NodesResponse listTasksResponse) {
+                taskTestContext.requestCompleteLatch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                taskTestContext.requestCompleteLatch.countDown();
+            }
+        });
+
+        taskTestContext.requestCompleteLatch.await();
+
+        assertEquals(expectedTaskIdInThreadContext.get(), actualTaskIdInThreadContext.get());
+        assertThat(taskIdsAddedToThreadContext, containsInAnyOrder(taskIdsRemovedFromThreadContext.toArray()));
+    }
+
+    private void setup(boolean resourceTrackingEnabled, boolean useMockTaskManager) {
+        Settings settings = Settings.builder()
+            .put("task_resource_tracking.enabled", resourceTrackingEnabled)
+            .put(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.getKey(), useMockTaskManager)
+            .build();
         setupTestNodes(settings);
         connectNodes(testNodes[0]);
 
