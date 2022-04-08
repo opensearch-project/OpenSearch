@@ -2379,7 +2379,11 @@ public class InternalEngine extends Engine {
     @Override
     protected final void writerSegmentStats(SegmentsStats stats) {
         stats.addVersionMapMemoryInBytes(versionMap.ramBytesUsed());
-        stats.addIndexWriterMemoryInBytes(indexWriter.ramBytesUsed());
+        long indexWriterMemoryInBytes = 0;
+        if (!(engineConfig.getIndexSettings().isSegrepEnabled() && engineConfig.isReadOnly())) {
+            indexWriterMemoryInBytes = indexWriter.ramBytesUsed();
+        }
+        stats.addIndexWriterMemoryInBytes(indexWriterMemoryInBytes);
         stats.updateMaxUnsafeAutoIdTimestamp(maxUnsafeAutoIdTimestamp.get());
     }
 
