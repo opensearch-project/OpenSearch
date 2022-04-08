@@ -35,6 +35,11 @@ public class IndicesModuleRequest extends TransportRequest {
         this.indexSettings = Settings.readSettingsFromStream(in);
     }
 
+    public IndicesModuleRequest(Index index, Settings settings) {
+        this.index = index;
+        this.indexSettings = settings;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

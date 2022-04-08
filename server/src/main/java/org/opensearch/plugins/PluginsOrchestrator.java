@@ -22,12 +22,7 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.discovery.PluginRequest;
 import org.opensearch.discovery.PluginResponse;
 import org.opensearch.extensions.DiscoveryExtension;
-import org.opensearch.index.Index;
-import org.opensearch.index.IndexModule;
-import org.opensearch.index.IndexService;
-import org.opensearch.index.IndexSettings;
-import org.opensearch.index.IndicesModuleRequest;
-import org.opensearch.index.IndicesModuleResponse;
+import org.opensearch.index.*;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.node.ReportingService;
@@ -49,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 public class PluginsOrchestrator implements ReportingService<PluginsAndModules> {
     public static final String REQUEST_EXTENSION_ACTION_NAME = "internal:discovery/extensions";
     public static final String INDICES_EXTENSION_POINT_ACTION_NAME = "indices:internal/extensions";
+    public static final String INDICES_EXTENSION_NAME_ACTION_NAME = "indices:internal/name";
 
     private static final Logger logger = LogManager.getLogger(PluginsOrchestrator.class);
     private final Path extensionsPath;
@@ -160,6 +156,34 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
     public void onIndexModule(IndexModule indexModule) throws UnknownHostException {
         logger.info("onIndexModule index:" + indexModule.getIndex());
         final CountDownLatch inProgressLatch = new CountDownLatch(1);
+        final CountDownLatch inProgressIndexNameLatch = new CountDownLatch(1);
+
+        final TransportResponseHandler<IndicesModuleNameResponse> indicesModuleNameResponseHandler = new TransportResponseHandler<IndicesModuleNameResponse>() {
+            @Override
+            public void handleResponse(IndicesModuleNameResponse response) {
+                logger.info("ACK Response", response);
+                inProgressIndexNameLatch.countDown();
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.GENERIC;
+            }
+
+            @Override
+            public IndicesModuleNameResponse read(StreamInput in) throws IOException {
+                return new IndicesModuleNameResponse(in);
+            }
+
+
+
+        };
+
         final TransportResponseHandler<IndicesModuleResponse> indicesModuleResponseHandler = new TransportResponseHandler<IndicesModuleResponse>() {
 
             @Override
@@ -175,6 +199,16 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
                         @Override
                         public void beforeIndexRemoved(IndexService indexService, IndicesClusterStateService.AllocatedIndices.IndexRemovalReason reason) {
                             logger.info("Index Event Listener is called");
+                            String indexName = indexService.index().getName();
+                            logger.info("Index Name", indexName.toString());
+                            try {
+                                logger.info("Sending request of index name to extension");
+                                transportService.sendRequest(extensionNode, INDICES_EXTENSION_NAME_ACTION_NAME, new IndicesModuleRequest(indexModule), indicesModuleNameResponseHandler);
+                                inProgressIndexNameLatch.await(100, TimeUnit.SECONDS);
+                                logger.info("Recieved ack response from Extension");
+                            } catch (Exception e) {
+                                logger.error(e.toString());
+                            }
                         }
                     });
                 }
@@ -191,6 +225,9 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
                 return ThreadPool.Names.GENERIC;
             }
         };
+
+
+
 
         try {
             logger.info("Sending request to extension");
