@@ -31,6 +31,7 @@
 
 package org.opensearch.cluster.coordination;
 
+import org.junit.Before;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -41,7 +42,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
-import org.junit.Before;
 
 import java.util.Collections;
 import java.util.List;
@@ -57,11 +57,9 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
 import static org.opensearch.cluster.coordination.ClusterBootstrapService.BOOTSTRAP_PLACEHOLDER_PREFIX;
-import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING;
+import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.opensearch.cluster.coordination.ClusterBootstrapService.UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING;
 import static org.opensearch.common.settings.Settings.builder;
-import static org.opensearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
-import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.opensearch.node.Node.NODE_NAME_SETTING;
 import static org.opensearch.test.NodeRoles.nonMasterNode;
 import static org.hamcrest.Matchers.allOf;
@@ -74,11 +72,14 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
-public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
+public class ClusterBootstrapServiceDeprecatedMasterTests extends OpenSearchTestCase {
 
     private DiscoveryNode localNode, otherNode1, otherNode2;
     private DeterministicTaskQueue deterministicTaskQueue;
     private TransportService transportService;
+    private static final String CLUSTER_SETTING_DEPRECATED_MESSAGE =
+        "[cluster.initial_master_nodes] setting was deprecated in OpenSearch and will be removed in a future release! "
+            + "See the breaking changes documentation for the next major version.";
 
     @Before
     public void createServices() {
@@ -101,7 +102,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundTransportAddress -> localNode,
             null,
-            emptySet()
+            Collections.emptySet()
         );
     }
 
@@ -111,7 +112,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
             randomAlphaOfLength(10),
             buildNewFakeTransportAddress(),
             emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
+            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
             Version.CURRENT
         );
     }
@@ -157,28 +158,10 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
         assertTrue(bootstrapped.get());
     }
 
-    public void testDoesNothingByDefaultIfHostsProviderConfigured() {
-        testDoesNothingWithSettings(builder().putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey()));
-    }
-
-    public void testDoesNothingByDefaultIfSeedHostsConfigured() {
-        testDoesNothingWithSettings(builder().putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()));
-    }
-
-    public void testDoesNothingByDefaultIfClusterManagerNodesConfigured() {
-        testDoesNothingWithSettings(builder().putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey()));
-    }
-
-    public void testDoesNothingByDefaultOnMasterIneligibleNodes() {
-        localNode = new DiscoveryNode(
-            "local",
-            randomAlphaOfLength(10),
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            emptySet(),
-            Version.CURRENT
-        );
-        testDoesNothingWithSettings(Settings.builder());
+    // Validate the deprecated setting is still valid during the cluster bootstrap.
+    public void testDoesNothingByDefaultIfMasterNodesConfigured() {
+        testDoesNothingWithSettings(builder().putList(INITIAL_MASTER_NODES_SETTING.getKey()));
+        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
     }
 
     private void testDoesNothingWithSettings(Settings.Builder builder) {
@@ -197,7 +180,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
     public void testThrowsExceptionOnDuplicates() {
         final IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class, () -> {
             new ClusterBootstrapService(
-                builder().putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), "duplicate-requirement", "duplicate-requirement").build(),
+                builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), "duplicate-requirement", "duplicate-requirement").build(),
                 transportService,
                 Collections::emptyList,
                 () -> false,
@@ -205,8 +188,9 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
             );
         });
 
-        assertThat(illegalArgumentException.getMessage(), containsString(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey()));
+        assertThat(illegalArgumentException.getMessage(), containsString(INITIAL_MASTER_NODES_SETTING.getKey()));
         assertThat(illegalArgumentException.getMessage(), containsString("duplicate-requirement"));
+        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
     }
 
     public void testBootstrapsOnDiscoveryOfAllRequiredNodes() {
@@ -214,7 +198,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
 
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder()
-                .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
+                .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
                 .build(),
             transportService,
             () -> Stream.of(otherNode1, otherNode2).collect(Collectors.toList()),
@@ -225,6 +209,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
                 assertThat(vc.getNodeIds(), not(hasItem(containsString("placeholder"))));
             }
         );
+        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
 
         transportService.start();
         clusterBootstrapService.onFoundPeersUpdated();
@@ -242,7 +227,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
 
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder()
-                .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
+                .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
                 .build(),
             transportService,
             () -> singletonList(otherNode1),
@@ -258,6 +243,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
                 assertFalse(vc.hasQuorum(singletonList(otherNode1.getId())));
             }
         );
+        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
 
         transportService.start();
         clusterBootstrapService.onFoundPeersUpdated();
@@ -276,7 +262,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder()
                 .putList(
-                    INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(),
+                    INITIAL_MASTER_NODES_SETTING.getKey(),
                     localNode.getName(),
                     otherNode1.getName(),
                     otherNode2.getName(),
@@ -310,6 +296,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
                 assertFalse(vc.hasQuorum(Stream.of(localNode, otherNode1).map(DiscoveryNode::getId).collect(Collectors.toList())));
             }
         );
+        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
 
         transportService.start();
         clusterBootstrapService.onFoundPeersUpdated();
@@ -325,13 +312,14 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
     public void testDoesNotBootstrapIfNoNodesDiscovered() {
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder()
-                .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
+                .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
                 .build(),
             transportService,
             Collections::emptyList,
             () -> true,
             vc -> { throw new AssertionError("should not be called"); }
         );
+        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
 
         transportService.start();
         clusterBootstrapService.onFoundPeersUpdated();
@@ -342,7 +330,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder()
                 .putList(
-                    INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(),
+                    INITIAL_MASTER_NODES_SETTING.getKey(),
                     localNode.getName(),
                     otherNode1.getName(),
                     otherNode2.getName(),
@@ -355,6 +343,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
             () -> false,
             vc -> { throw new AssertionError("should not be called"); }
         );
+        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
 
         transportService.start();
         clusterBootstrapService.onFoundPeersUpdated();
@@ -365,7 +354,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder()
                 .putList(
-                    INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(),
+                    INITIAL_MASTER_NODES_SETTING.getKey(),
                     localNode.getName(),
                     otherNode1.getName(),
                     otherNode2.getName(),
@@ -379,6 +368,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
             () -> false,
             vc -> { throw new AssertionError("should not be called"); }
         );
+        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
 
         transportService.start();
         clusterBootstrapService.onFoundPeersUpdated();
@@ -388,13 +378,14 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
     public void testDoesNotBootstrapIfAlreadyBootstrapped() {
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder()
-                .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
+                .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
                 .build(),
             transportService,
             () -> Stream.of(otherNode1, otherNode2).collect(Collectors.toList()),
             () -> true,
             vc -> { throw new AssertionError("should not be called"); }
         );
+        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
 
         transportService.start();
         clusterBootstrapService.onFoundPeersUpdated();
@@ -412,13 +403,14 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
         );
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder()
-                .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
+                .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
                 .build(),
             transportService,
             () -> Stream.of(localNode, otherNode1, otherNode2).collect(Collectors.toList()),
             () -> false,
             vc -> { throw new AssertionError("should not be called"); }
         );
+        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
         transportService.start();
         clusterBootstrapService.onFoundPeersUpdated();
         deterministicTaskQueue.runAllTasks();
@@ -426,12 +418,13 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
 
     public void testDoesNotBootstrapsIfLocalNodeNotInInitialClusterManagerNodes() {
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            Settings.builder().putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), otherNode1.getName(), otherNode2.getName()).build(),
+            Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), otherNode1.getName(), otherNode2.getName()).build(),
             transportService,
             () -> Stream.of(localNode, otherNode1, otherNode2).collect(Collectors.toList()),
             () -> false,
             vc -> { throw new AssertionError("should not be called"); }
         );
+        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
         transportService.start();
         clusterBootstrapService.onFoundPeersUpdated();
         deterministicTaskQueue.runAllTasks();
@@ -439,12 +432,13 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
 
     public void testDoesNotBootstrapsIfNotConfigured() {
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            Settings.builder().putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey()).build(),
+            Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey()).build(),
             transportService,
             () -> Stream.of(localNode, otherNode1, otherNode2).collect(Collectors.toList()),
             () -> false,
             vc -> { throw new AssertionError("should not be called"); }
         );
+        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
         transportService.start();
         clusterBootstrapService.scheduleUnconfiguredBootstrap();
         clusterBootstrapService.onFoundPeersUpdated();
@@ -455,7 +449,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
         final AtomicLong bootstrappingAttempts = new AtomicLong();
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder()
-                .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
+                .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
                 .build(),
             transportService,
             () -> Stream.of(otherNode1, otherNode2).collect(Collectors.toList()),
@@ -467,6 +461,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
                 }
             }
         );
+        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
 
         transportService.start();
         clusterBootstrapService.onFoundPeersUpdated();
@@ -480,12 +475,13 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
             Stream.of(otherNode1, otherNode2).collect(Collectors.toList())
         );
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            Settings.builder().putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), localNode.getAddress().getAddress()).build(),
+            Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getAddress().getAddress()).build(),
             transportService,
             discoveredNodes::get,
             () -> false,
             vc -> { throw new AssertionError("should not be called"); }
         );
+        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
 
         transportService.start();
         clusterBootstrapService.onFoundPeersUpdated();
@@ -502,13 +498,14 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
         );
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder()
-                .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), otherNode1.getAddress().toString(), otherNode1.getName())
+                .putList(INITIAL_MASTER_NODES_SETTING.getKey(), otherNode1.getAddress().toString(), otherNode1.getName())
                 .build(),
             transportService,
             discoveredNodes::get,
             () -> false,
             vc -> { throw new AssertionError("should not be called"); }
         );
+        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
 
         transportService.start();
         clusterBootstrapService.onFoundPeersUpdated();
@@ -521,7 +518,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
                     randomAlphaOfLength(10),
                     buildNewFakeTransportAddress(),
                     emptyMap(),
-                    Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
+                    Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
                     Version.CURRENT
                 ),
                 new DiscoveryNode(
@@ -529,7 +526,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
                     randomAlphaOfLength(10),
                     otherNode1.getAddress(),
                     emptyMap(),
-                    Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
+                    Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
                     Version.CURRENT
                 )
             ).collect(Collectors.toList())
@@ -542,12 +539,13 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
     public void testMatchesOnNodeName() {
         final AtomicBoolean bootstrapped = new AtomicBoolean();
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            Settings.builder().putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), localNode.getName()).build(),
+            Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName()).build(),
             transportService,
             Collections::emptyList,
             () -> false,
             vc -> assertTrue(bootstrapped.compareAndSet(false, true))
         );
+        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
 
         transportService.start();
         clusterBootstrapService.onFoundPeersUpdated();
@@ -558,12 +556,13 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
     public void testMatchesOnNodeAddress() {
         final AtomicBoolean bootstrapped = new AtomicBoolean();
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            Settings.builder().putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), localNode.getAddress().toString()).build(),
+            Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getAddress().toString()).build(),
             transportService,
             Collections::emptyList,
             () -> false,
             vc -> assertTrue(bootstrapped.compareAndSet(false, true))
         );
+        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
 
         transportService.start();
         clusterBootstrapService.onFoundPeersUpdated();
@@ -574,12 +573,13 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
     public void testMatchesOnNodeHostAddress() {
         final AtomicBoolean bootstrapped = new AtomicBoolean();
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            Settings.builder().putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), localNode.getAddress().getAddress()).build(),
+            Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getAddress().getAddress()).build(),
             transportService,
             Collections::emptyList,
             () -> false,
             vc -> assertTrue(bootstrapped.compareAndSet(false, true))
         );
+        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
 
         transportService.start();
         clusterBootstrapService.onFoundPeersUpdated();
@@ -587,26 +587,12 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
         assertTrue(bootstrapped.get());
     }
 
-    public void testDoesNotJustMatchEverything() {
-        ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            Settings.builder().putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), randomAlphaOfLength(10)).build(),
-            transportService,
-            Collections::emptyList,
-            () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
-        );
-
-        transportService.start();
-        clusterBootstrapService.onFoundPeersUpdated();
-        deterministicTaskQueue.runAllTasks();
-    }
-
     public void testDoesNotIncludeExtraNodes() {
         final DiscoveryNode extraNode = newDiscoveryNode("extra-node");
         final AtomicBoolean bootstrapped = new AtomicBoolean();
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder()
-                .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
+                .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
                 .build(),
             transportService,
             () -> Stream.of(otherNode1, otherNode2, extraNode).collect(Collectors.toList()),
@@ -616,6 +602,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
                 assertThat(vc.getNodeIds(), not(hasItem(extraNode.getId())));
             }
         );
+        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
 
         transportService.start();
         clusterBootstrapService.onFoundPeersUpdated();
@@ -653,15 +640,11 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
         assertFalse(bootstrapped.get()); // should only bootstrap once
     }
 
-    /**
-     * Validate the correct setting name of cluster.initial_cluster_manager_nodes is shown in the exception,
-     * when discovery type is single-node.
-     */
-    public void testFailBootstrapWithBothSingleNodeDiscoveryAndInitialClusterManagerNodes() {
+    public void testFailBootstrapWithBothSingleNodeDiscoveryAndInitialMasterNodes() {
         final Settings.Builder settings = Settings.builder()
             .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE)
             .put(NODE_NAME_SETTING.getKey(), localNode.getName())
-            .put(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), "test");
+            .put(INITIAL_MASTER_NODES_SETTING.getKey(), "test");
 
         assertThat(
             expectThrows(
@@ -669,9 +652,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
                 () -> new ClusterBootstrapService(settings.build(), transportService, () -> emptyList(), () -> false, vc -> fail())
             ).getMessage(),
             containsString(
-                "setting ["
-                    + INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey()
-                    + "] is not allowed when [discovery.type] is set to [single-node]"
+                "setting [" + INITIAL_MASTER_NODES_SETTING.getKey() + "] is not allowed when [discovery.type] is set " + "to [single-node]"
             )
         );
     }
