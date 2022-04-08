@@ -9,6 +9,7 @@
 package org.opensearch.tasks;
 
 import com.sun.management.ThreadMXBean;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -29,6 +30,7 @@ import static org.opensearch.tasks.ResourceStatsType.WORKER_STATS;
 /**
  * Service that helps track resource usage of tasks running on a node.
  */
+@SuppressForbidden(reason = "ThreadMXBean#getThreadAllocatedBytes")
 public class TaskResourceTrackingService implements RunnableTaskExecutionListener {
 
     public static final Setting<Boolean> TASK_RESOURCE_TRACKING_ENABLED = Setting.boolSetting(
