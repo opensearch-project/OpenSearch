@@ -59,17 +59,14 @@ import java.util.TreeSet;
 
 public class IncludeExcludeTests extends OpenSearchTestCase {
 
-    private IndexSettings dummyIndexSettings;
-
-    @Before
-    public void setup() {
-        IndexMetadata indexMetadata = IndexMetadata.builder("index")
+    private final IndexSettings dummyIndexSettings = new IndexSettings(
+        IndexMetadata.builder("index")
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
-            .build();
-        dummyIndexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-    }
+            .build(),
+        Settings.EMPTY
+    );
 
     public void testEmptyTermsWithOrds() throws IOException {
         IncludeExclude inexcl = new IncludeExclude(new TreeSet<>(Collections.singleton(new BytesRef("foo"))), null);
