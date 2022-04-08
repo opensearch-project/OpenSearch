@@ -121,14 +121,14 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
             "local_node",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         remoteNode = new DiscoveryNode(
             "remote_node",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         allNodes = new DiscoveryNode[] { localNode, remoteNode };
@@ -521,6 +521,45 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         assertThat(capturedRequest.request, equalTo(request));
         assertThat(capturedRequest.action, equalTo("internal:testAction"));
 
+        transport.handleResponse(capturedRequest.requestId, response);
+        assertTrue(listener.isDone());
+        assertThat(listener.get(), equalTo(response));
+    }
+
+    /*
+     * Validate TransportMasterNodeAction.testDelegateToMaster() works correctly on node with the deprecated MASTER_ROLE.
+     * Remove the class after removing MASTER_ROLE.
+     */
+    public void testDelegateToMasterOnNodeWithDeprecatedMasterRole() throws ExecutionException, InterruptedException {
+        DiscoveryNode localNode = new DiscoveryNode(
+            "local_node",
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
+        );
+        DiscoveryNode remoteNode = new DiscoveryNode(
+            "remote_node",
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
+        );
+        DiscoveryNode[] allNodes = new DiscoveryNode[] { localNode, remoteNode };
+
+        Request request = new Request();
+        setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
+
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        new Action("internal:testAction", transportService, clusterService, threadPool).execute(request, listener);
+
+        assertThat(transport.capturedRequests().length, equalTo(1));
+        CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
+        assertTrue(capturedRequest.node.isMasterNode());
+        assertThat(capturedRequest.request, equalTo(request));
+        assertThat(capturedRequest.action, equalTo("internal:testAction"));
+
+        Response response = new Response();
         transport.handleResponse(capturedRequest.requestId, response);
         assertTrue(listener.isDone());
         assertThat(listener.get(), equalTo(response));
