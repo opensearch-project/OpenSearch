@@ -48,7 +48,6 @@ import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.common.Nullable;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -577,23 +576,10 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         return incNumPartitions > 0;
     }
 
-    private Automaton toAutomaton(@Nullable IndexSettings indexSettings) {
-        int maxRegexLength = indexSettings == null ? -1 : indexSettings.getMaxRegexLength();
+    private Automaton toAutomaton(IndexSettings indexSettings) {
         Automaton a;
         if (include != null) {
-            if (include.length() > maxRegexLength) {
-                throw new IllegalArgumentException(
-                    "The length of regex ["
-                        + include.length()
-                        + "] used in the request has exceeded "
-                        + "the allowed maximum of ["
-                        + maxRegexLength
-                        + "]. "
-                        + "This maximum can be set by changing the ["
-                        + IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey()
-                        + "] index level setting."
-                );
-            }
+            validateRegExpStringLength(include, indexSettings);
             a = new RegExp(include).toAutomaton();
         } else if (includeValues != null) {
             a = Automata.makeStringUnion(includeValues);
@@ -601,25 +587,30 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
             a = Automata.makeAnyString();
         }
         if (exclude != null) {
-            if (exclude.length() > maxRegexLength) {
-                throw new IllegalArgumentException(
-                    "The length of regex ["
-                        + exclude.length()
-                        + "] used in the request has exceeded "
-                        + "the allowed maximum of ["
-                        + maxRegexLength
-                        + "]. "
-                        + "This maximum can be set by changing the ["
-                        + IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey()
-                        + "] index level setting."
-                );
-            }
+            validateRegExpStringLength(exclude, indexSettings);
             Automaton excludeAutomaton = new RegExp(exclude).toAutomaton();
             a = Operations.minus(a, excludeAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         } else if (excludeValues != null) {
             a = Operations.minus(a, Automata.makeStringUnion(excludeValues), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         }
         return a;
+    }
+
+    private static void validateRegExpStringLength(String source, IndexSettings indexSettings) {
+        int maxRegexLength = indexSettings.getMaxRegexLength();
+        if (maxRegexLength > 0 && source.length() > maxRegexLength) {
+            throw new IllegalArgumentException(
+                "The length of regex ["
+                    + source.length()
+                    + "] used in the request has exceeded "
+                    + "the allowed maximum of ["
+                    + maxRegexLength
+                    + "]. "
+                    + "This maximum can be set by changing the ["
+                    + IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey()
+                    + "] index level setting."
+            );
+        }
     }
 
     public StringFilter convertToStringFilter(DocValueFormat format, IndexSettings indexSettings) {
