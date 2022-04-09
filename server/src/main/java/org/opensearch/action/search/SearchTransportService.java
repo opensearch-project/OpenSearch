@@ -144,18 +144,31 @@ public class SearchTransportService {
 
     public void updatePitContext(
         Transport.Connection connection,
-        TransportCreatePITAction.UpdatePITContextRequest request,
-        ActionListener<TransportCreatePITAction.UpdatePitContextResponse> actionListener
+        UpdatePITContextRequest request,
+        ActionListener<UpdatePitContextResponse> actionListener
     ) {
         transportService.sendRequest(
             connection,
             UPDATE_READER_CONTEXT_ACTION_NAME,
             request,
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<TransportCreatePITAction.UpdatePitContextResponse>(
-                actionListener,
-                TransportCreatePITAction.UpdatePitContextResponse::new
-            )
+            new ActionListenerResponseHandler<>(actionListener, UpdatePitContextResponse::new)
+        );
+    }
+
+    public void createPitContext(
+        Transport.Connection connection,
+        TransportCreatePITAction.CreateReaderContextRequest request,
+        SearchTask task,
+        ActionListener<TransportCreatePITAction.CreateReaderContextResponse> actionListener
+    ) {
+        transportService.sendChildRequest(
+            connection,
+            CREATE_READER_CONTEXT_ACTION_NAME,
+            request,
+            task,
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(actionListener, TransportCreatePITAction.CreateReaderContextResponse::new)
         );
     }
 
@@ -576,7 +589,7 @@ public class SearchTransportService {
                         CREATE_READER_CONTEXT_ACTION_NAME,
                         request
                     );
-                searchService.openReaderContext(
+                searchService.createPitReaderContext(
                     request.getShardId(),
                     request.getKeepAlive(),
                     ActionListener.wrap(
@@ -595,23 +608,17 @@ public class SearchTransportService {
         transportService.registerRequestHandler(
             UPDATE_READER_CONTEXT_ACTION_NAME,
             ThreadPool.Names.SAME,
-            TransportCreatePITAction.UpdatePITContextRequest::new,
+            UpdatePITContextRequest::new,
             (request, channel, task) -> {
-                ChannelActionListener<
-                    TransportCreatePITAction.UpdatePitContextResponse,
-                    TransportCreatePITAction.UpdatePITContextRequest> listener = new ChannelActionListener<>(
-                        channel,
-                        UPDATE_READER_CONTEXT_ACTION_NAME,
-                        request
-                    );
-                searchService.updatePitIdAndKeepAlive(request, ActionListener.wrap(r -> listener.onResponse(r), listener::onFailure));
+                ChannelActionListener<UpdatePitContextResponse, UpdatePITContextRequest> listener = new ChannelActionListener<>(
+                    channel,
+                    UPDATE_READER_CONTEXT_ACTION_NAME,
+                    request
+                );
+                searchService.updatePitIdAndKeepAlive(request, listener);
             }
         );
-        TransportActionProxy.registerProxyAction(
-            transportService,
-            UPDATE_READER_CONTEXT_ACTION_NAME,
-            TransportCreatePITAction.UpdatePitContextResponse::new
-        );
+        TransportActionProxy.registerProxyAction(transportService, UPDATE_READER_CONTEXT_ACTION_NAME, UpdatePitContextResponse::new);
 
     }
 

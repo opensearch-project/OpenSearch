@@ -357,6 +357,10 @@ public class Task {
         return headers.get(header);
     }
 
+    public Map<String, String> getHeaders() {
+        return headers;
+    }
+
     public TaskResult result(DiscoveryNode node, Exception error) throws IOException {
         return new TaskResult(taskInfo(node.getId(), true, true), error);
     }

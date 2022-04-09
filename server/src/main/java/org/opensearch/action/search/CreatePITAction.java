@@ -10,11 +10,11 @@ package org.opensearch.action.search;
 
 import org.opensearch.action.ActionType;
 
-public class CreatePITAction extends ActionType<SearchResponse> {
+public class CreatePITAction extends ActionType<CreatePITResponse> {
     public static final CreatePITAction INSTANCE = new CreatePITAction();
-    public static final String NAME = "indices:data/read/pit";
+    public static final String NAME = "indices:data/write/pit";
 
     private CreatePITAction() {
-        super(NAME, SearchResponse::new);
+        super(NAME, CreatePITResponse::new);
     }
 }

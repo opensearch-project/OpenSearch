@@ -28,25 +28,26 @@ import org.opensearch.search.SearchService;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.tasks.Task;
-import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.*;
+import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportRequest;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 /**
  * Transport action for creating PIT reader context
+ * Phase 1 of create PIT request : Create PIT reader contexts in the associated shards with a temporary keep alive
+ * Phase 2 of create PIT : Update PIT reader context with PIT ID and keep alive from request and
+ * fail user request if any of the updates in this phase are failed
  */
-public class TransportCreatePITAction extends HandledTransportAction<CreatePITRequest, SearchResponse> {
+public class TransportCreatePITAction extends HandledTransportAction<CreatePITRequest, CreatePITResponse> {
 
-    public static final String CREATE_PIT = "create_pit";
-    private final TimeValue CREATE_PIT_TEMPORARY_KEEP_ALIVE = new TimeValue(30, TimeUnit.SECONDS);
-    private final SearchService searchService;
+    public static final String CREATE_PIT_ACTION = "create_pit";
     private final TransportService transportService;
     private final SearchTransportService searchTransportService;
     private final ClusterService clusterService;
@@ -55,7 +56,6 @@ public class TransportCreatePITAction extends HandledTransportAction<CreatePITRe
 
     @Inject
     public TransportCreatePITAction(
-        SearchService searchService,
         TransportService transportService,
         ActionFilters actionFilters,
         SearchTransportService searchTransportService,
@@ -64,7 +64,6 @@ public class TransportCreatePITAction extends HandledTransportAction<CreatePITRe
         NamedWriteableRegistry namedWriteableRegistry
     ) {
         super(CreatePITAction.NAME, transportService, actionFilters, in -> new CreatePITRequest(in));
-        this.searchService = searchService;
         this.transportService = transportService;
         this.searchTransportService = searchTransportService;
         this.clusterService = clusterService;
@@ -72,88 +71,92 @@ public class TransportCreatePITAction extends HandledTransportAction<CreatePITRe
         this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
+    public TimeValue getCreatePitTemporaryKeepAlive() {
+        return SearchService.CREATE_PIT_TEMPORARY_KEEPALIVE_SETTING.get(clusterService.getSettings());
+    }
+
     @Override
-    protected void doExecute(Task task, CreatePITRequest request, ActionListener<SearchResponse> listener) {
+    protected void doExecute(Task task, CreatePITRequest request, ActionListener<CreatePITResponse> listener) {
         SearchRequest searchRequest = new SearchRequest(request.getIndices());
         searchRequest.preference(request.getPreference());
         searchRequest.routing(request.getRouting());
         searchRequest.indicesOptions(request.getIndicesOptions());
-        searchRequest.allowPartialSearchResults(request.isAllowPartialPitCreation());
+        searchRequest.allowPartialSearchResults(request.shouldAllowPartialPitCreation());
 
-        final StepListener<SearchResponse> createPitListener = new StepListener<>();
+        SearchTask searchTask = new SearchTask(
+            task.getId(),
+            task.getType(),
+            task.getAction(),
+            () -> task.getDescription(),
+            task.getParentTaskId(),
+            task.getHeaders()
+        );
 
-        final ActionListener<SearchResponse> updatePitIdListener = new ActionListener<>() {
-            @Override
-            public void onResponse(SearchResponse searchResponse) {
-                listener.onResponse(searchResponse);
-            }
+        final StepListener<CreatePITResponse> createPitListener = new StepListener<>();
 
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        };
+        final ActionListener<CreatePITResponse> updatePitIdListener = ActionListener.wrap(r -> listener.onResponse(r), listener::onFailure);
+        /**
+         * Phase 1 of create PIT
+         */
+        executeCreatePit(searchTask, searchRequest, createPitListener);
 
         /**
-         * Phase 1 of create PIT request : Create PIT reader contexts in the associated shards with a
-         * temporary keep alive
+         * Phase 2 of create PIT where we update pit id in pit contexts
          */
-        transportSearchAction.executeRequest(task, searchRequest, CREATE_PIT, true, new TransportSearchAction.SinglePhaseSearchAction() {
-            @Override
-            public void executeOnShardTarget(
-                SearchTask searchTask,
-                SearchShardTarget target,
-                Transport.Connection connection,
-                ActionListener<SearchPhaseResult> searchPhaseResultActionListener
-            ) {
-                transportService.sendChildRequest(
-                    connection,
-                    SearchTransportService.CREATE_READER_CONTEXT_ACTION_NAME,
-                    new CreateReaderContextRequest(target.getShardId(), CREATE_PIT_TEMPORARY_KEEP_ALIVE),
-                    searchTask,
-                    new TransportResponseHandler<CreateReaderContextResponse>() {
-                        @Override
-                        public CreateReaderContextResponse read(StreamInput in) throws IOException {
-                            return new CreateReaderContextResponse(in);
-                        }
+        executeUpdatePitId(request, createPitListener, updatePitIdListener);
+    }
 
-                        @Override
-                        public void handleResponse(CreateReaderContextResponse response) {
-                            searchPhaseResultActionListener.onResponse(response);
-                        }
+    /**
+     * Creates PIT reader context with temporary keep alive
+     */
+    public void executeCreatePit(Task task, SearchRequest searchRequest, StepListener<CreatePITResponse> createPitListener) {
+        transportSearchAction.executeRequest(
+            task,
+            searchRequest,
+            CREATE_PIT_ACTION,
+            true,
+            new TransportSearchAction.SinglePhaseSearchAction() {
+                @Override
+                public void executeOnShardTarget(
+                    SearchTask searchTask,
+                    SearchShardTarget target,
+                    Transport.Connection connection,
+                    ActionListener<SearchPhaseResult> searchPhaseResultActionListener
+                ) {
+                    searchTransportService.createPitContext(
+                        connection,
+                        new CreateReaderContextRequest(target.getShardId(), getCreatePitTemporaryKeepAlive()),
+                        searchTask,
+                        ActionListener.wrap(r -> searchPhaseResultActionListener.onResponse(r), searchPhaseResultActionListener::onFailure)
+                    );
+                }
+            },
+            createPitListener
+        );
+    }
 
-                        @Override
-                        public void handleException(TransportException exp) {
-                            searchPhaseResultActionListener.onFailure(exp);
-                        }
-
-                        @Override
-                        public String executor() {
-                            return ThreadPool.Names.GENERIC;
-                        }
-                    }
-                );
-            }
-        }, createPitListener);
-
-        /**
-         * Phase 2 of create PIT : Update PIT reader context with PIT ID and keep alive from request
-         * Fail create pit operation if any of the updates in this phase are failed
-         */
-        createPitListener.whenComplete(searchResponse -> {
-            SearchContextId contextId = SearchContextId.decode(namedWriteableRegistry, searchResponse.pointInTimeId());
+    /**
+     * Updates PIT ID, keep alive and createdTime of PIT reader context
+     */
+    public void executeUpdatePitId(
+        CreatePITRequest request,
+        StepListener<CreatePITResponse> createPitListener,
+        ActionListener<CreatePITResponse> updatePitIdListener
+    ) {
+        createPitListener.whenComplete(createPITResponse -> {
+            SearchContextId contextId = SearchContextId.decode(namedWriteableRegistry, createPITResponse.getId());
             final StepListener<BiFunction<String, String, DiscoveryNode>> lookupListener = getConnectionLookupListener(contextId);
             lookupListener.whenComplete(nodelookup -> {
-                final ActionListener<TransportCreatePITAction.UpdatePitContextResponse> groupedActionListener = getGroupedListener(
+                final ActionListener<UpdatePitContextResponse> groupedActionListener = getGroupedListener(
                     updatePitIdListener,
-                    searchResponse,
+                    createPITResponse,
                     contextId.shards().size()
                 );
                 /**
                  * store the create time ( same create time for all PIT contexts across shards ) to be used
                  * for list PIT api
                  */
-                TimeValue createTime = new TimeValue(System.currentTimeMillis());
+                long createTime = System.currentTimeMillis();
                 for (Map.Entry<ShardId, SearchContextIdForNode> entry : contextId.shards().entrySet()) {
                     DiscoveryNode node = nodelookup.apply(entry.getValue().getClusterAlias(), entry.getValue().getNode());
                     try {
@@ -165,7 +168,7 @@ public class TransportCreatePITAction extends HandledTransportAction<CreatePITRe
                             connection,
                             new UpdatePITContextRequest(
                                 entry.getValue().getSearchContextId(),
-                                searchResponse.pointInTimeId(),
+                                createPITResponse.getId(),
                                 request.getKeepAlive().millis(),
                                 createTime
                             ),
@@ -200,14 +203,14 @@ public class TransportCreatePITAction extends HandledTransportAction<CreatePITRe
     }
 
     private ActionListener<UpdatePitContextResponse> getGroupedListener(
-        ActionListener<SearchResponse> updatePitIdListener,
-        SearchResponse searchResponse,
+        ActionListener<CreatePITResponse> updatePitIdListener,
+        CreatePITResponse createPITResponse,
         int size
     ) {
         return new GroupedActionListener<>(new ActionListener<>() {
             @Override
             public void onResponse(final Collection<UpdatePitContextResponse> responses) {
-                updatePitIdListener.onResponse(searchResponse);
+                updatePitIdListener.onResponse(createPITResponse);
             }
 
             @Override
@@ -265,77 +268,4 @@ public class TransportCreatePITAction extends HandledTransportAction<CreatePITRe
         }
     }
 
-    public static class UpdatePITContextRequest extends TransportRequest {
-        private final String pitId;
-        private final long keepAlive;
-
-        private final TimeValue createTime;
-        private final ShardSearchContextId searchContextId;
-
-        UpdatePITContextRequest(ShardSearchContextId searchContextId, String pitId, long keepAlive, TimeValue createTime) {
-            this.pitId = pitId;
-            this.searchContextId = searchContextId;
-            this.keepAlive = keepAlive;
-            this.createTime = createTime;
-        }
-
-        UpdatePITContextRequest(StreamInput in) throws IOException {
-            super(in);
-            pitId = in.readString();
-            keepAlive = in.readLong();
-            createTime = in.readTimeValue();
-            searchContextId = new ShardSearchContextId(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(pitId);
-            out.writeLong(keepAlive);
-            out.writeTimeValue(createTime);
-            searchContextId.writeTo(out);
-        }
-
-        public ShardSearchContextId getSearchContextId() {
-            return searchContextId;
-        }
-
-        public String getPitId() {
-            return pitId;
-        }
-
-        public String id() {
-            return this.getPitId();
-        }
-
-        public TimeValue getCreateTime() {
-            return createTime;
-        }
-
-        public long getKeepAlive() {
-            return keepAlive;
-        }
-    }
-
-    public static class UpdatePitContextResponse extends TransportResponse {
-        private final String pitId;
-
-        UpdatePitContextResponse(StreamInput in) throws IOException {
-            super(in);
-            pitId = in.readString();
-        }
-
-        public UpdatePitContextResponse(String pitId) {
-            this.pitId = pitId;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(pitId);
-        }
-
-        public String getPitId() {
-            return pitId;
-        }
-    }
 }

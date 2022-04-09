@@ -41,7 +41,11 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.OriginalIndices;
-import org.opensearch.action.search.*;
+import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.action.search.SearchType;
+import org.opensearch.action.search.UpdatePITContextRequest;
+import org.opensearch.action.search.UpdatePitContextResponse;
 import org.opensearch.action.support.TransportActions;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.service.ClusterService;
@@ -69,7 +73,6 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
-import org.opensearch.index.engine.Segment;
 import org.opensearch.index.query.InnerHitContextBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
@@ -107,7 +110,14 @@ import org.opensearch.search.fetch.subphase.FetchDocValuesContext;
 import org.opensearch.search.fetch.subphase.FetchFieldsContext;
 import org.opensearch.search.fetch.subphase.ScriptFieldsContext.ScriptField;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
-import org.opensearch.search.internal.*;
+import org.opensearch.search.internal.AliasFilter;
+import org.opensearch.search.internal.InternalScrollSearchRequest;
+import org.opensearch.search.internal.LegacyReaderContext;
+import org.opensearch.search.internal.PitReaderContext;
+import org.opensearch.search.internal.ReaderContext;
+import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.internal.ShardSearchContextId;
+import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.query.QueryPhase;
@@ -143,6 +153,7 @@ import java.util.function.LongSupplier;
 import static org.opensearch.common.unit.TimeValue.timeValueHours;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.common.unit.TimeValue.timeValueMinutes;
+import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
 
 public class SearchService extends AbstractLifecycleComponent implements IndexEventListener {
     private static final Logger logger = LogManager.getLogger(SearchService.class);
@@ -160,9 +171,20 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope,
         Property.Dynamic
     );
+    public static final Setting<TimeValue> MAX_PIT_KEEPALIVE_SETTING = Setting.positiveTimeSetting(
+        "pit.max_keep_alive",
+        timeValueHours(24),
+        Property.NodeScope,
+        Property.Dynamic
+    );
     public static final Setting<TimeValue> KEEPALIVE_INTERVAL_SETTING = Setting.positiveTimeSetting(
         "search.keep_alive_interval",
         timeValueMinutes(1),
+        Property.NodeScope
+    );
+    public static final Setting<TimeValue> CREATE_PIT_TEMPORARY_KEEPALIVE_SETTING = Setting.positiveTimeSetting(
+        "pit.temporary.keep_alive_interval",
+        timeValueSeconds(30),
         Property.NodeScope
     );
     public static final Setting<Boolean> ALLOW_EXPENSIVE_QUERIES = Setting.boolSetting(
@@ -239,6 +261,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private volatile long maxKeepAlive;
 
+    private volatile long maxPitKeepAlive;
+
     private volatile TimeValue defaultSearchTimeout;
 
     private volatile boolean defaultAllowPartialSearchResults;
@@ -292,9 +316,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
         setKeepAlives(DEFAULT_KEEPALIVE_SETTING.get(settings), MAX_KEEPALIVE_SETTING.get(settings));
-
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DEFAULT_KEEPALIVE_SETTING, MAX_KEEPALIVE_SETTING, this::setKeepAlives, this::validateKeepAlives);
+        setPitKeepAlives(DEFAULT_KEEPALIVE_SETTING.get(settings), MAX_PIT_KEEPALIVE_SETTING.get(settings));
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                DEFAULT_KEEPALIVE_SETTING,
+                MAX_PIT_KEEPALIVE_SETTING,
+                this::setKeepAlives,
+                this::validatePitKeepAlives
+            );
 
         this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval, Names.SAME);
 
@@ -333,10 +364,33 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
+    private void validatePitKeepAlives(TimeValue defaultKeepAlive, TimeValue maxPitKeepAlive) {
+        if (defaultKeepAlive.millis() > maxPitKeepAlive.millis()) {
+            throw new IllegalArgumentException(
+                "Default keep alive setting for request ["
+                    + DEFAULT_KEEPALIVE_SETTING.getKey()
+                    + "]"
+                    + " should be smaller than max keep alive for PIT ["
+                    + MAX_PIT_KEEPALIVE_SETTING.getKey()
+                    + "], "
+                    + "was ("
+                    + defaultKeepAlive
+                    + " > "
+                    + maxPitKeepAlive
+                    + ")"
+            );
+        }
+    }
+
     private void setKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
         validateKeepAlives(defaultKeepAlive, maxKeepAlive);
         this.defaultKeepAlive = defaultKeepAlive.millis();
         this.maxKeepAlive = maxKeepAlive.millis();
+    }
+
+    private void setPitKeepAlives(TimeValue defaultKeepAlive, TimeValue maxPitKeepAlive) {
+        validatePitKeepAlives(defaultKeepAlive, maxPitKeepAlive);
+        this.maxPitKeepAlive = maxPitKeepAlive.millis();
     }
 
     private void setDefaultSearchTimeout(TimeValue defaultSearchTimeout) {
@@ -466,7 +520,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         assert request.canReturnNullResponseIfMatchNoDocs() == false || request.numberOfShards() > 1
             : "empty responses require more than one shard";
         final IndexShard shard = getShard(request);
-        rewriteAndFetchShardRequest(shard, request, new ActionListener<>() {
+        rewriteAndFetchShardRequest(shard, request, new ActionListener<ShardSearchRequest>() {
             @Override
             public void onResponse(ShardSearchRequest orig) {
                 // check if we can shortcut the query phase entirely.
@@ -799,8 +853,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * Opens the reader context for given shardId. The newly opened reader context will be keep
      * until the {@code keepAlive} elapsed unless it is manually released.
      */
-    public void openReaderContext(ShardId shardId, TimeValue keepAlive, ActionListener<ShardSearchContextId> listener) {
-        checkKeepAliveLimit(keepAlive.millis());
+    public void createPitReaderContext(ShardId shardId, TimeValue keepAlive, ActionListener<ShardSearchContextId> listener) {
+        checkPitKeepAliveLimit(keepAlive.millis());
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final IndexShard shard = indexService.getShard(shardId.id());
         final SearchOperationListener searchOperationListener = shard.getSearchOperationListener();
@@ -822,18 +876,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     );
                 }
                 searcherSupplier = shard.acquireSearcherSupplier();
-                List<Segment> nonVerboseSegments = shard.segments(false);
                 final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());
-                readerContext = new PitReaderContext(
-                    id,
-                    indexService,
-                    shard,
-                    searcherSupplier,
-                    keepAlive.millis(),
-                    false,
-                    shard.routingEntry(),
-                    nonVerboseSegments
-                );
+                readerContext = new PitReaderContext(id, indexService, shard, searcherSupplier, keepAlive.millis(), false);
                 final ReaderContext finalReaderContext = readerContext;
                 searcherSupplier = null; // transfer ownership to reader context
 
@@ -975,20 +1019,25 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return false;
     }
 
-    public void updatePitIdAndKeepAlive(
-        TransportCreatePITAction.UpdatePITContextRequest request,
-        ActionListener<TransportCreatePITAction.UpdatePitContextResponse> listener
-    ) {
+    /**
+     * Update PIT reader with pit id, keep alive and created time etc
+     */
+    public void updatePitIdAndKeepAlive(UpdatePITContextRequest request, ActionListener<UpdatePitContextResponse> listener) {
+        checkPitKeepAliveLimit(request.getKeepAlive());
+        PitReaderContext readerContext = getPitReaderContext(request.getSearchContextId());
+        if (readerContext == null) {
+            throw new SearchContextMissingException(request.getSearchContextId());
+        }
+        Releasable updatePit = null;
         try {
-            PitReaderContext readerContext = getPitReaderContext(request.getSearchContextId());
-            if (readerContext == null) {
-                throw new SearchContextMissingException(request.getSearchContextId());
-            }
-            readerContext.setPitId(request.getPitId());
-            readerContext.tryUpdateKeepAlive(request.getKeepAlive());
-            readerContext.setCreateTimestamp(request.getCreateTime());
-            listener.onResponse(new TransportCreatePITAction.UpdatePitContextResponse(request.getPitId()));
+            updatePit = readerContext.updatePitIdAndKeepAlive(request.getKeepAlive(), request.getPitId(), request.getCreateTime());
+            updatePit.close();
+            listener.onResponse(new UpdatePitContextResponse(request.getPitId(), request.getCreateTime(), request.getKeepAlive()));
         } catch (Exception e) {
+            freeReaderContext(readerContext.id());
+            if (updatePit != null) {
+                updatePit.close();
+            }
             listener.onFailure(e);
         }
     }
@@ -1005,7 +1054,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (request.scroll() != null) {
             return getScrollKeepAlive(request.scroll());
         } else if (request.keepAlive() != null) {
-            checkKeepAliveLimit(request.keepAlive().millis());
+            if (getReaderContext(request.readerId()) instanceof PitReaderContext) {
+                checkPitKeepAliveLimit(request.keepAlive().millis());
+            } else {
+                checkKeepAliveLimit(request.keepAlive().millis());
+            }
             return request.keepAlive().getMillis();
         } else {
             return request.readerId() == null ? defaultKeepAlive : -1;
@@ -1031,6 +1084,22 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     + "). "
                     + "This limit can be set by changing the ["
                     + MAX_KEEPALIVE_SETTING.getKey()
+                    + "] cluster level setting."
+            );
+        }
+    }
+
+    private void checkPitKeepAliveLimit(long keepAlive) {
+        if (keepAlive > maxPitKeepAlive) {
+            throw new IllegalArgumentException(
+                "Keep alive for request ("
+                    + TimeValue.timeValueMillis(keepAlive)
+                    + ") is too large. "
+                    + "It must be less than ("
+                    + TimeValue.timeValueMillis(maxPitKeepAlive)
+                    + "). "
+                    + "This limit can be set by changing the ["
+                    + MAX_PIT_KEEPALIVE_SETTING.getKey()
                     + "] cluster level setting."
             );
         }
@@ -1325,7 +1394,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public PitReaderContext getPitReaderContext(ShardSearchContextId id) {
         for (Map.Entry<Long, ReaderContext> context : activeReaders.entrySet()) {
             if (context.getValue() instanceof PitReaderContext) {
-                if (context.getKey() == id.getId()) return (PitReaderContext) context.getValue();
+                if (context.getKey() == id.getId()) {
+                    return (PitReaderContext) context.getValue();
+                }
             }
         }
         return null;

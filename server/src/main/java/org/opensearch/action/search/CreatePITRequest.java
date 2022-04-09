@@ -26,10 +26,16 @@ import java.util.Objects;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
+/**
+ * A request to make create point in time against one or more indices.
+ */
 public class CreatePITRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
+    // keep alive for pit reader context
     private TimeValue keepAlive;
-    private final boolean allowPartialPitCreation;
+
+    // this describes whether PIT can be created with partial failures
+    private Boolean allowPartialPitCreation;
     @Nullable
     private String routing = null;
     @Nullable
@@ -37,9 +43,10 @@ public class CreatePITRequest extends ActionRequest implements IndicesRequest.Re
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
 
-    public CreatePITRequest(TimeValue keepAlive, boolean allowPartialPitCreation) {
+    public CreatePITRequest(TimeValue keepAlive, Boolean allowPartialPitCreation, String... indices) {
         this.keepAlive = keepAlive;
         this.allowPartialPitCreation = allowPartialPitCreation;
+        this.indices = indices;
     }
 
     public CreatePITRequest(StreamInput in) throws IOException {
@@ -50,7 +57,7 @@ public class CreatePITRequest extends ActionRequest implements IndicesRequest.Re
         preference = in.readOptionalString();
         keepAlive = in.readTimeValue();
         routing = in.readOptionalString();
-        allowPartialPitCreation = in.readBoolean();
+        allowPartialPitCreation = in.readOptionalBoolean();
     }
 
     @Override
@@ -61,7 +68,7 @@ public class CreatePITRequest extends ActionRequest implements IndicesRequest.Re
         out.writeOptionalString(preference);
         out.writeTimeValue(keepAlive);
         out.writeOptionalString(routing);
-        out.writeBoolean(allowPartialPitCreation);
+        out.writeOptionalBoolean(allowPartialPitCreation);
     }
 
     public String getRouting() {
@@ -84,7 +91,14 @@ public class CreatePITRequest extends ActionRequest implements IndicesRequest.Re
         return keepAlive;
     }
 
-    public boolean isAllowPartialPitCreation() {
+    /**
+     * Sets if this request should allow partial results.
+     */
+    public void allowPartialPitCreation(Boolean allowPartialPitCreation) {
+        this.allowPartialPitCreation = allowPartialPitCreation;
+    }
+
+    public boolean shouldAllowPartialPitCreation() {
         return allowPartialPitCreation;
     }
 
@@ -123,21 +137,39 @@ public class CreatePITRequest extends ActionRequest implements IndicesRequest.Re
         return indicesOptions;
     }
 
+    public CreatePITRequest indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = Objects.requireNonNull(indicesOptions, "indicesOptions must not be null");
+        return this;
+    }
+
     public void setKeepAlive(TimeValue keepAlive) {
         this.keepAlive = keepAlive;
     }
 
-    @Override
-    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new SearchTask(id, type, action, () -> "desc", parentTaskId, headers);
+    public final String buildDescription() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("indices[");
+        Strings.arrayToDelimitedString(indices, ",", sb);
+        sb.append("], ");
+        sb.append("pointintime[").append(keepAlive).append("], ");
+        return sb.toString();
     }
 
-    /**
-     * Sets the indices the search will be executed on.
-     */
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new Task(id, type, action, this.buildDescription(), parentTaskId, headers);
+    }
+
+    private void validateIndices(String... indices) {
+        Objects.requireNonNull(indices, "indices must not be null");
+        for (String index : indices) {
+            Objects.requireNonNull(index, "index must not be null");
+        }
+    }
+
     @Override
     public CreatePITRequest indices(String... indices) {
-        SearchRequest.validateIndices(indices);
+        validateIndices(indices);
         this.indices = indices;
         return this;
     }

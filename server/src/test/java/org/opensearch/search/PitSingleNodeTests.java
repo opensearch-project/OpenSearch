@@ -11,6 +11,7 @@ package org.opensearch.search;
 import org.opensearch.action.ActionFuture;
 import org.opensearch.action.search.CreatePITAction;
 import org.opensearch.action.search.CreatePITRequest;
+import org.opensearch.action.search.CreatePITResponse;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
@@ -38,6 +39,7 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         return Settings.builder()
             .put(super.nodeSettings())
             .put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(1))
+            .put(SearchService.CREATE_PIT_TEMPORARY_KEEPALIVE_SETTING.getKey(), TimeValue.timeValueSeconds(1))
             .build();
     }
 
@@ -47,12 +49,12 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
         CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index" });
-        ActionFuture<SearchResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
-        SearchResponse pitResponse = execute.get();
+        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
+        CreatePITResponse pitResponse = execute.get();
         client().prepareIndex("index").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         SearchResponse searchResponse = client().prepareSearch("index")
             .setSize(2)
-            .setPointInTime(new PointInTimeBuilder(pitResponse.pointInTimeId()).setKeepAlive(TimeValue.timeValueDays(1)))
+            .setPointInTime(new PointInTimeBuilder(pitResponse.getId()).setKeepAlive(TimeValue.timeValueDays(1)))
             .get();
         assertHitCount(searchResponse, 1);
 
@@ -70,8 +72,8 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         request.setIndices(new String[] { "index", "index1" });
         SearchService service = getInstanceFromNode(SearchService.class);
 
-        ActionFuture<SearchResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
-        SearchResponse response = execute.get();
+        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
+        CreatePITResponse response = execute.get();
         assertEquals(4, response.getSuccessfulShards());
         assertEquals(4, service.getActiveContexts());
         service.doClose();
@@ -83,13 +85,13 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
         CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index" });
-        ActionFuture<SearchResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
-        SearchResponse pitResponse = execute.get();
+        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
+        CreatePITResponse pitResponse = execute.get();
 
         client().prepareIndex("index").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         SearchResponse searchResponse = client().prepareSearch("index")
             .setSize(2)
-            .setPointInTime(new PointInTimeBuilder(pitResponse.pointInTimeId()).setKeepAlive(TimeValue.timeValueDays(1)))
+            .setPointInTime(new PointInTimeBuilder(pitResponse.getId()).setKeepAlive(TimeValue.timeValueDays(1)))
             .get();
         assertHitCount(searchResponse, 1);
 
@@ -105,33 +107,11 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         request.setIndices(new String[] { "index", "index1" });
         SearchService service = getInstanceFromNode(SearchService.class);
 
-        ActionFuture<SearchResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
+        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
 
         ExecutionException ex = expectThrows(ExecutionException.class, execute::get);
 
         assertTrue(ex.getMessage().contains("no such index [index1]"));
-        assertEquals(0, service.getActiveContexts());
-        service.doClose();
-    }
-
-    public void testCreatePITOnValidIndexAndThenDeleteIndex() throws ExecutionException, InterruptedException {
-        createIndex("index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
-        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
-
-        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
-        request.setIndices(new String[] { "index" });
-        ActionFuture<SearchResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
-        SearchResponse pitResponse = execute.get();
-        client().admin().indices().prepareDelete("index").get();
-
-        IndexNotFoundException ex = expectThrows(IndexNotFoundException.class, () -> {
-            client().prepareSearch("index")
-                .setSize(2)
-                .setPointInTime(new PointInTimeBuilder(pitResponse.pointInTimeId()).setKeepAlive(TimeValue.timeValueDays(1)))
-                .get();
-        });
-        assertTrue(ex.getMessage().contains("no such index [index]"));
-        SearchService service = getInstanceFromNode(SearchService.class);
         assertEquals(0, service.getActiveContexts());
         service.doClose();
     }
@@ -144,7 +124,7 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
         CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index" });
-        ActionFuture<SearchResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
+        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
 
         ExecutionException ex = expectThrows(ExecutionException.class, execute::get);
 
@@ -155,21 +135,43 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         service.doClose();
     }
 
-    public void testCreatePITOnValidIndexAndThenCloseIndex() throws ExecutionException, InterruptedException {
+    public void testPitSearchOnDeletedIndex() throws ExecutionException, InterruptedException {
         createIndex("index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
         client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
         CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index" });
-        ActionFuture<SearchResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
-        SearchResponse pitResponse = execute.get();
+        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
+        CreatePITResponse pitResponse = execute.get();
+        client().admin().indices().prepareDelete("index").get();
+
+        IndexNotFoundException ex = expectThrows(IndexNotFoundException.class, () -> {
+            client().prepareSearch("index")
+                .setSize(2)
+                .setPointInTime(new PointInTimeBuilder(pitResponse.getId()).setKeepAlive(TimeValue.timeValueDays(1)))
+                .get();
+        });
+        assertTrue(ex.getMessage().contains("no such index [index]"));
+        SearchService service = getInstanceFromNode(SearchService.class);
+        assertEquals(0, service.getActiveContexts());
+        service.doClose();
+    }
+
+    public void testPitSearchOnCloseIndex() throws ExecutionException, InterruptedException {
+        createIndex("index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
+        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
+        request.setIndices(new String[] { "index" });
+        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
+        CreatePITResponse pitResponse = execute.get();
         SearchService service = getInstanceFromNode(SearchService.class);
         assertEquals(2, service.getActiveContexts());
         client().admin().indices().prepareClose("index").get();
         SearchPhaseExecutionException ex = expectThrows(SearchPhaseExecutionException.class, () -> {
             SearchResponse searchResponse = client().prepareSearch("index")
                 .setSize(2)
-                .setPointInTime(new PointInTimeBuilder(pitResponse.pointInTimeId()).setKeepAlive(TimeValue.timeValueDays(1)))
+                .setPointInTime(new PointInTimeBuilder(pitResponse.getId()).setKeepAlive(TimeValue.timeValueDays(1)))
                 .get();
         });
         assertTrue(ex.shardFailures()[0].reason().contains("SearchContextMissingException"));
@@ -180,11 +182,89 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         ex = expectThrows(SearchPhaseExecutionException.class, () -> {
             client().prepareSearch("index")
                 .setSize(2)
-                .setPointInTime(new PointInTimeBuilder(pitResponse.pointInTimeId()).setKeepAlive(TimeValue.timeValueDays(1)))
+                .setPointInTime(new PointInTimeBuilder(pitResponse.getId()).setKeepAlive(TimeValue.timeValueDays(1)))
                 .get();
         });
         assertTrue(ex.shardFailures()[0].reason().contains("SearchContextMissingException"));
         assertEquals(0, service.getActiveContexts());
+        service.doClose();
+    }
+
+    public void testSearchWithFirstPhaseKeepAliveExpiry() throws ExecutionException, InterruptedException {
+        createIndex("index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
+        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueMillis(100), true);
+        request.setIndices(new String[] { "index" });
+        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
+        CreatePITResponse pitResponse = execute.get();
+        SearchService service = getInstanceFromNode(SearchService.class);
+        assertEquals(2, service.getActiveContexts());
+        Thread.sleep(1000);
+        // since first phase keep alive is set at 1 second in this test file and create pit request keep alive is
+        // less than that, so reader context will clear up after a second
+        client().prepareIndex("index").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        SearchPhaseExecutionException ex = expectThrows(SearchPhaseExecutionException.class, () -> {
+            client().prepareSearch("index")
+                .setSize(2)
+                .setPointInTime(new PointInTimeBuilder(pitResponse.getId()).setKeepAlive(TimeValue.timeValueDays(1)))
+                .get();
+        });
+        assertTrue(ex.shardFailures()[0].reason().contains("SearchContextMissingException"));
+        assertEquals(0, service.getActiveContexts());
+        service.doClose();
+    }
+
+    public void testSearchWithPitSecondPhaseKeepAliveExpiry() throws ExecutionException, InterruptedException {
+        createIndex("index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
+        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueSeconds(2), true);
+        request.setIndices(new String[] { "index" });
+        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
+        CreatePITResponse pitResponse = execute.get();
+        SearchService service = getInstanceFromNode(SearchService.class);
+        assertEquals(2, service.getActiveContexts());
+        Thread.sleep(1000);
+        assertEquals(2, service.getActiveContexts());
+        Thread.sleep(1500);
+        assertEquals(0, service.getActiveContexts());
+        client().prepareIndex("index").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        SearchPhaseExecutionException ex = expectThrows(SearchPhaseExecutionException.class, () -> {
+            client().prepareSearch("index")
+                .setSize(2)
+                .setPointInTime(new PointInTimeBuilder(pitResponse.getId()).setKeepAlive(TimeValue.timeValueDays(1)))
+                .get();
+        });
+        assertTrue(ex.shardFailures()[0].reason().contains("SearchContextMissingException"));
+        service.doClose();
+    }
+
+    public void testSearchWithPitKeepAliveExtension() throws ExecutionException, InterruptedException {
+        createIndex("index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
+        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueSeconds(1), true);
+        request.setIndices(new String[] { "index" });
+        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
+        CreatePITResponse pitResponse = execute.get();
+        SearchService service = getInstanceFromNode(SearchService.class);
+        assertEquals(2, service.getActiveContexts());
+        client().prepareSearch("index")
+            .setSize(2)
+            .setPointInTime(new PointInTimeBuilder(pitResponse.getId()).setKeepAlive(TimeValue.timeValueSeconds(3)))
+            .get();
+        client().prepareIndex("index").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        Thread.sleep(2500);
+        assertEquals(2, service.getActiveContexts());
+        Thread.sleep(1000);
+        assertEquals(0, service.getActiveContexts());
+        SearchPhaseExecutionException ex = expectThrows(SearchPhaseExecutionException.class, () -> {
+            client().prepareSearch("index")
+                .setSize(2)
+                .setPointInTime(new PointInTimeBuilder(pitResponse.getId()).setKeepAlive(TimeValue.timeValueMinutes(1)))
+                .get();
+        });
+        assertTrue(ex.shardFailures()[0].reason().contains("SearchContextMissingException"));
         service.doClose();
     }
 
@@ -199,7 +279,7 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         for (int i = 0; i < SearchService.MAX_OPEN_PIT_CONTEXT.get(Settings.EMPTY); i++) {
             client().execute(CreatePITAction.INSTANCE, request).get();
         }
-        ActionFuture<SearchResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
+        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
         ExecutionException ex = expectThrows(ExecutionException.class, execute::get);
 
         assertTrue(
@@ -239,7 +319,9 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
                                             + "Must be less than or equal to: ["
                                             + SearchService.MAX_OPEN_PIT_CONTEXT.get(Settings.EMPTY)
                                             + "]. "
-                                            + "This limit can be set by changing the [search.max_open_pit_context] setting."
+                                            + "This limit can be set by changing the ["
+                                            + SearchService.MAX_OPEN_PIT_CONTEXT.getKey()
+                                            + "] setting."
                                     )
                             );
                             return;
@@ -256,84 +338,6 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
             thread.join();
         }
         assertThat(service.getActiveContexts(), equalTo(maxPitContexts));
-        service.doClose();
-    }
-
-    public void testSearchWithFirstPhaseKeepAliveExpiry() throws ExecutionException, InterruptedException {
-        createIndex("index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
-        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
-
-        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueSeconds(1), true);
-        request.setIndices(new String[] { "index" });
-        ActionFuture<SearchResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
-        SearchResponse pitResponse = execute.get();
-        SearchService service = getInstanceFromNode(SearchService.class);
-        assertEquals(2, service.getActiveContexts());
-        // create pit phase 1 temporary keep alive is 30 seconds and keep alive update takes the max out of existing
-        // keep alive and passed time alive. so waiting for 31 seconds here.
-        Thread.sleep(31000);
-        client().prepareIndex("index").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
-
-        SearchPhaseExecutionException ex = expectThrows(SearchPhaseExecutionException.class, () -> {
-            client().prepareSearch("index")
-                .setSize(2)
-                .setPointInTime(new PointInTimeBuilder(pitResponse.pointInTimeId()).setKeepAlive(TimeValue.timeValueDays(1)))
-                .get();
-        });
-        assertTrue(ex.shardFailures()[0].reason().contains("SearchContextMissingException"));
-        assertEquals(0, service.getActiveContexts());
-        service.doClose();
-    }
-
-    public void testSearchWithPitSecondPhaseKeepAliveExpiry() throws ExecutionException, InterruptedException {
-        createIndex("index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
-        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
-        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueMinutes(1), true);
-        request.setIndices(new String[] { "index" });
-        ActionFuture<SearchResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
-        SearchResponse pitResponse = execute.get();
-        SearchService service = getInstanceFromNode(SearchService.class);
-        assertEquals(2, service.getActiveContexts());
-        Thread.sleep(31000);
-        assertEquals(2, service.getActiveContexts());
-        Thread.sleep(31000);
-        assertEquals(0, service.getActiveContexts());
-        client().prepareIndex("index").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
-        SearchPhaseExecutionException ex = expectThrows(SearchPhaseExecutionException.class, () -> {
-            client().prepareSearch("index")
-                .setSize(2)
-                .setPointInTime(new PointInTimeBuilder(pitResponse.pointInTimeId()).setKeepAlive(TimeValue.timeValueDays(1)))
-                .get();
-        });
-        assertTrue(ex.shardFailures()[0].reason().contains("SearchContextMissingException"));
-        service.doClose();
-    }
-
-    public void testSearchWithPitKeepAliveExtension() throws ExecutionException, InterruptedException {
-        createIndex("index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
-        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
-        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueSeconds(1), true);
-        request.setIndices(new String[] { "index" });
-        ActionFuture<SearchResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
-        SearchResponse pitResponse = execute.get();
-        SearchService service = getInstanceFromNode(SearchService.class);
-        assertEquals(2, service.getActiveContexts());
-        client().prepareSearch("index")
-            .setSize(2)
-            .setPointInTime(new PointInTimeBuilder(pitResponse.pointInTimeId()).setKeepAlive(TimeValue.timeValueMinutes(1)))
-            .get();
-        client().prepareIndex("index").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
-        Thread.sleep(31000);
-        assertEquals(2, service.getActiveContexts());
-        Thread.sleep(31000);
-        assertEquals(0, service.getActiveContexts());
-        SearchPhaseExecutionException ex = expectThrows(SearchPhaseExecutionException.class, () -> {
-            client().prepareSearch("index")
-                .setSize(2)
-                .setPointInTime(new PointInTimeBuilder(pitResponse.pointInTimeId()).setKeepAlive(TimeValue.timeValueMinutes(1)))
-                .get();
-        });
-        assertTrue(ex.shardFailures()[0].reason().contains("SearchContextMissingException"));
         service.doClose();
     }
 

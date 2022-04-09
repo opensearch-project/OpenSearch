@@ -8,24 +8,21 @@
 
 package org.opensearch.search.internal;
 
-import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.common.unit.TimeValue;
+import org.apache.lucene.util.SetOnce;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.Engine;
-import org.opensearch.index.engine.Segment;
 import org.opensearch.index.shard.IndexShard;
-import java.util.List;
 
+/**
+ * PIT reader context containing PIT specific information such as pit id, create time etc.
+ */
 public class PitReaderContext extends ReaderContext {
 
-    public ShardRouting getShardRouting() {
-        return shardRouting;
-    }
-
-    private final ShardRouting shardRouting;
-    private final List<Segment> segments;
-    private String pitId;
-    private TimeValue createTime;
+    // Storing the encoded PIT ID as part of PIT reader context for use cases such as list pit API
+    private final SetOnce<String> pitId = new SetOnce<>();
+    private final SetOnce<Long> createTime = new SetOnce<>();
 
     public PitReaderContext(
         ShardSearchContextId id,
@@ -33,28 +30,40 @@ public class PitReaderContext extends ReaderContext {
         IndexShard indexShard,
         Engine.SearcherSupplier searcherSupplier,
         long keepAliveInMillis,
-        boolean singleSession,
-        ShardRouting shardRouting,
-        List<Segment> nonVerboseSegments
+        boolean singleSession
     ) {
         super(id, indexService, indexShard, searcherSupplier, keepAliveInMillis, singleSession);
-        this.shardRouting = shardRouting;
-        segments = nonVerboseSegments;
-    }
-
-    public List<Segment> getSegments() {
-        return segments;
     }
 
     public String getPitId() {
-        return this.pitId;
+        return this.pitId.get();
     }
 
     public void setPitId(final String pitId) {
-        this.pitId = pitId;
+        this.pitId.set(pitId);
     }
 
-    public void setCreateTimestamp(final TimeValue createTime) {
-        this.createTime = createTime;
+    /**
+     * Returns a releasable to indicate that the caller has stopped using this reader.
+     * The pit id can be updated and time to live of the reader usage can be extended using the provided
+     * <code>keepAliveInMillis</code>.
+     */
+    public Releasable updatePitIdAndKeepAlive(long keepAliveInMillis, String pitId, long createTime) {
+        refCounted.incRef();
+        tryUpdateKeepAlive(keepAliveInMillis);
+        setPitId(pitId);
+        setCreateTime(createTime);
+        return Releasables.releaseOnce(() -> {
+            this.lastAccessTime.updateAndGet(curr -> Math.max(curr, nowInMillis()));
+            refCounted.decRef();
+        });
+    }
+
+    public long getCreateTime() {
+        return this.createTime.get();
+    }
+
+    public void setCreateTime(final long createTime) {
+        this.createTime.set(createTime);
     }
 }

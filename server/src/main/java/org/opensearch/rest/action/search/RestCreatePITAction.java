@@ -8,21 +8,23 @@
 
 package org.opensearch.rest.action.search;
 
-import org.opensearch.action.search.CreatePITAction;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.search.CreatePITRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.rest.action.RestCancellableNodeClient;
 import org.opensearch.rest.action.RestStatusToXContentListener;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
+import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
+import static org.opensearch.action.ValidateActions.addValidationError;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
 public class RestCreatePITAction extends BaseRestHandler {
@@ -32,23 +34,28 @@ public class RestCreatePITAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        boolean allowPartialPitCreation = request.paramAsBoolean("allow_partial_pit_creation", false);
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        boolean allowPartialPitCreation = request.paramAsBoolean("allow_partial_pit_creation", true);
+        String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
+        TimeValue keepAlive = request.paramAsTime("keep_alive", null);
+        CreatePITRequest createPitRequest = new CreatePITRequest(request.paramAsTime("keep_alive", null), allowPartialPitCreation, indices);
 
-        CreatePITRequest createPitRequest = new CreatePITRequest(request.paramAsTime("keep_alive", null), allowPartialPitCreation);
+        ActionRequestValidationException validationException = null;
+        if (keepAlive == null) {
+            validationException = addValidationError("Keep alive cannot be empty", validationException);
+        }
+        ExceptionsHelper.reThrowIfNotNull(validationException);
+
         createPitRequest.setIndicesOptions(IndicesOptions.fromRequest(request, createPitRequest.indicesOptions()));
         createPitRequest.setPreference(request.param("preference"));
         createPitRequest.setRouting(request.param("routing"));
-        createPitRequest.setIndices(Strings.splitStringByCommaToArray(request.param("index")));
-        return channel -> {
-            RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancelClient.execute(CreatePITAction.INSTANCE, createPitRequest, new RestStatusToXContentListener<>(channel));
-        };
+
+        return channel -> client.createPit(createPitRequest, new RestStatusToXContentListener<>(channel));
     }
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(Collections.singletonList(new Route(POST, "/{index}/_pit")));
+        return unmodifiableList(asList(new Route(POST, "/{index}/_pit")));
     }
 
 }

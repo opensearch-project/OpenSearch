@@ -292,7 +292,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         String actionName,
         boolean includeSearchContext,
         SinglePhaseSearchAction phaseSearchAction,
-        ActionListener<SearchResponse> listener
+        ActionListener<CreatePITResponse> listener
     ) {
         executeRequest(task, searchRequest, new SearchAsyncActionProvider() {
             @Override
@@ -358,7 +358,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     }
                 };
             }
-        }, listener);
+        }, ActionListener.wrap(r -> listener.onResponse(new CreatePITResponse(r)), listener::onFailure));
     }
 
     private void executeRequest(
