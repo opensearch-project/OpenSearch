@@ -277,6 +277,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
     }
 
     // Validate the Action works correctly on a node with deprecated 'master' role
+    // TODO: Remove the test after removing MASTER_ROLE.
     public void testPassNumRoutingShardsOnNodeWithDeprecatedMasterRole() {
         final Set<DiscoveryNodeRole> roles = Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE);
 

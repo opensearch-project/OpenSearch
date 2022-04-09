@@ -32,7 +32,6 @@
 package org.opensearch.cluster.coordination;
 
 import org.junit.Before;
-import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -44,9 +43,7 @@ import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -56,13 +53,11 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
-import static org.opensearch.cluster.coordination.ClusterBootstrapService.BOOTSTRAP_PLACEHOLDER_PREFIX;
 import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.opensearch.cluster.coordination.ClusterBootstrapService.UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING;
 import static org.opensearch.common.settings.Settings.builder;
 import static org.opensearch.node.Node.NODE_NAME_SETTING;
 import static org.opensearch.test.NodeRoles.nonMasterNode;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -70,8 +65,13 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.startsWith;
 
+/*
+ * As of 2.0, MASTER_ROLE and setting 'cluster.initial_master_nodes' is deprecated to promote inclusive language.
+ * This class is a partial copy of ClusterBootstrapServiceTests
+ * to validate ClusterBootstrapService works correctly with the deprecated node role and cluster setting.
+ * Remove the class after the deprecated node role and cluster setting is removed.
+ */
 public class ClusterBootstrapServiceDeprecatedMasterTests extends OpenSearchTestCase {
 
     private DiscoveryNode localNode, otherNode1, otherNode2;
@@ -222,110 +222,6 @@ public class ClusterBootstrapServiceDeprecatedMasterTests extends OpenSearchTest
         assertFalse(bootstrapped.get()); // should only bootstrap once
     }
 
-    public void testBootstrapsOnDiscoveryOfTwoOfThreeRequiredNodes() {
-        final AtomicBoolean bootstrapped = new AtomicBoolean();
-
-        ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            Settings.builder()
-                .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
-                .build(),
-            transportService,
-            () -> singletonList(otherNode1),
-            () -> false,
-            vc -> {
-                assertTrue(bootstrapped.compareAndSet(false, true));
-                assertThat(vc.getNodeIds(), hasSize(3));
-                assertThat(vc.getNodeIds(), hasItem(localNode.getId()));
-                assertThat(vc.getNodeIds(), hasItem(otherNode1.getId()));
-                assertThat(vc.getNodeIds(), hasItem(allOf(startsWith(BOOTSTRAP_PLACEHOLDER_PREFIX), containsString(otherNode2.getName()))));
-                assertTrue(vc.hasQuorum(Stream.of(localNode, otherNode1).map(DiscoveryNode::getId).collect(Collectors.toList())));
-                assertFalse(vc.hasQuorum(singletonList(localNode.getId())));
-                assertFalse(vc.hasQuorum(singletonList(otherNode1.getId())));
-            }
-        );
-        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
-
-        transportService.start();
-        clusterBootstrapService.onFoundPeersUpdated();
-        deterministicTaskQueue.runAllTasks();
-        assertTrue(bootstrapped.get());
-
-        bootstrapped.set(false);
-        clusterBootstrapService.onFoundPeersUpdated();
-        deterministicTaskQueue.runAllTasks();
-        assertFalse(bootstrapped.get()); // should only bootstrap once
-    }
-
-    public void testBootstrapsOnDiscoveryOfThreeOfFiveRequiredNodes() {
-        final AtomicBoolean bootstrapped = new AtomicBoolean();
-
-        ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            Settings.builder()
-                .putList(
-                    INITIAL_MASTER_NODES_SETTING.getKey(),
-                    localNode.getName(),
-                    otherNode1.getName(),
-                    otherNode2.getName(),
-                    "missing-node-1",
-                    "missing-node-2"
-                )
-                .build(),
-            transportService,
-            () -> Stream.of(otherNode1, otherNode2).collect(Collectors.toList()),
-            () -> false,
-            vc -> {
-                assertTrue(bootstrapped.compareAndSet(false, true));
-                assertThat(vc.getNodeIds(), hasSize(5));
-                assertThat(vc.getNodeIds(), hasItem(localNode.getId()));
-                assertThat(vc.getNodeIds(), hasItem(otherNode1.getId()));
-                assertThat(vc.getNodeIds(), hasItem(otherNode2.getId()));
-
-                final List<String> placeholders = vc.getNodeIds()
-                    .stream()
-                    .filter(ClusterBootstrapService::isBootstrapPlaceholder)
-                    .collect(Collectors.toList());
-                assertThat(placeholders.size(), equalTo(2));
-                assertNotEquals(placeholders.get(0), placeholders.get(1));
-                assertThat(placeholders, hasItem(containsString("missing-node-1")));
-                assertThat(placeholders, hasItem(containsString("missing-node-2")));
-
-                assertTrue(
-                    vc.hasQuorum(Stream.of(localNode, otherNode1, otherNode2).map(DiscoveryNode::getId).collect(Collectors.toList()))
-                );
-                assertFalse(vc.hasQuorum(Stream.of(localNode, otherNode1).map(DiscoveryNode::getId).collect(Collectors.toList())));
-                assertFalse(vc.hasQuorum(Stream.of(localNode, otherNode1).map(DiscoveryNode::getId).collect(Collectors.toList())));
-            }
-        );
-        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
-
-        transportService.start();
-        clusterBootstrapService.onFoundPeersUpdated();
-        deterministicTaskQueue.runAllTasks();
-        assertTrue(bootstrapped.get());
-
-        bootstrapped.set(false);
-        clusterBootstrapService.onFoundPeersUpdated();
-        deterministicTaskQueue.runAllTasks();
-        assertFalse(bootstrapped.get()); // should only bootstrap once
-    }
-
-    public void testDoesNotBootstrapIfNoNodesDiscovered() {
-        ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            Settings.builder()
-                .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
-                .build(),
-            transportService,
-            Collections::emptyList,
-            () -> true,
-            vc -> { throw new AssertionError("should not be called"); }
-        );
-        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
-
-        transportService.start();
-        clusterBootstrapService.onFoundPeersUpdated();
-        deterministicTaskQueue.runAllTasks();
-    }
-
     public void testDoesNotBootstrapIfTwoOfFiveNodesDiscovered() {
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder()
@@ -340,31 +236,6 @@ public class ClusterBootstrapServiceDeprecatedMasterTests extends OpenSearchTest
                 .build(),
             transportService,
             () -> Stream.of(otherNode1).collect(Collectors.toList()),
-            () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
-        );
-        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
-
-        transportService.start();
-        clusterBootstrapService.onFoundPeersUpdated();
-        deterministicTaskQueue.runAllTasks();
-    }
-
-    public void testDoesNotBootstrapIfThreeOfSixNodesDiscovered() {
-        ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            Settings.builder()
-                .putList(
-                    INITIAL_MASTER_NODES_SETTING.getKey(),
-                    localNode.getName(),
-                    otherNode1.getName(),
-                    otherNode2.getName(),
-                    "not-a-node-1",
-                    "not-a-node-2",
-                    "not-a-node-3"
-                )
-                .build(),
-            transportService,
-            () -> Stream.of(otherNode1, otherNode2).collect(Collectors.toList()),
             () -> false,
             vc -> { throw new AssertionError("should not be called"); }
         );
@@ -416,7 +287,7 @@ public class ClusterBootstrapServiceDeprecatedMasterTests extends OpenSearchTest
         deterministicTaskQueue.runAllTasks();
     }
 
-    public void testDoesNotBootstrapsIfLocalNodeNotInInitialClusterManagerNodes() {
+    public void testDoesNotBootstrapsIfLocalNodeNotInInitialMasterNodes() {
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), otherNode1.getName(), otherNode2.getName()).build(),
             transportService,
@@ -445,31 +316,6 @@ public class ClusterBootstrapServiceDeprecatedMasterTests extends OpenSearchTest
         deterministicTaskQueue.runAllTasks();
     }
 
-    public void testRetriesBootstrappingOnException() {
-        final AtomicLong bootstrappingAttempts = new AtomicLong();
-        ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            Settings.builder()
-                .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
-                .build(),
-            transportService,
-            () -> Stream.of(otherNode1, otherNode2).collect(Collectors.toList()),
-            () -> false,
-            vc -> {
-                bootstrappingAttempts.incrementAndGet();
-                if (bootstrappingAttempts.get() < 5L) {
-                    throw new OpenSearchException("test");
-                }
-            }
-        );
-        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
-
-        transportService.start();
-        clusterBootstrapService.onFoundPeersUpdated();
-        deterministicTaskQueue.runAllTasks();
-        assertThat(bootstrappingAttempts.get(), greaterThanOrEqualTo(5L));
-        assertThat(deterministicTaskQueue.getCurrentTimeMillis(), greaterThanOrEqualTo(40000L));
-    }
-
     public void testCancelsBootstrapIfRequirementMatchesMultipleNodes() {
         AtomicReference<Iterable<DiscoveryNode>> discoveredNodes = new AtomicReference<>(
             Stream.of(otherNode1, otherNode2).collect(Collectors.toList())
@@ -490,124 +336,6 @@ public class ClusterBootstrapServiceDeprecatedMasterTests extends OpenSearchTest
         discoveredNodes.set(emptyList());
         clusterBootstrapService.onFoundPeersUpdated();
         deterministicTaskQueue.runAllTasks();
-    }
-
-    public void testCancelsBootstrapIfNodeMatchesMultipleRequirements() {
-        AtomicReference<Iterable<DiscoveryNode>> discoveredNodes = new AtomicReference<>(
-            Stream.of(otherNode1, otherNode2).collect(Collectors.toList())
-        );
-        ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            Settings.builder()
-                .putList(INITIAL_MASTER_NODES_SETTING.getKey(), otherNode1.getAddress().toString(), otherNode1.getName())
-                .build(),
-            transportService,
-            discoveredNodes::get,
-            () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
-        );
-        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
-
-        transportService.start();
-        clusterBootstrapService.onFoundPeersUpdated();
-        deterministicTaskQueue.runAllTasks();
-
-        discoveredNodes.set(
-            Stream.of(
-                new DiscoveryNode(
-                    otherNode1.getName(),
-                    randomAlphaOfLength(10),
-                    buildNewFakeTransportAddress(),
-                    emptyMap(),
-                    Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
-                    Version.CURRENT
-                ),
-                new DiscoveryNode(
-                    "yet-another-node",
-                    randomAlphaOfLength(10),
-                    otherNode1.getAddress(),
-                    emptyMap(),
-                    Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
-                    Version.CURRENT
-                )
-            ).collect(Collectors.toList())
-        );
-
-        clusterBootstrapService.onFoundPeersUpdated();
-        deterministicTaskQueue.runAllTasks();
-    }
-
-    public void testMatchesOnNodeName() {
-        final AtomicBoolean bootstrapped = new AtomicBoolean();
-        ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName()).build(),
-            transportService,
-            Collections::emptyList,
-            () -> false,
-            vc -> assertTrue(bootstrapped.compareAndSet(false, true))
-        );
-        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
-
-        transportService.start();
-        clusterBootstrapService.onFoundPeersUpdated();
-        deterministicTaskQueue.runAllTasks();
-        assertTrue(bootstrapped.get());
-    }
-
-    public void testMatchesOnNodeAddress() {
-        final AtomicBoolean bootstrapped = new AtomicBoolean();
-        ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getAddress().toString()).build(),
-            transportService,
-            Collections::emptyList,
-            () -> false,
-            vc -> assertTrue(bootstrapped.compareAndSet(false, true))
-        );
-        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
-
-        transportService.start();
-        clusterBootstrapService.onFoundPeersUpdated();
-        deterministicTaskQueue.runAllTasks();
-        assertTrue(bootstrapped.get());
-    }
-
-    public void testMatchesOnNodeHostAddress() {
-        final AtomicBoolean bootstrapped = new AtomicBoolean();
-        ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getAddress().getAddress()).build(),
-            transportService,
-            Collections::emptyList,
-            () -> false,
-            vc -> assertTrue(bootstrapped.compareAndSet(false, true))
-        );
-        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
-
-        transportService.start();
-        clusterBootstrapService.onFoundPeersUpdated();
-        deterministicTaskQueue.runAllTasks();
-        assertTrue(bootstrapped.get());
-    }
-
-    public void testDoesNotIncludeExtraNodes() {
-        final DiscoveryNode extraNode = newDiscoveryNode("extra-node");
-        final AtomicBoolean bootstrapped = new AtomicBoolean();
-        ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            Settings.builder()
-                .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
-                .build(),
-            transportService,
-            () -> Stream.of(otherNode1, otherNode2, extraNode).collect(Collectors.toList()),
-            () -> false,
-            vc -> {
-                assertTrue(bootstrapped.compareAndSet(false, true));
-                assertThat(vc.getNodeIds(), not(hasItem(extraNode.getId())));
-            }
-        );
-        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
-
-        transportService.start();
-        clusterBootstrapService.onFoundPeersUpdated();
-        deterministicTaskQueue.runAllTasks();
-        assertTrue(bootstrapped.get());
     }
 
     public void testBootstrapsAutomaticallyWithSingleNodeDiscovery() {

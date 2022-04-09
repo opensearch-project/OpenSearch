@@ -450,10 +450,9 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
         assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }
 
-    /*
-     * As of 2.0, MASTER_ROLE is deprecated to promote inclusive language.
-     * Validate node with MASTER_ROLE can be resolved by resolveVotingConfigExclusions() like before.
-     */
+    // As of 2.0, MASTER_ROLE is deprecated to promote inclusive language.
+    // Validate node with MASTER_ROLE can be resolved by resolveVotingConfigExclusions() like before.
+    // TODO: Remove the test after removing MASTER_ROLE.
     public void testResolveByNodeDescriptionWithDeprecatedMasterRole() {
         final DiscoveryNode localNode = new DiscoveryNode(
             "local",
@@ -473,6 +472,7 @@ public class AddVotingConfigExclusionsRequestTests extends OpenSearchTestCase {
         assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }
 
+    // TODO: Remove the test after removing MASTER_ROLE.
     public void testResolveByNodeIdWithDeprecatedMasterRole() {
         final DiscoveryNode node = new DiscoveryNode(
             "nodeName",

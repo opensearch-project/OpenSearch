@@ -526,10 +526,8 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         assertThat(listener.get(), equalTo(response));
     }
 
-    /*
-     * Validate TransportMasterNodeAction.testDelegateToMaster() works correctly on node with the deprecated MASTER_ROLE.
-     * Remove the class after removing MASTER_ROLE.
-     */
+    // Validate TransportMasterNodeAction.testDelegateToMaster() works correctly on node with the deprecated MASTER_ROLE.
+    // TODO: Remove the test after removing MASTER_ROLE.
     public void testDelegateToMasterOnNodeWithDeprecatedMasterRole() throws ExecutionException, InterruptedException {
         DiscoveryNode localNode = new DiscoveryNode(
             "local_node",

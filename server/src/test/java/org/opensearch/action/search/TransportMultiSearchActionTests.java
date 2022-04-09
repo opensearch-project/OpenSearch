@@ -287,6 +287,7 @@ public class TransportMultiSearchActionTests extends OpenSearchTestCase {
     }
 
     // Validate the Action works correctly on a node with deprecated 'master' role
+    // TODO: Remove the test after removing MASTER_ROLE.
     public void testDefaultMaxConcurrentSearchesOnNodeWithDeprecatedMasterRole() {
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         builder.add(
