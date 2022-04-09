@@ -176,6 +176,9 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
 
     // TODO: Remove the test along with MASTER_ROLE. It is added in 2.0, along with the introduction of CLUSTER_MANAGER_ROLE.
     public void testSetAdditionalRolesCanAddDeprecatedMasterRole() {
+        // Validate MASTER_ROLE is not in DiscoveryNodeRole.BUILT_IN_ROLES
+        assertFalse(DiscoveryNode.getPossibleRoleNames().contains(DiscoveryNodeRole.MASTER_ROLE.roleName()));
+
         DiscoveryNode.setAdditionalRoles(Collections.emptySet());
         assertTrue(DiscoveryNode.getPossibleRoleNames().contains(DiscoveryNodeRole.MASTER_ROLE.roleName()));
     }
