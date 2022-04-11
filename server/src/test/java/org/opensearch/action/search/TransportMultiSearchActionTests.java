@@ -286,31 +286,4 @@ public class TransportMultiSearchActionTests extends OpenSearchTestCase {
         assertThat(result, equalTo(1));
     }
 
-    // Validate the Action works correctly on a node with deprecated 'master' role
-    // TODO: Remove the test after removing MASTER_ROLE.
-    public void testDefaultMaxConcurrentSearchesOnNodeWithDeprecatedMasterRole() {
-        DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
-        builder.add(
-            new DiscoveryNode(
-                "master",
-                buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
-                Version.CURRENT
-            )
-        );
-        builder.add(
-            new DiscoveryNode(
-                "data",
-                buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                Collections.singleton(DiscoveryNodeRole.DATA_ROLE),
-                Version.CURRENT
-            )
-        );
-
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).nodes(builder).build();
-        int result = TransportMultiSearchAction.defaultMaxConcurrentSearches(10, state);
-        assertThat(result, equalTo(10));
-    }
 }
