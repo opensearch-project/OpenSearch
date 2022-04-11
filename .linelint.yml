@@ -1,0 +1,20 @@
+# 'true' will fix files
+autofix: true
+
+ignore:
+  - .git/
+  - .gradle/
+  - '*.sha1'
+  - '*.txt'
+  - 'buildSrc/src/testKit/opensearch.build/LICENSE'
+  - 'buildSrc/src/testKit/opensearch.build/NOTICE'
+  - 'server/licenses/apache-log4j-extras-DEPENDENCIES'
+
+rules:
+  # checks if file ends in a newline character
+  end-of-file:
+    # set to true to enable this rule
+    enable: true
+
+    # if true also checks if file ends in a single newline character
+    single-new-line: true
