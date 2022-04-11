@@ -718,8 +718,8 @@ public class InternalEngine extends Engine {
 
     private DirectoryReader getDirectoryReader() throws IOException {
         // for segment replication: replicas should create the reader from store and, we don't want an open IW on replicas.
-        // We should always wrap replicas with a SoftDeletesDirectoryReaderWrapper as we use soft deletes when segment replication is on for
-        // deletions
+        /* We should always wrap replicas with a SoftDeletesDirectoryReaderWrapper as we use soft deletes when segment replication is on for
+        deletions */
         if (engineConfig.isReadOnly()) {
             return new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(store.directory()), Lucene.SOFT_DELETES_FIELD);
         }
@@ -2312,8 +2312,8 @@ public class InternalEngine extends Engine {
         OpenSearchDirectoryReader reader = null;
         try {
             reader = externalReaderManager.internalReaderManager.acquire();
-            // This is safe, as we always wrap Standard reader with a SoftDeletesDirectoryReaderWrapper for replicas when segment
-            // replication is enabled
+            /* This is safe, as we always wrap Standard reader with a SoftDeletesDirectoryReaderWrapper for replicas when segment
+            replication is enabled */
             if (engineConfig.isReadOnly()) {
                 return ((StandardDirectoryReader) ((SoftDeletesDirectoryReaderWrapper) reader.getDelegate()).getDelegate())
                     .getSegmentInfos();
