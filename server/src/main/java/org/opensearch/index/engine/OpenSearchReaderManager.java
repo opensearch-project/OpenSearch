@@ -92,18 +92,11 @@ class OpenSearchReaderManager extends ReferenceManager<OpenSearchDirectoryReader
         // If not using NRT repl.
         if (currentInfos == null) {
             reader = (OpenSearchDirectoryReader) DirectoryReader.openIfChanged(referenceToRefresh);
-            if (reader != null) {
-                logger.info("Num docs primary {}", reader.getDelegate().numDocs());
-            }
         } else {
             // Open a new reader, sharing any common segment readers with the old one:
             DirectoryReader innerReader = StandardDirectoryReader.open(referenceToRefresh.directory(), currentInfos, subs, null);
             final DirectoryReader softDeletesDirectoryReaderWrapper = new SoftDeletesDirectoryReaderWrapper(innerReader, Lucene.SOFT_DELETES_FIELD);
-            logger.info("Doc count {}", softDeletesDirectoryReaderWrapper.numDocs());
-            logger.info("Deleted doc count {}", softDeletesDirectoryReaderWrapper.numDeletedDocs());
             reader = OpenSearchDirectoryReader.wrap(softDeletesDirectoryReaderWrapper, referenceToRefresh.shardId());
-            logger.info("reader Doc count {}", reader.numDocs());
-            logger.info("reader Deleted doc count {}", reader.numDeletedDocs());
             logger.trace("updated to SegmentInfosVersion=" + currentInfos.getVersion() + " reader=" + innerReader);
         }
         return reader;
