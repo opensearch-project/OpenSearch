@@ -33,7 +33,7 @@ package org.opensearch.test.rest.yaml;
 
 import org.opensearch.test.OpenSearchTestCase;
 
-public class BlacklistedPathPatternMatcherTests extends OpenSearchTestCase {
+public class DenylistedPathPatternMatcherTests extends OpenSearchTestCase {
 
     public void testMatchesExact() {
         // suffix match
@@ -71,12 +71,12 @@ public class BlacklistedPathPatternMatcherTests extends OpenSearchTestCase {
     }
 
     private void assertMatch(String pattern, String path) {
-        BlacklistedPathPatternMatcher matcher = new BlacklistedPathPatternMatcher(pattern);
+        DenylistedPathPatternMatcher matcher = new DenylistedPathPatternMatcher(pattern);
         assertTrue("Pattern [" + pattern + "] should have matched path [" + path + "]", matcher.isSuffixMatch(path));
     }
 
     private void assertNoMatch(String pattern, String path) {
-        BlacklistedPathPatternMatcher matcher = new BlacklistedPathPatternMatcher(pattern);
+        DenylistedPathPatternMatcher matcher = new DenylistedPathPatternMatcher(pattern);
         assertFalse("Pattern [" + pattern + "] should not have matched path [" + path + "]", matcher.isSuffixMatch(path));
     }
 }
