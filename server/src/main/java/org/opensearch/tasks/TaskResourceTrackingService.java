@@ -60,7 +60,11 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
     }
 
     public boolean isTaskResourceTrackingEnabled() {
-        return taskResourceTrackingEnabled
+        return taskResourceTrackingEnabled;
+    }
+
+    public boolean isTaskResourceTrackingSupported() {
+        return isTaskResourceTrackingEnabled()
             && threadMXBean.isThreadAllocatedMemorySupported()
             && threadMXBean.isThreadAllocatedMemoryEnabled();
     }
@@ -75,7 +79,7 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
      * @return Autocloseable stored context to restore ThreadContext to the state before this method changed it.
      */
     public ThreadContext.StoredContext startTracking(Task task) {
-        if (task.supportsResourceTracking() == false || isTaskResourceTrackingEnabled() == false) {
+        if (task.supportsResourceTracking() == false || isTaskResourceTrackingSupported() == false) {
             return () -> {};
         }
 
@@ -112,7 +116,7 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
      * @param tasks for which resource stats needs to be refreshed.
      */
     public void refreshResourceStats(Task... tasks) {
-        if (isTaskResourceTrackingEnabled() == false) {
+        if (isTaskResourceTrackingSupported() == false) {
             return;
         }
 
