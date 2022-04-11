@@ -230,7 +230,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         });
     }
 
-    public void testDelOps()throws Exception{
+    public void testDeleteOperations()throws Exception{
         final String nodeA = internalCluster().startNode();
         final String nodeB = internalCluster().startNode();
 
