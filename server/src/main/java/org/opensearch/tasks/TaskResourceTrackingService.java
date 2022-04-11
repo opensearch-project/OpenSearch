@@ -35,7 +35,7 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
 
     public static final Setting<Boolean> TASK_RESOURCE_TRACKING_ENABLED = Setting.boolSetting(
         "task_resource_tracking.enabled",
-        false,
+        true,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -64,9 +64,7 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
     }
 
     public boolean isTaskResourceTrackingSupported() {
-        return isTaskResourceTrackingEnabled()
-            && threadMXBean.isThreadAllocatedMemorySupported()
-            && threadMXBean.isThreadAllocatedMemoryEnabled();
+        return threadMXBean.isThreadAllocatedMemorySupported() && threadMXBean.isThreadAllocatedMemoryEnabled();
     }
 
     /**
@@ -79,7 +77,9 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
      * @return Autocloseable stored context to restore ThreadContext to the state before this method changed it.
      */
     public ThreadContext.StoredContext startTracking(Task task) {
-        if (task.supportsResourceTracking() == false || isTaskResourceTrackingSupported() == false) {
+        if (task.supportsResourceTracking() == false
+            || isTaskResourceTrackingEnabled() == false
+            || isTaskResourceTrackingSupported() == false) {
             return () -> {};
         }
 
@@ -116,7 +116,7 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
      * @param tasks for which resource stats needs to be refreshed.
      */
     public void refreshResourceStats(Task... tasks) {
-        if (isTaskResourceTrackingSupported() == false) {
+        if (isTaskResourceTrackingEnabled() == false || isTaskResourceTrackingSupported() == false) {
             return;
         }
 

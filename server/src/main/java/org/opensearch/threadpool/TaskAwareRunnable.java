@@ -63,9 +63,7 @@ public class TaskAwareRunnable extends AbstractRunnable implements WrappedRunnab
     @Override
     protected void doRun() throws Exception {
         assert runnableTaskListener.get() != null : "Listener should be attached";
-
         Long taskId = threadContext.getTransient(TASK_ID);
-
         if (Objects.nonNull(taskId)) {
             runnableTaskListener.get().taskExecutionStartedOnThread(taskId, currentThread().getId());
         }
@@ -76,7 +74,6 @@ public class TaskAwareRunnable extends AbstractRunnable implements WrappedRunnab
                 runnableTaskListener.get().taskExecutionFinishedOnThread(taskId, currentThread().getId());
             }
         }
-
     }
 
     @Override
