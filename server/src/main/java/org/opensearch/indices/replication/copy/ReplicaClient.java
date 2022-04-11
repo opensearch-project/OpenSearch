@@ -148,7 +148,7 @@ public class ReplicaClient {
          * see how many translog ops we accumulate while copying files across the network. A future optimization
          * would be in to restart file copy again (new deltas) if we have too many translog ops are piling up.
          */
-        final ReplicationFileChunkRequest request = new ReplicationFileChunkRequest(
+        final RecoveryFileChunkRequest request = new RecoveryFileChunkRequest(
             replicationId,
             requestSeqNo,
             shardId,

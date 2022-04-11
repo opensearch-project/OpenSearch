@@ -35,6 +35,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.recovery.RecoveryFileChunkRequest;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.SegmentReplicationReplicaService;
 import org.opensearch.indices.replication.checkpoint.TransportCheckpointInfoResponse;
@@ -95,7 +96,7 @@ public class PrimaryShardReplicationSource {
         transportService.registerRequestHandler(
             Actions.FILE_CHUNK,
             ThreadPool.Names.GENERIC,
-            ReplicationFileChunkRequest::new,
+            RecoveryFileChunkRequest::new,
             new FileChunkTransportRequestHandler()
         );
     }
@@ -220,16 +221,16 @@ public class PrimaryShardReplicationSource {
         });
     }
 
-    class FileChunkTransportRequestHandler implements TransportRequestHandler<ReplicationFileChunkRequest> {
+    class FileChunkTransportRequestHandler implements TransportRequestHandler<RecoveryFileChunkRequest> {
 
         // How many bytes we've copied since we last called RateLimiter.pause
         final AtomicLong bytesSinceLastPause = new AtomicLong();
 
         @Override
-        public void messageReceived(final ReplicationFileChunkRequest request, TransportChannel channel, Task task) throws Exception {
+        public void messageReceived(final RecoveryFileChunkRequest request, TransportChannel channel, Task task) throws Exception {
             try (
                 ReplicationCollection.ReplicationRef replicationRef = segmentReplicationReplicaService.getOnGoingReplications()
-                    .getReplicationSafe(request.getReplicationId(), request.shardId())
+                    .getReplicationSafe(request.replicationId(), request.shardId())
             ) {
                 final SegmentReplicationTarget replicationTarget = replicationRef.get();
                 final ActionListener<Void> listener = createOrFinishListener(replicationRef, channel, Actions.FILE_CHUNK, request);
@@ -262,7 +263,7 @@ public class PrimaryShardReplicationSource {
         final ReplicationCollection.ReplicationRef replicationRef,
         final TransportChannel channel,
         final String action,
-        final ReplicationFileChunkRequest request
+        final RecoveryFileChunkRequest request
     ) {
         return createOrFinishListener(replicationRef, channel, action, request, nullVal -> TransportResponse.Empty.INSTANCE);
     }
@@ -271,7 +272,7 @@ public class PrimaryShardReplicationSource {
         final ReplicationCollection.ReplicationRef replicationRef,
         final TransportChannel channel,
         final String action,
-        final ReplicationFileChunkRequest request,
+        final RecoveryFileChunkRequest request,
         final CheckedFunction<Void, TransportResponse, Exception> responseFn
     ) {
         final SegmentReplicationTarget replicationTarget = replicationRef.get();
