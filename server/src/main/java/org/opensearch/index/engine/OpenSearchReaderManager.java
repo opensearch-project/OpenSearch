@@ -39,9 +39,11 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.StandardDirectoryReader;
+import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.SearcherManager;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 
 import java.io.IOException;
@@ -98,8 +100,13 @@ class OpenSearchReaderManager extends ReferenceManager<OpenSearchDirectoryReader
         } else {
             // Open a new reader, sharing any common segment readers with the old one:
             DirectoryReader innerReader = StandardDirectoryReader.open(referenceToRefresh.directory(), currentInfos, subs, null);
-            reader = OpenSearchDirectoryReader.wrap(innerReader, referenceToRefresh.shardId());
+            final DirectoryReader softDeletesDirectoryReaderWrapper = new SoftDeletesDirectoryReaderWrapper(
+                innerReader,
+                Lucene.SOFT_DELETES_FIELD
+            );
+            reader = OpenSearchDirectoryReader.wrap(softDeletesDirectoryReaderWrapper, referenceToRefresh.shardId());
             logger.trace("updated to SegmentInfosVersion=" + currentInfos.getVersion() + " reader=" + innerReader);
+
         }
         return reader;
     }

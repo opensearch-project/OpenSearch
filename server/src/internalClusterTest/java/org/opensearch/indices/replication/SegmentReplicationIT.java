@@ -229,4 +229,41 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
             }
         });
     }
+
+    public void testDeleteOperations() throws Exception {
+        final String nodeA = internalCluster().startNode();
+        final String nodeB = internalCluster().startNode();
+
+        createIndex(
+            INDEX_NAME,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, SHARD_COUNT)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, REPLICA_COUNT)
+                .put(IndexMetadata.SETTING_SEGMENT_REPLICATION, true)
+                .build()
+        );
+        ensureGreen(INDEX_NAME);
+        client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL).get();
+
+        assertHitCount(client(nodeA).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 1);
+        assertHitCount(client(nodeB).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 1);
+
+        client().prepareIndex(INDEX_NAME)
+            .setId("2")
+            .setSource("fooo", "baar")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
+            .get();
+
+        assertHitCount(client(nodeA).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 2);
+        assertHitCount(client(nodeB).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 2);
+
+        // Now delete with blockUntilRefresh
+        client().prepareDelete(INDEX_NAME, "1").setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL).get();
+        assertHitCount(client(nodeA).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 1);
+        assertHitCount(client(nodeB).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 1);
+
+        client().prepareDelete(INDEX_NAME, "2").setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL).get();
+        assertHitCount(client(nodeA).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 0);
+        assertHitCount(client(nodeB).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 0);
+    }
 }

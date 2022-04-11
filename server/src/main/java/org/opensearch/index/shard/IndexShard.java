@@ -1141,6 +1141,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             + "]";
         ensureWriteAllowed(origin);
         final Engine.Delete delete = prepareDelete(id, seqNo, opPrimaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm);
+        if (origin.equals(Engine.Operation.Origin.REPLICA) && indexSettings.isSegrepEnabled()) {
+            return getEngine().addDeleteOperationToTranslog(delete);
+        }
         return delete(engine, delete);
     }
 
