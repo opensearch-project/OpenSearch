@@ -9,6 +9,8 @@
 package org.opensearch.tasks;
 
 import com.sun.management.ThreadMXBean;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.ClusterSettings;
@@ -32,6 +34,8 @@ import static org.opensearch.tasks.ResourceStatsType.WORKER_STATS;
  */
 @SuppressForbidden(reason = "ThreadMXBean#getThreadAllocatedBytes")
 public class TaskResourceTrackingService implements RunnableTaskExecutionListener {
+
+    private static final Logger logger = LogManager.getLogger(TaskManager.class);
 
     public static final Setting<Boolean> TASK_RESOURCE_TRACKING_ENABLED = Setting.boolSetting(
         "task_resource_tracking.enabled",
@@ -210,9 +214,17 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
     private ThreadContext.StoredContext addTaskIdToThreadContext(Task task) {
         ThreadContext threadContext = threadPool.getThreadContext();
 
-        boolean noStaleTaskIdPresentInThreadContext = threadContext.getTransient(TASK_ID) == null
-            || resourceAwareTasks.containsKey((long) threadContext.getTransient(TASK_ID));
-        assert noStaleTaskIdPresentInThreadContext : "Stale Task Id shouldn't be present in thread context";
+        boolean staleIdPresentInThreadContext = threadContext.getTransient(TASK_ID) != null
+            && !resourceAwareTasks.containsKey((long) threadContext.getTransient(TASK_ID));
+
+        if (staleIdPresentInThreadContext) {
+            logger.debug(
+                "Stale Task Id should ideally be not present in thread context. Current task Id: {}, Stale task Id: {}, Thread id: {}",
+                task.getId(),
+                threadContext.getTransient(TASK_ID),
+                Thread.currentThread().getId()
+            );
+        }
 
         ThreadContext.StoredContext storedContext = threadContext.newStoredContext(true, Collections.singletonList(TASK_ID));
         threadContext.putTransient(TASK_ID, task.getId());
