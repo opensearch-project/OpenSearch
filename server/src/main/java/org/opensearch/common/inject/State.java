@@ -106,15 +106,15 @@ interface State {
         }
 
         @Override
-        public void blacklist(Key<?> key) {}
+        public void denylist(Key<?> key) {}
 
         @Override
-        public boolean isBlacklisted(Key<?> key) {
+        public boolean isDenylisted(Key<?> key) {
             return true;
         }
 
         @Override
-        public void clearBlacklisted() {}
+        public void clearDenylisted() {}
 
         @Override
         public void makeAllBindingsToEagerSingletons(Injector injector) {}
@@ -167,13 +167,13 @@ interface State {
      * denylist their bound keys on their parent injectors to prevent just-in-time bindings on the
      * parent injector that would conflict.
      */
-    void blacklist(Key<?> key);
+    void denylist(Key<?> key);
 
     /**
      * Returns true if {@code key} is forbidden from being bound in this injector. This indicates that
      * one of this injector's descendent's has bound the key.
      */
-    boolean isBlacklisted(Key<?> key);
+    boolean isDenylisted(Key<?> key);
 
     /**
      * Returns the shared lock for all injector data. This is a low-granularity, high-contention lock
@@ -182,7 +182,7 @@ interface State {
     Object lock();
 
     // ES_GUICE: clean denylist keys
-    void clearBlacklisted();
+    void clearDenylisted();
 
     void makeAllBindingsToEagerSingletons(Injector injector);
 }

@@ -166,8 +166,17 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
         testDoesNothingWithSettings(builder().putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()));
     }
 
-    public void testDoesNothingByDefaultIfMasterNodesConfigured() {
+    public void testDoesNothingByDefaultIfClusterManagerNodesConfigured() {
         testDoesNothingWithSettings(builder().putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey()));
+    }
+
+    // Validate the deprecated setting is still valid during the cluster bootstrap.
+    public void testDoesNothingByDefaultIfMasterNodesConfigured() {
+        testDoesNothingWithSettings(builder().putList(INITIAL_MASTER_NODES_SETTING.getKey()));
+        assertWarnings(
+            "[cluster.initial_master_nodes] setting was deprecated in OpenSearch and will be removed in a future release! "
+                + "See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testDoesNothingByDefaultOnMasterIneligibleNodes() {

@@ -39,7 +39,7 @@ opensearchplugin {
 }
 
 dependencies {
-  api('com.maxmind.geoip2:geoip2:2.16.1')
+  api('com.maxmind.geoip2:geoip2:3.0.1')
   // geoip2 dependencies:
   api("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
   api("com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}")
@@ -65,24 +65,6 @@ tasks.named("bundlePlugin").configure {
   from("${project.buildDir}/ingest-geoip") {
     into '/'
   }
-}
-
-tasks.named("thirdPartyAudit").configure {
-  ignoreMissingClasses(
-          // geoip WebServiceClient needs apache http client, but we're not using WebServiceClient:
-          'org.apache.http.HttpEntity',
-          'org.apache.http.HttpResponse',
-          'org.apache.http.StatusLine',
-          'org.apache.http.client.config.RequestConfig$Builder',
-          'org.apache.http.client.config.RequestConfig',
-          'org.apache.http.client.methods.CloseableHttpResponse',
-          'org.apache.http.client.methods.HttpGet',
-          'org.apache.http.client.utils.URIBuilder',
-          'org.apache.http.impl.auth.BasicScheme',
-          'org.apache.http.impl.client.CloseableHttpClient',
-          'org.apache.http.impl.client.HttpClientBuilder',
-          'org.apache.http.util.EntityUtils'
-  )
 }
 
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
