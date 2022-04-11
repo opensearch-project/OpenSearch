@@ -222,47 +222,6 @@ public class ClusterBootstrapServiceDeprecatedMasterTests extends OpenSearchTest
         assertFalse(bootstrapped.get()); // should only bootstrap once
     }
 
-    public void testDoesNotBootstrapIfTwoOfFiveNodesDiscovered() {
-        ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            Settings.builder()
-                .putList(
-                    INITIAL_MASTER_NODES_SETTING.getKey(),
-                    localNode.getName(),
-                    otherNode1.getName(),
-                    otherNode2.getName(),
-                    "not-a-node-1",
-                    "not-a-node-2"
-                )
-                .build(),
-            transportService,
-            () -> Stream.of(otherNode1).collect(Collectors.toList()),
-            () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
-        );
-        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
-
-        transportService.start();
-        clusterBootstrapService.onFoundPeersUpdated();
-        deterministicTaskQueue.runAllTasks();
-    }
-
-    public void testDoesNotBootstrapIfAlreadyBootstrapped() {
-        ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            Settings.builder()
-                .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
-                .build(),
-            transportService,
-            () -> Stream.of(otherNode1, otherNode2).collect(Collectors.toList()),
-            () -> true,
-            vc -> { throw new AssertionError("should not be called"); }
-        );
-        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
-
-        transportService.start();
-        clusterBootstrapService.onFoundPeersUpdated();
-        deterministicTaskQueue.runAllTasks();
-    }
-
     public void testDoesNotBootstrapsOnNonMasterNode() {
         localNode = new DiscoveryNode(
             "local",
@@ -316,58 +275,10 @@ public class ClusterBootstrapServiceDeprecatedMasterTests extends OpenSearchTest
         deterministicTaskQueue.runAllTasks();
     }
 
-    public void testCancelsBootstrapIfRequirementMatchesMultipleNodes() {
-        AtomicReference<Iterable<DiscoveryNode>> discoveredNodes = new AtomicReference<>(
-            Stream.of(otherNode1, otherNode2).collect(Collectors.toList())
-        );
-        ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getAddress().getAddress()).build(),
-            transportService,
-            discoveredNodes::get,
-            () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
-        );
-        assertWarnings(CLUSTER_SETTING_DEPRECATED_MESSAGE);
-
-        transportService.start();
-        clusterBootstrapService.onFoundPeersUpdated();
-        deterministicTaskQueue.runAllTasks();
-
-        discoveredNodes.set(emptyList());
-        clusterBootstrapService.onFoundPeersUpdated();
-        deterministicTaskQueue.runAllTasks();
-    }
-
-    public void testBootstrapsAutomaticallyWithSingleNodeDiscovery() {
-        final Settings.Builder settings = Settings.builder()
-            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE)
-            .put(NODE_NAME_SETTING.getKey(), localNode.getName());
-        final AtomicBoolean bootstrapped = new AtomicBoolean();
-
-        ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            settings.build(),
-            transportService,
-            () -> emptyList(),
-            () -> false,
-            vc -> {
-                assertTrue(bootstrapped.compareAndSet(false, true));
-                assertThat(vc.getNodeIds(), hasSize(1));
-                assertThat(vc.getNodeIds(), hasItem(localNode.getId()));
-                assertTrue(vc.hasQuorum(singletonList(localNode.getId())));
-            }
-        );
-
-        transportService.start();
-        clusterBootstrapService.onFoundPeersUpdated();
-        deterministicTaskQueue.runAllTasks();
-        assertTrue(bootstrapped.get());
-
-        bootstrapped.set(false);
-        clusterBootstrapService.onFoundPeersUpdated();
-        deterministicTaskQueue.runAllTasks();
-        assertFalse(bootstrapped.get()); // should only bootstrap once
-    }
-
+    /**
+     * Validate the correct deprecated setting name of cluster.initial_master_nodes is shown in the exception,
+     * when discovery type is single-node.
+     */
     public void testFailBootstrapWithBothSingleNodeDiscoveryAndInitialMasterNodes() {
         final Settings.Builder settings = Settings.builder()
             .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE)
