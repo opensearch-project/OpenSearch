@@ -583,7 +583,9 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             }
             Automaton automaton = Operations.concatenate(automata);
             AutomatonQuery query = new AutomatonQuery(new Term(name(), value + "*"), automaton);
-            query.setRewriteMethod(method);
+            if (method != null) {
+                query.setRewriteMethod(method);
+            }
             return new BooleanQuery.Builder().add(query, BooleanClause.Occur.SHOULD)
                 .add(new TermQuery(new Term(parentField.name(), value)), BooleanClause.Occur.SHOULD)
                 .build();
