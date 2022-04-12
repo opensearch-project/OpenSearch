@@ -14,7 +14,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
@@ -36,7 +35,6 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -158,7 +156,8 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
         final CountDownLatch inProgressLatch = new CountDownLatch(1);
         final CountDownLatch inProgressIndexNameLatch = new CountDownLatch(1);
 
-        final TransportResponseHandler<IndicesModuleNameResponse> indicesModuleNameResponseHandler = new TransportResponseHandler<IndicesModuleNameResponse>() {
+        final TransportResponseHandler<IndicesModuleNameResponse> indicesModuleNameResponseHandler = new TransportResponseHandler<
+            IndicesModuleNameResponse>() {
             @Override
             public void handleResponse(IndicesModuleNameResponse response) {
                 logger.info("ACK Response" + response);
@@ -180,11 +179,10 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
                 return new IndicesModuleNameResponse(in);
             }
 
-
-
         };
 
-        final TransportResponseHandler<IndicesModuleResponse> indicesModuleResponseHandler = new TransportResponseHandler<IndicesModuleResponse>() {
+        final TransportResponseHandler<IndicesModuleResponse> indicesModuleResponseHandler = new TransportResponseHandler<
+            IndicesModuleResponse>() {
 
             @Override
             public IndicesModuleResponse read(StreamInput in) throws IOException {
@@ -197,13 +195,21 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
                 if (response.getIndexEventListener() == true) {
                     indexModule.addIndexEventListener(new IndexEventListener() {
                         @Override
-                        public void beforeIndexRemoved(IndexService indexService, IndicesClusterStateService.AllocatedIndices.IndexRemovalReason reason) {
+                        public void beforeIndexRemoved(
+                            IndexService indexService,
+                            IndicesClusterStateService.AllocatedIndices.IndexRemovalReason reason
+                        ) {
                             logger.info("Index Event Listener is called");
                             String indexName = indexService.index().getName();
                             logger.info("Index Name" + indexName.toString());
                             try {
                                 logger.info("Sending request of index name to extension");
-                                transportService.sendRequest(extensionNode, INDICES_EXTENSION_NAME_ACTION_NAME, new IndicesModuleRequest(indexModule), indicesModuleNameResponseHandler);
+                                transportService.sendRequest(
+                                    extensionNode,
+                                    INDICES_EXTENSION_NAME_ACTION_NAME,
+                                    new IndicesModuleRequest(indexModule),
+                                    indicesModuleNameResponseHandler
+                                );
                                 inProgressIndexNameLatch.await(100, TimeUnit.SECONDS);
                                 logger.info("Recieved ack response from Extension");
                             } catch (Exception e) {
@@ -226,12 +232,14 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
             }
         };
 
-
-
-
         try {
             logger.info("Sending request to extension");
-            transportService.sendRequest(extensionNode, INDICES_EXTENSION_POINT_ACTION_NAME, new IndicesModuleRequest(indexModule), indicesModuleResponseHandler);
+            transportService.sendRequest(
+                extensionNode,
+                INDICES_EXTENSION_POINT_ACTION_NAME,
+                new IndicesModuleRequest(indexModule),
+                indicesModuleResponseHandler
+            );
             inProgressLatch.await(100, TimeUnit.SECONDS);
             logger.info("Recieved response from Extension");
         } catch (Exception e) {

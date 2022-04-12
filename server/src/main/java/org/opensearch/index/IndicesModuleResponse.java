@@ -77,7 +77,14 @@ public class IndicesModuleResponse extends TransportResponse {
 
     @Override
     public String toString() {
-        return "IndicesModuleResponse{" + "addIndexEventListener" + addIndexEventListener + " addIndexOperationListener" + addIndexOperationListener + " addSearchOperationListener" + addSearchOperationListener + "}";
+        return "IndicesModuleResponse{"
+            + "addIndexEventListener"
+            + addIndexEventListener
+            + " addIndexOperationListener"
+            + addIndexOperationListener
+            + " addSearchOperationListener"
+            + addSearchOperationListener
+            + "}";
     }
 
     @Override
@@ -85,7 +92,9 @@ public class IndicesModuleResponse extends TransportResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         IndicesModuleResponse that = (IndicesModuleResponse) o;
-        return Objects.equals(addIndexEventListener, that.addIndexEventListener) && Objects.equals(addIndexOperationListener, that.addIndexOperationListener) && Objects.equals(addSearchOperationListener, that.addSearchOperationListener);
+        return Objects.equals(addIndexEventListener, that.addIndexEventListener)
+            && Objects.equals(addIndexOperationListener, that.addIndexOperationListener)
+            && Objects.equals(addSearchOperationListener, that.addSearchOperationListener);
     }
 
     @Override

@@ -21,7 +21,7 @@ public class IndicesModuleNameResponse extends TransportResponse {
         this.requestAck = in.readBoolean();
     }
 
-    public  IndicesModuleNameResponse(Boolean requestAck) {
+    public IndicesModuleNameResponse(Boolean requestAck) {
         this.requestAck = requestAck;
     }
 

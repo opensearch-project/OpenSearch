@@ -8,16 +8,12 @@
 
 package org.opensearch.index;
 
-import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.extensions.DiscoveryExtension;
-import org.opensearch.indices.IndicesModule;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
 
 public class IndicesModuleRequest extends TransportRequest {
@@ -57,7 +53,7 @@ public class IndicesModuleRequest extends TransportRequest {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         IndicesModuleRequest that = (IndicesModuleRequest) o;
-        return Objects.equals(index, that.index) && Objects.equals(indexSettings, that.indexSettings) ;
+        return Objects.equals(index, that.index) && Objects.equals(indexSettings, that.indexSettings);
     }
 
     @Override
