@@ -161,7 +161,7 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
         final TransportResponseHandler<IndicesModuleNameResponse> indicesModuleNameResponseHandler = new TransportResponseHandler<IndicesModuleNameResponse>() {
             @Override
             public void handleResponse(IndicesModuleNameResponse response) {
-                logger.info("ACK Response", response);
+                logger.info("ACK Response" + response);
                 inProgressIndexNameLatch.countDown();
             }
 
@@ -200,7 +200,7 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
                         public void beforeIndexRemoved(IndexService indexService, IndicesClusterStateService.AllocatedIndices.IndexRemovalReason reason) {
                             logger.info("Index Event Listener is called");
                             String indexName = indexService.index().getName();
-                            logger.info("Index Name", indexName.toString());
+                            logger.info("Index Name" + indexName.toString());
                             try {
                                 logger.info("Sending request of index name to extension");
                                 transportService.sendRequest(extensionNode, INDICES_EXTENSION_NAME_ACTION_NAME, new IndicesModuleRequest(indexModule), indicesModuleNameResponseHandler);
