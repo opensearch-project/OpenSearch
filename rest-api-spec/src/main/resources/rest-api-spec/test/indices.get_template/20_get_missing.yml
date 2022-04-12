@@ -10,4 +10,3 @@ setup:
       catch:  missing
       indices.get_template:
         name: test
-

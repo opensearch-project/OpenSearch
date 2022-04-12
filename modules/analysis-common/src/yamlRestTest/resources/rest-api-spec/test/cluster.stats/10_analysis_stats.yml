@@ -119,4 +119,3 @@
   - match: { indices.analysis.built_in_analyzers.2.name: spanish }
   - match: { indices.analysis.built_in_analyzers.2.count: 2 }
   - match: { indices.analysis.built_in_analyzers.2.index_count: 2 }
-

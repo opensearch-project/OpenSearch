@@ -221,4 +221,3 @@ setup:
       catch: param
       indices.delete_alias:
         index: "test_index1"
-

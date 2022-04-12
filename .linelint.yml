@@ -6,9 +6,11 @@ ignore:
   - .gradle/
   - '*.sha1'
   - '*.txt'
+  - '.github/CODEOWNERS'
   - 'buildSrc/src/testKit/opensearch.build/LICENSE'
   - 'buildSrc/src/testKit/opensearch.build/NOTICE'
   - 'server/licenses/apache-log4j-extras-DEPENDENCIES'
+  - 'doc-tools/missing-doclet/bin/main/org/opensearch/missingdoclet/MissingDoclet.class'
 
 rules:
   # checks if file ends in a newline character

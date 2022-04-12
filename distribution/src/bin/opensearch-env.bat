@@ -74,4 +74,3 @@ if defined JAVA_OPTS (
 
 rem check the Java version
 %JAVA% -cp "%OPENSEARCH_CLASSPATH%" "org.opensearch.tools.java_version_checker.JavaVersionChecker" || exit /b 1
-
