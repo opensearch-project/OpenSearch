@@ -37,7 +37,7 @@
   # now we do an actual clone and copy settings
   - do:
       allowed_warnings:
-        - "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version."
+        - "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead."
       indices.clone:
         index: "source"
         target: "copy-settings-target"
