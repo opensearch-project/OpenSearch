@@ -169,7 +169,7 @@ setup:
       cluster.state:
         metric: [ master_node, version ]
       allowed_warnings:
-        - 'Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead.'
+        - 'Assigning [master_node] to parameter [metric] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_node] instead.'
 
   - match: { cluster_uuid: $cluster_uuid }
   - is_true: master_node
