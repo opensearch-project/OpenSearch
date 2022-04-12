@@ -52,6 +52,17 @@ import org.opensearch.rest.action.admin.indices.RestPutComposableIndexTemplateAc
 import org.opensearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.opensearch.rest.action.admin.indices.RestSimulateIndexTemplateAction;
 import org.opensearch.rest.action.admin.indices.RestSimulateTemplateAction;
+import org.opensearch.rest.action.admin.cluster.RestCleanupRepositoryAction;
+import org.opensearch.rest.action.admin.cluster.RestCloneSnapshotAction;
+import org.opensearch.rest.action.admin.cluster.RestCreateSnapshotAction;
+import org.opensearch.rest.action.admin.cluster.RestDeleteRepositoryAction;
+import org.opensearch.rest.action.admin.cluster.RestDeleteSnapshotAction;
+import org.opensearch.rest.action.admin.cluster.RestGetRepositoriesAction;
+import org.opensearch.rest.action.admin.cluster.RestGetSnapshotsAction;
+import org.opensearch.rest.action.admin.cluster.RestPutRepositoryAction;
+import org.opensearch.rest.action.admin.cluster.RestRestoreSnapshotAction;
+import org.opensearch.rest.action.admin.cluster.RestSnapshotsStatusAction;
+import org.opensearch.rest.action.admin.cluster.RestVerifyRepositoryAction;
 import org.opensearch.rest.action.cat.RestAllocationAction;
 import org.opensearch.rest.action.cat.RestRepositoriesAction;
 import org.opensearch.rest.action.cat.RestThreadPoolAction;
@@ -512,6 +523,90 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
 
     public void testSimulateTemplate() {
         RestSimulateTemplateAction action = new RestSimulateTemplateAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testCleanupRepository() {
+        RestCleanupRepositoryAction action = new RestCleanupRepositoryAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testCloneSnapshot() {
+        RestCloneSnapshotAction action = new RestCloneSnapshotAction();
+        Exception e = assertThrows(
+            OpenSearchParseException.class,
+            () -> action.prepareRequest(getRestRequestWithBodyWithBothParams(), client)
+        );
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testCreateSnapshot() {
+        RestCreateSnapshotAction action = new RestCreateSnapshotAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testDeleteRepository() {
+        RestDeleteRepositoryAction action = new RestDeleteRepositoryAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testDeleteSnapshot() {
+        RestDeleteSnapshotAction action = new RestDeleteSnapshotAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testGetRepositories() {
+        final SettingsFilter filter = new SettingsFilter(Collections.singleton("foo.filtered"));
+        RestGetRepositoriesAction action = new RestGetRepositoriesAction(filter);
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testGetSnapshots() {
+        RestGetSnapshotsAction action = new RestGetSnapshotsAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testPutRepository() {
+        RestPutRepositoryAction action = new RestPutRepositoryAction();
+        Exception e = assertThrows(
+            OpenSearchParseException.class,
+            () -> action.prepareRequest(getRestRequestWithBodyWithBothParams(), client)
+        );
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testRestoreSnapshot() {
+        RestRestoreSnapshotAction action = new RestRestoreSnapshotAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testSnapshotsStatus() {
+        RestSnapshotsStatusAction action = new RestSnapshotsStatusAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testVerifyRepository() {
+        RestVerifyRepositoryAction action = new RestVerifyRepositoryAction();
         Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBothParams(), client));
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
