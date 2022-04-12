@@ -4,13 +4,14 @@ autofix: true
 ignore:
   - .git/
   - .gradle/
+  - .idea/
   - '*.sha1'
   - '*.txt'
   - '.github/CODEOWNERS'
   - 'buildSrc/src/testKit/opensearch.build/LICENSE'
   - 'buildSrc/src/testKit/opensearch.build/NOTICE'
   - 'server/licenses/apache-log4j-extras-DEPENDENCIES'
-  #Empty files
+  # Empty files
   - 'doc-tools/missing-doclet/bin/main/org/opensearch/missingdoclet/MissingDoclet.class'
   - 'buildSrc/src/integTest/resources/org/opensearch/gradle/internal/fake_git/remote/build.gradle'
   - 'buildSrc/src/integTest/resources/org/opensearch/gradle/internal/fake_git/remote/distribution/archives/oss-darwin-tar/build.gradle'
@@ -21,6 +22,7 @@ ignore:
   - 'buildSrc/src/testKit/opensearch.build/settings.gradle'
   - 'buildSrc/src/testKit/reaper/settings.gradle'
   - 'buildSrc/src/testKit/symbolic-link-preserving-tar/settings.gradle'
+  - 'buildSrc/src/testKit/testingConventions/empty_test_task/.gitignore'
   - 'client/rest-high-level/src/main/resources/META-INF/services/org.opensearch.plugins.spi.NamedXContentProvider'
   - 'distribution/bwc/bugfix/build.gradle'
   - 'distribution/bwc/maintenance/build.gradle'
