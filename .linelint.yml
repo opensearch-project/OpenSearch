@@ -35,6 +35,9 @@ ignore:
   - 'qa/os/oel-6/build.gradle'
   - 'qa/os/oel-7/build.gradle'
   - 'qa/os/sles-12/build.gradle'
+  # Test requires no new line for these files
+  - 'server/src/test/resources/org/opensearch/action/bulk/simple-bulk11.json'
+  - 'server/src/test/resources/org/opensearch/action/search/simple-msearch5.json'
 
 rules:
   # checks if file ends in a newline character
