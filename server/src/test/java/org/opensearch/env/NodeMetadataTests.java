@@ -31,23 +31,17 @@
 
 package org.opensearch.env;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.gateway.MetadataStateFormat;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.test.VersionUtils;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class NodeMetadataTests extends OpenSearchTestCase {
@@ -75,22 +69,6 @@ public class NodeMetadataTests extends OpenSearchTestCase {
                 return new NodeMetadata(nodeMetadata.nodeId(), randomValueOtherThan(nodeMetadata.nodeVersion(), this::randomVersion));
             }
         });
-    }
-
-    public void testReadsFormatWithoutVersion() throws IOException {
-        // the behaviour tested here is only appropriate if the current version is compatible with versions 7 and earlier
-        assertTrue(Version.CURRENT.minimumIndexCompatibilityVersion().onOrBefore(LegacyESVersion.V_7_0_0));
-        // when the current version is incompatible with version 7, the behaviour should change to reject files like the given resource
-        // which do not have the version field
-
-        final Path tempDir = createTempDir();
-        final Path stateDir = Files.createDirectory(tempDir.resolve(MetadataStateFormat.STATE_DIR_NAME));
-        final InputStream resource = this.getClass().getResourceAsStream("testReadsFormatWithoutVersion.binary");
-        assertThat(resource, notNullValue());
-        Files.copy(resource, stateDir.resolve(NodeMetadata.FORMAT.getStateFileName(between(0, Integer.MAX_VALUE))));
-        final NodeMetadata nodeMetadata = NodeMetadata.FORMAT.loadLatestState(logger, xContentRegistry(), tempDir);
-        assertThat(nodeMetadata.nodeId(), equalTo("y6VUVMSaStO4Tz-B5BxcOw"));
-        assertThat(nodeMetadata.nodeVersion(), equalTo(Version.V_EMPTY));
     }
 
     public void testUpgradesLegitimateVersions() {

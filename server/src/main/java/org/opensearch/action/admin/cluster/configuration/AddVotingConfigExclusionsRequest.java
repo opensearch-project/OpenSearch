@@ -54,7 +54,7 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 /**
- * A request to add voting config exclusions for certain master-eligible nodes, and wait for these nodes to be removed from the voting
+ * A request to add voting config exclusions for certain cluster-manager-eligible nodes, and wait for these nodes to be removed from the voting
  * configuration.
  */
 public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotingConfigExclusionsRequest> {
@@ -66,7 +66,7 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
     private final TimeValue timeout;
 
     /**
-     * Construct a request to add voting config exclusions for master-eligible nodes matching the given node names, and wait for a
+     * Construct a request to add voting config exclusions for cluster-manager-eligible nodes matching the given node names, and wait for a
      * default 30 seconds for these exclusions to take effect, removing the nodes from the voting configuration.
      * @param nodeNames Names of the nodes to add - see {@link AddVotingConfigExclusionsRequest#resolveVotingConfigExclusions(ClusterState)}
      */
@@ -75,7 +75,7 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
     }
 
     /**
-     * Construct a request to add voting config exclusions for master-eligible nodes matching the given descriptions, and wait for these
+     * Construct a request to add voting config exclusions for cluster-manager-eligible nodes matching the given descriptions, and wait for these
      * nodes to be removed from the voting configuration.
      * @param nodeDescriptions Descriptions of the nodes whose exclusions to add - see {@link DiscoveryNodes#resolveNodes(String...)}.
      * @param nodeIds Ids of the nodes whose exclusions to add - see
@@ -136,7 +136,9 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
 
             if (newVotingConfigExclusions.isEmpty()) {
                 throw new IllegalArgumentException(
-                    "add voting config exclusions request for " + Arrays.asList(nodeDescriptions) + " matched no master-eligible nodes"
+                    "add voting config exclusions request for "
+                        + Arrays.asList(nodeDescriptions)
+                        + " matched no cluster-manager-eligible nodes"
                 );
             }
         } else if (nodeIds.length >= 1) {

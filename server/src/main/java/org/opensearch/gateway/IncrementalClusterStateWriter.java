@@ -333,7 +333,8 @@ public class IncrementalClusterStateWriter {
             } catch (WriteStateException e) {
                 // If the Manifest write results in a dirty WriteStateException it's not safe to roll back, removing the new metadata files,
                 // because if the Manifest was actually written to disk and its deletion fails it will reference these new metadata files.
-                // On master-eligible nodes a dirty WriteStateException here is fatal to the node since we no longer really have any idea
+                // On cluster-manager-eligible nodes a dirty WriteStateException here is fatal to the node since we no longer really have
+                // any idea
                 // what the state on disk is and the only sensible response is to start again from scratch.
                 if (e.isDirty() == false) {
                     rollback();

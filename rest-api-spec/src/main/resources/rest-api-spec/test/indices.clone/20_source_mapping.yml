@@ -3,6 +3,7 @@
   - skip:
       version: " - 7.3.99"
       reason: index cloning was added in 7.4.0
+      features: allowed_warnings
   # create index
   - do:
       indices.create:
@@ -50,6 +51,8 @@
 
   # now we do the actual clone
   - do:
+      allowed_warnings:
+        - "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead."
       indices.clone:
         index: "source"
         target: "target"

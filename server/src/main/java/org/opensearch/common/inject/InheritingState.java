@@ -143,18 +143,18 @@ class InheritingState implements State {
     }
 
     @Override
-    public void blacklist(Key<?> key) {
-        parent.blacklist(key);
+    public void denylist(Key<?> key) {
+        parent.denylist(key);
         denylistedKeys.add(key);
     }
 
     @Override
-    public boolean isBlacklisted(Key<?> key) {
+    public boolean isDenylisted(Key<?> key) {
         return denylistedKeys.contains(key);
     }
 
     @Override
-    public void clearBlacklisted() {
+    public void clearDenylisted() {
         denylistedKeys = new WeakKeySet();
     }
 

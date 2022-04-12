@@ -289,7 +289,7 @@ public final class NodeEnvironment implements Closeable {
         NodeLock nodeLock = null;
 
         try {
-            sharedDataPath = environment.sharedDataFile();
+            sharedDataPath = environment.sharedDataDir();
             IOException lastException = null;
             int maxLocalStorageNodes = MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
 

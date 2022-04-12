@@ -144,7 +144,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
         final SecureString secureSettingsPassword = request.hasPassword()
             ? request.getSecureSettingsPassword()
             : new SecureString(new char[0]);
-        try (KeyStoreWrapper keystore = KeyStoreWrapper.load(environment.configFile())) {
+        try (KeyStoreWrapper keystore = KeyStoreWrapper.load(environment.configDir())) {
             // reread keystore from config file
             if (keystore == null) {
                 return new NodesReloadSecureSettingsResponse.NodeResponse(

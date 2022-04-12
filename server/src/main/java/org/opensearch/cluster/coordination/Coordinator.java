@@ -510,7 +510,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private void abdicateTo(DiscoveryNode newMaster) {
         assert Thread.holdsLock(mutex);
         assert mode == Mode.LEADER : "expected to be leader on abdication but was " + mode;
-        assert newMaster.isMasterNode() : "should only abdicate to master-eligible node but was " + newMaster;
+        assert newMaster.isMasterNode() : "should only abdicate to cluster-manager-eligible node but was " + newMaster;
         final StartJoinRequest startJoinRequest = new StartJoinRequest(newMaster, Math.max(getCurrentTerm(), maxTermSeen) + 1);
         logger.info("abdicating to {} with term {}", newMaster, startJoinRequest.getTerm());
         getLastAcceptedState().nodes().mastersFirstStream().forEach(node -> {
@@ -563,7 +563,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     private void handleJoinRequest(JoinRequest joinRequest, JoinHelper.JoinCallback joinCallback) {
         assert Thread.holdsLock(mutex) == false;
-        assert getLocalNode().isMasterNode() : getLocalNode() + " received a join but is not master-eligible";
+        assert getLocalNode().isMasterNode() : getLocalNode() + " received a join but is not cluster-manager-eligible";
         logger.trace("handleJoinRequest: as {}, handling {}", mode, joinRequest);
 
         if (singleNodeDiscovery && joinRequest.getSourceNode().equals(getLocalNode()) == false) {
@@ -683,7 +683,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     void becomeLeader(String method) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         assert mode == Mode.CANDIDATE : "expected candidate but was " + mode;
-        assert getLocalNode().isMasterNode() : getLocalNode() + " became a leader but is not master-eligible";
+        assert getLocalNode().isMasterNode() : getLocalNode() + " became a leader but is not cluster-manager-eligible";
 
         logger.debug(
             "{}: coordinator becoming LEADER in term {} (was {}, lastKnownLeader was [{}])",
@@ -709,7 +709,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     void becomeFollower(String method, DiscoveryNode leaderNode) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-        assert leaderNode.isMasterNode() : leaderNode + " became a leader but is not master-eligible";
+        assert leaderNode.isMasterNode() : leaderNode + " became a leader but is not cluster-manager-eligible";
         assert mode != Mode.LEADER : "do not switch to follower from leader (should be candidate first)";
 
         if (mode == Mode.FOLLOWER && Optional.of(leaderNode).equals(lastKnownLeader)) {
@@ -751,11 +751,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     private void cleanMasterService() {
-        masterService.submitStateUpdateTask("clean-up after stepping down as master", new LocalClusterUpdateTask() {
+        masterService.submitStateUpdateTask("clean-up after stepping down as cluster-manager", new LocalClusterUpdateTask() {
             @Override
             public void onFailure(String source, Exception e) {
                 // ignore
-                logger.trace("failed to clean-up after stepping down as master", e);
+                logger.trace("failed to clean-up after stepping down as cluster-manager", e);
             }
 
             @Override
@@ -987,9 +987,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             }
 
             if (getLocalNode().isMasterNode() == false) {
-                logger.debug("skip setting initial configuration as local node is not a master-eligible node");
+                logger.debug("skip setting initial configuration as local node is not a cluster-manager-eligible node");
                 throw new CoordinationStateRejectedException(
-                    "this node is not master-eligible, but cluster bootstrapping can only happen on a master-eligible node"
+                    "this node is not cluster-manager-eligible, but cluster bootstrapping can only happen on a cluster-manager-eligible node"
                 );
             }
 
@@ -1046,8 +1046,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
         // exclude any nodes whose ID is in the voting config exclusions list ...
         final Stream<String> excludedNodeIds = clusterState.getVotingConfigExclusions().stream().map(VotingConfigExclusion::getNodeId);
-        // ... and also automatically exclude the node IDs of master-ineligible nodes that were previously master-eligible and are still in
-        // the voting config. We could exclude all the master-ineligible nodes here, but there could be quite a few of them and that makes
+        // ... and also automatically exclude the node IDs of cluster-manager-ineligible nodes that were previously cluster-manager-eligible
+        // and are still in
+        // the voting config. We could exclude all the cluster-manager-ineligible nodes here, but there could be quite a few of them and
+        // that makes
         // the logging much harder to follow.
         final Stream<String> masterIneligibleNodeIdsInVotingConfig = StreamSupport.stream(clusterState.nodes().spliterator(), false)
             .filter(

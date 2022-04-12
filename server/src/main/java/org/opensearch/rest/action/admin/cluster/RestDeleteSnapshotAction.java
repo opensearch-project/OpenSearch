@@ -35,6 +35,7 @@ package org.opensearch.rest.action.admin.cluster;
 import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -50,6 +51,8 @@ import static org.opensearch.rest.RestRequest.Method.DELETE;
  * Deletes a snapshot
  */
 public class RestDeleteSnapshotAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestDeleteSnapshotAction.class);
 
     @Override
     public List<Route> routes() {
@@ -67,7 +70,8 @@ public class RestDeleteSnapshotAction extends BaseRestHandler {
             request.param("repository"),
             Strings.splitStringByCommaToArray(request.param("snapshot"))
         );
-        deleteSnapshotRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteSnapshotRequest.masterNodeTimeout()));
+        deleteSnapshotRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", deleteSnapshotRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(deleteSnapshotRequest, request, deprecationLogger, getName());
         return channel -> client.admin().cluster().deleteSnapshot(deleteSnapshotRequest, new RestToXContentListener<>(channel));
     }
 }
