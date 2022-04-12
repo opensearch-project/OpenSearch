@@ -72,8 +72,12 @@ setup:
 
 ---
 "Get template with flat settings and master timeout":
+  - skip:
+      features: allowed_warnings
 
   - do:
+      allowed_warnings:
+        - "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead."
       indices.get_template:
         name: test
         flat_settings: true
