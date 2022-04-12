@@ -117,28 +117,28 @@ public class EnvironmentTests extends OpenSearchTestCase {
         final Path pathHome = createTempDir().toAbsolutePath();
         final Settings settings = Settings.builder().put("path.home", pathHome).build();
         final Environment environment = new Environment(settings, null);
-        assertThat(environment.logsFile(), equalTo(pathHome.resolve("logs")));
+        assertThat(environment.logsDir(), equalTo(pathHome.resolve("logs")));
     }
 
     public void testDefaultConfigPath() {
         final Path path = createTempDir().toAbsolutePath();
         final Settings settings = Settings.builder().put("path.home", path).build();
         final Environment environment = new Environment(settings, null);
-        assertThat(environment.configFile(), equalTo(path.resolve("config")));
+        assertThat(environment.configDir(), equalTo(path.resolve("config")));
     }
 
     public void testConfigPath() {
         final Path configPath = createTempDir().toAbsolutePath();
         final Settings settings = Settings.builder().put("path.home", createTempDir().toAbsolutePath()).build();
         final Environment environment = new Environment(settings, configPath);
-        assertThat(environment.configFile(), equalTo(configPath));
+        assertThat(environment.configDir(), equalTo(configPath));
     }
 
     public void testConfigPathWhenNotSet() {
         final Path pathHome = createTempDir().toAbsolutePath();
         final Settings settings = Settings.builder().put("path.home", pathHome).build();
         final Environment environment = new Environment(settings, null);
-        assertThat(environment.configFile(), equalTo(pathHome.resolve("config")));
+        assertThat(environment.configDir(), equalTo(pathHome.resolve("config")));
     }
 
     public void testNodeDoesNotRequireLocalStorage() {
@@ -164,7 +164,7 @@ public class EnvironmentTests extends OpenSearchTestCase {
     public void testNonExistentTempPathValidation() {
         Settings build = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         Environment environment = new Environment(build, null, true, createTempDir().resolve("this_does_not_exist"));
-        FileNotFoundException e = expectThrows(FileNotFoundException.class, environment::validateTmpFile);
+        FileNotFoundException e = expectThrows(FileNotFoundException.class, environment::validateTmpDir);
         assertThat(e.getMessage(), startsWith("Temporary file directory ["));
         assertThat(e.getMessage(), endsWith("this_does_not_exist] does not exist or is not accessible"));
     }
@@ -172,7 +172,7 @@ public class EnvironmentTests extends OpenSearchTestCase {
     public void testTempPathValidationWhenRegularFile() throws IOException {
         Settings build = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         Environment environment = new Environment(build, null, true, createTempFile("something", ".test"));
-        IOException e = expectThrows(IOException.class, environment::validateTmpFile);
+        IOException e = expectThrows(IOException.class, environment::validateTmpDir);
         assertThat(e.getMessage(), startsWith("Configured temporary file directory ["));
         assertThat(e.getMessage(), endsWith(".test] is not a directory"));
     }

@@ -33,7 +33,6 @@
 package org.opensearch.search.aggregations.bucket;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.opensearch.search.aggregations.BaseAggregationTestCase;
 import org.opensearch.search.aggregations.BucketOrder;
@@ -118,13 +117,13 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
             IncludeExclude incExc = null;
             switch (randomInt(6)) {
                 case 0:
-                    incExc = new IncludeExclude(new RegExp("foobar"), null);
+                    incExc = new IncludeExclude("foobar", null);
                     break;
                 case 1:
-                    incExc = new IncludeExclude(null, new RegExp("foobaz"));
+                    incExc = new IncludeExclude(null, "foobaz");
                     break;
                 case 2:
-                    incExc = new IncludeExclude(new RegExp("foobar"), new RegExp("foobaz"));
+                    incExc = new IncludeExclude("foobar", "foobaz");
                     break;
                 case 3:
                     SortedSet<BytesRef> includeValues = new TreeSet<>();

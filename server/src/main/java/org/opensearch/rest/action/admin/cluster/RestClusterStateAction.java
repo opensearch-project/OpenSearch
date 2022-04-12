@@ -73,7 +73,7 @@ public class RestClusterStateAction extends BaseRestHandler {
     }
 
     // TODO: Remove the DeprecationLogger after removing MASTER_ROLE.
-    // It's used to log deprecation when request parameter 'metric' contains 'master_node'.
+    // It's used to log deprecation when request parameter 'metric' contains 'master_node', or request parameter 'master_timeout' is used.
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestClusterStateAction.class);
     private static final String DEPRECATED_MESSAGE_MASTER_NODE =
         "Deprecated value [master_node] used for parameter [metric]. To promote inclusive language, please use [cluster_manager_node] instead. It will be unsupported in a future major version.";
@@ -104,7 +104,8 @@ public class RestClusterStateAction extends BaseRestHandler {
         final ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest();
         clusterStateRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterStateRequest.indicesOptions()));
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
+        clusterStateRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", clusterStateRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(clusterStateRequest, request, deprecationLogger, getName());
         if (request.hasParam("wait_for_metadata_version")) {
             clusterStateRequest.waitForMetadataVersion(request.paramAsLong("wait_for_metadata_version", 0));
         }

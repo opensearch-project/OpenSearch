@@ -36,12 +36,16 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.ParseField;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.fielddata.AbstractSortedSetDocValues;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.bucket.terms.IncludeExclude;
@@ -53,14 +57,24 @@ import java.util.Collections;
 import java.util.TreeSet;
 
 public class IncludeExcludeTests extends OpenSearchTestCase {
+
+    private final IndexSettings dummyIndexSettings = new IndexSettings(
+        IndexMetadata.builder("index")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build(),
+        Settings.EMPTY
+    );
+
     public void testEmptyTermsWithOrds() throws IOException {
         IncludeExclude inexcl = new IncludeExclude(new TreeSet<>(Collections.singleton(new BytesRef("foo"))), null);
-        OrdinalsFilter filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW);
+        OrdinalsFilter filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW, dummyIndexSettings);
         LongBitSet acceptedOrds = filter.acceptedGlobalOrdinals(DocValues.emptySortedSet());
         assertEquals(0, acceptedOrds.length());
 
         inexcl = new IncludeExclude(null, new TreeSet<>(Collections.singleton(new BytesRef("foo"))));
-        filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW);
+        filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW, dummyIndexSettings);
         acceptedOrds = filter.acceptedGlobalOrdinals(DocValues.emptySortedSet());
         assertEquals(0, acceptedOrds.length());
     }
@@ -99,13 +113,13 @@ public class IncludeExcludeTests extends OpenSearchTestCase {
 
         };
         IncludeExclude inexcl = new IncludeExclude(new TreeSet<>(Collections.singleton(new BytesRef("foo"))), null);
-        OrdinalsFilter filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW);
+        OrdinalsFilter filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW, dummyIndexSettings);
         LongBitSet acceptedOrds = filter.acceptedGlobalOrdinals(ords);
         assertEquals(1, acceptedOrds.length());
         assertTrue(acceptedOrds.get(0));
 
         inexcl = new IncludeExclude(new TreeSet<>(Collections.singleton(new BytesRef("bar"))), null);
-        filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW);
+        filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW, dummyIndexSettings);
         acceptedOrds = filter.acceptedGlobalOrdinals(ords);
         assertEquals(1, acceptedOrds.length());
         assertFalse(acceptedOrds.get(0));
@@ -114,7 +128,7 @@ public class IncludeExcludeTests extends OpenSearchTestCase {
             new TreeSet<>(Collections.singleton(new BytesRef("foo"))),
             new TreeSet<>(Collections.singleton(new BytesRef("foo")))
         );
-        filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW);
+        filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW, dummyIndexSettings);
         acceptedOrds = filter.acceptedGlobalOrdinals(ords);
         assertEquals(1, acceptedOrds.length());
         assertFalse(acceptedOrds.get(0));
@@ -123,7 +137,7 @@ public class IncludeExcludeTests extends OpenSearchTestCase {
             null, // means everything included
             new TreeSet<>(Collections.singleton(new BytesRef("foo")))
         );
-        filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW);
+        filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW, dummyIndexSettings);
         acceptedOrds = filter.acceptedGlobalOrdinals(ords);
         assertEquals(1, acceptedOrds.length());
         assertFalse(acceptedOrds.get(0));

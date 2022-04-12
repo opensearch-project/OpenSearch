@@ -35,7 +35,10 @@ import org.opensearch.gradle.AntTask
 import org.gradle.api.file.FileCollection
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFiles
+import org.gradle.api.tasks.IgnoreEmptyDirectories;
 import org.gradle.api.tasks.OutputFile
+import org.gradle.api.tasks.PathSensitive
+import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.SkipWhenEmpty
 
 import java.nio.file.Files
@@ -78,6 +81,8 @@ class LicenseHeadersTask extends AntTask {
      */
     @InputFiles
     @SkipWhenEmpty
+    @IgnoreEmptyDirectories
+    @PathSensitive(PathSensitivity.RELATIVE)
     List<FileCollection> getJavaFiles() {
         return project.sourceSets.collect({it.allJava})
     }
