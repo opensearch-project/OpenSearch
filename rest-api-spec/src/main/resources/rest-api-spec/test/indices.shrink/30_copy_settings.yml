@@ -47,7 +47,7 @@
             index.merge.scheduler.max_thread_count: 2
       allowed_warnings:
         - "parameter [copy_settings] is deprecated and will be removed in 8.0.0"
-        - "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version."
+        - "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead."
 
   - do:
       cluster.health:
@@ -66,7 +66,7 @@
   # now we do a actual shrink and copy settings (by default)
   - do:
       allowed_warnings:
-        - "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version."
+        - "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead."
       indices.shrink:
         index: "source"
         target: "default-copy-settings-target"
@@ -95,7 +95,7 @@
   - do:
       catch: /illegal_argument_exception/
       allowed_warnings:
-        - "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version."
+        - "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead."
       indices.shrink:
         index: "source"
         target: "explicit-no-copy-settings-target"

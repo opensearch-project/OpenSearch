@@ -78,7 +78,8 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
             putRequest.patterns(Arrays.asList(request.paramAsStringArray("index_patterns", Strings.EMPTY_ARRAY)));
         }
         putRequest.order(request.paramAsInt("order", putRequest.order()));
-        putRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRequest.masterNodeTimeout()));
+        putRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", putRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(putRequest, request, deprecationLogger, getName());
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", ""));
 
