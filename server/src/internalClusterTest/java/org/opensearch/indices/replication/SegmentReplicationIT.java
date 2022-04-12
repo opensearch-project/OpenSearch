@@ -234,14 +234,7 @@ public class SegmentReplicationIT extends OpenSearchIntegTestCase {
         final String nodeA = internalCluster().startNode();
         final String nodeB = internalCluster().startNode();
 
-        createIndex(
-            INDEX_NAME,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, SHARD_COUNT)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, REPLICA_COUNT)
-                .put(IndexMetadata.SETTING_SEGMENT_REPLICATION, true)
-                .build()
-        );
+        createIndex(INDEX_NAME);
         ensureGreen(INDEX_NAME);
         client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL).get();
 
