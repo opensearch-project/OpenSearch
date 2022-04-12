@@ -41,6 +41,17 @@ import org.opensearch.rest.action.admin.indices.RestPutMappingAction;
 import org.opensearch.rest.action.admin.indices.RestResizeHandler;
 import org.opensearch.rest.action.admin.indices.RestRolloverIndexAction;
 import org.opensearch.rest.action.admin.indices.RestUpdateSettingsAction;
+import org.opensearch.rest.action.admin.indices.RestDeleteComponentTemplateAction;
+import org.opensearch.rest.action.admin.indices.RestDeleteComposableIndexTemplateAction;
+import org.opensearch.rest.action.admin.indices.RestDeleteIndexTemplateAction;
+import org.opensearch.rest.action.admin.indices.RestGetComponentTemplateAction;
+import org.opensearch.rest.action.admin.indices.RestGetComposableIndexTemplateAction;
+import org.opensearch.rest.action.admin.indices.RestGetIndexTemplateAction;
+import org.opensearch.rest.action.admin.indices.RestPutComponentTemplateAction;
+import org.opensearch.rest.action.admin.indices.RestPutComposableIndexTemplateAction;
+import org.opensearch.rest.action.admin.indices.RestPutIndexTemplateAction;
+import org.opensearch.rest.action.admin.indices.RestSimulateIndexTemplateAction;
+import org.opensearch.rest.action.admin.indices.RestSimulateTemplateAction;
 import org.opensearch.rest.action.admin.cluster.RestDeleteStoredScriptAction;
 import org.opensearch.rest.action.admin.cluster.RestGetStoredScriptAction;
 import org.opensearch.rest.action.admin.cluster.RestPutStoredScriptAction;
@@ -84,7 +95,7 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     private static final String DUPLICATE_PARAMETER_ERROR_MESSAGE =
         "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
     private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
-        "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
+        "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead.";
 
     @After
     public void terminateThreadPool() {
@@ -427,6 +438,87 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
         request.params().put("index_uuid", "test");
         RestImportDanglingIndexAction action = new RestImportDanglingIndexAction();
         Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(request, client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testDeleteComponentTemplate() {
+        RestDeleteComponentTemplateAction action = new RestDeleteComponentTemplateAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testDeleteComposableIndexTemplate() {
+        RestDeleteComposableIndexTemplateAction action = new RestDeleteComposableIndexTemplateAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testDeleteIndexTemplate() {
+        RestDeleteIndexTemplateAction action = new RestDeleteIndexTemplateAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testGetComponentTemplate() {
+        RestGetComponentTemplateAction action = new RestGetComponentTemplateAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testGetComposableIndexTemplate() {
+        RestGetComposableIndexTemplateAction action = new RestGetComposableIndexTemplateAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testGetIndexTemplate() {
+        RestGetIndexTemplateAction action = new RestGetIndexTemplateAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testPutComponentTemplate() {
+        RestPutComponentTemplateAction action = new RestPutComponentTemplateAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testPutComposableIndexTemplate() {
+        RestPutComposableIndexTemplateAction action = new RestPutComposableIndexTemplateAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testPutIndexTemplate() {
+        RestPutIndexTemplateAction action = new RestPutIndexTemplateAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testSimulateIndexTemplate() {
+        FakeRestRequest request = new FakeRestRequest();
+        request.params().put("cluster_manager_timeout", randomFrom("1h", "2m"));
+        request.params().put("master_timeout", "3s");
+        request.params().put("name", "test");
+        RestSimulateIndexTemplateAction action = new RestSimulateIndexTemplateAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(request, client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testSimulateTemplate() {
+        RestSimulateTemplateAction action = new RestSimulateTemplateAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBothParams(), client));
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
     }

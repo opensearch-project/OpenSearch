@@ -37,6 +37,7 @@ import org.opensearch.action.admin.indices.template.post.SimulateIndexTemplateRe
 import org.opensearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.ComposableIndexTemplate;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -47,6 +48,8 @@ import java.util.List;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
 public class RestSimulateIndexTemplateAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSimulateIndexTemplateAction.class);
 
     @Override
     public List<Route> routes() {
@@ -62,8 +65,9 @@ public class RestSimulateIndexTemplateAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         SimulateIndexTemplateRequest simulateIndexTemplateRequest = new SimulateIndexTemplateRequest(request.param("name"));
         simulateIndexTemplateRequest.masterNodeTimeout(
-            request.paramAsTime("master_timeout", simulateIndexTemplateRequest.masterNodeTimeout())
+            request.paramAsTime("cluster_manager_timeout", simulateIndexTemplateRequest.masterNodeTimeout())
         );
+        parseDeprecatedMasterTimeoutParameter(simulateIndexTemplateRequest, request, deprecationLogger, getName());
         if (request.hasContent()) {
             PutComposableIndexTemplateAction.Request indexTemplateRequest = new PutComposableIndexTemplateAction.Request(
                 "simulating_template"
