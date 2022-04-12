@@ -139,7 +139,7 @@ public class LogConfigurator {
             // whether or not the error listener check failed we can remove the listener now
             StatusLogger.getLogger().removeListener(ERROR_LISTENER);
         }
-        configure(environment.settings(), environment.configFile(), environment.logsFile());
+        configure(environment.settings(), environment.configDir(), environment.logsDir());
     }
 
     /**

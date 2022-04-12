@@ -596,7 +596,7 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
         try {
             ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
             Environment env = mock(Environment.class);
-            when(env.sharedDataFile()).thenReturn(null);
+            when(env.sharedDataDir()).thenReturn(null);
             AllocationService allocationService = mock(AllocationService.class);
             when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
             IndicesService indicesService = mockIndicesServices();
@@ -722,7 +722,7 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
 
             ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
             Environment env = mock(Environment.class);
-            when(env.sharedDataFile()).thenReturn(null);
+            when(env.sharedDataDir()).thenReturn(null);
             AllocationService allocationService = mock(AllocationService.class);
             when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
             DocumentMapper documentMapper = mock(DocumentMapper.class);

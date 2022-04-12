@@ -62,7 +62,7 @@ public class CancelTasksResponseTests extends AbstractXContentTestCase<CancelTas
     private static List<TaskInfo> randomTasks() {
         List<TaskInfo> randomTasks = new ArrayList<>();
         for (int i = 0; i < randomInt(10); i++) {
-            randomTasks.add(TaskInfoTests.randomTaskInfo());
+            randomTasks.add(TaskInfoTests.randomTaskInfo(false));
         }
         return randomTasks;
     }

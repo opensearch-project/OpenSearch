@@ -99,7 +99,7 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
 
         // first make sure nothing extends this plugin
         List<String> usedBy = new ArrayList<>();
-        Set<PluginsService.Bundle> bundles = PluginsService.getPluginBundles(env.pluginsFile());
+        Set<PluginsService.Bundle> bundles = PluginsService.getPluginBundles(env.pluginsDir());
         for (PluginsService.Bundle bundle : bundles) {
             for (String extendedPlugin : bundle.plugin.getExtendedPlugins()) {
                 if (extendedPlugin.equals(pluginName)) {
@@ -114,9 +114,9 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
             );
         }
 
-        Path pluginDir = env.pluginsFile().resolve(pluginName);
-        Path pluginConfigDir = env.configFile().resolve(pluginName);
-        Path removing = env.pluginsFile().resolve(".removing-" + pluginName);
+        Path pluginDir = env.pluginsDir().resolve(pluginName);
+        Path pluginConfigDir = env.configDir().resolve(pluginName);
+        Path removing = env.pluginsDir().resolve(".removing-" + pluginName);
 
         /*
          * If the plugin directory is not found with the plugin name, scan the list of all installed plugins
@@ -124,9 +124,9 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
          */
         if (!Files.exists(pluginDir)) {
             terminal.println("searching in other folders to find if plugin exists with custom folder name");
-            pluginDir = PluginHelper.verifyIfPluginExists(env.pluginsFile(), pluginName);
-            pluginConfigDir = env.configFile().resolve(pluginDir.getFileName());
-            removing = env.pluginsFile().resolve(".removing-" + pluginDir.getFileName());
+            pluginDir = PluginHelper.verifyIfPluginExists(env.pluginsDir(), pluginName);
+            pluginConfigDir = env.configDir().resolve(pluginDir.getFileName());
+            removing = env.pluginsDir().resolve(".removing-" + pluginDir.getFileName());
         }
 
         terminal.println("-> removing [" + pluginName + "]...");
@@ -158,7 +158,7 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
             terminal.println(VERBOSE, "removing [" + pluginDir + "]");
         }
 
-        final Path pluginBinDir = env.binFile().resolve(pluginName);
+        final Path pluginBinDir = env.binDir().resolve(pluginName);
         if (Files.exists(pluginBinDir)) {
             if (!Files.isDirectory(pluginBinDir)) {
                 throw new UserException(ExitCodes.IO_ERROR, "bin dir for " + pluginName + " is not a directory");

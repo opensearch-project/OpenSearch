@@ -167,7 +167,7 @@ public abstract class AbstractDisruptionTestCase extends OpenSearchIntegTestCase
         assertBusy(() -> {
             ClusterState state = getNodeClusterState(node);
             final DiscoveryNodes nodes = state.nodes();
-            assertNull("node [" + node + "] still has [" + nodes.getMasterNode() + "] as master", nodes.getMasterNode());
+            assertNull("node [" + node + "] still has [" + nodes.getMasterNode() + "] as cluster-manager", nodes.getMasterNode());
             if (expectedBlocks != null) {
                 for (ClusterBlockLevel level : expectedBlocks.levels()) {
                     assertTrue(

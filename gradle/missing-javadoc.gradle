@@ -7,6 +7,8 @@
  */
 
 import javax.annotation.Nullable
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.internal.jvm.Jvm
 
 /**
@@ -178,6 +180,8 @@ configure([
 class MissingJavadocTask extends DefaultTask {
   @InputFiles
   @SkipWhenEmpty
+  @IgnoreEmptyDirectories
+  @PathSensitive(PathSensitivity.RELATIVE)
   SourceDirectorySet srcDirSet;
 
   @OutputDirectory

@@ -33,7 +33,6 @@ package org.opensearch.analysis.common;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -47,7 +46,6 @@ import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
-import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -202,38 +200,7 @@ public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiter
     }
 
     public void testPreconfiguredFilter() throws IOException {
-        // Before 7.3 we don't adjust offsets
-        {
-            Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-            Settings indexSettings = Settings.builder()
-                .put(
-                    IndexMetadata.SETTING_VERSION_CREATED,
-                    VersionUtils.randomVersionBetween(
-                        random(),
-                        LegacyESVersion.V_7_0_0,
-                        VersionUtils.getPreviousVersion(LegacyESVersion.V_7_3_0)
-                    )
-                )
-                .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
-                .putList("index.analysis.analyzer.my_analyzer.filter", "word_delimiter_graph")
-                .build();
-            IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
 
-            try (
-                IndexAnalyzers indexAnalyzers = new AnalysisModule(
-                    TestEnvironment.newEnvironment(settings),
-                    Collections.singletonList(new CommonAnalysisPlugin())
-                ).getAnalysisRegistry().build(idxSettings)
-            ) {
-
-                NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
-                assertNotNull(analyzer);
-                assertAnalyzesTo(analyzer, "h100", new String[] { "h", "100" }, new int[] { 0, 0 }, new int[] { 4, 4 });
-
-            }
-        }
-
-        // Afger 7.3 we do adjust offsets
         {
             Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
             Settings indexSettings = Settings.builder()
