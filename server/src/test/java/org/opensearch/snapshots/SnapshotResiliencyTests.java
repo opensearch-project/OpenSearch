@@ -185,6 +185,7 @@ import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.node.ResponseCollectorService;
+import org.opensearch.plugins.PluginsOrchestrator;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -1778,6 +1779,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 indicesService = new IndicesService(
                     settings,
                     mock(PluginsService.class),
+                    mock(PluginsOrchestrator.class),
                     nodeEnv,
                     namedXContentRegistry,
                     new AnalysisRegistry(
