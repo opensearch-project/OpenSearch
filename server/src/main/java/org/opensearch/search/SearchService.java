@@ -323,7 +323,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             .addSettingsUpdateConsumer(
                 DEFAULT_KEEPALIVE_SETTING,
                 MAX_PIT_KEEPALIVE_SETTING,
-                this::setKeepAlives,
+                this::setPitKeepAlives,
                 this::validatePitKeepAlives
             );
 
@@ -364,6 +364,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
+    /**
+     * Default keep alive search setting should be less than max PIT keep alive
+     */
     private void validatePitKeepAlives(TimeValue defaultKeepAlive, TimeValue maxPitKeepAlive) {
         if (defaultKeepAlive.millis() > maxPitKeepAlive.millis()) {
             throw new IllegalArgumentException(
@@ -864,6 +867,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             ReaderContext readerContext = null;
             boolean success = false;
             try {
+                // use this when reader context is freed
                 decreasePitContexts = openPitContexts::decrementAndGet;
                 if (openPitContexts.incrementAndGet() > maxOpenPitContext) {
                     throw new OpenSearchRejectedExecutionException(
@@ -890,6 +894,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     searchOperationListener.onFreeReaderContext(finalReaderContext);
                     searchOperationListener.onFreePitContext(finalReaderContext);
                 });
+                // add the newly created pit reader context to active readers
                 putReaderContext(readerContext);
                 readerContext = null;
                 listener.onResponse(finalReaderContext.id());
@@ -1089,6 +1094,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
+    /**
+     * check if request keep alive is greater than max keep alive
+     */
     private void checkPitKeepAliveLimit(long keepAlive) {
         if (keepAlive > maxPitKeepAlive) {
             throw new IllegalArgumentException(

@@ -23,7 +23,9 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.concurrent.ExecutionException;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 2)
 public class PitMultiNodeTests extends OpenSearchIntegTestCase {
@@ -53,7 +55,7 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
         assertEquals(2, searchResponse.getTotalShards());
     }
 
-    public void testCreatePitWhileNodeDropWithPartialCreationFalse() throws Exception {
+    public void testCreatePitWhileNodeDropWithAllowPartialCreationFalse() throws Exception {
         CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), false);
         request.setIndices(new String[] { "index" });
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
@@ -79,7 +81,7 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
         assertTrue(ex.getMessage().contains("all shards failed"));
     }
 
-    public void testCreatePitWhileNodeDropWithAllowPartialFailuresTrue() throws Exception {
+    public void testCreatePitWhileNodeDropWithAllowPartialCreationTrue() throws Exception {
         CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index" });
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
@@ -119,7 +121,7 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
         });
     }
 
-    public void testPitSearchWithNodeDropWithPartialSearchTrue() throws Exception {
+    public void testPitSearchWithNodeDropWithPartialSearchResultsFalse() throws Exception {
         CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index" });
         ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
@@ -155,4 +157,78 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
         ExecutionException ex = expectThrows(ExecutionException.class, searchExecute::get);
         assertTrue(ex.getMessage().contains("all shards failed"));
     }
+
+    public void testPitInvalidDefaultKeepAlive() {
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put("pit.max_keep_alive", "1m").put("search.default_keep_alive", "2m"))
+                .get()
+        );
+        assertThat(exc.getMessage(), containsString("was (2m > 1m)"));
+
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "5m").put("pit.max_keep_alive", "5m"))
+                .get()
+        );
+
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "2m"))
+                .get()
+        );
+
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put("pit.max_keep_alive", "2m"))
+                .get()
+        );
+
+        exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "3m"))
+                .get()
+        );
+        assertThat(exc.getMessage(), containsString("was (3m > 2m)"));
+
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "1m"))
+                .get()
+        );
+
+        exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put("pit.max_keep_alive", "30s"))
+                .get()
+        );
+        assertThat(exc.getMessage(), containsString("was (1m > 30s)"));
+
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().putNull("*"))
+                .setTransientSettings(Settings.builder().putNull("*"))
+        );
+
+    }
+
 }

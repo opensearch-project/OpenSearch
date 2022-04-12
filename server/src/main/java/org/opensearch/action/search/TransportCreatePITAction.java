@@ -8,6 +8,7 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.support.ActionFilters;
@@ -175,7 +176,7 @@ public class TransportCreatePITAction extends HandledTransportAction<CreatePITRe
                             groupedActionListener
                         );
                     } catch (Exception e) {
-                        groupedActionListener.onFailure(e);
+                        groupedActionListener.onFailure(new OpenSearchException("Create pit failed on node[" + node + "]", e));
                     }
                 }
             }, updatePitIdListener::onFailure);

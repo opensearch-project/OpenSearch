@@ -35,12 +35,35 @@ public class RestCreatePitActionTests extends OpenSearchTestCase {
             public void createPit(CreatePITRequest request, ActionListener<CreatePITResponse> listener) {
                 createPitCalled.set(true);
                 assertThat(request.getKeepAlive().getStringRep(), equalTo("1m"));
+                assertFalse(request.shouldAllowPartialPitCreation());
+            }
+        }) {
+            Map<String, String> params = new HashMap<>();
+            params.put("keep_alive", "1m");
+            params.put("allow_partial_pit_creation", "false");
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params)
+                .withMethod(RestRequest.Method.POST)
+                .build();
+            FakeRestChannel channel = new FakeRestChannel(request, false, 0);
+            action.handleRequest(request, channel, nodeClient);
+
+            assertThat(createPitCalled.get(), equalTo(true));
+        }
+    }
+
+    public void testRestCreatePitDefaultPartialCreation() throws Exception {
+        SetOnce<Boolean> createPitCalled = new SetOnce<>();
+        RestCreatePITAction action = new RestCreatePITAction();
+        try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName()) {
+            @Override
+            public void createPit(CreatePITRequest request, ActionListener<CreatePITResponse> listener) {
+                createPitCalled.set(true);
+                assertThat(request.getKeepAlive().getStringRep(), equalTo("1m"));
                 assertTrue(request.shouldAllowPartialPitCreation());
             }
         }) {
             Map<String, String> params = new HashMap<>();
             params.put("keep_alive", "1m");
-            params.put("allow_partial_pit_creation", "true");
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params)
                 .withMethod(RestRequest.Method.POST)
                 .build();

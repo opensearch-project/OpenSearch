@@ -122,7 +122,7 @@ public class CreatePITRequest extends ActionRequest implements IndicesRequest.Re
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (keepAlive == null) {
-            validationException = addValidationError("Keep alive is missing", validationException);
+            validationException = addValidationError("keep alive not specified", validationException);
         }
         return validationException;
     }

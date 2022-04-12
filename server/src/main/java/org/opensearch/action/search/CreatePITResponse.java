@@ -56,6 +56,7 @@ public class CreatePITResponse extends ActionResponse implements StatusToXConten
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field("id", id);
         RestActions.buildBroadcastShardsHeader(
             builder,
             params,

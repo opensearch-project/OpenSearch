@@ -38,14 +38,12 @@ public class RestCreatePITAction extends BaseRestHandler {
         boolean allowPartialPitCreation = request.paramAsBoolean("allow_partial_pit_creation", true);
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         TimeValue keepAlive = request.paramAsTime("keep_alive", null);
-        CreatePITRequest createPitRequest = new CreatePITRequest(request.paramAsTime("keep_alive", null), allowPartialPitCreation, indices);
-
         ActionRequestValidationException validationException = null;
         if (keepAlive == null) {
             validationException = addValidationError("Keep alive cannot be empty", validationException);
         }
         ExceptionsHelper.reThrowIfNotNull(validationException);
-
+        CreatePITRequest createPitRequest = new CreatePITRequest(keepAlive, allowPartialPitCreation, indices);
         createPitRequest.setIndicesOptions(IndicesOptions.fromRequest(request, createPitRequest.indicesOptions()));
         createPitRequest.setPreference(request.param("preference"));
         createPitRequest.setRouting(request.param("routing"));
