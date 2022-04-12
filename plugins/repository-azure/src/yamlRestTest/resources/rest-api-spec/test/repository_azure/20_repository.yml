@@ -29,6 +29,9 @@ setup:
 ---
 "Snapshot/Restore with repository-azure":
 
+  - skip:
+      features: allowed_warnings
+
   # Get repository
   - do:
       snapshot.get_repository:
@@ -169,12 +172,16 @@ setup:
 
   # Remove the snapshots
   - do:
+      allowed_warnings:
+        - "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead."
       snapshot.delete:
         repository: repository
         snapshot: snapshot-two
         master_timeout: 5m
 
   - do:
+      allowed_warnings:
+        - "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead."
       snapshot.delete:
         repository: repository
         snapshot: snapshot-one
