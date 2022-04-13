@@ -552,23 +552,22 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             Collections.emptyMap(),
             threadPool
         );
+        final SegmentReplicationReplicaService replicationReplicaService = new SegmentReplicationReplicaService(
+            threadPool,
+            null,
+            transportService);
         final PeerRecoveryTargetService recoveryTargetService = new PeerRecoveryTargetService(
             threadPool,
             transportService,
             null,
-            clusterService
-        );
-        final SegmentReplicationReplicaService replicationReplicaService = new SegmentReplicationReplicaService(
-            threadPool,
-            null,
-            transportService
+            clusterService,
+            replicationReplicaService
         );
         PrimaryShardReplicationSource replicationSource = new PrimaryShardReplicationSource(
             transportService,
             clusterService,
             null,
-            null,
-            replicationReplicaService
+            null
         );
         final ShardStateAction shardStateAction = mock(ShardStateAction.class);
         final PrimaryReplicaSyncer primaryReplicaSyncer = mock(PrimaryReplicaSyncer.class);

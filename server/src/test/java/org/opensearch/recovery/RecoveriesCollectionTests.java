@@ -43,6 +43,8 @@ import org.opensearch.indices.recovery.RecoveryFailedException;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryTarget;
+import org.opensearch.indices.recovery.ReplicationCollection;
+import org.opensearch.indices.recovery.ReplicationCollection.ReplicationRef;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -68,10 +70,10 @@ public class RecoveriesCollectionTests extends OpenSearchIndexLevelReplicationTe
         try (ReplicationGroup shards = createGroup(0)) {
             final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool);
             final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica());
-            try (RecoveriesCollection.RecoveryRef status = collection.getRecovery(recoveryId)) {
+            try (ReplicationRef<RecoveryTarget> status = collection.getReplication(recoveryId)) {
                 final long lastSeenTime = status.get().lastAccessTime();
                 assertBusy(() -> {
-                    try (RecoveriesCollection.RecoveryRef currentStatus = collection.getRecovery(recoveryId)) {
+                    try (ReplicationRef<RecoveryTarget> currentStatus = collection.getReplication(recoveryId)) {
                         assertThat("access time failed to update", lastSeenTime, lessThan(currentStatus.get().lastAccessTime()));
                     }
                 });
@@ -119,7 +121,7 @@ public class RecoveriesCollectionTests extends OpenSearchIndexLevelReplicationTe
             final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool);
             final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica());
             final long recoveryId2 = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica());
-            try (RecoveriesCollection.RecoveryRef recoveryRef = collection.getRecovery(recoveryId)) {
+            try (ReplicationRef<RecoveryTarget> recoveryRef = collection.getReplication(recoveryId)) {
                 ShardId shardId = recoveryRef.get().indexShard().shardId();
                 assertTrue("failed to cancel recoveries", collection.cancelRecoveriesForShard(shardId, "test"));
                 assertThat("all recoveries should be cancelled", collection.size(), equalTo(0));
@@ -138,7 +140,7 @@ public class RecoveriesCollectionTests extends OpenSearchIndexLevelReplicationTe
             final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool);
             IndexShard shard = shards.addReplica();
             final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shard);
-            RecoveryTarget recoveryTarget = collection.getRecoveryTarget(recoveryId);
+            RecoveryTarget recoveryTarget = collection.getReplicationTarget(recoveryId);
             final int currentAsTarget = shard.recoveryStats().currentAsTarget();
             final int referencesToStore = recoveryTarget.store().refCount();
             IndexShard indexShard = recoveryTarget.indexShard();
@@ -158,7 +160,7 @@ public class RecoveriesCollectionTests extends OpenSearchIndexLevelReplicationTe
             String resetTempFileName = resetRecovery.getTempNameForFile("foobar");
             assertNotEquals(tempFileName, resetTempFileName);
             assertEquals(currentAsTarget, shard.recoveryStats().currentAsTarget());
-            try (RecoveriesCollection.RecoveryRef newRecoveryRef = collection.getRecovery(resetRecoveryId)) {
+            try (ReplicationRef<RecoveryTarget> newRecoveryRef = collection.getReplication(resetRecoveryId)) {
                 shards.recoverReplica(shard, (s, n) -> {
                     RecoveryTarget newRecoveryTarget = newRecoveryRef.get();
                     assertSame(s, newRecoveryTarget.indexShard());
@@ -166,7 +168,7 @@ public class RecoveriesCollectionTests extends OpenSearchIndexLevelReplicationTe
                 }, false);
             }
             shards.assertAllEqual(numDocs);
-            assertNull("recovery is done", collection.getRecovery(recoveryId));
+            assertNull("recovery is done", collection.getReplicationTarget(recoveryId));
         }
     }
 

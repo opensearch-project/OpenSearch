@@ -11,6 +11,7 @@ package org.opensearch.indices.replication.common;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.logging.Loggers;
@@ -104,6 +105,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
         long position,
         BytesReference content,
         boolean lastChunk,
+        long totalTranslogOps,
         ActionListener<Void> actionListener
     ) {
         try {
@@ -182,4 +184,6 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
             store.decRef();
         }
     }
+
+    public abstract DiscoveryNode sourceNode();
 }

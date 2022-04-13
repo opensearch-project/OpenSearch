@@ -70,35 +70,21 @@ public class PrimaryShardReplicationSource {
     private final Map<Object, RetryableAction<?>> onGoingRetryableActions = ConcurrentCollections.newConcurrentMap();
     private final ThreadPool threadPool;
     private final RecoverySettings recoverySettings;
-    private final SegmentReplicationReplicaService segmentReplicationReplicaService;
 
     // TODO: Segrep - Cancellation doesn't make sense here as it should be per replication event.
     private volatile boolean isCancelled = false;
-
-    public static class Actions {
-        public static final String FILE_CHUNK = "internal:index/shard/segrep/file_chunk";
-    }
 
     public PrimaryShardReplicationSource(
         TransportService transportService,
         ClusterService clusterService,
         IndicesService indicesService,
-        RecoverySettings recoverySettings,
-        SegmentReplicationReplicaService segmentReplicationReplicaShardService
+        RecoverySettings recoverySettings
     ) {
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.recoverySettings = recoverySettings;
         this.threadPool = transportService.getThreadPool();
-        this.segmentReplicationReplicaService = segmentReplicationReplicaShardService;
-
-        transportService.registerRequestHandler(
-            Actions.FILE_CHUNK,
-            ThreadPool.Names.GENERIC,
-            RecoveryFileChunkRequest::new,
-            new FileChunkTransportRequestHandler()
-        );
     }
 
     public void getCheckpointInfo(
@@ -219,74 +205,5 @@ public class PrimaryShardReplicationSource {
             }
             onGoingRetryableActions.clear();
         });
-    }
-
-    class FileChunkTransportRequestHandler implements TransportRequestHandler<RecoveryFileChunkRequest> {
-
-        // How many bytes we've copied since we last called RateLimiter.pause
-        final AtomicLong bytesSinceLastPause = new AtomicLong();
-
-        @Override
-        public void messageReceived(final RecoveryFileChunkRequest request, TransportChannel channel, Task task) throws Exception {
-            try (
-                ReplicationCollection.ReplicationRef replicationRef = segmentReplicationReplicaService.getOnGoingReplications()
-                    .getReplicationSafe(request.replicationId(), request.shardId())
-            ) {
-                final SegmentReplicationTarget replicationTarget = replicationRef.get();
-                final ActionListener<Void> listener = createOrFinishListener(replicationRef, channel, Actions.FILE_CHUNK, request);
-                if (listener == null) {
-                    return;
-                }
-
-                // final ReplicationState.Index indexState = replicationTarget.state().getIndex();
-                // if (request.sourceThrottleTimeInNanos() != ReplicationState.Index.UNKNOWN) {
-                // indexState.addSourceThrottling(request.sourceThrottleTimeInNanos());
-                // }
-
-                RateLimiter rateLimiter = recoverySettings.rateLimiter();
-                if (rateLimiter != null) {
-                    long bytes = bytesSinceLastPause.addAndGet(request.content().length());
-                    if (bytes > rateLimiter.getMinPauseCheckBytes()) {
-                        // Time to pause
-                        bytesSinceLastPause.addAndGet(-bytes);
-                        // long throttleTimeInNanos = rateLimiter.pause(bytes);
-                        // indexState.addTargetThrottling(throttleTimeInNanos);
-                        // replicationTarget.getIndexShard().replicationStats().addThrottleTime(throttleTimeInNanos);
-                    }
-                }
-                replicationTarget.writeFileChunk(request.metadata(), request.position(), request.content(), request.lastChunk(), listener);
-            }
-        }
-    }
-
-    private ActionListener<Void> createOrFinishListener(
-        final ReplicationCollection.ReplicationRef replicationRef,
-        final TransportChannel channel,
-        final String action,
-        final RecoveryFileChunkRequest request
-    ) {
-        return createOrFinishListener(replicationRef, channel, action, request, nullVal -> TransportResponse.Empty.INSTANCE);
-    }
-
-    private ActionListener<Void> createOrFinishListener(
-        final ReplicationCollection.ReplicationRef replicationRef,
-        final TransportChannel channel,
-        final String action,
-        final RecoveryFileChunkRequest request,
-        final CheckedFunction<Void, TransportResponse, Exception> responseFn
-    ) {
-        final SegmentReplicationTarget replicationTarget = replicationRef.get();
-        final ActionListener<TransportResponse> channelListener = new ChannelActionListener<>(channel, action, request);
-        final ActionListener<Void> voidListener = ActionListener.map(channelListener, responseFn);
-
-        final long requestSeqNo = request.requestSeqNo();
-        final ActionListener<Void> listener;
-        if (requestSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-            listener = replicationTarget.markRequestReceivedAndCreateListener(requestSeqNo, voidListener);
-        } else {
-            listener = voidListener;
-        }
-
-        return listener;
     }
 }

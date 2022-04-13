@@ -37,16 +37,17 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.recovery.DelayRecoveryException;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.indices.recovery.ReplicationCollection;
+import org.opensearch.indices.recovery.ReplicationCollection.ReplicationRef;
 import org.opensearch.indices.recovery.Timer;
 import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.indices.replication.copy.PrimaryShardReplicationSource;
 import org.opensearch.indices.replication.copy.ReplicationCheckpoint;
-import org.opensearch.indices.replication.copy.ReplicationCollection;
 import org.opensearch.indices.replication.copy.ReplicationFailedException;
+import org.opensearch.indices.replication.copy.SegmentReplicationPrimaryService;
 import org.opensearch.indices.replication.copy.SegmentReplicationState;
 import org.opensearch.indices.replication.copy.SegmentReplicationTarget;
-import org.opensearch.indices.replication.copy.SegmentReplicationPrimaryService;
 import org.opensearch.indices.replication.copy.TrackShardRequest;
 import org.opensearch.indices.replication.copy.TrackShardResponse;
 import org.opensearch.threadpool.ThreadPool;
@@ -68,22 +69,20 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
     private final ThreadPool threadPool;
     private final RecoverySettings recoverySettings;
     private final TransportService transportService;
-
-    public ReplicationCollection getOnGoingReplications() {
-        return onGoingReplications;
-    }
-
-    private final ReplicationCollection onGoingReplications;
+    private final ReplicationCollection<SegmentReplicationTarget> onGoingReplications;
 
     public SegmentReplicationReplicaService(
         final ThreadPool threadPool,
         final RecoverySettings recoverySettings,
-        final TransportService transportService
-    ) {
+        final TransportService transportService) {
         this.threadPool = threadPool;
         this.recoverySettings = recoverySettings;
         this.transportService = transportService;
-        this.onGoingReplications = new ReplicationCollection(logger, threadPool);
+        this.onGoingReplications = new ReplicationCollection<>(logger, threadPool);
+    }
+
+    public ReplicationCollection<SegmentReplicationTarget> getOnGoingReplications() {
+        return onGoingReplications;
     }
 
     @Override
@@ -166,11 +165,9 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
         final SegmentReplicationListener listener
     ) {
         indexShard.markAsReplicating();
+        SegmentReplicationTarget target = new SegmentReplicationTarget(checkpoint, indexShard, source, listener);
         final long replicationId = onGoingReplications.startReplication(
-            checkpoint,
-            indexShard,
-            source,
-            listener,
+            target,
             recoverySettings.activityTimeout()
         );
         logger.trace("Starting replication {}", replicationId);
@@ -179,7 +176,7 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
 
     private void doReplication(final long replicationId) {
         final Timer timer;
-        try (ReplicationCollection.ReplicationRef replicationRef = onGoingReplications.getReplication(replicationId)) {
+        try (ReplicationRef<SegmentReplicationTarget> replicationRef = onGoingReplications.getReplication(replicationId)) {
             if (replicationRef == null) {
                 logger.trace("not running replication with id [{}] - can not find it (probably finished)", replicationId);
                 return;
@@ -224,8 +221,12 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
         indexShard.markAsReplicating();
         StepListener<TrackShardResponse> trackShardListener = new StepListener<>();
         trackShardListener.whenComplete(
-            r -> { startReplication(indexShard.getLatestReplicationCheckpoint(), indexShard, replicationSource, replicationListener); },
-            e -> { replicationListener.onFailure(indexShard.getReplicationState(), new ReplicationFailedException(indexShard, e), true); }
+            r -> {
+                startReplication(indexShard.getLatestReplicationCheckpoint(), indexShard, replicationSource, replicationListener);
+            },
+            e -> {
+                replicationListener.onFailure(indexShard.getReplicationState(), new ReplicationFailedException(indexShard, e), true);
+            }
         );
         prepareForReplication(indexShard, targetNode, sourceNode, trackShardListener);
     }
@@ -240,7 +241,7 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
 
         @Override
         public void onFailure(Exception e) {
-            try (ReplicationCollection.ReplicationRef replicationRef = onGoingReplications.getReplication(replicationId)) {
+            try (ReplicationRef<SegmentReplicationTarget> replicationRef = onGoingReplications.getReplication(replicationId)) {
                 if (replicationRef != null) {
                     logger.error(
                         () -> new ParameterizedMessage("unexpected error during replication [{}], failing shard", replicationId),

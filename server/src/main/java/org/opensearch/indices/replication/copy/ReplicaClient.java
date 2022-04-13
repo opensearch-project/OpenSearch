@@ -142,7 +142,7 @@ public class ReplicaClient {
             throttleTimeInNanos = 0;
         }
 
-        final String action = PrimaryShardReplicationSource.Actions.FILE_CHUNK;
+        final String action = PeerRecoveryTargetService.Actions.FILE_CHUNK;
         final long requestSeqNo = requestSeqNoGenerator.getAndIncrement();
         /* we send estimateTotalOperations with every request since we collect stats on the target and that way we can
          * see how many translog ops we accumulate while copying files across the network. A future optimization

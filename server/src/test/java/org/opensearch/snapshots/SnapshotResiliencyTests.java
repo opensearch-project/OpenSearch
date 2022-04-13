@@ -1831,14 +1831,13 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 SegmentReplicationReplicaService replicaService = new SegmentReplicationReplicaService(
                     threadPool,
                     recoverySettings,
-                    transportService
-                );
+                    transportService);
                 indicesClusterStateService = new IndicesClusterStateService(
                     settings,
                     indicesService,
                     clusterService,
                     threadPool,
-                    new PeerRecoveryTargetService(threadPool, transportService, recoverySettings, clusterService),
+                    new PeerRecoveryTargetService(threadPool, transportService, recoverySettings, clusterService, replicaService),
                     shardStateAction,
                     new NodeMappingRefreshAction(transportService, metadataMappingService),
                     repositoriesService,
@@ -1870,7 +1869,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     ),
                     RetentionLeaseSyncer.EMPTY,
                     replicaService,
-                    new PrimaryShardReplicationSource(transportService, clusterService, indicesService, recoverySettings, replicaService),
+                    new PrimaryShardReplicationSource(transportService, clusterService, indicesService, recoverySettings),
                     SegmentReplicationCheckpointPublisher.EMPTY
                 );
                 Map<ActionType, TransportAction> actions = new HashMap<>();

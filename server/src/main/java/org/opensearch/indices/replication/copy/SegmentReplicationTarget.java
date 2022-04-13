@@ -44,6 +44,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.support.replication.ReplicationResponse;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
@@ -124,6 +125,11 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     @Override
     public SegmentReplicationState state() {
         return state;
+    }
+
+    @Override
+    public DiscoveryNode sourceNode() {
+        return null;
     }
 
     public void startReplication(ActionListener<ReplicationResponse> listener) {
