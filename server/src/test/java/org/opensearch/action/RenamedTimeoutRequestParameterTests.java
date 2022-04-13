@@ -63,6 +63,9 @@ import org.opensearch.rest.action.admin.cluster.RestPutRepositoryAction;
 import org.opensearch.rest.action.admin.cluster.RestRestoreSnapshotAction;
 import org.opensearch.rest.action.admin.cluster.RestSnapshotsStatusAction;
 import org.opensearch.rest.action.admin.cluster.RestVerifyRepositoryAction;
+import org.opensearch.rest.action.admin.cluster.RestDeleteStoredScriptAction;
+import org.opensearch.rest.action.admin.cluster.RestGetStoredScriptAction;
+import org.opensearch.rest.action.admin.cluster.RestPutStoredScriptAction;
 import org.opensearch.rest.action.cat.RestAllocationAction;
 import org.opensearch.rest.action.cat.RestRepositoriesAction;
 import org.opensearch.rest.action.cat.RestThreadPoolAction;
@@ -76,6 +79,9 @@ import org.opensearch.rest.action.cat.RestTemplatesAction;
 import org.opensearch.rest.action.cat.RestPendingClusterTasksAction;
 import org.opensearch.rest.action.cat.RestSegmentsAction;
 import org.opensearch.rest.action.cat.RestSnapshotAction;
+import org.opensearch.rest.action.ingest.RestDeletePipelineAction;
+import org.opensearch.rest.action.ingest.RestGetPipelineAction;
+import org.opensearch.rest.action.ingest.RestPutPipelineAction;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.threadpool.TestThreadPool;
@@ -610,6 +616,59 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
         Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBothParams(), client));
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testDeletePipeline() {
+        FakeRestRequest request = new FakeRestRequest();
+        request.params().put("cluster_manager_timeout", "1h");
+        request.params().put("master_timeout", "3s");
+        request.params().put("id", "test");
+        RestDeletePipelineAction action = new RestDeletePipelineAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(request, client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testGetPipeline() {
+        RestGetPipelineAction action = new RestGetPipelineAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testPutPipeline() {
+        FakeRestRequest request = getFakeRestRequestWithBody();
+        request.params().put("cluster_manager_timeout", "2m");
+        request.params().put("master_timeout", "3s");
+        request.params().put("id", "test");
+        RestPutPipelineAction action = new RestPutPipelineAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(request, client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testDeleteStoredScript() {
+        RestDeleteStoredScriptAction action = new RestDeleteStoredScriptAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testGetStoredScript() {
+        RestGetStoredScriptAction action = new RestGetStoredScriptAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.prepareRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testPutStoredScript() {
+        RestPutStoredScriptAction action = new RestPutStoredScriptAction();
+        Exception e = assertThrows(
+            OpenSearchParseException.class,
+            () -> action.prepareRequest(getRestRequestWithBodyWithBothParams(), client)
+        );
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE, "empty templates should no longer be used");
     }
 
     private MasterNodeRequest getMasterNodeRequest() {
