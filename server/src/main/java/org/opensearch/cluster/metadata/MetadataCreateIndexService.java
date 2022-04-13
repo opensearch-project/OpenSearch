@@ -214,30 +214,7 @@ public class MetadataCreateIndexService {
      * @param isHidden Whether or not this is a hidden index
      */
     public boolean validateDotIndex(String index, @Nullable Boolean isHidden) {
-        boolean isSystem = false;
-        if (index.charAt(0) == '.') {
-            SystemIndexDescriptor matchingDescriptor = systemIndices.findMatchingDescriptor(index);
-            if (matchingDescriptor != null) {
-                logger.trace(
-                    "index [{}] is a system index because it matches index pattern [{}] with description [{}]",
-                    index,
-                    matchingDescriptor.getIndexPattern(),
-                    matchingDescriptor.getDescription()
-                );
-                isSystem = true;
-            } else if (isHidden) {
-                logger.trace("index [{}] is a hidden index", index);
-            } else {
-                DEPRECATION_LOGGER.deprecate(
-                    "index_name_starts_with_dot",
-                    "index name [{}] starts with a dot '.', in the next major version, index names "
-                        + "starting with a dot are reserved for hidden indices and system indices",
-                    index
-                );
-            }
-        }
-
-        return isSystem;
+        return systemIndices.validateDotIndex(index, isHidden);
     }
 
     /**
@@ -884,7 +861,7 @@ public class MetadataCreateIndexService {
          * We can not validate settings until we have applied templates, otherwise we do not know the actual settings
          * that will be used to create this index.
          */
-        shardLimitValidator.validateShardLimit(indexSettings, currentState);
+        shardLimitValidator.validateShardLimit(request.index(), indexSettings, currentState);
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexSettings) == false
             && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexSettings).onOrAfter(Version.V_2_0_0)) {
             throw new IllegalArgumentException(

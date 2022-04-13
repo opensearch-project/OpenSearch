@@ -52,6 +52,8 @@ import java.util.Arrays;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
+import static org.opensearch.cluster.metadata.IndexMetadata.*;
 import static org.opensearch.cluster.metadata.MetadataIndexStateServiceTests.addClosedIndex;
 import static org.opensearch.cluster.metadata.MetadataIndexStateServiceTests.addOpenedIndex;
 import static org.opensearch.cluster.shards.ShardCounts.forDataNodeCount;
@@ -102,6 +104,47 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(shardsToAdd, state, counts.getShardsPerNode());
 
         assertFalse(errorMessage.isPresent());
+    }
+
+    /**
+     * This test validates that system index creation succeeds
+     * even though it exceeds the cluster max shard limit
+     */
+    public void testSystemIndexCreationSucceeds() {
+        final ShardLimitValidator shardLimitValidator = createTestShardLimitService(1);
+        final Settings settings = Settings.builder()
+            .put(SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(SETTING_NUMBER_OF_SHARDS, 1)
+            .put(SETTING_NUMBER_OF_REPLICAS, 1).build();
+        final ClusterState state = createClusterForShardLimitTest(1, 1, 0);
+        shardLimitValidator.validateShardLimit(".tasks", settings, state);
+    }
+
+    /**
+     * This test validates that non-system index creation
+     * fails when it exceeds the cluster max shard limit
+     */
+    public void testNonSystemIndexCreationFails() {
+        final ShardLimitValidator shardLimitValidator = createTestShardLimitService(1);
+        final Settings settings = Settings.builder()
+            .put(SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(SETTING_NUMBER_OF_SHARDS, 1)
+            .put(SETTING_NUMBER_OF_REPLICAS, 1).build();
+        final ClusterState state = createClusterForShardLimitTest(1, 1, 0);
+        final ValidationException exception = expectThrows(
+            ValidationException.class,
+            () -> shardLimitValidator.validateShardLimit("abc", settings, state)
+        );
+        assertEquals(
+            "Validation Failed: 1: this action would add ["
+                + 2
+                + "] total shards, but this cluster currently has ["
+                + 1
+                + "]/["
+                + 1
+                + "] maximum shards open;",
+            exception.getMessage()
+        );
     }
 
     public void testValidateShardLimit() {
@@ -204,7 +247,7 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
             new ClusterSettings(limitOnlySettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
 
-        return new ShardLimitValidator(limitOnlySettings, clusterService);
+        return new ShardLimitValidator(limitOnlySettings, clusterService, new SystemIndices(emptyMap()));
     }
 
     /**
@@ -217,6 +260,6 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
     public static ShardLimitValidator createTestShardLimitService(int maxShardsPerNode, ClusterService clusterService) {
         Settings limitOnlySettings = Settings.builder().put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), maxShardsPerNode).build();
 
-        return new ShardLimitValidator(limitOnlySettings, clusterService);
+        return new ShardLimitValidator(limitOnlySettings, clusterService, new SystemIndices(emptyMap()));
     }
 }

@@ -63,10 +63,12 @@ public class ShardLimitValidator {
         Setting.Property.NodeScope
     );
     protected final AtomicInteger shardLimitPerNode = new AtomicInteger();
+    private final SystemIndices systemIndices;
 
-    public ShardLimitValidator(final Settings settings, ClusterService clusterService) {
+    public ShardLimitValidator(final Settings settings, ClusterService clusterService, SystemIndices systemIndices) {
         this.shardLimitPerNode.set(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SETTING_CLUSTER_MAX_SHARDS_PER_NODE, this::setShardLimitPerNode);
+        this.systemIndices = systemIndices;
     }
 
     private void setShardLimitPerNode(int newValue) {
@@ -88,7 +90,12 @@ public class ShardLimitValidator {
      * @param state          the current cluster state
      * @throws ValidationException if creating this index would put the cluster over the cluster shard limit
      */
-    public void validateShardLimit(final Settings settings, final ClusterState state) {
+    public void validateShardLimit(final String indexName, final Settings settings, final ClusterState state) {
+        // Validate shard limit only for non system indices as it is not hard limit anyways
+        if (systemIndices.validateDotIndex(indexName, null)) {
+            return;
+        }
+
         final int numberOfShards = INDEX_NUMBER_OF_SHARDS_SETTING.get(settings);
         final int numberOfReplicas = IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings);
         final int shardsToCreate = numberOfShards * (1 + numberOfReplicas);
@@ -111,6 +118,8 @@ public class ShardLimitValidator {
      */
     public void validateShardLimit(ClusterState currentState, Index[] indicesToOpen) {
         int shardsToOpen = Arrays.stream(indicesToOpen)
+            // Validate shard limit only for non system indices as it is not hard limit anyways
+            .filter(index -> !systemIndices.validateDotIndex(index.getName(), null))
             .filter(index -> currentState.metadata().index(index).getState().equals(IndexMetadata.State.CLOSE))
             .mapToInt(index -> getTotalShardCount(currentState, index))
             .sum();

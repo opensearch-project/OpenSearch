@@ -32,6 +32,8 @@
 
 package org.opensearch.indices;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
@@ -39,6 +41,7 @@ import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.index.Index;
 import org.opensearch.tasks.TaskResultsService;
@@ -63,6 +66,9 @@ import static org.opensearch.tasks.TaskResultsService.TASK_INDEX;
  * to reduce the locations within the code that need to deal with {@link SystemIndexDescriptor}s.
  */
 public class SystemIndices {
+    private static final Logger logger = LogManager.getLogger(SystemIndices.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(SystemIndices.class);
+
     private static final Map<String, Collection<SystemIndexDescriptor>> SERVER_SYSTEM_INDEX_DESCRIPTORS = singletonMap(
         TaskResultsService.class.getName(),
         singletonList(new SystemIndexDescriptor(TASK_INDEX + "*", "Task Result Index"))
@@ -133,6 +139,38 @@ public class SystemIndices {
             assert false : errorMessage.toString();
             throw new IllegalStateException(errorMessage.toString());
         }
+    }
+
+    /**
+     * Validates (if this index has a dot-prefixed name) whether it follows the rules for dot-prefixed indices.
+     * @param index The name of the index in question
+     * @param isHidden Whether or not this is a hidden index
+     */
+    public boolean validateDotIndex(String index, @Nullable Boolean isHidden) {
+        boolean isSystem = false;
+        if (index.charAt(0) == '.') {
+            SystemIndexDescriptor matchingDescriptor = findMatchingDescriptor(index);
+            if (matchingDescriptor != null) {
+                logger.trace(
+                    "index [{}] is a system index because it matches index pattern [{}] with description [{}]",
+                    index,
+                    matchingDescriptor.getIndexPattern(),
+                    matchingDescriptor.getDescription()
+                );
+                isSystem = true;
+            } else if (isHidden) {
+                logger.trace("index [{}] is a hidden index", index);
+            } else {
+                DEPRECATION_LOGGER.deprecate(
+                    "index_name_starts_with_dot",
+                    "index name [{}] starts with a dot '.', in the next major version, index names "
+                        + "starting with a dot are reserved for hidden indices and system indices",
+                    index
+                );
+            }
+        }
+
+        return isSystem;
     }
 
     private static CharacterRunAutomaton buildCharacterRunAutomaton(Collection<SystemIndexDescriptor> descriptors) {
