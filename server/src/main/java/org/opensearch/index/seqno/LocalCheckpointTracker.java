@@ -120,8 +120,8 @@ public class LocalCheckpointTracker {
     /**
      * Checks that the sequence number is in an acceptable range for an update to take place.
      */
-    private boolean shouldUpdateSeqNo(final long seqNo, final AtomicLong lowerBound, @Nullable final AtomicLong upperBound) {
-        return !((seqNo <= lowerBound.get()) || (upperBound != null && seqNo > upperBound.get()));
+    private boolean shouldUpdateSeqNo(final long seqNo, final long lowerBound, @Nullable final AtomicLong upperBound) {
+        return !((seqNo <= lowerBound) || (upperBound != null && seqNo > upperBound.get()));
     }
 
     /**
@@ -153,17 +153,18 @@ public class LocalCheckpointTracker {
      */
     public synchronized void fastForwardProcessedSeqNo(final long seqNo) {
         advanceMaxSeqNo(seqNo);
-        if (shouldUpdateSeqNo(seqNo, processedCheckpoint, persistedCheckpoint) == false) {
+        final long currentProcessedCheckpoint = processedCheckpoint.get();
+        if (shouldUpdateSeqNo(seqNo, currentProcessedCheckpoint, persistedCheckpoint) == false) {
             return;
         }
-        processedCheckpoint.compareAndSet(processedCheckpoint.get(), seqNo);
+        processedCheckpoint.compareAndSet(currentProcessedCheckpoint, seqNo);
     }
 
     private void markSeqNo(final long seqNo, final AtomicLong checkPoint, final LongObjectHashMap<CountedBitSet> bitSetMap) {
         assert Thread.holdsLock(this);
         // make sure we track highest seen sequence number
         advanceMaxSeqNo(seqNo);
-        if (shouldUpdateSeqNo(seqNo, checkPoint, null) == false) {
+        if (shouldUpdateSeqNo(seqNo, checkPoint.get(), null) == false) {
             // this is possible during recovery where we might replay an operation that was also replicated
             return;
         }
