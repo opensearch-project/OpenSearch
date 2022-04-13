@@ -530,12 +530,12 @@ class InjectorImpl implements Injector, Lookups {
      * other ancestor injectors until this injector is tried.
      */
     private <T> BindingImpl<T> createJustInTimeBindingRecursive(Key<T> key, Errors errors) throws ErrorsException {
-        if (state.isBlacklisted(key)) {
+        if (state.isDenylisted(key)) {
             throw errors.childBindingAlreadySet(key).toException();
         }
 
         BindingImpl<T> binding = createJustInTimeBinding(key, errors);
-        state.parent().blacklist(key);
+        state.parent().denylist(key);
         jitBindings.put(key, binding);
         return binding;
     }
@@ -555,7 +555,7 @@ class InjectorImpl implements Injector, Lookups {
      *          if the binding cannot be created.
      */
     <T> BindingImpl<T> createJustInTimeBinding(Key<T> key, Errors errors) throws ErrorsException {
-        if (state.isBlacklisted(key)) {
+        if (state.isDenylisted(key)) {
             throw errors.childBindingAlreadySet(key).toException();
         }
 
@@ -805,7 +805,7 @@ class InjectorImpl implements Injector, Lookups {
 
     // ES_GUICE: clear caches
     public void clearCache() {
-        state.clearBlacklisted();
+        state.clearDenylisted();
         constructors = new ConstructorInjectorStore(this);
         membersInjectorStore = new MembersInjectorStore(this, state.getTypeListenerBindings());
         jitBindings = new HashMap<>();

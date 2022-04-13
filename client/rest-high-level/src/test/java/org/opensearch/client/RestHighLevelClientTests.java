@@ -841,7 +841,6 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
             "create",
             "get_script_context",
             "get_script_languages",
-            "indices.exists_type",
             "indices.get_upgrade",
             "indices.put_alias",
             "render_search_template",

@@ -137,7 +137,10 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
 
         // TODO - need to check with mapping that this is indeed a text field....
 
-        IncludeExclude.StringFilter incExcFilter = includeExclude == null ? null : includeExclude.convertToStringFilter(DocValueFormat.RAW);
+        int maxRegexLength = searchContext.getQueryShardContext().getIndexSettings().getMaxRegexLength();
+        IncludeExclude.StringFilter incExcFilter = includeExclude == null
+            ? null
+            : includeExclude.convertToStringFilter(DocValueFormat.RAW, maxRegexLength);
 
         MapStringTermsAggregator.CollectorSource collectorSource = new SignificantTextCollectorSource(
             queryShardContext.lookup().source(),

@@ -67,7 +67,7 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     public void testDefaultNotPromptForPassword() throws Exception {
         execute();
-        Path configDir = env.configFile();
+        Path configDir = env.configDir();
         assertNotNull(KeyStoreWrapper.load(configDir));
     }
 
@@ -76,7 +76,7 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
         terminal.addSecretInput(password);
         terminal.addSecretInput(password);
         execute();
-        Path configDir = env.configFile();
+        Path configDir = env.configDir();
         assertNotNull(KeyStoreWrapper.load(configDir));
     }
 
@@ -86,13 +86,13 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
         terminal.addSecretInput(password);
         env = setupEnv(false, fileSystems);
         execute();
-        Path configDir = env.configFile();
+        Path configDir = env.configDir();
         assertNotNull(KeyStoreWrapper.load(configDir));
     }
 
     public void testOverwrite() throws Exception {
         String password = randomFrom("", "keystorepassword");
-        Path keystoreFile = KeyStoreWrapper.keystorePath(env.configFile());
+        Path keystoreFile = KeyStoreWrapper.keystorePath(env.configDir());
         byte[] content = "not a keystore".getBytes(StandardCharsets.UTF_8);
         Files.write(keystoreFile, content);
 
@@ -108,6 +108,6 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
         terminal.addSecretInput(password);
         terminal.addSecretInput(password);
         execute();
-        assertNotNull(KeyStoreWrapper.load(env.configFile()));
+        assertNotNull(KeyStoreWrapper.load(env.configDir()));
     }
 }

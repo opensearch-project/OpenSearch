@@ -21,4 +21,3 @@
  * Aggregations module
  */
 package org.opensearch.search.aggregations.bucket;
-

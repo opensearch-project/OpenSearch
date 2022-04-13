@@ -113,12 +113,12 @@ public class ClusterBootstrapService {
         BooleanSupplier isBootstrappedSupplier,
         Consumer<VotingConfiguration> votingConfigurationConsumer
     ) {
+        // TODO: Remove variable 'initialClusterManagerSettingName' after removing MASTER_ROLE.
+        String initialClusterManagerSettingName = INITIAL_CLUSTER_MANAGER_NODES_SETTING.exists(settings)
+            ? INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey()
+            : INITIAL_MASTER_NODES_SETTING.getKey();
         if (DiscoveryModule.isSingleNodeDiscovery(settings)) {
             if (INITIAL_CLUSTER_MANAGER_NODES_SETTING.existsOrFallbackExists(settings)) {
-                // TODO: Remove variable 'initialClusterManagerSettingName' after removing MASTER_ROLE.
-                String initialClusterManagerSettingName = INITIAL_CLUSTER_MANAGER_NODES_SETTING.exists(settings)
-                    ? INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey()
-                    : INITIAL_MASTER_NODES_SETTING.getKey();
                 throw new IllegalArgumentException(
                     "setting ["
                         + initialClusterManagerSettingName
@@ -145,7 +145,7 @@ public class ClusterBootstrapService {
             bootstrapRequirements = unmodifiableSet(new LinkedHashSet<>(initialMasterNodes));
             if (bootstrapRequirements.size() != initialMasterNodes.size()) {
                 throw new IllegalArgumentException(
-                    "setting [" + INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey() + "] contains duplicates: " + initialMasterNodes
+                    "setting [" + initialClusterManagerSettingName + "] contains duplicates: " + initialMasterNodes
                 );
             }
             unconfiguredBootstrapTimeout = discoveryIsConfigured(settings) ? null : UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING.get(settings);
@@ -163,7 +163,8 @@ public class ClusterBootstrapService {
             LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING,
             DISCOVERY_SEED_HOSTS_SETTING,
             LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
-            INITIAL_CLUSTER_MANAGER_NODES_SETTING
+            INITIAL_CLUSTER_MANAGER_NODES_SETTING,
+            INITIAL_MASTER_NODES_SETTING
         ).anyMatch(s -> s.exists(settings));
     }
 

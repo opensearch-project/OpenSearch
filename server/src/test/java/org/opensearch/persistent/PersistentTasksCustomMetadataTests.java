@@ -64,6 +64,7 @@ import org.opensearch.persistent.TestPersistentTasksPlugin.State;
 import org.opensearch.persistent.TestPersistentTasksPlugin.TestParams;
 import org.opensearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.opensearch.test.AbstractDiffableSerializationTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -79,7 +80,6 @@ import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_SNAPSHOT;
 import static org.opensearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
 import static org.opensearch.test.VersionUtils.allReleasedVersions;
 import static org.opensearch.test.VersionUtils.compatibleFutureVersion;
-import static org.opensearch.test.VersionUtils.getPreviousVersion;
 import static org.opensearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -281,7 +281,7 @@ public class PersistentTasksCustomMetadataTests extends AbstractDiffableSerializ
         PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder();
 
         Version minVersion = allReleasedVersions().stream().filter(Version::isRelease).findFirst().orElseThrow(NoSuchElementException::new);
-        final Version streamVersion = randomVersionBetween(random(), minVersion, getPreviousVersion(Version.CURRENT));
+        final Version streamVersion = randomVersionBetween(random(), minVersion, VersionUtils.getPreviousVersion(Version.CURRENT));
         tasks.addTask(
             "test_compatible_version",
             TestPersistentTasksExecutor.NAME,

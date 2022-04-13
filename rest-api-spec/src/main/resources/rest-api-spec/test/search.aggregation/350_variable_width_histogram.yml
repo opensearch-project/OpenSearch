@@ -47,4 +47,3 @@ setup:
   - match: { aggregations.histo.buckets.1.doc_count: 1 }
   - match: { aggregations.histo.buckets.2.key: 4.5 }
   - match: { aggregations.histo.buckets.2.doc_count: 2 }
-

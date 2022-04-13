@@ -325,8 +325,10 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 CardinalityUpperBound cardinality,
                 Map<String, Object> metadata
             ) throws IOException {
-
-                final IncludeExclude.StringFilter filter = includeExclude == null ? null : includeExclude.convertToStringFilter(format);
+                int maxRegexLength = aggregationContext.getQueryShardContext().getIndexSettings().getMaxRegexLength();
+                final IncludeExclude.StringFilter filter = includeExclude == null
+                    ? null
+                    : includeExclude.convertToStringFilter(format, maxRegexLength);
                 return new MapStringTermsAggregator(
                     name,
                     factories,
@@ -364,8 +366,10 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 CardinalityUpperBound cardinality,
                 Map<String, Object> metadata
             ) throws IOException {
-
-                final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);
+                int maxRegexLength = aggregationContext.getQueryShardContext().getIndexSettings().getMaxRegexLength();
+                final IncludeExclude.OrdinalsFilter filter = includeExclude == null
+                    ? null
+                    : includeExclude.convertToOrdinalsFilter(format, maxRegexLength);
                 boolean remapGlobalOrd = true;
                 if (cardinality == CardinalityUpperBound.ONE && factories == AggregatorFactories.EMPTY && includeExclude == null) {
                     /*
