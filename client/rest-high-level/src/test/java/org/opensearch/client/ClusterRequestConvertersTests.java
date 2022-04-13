@@ -61,7 +61,7 @@ public class ClusterRequestConvertersTests extends OpenSearchTestCase {
     public void testClusterPutSettings() throws IOException {
         ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
         Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomMasterTimeout(request, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(request, expectedParams);
         RequestConvertersTests.setRandomTimeout(request::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
 
         Request expectedRequest = ClusterRequestConverters.clusterPutSettings(request);
@@ -73,7 +73,7 @@ public class ClusterRequestConvertersTests extends OpenSearchTestCase {
     public void testClusterGetSettings() throws IOException {
         ClusterGetSettingsRequest request = new ClusterGetSettingsRequest();
         Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomMasterTimeout(request, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(request, expectedParams);
         request.includeDefaults(OpenSearchTestCase.randomBoolean());
         if (request.includeDefaults()) {
             expectedParams.put("include_defaults", String.valueOf(true));
