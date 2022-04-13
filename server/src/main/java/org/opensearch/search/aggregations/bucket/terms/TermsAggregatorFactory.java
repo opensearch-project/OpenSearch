@@ -34,7 +34,6 @@ package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.opensearch.common.ParseField;
-import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.AggregationExecutionException;
@@ -381,10 +380,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 CardinalityUpperBound cardinality,
                 Map<String, Object> metadata
             ) throws IOException {
-                IndexSettings indexSettings = context.getQueryShardContext().getIndexSettings();
+                int maxRegexLength = context.getQueryShardContext().getIndexSettings().getMaxRegexLength();
                 final IncludeExclude.StringFilter filter = includeExclude == null
                     ? null
-                    : includeExclude.convertToStringFilter(format, indexSettings);
+                    : includeExclude.convertToStringFilter(format, maxRegexLength);
                 return new MapStringTermsAggregator(
                     name,
                     factories,
@@ -462,10 +461,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     );
 
                 }
-                IndexSettings indexSettings = context.getQueryShardContext().getIndexSettings();
+                int maxRegexLength = context.getQueryShardContext().getIndexSettings().getMaxRegexLength();
                 final IncludeExclude.OrdinalsFilter filter = includeExclude == null
                     ? null
-                    : includeExclude.convertToOrdinalsFilter(format, indexSettings);
+                    : includeExclude.convertToOrdinalsFilter(format, maxRegexLength);
                 boolean remapGlobalOrds;
                 if (cardinality == CardinalityUpperBound.ONE && REMAP_GLOBAL_ORDS != null) {
                     /*
