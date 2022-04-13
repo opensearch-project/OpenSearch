@@ -56,4 +56,3 @@ setup:
                         use_field: text_en
                   max_gaps: 1
   - match: { hits.total.value: 1 }
-

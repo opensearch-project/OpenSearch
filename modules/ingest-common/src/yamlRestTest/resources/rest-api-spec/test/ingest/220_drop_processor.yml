@@ -91,4 +91,3 @@ teardown:
     get:
       index: test
       id: 3
-

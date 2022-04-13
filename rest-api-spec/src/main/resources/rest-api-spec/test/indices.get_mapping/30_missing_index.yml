@@ -29,4 +29,3 @@
         index: test_index
         ignore_unavailable: true
         allow_no_indices: false
-

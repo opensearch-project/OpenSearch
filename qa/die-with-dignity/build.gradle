@@ -35,4 +35,3 @@ testClusters.javaRestTest {
 }
 
 test.enabled = false
-

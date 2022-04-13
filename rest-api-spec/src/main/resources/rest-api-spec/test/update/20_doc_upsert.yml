@@ -32,5 +32,3 @@
 
   - match:  { _source.foo:        bar }
   - match:  { _source.count:      1   }
-
-

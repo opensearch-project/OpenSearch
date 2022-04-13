@@ -69,4 +69,3 @@
       indices.upgrade:
         index: ["test_index", "does_not_exist"]
         ignore_unavailable: false
-

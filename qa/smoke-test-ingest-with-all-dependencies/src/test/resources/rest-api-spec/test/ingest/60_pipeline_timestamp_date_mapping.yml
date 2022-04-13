@@ -34,4 +34,3 @@
         id: 1
         pipeline: "my_timely_pipeline"
         body: {}
-

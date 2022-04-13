@@ -229,4 +229,3 @@ setup:
                 query: bar baz
                 analyzer: lower_graph_syns
   - match: { hits.total: 1 }
-

@@ -136,4 +136,3 @@ if __name__ == "__main__":
     print('WARNING: no documentation references updates for release %s' % (release_version))
 
   print('*** Done.')
-
