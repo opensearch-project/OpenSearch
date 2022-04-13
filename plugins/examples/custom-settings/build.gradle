@@ -42,4 +42,3 @@ testClusters.all {
   // Adds a setting in the OpenSearch keystore before running the integration tests
   keystore 'custom.secured', 'password'
 }
-

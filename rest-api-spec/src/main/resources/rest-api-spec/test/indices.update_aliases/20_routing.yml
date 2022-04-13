@@ -132,4 +132,3 @@ setup:
         index: test_index
 
   - match: {test_index.aliases.test_alias: {'index_routing': '5', 'search_routing': '5'}}
-

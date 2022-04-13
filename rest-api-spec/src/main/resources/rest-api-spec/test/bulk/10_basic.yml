@@ -223,4 +223,3 @@
   - match: { items.0.index.status: 400 }
   - match: { items.0.index.error.type: illegal_argument_exception }
   - match: { items.0.index.error.reason: "no write index is defined for alias [test_index]. The write index may be explicitly disabled using is_write_index=false or the alias points to multiple indices without one being designated as a write index" }
-

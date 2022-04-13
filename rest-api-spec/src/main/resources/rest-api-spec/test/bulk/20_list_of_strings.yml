@@ -14,4 +14,3 @@
         index: test_index
 
   - match: {count: 2}
-

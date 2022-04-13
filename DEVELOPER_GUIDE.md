@@ -48,6 +48,7 @@
     - [Distributed Framework](#distributed-framework)
   - [Submitting Changes](#submitting-changes)
   - [Backports](#backports)
+  - [LineLint](#linelint)
 
 # Developer Guide
 
@@ -472,3 +473,18 @@ See [CONTRIBUTING](CONTRIBUTING.md).
 ## Backports
 
 The Github workflow in [`backport.yml`](.github/workflows/backport.yml) creates backport PRs automatically when the original PR with an appropriate label `backport <backport-branch-name>` is merged to main with the backport workflow run successfully on the PR. For example, if a PR on main needs to be backported to `1.x` branch, add a label `backport 1.x` to the PR and make sure the backport workflow runs on the PR along with other checks. Once this PR is merged to main, the workflow will create a backport PR to the `1.x` branch.
+
+## LineLint
+A linter in [`code-hygiene.yml`](.github/workflows/code-hygiene.yml) that validates simple newline and whitespace rules in all sorts of files. It can:
+- Recursively check a directory tree for files that do not end in a newline
+- Automatically fix these files by adding a newline or trimming extra newlines.
+
+Rules are defined in `.linelint.yml`.
+
+Executing the binary will automatically search the local directory tree for linting errors.
+
+    linelint .
+
+Pass a list of files or directories to limit your search.
+
+    linelint README.md LICENSE

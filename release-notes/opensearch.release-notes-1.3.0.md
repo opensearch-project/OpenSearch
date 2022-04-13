@@ -1295,5 +1295,3 @@
     [Nick Knize](mailto:nknize@apache.org) - Thu, 4 Nov 2021 14:46:57 -0500
 
     Signed-off-by: Nicholas Walter Knize &lt;nknize@apache.org&gt;
-
-

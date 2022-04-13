@@ -7,4 +7,3 @@
   - is_true:    version
   - is_true:    version.number
   - match: { version.build_type: "docker" }
-

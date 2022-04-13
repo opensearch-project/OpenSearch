@@ -250,7 +250,10 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 double precision,
                 CardinalityUpperBound cardinality
             ) throws IOException {
-                final IncludeExclude.StringFilter filter = includeExclude == null ? null : includeExclude.convertToStringFilter(format);
+                int maxRegexLength = context.getQueryShardContext().getIndexSettings().getMaxRegexLength();
+                final IncludeExclude.StringFilter filter = includeExclude == null
+                    ? null
+                    : includeExclude.convertToStringFilter(format, maxRegexLength);
                 return new StringRareTermsAggregator(
                     name,
                     factories,

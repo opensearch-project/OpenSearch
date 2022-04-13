@@ -17,4 +17,3 @@ setup:
       catch:  missing
       indices.get_index_template:
         name: test
-
