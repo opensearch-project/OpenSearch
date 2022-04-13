@@ -22,7 +22,8 @@ public class PitReaderContext extends ReaderContext {
 
     // Storing the encoded PIT ID as part of PIT reader context for use cases such as list pit API
     private final SetOnce<String> pitId = new SetOnce<>();
-    private final SetOnce<Long> createTime = new SetOnce<>();
+    // Creation time of PIT contexts which helps users to differentiate between multiple PIT reader contexts
+    private final SetOnce<Long> creationTime = new SetOnce<>();
 
     public PitReaderContext(
         ShardSearchContextId id,
@@ -52,18 +53,18 @@ public class PitReaderContext extends ReaderContext {
         refCounted.incRef();
         tryUpdateKeepAlive(keepAliveInMillis);
         setPitId(pitId);
-        setCreateTime(createTime);
+        setCreationTime(createTime);
         return Releasables.releaseOnce(() -> {
             this.lastAccessTime.updateAndGet(curr -> Math.max(curr, nowInMillis()));
             refCounted.decRef();
         });
     }
 
-    public long getCreateTime() {
-        return this.createTime.get();
+    public long getCreationTime() {
+        return this.creationTime.get();
     }
 
-    public void setCreateTime(final long createTime) {
-        this.createTime.set(createTime);
+    public void setCreationTime(final long creationTime) {
+        this.creationTime.set(creationTime);
     }
 }

@@ -137,7 +137,7 @@ public interface SearchOperationListener {
 
     /**
      * Executed when a Point-In-Time search {@link SearchContext} is freed.
-     * This happens on deleteion of a Point-In-Time or on it's keep-alive expiring.
+     * This happens on deletion of a Point-In-Time or on it's keep-alive is expiring.
      * @param readerContext the freed search context
      */
     default void onFreePitContext(ReaderContext readerContext) {}

@@ -1035,9 +1035,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         Releasable updatePit = null;
         try {
-            updatePit = readerContext.updatePitIdAndKeepAlive(request.getKeepAlive(), request.getPitId(), request.getCreateTime());
+            updatePit = readerContext.updatePitIdAndKeepAlive(request.getKeepAlive(), request.getPitId(), request.getCreationTime());
             updatePit.close();
-            listener.onResponse(new UpdatePitContextResponse(request.getPitId(), request.getCreateTime(), request.getKeepAlive()));
+            listener.onResponse(new UpdatePitContextResponse(request.getPitId(), request.getCreationTime(), request.getKeepAlive()));
         } catch (Exception e) {
             freeReaderContext(readerContext.id());
             if (updatePit != null) {

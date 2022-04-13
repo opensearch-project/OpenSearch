@@ -221,9 +221,10 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         CreatePITResponse pitResponse = execute.get();
         SearchService service = getInstanceFromNode(SearchService.class);
         assertEquals(2, service.getActiveContexts());
+        // since first phase temporary keep alive is set at 1 second in this test file
+        // and create pit request keep alive is less than that, keep alive is set to 1 second, (max of 2 keep alives)
+        // so reader context will clear up after 1 second
         Thread.sleep(1000);
-        // since first phase keep alive is set at 1 second in this test file and create pit request keep alive is
-        // less than that, so reader context will clear up after a second
         client().prepareIndex("index").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
         SearchPhaseExecutionException ex = expectThrows(SearchPhaseExecutionException.class, () -> {
@@ -362,6 +363,9 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         service.doClose();
     }
 
+    /**
+     * Point in time search should return the same results as creation time and index updates should not affect the PIT search results
+     */
     public void testPitAfterUpdateIndex() throws Exception {
         client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 5)).get();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
@@ -482,7 +486,7 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
                 Matchers.equalTo(50L)
             );
             /**
-             * using point in time id will have the old search results before update
+             * using point in time id will have the same search results as ones before updation
              */
             assertThat(
                 client().prepareSearch()

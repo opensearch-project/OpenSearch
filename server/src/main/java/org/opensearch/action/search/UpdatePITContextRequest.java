@@ -15,25 +15,28 @@ import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 
+/**
+ * Request used to update PIT reader contexts with pitId, keepAlive and creationTime
+ */
 public class UpdatePITContextRequest extends TransportRequest {
     private final String pitId;
     private final long keepAlive;
 
-    private final long createTime;
+    private final long creationTime;
     private final ShardSearchContextId searchContextId;
 
-    public UpdatePITContextRequest(ShardSearchContextId searchContextId, String pitId, long keepAlive, long createTime) {
+    public UpdatePITContextRequest(ShardSearchContextId searchContextId, String pitId, long keepAlive, long creationTime) {
         this.pitId = pitId;
         this.searchContextId = searchContextId;
         this.keepAlive = keepAlive;
-        this.createTime = createTime;
+        this.creationTime = creationTime;
     }
 
     UpdatePITContextRequest(StreamInput in) throws IOException {
         super(in);
         pitId = in.readString();
         keepAlive = in.readLong();
-        createTime = in.readLong();
+        creationTime = in.readLong();
         searchContextId = new ShardSearchContextId(in);
     }
 
@@ -42,7 +45,7 @@ public class UpdatePITContextRequest extends TransportRequest {
         super.writeTo(out);
         out.writeString(pitId);
         out.writeLong(keepAlive);
-        out.writeLong(createTime);
+        out.writeLong(creationTime);
         searchContextId.writeTo(out);
     }
 
@@ -54,8 +57,8 @@ public class UpdatePITContextRequest extends TransportRequest {
         return pitId;
     }
 
-    public long getCreateTime() {
-        return createTime;
+    public long getCreationTime() {
+        return creationTime;
     }
 
     public long getKeepAlive() {

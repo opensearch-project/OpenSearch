@@ -1452,7 +1452,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         searchService.updatePitIdAndKeepAlive(updateRequest, updateFuture);
         UpdatePitContextResponse updateResponse = updateFuture.actionGet();
         assertTrue(updateResponse.getPitId().equalsIgnoreCase("pitId"));
-        assertTrue(updateResponse.getCreateTime() == updateRequest.getCreateTime());
+        assertTrue(updateResponse.getCreationTime() == updateRequest.getCreationTime());
         assertTrue(updateResponse.getKeepAlive() == updateRequest.getKeepAlive());
         assertTrue(updateResponse.getPitId().equalsIgnoreCase("pitId"));
         assertThat(searchService.getActiveContexts(), equalTo(1));

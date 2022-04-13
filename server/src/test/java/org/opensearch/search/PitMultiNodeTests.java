@@ -70,17 +70,6 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
         });
     }
 
-    public void testCreatePitWithAllNodesDown() throws Exception {
-        internalCluster().startMasterOnlyNode();
-        internalCluster().stopRandomDataNode();
-        internalCluster().stopRandomDataNode();
-        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), false);
-        request.setIndices(new String[] { "index" });
-        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
-        ExecutionException ex = expectThrows(ExecutionException.class, execute::get);
-        assertTrue(ex.getMessage().contains("all shards failed"));
-    }
-
     public void testCreatePitWhileNodeDropWithAllowPartialCreationTrue() throws Exception {
         CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index" });
@@ -139,23 +128,6 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
                 return super.onNodeStopped(nodeName);
             }
         });
-    }
-
-    public void testPitSearchWithAllNodesDown() throws Exception {
-        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
-        request.setIndices(new String[] { "index" });
-        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
-        CreatePITResponse pitResponse = execute.get();
-
-        internalCluster().startMasterOnlyNode();
-        internalCluster().stopRandomDataNode();
-        internalCluster().stopRandomDataNode();
-        ActionFuture<SearchResponse> searchExecute = client().prepareSearch()
-            .setSize(2)
-            .setPointInTime(new PointInTimeBuilder(pitResponse.getId()).setKeepAlive(TimeValue.timeValueDays(1)))
-            .execute();
-        ExecutionException ex = expectThrows(ExecutionException.class, searchExecute::get);
-        assertTrue(ex.getMessage().contains("all shards failed"));
     }
 
     public void testPitInvalidDefaultKeepAlive() {

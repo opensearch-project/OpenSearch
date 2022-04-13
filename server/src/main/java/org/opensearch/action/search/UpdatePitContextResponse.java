@@ -17,27 +17,27 @@ import java.io.IOException;
 public class UpdatePitContextResponse extends TransportResponse {
     private final String pitId;
 
-    private final long createTime;
+    private final long creationTime;
 
     private final long keepAlive;
 
     UpdatePitContextResponse(StreamInput in) throws IOException {
         super(in);
         pitId = in.readString();
-        createTime = in.readLong();
+        creationTime = in.readLong();
         keepAlive = in.readLong();
     }
 
-    public UpdatePitContextResponse(String pitId, long createTime, long keepAlive) {
+    public UpdatePitContextResponse(String pitId, long creationTime, long keepAlive) {
         this.pitId = pitId;
         this.keepAlive = keepAlive;
-        this.createTime = createTime;
+        this.creationTime = creationTime;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(pitId);
-        out.writeLong(createTime);
+        out.writeLong(creationTime);
         out.writeLong(keepAlive);
     }
 
@@ -49,7 +49,7 @@ public class UpdatePitContextResponse extends TransportResponse {
         return keepAlive;
     }
 
-    public long getCreateTime() {
-        return createTime;
+    public long getCreationTime() {
+        return creationTime;
     }
 }
