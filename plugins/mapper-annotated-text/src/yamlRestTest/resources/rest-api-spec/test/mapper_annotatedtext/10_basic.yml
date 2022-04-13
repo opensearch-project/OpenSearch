@@ -142,4 +142,3 @@
         request_cache: false
         body: { "query" : {"match_phrase" : { "my_field" : {"query": "~MARK0", "analyzer": "whitespace"} } }, "highlight" : { "type" : "annotated",  "fields" : { "my_field" : {} } } }
   - match: {_shards.failed: 0}
-

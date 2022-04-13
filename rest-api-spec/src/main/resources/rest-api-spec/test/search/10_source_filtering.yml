@@ -196,4 +196,3 @@ setup:
   # When this test is run during runtime-field's tests we *don't* get floating point errors. Thus the funny assertion here that matches both.
   - lt: { hits.hits.0.fields.d.0: 3.141 }
   - gte: { hits.hits.0.fields.d.0: 3.14 }
-
