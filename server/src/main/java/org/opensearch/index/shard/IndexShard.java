@@ -3231,7 +3231,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         };
         final List<ReferenceManager.RefreshListener> internalRefreshListener;
-        if (indexSettings.isSegrepEnabled()) {
+        if (indexSettings.isSegrepEnabled() && shardRouting.primary()) {
             internalRefreshListener = Arrays.asList(new RefreshMetricUpdater(refreshMetric), checkpointRefreshListener);
         } else {
             internalRefreshListener = Collections.singletonList(new RefreshMetricUpdater(refreshMetric));
