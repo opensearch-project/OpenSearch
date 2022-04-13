@@ -1,0 +1,14 @@
+name: Code Hygiene
+
+on: [push, pull_request]
+
+jobs:
+  linelint:
+    runs-on: ubuntu-latest
+    name: Check if all files end in newline
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Linelint
+        uses: fernandrone/linelint@0.0.4

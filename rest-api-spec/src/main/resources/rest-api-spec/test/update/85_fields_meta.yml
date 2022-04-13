@@ -27,5 +27,3 @@
           id:     1
           parent: 5
           stored_fields: [ _routing ]
-
-

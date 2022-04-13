@@ -74,4 +74,3 @@
                 buckets_path: "the_avg"
                 window: -1
                 script: "MovingFunctions.windowMax(values)"
-

@@ -68,4 +68,3 @@
     - match: { tokens.1.token: "f" }
     - match: { tokens.2.token: "g" }
     - match: { tokens.3.token: "h" }
-

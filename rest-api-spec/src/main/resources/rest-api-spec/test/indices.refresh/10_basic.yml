@@ -55,4 +55,3 @@ setup:
   - match: { _shards.total: 0 }
   - match: { _shards.successful: 0 }
   - match: { _shards.failed: 0 }
-

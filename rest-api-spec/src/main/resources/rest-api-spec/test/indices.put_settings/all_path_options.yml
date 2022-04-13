@@ -110,4 +110,3 @@ setup:
   - match: {test_index1.settings.index.refresh_interval:     1s}
   - match: {test_index2.settings.index.refresh_interval:     1s}
   - match: {foo.settings.index.refresh_interval:     1s}
-

@@ -112,4 +112,3 @@
               _id:    test_id2
               pipeline: my_pipeline_1
           - f1: v2
-
