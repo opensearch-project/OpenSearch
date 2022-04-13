@@ -35,6 +35,7 @@ package org.opensearch.rest.action.ingest;
 import org.opensearch.action.ingest.GetPipelineRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestStatusToXContentListener;
@@ -47,6 +48,8 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
 public class RestGetPipelineAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetPipelineAction.class);
 
     @Override
     public List<Route> routes() {
@@ -61,7 +64,8 @@ public class RestGetPipelineAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         GetPipelineRequest request = new GetPipelineRequest(Strings.splitStringByCommaToArray(restRequest.param("id")));
-        request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
+        request.masterNodeTimeout(restRequest.paramAsTime("cluster_manager_timeout", request.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(request, restRequest, deprecationLogger, getName());
         return channel -> client.admin().cluster().getPipeline(request, new RestStatusToXContentListener<>(channel));
     }
 }
