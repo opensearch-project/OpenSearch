@@ -4,7 +4,7 @@
 | --------------- | --------- | ----------- |
 | Abbas Hussain | [abbashus](https://github.com/abbashus) | Amazon |
 | Anas Alkouz | [anasalkouz](https://github.com/anasalkouz) | Amazon |
-| Andrew Ross   | [andross](https://github.com/andrross)| Amazon |
+| Andrew Ross   | [andrross](https://github.com/andrross)| Amazon |
 | Andriy Redko | [reta](https://github.com/reta) | Aiven |
 | Charlotte Henkle | [CEHENKLE](https://github.com/CEHENKLE) | Amazon |
 | Daniel "dB." Doubrovkine | [dblock](https://github.com/dblock) | Amazon |
