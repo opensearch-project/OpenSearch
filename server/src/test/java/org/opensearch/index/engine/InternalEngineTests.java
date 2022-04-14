@@ -6328,7 +6328,7 @@ public class InternalEngineTests extends EngineTestCase {
     /**
      * Test creating new snapshot from translog file
      *
-     * @Deprecated reading history operations from the translog file is deprecated and will be removed in the next release
+     * @deprecated reading history operations from the translog file is deprecated and will be removed in the next release
      */
     @Deprecated
     private static List<Translog.Operation> readAllOperationsBasedOnTranslog(Engine engine) throws IOException {
