@@ -356,7 +356,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
         @Override
         default void onFailure(ReplicationState state, OpenSearchException e, boolean sendShardFailure) {
-            onRecoveryFailure((RecoveryState) state, (RecoveryFailedException) e, sendShardFailure);
+            final RecoveryState recoveryState = (RecoveryState) state;
+            onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, "", e), sendShardFailure);
         }
 
         void onRecoveryDone(RecoveryState state);
@@ -397,7 +398,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         @Override
         public void messageReceived(final RecoveryHandoffPrimaryContextRequest request, final TransportChannel channel, Task task)
             throws Exception {
-            try (ReplicationRef<RecoveryTarget> recoveryRef = onGoingRecoveries.getReplicationSafe(request.recoveryId(), request.shardId())) {
+            try (
+                ReplicationRef<RecoveryTarget> recoveryRef = onGoingRecoveries.getReplicationSafe(request.recoveryId(), request.shardId())
+            ) {
                 recoveryRef.get().handoffPrimaryContext(request.primaryContext());
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
@@ -410,7 +413,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         @Override
         public void messageReceived(final RecoveryTranslogOperationsRequest request, final TransportChannel channel, Task task)
             throws IOException {
-            try (ReplicationRef<RecoveryTarget> recoveryRef = onGoingRecoveries.getReplicationSafe(request.recoveryId(), request.shardId())) {
+            try (
+                ReplicationRef<RecoveryTarget> recoveryRef = onGoingRecoveries.getReplicationSafe(request.recoveryId(), request.shardId())
+            ) {
                 final RecoveryTarget recoveryTarget = recoveryRef.get();
                 final ActionListener<Void> listener = createOrFinishListener(
                     recoveryRef.get(),
@@ -445,7 +450,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     @Override
                     public void onNewClusterState(ClusterState state) {
                         threadPool.generic().execute(ActionRunnable.wrap(listener, l -> {
-                            try (ReplicationRef recoveryRef = onGoingRecoveries.getReplicationSafe(request.recoveryId(), request.shardId())) {
+                            try (
+                                ReplicationRef recoveryRef = onGoingRecoveries.getReplicationSafe(request.recoveryId(), request.shardId())
+                            ) {
                                 performTranslogOps(request, listener, recoveryRef);
                             }
                         }));
@@ -533,36 +540,17 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
         @Override
         public void messageReceived(final RecoveryFileChunkRequest request, TransportChannel channel, Task task) throws Exception {
-            try (ReplicationRef<RecoveryTarget> recoveryRef = onGoingRecoveries.getRecovery(request.replicationId());
-                 ReplicationRef<SegmentReplicationTarget> segrepRef = segmentReplicationReplicaService.getOnGoingReplications().getReplication(request.replicationId())) {
-                ReplicationTarget target;
+            try (ReplicationRef<RecoveryTarget> recoveryRef = onGoingRecoveries.getRecovery(request.replicationId())) {
                 if (recoveryRef == null) {
-                    target = segrepRef.get();
-                } else {
-                    target = recoveryRef.get();
+                    handleSegrepWrite(request, channel);
                 }
-                final ActionListener<Void> listener = createOrFinishListener(target, channel, Actions.FILE_CHUNK, request);
+                final RecoveryTarget recoveryTarget = recoveryRef.get();
+                final ActionListener<Void> listener = createOrFinishListener(recoveryTarget, channel, Actions.FILE_CHUNK, request);
                 if (listener == null) {
                     return;
                 }
-
-                final RecoveryIndex indexState = target.state().getIndex();
-                if (request.sourceThrottleTimeInNanos() != RecoveryIndex.UNKNOWN) {
-                    indexState.addSourceThrottling(request.sourceThrottleTimeInNanos());
-                }
-
-                RateLimiter rateLimiter = recoverySettings.rateLimiter();
-                if (rateLimiter != null) {
-                    long bytes = bytesSinceLastPause.addAndGet(request.content().length());
-                    if (bytes > rateLimiter.getMinPauseCheckBytes()) {
-                        // Time to pause
-                        bytesSinceLastPause.addAndGet(-bytes);
-                        long throttleTimeInNanos = rateLimiter.pause(bytes);
-                        indexState.addTargetThrottling(throttleTimeInNanos);
-                        target.indexShard().recoveryStats().addThrottleTime(throttleTimeInNanos);
-                    }
-                }
-                target.writeFileChunk(
+                addSourceThrottling(request, recoveryTarget.state().getIndex(), recoveryTarget.indexShard());
+                recoveryTarget.writeFileChunk(
                     request.metadata(),
                     request.position(),
                     request.content(),
@@ -570,6 +558,40 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     request.totalTranslogOps(),
                     listener
                 );
+            }
+        }
+
+        private void handleSegrepWrite(RecoveryFileChunkRequest request, TransportChannel channel) throws IOException {
+            try (
+                ReplicationRef<SegmentReplicationTarget> replicationRef = segmentReplicationReplicaService.getOnGoingReplications()
+                    .getReplication(request.replicationId())
+            ) {
+                final SegmentReplicationTarget recoveryTarget = replicationRef.get();
+                final ActionListener<Void> listener = createOrFinishListener(recoveryTarget, channel, Actions.FILE_CHUNK, request);
+                if (listener == null) {
+                    return;
+                }
+                addSourceThrottling(request, recoveryTarget.state().getIndex(), recoveryTarget.indexShard());
+                recoveryTarget.writeFileChunk(request.metadata(), request.position(), request.content(), request.lastChunk(), listener);
+            }
+        }
+
+        private void addSourceThrottling(RecoveryFileChunkRequest request, RecoveryIndex index, IndexShard indexShard) throws IOException {
+            final RecoveryIndex indexState = index;
+            if (request.sourceThrottleTimeInNanos() != RecoveryIndex.UNKNOWN) {
+                indexState.addSourceThrottling(request.sourceThrottleTimeInNanos());
+            }
+
+            RateLimiter rateLimiter = recoverySettings.rateLimiter();
+            if (rateLimiter != null) {
+                long bytes = bytesSinceLastPause.addAndGet(request.content().length());
+                if (bytes > rateLimiter.getMinPauseCheckBytes()) {
+                    // Time to pause
+                    bytesSinceLastPause.addAndGet(-bytes);
+                    long throttleTimeInNanos = rateLimiter.pause(bytes);
+                    indexState.addTargetThrottling(throttleTimeInNanos);
+                    indexShard.recoveryStats().addThrottleTime(throttleTimeInNanos);
+                }
             }
         }
     }

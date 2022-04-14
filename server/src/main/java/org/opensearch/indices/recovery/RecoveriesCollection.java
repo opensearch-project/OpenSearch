@@ -51,7 +51,12 @@ public class RecoveriesCollection extends ReplicationCollection<RecoveryTarget> 
         super(logger, threadPool);
     }
 
-    public long startRecovery(IndexShard indexShard, DiscoveryNode sourceNode, PeerRecoveryTargetService.RecoveryListener listener, TimeValue activityTimeout) {
+    public long startRecovery(
+        IndexShard indexShard,
+        DiscoveryNode sourceNode,
+        PeerRecoveryTargetService.RecoveryListener listener,
+        TimeValue activityTimeout
+    ) {
         return startReplication(new RecoveryTarget(indexShard, sourceNode, listener), activityTimeout);
     }
 

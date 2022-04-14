@@ -74,7 +74,8 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
     public SegmentReplicationReplicaService(
         final ThreadPool threadPool,
         final RecoverySettings recoverySettings,
-        final TransportService transportService) {
+        final TransportService transportService
+    ) {
         this.threadPool = threadPool;
         this.recoverySettings = recoverySettings;
         this.transportService = transportService;
@@ -166,10 +167,7 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
     ) {
         indexShard.markAsReplicating();
         SegmentReplicationTarget target = new SegmentReplicationTarget(checkpoint, indexShard, source, listener);
-        final long replicationId = onGoingReplications.startReplication(
-            target,
-            recoverySettings.activityTimeout()
-        );
+        final long replicationId = onGoingReplications.startReplication(target, recoverySettings.activityTimeout());
         logger.trace("Starting replication {}", replicationId);
         threadPool.generic().execute(new ReplicationRunner(replicationId));
     }
@@ -221,12 +219,8 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
         indexShard.markAsReplicating();
         StepListener<TrackShardResponse> trackShardListener = new StepListener<>();
         trackShardListener.whenComplete(
-            r -> {
-                startReplication(indexShard.getLatestReplicationCheckpoint(), indexShard, replicationSource, replicationListener);
-            },
-            e -> {
-                replicationListener.onFailure(indexShard.getReplicationState(), new ReplicationFailedException(indexShard, e), true);
-            }
+            r -> { startReplication(indexShard.getLatestReplicationCheckpoint(), indexShard, replicationSource, replicationListener); },
+            e -> { replicationListener.onFailure(indexShard.getReplicationState(), new ReplicationFailedException(indexShard, e), true); }
         );
         prepareForReplication(indexShard, targetNode, sourceNode, trackShardListener);
     }

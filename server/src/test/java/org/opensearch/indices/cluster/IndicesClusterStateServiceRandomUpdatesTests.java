@@ -555,7 +555,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         final SegmentReplicationReplicaService replicationReplicaService = new SegmentReplicationReplicaService(
             threadPool,
             null,
-            transportService);
+            transportService
+        );
         final PeerRecoveryTargetService recoveryTargetService = new PeerRecoveryTargetService(
             threadPool,
             transportService,
@@ -563,12 +564,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             clusterService,
             replicationReplicaService
         );
-        PrimaryShardReplicationSource replicationSource = new PrimaryShardReplicationSource(
-            transportService,
-            clusterService,
-            null,
-            null
-        );
+        PrimaryShardReplicationSource replicationSource = new PrimaryShardReplicationSource(transportService, clusterService, null, null);
         final ShardStateAction shardStateAction = mock(ShardStateAction.class);
         final PrimaryReplicaSyncer primaryReplicaSyncer = mock(PrimaryReplicaSyncer.class);
         return new IndicesClusterStateService(

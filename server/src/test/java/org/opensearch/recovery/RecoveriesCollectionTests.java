@@ -43,7 +43,6 @@ import org.opensearch.indices.recovery.RecoveryFailedException;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryTarget;
-import org.opensearch.indices.recovery.ReplicationCollection;
 import org.opensearch.indices.recovery.ReplicationCollection.ReplicationRef;
 
 import java.util.concurrent.CountDownLatch;

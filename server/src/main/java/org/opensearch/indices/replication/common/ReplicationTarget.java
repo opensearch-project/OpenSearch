@@ -105,7 +105,6 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
         long position,
         BytesReference content,
         boolean lastChunk,
-        long totalTranslogOps,
         ActionListener<Void> actionListener
     ) {
         try {

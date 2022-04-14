@@ -37,7 +37,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.index.IndexingPressureService;
-import org.opensearch.indices.recovery.RecoveriesCollection;
 import org.opensearch.indices.replication.SegmentReplicationReplicaService;
 import org.opensearch.indices.replication.copy.PrimaryShardReplicationSource;
 import org.opensearch.indices.replication.copy.SegmentReplicationPrimaryService;
@@ -928,24 +927,25 @@ public class Node implements Closeable {
                     b.bind(PeerRecoverySourceService.class)
                         .toInstance(new PeerRecoverySourceService(transportService, indicesService, recoverySettings));
                     b.bind(SegmentReplicationPrimaryService.class)
-                    .toInstance(new SegmentReplicationPrimaryService(transportService, indicesService, recoverySettings));
+                        .toInstance(new SegmentReplicationPrimaryService(transportService, indicesService, recoverySettings));
                     final SegmentReplicationReplicaService segmentReplicationReplicaService = new SegmentReplicationReplicaService(
-                    threadPool,
-                    recoverySettings,
-                    transportService
-                );
+                        threadPool,
+                        recoverySettings,
+                        transportService
+                    );
                     b.bind(PeerRecoveryTargetService.class)
-                        .toInstance(new PeerRecoveryTargetService(threadPool, transportService, recoverySettings, clusterService, segmentReplicationReplicaService));
+                        .toInstance(
+                            new PeerRecoveryTargetService(
+                                threadPool,
+                                transportService,
+                                recoverySettings,
+                                clusterService,
+                                segmentReplicationReplicaService
+                            )
+                        );
                     b.bind(SegmentReplicationReplicaService.class).toInstance(segmentReplicationReplicaService);
                     b.bind(PrimaryShardReplicationSource.class)
-                    .toInstance(
-                        new PrimaryShardReplicationSource(
-                            transportService,
-                            clusterService,
-                            indicesService,
-                            recoverySettings
-                        )
-                    );
+                        .toInstance(new PrimaryShardReplicationSource(transportService, clusterService, indicesService, recoverySettings));
                 }
                 b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
                 pluginComponents.stream().forEach(p -> b.bind((Class) p.getClass()).toInstance(p));

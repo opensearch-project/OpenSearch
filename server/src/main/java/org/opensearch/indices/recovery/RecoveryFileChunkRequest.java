@@ -92,7 +92,16 @@ public final class RecoveryFileChunkRequest extends RecoveryTransportRequest {
         this.sourceThrottleTimeInNanos = sourceThrottleTimeInNanos;
     }
 
-    public RecoveryFileChunkRequest(long replicationId, long requestSeqNo, ShardId shardId, StoreFileMetadata fileMetadata, long position, BytesReference content, boolean lastChunk, long throttleTimeInNanos) {
+    public RecoveryFileChunkRequest(
+        long replicationId,
+        long requestSeqNo,
+        ShardId shardId,
+        StoreFileMetadata fileMetadata,
+        long position,
+        BytesReference content,
+        boolean lastChunk,
+        long throttleTimeInNanos
+    ) {
         this(replicationId, requestSeqNo, shardId, fileMetadata, position, content, lastChunk, 0, throttleTimeInNanos);
     }
 

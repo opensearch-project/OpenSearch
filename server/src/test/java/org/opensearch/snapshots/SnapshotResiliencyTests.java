@@ -1831,7 +1831,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 SegmentReplicationReplicaService replicaService = new SegmentReplicationReplicaService(
                     threadPool,
                     recoverySettings,
-                    transportService);
+                    transportService
+                );
                 indicesClusterStateService = new IndicesClusterStateService(
                     settings,
                     indicesService,

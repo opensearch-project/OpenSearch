@@ -400,7 +400,7 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
         ActionListener<Void> listener
     ) {
         state().getTranslog().totalOperations(totalTranslogOps);
-        this.writeFileChunk(fileMetadata, position, content, lastChunk, totalTranslogOps, listener);
+        this.writeFileChunk(fileMetadata, position, content, lastChunk, listener);
     }
 
     /**

@@ -19,7 +19,6 @@ import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.replication.common.ReplicationTarget;
-import org.opensearch.indices.replication.copy.ReplicationFailedException;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -41,10 +40,7 @@ public class ReplicationCollection<T extends ReplicationTarget> {
         this.threadPool = threadPool;
     }
 
-    public long startReplication(
-        T target,
-        TimeValue activityTimeout
-    ) {
+    public long startReplication(T target, TimeValue activityTimeout) {
         startRecoveryInternal(target, activityTimeout);
         return target.getId();
     }
@@ -52,22 +48,6 @@ public class ReplicationCollection<T extends ReplicationTarget> {
     public Map<Long, T> getOngoingReplications() {
         return onGoingReplications;
     }
-
-//    /**
-//     * Starts are new recovery for the given shard, source node and state
-//     *
-//     * @return the id of the new recovery.
-//     */
-//    public long startRecovery(
-//        IndexShard indexShard,
-//        DiscoveryNode sourceNode,
-//        PeerRecoveryTargetService.RecoveryListener listener,
-//        TimeValue activityTimeout
-//    ) {
-//        RecoveryTarget replicationTarget = new RecoveryTarget(indexShard, sourceNode, listener);
-//        startRecoveryInternal(replicationTarget, activityTimeout);
-//        return replicationTarget.getId();
-//    }
 
     protected void startRecoveryInternal(T replicationTarget, TimeValue activityTimeout) {
         ReplicationTarget existingTarget = onGoingReplications.putIfAbsent(replicationTarget.getId(), replicationTarget);
@@ -84,7 +64,6 @@ public class ReplicationCollection<T extends ReplicationTarget> {
             ThreadPool.Names.GENERIC
         );
     }
-
 
     public T getReplicationTarget(long id) {
         return onGoingReplications.get(id);
@@ -249,7 +228,7 @@ public class ReplicationCollection<T extends ReplicationTarget> {
                 String message = "no activity after [" + checkInterval + "]";
                 failReplication(
                     recoveryId,
-                    new ReplicationFailedException(target.indexShard(), message, new OpenSearchTimeoutException(message)),
+                    new OpenSearchTimeoutException(message),
                     true // to be safe, we don't know what go stuck
                 );
                 return;
