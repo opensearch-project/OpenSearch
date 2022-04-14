@@ -49,6 +49,7 @@
   - [Submitting Changes](#submitting-changes)
   - [Backports](#backports)
   - [LineLint](#linelint)
+  - [Lucene Snapshots](#lucene-snapshots)
 
 # Developer Guide
 
@@ -488,3 +489,8 @@ Executing the binary will automatically search the local directory tree for lint
 Pass a list of files or directories to limit your search.
 
     linelint README.md LICENSE
+
+# Lucene Snapshots
+The Github workflow in [lucene-snapshots.yml](.github/workflows/lucene-snapshots.yml) is a Github worfklow executable by maintainers to build a top-down snapshot build of lucene.
+These snapshots are available to test compatibility with upcoming changes to Lucene by updating the version at [version.properties](buildsrc/version.properties) with the `version-snapshot-sha` version.
+Example: `lucene = 10.0.0-snapshot-2e941fc`.
