@@ -635,7 +635,7 @@ public class Node implements Closeable {
 
             final AliasValidator aliasValidator = new AliasValidator();
 
-            final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
+            final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService, systemIndices);
             final MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(
                 settings,
                 clusterService,
