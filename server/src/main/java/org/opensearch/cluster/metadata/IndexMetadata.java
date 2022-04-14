@@ -260,6 +260,17 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.IndexScope
     );
 
+    public static final String SETTING_SEGMENT_REPLICATION = "index.replication.segment_replication";
+    /**
+     * Used to specify if the index should use segment replication. If false, document replication is used.
+     */
+    public static final Setting<Boolean> INDEX_SEGMENT_REPLICATION_SETTING = Setting.boolSetting(
+        SETTING_SEGMENT_REPLICATION,
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
     public static final Setting<AutoExpandReplicas> INDEX_AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SETTING;
 
