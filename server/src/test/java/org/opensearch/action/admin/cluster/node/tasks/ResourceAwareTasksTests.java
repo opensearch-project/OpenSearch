@@ -8,6 +8,7 @@
 
 package org.opensearch.action.admin.cluster.node.tasks;
 
+import com.sun.management.ThreadMXBean;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
@@ -17,6 +18,7 @@ import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.action.support.nodes.BaseNodeRequest;
 import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
@@ -32,6 +34,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -45,12 +48,10 @@ import java.util.function.Consumer;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
 
+@SuppressForbidden(reason = "ThreadMXBean#getThreadAllocatedBytes")
 public class ResourceAwareTasksTests extends TaskManagerTestCase {
 
-    // For every task there's a general overhead before and after the actual task operation code is executed.
-    // This includes things like creating threadContext, Transport Channel, Tracking task cancellation etc.
-    // For the tasks used for this test that maximum memory overhead can be 450Kb
-    private static final int TASK_MAX_GENERAL_MEMORY_OVERHEAD = 450000;
+    private static final ThreadMXBean threadMXBean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
 
     public static class ResourceAwareNodeRequest extends BaseNodeRequest {
         protected String requestName;
@@ -134,7 +135,6 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
      * Simulates a task which executes work on search executor.
      */
     class ResourceAwareNodesAction extends AbstractTestNodesAction<NodesRequest, ResourceAwareNodeRequest> {
-
         private final TaskTestContext taskTestContext;
         private final boolean blockForCancellation;
 
@@ -168,7 +168,11 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
                 }
 
                 @Override
+                @SuppressForbidden(reason = "ThreadMXBean#getThreadAllocatedBytes")
                 protected void doRun() {
+                    taskTestContext.memoryConsumptionWhenExecutionStarts = threadMXBean.getThreadAllocatedBytes(
+                        Thread.currentThread().getId()
+                    );
                     threadId.set(Thread.currentThread().getId());
 
                     if (taskTestContext.operationStartValidator != null) {
@@ -205,9 +209,10 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
                 result.get();
             } catch (InterruptedException | ExecutionException e) {
                 throw new RuntimeException(e.getCause());
-            }
-            if (taskTestContext.operationFinishedValidator != null) {
-                taskTestContext.operationFinishedValidator.accept(threadId.get());
+            } finally {
+                if (taskTestContext.operationFinishedValidator != null) {
+                    taskTestContext.operationFinishedValidator.accept(threadId.get());
+                }
             }
 
             return new NodeResponse(clusterService.localNode());
@@ -246,6 +251,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
         private CountDownLatch requestCompleteLatch;
         private Consumer<Long> operationStartValidator;
         private Consumer<Long> operationFinishedValidator;
+        private long memoryConsumptionWhenExecutionStarts;
     }
 
     public void testBasicTaskResourceTracking() throws Exception {
@@ -280,7 +286,8 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
 
             long expectedArrayAllocationOverhead = 2 * 4012688; // Task's memory overhead due to array allocations
             long actualTaskMemoryOverhead = task.getTotalResourceStats().getMemoryInBytes();
-            assertTrue(Math.abs(actualTaskMemoryOverhead - expectedArrayAllocationOverhead) < TASK_MAX_GENERAL_MEMORY_OVERHEAD);
+
+            assertTrue(actualTaskMemoryOverhead - expectedArrayAllocationOverhead < taskTestContext.memoryConsumptionWhenExecutionStarts);
             assertTrue(task.getTotalResourceStats().getCpuTimeInNanos() > 0);
         };
 
@@ -334,11 +341,13 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
             assertEquals(1, task.getResourceStats().get(threadId).size());
             assertFalse(task.getResourceStats().get(threadId).get(0).isActive());
 
-            long expectedArrayAllocationOverhead = 4012688; // Task's memory overhead due to array allocations. Only one out of 2
             // allocations are completed before the task is cancelled
-            long actualArrayAllocationOverhead = task.getTotalResourceStats().getMemoryInBytes();
+            long expectedArrayAllocationOverhead = 4012688; // Task's memory overhead due to array allocations
+            long taskCancellationOverhead = 30000; // Task cancellation overhead ~ 30Kb
+            long actualTaskMemoryOverhead = task.getTotalResourceStats().getMemoryInBytes();
 
-            assertTrue(Math.abs(actualArrayAllocationOverhead - expectedArrayAllocationOverhead) < TASK_MAX_GENERAL_MEMORY_OVERHEAD);
+            long expectedOverhead = expectedArrayAllocationOverhead + taskCancellationOverhead;
+            assertTrue(actualTaskMemoryOverhead - expectedOverhead < taskTestContext.memoryConsumptionWhenExecutionStarts);
             assertTrue(task.getTotalResourceStats().getCpuTimeInNanos() > 0);
         };
 
@@ -437,7 +446,8 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
 
             long expectedArrayAllocationOverhead = 2 * 4012688; // Task's memory overhead due to array allocations
             long actualTaskMemoryOverhead = task.getTotalResourceStats().getMemoryInBytes();
-            assertTrue(Math.abs(actualTaskMemoryOverhead - expectedArrayAllocationOverhead) < TASK_MAX_GENERAL_MEMORY_OVERHEAD);
+
+            assertTrue(actualTaskMemoryOverhead - expectedArrayAllocationOverhead < taskTestContext.memoryConsumptionWhenExecutionStarts);
             assertTrue(task.getTotalResourceStats().getCpuTimeInNanos() > 0);
         };
 

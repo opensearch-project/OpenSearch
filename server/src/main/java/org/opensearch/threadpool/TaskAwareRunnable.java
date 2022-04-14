@@ -32,7 +32,7 @@ public class TaskAwareRunnable extends AbstractRunnable implements WrappedRunnab
     private final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener;
 
     public TaskAwareRunnable(
-        ThreadContext threadContext,
+        final ThreadContext threadContext,
         final Runnable original,
         final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener
     ) {
