@@ -218,8 +218,8 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
             && !resourceAwareTasks.containsKey((long) threadContext.getTransient(TASK_ID));
 
         if (staleIdPresentInThreadContext) {
-            logger.debug(
-                "Stale Task Id should ideally be not present in thread context. Current task Id: {}, Stale task Id: {}, Thread id: {}",
+            logger.warn(
+                "Previous task ID was not removed from thread context. Current task Id: {}, Stale task Id: {}, Thread id: {}",
                 task.getId(),
                 threadContext.getTransient(TASK_ID),
                 Thread.currentThread().getId()
