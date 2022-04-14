@@ -32,6 +32,8 @@
 
 package org.opensearch.indices;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
@@ -63,6 +65,8 @@ import static org.opensearch.tasks.TaskResultsService.TASK_INDEX;
  * to reduce the locations within the code that need to deal with {@link SystemIndexDescriptor}s.
  */
 public class SystemIndices {
+    private static final Logger logger = LogManager.getLogger(SystemIndices.class);
+
     private static final Map<String, Collection<SystemIndexDescriptor>> SERVER_SYSTEM_INDEX_DESCRIPTORS = singletonMap(
         TaskResultsService.class.getName(),
         singletonList(new SystemIndexDescriptor(TASK_INDEX + "*", "Task Result Index"))
@@ -133,6 +137,27 @@ public class SystemIndices {
             assert false : errorMessage.toString();
             throw new IllegalStateException(errorMessage.toString());
         }
+    }
+
+    /**
+     * Validates (if this index has a dot-prefixed name) and it is system index.
+     * @param index The name of the index in question
+     */
+    public boolean validateSystemIndex(String index) {
+        if (index.charAt(0) == '.') {
+            SystemIndexDescriptor matchingDescriptor = findMatchingDescriptor(index);
+            if (matchingDescriptor != null) {
+                logger.trace(
+                    "index [{}] is a system index because it matches index pattern [{}] with description [{}]",
+                    index,
+                    matchingDescriptor.getIndexPattern(),
+                    matchingDescriptor.getDescription()
+                );
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static CharacterRunAutomaton buildCharacterRunAutomaton(Collection<SystemIndexDescriptor> descriptors) {
