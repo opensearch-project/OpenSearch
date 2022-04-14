@@ -29,7 +29,7 @@ import java.util.concurrent.ConcurrentMap;
 
 public class ReplicationCollection<T extends ReplicationTarget> {
 
-    /** This is the single source of truth for ongoing recoveries. If it's not here, it was canceled or done */
+    /** This is the single source of truth for ongoing replications. If it's not here, it was canceled or done */
     private final ConcurrentMap<Long, T> onGoingReplications = ConcurrentCollections.newConcurrentMap();
 
     protected final Logger logger;
@@ -40,18 +40,9 @@ public class ReplicationCollection<T extends ReplicationTarget> {
         this.threadPool = threadPool;
     }
 
-    public long startReplication(T target, TimeValue activityTimeout) {
-        startRecoveryInternal(target, activityTimeout);
-        return target.getId();
-    }
-
-    public Map<Long, T> getOngoingReplications() {
-        return onGoingReplications;
-    }
-
-    protected void startRecoveryInternal(T replicationTarget, TimeValue activityTimeout) {
+    public long startReplication(T replicationTarget, TimeValue activityTimeout) {
         ReplicationTarget existingTarget = onGoingReplications.putIfAbsent(replicationTarget.getId(), replicationTarget);
-        assert existingTarget == null : "found two RecoveryStatus instances with the same id";
+        assert existingTarget == null : "found two ReplicationTarget instances with the same id";
         logger.trace(
             "{} started recovery from {}, id [{}]",
             replicationTarget.indexShard().shardId(),
@@ -63,6 +54,11 @@ public class ReplicationCollection<T extends ReplicationTarget> {
             activityTimeout,
             ThreadPool.Names.GENERIC
         );
+        return replicationTarget.getId();
+    }
+
+    public Map<Long, T> getOngoingReplications() {
+        return onGoingReplications;
     }
 
     public T getReplicationTarget(long id) {
@@ -70,8 +66,8 @@ public class ReplicationCollection<T extends ReplicationTarget> {
     }
 
     /**
-     * gets the {@link RecoveryTarget } for a given id. The RecoveryStatus returned has it's ref count already incremented
-     * to make sure it's safe to use. However, you must call {@link RecoveryTarget#decRef()} when you are done with it, typically
+     * gets the {@link ReplicationTarget } for a given id. The ReplicationTarget returned has it's ref count already incremented
+     * to make sure it's safe to use. However, you must call {@link ReplicationTarget#decRef()} when you are done with it, typically
      * by using this method in a try-with-resources clause.
      * <p>
      * Returns null if recovery is not found
@@ -96,7 +92,7 @@ public class ReplicationCollection<T extends ReplicationTarget> {
     }
 
     /** cancel the recovery with the given id (if found) and remove it from the recovery collection */
-    public boolean cancelRecovery(long id, String reason) {
+    public boolean cancelReplication(long id, String reason) {
         T removed = onGoingReplications.remove(id);
         boolean cancelled = false;
         if (removed != null) {
@@ -160,19 +156,19 @@ public class ReplicationCollection<T extends ReplicationTarget> {
      * @param shardId      shardId for which to cancel recoveries
      * @return true if a recovery was cancelled
      */
-    public boolean cancelRecoveriesForShard(ShardId shardId, String reason) {
+    public boolean cancelReplicationsForShard(ShardId shardId, String reason) {
         boolean cancelled = false;
-        List<T> matchedRecoveries = new ArrayList<>();
+        List<T> matchedReplications = new ArrayList<>();
         synchronized (onGoingReplications) {
             for (Iterator<T> it = onGoingReplications.values().iterator(); it.hasNext();) {
                 T status = it.next();
                 if (status.indexShard().shardId().equals(shardId)) {
-                    matchedRecoveries.add(status);
+                    matchedReplications.add(status);
                     it.remove();
                 }
             }
         }
-        for (T removed : matchedRecoveries) {
+        for (T removed : matchedReplications) {
             logger.trace(
                 "{} canceled recovery from {}, id [{}] (reason [{}])",
                 removed.indexShard().shardId(),
@@ -188,7 +184,7 @@ public class ReplicationCollection<T extends ReplicationTarget> {
 
     /**
      * a reference to {@link ReplicationTarget}, which implements {@link AutoCloseable}. closing the reference
-     * causes {@link RecoveryTarget#decRef()} to be called. This makes sure that the underlying resources
+     * causes {@link ReplicationTarget#decRef()} to be called. This makes sure that the underlying resources
      * will not be freed until {@link ReplicationRef#close()} is called.
      */
     public static class ReplicationRef<T extends ReplicationTarget> extends AutoCloseableRefCounted<T> {

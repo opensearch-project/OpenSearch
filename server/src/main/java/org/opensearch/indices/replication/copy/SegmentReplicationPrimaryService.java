@@ -198,7 +198,14 @@ public class SegmentReplicationPrimaryService {
 
         final IndexService indexService = indicesService.indexService(shardId.getIndex());
         final IndexShard shard = indexService.getShard(shardId.id());
-        final RemoteRecoveryTargetHandler remoteRecoveryTargetHandler = new RemoteRecoveryTargetHandler(request.getReplicationId(), shardId, transportService, request.getTargetNode(), recoverySettings, throttleTime -> shard.recoveryStats().addThrottleTime(throttleTime));
+        final RemoteRecoveryTargetHandler remoteRecoveryTargetHandler = new RemoteRecoveryTargetHandler(
+            request.getReplicationId(),
+            shardId,
+            transportService,
+            request.getTargetNode(),
+            recoverySettings,
+            throttleTime -> shard.recoveryStats().addThrottleTime(throttleTime)
+        );
         PrimaryShardReplicationHandler handler = new PrimaryShardReplicationHandler(
             request.getReplicationId(),
             shard,

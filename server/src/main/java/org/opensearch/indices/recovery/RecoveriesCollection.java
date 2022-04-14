@@ -85,7 +85,7 @@ public class RecoveriesCollection extends ReplicationCollection<RecoveryTarget> 
                     oldRecoveryTarget.sourceNode(),
                     oldRecoveryTarget.getListener()
                 );
-                startRecoveryInternal(newRecoveryTarget, activityTimeout);
+                startReplication(newRecoveryTarget, activityTimeout);
             }
 
             // Closes the current recovery target
@@ -107,7 +107,7 @@ public class RecoveriesCollection extends ReplicationCollection<RecoveryTarget> 
                     newRecoveryTarget.getId(),
                     oldRecoveryTarget.getId()
                 );
-                cancelRecovery(newRecoveryTarget.getId(), "recovery cancelled during reset");
+                cancelReplication(newRecoveryTarget.getId(), "recovery cancelled during reset");
                 return null;
             }
         } catch (Exception e) {

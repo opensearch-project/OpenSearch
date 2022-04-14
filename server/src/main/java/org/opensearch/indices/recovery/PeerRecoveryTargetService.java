@@ -185,7 +185,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     @Override
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
         if (indexShard != null) {
-            onGoingRecoveries.cancelRecoveriesForShard(shardId, "shard closed");
+            onGoingRecoveries.cancelReplicationsForShard(shardId, "shard closed");
         }
     }
 
@@ -540,7 +540,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
         @Override
         public void messageReceived(final RecoveryFileChunkRequest request, TransportChannel channel, Task task) throws Exception {
-            try (ReplicationRef<RecoveryTarget> recoveryRef = onGoingRecoveries.getRecovery(request.replicationId())) {
+            try (ReplicationRef<RecoveryTarget> recoveryRef = onGoingRecoveries.getRecovery(request.recoveryId())) {
                 if (recoveryRef == null) {
                     handleSegrepWrite(request, channel);
                 }
@@ -564,7 +564,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         private void handleSegrepWrite(RecoveryFileChunkRequest request, TransportChannel channel) throws IOException {
             try (
                 ReplicationRef<SegmentReplicationTarget> replicationRef = segmentReplicationReplicaService.getOnGoingReplications()
-                    .getReplication(request.replicationId())
+                    .getReplication(request.recoveryId())
             ) {
                 final SegmentReplicationTarget recoveryTarget = replicationRef.get();
                 final ActionListener<Void> listener = createOrFinishListener(recoveryTarget, channel, Actions.FILE_CHUNK, request);

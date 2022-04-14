@@ -89,7 +89,7 @@ public class SegmentReplicationReplicaService implements IndexEventListener {
     @Override
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
         if (indexShard != null) {
-            onGoingReplications.cancelRecoveriesForShard(shardId, "shard closed");
+            onGoingReplications.cancelReplicationsForShard(shardId, "shard closed");
         }
     }
 

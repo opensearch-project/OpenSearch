@@ -44,7 +44,7 @@ import java.io.IOException;
 
 public final class RecoveryFileChunkRequest extends RecoveryTransportRequest {
     private final boolean lastChunk;
-    private final long replicationId;
+    private final long recoveryId;
     private final ShardId shardId;
     private final long position;
     private final BytesReference content;
@@ -55,7 +55,7 @@ public final class RecoveryFileChunkRequest extends RecoveryTransportRequest {
 
     public RecoveryFileChunkRequest(StreamInput in) throws IOException {
         super(in);
-        replicationId = in.readLong();
+        recoveryId = in.readLong();
         shardId = new ShardId(in);
         String name = in.readString();
         position = in.readVLong();
@@ -71,7 +71,7 @@ public final class RecoveryFileChunkRequest extends RecoveryTransportRequest {
     }
 
     public RecoveryFileChunkRequest(
-        long replicationId,
+        long recoveryId,
         final long requestSeqNo,
         ShardId shardId,
         StoreFileMetadata metadata,
@@ -82,7 +82,7 @@ public final class RecoveryFileChunkRequest extends RecoveryTransportRequest {
         long sourceThrottleTimeInNanos
     ) {
         super(requestSeqNo);
-        this.replicationId = replicationId;
+        this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.metadata = metadata;
         this.position = position;
@@ -92,21 +92,8 @@ public final class RecoveryFileChunkRequest extends RecoveryTransportRequest {
         this.sourceThrottleTimeInNanos = sourceThrottleTimeInNanos;
     }
 
-    public RecoveryFileChunkRequest(
-        long replicationId,
-        long requestSeqNo,
-        ShardId shardId,
-        StoreFileMetadata fileMetadata,
-        long position,
-        BytesReference content,
-        boolean lastChunk,
-        long throttleTimeInNanos
-    ) {
-        this(replicationId, requestSeqNo, shardId, fileMetadata, position, content, lastChunk, 0, throttleTimeInNanos);
-    }
-
-    public long replicationId() {
-        return this.replicationId;
+    public long recoveryId() {
+        return this.recoveryId;
     }
 
     public ShardId shardId() {
@@ -140,7 +127,7 @@ public final class RecoveryFileChunkRequest extends RecoveryTransportRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeLong(replicationId);
+        out.writeLong(recoveryId);
         shardId.writeTo(out);
         out.writeString(metadata.name());
         out.writeVLong(position);

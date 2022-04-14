@@ -77,7 +77,7 @@ public class RecoveriesCollectionTests extends OpenSearchIndexLevelReplicationTe
                     }
                 });
             } finally {
-                collection.cancelRecovery(recoveryId, "life");
+                collection.cancelReplication(recoveryId, "life");
             }
         }
     }
@@ -109,7 +109,7 @@ public class RecoveriesCollectionTests extends OpenSearchIndexLevelReplicationTe
                 latch.await(30, TimeUnit.SECONDS);
                 assertTrue("recovery failed to timeout", failed.get());
             } finally {
-                collection.cancelRecovery(recoveryId, "meh");
+                collection.cancelReplication(recoveryId, "meh");
             }
         }
 
@@ -122,11 +122,11 @@ public class RecoveriesCollectionTests extends OpenSearchIndexLevelReplicationTe
             final long recoveryId2 = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica());
             try (ReplicationRef<RecoveryTarget> recoveryRef = collection.getReplication(recoveryId)) {
                 ShardId shardId = recoveryRef.get().indexShard().shardId();
-                assertTrue("failed to cancel recoveries", collection.cancelRecoveriesForShard(shardId, "test"));
+                assertTrue("failed to cancel recoveries", collection.cancelReplicationsForShard(shardId, "test"));
                 assertThat("all recoveries should be cancelled", collection.size(), equalTo(0));
             } finally {
-                collection.cancelRecovery(recoveryId, "meh");
-                collection.cancelRecovery(recoveryId2, "meh");
+                collection.cancelReplication(recoveryId, "meh");
+                collection.cancelReplication(recoveryId2, "meh");
             }
         }
     }

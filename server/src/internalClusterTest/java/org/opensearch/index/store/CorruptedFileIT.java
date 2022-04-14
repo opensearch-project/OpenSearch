@@ -479,7 +479,7 @@ public class CorruptedFileIT extends OpenSearchIntegTestCase {
                             BytesRef bytesRef = req.content().toBytesRef();
                             BytesArray array = new BytesArray(bytesRef.bytes, bytesRef.offset, (int) req.length() - 1);
                             request = new RecoveryFileChunkRequest(
-                                req.replicationId(),
+                                req.recoveryId(),
                                 req.requestSeqNo(),
                                 req.shardId(),
                                 req.metadata(),
