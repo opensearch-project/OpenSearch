@@ -86,6 +86,7 @@ public class ShardLimitValidator {
     /**
      * Checks whether an index can be created without going over the cluster shard limit.
      *
+     * @param indexName      the name of the index being created
      * @param settings       the settings of the index to be created
      * @param state          the current cluster state
      * @throws ValidationException if creating this index would put the cluster over the cluster shard limit
