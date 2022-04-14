@@ -53,7 +53,7 @@ public class RestCreatePITAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(new Route(POST, "/{index}/_pit")));
+        return unmodifiableList(asList(new Route(POST, "/{index}/_search/_point_in_time")));
     }
 
 }

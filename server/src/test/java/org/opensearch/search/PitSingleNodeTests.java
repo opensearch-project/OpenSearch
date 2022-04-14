@@ -486,7 +486,7 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
                 Matchers.equalTo(50L)
             );
             /**
-             * using point in time id will have the same search results as ones before updation
+             * using point in time id will have the same search results as ones before update
              */
             assertThat(
                 client().prepareSearch()

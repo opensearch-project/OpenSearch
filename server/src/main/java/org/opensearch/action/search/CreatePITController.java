@@ -8,6 +8,9 @@
 
 package org.opensearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
@@ -46,6 +49,7 @@ public class CreatePITController implements Runnable {
     private final Task task;
     private final ActionListener<CreatePITResponse> listener;
     private final CreatePITRequest request;
+    private static final Logger logger = LogManager.getLogger(CreatePITController.class);
 
     public CreatePITController(
         CreatePITRequest request,
@@ -88,7 +92,10 @@ public class CreatePITController implements Runnable {
 
         final StepListener<CreatePITResponse> createPitListener = new StepListener<>();
 
-        final ActionListener<CreatePITResponse> updatePitIdListener = ActionListener.wrap(r -> listener.onResponse(r), listener::onFailure);
+        final ActionListener<CreatePITResponse> updatePitIdListener = ActionListener.wrap(r -> listener.onResponse(r), e -> {
+            logger.error("PIT creation failed while updating PIT ID", e);
+            listener.onFailure(e);
+        });
         /**
          * Phase 1 of create PIT
          */
@@ -144,7 +151,8 @@ public class CreatePITController implements Runnable {
                 final ActionListener<UpdatePitContextResponse> groupedActionListener = getGroupedListener(
                     updatePitIdListener,
                     createPITResponse,
-                    contextId.shards().size()
+                    contextId.shards().size(),
+                    contextId.shards().values()
                 );
                 /**
                  * store the create time ( same create time for all PIT contexts across shards ) to be used
@@ -169,6 +177,7 @@ public class CreatePITController implements Runnable {
                             groupedActionListener
                         );
                     } catch (Exception e) {
+                        logger.error(() -> new ParameterizedMessage("Create pit update phase failed on node [{}]", node), e);
                         groupedActionListener.onFailure(new OpenSearchException("Create pit failed on node[" + node + "]", e));
                     }
                 }
@@ -199,7 +208,8 @@ public class CreatePITController implements Runnable {
     private ActionListener<UpdatePitContextResponse> getGroupedListener(
         ActionListener<CreatePITResponse> updatePitIdListener,
         CreatePITResponse createPITResponse,
-        int size
+        int size,
+        Collection<SearchContextIdForNode> contexts
     ) {
         return new GroupedActionListener<>(new ActionListener<>() {
             @Override
@@ -209,9 +219,29 @@ public class CreatePITController implements Runnable {
 
             @Override
             public void onFailure(final Exception e) {
+                cleanupContexts(contexts);
                 updatePitIdListener.onFailure(e);
             }
         }, size);
+    }
+
+    /**
+     * Cleanup all created PIT contexts in case of failure
+     */
+    private void cleanupContexts(Collection<SearchContextIdForNode> contexts) {
+        ActionListener<Integer> deleteListener = new ActionListener<>() {
+            @Override
+            public void onResponse(Integer freed) {
+                // log the number of freed contexts - this is invoke and forget call
+                logger.debug(() -> new ParameterizedMessage("Cleaned up {} contexts out of {}", freed, contexts.size()));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.debug("Cleaning up PIT contexts failed ", e);
+            }
+        };
+        ClearScrollController.closeContexts(clusterService.state().getNodes(), searchTransportService, contexts, deleteListener);
     }
 
     @Override
