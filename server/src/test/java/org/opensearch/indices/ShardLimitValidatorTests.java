@@ -115,7 +115,8 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         final Settings settings = Settings.builder()
             .put(SETTING_VERSION_CREATED, Version.CURRENT)
             .put(SETTING_NUMBER_OF_SHARDS, 1)
-            .put(SETTING_NUMBER_OF_REPLICAS, 1).build();
+            .put(SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
         final ClusterState state = createClusterForShardLimitTest(1, 1, 0);
         shardLimitValidator.validateShardLimit(".tasks", settings, state);
     }
@@ -129,7 +130,8 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         final Settings settings = Settings.builder()
             .put(SETTING_VERSION_CREATED, Version.CURRENT)
             .put(SETTING_NUMBER_OF_SHARDS, 1)
-            .put(SETTING_NUMBER_OF_REPLICAS, 1).build();
+            .put(SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
         final ClusterState state = createClusterForShardLimitTest(1, 1, 0);
         final ValidationException exception = expectThrows(
             ValidationException.class,
