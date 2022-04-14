@@ -213,7 +213,22 @@ public class MetadataCreateIndexService {
      * @param isHidden Whether or not this is a hidden index
      */
     public boolean validateDotIndex(String index, @Nullable Boolean isHidden) {
-        return systemIndices.validateDotIndex(index, isHidden);
+        if (index.charAt(0) == '.') {
+            if (systemIndices.validateSystemIndex(index)) {
+                return true;
+            } else if (isHidden) {
+                logger.trace("index [{}] is a hidden index", index);
+            } else {
+                DEPRECATION_LOGGER.deprecate(
+                    "index_name_starts_with_dot",
+                    "index name [{}] starts with a dot '.', in the next major version, index names "
+                        + "starting with a dot are reserved for hidden indices and system indices",
+                    index
+                );
+            }
+        }
+
+        return false;
     }
 
     /**

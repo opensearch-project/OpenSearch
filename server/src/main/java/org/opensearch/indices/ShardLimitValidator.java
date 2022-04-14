@@ -92,7 +92,7 @@ public class ShardLimitValidator {
      */
     public void validateShardLimit(final String indexName, final Settings settings, final ClusterState state) {
         // Validate shard limit only for non system indices as it is not hard limit anyways
-        if (systemIndices.validateDotIndex(indexName, null)) {
+        if (systemIndices.validateSystemIndex(indexName)) {
             return;
         }
 
@@ -119,7 +119,7 @@ public class ShardLimitValidator {
     public void validateShardLimit(ClusterState currentState, Index[] indicesToOpen) {
         int shardsToOpen = Arrays.stream(indicesToOpen)
             // Validate shard limit only for non system indices as it is not hard limit anyways
-            .filter(index -> !systemIndices.validateDotIndex(index.getName(), null))
+            .filter(index -> !systemIndices.validateSystemIndex(index.getName()))
             .filter(index -> currentState.metadata().index(index).getState().equals(IndexMetadata.State.CLOSE))
             .mapToInt(index -> getTotalShardCount(currentState, index))
             .sum();

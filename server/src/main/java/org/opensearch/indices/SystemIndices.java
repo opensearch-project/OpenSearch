@@ -41,7 +41,6 @@ import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.index.Index;
 import org.opensearch.tasks.TaskResultsService;
@@ -67,7 +66,6 @@ import static org.opensearch.tasks.TaskResultsService.TASK_INDEX;
  */
 public class SystemIndices {
     private static final Logger logger = LogManager.getLogger(SystemIndices.class);
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(SystemIndices.class);
 
     private static final Map<String, Collection<SystemIndexDescriptor>> SERVER_SYSTEM_INDEX_DESCRIPTORS = singletonMap(
         TaskResultsService.class.getName(),
@@ -142,12 +140,10 @@ public class SystemIndices {
     }
 
     /**
-     * Validates (if this index has a dot-prefixed name) whether it follows the rules for dot-prefixed indices.
+     * Validates (if this index has a dot-prefixed name) and it is system index.
      * @param index The name of the index in question
-     * @param isHidden Whether or not this is a hidden index
      */
-    public boolean validateDotIndex(String index, @Nullable Boolean isHidden) {
-        boolean isSystem = false;
+    public boolean validateSystemIndex(String index) {
         if (index.charAt(0) == '.') {
             SystemIndexDescriptor matchingDescriptor = findMatchingDescriptor(index);
             if (matchingDescriptor != null) {
@@ -157,20 +153,11 @@ public class SystemIndices {
                     matchingDescriptor.getIndexPattern(),
                     matchingDescriptor.getDescription()
                 );
-                isSystem = true;
-            } else if (isHidden) {
-                logger.trace("index [{}] is a hidden index", index);
-            } else {
-                DEPRECATION_LOGGER.deprecate(
-                    "index_name_starts_with_dot",
-                    "index name [{}] starts with a dot '.', in the next major version, index names "
-                        + "starting with a dot are reserved for hidden indices and system indices",
-                    index
-                );
+                return true;
             }
         }
 
-        return isSystem;
+        return false;
     }
 
     private static CharacterRunAutomaton buildCharacterRunAutomaton(Collection<SystemIndexDescriptor> descriptors) {
