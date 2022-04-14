@@ -149,7 +149,11 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         );
     }
 
-    public void testValidateShardLimit() {
+    /**
+     * This test validates that non-system index opening
+     * fails when it exceeds the cluster max shard limit
+     */
+    public void testNonSystemIndexOpeningFails() {
         int nodesInCluster = randomIntBetween(2, 90);
         ShardCounts counts = forDataNodeCount(nodesInCluster);
         ClusterState state = createClusterForShardLimitTest(
@@ -185,6 +189,33 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         );
     }
 
+    /**
+     * This test validates that system index opening succeeds
+     * even when it exceeds the cluster max shard limit
+     */
+    public void testSystemIndexOpeningSucceeds() {
+        int nodesInCluster = randomIntBetween(2, 90);
+        ShardCounts counts = forDataNodeCount(nodesInCluster);
+        ClusterState state = createClusterForShardLimitTest(
+            nodesInCluster,
+            randomAlphaOfLengthBetween(5, 15),
+            counts.getFirstIndexShards(),
+            counts.getFirstIndexReplicas(),
+            ".tasks",               // Adding closed system index to cluster state
+            counts.getFailingIndexShards(),
+            counts.getFailingIndexReplicas()
+        );
+
+        Index[] indices = Arrays.stream(state.metadata().indices().values().toArray(IndexMetadata.class))
+            .map(IndexMetadata::getIndex)
+            .collect(Collectors.toList())
+            .toArray(new Index[2]);
+
+        // Shard limit validation succeeds without any issues as system index is being opened
+        ShardLimitValidator shardLimitValidator = createTestShardLimitService(counts.getShardsPerNode());
+        shardLimitValidator.validateShardLimit(state, indices);
+    }
+
     public static ClusterState createClusterForShardLimitTest(int nodesInCluster, int shardsInIndex, int replicas) {
         ImmutableOpenMap.Builder<String, DiscoveryNode> dataNodes = ImmutableOpenMap.builder();
         for (int i = 0; i < nodesInCluster; i++) {
@@ -210,8 +241,10 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
 
     public static ClusterState createClusterForShardLimitTest(
         int nodesInCluster,
+        String openIndexName,
         int openIndexShards,
         int openIndexReplicas,
+        String closeIndexName,
         int closedIndexShards,
         int closedIndexReplicas
     ) {
@@ -223,8 +256,8 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         when(nodes.getDataNodes()).thenReturn(dataNodes.build());
 
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
-        state = addOpenedIndex(randomAlphaOfLengthBetween(5, 15), openIndexShards, openIndexReplicas, state);
-        state = addClosedIndex(randomAlphaOfLengthBetween(5, 15), closedIndexShards, closedIndexReplicas, state);
+        state = addOpenedIndex(openIndexName, openIndexShards, openIndexReplicas, state);
+        state = addClosedIndex(closeIndexName, closedIndexShards, closedIndexReplicas, state);
 
         final Metadata.Builder metadata = Metadata.builder(state.metadata());
         if (randomBoolean()) {
@@ -233,6 +266,24 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
             metadata.transientSettings(Settings.EMPTY);
         }
         return ClusterState.builder(state).metadata(metadata).nodes(nodes).build();
+    }
+
+    public static ClusterState createClusterForShardLimitTest(
+        int nodesInCluster,
+        int openIndexShards,
+        int openIndexReplicas,
+        int closedIndexShards,
+        int closedIndexReplicas
+    ) {
+        return createClusterForShardLimitTest(
+            nodesInCluster,
+            randomAlphaOfLengthBetween(5, 15),
+            openIndexShards,
+            openIndexReplicas,
+            randomAlphaOfLengthBetween(5, 15),
+            closedIndexShards,
+            closedIndexReplicas
+        );
     }
 
     /**
