@@ -61,6 +61,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.DelayRecoveryException;
 import org.opensearch.indices.recovery.MultiChunkTransfer;
+import org.opensearch.indices.recovery.RemoteRecoveryTargetHandler;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteTransportException;
 import org.opensearch.transport.Transports;
@@ -90,7 +91,7 @@ public class PrimaryShardReplicationHandler {
     // Request containing source and target node information
     private final GetFilesRequest request;
     private final int chunkSizeInBytes;
-    private final ReplicaClient targetClient;
+    private final RemoteRecoveryTargetHandler targetClient;
     private final int maxConcurrentFileChunks;
     private final int maxConcurrentOperations;
     private final ThreadPool threadPool;
@@ -103,7 +104,7 @@ public class PrimaryShardReplicationHandler {
         IndexShard shard,
         DiscoveryNode targetNode,
         String targetAllocationId,
-        ReplicaClient client,
+        RemoteRecoveryTargetHandler targetClient,
         ThreadPool threadPool,
         GetFilesRequest request,
         int fileChunkSizeInBytes,
@@ -114,7 +115,7 @@ public class PrimaryShardReplicationHandler {
         this.shard = shard;
         this.targetNode = targetNode;
         this.targetAllocationId = targetAllocationId;
-        this.targetClient = client;
+        this.targetClient = targetClient;
         this.threadPool = threadPool;
         this.request = request;
         this.shardId = shard.shardId().id();
@@ -338,11 +339,11 @@ public class PrimaryShardReplicationHandler {
             protected void executeChunkRequest(FileChunk request, ActionListener<Void> listener) {
                 cancellableThreads.checkForCancel();
                 targetClient.writeFileChunk(
-                    replicationId,
                     request.md,
                     request.position,
                     request.content,
                     request.lastChunk,
+                    0,
                     ActionListener.runBefore(listener, request::close)
                 );
             }

@@ -50,6 +50,7 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.DelayRecoveryException;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.indices.recovery.RemoteRecoveryTargetHandler;
 import org.opensearch.indices.replication.checkpoint.TransportCheckpointInfoResponse;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
@@ -197,19 +198,13 @@ public class SegmentReplicationPrimaryService {
 
         final IndexService indexService = indicesService.indexService(shardId.getIndex());
         final IndexShard shard = indexService.getShard(shardId.id());
-        final ReplicaClient replicationTargetHandler = new ReplicaClient(
-            shardId,
-            transportService,
-            request.getTargetNode(),
-            recoverySettings,
-            throttleTime -> shard.recoveryStats().addThrottleTime(throttleTime)
-        );
+        final RemoteRecoveryTargetHandler remoteRecoveryTargetHandler = new RemoteRecoveryTargetHandler(request.getReplicationId(), shardId, transportService, request.getTargetNode(), recoverySettings, throttleTime -> shard.recoveryStats().addThrottleTime(throttleTime));
         PrimaryShardReplicationHandler handler = new PrimaryShardReplicationHandler(
             request.getReplicationId(),
             shard,
             request.getTargetNode(),
             request.getTargetAllocationId(),
-            replicationTargetHandler,
+            remoteRecoveryTargetHandler,
             shard.getThreadPool(),
             request,
             Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
