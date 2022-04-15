@@ -49,11 +49,11 @@ testClusters.all {
 
 dependencies {
   api 'org.antlr:antlr4-runtime:4.9.3'
-  api 'org.ow2.asm:asm-util:9.2'
-  api 'org.ow2.asm:asm-tree:9.2'
-  api 'org.ow2.asm:asm-commons:9.2'
-  api 'org.ow2.asm:asm-analysis:9.2'
-  api 'org.ow2.asm:asm:9.2'
+  api "org.ow2.asm:asm-util:${versions.asm}"
+  api "org.ow2.asm:asm-tree:${versions.asm}"
+  api "org.ow2.asm:asm-commons:${versions.asm}"
+  api "org.ow2.asm:asm-analysis:${versions.asm}"
+  api "org.ow2.asm:asm:${versions.asm}"
   api project('spi')
 }
 
@@ -69,11 +69,11 @@ shadowJar {
   classifier = null
   relocate 'org.objectweb', 'org.opensearch.repackage.org.objectweb'
   dependencies {
-    include(dependency('org.ow2.asm:asm:9.2'))
-    include(dependency('org.ow2.asm:asm-util:9.2'))
-    include(dependency('org.ow2.asm:asm-tree:9.2'))
-    include(dependency('org.ow2.asm:asm-commons:9.2'))
-    include(dependency('org.ow2.asm:asm-analysis:9.2'))
+    include(dependency("org.ow2.asm:asm:${versions.asm}"))
+    include(dependency("org.ow2.asm:asm-util:${versions.asm}"))
+    include(dependency("org.ow2.asm:asm-tree:${versions.asm}"))
+    include(dependency("org.ow2.asm:asm-commons:${versions.asm}"))
+    include(dependency("org.ow2.asm:asm-analysis:${versions.asm}"))
   }
 }
 
