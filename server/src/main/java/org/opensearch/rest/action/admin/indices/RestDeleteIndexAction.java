@@ -67,7 +67,7 @@ public class RestDeleteIndexAction extends BaseRestHandler {
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
         deleteIndexRequest.timeout(request.paramAsTime("timeout", deleteIndexRequest.timeout()));
         deleteIndexRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", deleteIndexRequest.masterNodeTimeout()));
-        parseDeprecatedMasterTimeoutParameter(deleteIndexRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(deleteIndexRequest, request);
         deleteIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, deleteIndexRequest.indicesOptions()));
         return channel -> client.admin().indices().delete(deleteIndexRequest, new RestToXContentListener<>(channel));
     }
