@@ -2189,7 +2189,7 @@ public class RestHighLevelClient implements Closeable {
             @Override
             public boolean warningsShouldFailRequest(List<String> warnings) {
                 if (originalWarningsHandler.warningsShouldFailRequest(Collections.singletonList(MASTER_TIMEOUT_DEPRECATED_MESSAGE))) {
-                    warnings.remove(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+                    warnings.removeAll(singleton(MASTER_TIMEOUT_DEPRECATED_MESSAGE));
                 }
                 return originalWarningsHandler.warningsShouldFailRequest(warnings);
             }

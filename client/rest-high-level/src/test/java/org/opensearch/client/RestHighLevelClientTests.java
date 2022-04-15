@@ -977,6 +977,7 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
         // The modified WarningsHandler should only allow the specific deprecation warning message.
         List<String> warnings = new ArrayList<>();
         warnings.add(RestHighLevelClient.MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+        warnings.add(RestHighLevelClient.MASTER_TIMEOUT_DEPRECATED_MESSAGE);
         assertThat(modifiedOptions.getWarningsHandler().warningsShouldFailRequest(warnings), is(false));
         warnings.add("another warning");
         assertThat(modifiedOptions.getWarningsHandler().warningsShouldFailRequest(warnings), is(true));
