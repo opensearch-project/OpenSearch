@@ -2233,11 +2233,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Creates a new history snapshot for reading operations since
      * the provided starting seqno (inclusive) and ending seqno (inclusive)
-     * The returned snapshot can be retrieved from either Lucene index or translog files.
+     * The returned snapshot is retrieved from a Lucene index.
      */
     public Translog.Snapshot getHistoryOperations(String reason, long startingSeqNo, long endSeqNo, boolean accurateCount)
         throws IOException {
         return getEngine().newChangesSnapshot(reason, startingSeqNo, endSeqNo, true, accurateCount);
+    }
+
+    /**
+     * Creates a new history snapshot from the translog file instead of the lucene index
+     *
+     * @deprecated reading history operations from the translog file is deprecated and will be removed in the next release
+     *
+     * Use {@link IndexShard#getHistoryOperations(String, long, long, boolean)} instead
+     */
+    @Deprecated
+    public Translog.Snapshot getHistoryOperationsFromTranslogFile(String reason, long startingSeqNo, long endSeqNo) throws IOException {
+        return getEngine().newChangesSnapshotFromTranslogFile(reason, startingSeqNo, endSeqNo, true);
     }
 
     /**
