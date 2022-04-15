@@ -41,7 +41,6 @@ import org.opensearch.action.support.master.MasterNodeRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.plugins.ActionPlugin;
@@ -214,10 +213,7 @@ public abstract class BaseRestHandler implements RestHandler {
      * @param mnr the action request
      * @param request the REST request to handle
      */
-    public static void parseDeprecatedMasterTimeoutParameter(
-        MasterNodeRequest mnr,
-        RestRequest request
-    ) {
+    public static void parseDeprecatedMasterTimeoutParameter(MasterNodeRequest mnr, RestRequest request) {
         if (request.hasParam("master_timeout")) {
             if (request.hasParam("cluster_manager_timeout")) {
                 throw new OpenSearchParseException(DUPLICATE_PARAMETER_ERROR_MESSAGE);

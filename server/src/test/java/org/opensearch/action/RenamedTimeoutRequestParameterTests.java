@@ -9,12 +9,10 @@
 package org.opensearch.action;
 
 import org.junit.After;
-import org.junit.Ignore;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.support.master.MasterNodeRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
@@ -112,19 +110,13 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     }
 
     public void testNoWarningsForNewParam() {
-        BaseRestHandler.parseDeprecatedMasterTimeoutParameter(
-            getMasterNodeRequest(),
-            getRestRequestWithNewParam()
-        );
+        BaseRestHandler.parseDeprecatedMasterTimeoutParameter(getMasterNodeRequest(), getRestRequestWithNewParam());
     }
 
     public void testBothParamsNotValid() {
         Exception e = assertThrows(
             OpenSearchParseException.class,
-            () -> BaseRestHandler.parseDeprecatedMasterTimeoutParameter(
-                getMasterNodeRequest(),
-                getRestRequestWithBothParams()
-            )
+            () -> BaseRestHandler.parseDeprecatedMasterTimeoutParameter(getMasterNodeRequest(), getRestRequestWithBothParams())
         );
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
     }
