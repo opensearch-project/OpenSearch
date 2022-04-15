@@ -204,9 +204,9 @@ public abstract class BaseRestHandler implements RestHandler {
     }
 
     public static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
-            "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead.";
+        "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead.";
     protected static final String DUPLICATE_PARAMETER_ERROR_MESSAGE =
-            "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
+        "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
 
     /**
      * Parse the deprecated request parameter 'master_timeout', and add deprecated log if the parameter is used.

@@ -309,7 +309,7 @@ public class HeaderWarningTests extends OpenSearchTestCase {
         final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
         assertThat(responseHeaders.get("Warning"), nullValue());
     }
-    
+
     private String range(int lowerInclusive, int upperInclusive) {
         return IntStream.range(lowerInclusive, upperInclusive + 1)
             .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
