@@ -91,10 +91,8 @@ public class RestGetMappingAction extends BaseRestHandler {
         getMappingsRequest.indices(indices);
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
         TimeValue clusterManagerTimeout = request.paramAsTime("cluster_manager_timeout", getMappingsRequest.masterNodeTimeout());
-        // TODO: Remove the if condition and statements inside after removing MASTER_ROLE.
+        // TODO: Remove the if condition and statements inside after removing parameter 'master_timeout'.
         if (request.hasParam("master_timeout")) {
-            // TODO: Start emitting deprecation warning in 3.0 (A major version ahead of removal)
-            // deprecationLogger.deprecate("get_mapping_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
             if (request.hasParam("cluster_manager_timeout")) {
                 throw new OpenSearchParseException(DUPLICATE_PARAMETER_ERROR_MESSAGE);
             }

@@ -68,7 +68,7 @@ public class RestOpenIndexAction extends BaseRestHandler {
         OpenIndexRequest openIndexRequest = new OpenIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
         openIndexRequest.timeout(request.paramAsTime("timeout", openIndexRequest.timeout()));
         openIndexRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", openIndexRequest.masterNodeTimeout()));
-        parseDeprecatedMasterTimeoutParameter(openIndexRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(openIndexRequest, request);
         openIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, openIndexRequest.indicesOptions()));
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {

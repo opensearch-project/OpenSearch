@@ -102,12 +102,9 @@ import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_SETT
 public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     private final TestThreadPool threadPool = new TestThreadPool(RenamedTimeoutRequestParameterTests.class.getName());
     private final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
-    private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RenamedTimeoutRequestParameterTests.class);
 
     private static final String DUPLICATE_PARAMETER_ERROR_MESSAGE =
         "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
-    private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
-        "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead.";
 
     @After
     public void terminateThreadPool() {
@@ -117,21 +114,8 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     public void testNoWarningsForNewParam() {
         BaseRestHandler.parseDeprecatedMasterTimeoutParameter(
             getMasterNodeRequest(),
-            getRestRequestWithNewParam(),
-            deprecationLogger,
-            "test"
+            getRestRequestWithNewParam()
         );
-    }
-
-    @Ignore("Deprecation warning will start emitting in 3.0")
-    public void testDeprecationWarningForOldParam() {
-        BaseRestHandler.parseDeprecatedMasterTimeoutParameter(
-            getMasterNodeRequest(),
-            getRestRequestWithDeprecatedParam(),
-            deprecationLogger,
-            "test"
-        );
-        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
     }
 
     public void testBothParamsNotValid() {
@@ -139,9 +123,7 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
             OpenSearchParseException.class,
             () -> BaseRestHandler.parseDeprecatedMasterTimeoutParameter(
                 getMasterNodeRequest(),
-                getRestRequestWithBothParams(),
-                deprecationLogger,
-                "test"
+                getRestRequestWithBothParams()
             )
         );
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));

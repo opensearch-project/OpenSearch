@@ -203,29 +203,22 @@ public abstract class BaseRestHandler implements RestHandler {
         return Collections.emptySet();
     }
 
-    /* protected static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE = 
-        "Parameter [master_timeout] is deprecated and will be removed in 4.0. To support inclusive language, please use [cluster_manager_timeout] instead."; */
     protected static final String DUPLICATE_PARAMETER_ERROR_MESSAGE =
         "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
 
     /**
      * Parse the deprecated request parameter 'master_timeout', and add deprecated log if the parameter is used.
      * It also validates whether the two parameters 'master_timeout' and 'cluster_manager_timeout' are not assigned together.
-     * The method is temporarily added in 2.0 during applying inclusive language. Remove the method along with MASTER_ROLE.
+     * Deprecation log is not emitted intentionally, because 'master_timeout' is remained in High-Level-REST-Client to keep compatibility with server 1.x.
+     * The method is temporarily added in 2.0 during applying inclusive language. Remove the method along with the parameter 'master_timeout'.
      * @param mnr the action request
      * @param request the REST request to handle
-     * @param logger the logger that logs deprecation notices
-     * @param logMsgKeyPrefix the key prefix of a deprecation message to avoid duplicate messages.
      */
     public static void parseDeprecatedMasterTimeoutParameter(
         MasterNodeRequest mnr,
-        RestRequest request,
-        DeprecationLogger logger,
-        String logMsgKeyPrefix
+        RestRequest request
     ) {
         if (request.hasParam("master_timeout")) {
-            // TODO: Start emitting deprecation warning in 3.0 (A major version ahead of removal)
-            // logger.deprecate(logMsgKeyPrefix + "_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
             if (request.hasParam("cluster_manager_timeout")) {
                 throw new OpenSearchParseException(DUPLICATE_PARAMETER_ERROR_MESSAGE);
             }
