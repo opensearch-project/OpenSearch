@@ -280,10 +280,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         return primary;
     }
 
-    public static RecoveryState readRecoveryState(StreamInput in) throws IOException {
-        return new RecoveryState(in);
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
 
@@ -291,9 +287,9 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         builder.field(Fields.TYPE, recoverySource.getType());
         builder.field(Fields.STAGE, stage.toString());
         builder.field(Fields.PRIMARY, primary);
-        builder.timeField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, timer.startTime);
-        if (timer.stopTime > 0) {
-            builder.timeField(Fields.STOP_TIME_IN_MILLIS, Fields.STOP_TIME, timer.stopTime);
+        builder.timeField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, timer.startTime());
+        if (timer.stopTime() > 0) {
+            builder.timeField(Fields.STOP_TIME_IN_MILLIS, Fields.STOP_TIME, timer.stopTime());
         }
         builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, new TimeValue(timer.time()));
 
@@ -376,10 +372,10 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     }
 
     public static class Timer implements Writeable {
-        protected long startTime = 0;
-        protected long startNanoTime = 0;
-        protected long time = -1;
-        protected long stopTime = 0;
+        private long startTime = 0;
+        private long startNanoTime = 0;
+        private long time = -1;
+        private long stopTime = 0;
 
         public Timer() {}
 
