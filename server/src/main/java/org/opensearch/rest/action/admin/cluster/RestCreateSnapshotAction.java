@@ -72,7 +72,7 @@ public class RestCreateSnapshotAction extends BaseRestHandler {
         CreateSnapshotRequest createSnapshotRequest = createSnapshotRequest(request.param("repository"), request.param("snapshot"));
         request.applyContentParser(p -> createSnapshotRequest.source(p.mapOrdered()));
         createSnapshotRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", createSnapshotRequest.masterNodeTimeout()));
-        parseDeprecatedMasterTimeoutParameter(createSnapshotRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(createSnapshotRequest, request);
         createSnapshotRequest.waitForCompletion(request.paramAsBoolean("wait_for_completion", false));
         return channel -> client.admin().cluster().createSnapshot(createSnapshotRequest, new RestToXContentListener<>(channel));
     }

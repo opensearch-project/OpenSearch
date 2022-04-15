@@ -73,7 +73,7 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         getSnapshotsRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", getSnapshotsRequest.ignoreUnavailable()));
         getSnapshotsRequest.verbose(request.paramAsBoolean("verbose", getSnapshotsRequest.verbose()));
         getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", getSnapshotsRequest.masterNodeTimeout()));
-        parseDeprecatedMasterTimeoutParameter(getSnapshotsRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(getSnapshotsRequest, request);
         return channel -> client.admin().cluster().getSnapshots(getSnapshotsRequest, new RestToXContentListener<>(channel));
     }
 }

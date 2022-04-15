@@ -70,7 +70,7 @@ public class RestDeleteRepositoryAction extends BaseRestHandler {
         deleteRepositoryRequest.masterNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", deleteRepositoryRequest.masterNodeTimeout())
         );
-        parseDeprecatedMasterTimeoutParameter(deleteRepositoryRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(deleteRepositoryRequest, request);
         return channel -> client.admin().cluster().deleteRepository(deleteRepositoryRequest, new RestToXContentListener<>(channel));
     }
 }
