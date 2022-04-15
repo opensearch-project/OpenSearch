@@ -124,44 +124,55 @@ public class RecoveryTargetTests extends OpenSearchTestCase {
         }
     }
 
-    public void testTimers() throws Throwable {
-        final Timer timer;
-        Streamer<Timer> streamer;
+    public void testTimer() throws Throwable {
         AtomicBoolean stop = new AtomicBoolean();
-        if (randomBoolean()) {
-            timer = new Timer();
-            streamer = new Streamer<Timer>(stop, timer) {
-                @Override
-                Timer createObj(StreamInput in) throws IOException {
-                    return new Timer(in);
-                }
-            };
-        } else if (randomBoolean()) {
-            timer = new Index();
-            streamer = new Streamer<Timer>(stop, timer) {
-                @Override
-                Timer createObj(StreamInput in) throws IOException {
-                    return new Index(in);
-                }
-            };
-        } else if (randomBoolean()) {
-            timer = new VerifyIndex();
-            streamer = new Streamer<Timer>(stop, timer) {
-                @Override
-                Timer createObj(StreamInput in) throws IOException {
-                    return new VerifyIndex(in);
-                }
-            };
-        } else {
-            timer = new Translog();
-            streamer = new Streamer<Timer>(stop, timer) {
-                @Override
-                Timer createObj(StreamInput in) throws IOException {
-                    return new Translog(in);
-                }
-            };
-        }
+        final Timer timer = new Timer();
+        Streamer<Timer> streamer = new Streamer<Timer>(stop, timer) {
+            @Override
+            Timer createObj(StreamInput in) throws IOException {
+                return new Timer(in);
+            }
+        };
+        doTimerTest(timer, streamer);
+    }
 
+    public void testIndexTimer() throws Throwable {
+        AtomicBoolean stop = new AtomicBoolean();
+        Index index = new Index();
+        Streamer<Index> streamer = new Streamer<Index>(stop, index) {
+            @Override
+            Index createObj(StreamInput in) throws IOException {
+                return new Index(in);
+            }
+        };
+        doTimerTest(index, streamer);
+    }
+
+    public void testVerifyIndexTimer() throws Throwable {
+        AtomicBoolean stop = new AtomicBoolean();
+        VerifyIndex verifyIndex = new VerifyIndex();
+        Streamer<VerifyIndex> streamer = new Streamer<VerifyIndex>(stop, verifyIndex) {
+            @Override
+            VerifyIndex createObj(StreamInput in) throws IOException {
+                return new VerifyIndex(in);
+            }
+        };
+        doTimerTest(verifyIndex, streamer);
+    }
+
+    public void testTranslogTimer() throws Throwable {
+        AtomicBoolean stop = new AtomicBoolean();
+        Translog translog = new Translog();
+        Streamer<Translog> streamer = new Streamer<Translog>(stop, translog) {
+            @Override
+            Translog createObj(StreamInput in) throws IOException {
+                return new Translog(in);
+            }
+        };
+        doTimerTest(translog, streamer);
+    }
+
+    private void doTimerTest(Timer timer, Streamer<? extends Timer> streamer) throws Exception {
         timer.start();
         assertThat(timer.startTime(), greaterThan(0L));
         assertThat(timer.stopTime(), equalTo(0L));
@@ -189,7 +200,6 @@ public class RecoveryTargetTests extends OpenSearchTestCase {
         assertThat(lastRead.startTime(), equalTo(0L));
         assertThat(lastRead.time(), equalTo(0L));
         assertThat(lastRead.stopTime(), equalTo(0L));
-
     }
 
     public void testIndex() throws Throwable {
