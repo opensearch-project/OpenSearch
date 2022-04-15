@@ -1756,7 +1756,7 @@ public class RestHighLevelClient implements Closeable {
         Set<Integer> ignores
     ) throws IOException {
         Request req = requestConverter.apply(request);
-        req.setOptions(options);
+        req.setOptions(allowMasterTimeoutWarning(options));
         Response response;
         try {
             response = client.performRequest(req);
@@ -1797,7 +1797,7 @@ public class RestHighLevelClient implements Closeable {
             throw validationException.get();
         }
         Request req = requestConverter.apply(request);
-        req.setOptions(options);
+        req.setOptions(allowMasterTimeoutWarning(options));
         Response response;
         try {
             response = client.performRequest(req);
@@ -1922,7 +1922,7 @@ public class RestHighLevelClient implements Closeable {
             listener.onFailure(e);
             return Cancellable.NO_OP;
         }
-        req.setOptions(options);
+        req.setOptions(allowMasterTimeoutWarning(options));
 
         ResponseListener responseListener = wrapResponseListener(responseConverter, listener, ignores);
         return client.performRequestAsync(req, responseListener);
@@ -2177,5 +2177,28 @@ public class RestHighLevelClient implements Closeable {
             entries.addAll(service.getNamedXContentParsers());
         }
         return entries;
+    }
+
+    protected static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
+        "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead.";
+
+    protected RequestOptions allowMasterTimeoutWarning(RequestOptions options) {
+        WarningsHandler originalWarningsHandler = options.getWarningsHandler();
+        RequestOptions.Builder optionsBuilder = options.toBuilder();
+        optionsBuilder.setWarningsHandler(new WarningsHandler() {
+            @Override
+            public boolean warningsShouldFailRequest(List<String> warnings) {
+                if (originalWarningsHandler.warningsShouldFailRequest(Collections.singletonList(MASTER_TIMEOUT_DEPRECATED_MESSAGE))) {
+                    warnings.remove(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+                }
+                return originalWarningsHandler.warningsShouldFailRequest(warnings);
+            }
+
+            @Override
+            public String toString() {
+                return originalWarningsHandler.toString();
+            }
+        });
+        return optionsBuilder.build();
     }
 }

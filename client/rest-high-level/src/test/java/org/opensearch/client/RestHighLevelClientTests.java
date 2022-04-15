@@ -108,6 +108,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.hamcrest.CoreMatchers.is;
 import static org.opensearch.common.xcontent.XContentHelper.toXContent;
 import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -962,6 +963,27 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
                 )
             );
         assertThat("Some API are not supported but they should be: " + apiUnsupported, apiUnsupported.size(), equalTo(0));
+    }
+
+    public void testAllowMasterTimeoutWarning() throws IOException {
+        RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
+        builder.setWarningsHandler(WarningsHandler.STRICT);
+        builder.addHeader("test", "value");
+        HttpAsyncResponseConsumerFactory consumerFactory = new HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory(1);
+        builder.setHttpAsyncResponseConsumerFactory(consumerFactory);
+        RequestOptions originalOptions = builder.build();
+
+        RequestOptions modifiedOptions = restHighLevelClient.allowMasterTimeoutWarning(originalOptions);
+        // The modified WarningsHandler should only allow the specific deprecation warning message.
+        List<String> warnings = new ArrayList<>();
+        warnings.add(RestHighLevelClient.MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+        assertThat(modifiedOptions.getWarningsHandler().warningsShouldFailRequest(warnings), is(false));
+        warnings.add("another warning");
+        assertThat(modifiedOptions.getWarningsHandler().warningsShouldFailRequest(warnings), is(true));
+        assertThat(modifiedOptions.getWarningsHandler().toString(), is(WarningsHandler.STRICT.toString()));
+        // Other Options are not changed.
+        assertThat(modifiedOptions.getHeaders(), is(Collections.singletonList(new RequestOptions.ReqHeader("test", "value"))));
+        assertThat(modifiedOptions.getHttpAsyncResponseConsumerFactory(), is(consumerFactory));
     }
 
     private static void assertSyncMethod(Method method, String apiName, List<String> booleanReturnMethods) {
