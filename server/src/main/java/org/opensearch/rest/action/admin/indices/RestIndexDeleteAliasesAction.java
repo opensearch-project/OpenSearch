@@ -69,7 +69,7 @@ public class RestIndexDeleteAliasesAction extends BaseRestHandler {
         indicesAliasesRequest.timeout(request.paramAsTime("timeout", indicesAliasesRequest.timeout()));
         indicesAliasesRequest.addAliasAction(AliasActions.remove().indices(indices).aliases(aliases));
         indicesAliasesRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", indicesAliasesRequest.masterNodeTimeout()));
-        parseDeprecatedMasterTimeoutParameter(indicesAliasesRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(indicesAliasesRequest, request);
 
         return channel -> client.admin().indices().aliases(indicesAliasesRequest, new RestToXContentListener<>(channel));
     }

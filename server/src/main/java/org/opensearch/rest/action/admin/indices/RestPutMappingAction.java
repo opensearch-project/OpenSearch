@@ -87,7 +87,7 @@ public class RestPutMappingAction extends BaseRestHandler {
         putMappingRequest.source(sourceAsMap);
         putMappingRequest.timeout(request.paramAsTime("timeout", putMappingRequest.timeout()));
         putMappingRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", putMappingRequest.masterNodeTimeout()));
-        parseDeprecatedMasterTimeoutParameter(putMappingRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(putMappingRequest, request);
         putMappingRequest.indicesOptions(IndicesOptions.fromRequest(request, putMappingRequest.indicesOptions()));
         putMappingRequest.writeIndexOnly(request.paramAsBoolean("write_index_only", false));
         return channel -> client.admin().indices().putMapping(putMappingRequest, new RestToXContentListener<>(channel));

@@ -74,7 +74,7 @@ public class RestPutRepositoryAction extends BaseRestHandler {
         }
         putRepositoryRequest.verify(request.paramAsBoolean("verify", true));
         putRepositoryRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", putRepositoryRequest.masterNodeTimeout()));
-        parseDeprecatedMasterTimeoutParameter(putRepositoryRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(putRepositoryRequest, request);
         putRepositoryRequest.timeout(request.paramAsTime("timeout", putRepositoryRequest.timeout()));
         return channel -> client.admin().cluster().putRepository(putRepositoryRequest, new RestToXContentListener<>(channel));
     }

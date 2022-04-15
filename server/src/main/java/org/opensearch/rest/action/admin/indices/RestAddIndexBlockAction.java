@@ -69,7 +69,7 @@ public class RestAddIndexBlockAction extends BaseRestHandler {
             Strings.splitStringByCommaToArray(request.param("index"))
         );
         addIndexBlockRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", addIndexBlockRequest.masterNodeTimeout()));
-        parseDeprecatedMasterTimeoutParameter(addIndexBlockRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(addIndexBlockRequest, request);
         addIndexBlockRequest.timeout(request.paramAsTime("timeout", addIndexBlockRequest.timeout()));
         addIndexBlockRequest.indicesOptions(IndicesOptions.fromRequest(request, addIndexBlockRequest.indicesOptions()));
         return channel -> client.admin().indices().addBlock(addIndexBlockRequest, new RestToXContentListener<>(channel));
