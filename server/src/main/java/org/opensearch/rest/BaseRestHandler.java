@@ -203,6 +203,11 @@ public abstract class BaseRestHandler implements RestHandler {
         return Collections.emptySet();
     }
 
+    public static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
+            "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead.";
+    protected static final String DUPLICATE_PARAMETER_ERROR_MESSAGE =
+            "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
+
     /**
      * Parse the deprecated request parameter 'master_timeout', and add deprecated log if the parameter is used.
      * It also validates whether the two parameters 'master_timeout' and 'cluster_manager_timeout' are not assigned together.
@@ -218,10 +223,6 @@ public abstract class BaseRestHandler implements RestHandler {
         DeprecationLogger logger,
         String logMsgKeyPrefix
     ) {
-        final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
-            "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead.";
-        final String DUPLICATE_PARAMETER_ERROR_MESSAGE =
-            "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
         if (request.hasParam("master_timeout")) {
             logger.deprecate(logMsgKeyPrefix + "_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
             if (request.hasParam("cluster_manager_timeout")) {

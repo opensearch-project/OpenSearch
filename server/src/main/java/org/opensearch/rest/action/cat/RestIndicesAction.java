@@ -85,10 +85,6 @@ public class RestIndicesAction extends AbstractCatAction {
 
     private static final DateFormatter STRICT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_time");
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestIndicesAction.class);
-    private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
-        "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead.";
-    private static final String DUPLICATE_PARAMETER_ERROR_MESSAGE =
-        "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
 
     @Override
     public List<Route> routes() {

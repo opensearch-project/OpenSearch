@@ -48,6 +48,8 @@ import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.opensearch.rest.BaseRestHandler.MASTER_TIMEOUT_DEPRECATED_MESSAGE;
+
 /**
  * This is a simplistic logger that adds warning messages to HTTP headers.
  * Use <code>HeaderWarning.addWarning(message,params)</code>. Message will be formatted according to RFC7234.
@@ -340,6 +342,18 @@ public class HeaderWarning {
     // package scope for testing
     static void addWarning(Set<ThreadContext> threadContexts, String message, Object... params) {
         final Iterator<ThreadContext> iterator = threadContexts.iterator();
+        /* 
+         * As of 2.0, to support inclusive language, the REST API request parameter 'master_timeout' is deprecated.
+         * However, the specific deprecation warning message will not be added to HTTP response header.
+         * In Low Level REST Client, parameter 'master_timeout' is added to every applicable REST API call,    
+         * see org.opensearch.client.RequestConverters.Params.withMasterTimeout(TimeValue).
+         * To keep the compatibility of Rest Client 2.x with server 1.x, the parameter 'master_timeout' is preserved.
+         * The deprecated parameter is not actively used by the user, so skip adding the warning message to HTTP header.
+         * TODO: Remove the 'if' statement after removing the REST API request parameter 'master_timeout'.
+         */
+        if (message.equals(MASTER_TIMEOUT_DEPRECATED_MESSAGE)) {
+            return;
+        }
         if (iterator.hasNext()) {
             final String formattedMessage = LoggerMessageFormat.format(message, params);
             final String warningHeaderValue = formatWarning(formattedMessage);

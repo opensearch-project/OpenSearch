@@ -62,10 +62,6 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 public class RestGetMappingAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetMappingAction.class);
-    private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
-        "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead.";
-    private static final String DUPLICATE_PARAMETER_ERROR_MESSAGE =
-        "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
 
     private final ThreadPool threadPool;
 

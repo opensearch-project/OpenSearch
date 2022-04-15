@@ -47,7 +47,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.opensearch.common.logging.HeaderWarning.WARNING_HEADER_PATTERN;
+import static org.opensearch.rest.BaseRestHandler.MASTER_TIMEOUT_DEPRECATED_MESSAGE;
 import static org.opensearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -297,6 +299,17 @@ public class HeaderWarningTests extends OpenSearchTestCase {
         assertTrue(warningHeadersSize <= 1024);
     }
 
+    /*
+     * Validate the deprecation warning message is not added to HTTP response header.
+     * TODO: Remove the test after removing the REST API request parameter 'master_timeout'.
+     */
+    public void testMasterTimeoutDeprecationWarningNotAddToHttpHeader() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        HeaderWarning.addWarning(Collections.singleton(threadContext), MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+        final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
+        assertThat(responseHeaders.get("Warning"), nullValue());
+    }
+    
     private String range(int lowerInclusive, int upperInclusive) {
         return IntStream.range(lowerInclusive, upperInclusive + 1)
             .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
