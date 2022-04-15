@@ -6318,8 +6318,28 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             }
             List<Translog.Operation> luceneOps = readAllOperationsBasedOnSource(engine);
+            // todo remove in next release
+            List<Translog.Operation> translogOps = readAllOperationsBasedOnTranslog(engine);
             assertThat(luceneOps.stream().map(o -> o.seqNo()).collect(Collectors.toList()), containsInAnyOrder(expectedSeqNos.toArray()));
+            assertThat(translogOps.stream().map(o -> o.seqNo()).collect(Collectors.toList()), containsInAnyOrder(expectedSeqNos.toArray()));
         }
+    }
+
+    /**
+     * Test creating new snapshot from translog file
+     *
+     * @deprecated reading history operations from the translog file is deprecated and will be removed in the next release
+     */
+    @Deprecated
+    private static List<Translog.Operation> readAllOperationsBasedOnTranslog(Engine engine) throws IOException {
+        final List<Translog.Operation> operations = new ArrayList<>();
+        try (Translog.Snapshot snapshot = engine.newChangesSnapshotFromTranslogFile("test", 0, Long.MAX_VALUE, false)) {
+            Translog.Operation op;
+            while ((op = snapshot.next()) != null) {
+                operations.add(op);
+            }
+        }
+        return operations;
     }
 
     public void testLuceneHistoryOnPrimary() throws Exception {

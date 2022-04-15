@@ -2821,6 +2821,20 @@ public class InternalEngine extends Engine {
         }
     }
 
+    /**
+     * Creates a new history snapshot from the translog file instead of the lucene index
+     *
+     * @deprecated reading history operations from the translog file is deprecated and will be removed in the next release
+     *
+     * Use {@link Engine#newChangesSnapshot(String, long, long, boolean, boolean)} instead
+     */
+    @Deprecated
+    @Override
+    public Translog.Snapshot newChangesSnapshotFromTranslogFile(String source, long fromSeqNo, long toSeqNo, boolean requiredFullRange)
+        throws IOException {
+        return getTranslog().newSnapshot(fromSeqNo, toSeqNo, requiredFullRange);
+    }
+
     public int countNumberOfHistoryOperations(String source, long fromSeqNo, long toSeqNo) throws IOException {
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
