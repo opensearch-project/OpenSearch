@@ -23,7 +23,6 @@ import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Map;
 import java.util.regex.Pattern;
 
 import static org.opensearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
@@ -67,8 +66,7 @@ public class MappingTypeRemovalIT extends AbstractRollingTestCase {
                 break;
             case MIXED:
                 waitForClusterGreenStatus();
-                Version minNodeVersion = getMinNodeVersion();
-                if (minNodeVersion.onOrBefore(Version.V_2_0_0)) {
+                if (UPGRADE_FROM_VERSION.before(Version.V_2_0_0)) {
                     assertCount(indexName, 1, 1);
                     assertCount(templateIndexName, 1, 1);
                     assertCount(indexWithoutTypeName, 1, 1);
@@ -126,8 +124,7 @@ public class MappingTypeRemovalIT extends AbstractRollingTestCase {
                 break;
             case MIXED:
                 waitForClusterGreenStatus();
-                Version minNodeVersion = getMinNodeVersion();
-                if (minNodeVersion.onOrBefore(Version.V_2_0_0)) {
+                if (UPGRADE_FROM_VERSION.before(Version.V_2_0_0)) {
                     assertCount(indexName, 1, 1);
                 }
                 break;
@@ -202,22 +199,6 @@ public class MappingTypeRemovalIT extends AbstractRollingTestCase {
         bulk.addParameter("refresh", "true");
         bulk.setJsonEntity(b.toString());
         client().performRequest(bulk);
-    }
-
-    private Version getMinNodeVersion() throws IOException {
-        Version minNodeVersion = null;
-        Map<?, ?> response = entityAsMap(client().performRequest(new Request(HttpGet.METHOD_NAME, "_nodes")));
-        Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
-        for (Map.Entry<?, ?> node : nodes.entrySet()) {
-            Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
-            Version nodeVersion = Version.fromString(nodeInfo.get("version").toString());
-            if (minNodeVersion == null) {
-                minNodeVersion = nodeVersion;
-            } else if (nodeVersion.before(minNodeVersion)) {
-                minNodeVersion = nodeVersion;
-            }
-        }
-        return minNodeVersion;
     }
 
     private void createIndexWithDocMappings(String index, Settings settings, String mapping) throws IOException {
