@@ -603,7 +603,8 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
             IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
             when(mockIndexNameExpressionResolver.resolveDateMathExpression(any())).then(returnsFirstArg());
 
-            ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService);
+            final SystemIndices systemIndices = new SystemIndices(emptyMap());
+            ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService, systemIndices);
             MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
                 Settings.EMPTY,
                 clusterService,
@@ -615,7 +616,7 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
                 testThreadPool,
                 null,
-                new SystemIndices(emptyMap()),
+                systemIndices,
                 false
             );
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
@@ -739,7 +740,8 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
             IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
             when(mockIndexNameExpressionResolver.resolveDateMathExpression(any())).then(returnsFirstArg());
 
-            ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService);
+            final SystemIndices systemIndices = new SystemIndices(emptyMap());
+            ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService, systemIndices);
             MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
                 Settings.EMPTY,
                 clusterService,
@@ -751,7 +753,7 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
                 testThreadPool,
                 null,
-                new SystemIndices(emptyMap()),
+                systemIndices,
                 false
             );
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(

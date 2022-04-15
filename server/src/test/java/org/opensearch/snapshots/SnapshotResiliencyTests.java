@@ -1863,7 +1863,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     RetentionLeaseSyncer.EMPTY
                 );
                 Map<ActionType, TransportAction> actions = new HashMap<>();
-                final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
+                final SystemIndices systemIndices = new SystemIndices(emptyMap());
+                final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService, systemIndices);
                 final MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(
                     settings,
                     clusterService,
@@ -1875,7 +1876,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     indexScopedSettings,
                     threadPool,
                     namedXContentRegistry,
-                    new SystemIndices(emptyMap()),
+                    systemIndices,
                     false
                 );
                 actions.put(

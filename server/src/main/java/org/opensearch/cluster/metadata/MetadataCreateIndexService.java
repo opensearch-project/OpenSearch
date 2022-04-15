@@ -88,7 +88,6 @@ import org.opensearch.indices.IndexCreationException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.InvalidIndexNameException;
 import org.opensearch.indices.ShardLimitValidator;
-import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -214,17 +213,9 @@ public class MetadataCreateIndexService {
      * @param isHidden Whether or not this is a hidden index
      */
     public boolean validateDotIndex(String index, @Nullable Boolean isHidden) {
-        boolean isSystem = false;
         if (index.charAt(0) == '.') {
-            SystemIndexDescriptor matchingDescriptor = systemIndices.findMatchingDescriptor(index);
-            if (matchingDescriptor != null) {
-                logger.trace(
-                    "index [{}] is a system index because it matches index pattern [{}] with description [{}]",
-                    index,
-                    matchingDescriptor.getIndexPattern(),
-                    matchingDescriptor.getDescription()
-                );
-                isSystem = true;
+            if (systemIndices.validateSystemIndex(index)) {
+                return true;
             } else if (isHidden) {
                 logger.trace("index [{}] is a hidden index", index);
             } else {
@@ -237,7 +228,7 @@ public class MetadataCreateIndexService {
             }
         }
 
-        return isSystem;
+        return false;
     }
 
     /**
@@ -890,7 +881,7 @@ public class MetadataCreateIndexService {
          * We can not validate settings until we have applied templates, otherwise we do not know the actual settings
          * that will be used to create this index.
          */
-        shardLimitValidator.validateShardLimit(indexSettings, currentState);
+        shardLimitValidator.validateShardLimit(request.index(), indexSettings, currentState);
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexSettings) == false
             && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexSettings).onOrAfter(Version.V_2_0_0)) {
             throw new IllegalArgumentException(
