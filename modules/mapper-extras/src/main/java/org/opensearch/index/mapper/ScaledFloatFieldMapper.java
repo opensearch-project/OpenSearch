@@ -165,6 +165,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
     public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getSettings()));
 
     public static final class ScaledFloatFieldType extends SimpleMappedFieldType {
+
         private final double scalingFactor;
         private final Double nullValue;
 
@@ -401,6 +402,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
             }
             value = numericValue;
         }
+
         if (value == null) {
             value = nullValue;
         }
