@@ -66,7 +66,7 @@ public class RestDeleteStoredScriptAction extends BaseRestHandler {
         deleteStoredScriptRequest.masterNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", deleteStoredScriptRequest.masterNodeTimeout())
         );
-        parseDeprecatedMasterTimeoutParameter(deleteStoredScriptRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(deleteStoredScriptRequest, request);
 
         return channel -> client.admin().cluster().deleteStoredScript(deleteStoredScriptRequest, new RestToXContentListener<>(channel));
     }
