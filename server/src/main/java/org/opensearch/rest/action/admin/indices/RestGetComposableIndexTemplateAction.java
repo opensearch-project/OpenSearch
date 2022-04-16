@@ -75,7 +75,7 @@ public class RestGetComposableIndexTemplateAction extends BaseRestHandler {
 
         getRequest.local(request.paramAsBoolean("local", getRequest.local()));
         getRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", getRequest.masterNodeTimeout()));
-        parseDeprecatedMasterTimeoutParameter(getRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(getRequest, request);
 
         final boolean implicitAll = getRequest.name() == null;
 

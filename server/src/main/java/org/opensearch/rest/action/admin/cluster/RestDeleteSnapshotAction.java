@@ -71,7 +71,7 @@ public class RestDeleteSnapshotAction extends BaseRestHandler {
             Strings.splitStringByCommaToArray(request.param("snapshot"))
         );
         deleteSnapshotRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", deleteSnapshotRequest.masterNodeTimeout()));
-        parseDeprecatedMasterTimeoutParameter(deleteSnapshotRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameter(deleteSnapshotRequest, request);
         return channel -> client.admin().cluster().deleteSnapshot(deleteSnapshotRequest, new RestToXContentListener<>(channel));
     }
 }
