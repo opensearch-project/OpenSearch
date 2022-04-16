@@ -652,6 +652,13 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
                 for (Object snapshot : snapshots) {
                     Map<?, ?> snapshotInfo = (Map<?, ?>) snapshot;
                     String name = (String) snapshotInfo.get("snapshot");
+                    // Parallel test jobs create an issue with preserveSnapshotsUponCompletion set within subclasses.
+                    // Since the snapshots are shared within the cluster, another parallel run may delete all
+                    // snapshots in the repository.
+                    // For now we hack to prevent deletion of snapshots prefixed with "force_preserve"
+                    if (Version.CURRENT.onOrBefore(Version.V_2_1_0) && name.startsWith("force_preserve")) {
+                        continue;
+                    }
                     if (SnapshotState.valueOf((String) snapshotInfo.get("state")).completed() == false) {
                         inProgressSnapshots.computeIfAbsent(repoName, key -> new ArrayList<>()).add(snapshotInfo);
                     }

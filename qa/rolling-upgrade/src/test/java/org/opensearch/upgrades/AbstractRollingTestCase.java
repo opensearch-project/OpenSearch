@@ -56,6 +56,7 @@ public abstract class AbstractRollingTestCase extends OpenSearchRestTestCase {
     }
 
     protected static final ClusterType CLUSTER_TYPE = ClusterType.parse(System.getProperty("tests.rest.suite"));
+    protected static final String REPOSITORY_LOCATION = System.getProperty("tests.repo_location");
     protected static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
     protected static final boolean firstMixedRound = Boolean.parseBoolean(System.getProperty("tests.first_round", "false"));
 
@@ -73,6 +74,9 @@ public abstract class AbstractRollingTestCase extends OpenSearchRestTestCase {
     protected boolean preserveTemplatesUponCompletion() {
         return true;
     }
+
+    @Override
+    protected final boolean preserveSnapshotsUponCompletion() { return true; }
 
     @Override
     protected final Settings restClientSettings() {
