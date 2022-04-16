@@ -229,6 +229,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
     public void testIgnoreMalformed() throws Exception {
         doTestIgnoreMalformed("a", "For input string: \"a\"");
+        doTestIgnoreMalformed(true, "Current token (VALUE_TRUE) not numeric");
 
         List<String> values = Arrays.asList("NaN", "Infinity", "-Infinity");
         for (String value : values) {
@@ -236,7 +237,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         }
     }
 
-    private void doTestIgnoreMalformed(String value, String exceptionMessageContains) throws Exception {
+    private void doTestIgnoreMalformed(Object value, String exceptionMessageContains) throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ThrowingRunnable runnable = () -> mapper.parse(
             new SourceToParse(
