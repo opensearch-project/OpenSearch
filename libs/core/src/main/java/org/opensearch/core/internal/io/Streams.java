@@ -38,19 +38,14 @@ import java.io.OutputStream;
 
 /**
  * Simple utility methods for file and stream copying.
- * All copy methods use a block size of 4096 bytes,
- * and close all affected streams when done.
+ * All copy methods close all affected streams when done.
  * <p>
  * Mainly for use within the framework,
  * but also useful for application code.
  */
-public class Streams {
+public abstract class Streams {
 
     private static final ThreadLocal<byte[]> buffer = ThreadLocal.withInitial(() -> new byte[8 * 1024]);
-
-    private Streams() {
-
-    }
 
     /**
      * Copy the contents of the given InputStream to the given OutputStream. Optionally, closes both streams when done.
