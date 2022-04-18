@@ -120,23 +120,25 @@ public class PublishPlugin implements Plugin<Project> {
                 });
             });
         });
-
         publishing.getPublications().withType(MavenPublication.class, publication -> {
-            // Add git origin info to generated POM files
-            publication.getPom().withXml(PublishPlugin::addScmInfo);
+            String search  = "zip";
+            if (!publication.getName().toLowerCase().contains(search.toLowerCase())) {
+                System.out.println("The Publication: " + publication.getName());
+                // Add git origin info to generated POM files
+                publication.getPom().withXml(PublishPlugin::addScmInfo);
 
-            // have to defer this until archivesBaseName is set
-            project.afterEvaluate(p -> publication.setArtifactId(getArchivesBaseName(project)));
+                // have to defer this until archivesBaseName is set
+                project.afterEvaluate(p -> publication.setArtifactId(getArchivesBaseName(project)));
 
-            // publish sources and javadoc for Java projects.
-            if (project.getPluginManager().hasPlugin("opensearch.java")) {
-                publication.artifact(project.getTasks().getByName("sourcesJar"));
-                publication.artifact(project.getTasks().getByName("javadocJar"));
+                // publish sources and javadoc for Java projects.
+                if (project.getPluginManager().hasPlugin("opensearch.java")) {
+                    publication.artifact(project.getTasks().getByName("sourcesJar"));
+                    publication.artifact(project.getTasks().getByName("javadocJar"));
+                    generatePomTask.configure( t -> {
+                        t.dependsOn(String.format("generatePomFileFor%sPublication", Util.capitalize(publication.getName()))); 
+                    });
+                }
             }
-
-            generatePomTask.configure(
-                t -> t.dependsOn(String.format("generatePomFileFor%sPublication", Util.capitalize(publication.getName())))
-            );
         });
 
     }
