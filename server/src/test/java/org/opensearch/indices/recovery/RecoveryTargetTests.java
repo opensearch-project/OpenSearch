@@ -63,9 +63,7 @@ import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -174,32 +172,33 @@ public class RecoveryTargetTests extends OpenSearchTestCase {
 
     private void doTimerTest(Timer timer, Streamer<? extends Timer> streamer) throws Exception {
         timer.start();
-        assertThat(timer.startTime(), greaterThan(0L));
-        assertThat(timer.stopTime(), equalTo(0L));
+        assertTrue(timer.startTime() > 0);
+        assertEquals(0, timer.stopTime());
+        // validate captured time
         Timer lastRead = streamer.serializeDeserialize();
         final long time = lastRead.time();
-        assertThat(time, lessThanOrEqualTo(timer.time()));
-        assertBusy(() -> assertThat("timer timer should progress compared to captured one ", time, lessThan(timer.time())));
-        assertThat("captured time shouldn't change", lastRead.time(), equalTo(time));
+        assertEquals(timer.time(), time);
+        assertBusy(() -> assertTrue("timer timer should progress compared to captured one ", time < timer.time()));
+        assertEquals("captured time shouldn't change", time, lastRead.time());
 
-        if (randomBoolean()) {
-            timer.stop();
-            assertThat(timer.stopTime(), greaterThanOrEqualTo(timer.startTime()));
-            assertThat(timer.time(), greaterThan(0L));
-            lastRead = streamer.serializeDeserialize();
-            assertThat(lastRead.startTime(), equalTo(timer.startTime()));
-            assertThat(lastRead.time(), equalTo(timer.time()));
-            assertThat(lastRead.stopTime(), equalTo(timer.stopTime()));
-        }
+        timer.stop();
+        assertTrue(timer.stopTime() >= timer.startTime());
+        assertTrue(timer.time() > 0);
+        // validate captured time
+        lastRead = streamer.serializeDeserialize();
+        assertEquals(timer.startTime(), lastRead.startTime());
+        assertEquals(timer.time(), lastRead.time());
+        assertEquals(timer.stopTime(), lastRead.stopTime());
 
         timer.reset();
-        assertThat(timer.startTime(), equalTo(0L));
-        assertThat(timer.time(), equalTo(0L));
-        assertThat(timer.stopTime(), equalTo(0L));
+        assertEquals(0, timer.startTime());
+        assertEquals(0, timer.time());
+        assertEquals(0, timer.stopTime());
+        // validate captured time
         lastRead = streamer.serializeDeserialize();
-        assertThat(lastRead.startTime(), equalTo(0L));
-        assertThat(lastRead.time(), equalTo(0L));
-        assertThat(lastRead.stopTime(), equalTo(0L));
+        assertEquals(0, lastRead.startTime());
+        assertEquals(0, lastRead.time());
+        assertEquals(0, lastRead.stopTime());
     }
 
     public void testIndex() throws Throwable {
