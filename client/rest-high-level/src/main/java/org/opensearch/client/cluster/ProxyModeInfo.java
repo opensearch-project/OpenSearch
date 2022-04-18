@@ -94,4 +94,20 @@ public class ProxyModeInfo implements RemoteConnectionInfo.ModeInfo {
     public int hashCode() {
         return Objects.hash(address, serverName, maxSocketConnections, numSocketsConnected);
     }
+
+    @Override
+    public String toString() {
+        return "ProxyModeInfo{"
+            + "address='"
+            + address
+            + '\''
+            + ", serverName='"
+            + serverName
+            + '\''
+            + ", maxSocketConnections="
+            + maxSocketConnections
+            + ", numSocketsConnected="
+            + numSocketsConnected
+            + '}';
+    }
 }
