@@ -23,7 +23,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.RegExp;
 import org.hamcrest.MatcherAssert;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.network.InetAddresses;
@@ -834,7 +833,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
             new MatchAllDocsQuery(),
             asList(
                 new MultiTermsValuesSourceConfig.Builder().setFieldName(KEYWORD_FIELD)
-                    .setIncludeExclude(new IncludeExclude(new RegExp("a"), null))
+                    .setIncludeExclude(new IncludeExclude("a", null))
                     .build(),
                 term(INT_FIELD)
             ),

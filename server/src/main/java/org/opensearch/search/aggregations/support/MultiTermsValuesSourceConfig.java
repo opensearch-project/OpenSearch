@@ -12,9 +12,7 @@ import org.opensearch.common.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.script.Script;
@@ -23,20 +21,12 @@ import org.opensearch.search.aggregations.bucket.terms.IncludeExclude;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.Objects;
 
 /**
- * A configuration that tells multi-terms aggregations how to retrieve data from index
- * in order to run a specific aggregation.
- *
- * Similar with {@link MultiValuesSourceFieldConfig}, but support value script.
+ * A configuration that used by multi_terms aggregations.
  */
-public class MultiTermsValuesSourceConfig implements Writeable, ToXContentObject {
-    private final String fieldName;
-    private final Object missing;
-    private final Script script;
-    private final ZoneId timeZone;
+public class MultiTermsValuesSourceConfig extends BaseMultiValuesSourceFieldConfig {
     private final ValueType userValueTypeHint;
     private final String format;
     private final IncludeExclude includeExclude;
@@ -60,32 +50,7 @@ public class MultiTermsValuesSourceConfig implements Writeable, ToXContentObject
             MultiTermsValuesSourceConfig.Builder::new
         );
 
-        parser.declareString(MultiTermsValuesSourceConfig.Builder::setFieldName, ParseField.CommonFields.FIELD);
-        parser.declareField(
-            MultiTermsValuesSourceConfig.Builder::setMissing,
-            XContentParser::objectText,
-            ParseField.CommonFields.MISSING,
-            ObjectParser.ValueType.VALUE
-        );
-
-        if (scriptable) {
-            parser.declareField(
-                MultiTermsValuesSourceConfig.Builder::setScript,
-                (p, context) -> Script.parse(p),
-                Script.SCRIPT_PARSE_FIELD,
-                ObjectParser.ValueType.OBJECT_OR_STRING
-            );
-        }
-
-        if (timezoneAware) {
-            parser.declareField(MultiTermsValuesSourceConfig.Builder::setTimeZone, p -> {
-                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                    return ZoneId.of(p.text());
-                } else {
-                    return ZoneOffset.ofHours(p.intValue());
-                }
-            }, ParseField.CommonFields.TIME_ZONE, ObjectParser.ValueType.LONG);
-        }
+        BaseMultiValuesSourceFieldConfig.PARSER.apply(parser, scriptable, timezoneAware);
 
         if (valueTypeHinted) {
             parser.declareField(
@@ -124,39 +89,17 @@ public class MultiTermsValuesSourceConfig implements Writeable, ToXContentObject
         String format,
         IncludeExclude includeExclude
     ) {
-        this.fieldName = fieldName;
-        this.missing = missing;
-        this.script = script;
-        this.timeZone = timeZone;
+        super(fieldName, missing, script, timeZone);
         this.userValueTypeHint = userValueTypeHint;
         this.format = format;
         this.includeExclude = includeExclude;
     }
 
     public MultiTermsValuesSourceConfig(StreamInput in) throws IOException {
-        this.fieldName = in.readOptionalString();
-        this.missing = in.readGenericValue();
-        this.script = in.readOptionalWriteable(Script::new);
-        this.timeZone = in.readOptionalZoneId();
+        super(in);
         this.userValueTypeHint = in.readOptionalWriteable(ValueType::readFromStream);
         this.format = in.readOptionalString();
         this.includeExclude = in.readOptionalWriteable(IncludeExclude::new);
-    }
-
-    public Object getMissing() {
-        return missing;
-    }
-
-    public Script getScript() {
-        return script;
-    }
-
-    public ZoneId getTimeZone() {
-        return timeZone;
-    }
-
-    public String getFieldName() {
-        return fieldName;
     }
 
     public ValueType getUserValueTypeHint() {
@@ -175,31 +118,14 @@ public class MultiTermsValuesSourceConfig implements Writeable, ToXContentObject
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(fieldName);
-        out.writeGenericValue(missing);
-        out.writeOptionalWriteable(script);
-        out.writeOptionalZoneId(timeZone);
+    public void doWriteTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(userValueTypeHint);
         out.writeOptionalString(format);
         out.writeOptionalWriteable(includeExclude);
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        if (missing != null) {
-            builder.field(ParseField.CommonFields.MISSING.getPreferredName(), missing);
-        }
-        if (script != null) {
-            builder.field(Script.SCRIPT_PARSE_FIELD.getPreferredName(), script);
-        }
-        if (fieldName != null) {
-            builder.field(ParseField.CommonFields.FIELD.getPreferredName(), fieldName);
-        }
-        if (timeZone != null) {
-            builder.field(ParseField.CommonFields.TIME_ZONE.getPreferredName(), timeZone.getId());
-        }
+    public void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (userValueTypeHint != null) {
             builder.field(AggregationBuilder.CommonFields.VALUE_TYPE.getPreferredName(), userValueTypeHint.getPreferredName());
         }
@@ -209,39 +135,26 @@ public class MultiTermsValuesSourceConfig implements Writeable, ToXContentObject
         if (includeExclude != null) {
             includeExclude.toXContent(builder, params);
         }
-        builder.endObject();
-        return builder;
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
+        if (super.equals(o) == false) return false;
+
         MultiTermsValuesSourceConfig that = (MultiTermsValuesSourceConfig) o;
-        return Objects.equals(fieldName, that.fieldName)
-            && Objects.equals(missing, that.missing)
-            && Objects.equals(script, that.script)
-            && Objects.equals(timeZone, that.timeZone)
-            && Objects.equals(userValueTypeHint, that.userValueTypeHint)
+        return Objects.equals(userValueTypeHint, that.userValueTypeHint)
             && Objects.equals(format, that.format)
             && Objects.equals(includeExclude, that.includeExclude);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fieldName, missing, script, timeZone, userValueTypeHint, format, includeExclude);
+        return Objects.hash(super.hashCode(), userValueTypeHint, format, includeExclude);
     }
 
-    @Override
-    public String toString() {
-        return Strings.toString(this);
-    }
-
-    public static class Builder {
-        private String fieldName;
-        private Object missing = null;
-        private Script script = null;
-        private ZoneId timeZone = null;
+    public static class Builder extends BaseMultiValuesSourceFieldConfig.Builder<MultiTermsValuesSourceConfig, Builder> {
         private ValueType userValueTypeHint = null;
         private String format;
         private IncludeExclude includeExclude = null;
@@ -250,44 +163,8 @@ public class MultiTermsValuesSourceConfig implements Writeable, ToXContentObject
             return includeExclude;
         }
 
-        public MultiTermsValuesSourceConfig.Builder setIncludeExclude(IncludeExclude includeExclude) {
+        public Builder setIncludeExclude(IncludeExclude includeExclude) {
             this.includeExclude = includeExclude;
-            return this;
-        }
-
-        public String getFieldName() {
-            return fieldName;
-        }
-
-        public MultiTermsValuesSourceConfig.Builder setFieldName(String fieldName) {
-            this.fieldName = fieldName;
-            return this;
-        }
-
-        public Object getMissing() {
-            return missing;
-        }
-
-        public MultiTermsValuesSourceConfig.Builder setMissing(Object missing) {
-            this.missing = missing;
-            return this;
-        }
-
-        public Script getScript() {
-            return script;
-        }
-
-        public MultiTermsValuesSourceConfig.Builder setScript(Script script) {
-            this.script = script;
-            return this;
-        }
-
-        public ZoneId getTimeZone() {
-            return timeZone;
-        }
-
-        public MultiTermsValuesSourceConfig.Builder setTimeZone(ZoneId timeZone) {
-            this.timeZone = timeZone;
             return this;
         }
 
@@ -295,7 +172,7 @@ public class MultiTermsValuesSourceConfig implements Writeable, ToXContentObject
             return userValueTypeHint;
         }
 
-        public MultiTermsValuesSourceConfig.Builder setUserValueTypeHint(ValueType userValueTypeHint) {
+        public Builder setUserValueTypeHint(ValueType userValueTypeHint) {
             this.userValueTypeHint = userValueTypeHint;
             return this;
         }
@@ -304,7 +181,7 @@ public class MultiTermsValuesSourceConfig implements Writeable, ToXContentObject
             return format;
         }
 
-        public MultiTermsValuesSourceConfig.Builder setFormat(String format) {
+        public Builder setFormat(String format) {
             this.format = format;
             return this;
         }
