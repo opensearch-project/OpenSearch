@@ -750,5 +750,3 @@ setup:
                     - prefix:
                         prefix: out
   - match: { hits.total.value: 3 }
-
-

@@ -61,4 +61,3 @@ tasks.test {
         jvmArgs += ["--add-opens", "java.base/java.security.cert=ALL-UNNAMED"]
     }
 }
-

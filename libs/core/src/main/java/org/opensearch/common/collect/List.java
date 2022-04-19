@@ -32,48 +32,44 @@
 
 package org.opensearch.common.collect;
 
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 
 public class List {
 
     /**
-     * Returns an unmodifiable list containing zero elements.
+     * Delegates to the Java9 {@code List.of()} method.
      *
      * @param <T> the {@code List}'s element type
      * @return an empty {@code List}
      */
     public static <T> java.util.List<T> of() {
-        return Collections.emptyList();
+        return java.util.List.of();
     }
 
     /**
-     * Returns an unmodifiable list containing one element.
+     * Delegates to the Java9 {@code List.of()} method.
      *
      * @param <T> the {@code List}'s element type
      * @param e1  the single element
      * @return a {@code List} containing the specified element
      */
     public static <T> java.util.List<T> of(T e1) {
-        return Collections.singletonList(e1);
+        return java.util.List.of(e1);
     }
 
     /**
-     * Returns an unmodifiable list containing two elements.
+     * Delegates to the Java9 {@code List.of()} method.
      *
      * @param <T> the {@code List}'s element type
-     * @param e1 the first element
-     * @param e2 the second element
+     * @param e1  the single element
      * @return a {@code List} containing the specified element
      */
-    @SuppressWarnings("unchecked")
     public static <T> java.util.List<T> of(T e1, T e2) {
-        return List.of((T[]) new Object[] { e1, e2 });
+        return java.util.List.of(e1, e2);
     }
 
     /**
-     * Returns an unmodifiable list containing an arbitrary number of elements.
+     * Delegates to the Java9 {@code List.of()} method.
      *
      * @param entries the elements to be contained in the list
      * @param <T>     the {@code List}'s element type
@@ -82,25 +78,17 @@ public class List {
     @SafeVarargs
     @SuppressWarnings("varargs")
     public static <T> java.util.List<T> of(T... entries) {
-        switch (entries.length) {
-            case 0:
-                return List.of();
-            case 1:
-                return List.of(entries[0]);
-            default:
-                return Collections.unmodifiableList(Arrays.asList(entries));
-        }
+        return java.util.List.of(entries);
     }
 
     /**
-     * Returns an unmodifiable {@code List} containing the elements of the given {@code Collection} in iteration order.
+     * Delegates to the Java9 {@code List.copyOf()} method.
      *
      * @param <T>  the {@code List}'s element type
      * @param coll a {@code Collection} from which elements are drawn, must be non-null
      * @return a {@code List} containing the elements of the given {@code Collection}
      */
-    @SuppressWarnings("unchecked")
     public static <T> java.util.List<T> copyOf(Collection<? extends T> coll) {
-        return (java.util.List<T>) List.of(coll.toArray());
+        return java.util.List.copyOf(coll);
     }
 }

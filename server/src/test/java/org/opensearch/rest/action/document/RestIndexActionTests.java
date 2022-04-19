@@ -33,7 +33,6 @@
 package org.opensearch.rest.action.document;
 
 import org.apache.lucene.util.SetOnce;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.index.IndexRequest;
@@ -46,7 +45,6 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.document.RestIndexAction.AutoIdHandler;
 import org.opensearch.rest.action.document.RestIndexAction.CreateHandler;
-import org.opensearch.test.VersionUtils;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.test.rest.RestActionTestCase;
 import org.junit.Before;
@@ -94,13 +92,6 @@ public class RestIndexActionTests extends RestActionTestCase {
 
     public void testAutoIdDefaultsToOptypeCreate() {
         checkAutoIdOpType(Version.CURRENT, DocWriteRequest.OpType.CREATE);
-    }
-
-    public void testAutoIdDefaultsToOptypeIndexForOlderVersions() {
-        checkAutoIdOpType(
-            VersionUtils.randomVersionBetween(random(), null, VersionUtils.getPreviousVersion(LegacyESVersion.V_7_5_0)),
-            DocWriteRequest.OpType.INDEX
-        );
     }
 
     private void checkAutoIdOpType(Version minClusterVersion, DocWriteRequest.OpType expectedOpType) {

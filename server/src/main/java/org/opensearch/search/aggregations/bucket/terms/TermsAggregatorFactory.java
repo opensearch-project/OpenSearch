@@ -380,7 +380,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 CardinalityUpperBound cardinality,
                 Map<String, Object> metadata
             ) throws IOException {
-                final IncludeExclude.StringFilter filter = includeExclude == null ? null : includeExclude.convertToStringFilter(format);
+                int maxRegexLength = context.getQueryShardContext().getIndexSettings().getMaxRegexLength();
+                final IncludeExclude.StringFilter filter = includeExclude == null
+                    ? null
+                    : includeExclude.convertToStringFilter(format, maxRegexLength);
                 return new MapStringTermsAggregator(
                     name,
                     factories,
@@ -458,7 +461,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     );
 
                 }
-                final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);
+                int maxRegexLength = context.getQueryShardContext().getIndexSettings().getMaxRegexLength();
+                final IncludeExclude.OrdinalsFilter filter = includeExclude == null
+                    ? null
+                    : includeExclude.convertToOrdinalsFilter(format, maxRegexLength);
                 boolean remapGlobalOrds;
                 if (cardinality == CardinalityUpperBound.ONE && REMAP_GLOBAL_ORDS != null) {
                     /*

@@ -376,7 +376,7 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
                 () -> { throw new AssertionError("node.name must be set"); }
             );
             PluginsService pluginsService;
-            pluginsService = new PluginsService(nodeSettings, null, env.modulesFile(), env.pluginsFile(), plugins);
+            pluginsService = new PluginsService(nodeSettings, null, env.modulesDir(), env.pluginsDir(), plugins);
 
             client = (Client) Proxy.newProxyInstance(Client.class.getClassLoader(), new Class[] { Client.class }, clientInvocationHandler);
             ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class));

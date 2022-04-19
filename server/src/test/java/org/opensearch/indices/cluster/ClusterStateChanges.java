@@ -259,7 +259,8 @@ public class ClusterStateChanges {
             null,
             actionFilters
         );
-        ShardLimitValidator shardLimitValidator = new ShardLimitValidator(SETTINGS, clusterService);
+        final SystemIndices systemIndices = new SystemIndices(emptyMap());
+        ShardLimitValidator shardLimitValidator = new ShardLimitValidator(SETTINGS, clusterService, systemIndices);
         MetadataIndexStateService indexStateService = new MetadataIndexStateService(
             clusterService,
             allocationService,
@@ -290,7 +291,7 @@ public class ClusterStateChanges {
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             threadPool,
             xContentRegistry,
-            new SystemIndices(emptyMap()),
+            systemIndices,
             true
         );
 

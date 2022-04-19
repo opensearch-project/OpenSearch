@@ -45,4 +45,3 @@
   - do:
      snapshot.delete_repository:
        repository: test_snapshot_repository
-

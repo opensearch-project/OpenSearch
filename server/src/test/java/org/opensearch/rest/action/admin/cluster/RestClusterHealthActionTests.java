@@ -52,7 +52,7 @@ public class RestClusterHealthActionTests extends OpenSearchTestCase {
         Map<String, String> params = new HashMap<>();
         String index = "index";
         boolean local = randomBoolean();
-        String masterTimeout = randomTimeValue();
+        String clusterManagerTimeout = randomTimeValue();
         String timeout = randomTimeValue();
         ClusterHealthStatus waitForStatus = randomFrom(ClusterHealthStatus.values());
         boolean waitForNoRelocatingShards = randomBoolean();
@@ -63,7 +63,7 @@ public class RestClusterHealthActionTests extends OpenSearchTestCase {
 
         params.put("index", index);
         params.put("local", String.valueOf(local));
-        params.put("master_timeout", masterTimeout);
+        params.put("cluster_manager_timeout", clusterManagerTimeout);
         params.put("timeout", timeout);
         params.put("wait_for_status", waitForStatus.name());
         if (waitForNoRelocatingShards || randomBoolean()) {
@@ -81,7 +81,7 @@ public class RestClusterHealthActionTests extends OpenSearchTestCase {
         assertThat(clusterHealthRequest.indices().length, equalTo(1));
         assertThat(clusterHealthRequest.indices()[0], equalTo(index));
         assertThat(clusterHealthRequest.local(), equalTo(local));
-        assertThat(clusterHealthRequest.masterNodeTimeout(), equalTo(TimeValue.parseTimeValue(masterTimeout, "test")));
+        assertThat(clusterHealthRequest.masterNodeTimeout(), equalTo(TimeValue.parseTimeValue(clusterManagerTimeout, "test")));
         assertThat(clusterHealthRequest.timeout(), equalTo(TimeValue.parseTimeValue(timeout, "test")));
         assertThat(clusterHealthRequest.waitForStatus(), equalTo(waitForStatus));
         assertThat(clusterHealthRequest.waitForNoRelocatingShards(), equalTo(waitForNoRelocatingShards));

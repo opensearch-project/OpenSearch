@@ -32,12 +32,8 @@
 
 package org.opensearch.index.mapper;
 
-import org.opensearch.LegacyESVersion;
-import org.opensearch.Version;
-import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.mapper.MapperService.MergeReason;
@@ -46,7 +42,6 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import java.io.IOException;
 import java.util.Arrays;
 
-import static org.opensearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.containsString;
 
 public class RootObjectMapperTests extends OpenSearchSingleNodeTestCase {
@@ -482,32 +477,5 @@ public class RootObjectMapperTests extends OpenSearchSingleNodeTestCase {
     @Override
     protected boolean forbidPrivateIndexSettings() {
         return false;
-    }
-
-    public void testIllegalDynamicTemplatePre7Dot7Index() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder();
-        mapping.startObject();
-        {
-            mapping.startObject("type");
-            mapping.startArray("dynamic_templates");
-            {
-                mapping.startObject();
-                mapping.startObject("my_template");
-                mapping.field("match_mapping_type", "string");
-                mapping.startObject("mapping");
-                mapping.field("type", "string");
-                mapping.endObject();
-                mapping.endObject();
-                mapping.endObject();
-            }
-            mapping.endArray();
-            mapping.endObject();
-        }
-        mapping.endObject();
-        Version createdVersion = randomVersionBetween(random(), LegacyESVersion.V_7_0_0, LegacyESVersion.V_7_6_0);
-        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion).build();
-        MapperService mapperService = createIndex("test", indexSettings).mapperService();
-        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE);
-        assertThat(mapper.mappingSource().toString(), containsString("\"type\":\"string\""));
     }
 }
