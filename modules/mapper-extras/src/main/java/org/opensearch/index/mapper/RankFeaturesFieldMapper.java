@@ -42,7 +42,6 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -55,8 +54,18 @@ public class RankFeaturesFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "rank_features";
 
+    private static RankFeaturesFieldType ft(FieldMapper in) {
+        return ((RankFeaturesFieldMapper) in).fieldType();
+    }
+
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
+        private final Parameter<Boolean> positiveScoreImpact = Parameter.boolParam(
+            "positive_score_impact",
+            false,
+            m -> ft(m).positiveScoreImpact,
+            true
+        );
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
@@ -66,16 +75,17 @@ public class RankFeaturesFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Collections.singletonList(meta);
+            return List.of(meta, positiveScoreImpact);
         }
 
         @Override
         public RankFeaturesFieldMapper build(BuilderContext context) {
             return new RankFeaturesFieldMapper(
                 name,
-                new RankFeaturesFieldType(buildFullName(context), meta.getValue()),
+                new RankFeaturesFieldType(buildFullName(context), meta.getValue(), positiveScoreImpact.getValue()),
                 multiFieldsBuilder.build(this, context),
-                copyTo.build()
+                copyTo.build(),
+                positiveScoreImpact.getValue()
             );
         }
     }
@@ -84,14 +94,21 @@ public class RankFeaturesFieldMapper extends ParametrizedFieldMapper {
 
     public static final class RankFeaturesFieldType extends MappedFieldType {
 
-        public RankFeaturesFieldType(String name, Map<String, String> meta) {
+        private final boolean positiveScoreImpact;
+
+        public RankFeaturesFieldType(String name, Map<String, String> meta, boolean positiveScoreImpact) {
             super(name, false, false, false, TextSearchInfo.NONE, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            this.positiveScoreImpact = positiveScoreImpact;
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        public boolean positiveScoreImpact() {
+            return positiveScoreImpact;
         }
 
         @Override
@@ -115,9 +132,18 @@ public class RankFeaturesFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    private RankFeaturesFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
+    private final boolean positiveScoreImpact;
+
+    private RankFeaturesFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        boolean positiveScoreImpact
+    ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
+        this.positiveScoreImpact = positiveScoreImpact;
     }
 
     @Override
@@ -163,6 +189,9 @@ public class RankFeaturesFieldMapper extends ParametrizedFieldMapper {
                             + key
                             + "] in the same document"
                     );
+                }
+                if (positiveScoreImpact == false) {
+                    value = 1 / value;
                 }
                 context.doc().addWithKey(key, new FeatureField(name(), feature, value));
             } else {
