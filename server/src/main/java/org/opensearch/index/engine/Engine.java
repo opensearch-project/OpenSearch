@@ -350,6 +350,8 @@ public abstract class Engine implements Closeable {
      */
     public abstract IndexResult index(Index index) throws IOException;
 
+    public abstract IndexResult addIndexOperationToTranslog(Index index) throws IOException;
+
     /**
      * Perform document delete operation on the engine
      * @param delete operation to perform

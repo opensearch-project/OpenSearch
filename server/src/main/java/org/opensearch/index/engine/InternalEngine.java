@@ -1024,23 +1024,7 @@ public class InternalEngine extends Engine {
                     }
                 }
                 if (index.origin().isFromTranslog() == false) {
-                    final Translog.Location location;
-                    if (indexResult.getResultType() == Result.Type.SUCCESS) {
-                        location = translog.add(new Translog.Index(index, indexResult));
-                    } else if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                        // if we have document failure, record it as a no-op in the translog and Lucene with the generated seq_no
-                        final NoOp noOp = new NoOp(
-                            indexResult.getSeqNo(),
-                            index.primaryTerm(),
-                            index.origin(),
-                            index.startTime(),
-                            indexResult.getFailure().toString()
-                        );
-                        location = innerNoOp(noOp).getTranslogLocation();
-                    } else {
-                        location = null;
-                    }
-                    indexResult.setTranslogLocation(location);
+                    addIndexOperationToTranslog(index, indexResult);
                 }
                 if (plan.indexIntoLucene && indexResult.getResultType() == Result.Type.SUCCESS) {
                     final Translog.Location translogLocation = trackTranslogLocation.get() ? indexResult.getTranslogLocation() : null;
@@ -1073,6 +1057,44 @@ public class InternalEngine extends Engine {
             }
             throw e;
         }
+    }
+
+    @Override
+    public Engine.IndexResult addIndexOperationToTranslog(Index index) throws IOException {
+        try (Releasable ignored = versionMap.acquireLock(index.uid().bytes())) {
+            IndexingStrategy plan = indexingStrategyForOperation(index);
+            /**
+             * Matches the logic in {@link #indexIntoLucene(Index, IndexingStrategy)}
+             */
+            IndexResult indexResult = new IndexResult(
+                plan.versionForIndexing,
+                index.primaryTerm(),
+                index.seqNo(),
+                plan.currentNotFoundOrDeleted
+            );
+            addIndexOperationToTranslog(index, indexResult);
+            indexResult.setTook(System.nanoTime() - index.startTime());
+            indexResult.freeze();
+            return indexResult;
+        }
+    }
+
+    private void addIndexOperationToTranslog(Index index, IndexResult indexResult) throws IOException {
+        Translog.Location location = null;
+        if (indexResult.getResultType() == Result.Type.SUCCESS) {
+            location = translog.add(new Translog.Index(index, indexResult));
+        } else if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            // if we have document failure, record it as a no-op in the translog and Lucene with the generated seq_no
+            final NoOp noOp = new NoOp(
+                indexResult.getSeqNo(),
+                index.primaryTerm(),
+                index.origin(),
+                index.startTime(),
+                indexResult.getFailure().toString()
+            );
+            location = innerNoOp(noOp).getTranslogLocation();
+        }
+        indexResult.setTranslogLocation(location);
     }
 
     protected final IndexingStrategy planIndexingAsNonPrimary(Index index) throws IOException {
@@ -1461,6 +1483,7 @@ public class InternalEngine extends Engine {
                 }
             }
             if (delete.origin().isFromTranslog() == false && deleteResult.getResultType() == Result.Type.SUCCESS) {
+                System.out.println("hey i am called now");
                 final Translog.Location location = translog.add(new Translog.Delete(delete, deleteResult));
                 deleteResult.setTranslogLocation(location);
             }

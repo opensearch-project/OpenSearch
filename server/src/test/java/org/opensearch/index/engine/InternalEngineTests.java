@@ -1656,6 +1656,18 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testAddIndexOperationToTranslog() throws IOException {
+        try (
+            Store store = createStore();
+            InternalEngine engine = createEngine(store, createTempDir())
+        ) {
+            ParsedDocument doc = createParsedDoc("1", null);
+            Engine.IndexResult result=engine.addIndexOperationToTranslog(indexForDoc(doc));
+            assertEquals(Engine.Operation.TYPE.INDEX,result.getOperationType());
+            assertNotNull(result.getTranslogLocation());
+        }
+    }
+
     public void testForceMergeWithSoftDeletesRetention() throws Exception {
         final long retainedExtraOps = randomLongBetween(0, 10);
         Settings.Builder settings = Settings.builder()
