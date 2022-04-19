@@ -1657,13 +1657,10 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testAddIndexOperationToTranslog() throws IOException {
-        try (
-            Store store = createStore();
-            InternalEngine engine = createEngine(store, createTempDir())
-        ) {
+        try (Store store = createStore(); InternalEngine engine = createEngine(store, createTempDir())) {
             ParsedDocument doc = createParsedDoc("1", null);
-            Engine.IndexResult result=engine.addIndexOperationToTranslog(indexForDoc(doc));
-            assertEquals(Engine.Operation.TYPE.INDEX,result.getOperationType());
+            Engine.IndexResult result = engine.addIndexOperationToTranslog(indexForDoc(doc));
+            assertEquals(Engine.Operation.TYPE.INDEX, result.getOperationType());
             assertNotNull(result.getTranslogLocation());
         }
     }
