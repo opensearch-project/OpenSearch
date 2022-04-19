@@ -42,12 +42,15 @@ import java.util.List;
 import org.opensearch.action.admin.indices.dangling.import_index.ImportDanglingIndexRequest;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.action.RestToXContentListener;
 
 public class RestImportDanglingIndexAction extends BaseRestHandler {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestImportDanglingIndexAction.class);
+
     @Override
     public List<Route> routes() {
         return singletonList(new Route(POST, "/_dangling/{index_uuid}"));
@@ -66,7 +69,8 @@ public class RestImportDanglingIndexAction extends BaseRestHandler {
         );
 
         importRequest.timeout(request.paramAsTime("timeout", importRequest.timeout()));
-        importRequest.masterNodeTimeout(request.paramAsTime("master_timeout", importRequest.masterNodeTimeout()));
+        importRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", importRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(importRequest, request, deprecationLogger, getName());
 
         return channel -> client.admin()
             .cluster()

@@ -206,7 +206,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
     };
 
     /**
-     * Represents the role for a master-eligible node.
+     * Represents the role for a cluster-manager-eligible node.
      * @deprecated As of 2.0, because promoting inclusive language, replaced by {@link #CLUSTER_MANAGER_ROLE}
      */
     @Deprecated

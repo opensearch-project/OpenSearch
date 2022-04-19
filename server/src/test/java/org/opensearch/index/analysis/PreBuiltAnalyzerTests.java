@@ -88,7 +88,13 @@ public class PreBuiltAnalyzerTests extends OpenSearchSingleNodeTestCase {
         assertSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(v), PreBuiltAnalyzers.STANDARD.getAnalyzer(v));
         assertNotSame(
             PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.CURRENT),
-            PreBuiltAnalyzers.STANDARD.getAnalyzer(VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT))
+            PreBuiltAnalyzers.STANDARD.getAnalyzer(
+                VersionUtils.randomVersionBetween(
+                    random(),
+                    Version.CURRENT.minimumIndexCompatibilityVersion(),
+                    VersionUtils.getPreviousVersion(Version.CURRENT)
+                )
+            )
         );
 
         // Same Lucene version should be cached:

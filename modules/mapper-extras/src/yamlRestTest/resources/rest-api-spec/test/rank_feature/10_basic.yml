@@ -157,3 +157,24 @@ setup:
 
   - match:
       hits.hits.1._id: "1"
+
+---
+"Negative linear":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            rank_feature:
+              field: url_length
+              linear: {}
+
+  - match:
+      hits.total.value: 2
+
+  - match:
+      hits.hits.0._id: "2"
+
+  - match:
+      hits.hits.1._id: "1"

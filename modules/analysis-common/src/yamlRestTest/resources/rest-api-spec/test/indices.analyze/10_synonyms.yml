@@ -76,4 +76,3 @@
   - match:  { tokens.5.token: dude }
   - match:  { tokens.5.position: 4 }
   - match:  { tokens.5.positionLength: null }
-

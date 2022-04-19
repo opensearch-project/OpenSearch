@@ -33,6 +33,7 @@
 package org.opensearch.index.seqno;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.SuppressForbidden;
 
 import java.util.concurrent.atomic.AtomicLong;
@@ -117,6 +118,13 @@ public class LocalCheckpointTracker {
     }
 
     /**
+     * Checks that the sequence number is in an acceptable range for an update to take place.
+     */
+    private boolean shouldUpdateSeqNo(final long seqNo, final long lowerBound, @Nullable final AtomicLong upperBound) {
+        return !((seqNo <= lowerBound) || (upperBound != null && seqNo > upperBound.get()));
+    }
+
+    /**
      * Marks the provided sequence number as processed and updates the processed checkpoint if possible.
      *
      * @param seqNo the sequence number to mark as processed
@@ -134,11 +142,29 @@ public class LocalCheckpointTracker {
         markSeqNo(seqNo, persistedCheckpoint, persistedSeqNo);
     }
 
+    /**
+     * Updates the processed sequence checkpoint to the given value.
+     *
+     * This method is only used for segment replication since indexing doesn't
+     * take place on the replica allowing us to avoid the check that all sequence numbers
+     * are consecutively processed.
+     *
+     * @param seqNo the sequence number to mark as processed
+     */
+    public synchronized void fastForwardProcessedSeqNo(final long seqNo) {
+        advanceMaxSeqNo(seqNo);
+        final long currentProcessedCheckpoint = processedCheckpoint.get();
+        if (shouldUpdateSeqNo(seqNo, currentProcessedCheckpoint, persistedCheckpoint) == false) {
+            return;
+        }
+        processedCheckpoint.compareAndSet(currentProcessedCheckpoint, seqNo);
+    }
+
     private void markSeqNo(final long seqNo, final AtomicLong checkPoint, final LongObjectHashMap<CountedBitSet> bitSetMap) {
         assert Thread.holdsLock(this);
         // make sure we track highest seen sequence number
         advanceMaxSeqNo(seqNo);
-        if (seqNo <= checkPoint.get()) {
+        if (shouldUpdateSeqNo(seqNo, checkPoint.get(), null) == false) {
             // this is possible during recovery where we might replay an operation that was also replicated
             return;
         }

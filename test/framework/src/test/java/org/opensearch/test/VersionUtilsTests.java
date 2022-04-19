@@ -31,7 +31,6 @@
 
 package org.opensearch.test;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.collect.Tuple;
@@ -76,21 +75,21 @@ public class VersionUtilsTests extends OpenSearchTestCase {
         assertTrue(got.onOrBefore(Version.CURRENT));
 
         // sub range
-        got = VersionUtils.randomVersionBetween(random(), LegacyESVersion.fromId(7000099), LegacyESVersion.fromId(7010099));
-        assertTrue(got.onOrAfter(LegacyESVersion.fromId(7000099)));
-        assertTrue(got.onOrBefore(LegacyESVersion.fromId(7010099)));
+        got = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_1_0);
+        assertTrue(got.onOrAfter(Version.V_2_0_0));
+        assertTrue(got.onOrBefore(Version.V_2_1_0));
 
         // unbounded lower
-        got = VersionUtils.randomVersionBetween(random(), null, LegacyESVersion.fromId(7000099));
+        got = VersionUtils.randomVersionBetween(random(), null, Version.V_2_0_0);
         assertTrue(got.onOrAfter(VersionUtils.getFirstVersion()));
-        assertTrue(got.onOrBefore(LegacyESVersion.fromId(7000099)));
+        assertTrue(got.onOrBefore(Version.V_2_0_0));
         got = VersionUtils.randomVersionBetween(random(), null, VersionUtils.allReleasedVersions().get(0));
         assertTrue(got.onOrAfter(VersionUtils.getFirstVersion()));
         assertTrue(got.onOrBefore(VersionUtils.allReleasedVersions().get(0)));
 
         // unbounded upper
-        got = VersionUtils.randomVersionBetween(random(), LegacyESVersion.fromId(7000099), null);
-        assertTrue(got.onOrAfter(LegacyESVersion.fromId(7000099)));
+        got = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, null);
+        assertTrue(got.onOrAfter(Version.V_2_0_0));
         assertTrue(got.onOrBefore(Version.CURRENT));
         got = VersionUtils.randomVersionBetween(random(), VersionUtils.getPreviousVersion(), null);
         assertTrue(got.onOrAfter(VersionUtils.getPreviousVersion()));
@@ -101,8 +100,8 @@ public class VersionUtilsTests extends OpenSearchTestCase {
         assertEquals(got, VersionUtils.getFirstVersion());
         got = VersionUtils.randomVersionBetween(random(), Version.CURRENT, Version.CURRENT);
         assertEquals(got, Version.CURRENT);
-        got = VersionUtils.randomVersionBetween(random(), LegacyESVersion.fromId(7000099), LegacyESVersion.fromId(7000099));
-        assertEquals(got, LegacyESVersion.fromId(7000099));
+        got = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_0_0);
+        assertEquals(got, Version.V_2_0_0);
 
         // implicit range of one
         got = VersionUtils.randomVersionBetween(random(), null, VersionUtils.getFirstVersion());
@@ -284,7 +283,6 @@ public class VersionUtilsTests extends OpenSearchTestCase {
                 Arrays.asList(
                     TestNewMinorBranchIn6x.V_1_6_0,
                     TestNewMinorBranchIn6x.V_1_6_1,
-                    TestNewMinorBranchIn6x.V_1_6_2,
                     TestNewMinorBranchIn6x.V_2_0_0,
                     TestNewMinorBranchIn6x.V_2_0_1,
                     TestNewMinorBranchIn6x.V_2_1_0,
@@ -292,7 +290,10 @@ public class VersionUtilsTests extends OpenSearchTestCase {
                 )
             )
         );
-        assertThat(unreleased, equalTo(Arrays.asList(TestNewMinorBranchIn6x.V_2_1_2, TestNewMinorBranchIn6x.V_2_2_0)));
+        assertThat(
+            unreleased,
+            equalTo(Arrays.asList(TestNewMinorBranchIn6x.V_1_6_2, TestNewMinorBranchIn6x.V_2_1_2, TestNewMinorBranchIn6x.V_2_2_0))
+        );
     }
 
     /**

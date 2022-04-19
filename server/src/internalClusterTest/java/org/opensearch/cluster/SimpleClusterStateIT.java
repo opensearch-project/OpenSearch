@@ -166,11 +166,9 @@ public class SimpleClusterStateIT extends OpenSearchIntegTestCase {
             .preparePutTemplate("foo_template")
             .setPatterns(Collections.singletonList("te*"))
             .setOrder(0)
-            .addMapping(
-                "type1",
+            .setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("field1")
                     .field("type", "text")
@@ -182,7 +180,6 @@ public class SimpleClusterStateIT extends OpenSearchIntegTestCase {
                     .endObject()
                     .endObject()
                     .endObject()
-                    .endObject()
             )
             .get();
 
@@ -191,16 +188,13 @@ public class SimpleClusterStateIT extends OpenSearchIntegTestCase {
             .preparePutTemplate("fuu_template")
             .setPatterns(Collections.singletonList("test*"))
             .setOrder(1)
-            .addMapping(
-                "type1",
+            .setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("field2")
                     .field("type", "text")
                     .field("store", false)
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()

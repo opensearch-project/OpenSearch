@@ -54,11 +54,9 @@ public class IndexTemplateBlocksIT extends OpenSearchIntegTestCase {
             .preparePutTemplate("template_blocks")
             .setPatterns(Collections.singletonList("te*"))
             .setOrder(0)
-            .addMapping(
-                "type1",
+            .setMapping(
                 XContentFactory.jsonBuilder()
                     .startObject()
-                    .startObject("type1")
                     .startObject("properties")
                     .startObject("field1")
                     .field("type", "text")
@@ -67,7 +65,6 @@ public class IndexTemplateBlocksIT extends OpenSearchIntegTestCase {
                     .startObject("field2")
                     .field("type", "keyword")
                     .field("store", true)
-                    .endObject()
                     .endObject()
                     .endObject()
                     .endObject()

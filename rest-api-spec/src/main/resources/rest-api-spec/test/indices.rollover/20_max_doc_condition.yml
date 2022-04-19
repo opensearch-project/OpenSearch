@@ -52,4 +52,3 @@
 
   - match: { conditions: { "[max_docs: 2]": true } }
   - match: { rolled_over: true }
-

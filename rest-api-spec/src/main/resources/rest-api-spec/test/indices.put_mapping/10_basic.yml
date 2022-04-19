@@ -143,4 +143,3 @@
 
   - is_false: test_index.mappings.properties.foo.meta.bar
   - match: { test_index.mappings.properties.foo.meta.baz: "quux" }
-

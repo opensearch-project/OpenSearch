@@ -35,6 +35,7 @@ package org.opensearch.rest.action.admin.cluster;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
@@ -51,6 +52,8 @@ import static org.opensearch.rest.RestRequest.Method.PUT;
  * Clones indices from one snapshot into another snapshot in the same repository
  */
 public class RestCloneSnapshotAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestCloneSnapshotAction.class);
 
     @Override
     public List<Route> routes() {
@@ -71,7 +74,8 @@ public class RestCloneSnapshotAction extends BaseRestHandler {
             request.param("target_snapshot"),
             XContentMapValues.nodeStringArrayValue(source.getOrDefault("indices", Collections.emptyList()))
         );
-        cloneSnapshotRequest.masterNodeTimeout(request.paramAsTime("master_timeout", cloneSnapshotRequest.masterNodeTimeout()));
+        cloneSnapshotRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", cloneSnapshotRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(cloneSnapshotRequest, request, deprecationLogger, getName());
         cloneSnapshotRequest.indicesOptions(IndicesOptions.fromMap(source, cloneSnapshotRequest.indicesOptions()));
         return channel -> client.admin().cluster().cloneSnapshot(cloneSnapshotRequest, new RestToXContentListener<>(channel));
     }

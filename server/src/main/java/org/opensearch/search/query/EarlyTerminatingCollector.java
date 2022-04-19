@@ -95,6 +95,10 @@ public class EarlyTerminatingCollector extends FilterCollector {
         };
     }
 
+    Collector getCollector() {
+        return in;
+    }
+
     /**
      * Returns true if this collector has early terminated.
      */
