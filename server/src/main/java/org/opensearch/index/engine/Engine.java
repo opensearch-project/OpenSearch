@@ -350,6 +350,12 @@ public abstract class Engine implements Closeable {
      */
     public abstract IndexResult index(Index index) throws IOException;
 
+    /**
+     * Add document index operation to Translog
+     * @param index operation to perform
+     * @return {@link IndexResult} containing updated translog location, version and
+     * document specific failures
+     */
     public abstract IndexResult addIndexOperationToTranslog(Index index) throws IOException;
 
     /**
