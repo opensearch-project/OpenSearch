@@ -19,15 +19,15 @@ import java.io.IOException;
  * A serializable timer that is used to measure the time taken for
  * file replication operations like recovery.
  */
-public class Timer implements Writeable {
+public class ReplicationTimer implements Writeable {
     private long startTime = 0;
     private long startNanoTime = 0;
     private long time = -1;
     private long stopTime = 0;
 
-    public Timer() {}
+    public ReplicationTimer() {}
 
-    public Timer(StreamInput in) throws IOException {
+    public ReplicationTimer(StreamInput in) throws IOException {
         startTime = in.readVLong();
         startNanoTime = in.readVLong();
         stopTime = in.readVLong();

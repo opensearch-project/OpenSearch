@@ -46,7 +46,7 @@ import org.opensearch.indices.recovery.RecoveryState.Index;
 import org.opensearch.indices.recovery.RecoveryState.Stage;
 import org.opensearch.indices.recovery.RecoveryState.Translog;
 import org.opensearch.indices.recovery.RecoveryState.VerifyIndex;
-import org.opensearch.indices.replication.common.Timer;
+import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -124,11 +124,11 @@ public class RecoveryTargetTests extends OpenSearchTestCase {
 
     public void testTimer() throws Throwable {
         AtomicBoolean stop = new AtomicBoolean();
-        final Timer timer = new Timer();
-        Streamer<Timer> streamer = new Streamer<Timer>(stop, timer) {
+        final ReplicationTimer timer = new ReplicationTimer();
+        Streamer<ReplicationTimer> streamer = new Streamer<ReplicationTimer>(stop, timer) {
             @Override
-            Timer createObj(StreamInput in) throws IOException {
-                return new Timer(in);
+            ReplicationTimer createObj(StreamInput in) throws IOException {
+                return new ReplicationTimer(in);
             }
         };
         doTimerTest(timer, streamer);
@@ -170,12 +170,12 @@ public class RecoveryTargetTests extends OpenSearchTestCase {
         doTimerTest(translog, streamer);
     }
 
-    private void doTimerTest(Timer timer, Streamer<? extends Timer> streamer) throws Exception {
+    private void doTimerTest(ReplicationTimer timer, Streamer<? extends ReplicationTimer> streamer) throws Exception {
         timer.start();
         assertTrue(timer.startTime() > 0);
         assertEquals(0, timer.stopTime());
         // validate captured time
-        Timer lastRead = streamer.serializeDeserialize();
+        ReplicationTimer lastRead = streamer.serializeDeserialize();
         final long time = lastRead.time();
         assertEquals(timer.time(), time);
         assertBusy(() -> assertTrue("timer timer should progress compared to captured one ", time < timer.time()));

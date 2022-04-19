@@ -50,7 +50,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.StoreStats;
-import org.opensearch.indices.replication.common.Timer;
+import org.opensearch.indices.replication.common.ReplicationTimer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -123,7 +123,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     private final Index index;
     private final Translog translog;
     private final VerifyIndex verifyIndex;
-    private final Timer timer;
+    private final ReplicationTimer timer;
 
     private RecoverySource recoverySource;
     private ShardId shardId;
@@ -150,12 +150,12 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         this.index = index;
         translog = new Translog();
         verifyIndex = new VerifyIndex();
-        timer = new Timer();
+        timer = new ReplicationTimer();
         timer.start();
     }
 
     public RecoveryState(StreamInput in) throws IOException {
-        timer = new Timer(in);
+        timer = new ReplicationTimer(in);
         stage = Stage.fromId(in.readByte());
         shardId = new ShardId(in);
         recoverySource = RecoverySource.readFrom(in);
@@ -257,7 +257,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         return translog;
     }
 
-    public Timer getTimer() {
+    public ReplicationTimer getTimer() {
         return timer;
     }
 
@@ -372,7 +372,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         static final String TARGET_THROTTLE_TIME_IN_MILLIS = "target_throttle_time_in_millis";
     }
 
-    public static class VerifyIndex extends Timer implements ToXContentFragment, Writeable {
+    public static class VerifyIndex extends ReplicationTimer implements ToXContentFragment, Writeable {
         private volatile long checkIndexTime;
 
         public VerifyIndex() {}
@@ -409,7 +409,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
     }
 
-    public static class Translog extends Timer implements ToXContentFragment, Writeable {
+    public static class Translog extends ReplicationTimer implements ToXContentFragment, Writeable {
         public static final int UNKNOWN = -1;
 
         private int recovered;
@@ -745,7 +745,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
     }
 
-    public static class Index extends Timer implements ToXContentFragment, Writeable {
+    public static class Index extends ReplicationTimer implements ToXContentFragment, Writeable {
         private final RecoveryFilesDetails fileDetails;
 
         public static final long UNKNOWN = -1L;
