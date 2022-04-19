@@ -50,6 +50,8 @@ plugins {
   id 'opensearch.global-build-info'
   id "com.diffplug.spotless" version "6.4.2" apply false
   id "org.gradle.test-retry" version "1.3.2" apply false
+  id "test-report-aggregation"
+  id 'jacoco-report-aggregation'
 }
 
 apply from: 'gradle/build-complete.gradle'
@@ -385,6 +387,15 @@ gradle.projectsEvaluated {
       }
     }
   }
+  
+  dependencies {
+    subprojects.findAll { it.pluginManager.hasPlugin('java') }.forEach {
+      testReportAggregation it
+    }
+    subprojects.findAll { it.pluginManager.hasPlugin('jacoco') }.forEach {
+     jacocoAggregation it
+    }
+  }
 }
 
 // test retry configuration
@@ -402,6 +413,7 @@ subprojects {
 // eclipse configuration
 allprojects {
   apply plugin: 'eclipse'
+  
   // Name all the non-root projects after their path so that paths get grouped together when imported into eclipse.
   if (path != ':') {
     eclipse.project.name = path
@@ -557,4 +569,16 @@ subprojects {
       project.tasks.named(taskname).configure { onlyIf { false } }
     }
   }
+}
+
+reporting {
+  reports {
+    testAggregateTestReport(AggregateTestReport) { 
+      testType = TestSuiteType.UNIT_TEST
+    }
+  }
+}
+
+tasks.named(JavaBasePlugin.CHECK_TASK_NAME) {
+  dependsOn tasks.named('testAggregateTestReport', TestReport) 
 }
