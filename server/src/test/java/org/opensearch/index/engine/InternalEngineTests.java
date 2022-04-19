@@ -1632,6 +1632,17 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testAddDeleteOperationToTranslog() throws IOException {
+        try (Store store = createStore(); InternalEngine engine = createEngine(store, createTempDir())) {
+            ParsedDocument doc = createParsedDoc("1", null);
+            Engine.DeleteResult result = engine.addDeleteOperationToTranslog(
+                new Engine.Delete(doc.id(), newUid(doc.id()), primaryTerm.get())
+            );
+            assertEquals(Engine.Operation.TYPE.DELETE, result.getOperationType());
+            assertNotNull(result.getTranslogLocation());
+        }
+    }
+
     public void testUpdateWithFullyDeletedSegments() throws IOException {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final Set<String> liveDocs = new HashSet<>();
