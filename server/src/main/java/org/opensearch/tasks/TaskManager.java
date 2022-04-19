@@ -105,7 +105,7 @@ public class TaskManager implements ClusterStateApplier {
     private final Map<TaskId, String> banedParents = new ConcurrentHashMap<>();
 
     private TaskResultsService taskResultsService;
-    private SetOnce<TaskResourceTrackingService> taskResourceTrackingService = new SetOnce<>();
+    private final SetOnce<TaskResourceTrackingService> taskResourceTrackingService = new SetOnce<>();
 
     private volatile DiscoveryNodes lastDiscoveryNodes = DiscoveryNodes.EMPTY_NODES;
 

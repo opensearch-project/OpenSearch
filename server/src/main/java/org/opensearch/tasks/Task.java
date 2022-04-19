@@ -285,7 +285,7 @@ public class Task {
                 );
             }
         }
-        threadResourceInfoList.add(new ThreadResourceInfo(statsType, resourceUsageMetrics));
+        threadResourceInfoList.add(new ThreadResourceInfo(threadId, statsType, resourceUsageMetrics));
     }
 
     /**

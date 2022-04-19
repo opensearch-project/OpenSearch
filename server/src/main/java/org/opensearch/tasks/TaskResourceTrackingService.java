@@ -11,6 +11,7 @@ package org.opensearch.tasks;
 import com.sun.management.ThreadMXBean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.ClusterSettings;
@@ -23,6 +24,7 @@ import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.lang.management.ManagementFactory;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -55,7 +57,6 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
     public TaskResourceTrackingService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         this.taskResourceTrackingEnabled = TASK_RESOURCE_TRACKING_ENABLED.get(settings);
         this.threadPool = threadPool;
-
         clusterSettings.addSettingsUpdateConsumer(TASK_RESOURCE_TRACKING_ENABLED, this::setTaskResourceTrackingEnabled);
     }
 
@@ -87,9 +88,9 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
             return () -> {};
         }
 
+        logger.debug("Starting resource tracking for task: {}", task.getId());
         resourceAwareTasks.put(task.getId(), task);
         return addTaskIdToThreadContext(task);
-
     }
 
     /**
@@ -104,13 +105,23 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
      * @param task task which has finished and doesn't need resource tracking.
      */
     public void stopTracking(Task task) {
-        if (isThreadWorkingOnTask(task, Thread.currentThread().getId())) {
-            taskExecutionFinishedOnThread(task.getId(), Thread.currentThread().getId());
+        logger.debug("Stopping resource tracking for task: {}", task.getId());
+        try {
+            if (isCurrentThreadWorkingOnTask(task)) {
+                taskExecutionFinishedOnThread(task.getId(), Thread.currentThread().getId());
+            }
+
+            List<Long> threadsWorkingOnTask = getThreadsWorkingOnTask(task);
+            if (threadsWorkingOnTask.size() > 0) {
+                logger.warn("No thread should be active when task finishes. Active threads: {}", threadsWorkingOnTask);
+                assert false : "No thread should be marked active when task finishes";
+            }
+        } catch (Exception e) {
+            logger.warn("Failed while trying to mark the task execution on current thread completed.", e);
+            assert false;
+        } finally {
+            resourceAwareTasks.remove(task.getId());
         }
-
-        assert validateNoActiveThread(task) : "No thread should be active when task is finished";
-
-        resourceAwareTasks.remove(task.getId());
     }
 
     /**
@@ -132,13 +143,16 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
     }
 
     private void refreshResourceStats(Task resourceAwareTask) {
-        resourceAwareTask.getResourceStats().forEach((threadId, threadResourceInfos) -> {
-            for (ThreadResourceInfo threadResourceInfo : threadResourceInfos) {
-                if (threadResourceInfo.isActive()) {
-                    resourceAwareTask.updateThreadResourceStats(threadId, WORKER_STATS, getResourceUsageMetricsForThread(threadId));
-                }
-            }
-        });
+        try {
+            logger.debug("Refreshing resource stats for Task: {}", resourceAwareTask.getId());
+            List<Long> threadsWorkingOnTask = getThreadsWorkingOnTask(resourceAwareTask);
+            threadsWorkingOnTask.forEach(
+                threadId -> resourceAwareTask.updateThreadResourceStats(threadId, WORKER_STATS, getResourceUsageMetricsForThread(threadId))
+            );
+        } catch (IllegalStateException e) {
+            logger.debug("Resource stats already updated.");
+        }
+
     }
 
     /**
@@ -150,9 +164,18 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
      */
     @Override
     public void taskExecutionStartedOnThread(long taskId, long threadId) {
-        if (resourceAwareTasks.containsKey(taskId)) {
-            resourceAwareTasks.get(taskId).startThreadResourceTracking(threadId, WORKER_STATS, getResourceUsageMetricsForThread(threadId));
+        try {
+            if (resourceAwareTasks.containsKey(taskId)) {
+                logger.debug("Task execution started on thread. Task: {}, Thread: {}", taskId, threadId);
+
+                resourceAwareTasks.get(taskId)
+                    .startThreadResourceTracking(threadId, WORKER_STATS, getResourceUsageMetricsForThread(threadId));
+            }
+        } catch (Exception e) {
+            logger.warn(new ParameterizedMessage("Failed to mark thread execution started for task: [{}]", taskId), e);
+            assert false;
         }
+
     }
 
     /**
@@ -163,8 +186,15 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
      */
     @Override
     public void taskExecutionFinishedOnThread(long taskId, long threadId) {
-        if (resourceAwareTasks.containsKey(taskId)) {
-            resourceAwareTasks.get(taskId).stopThreadResourceTracking(threadId, WORKER_STATS, getResourceUsageMetricsForThread(threadId));
+        try {
+            if (resourceAwareTasks.containsKey(taskId)) {
+                logger.debug("Task execution finished on thread. Task: {}, Thread: {}", taskId, threadId);
+                resourceAwareTasks.get(taskId)
+                    .stopThreadResourceTracking(threadId, WORKER_STATS, getResourceUsageMetricsForThread(threadId));
+            }
+        } catch (Exception e) {
+            logger.warn(new ParameterizedMessage("Failed to mark thread execution finished for task: [{}]", taskId), e);
+            assert false;
         }
     }
 
@@ -181,7 +211,8 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
         return new ResourceUsageMetric[] { currentMemoryUsage, currentCPUUsage };
     }
 
-    private boolean isThreadWorkingOnTask(Task task, long threadId) {
+    private boolean isCurrentThreadWorkingOnTask(Task task) {
+        long threadId = Thread.currentThread().getId();
         List<ThreadResourceInfo> threadResourceInfos = task.getResourceStats().getOrDefault(threadId, Collections.emptyList());
 
         for (ThreadResourceInfo threadResourceInfo : threadResourceInfos) {
@@ -192,13 +223,16 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
         return false;
     }
 
-    private boolean validateNoActiveThread(Task task) {
+    private List<Long> getThreadsWorkingOnTask(Task task) {
+        List<Long> activeThreads = new ArrayList<>();
         for (List<ThreadResourceInfo> threadResourceInfos : task.getResourceStats().values()) {
             for (ThreadResourceInfo threadResourceInfo : threadResourceInfos) {
-                if (threadResourceInfo.isActive()) return false;
+                if (threadResourceInfo.isActive()) {
+                    activeThreads.add(threadResourceInfo.getThreadId());
+                }
             }
         }
-        return true;
+        return activeThreads;
     }
 
     /**
@@ -213,19 +247,6 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
      */
     private ThreadContext.StoredContext addTaskIdToThreadContext(Task task) {
         ThreadContext threadContext = threadPool.getThreadContext();
-
-        boolean staleIdPresentInThreadContext = threadContext.getTransient(TASK_ID) != null
-            && !resourceAwareTasks.containsKey((long) threadContext.getTransient(TASK_ID));
-
-        if (staleIdPresentInThreadContext) {
-            logger.warn(
-                "Previous task ID was not removed from thread context. Current task Id: {}, Stale task Id: {}, Thread id: {}",
-                task.getId(),
-                threadContext.getTransient(TASK_ID),
-                Thread.currentThread().getId()
-            );
-        }
-
         ThreadContext.StoredContext storedContext = threadContext.newStoredContext(true, Collections.singletonList(TASK_ID));
         threadContext.putTransient(TASK_ID, task.getId());
         return storedContext;

@@ -8,10 +8,13 @@
 
 package org.opensearch.threadpool;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.concurrent.WrappedRunnable;
+import org.opensearch.tasks.TaskManager;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
@@ -26,6 +29,8 @@ import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
  * It's able to associate runnable with a task with the help of task Id available in thread context.
  */
 public class TaskAwareRunnable extends AbstractRunnable implements WrappedRunnable {
+
+    private static final Logger logger = LogManager.getLogger(TaskManager.class);
 
     private final Runnable original;
     private final ThreadContext threadContext;
@@ -66,6 +71,8 @@ public class TaskAwareRunnable extends AbstractRunnable implements WrappedRunnab
         Long taskId = threadContext.getTransient(TASK_ID);
         if (Objects.nonNull(taskId)) {
             runnableTaskListener.get().taskExecutionStartedOnThread(taskId, currentThread().getId());
+        } else {
+            logger.debug("Task Id not available in thread context. Skipping update. Thread Info: {}", Thread.currentThread());
         }
         try {
             original.run();
