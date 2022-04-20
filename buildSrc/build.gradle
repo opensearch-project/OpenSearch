@@ -41,7 +41,6 @@ gradlePlugin {
   plugins {
     zipPlugin {
       id = 'opensearch.zippublish'
-      implementationClass = 'org.opensearch.gradle.zipplugin.ZipPublish'
     }
   }
 }
