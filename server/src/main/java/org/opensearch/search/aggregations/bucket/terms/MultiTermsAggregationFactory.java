@@ -60,38 +60,25 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
             true
         );
 
-        builder.register(REGISTRY_KEY, org.opensearch.common.collect.List.of(CoreValuesSourceType.NUMERIC), config -> {
-            ValuesSourceConfig valuesSourceConfig = config.v1();
-            IncludeExclude includeExclude = config.v2();
-            ValuesSource.Numeric valuesSource = ((ValuesSource.Numeric) valuesSourceConfig.getValuesSource());
-            IncludeExclude.LongFilter longFilter = null;
-            if (valuesSource.isFloatingPoint()) {
-                if (includeExclude != null) {
-                    longFilter = includeExclude.convertToDoubleFilter();
-                }
-                return MultiTermsAggregator.InternalValuesSourceFactory.doubleValueSource(valuesSource, longFilter);
-            } else {
-                if (includeExclude != null) {
-                    longFilter = includeExclude.convertToLongFilter(valuesSourceConfig.format());
-                }
-                return MultiTermsAggregator.InternalValuesSourceFactory.longValuesSource(valuesSource, longFilter);
-            }
-        }, true);
-
-        builder.register(
-            REGISTRY_KEY,
-            org.opensearch.common.collect.List.of(CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.DATE),
+        builder.register(REGISTRY_KEY,
+            org.opensearch.common.collect.List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.DATE),
             config -> {
                 ValuesSourceConfig valuesSourceConfig = config.v1();
                 IncludeExclude includeExclude = config.v2();
                 ValuesSource.Numeric valuesSource = ((ValuesSource.Numeric) valuesSourceConfig.getValuesSource());
-                IncludeExclude.LongFilter longFilter = includeExclude == null
-                    ? null
-                    : includeExclude.convertToLongFilter(valuesSourceConfig.format());
-                return MultiTermsAggregator.InternalValuesSourceFactory.longValuesSource(valuesSource, longFilter);
-            },
-            true
-        );
+                IncludeExclude.LongFilter longFilter = null;
+                if (valuesSource.isFloatingPoint()) {
+                    if (includeExclude != null) {
+                        longFilter = includeExclude.convertToDoubleFilter();
+                    }
+                    return MultiTermsAggregator.InternalValuesSourceFactory.doubleValueSource(valuesSource, longFilter);
+                } else {
+                    if (includeExclude != null) {
+                        longFilter = includeExclude.convertToLongFilter(valuesSourceConfig.format());
+                    }
+                    return MultiTermsAggregator.InternalValuesSourceFactory.longValuesSource(valuesSource, longFilter);
+                }
+        }, true);
 
         builder.registerUsage(MultiTermsAggregationBuilder.NAME);
     }

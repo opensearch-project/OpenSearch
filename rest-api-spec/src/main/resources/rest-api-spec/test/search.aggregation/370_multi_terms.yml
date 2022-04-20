@@ -24,13 +24,29 @@ setup:
                 type: date
 
   - do:
+      indices.create:
+        index: test_2
+        body:
+          settings:
+            number_of_shards: 2
+            number_of_replicas: 0
+          mappings:
+            properties:
+              str:
+                type: keyword
+              integer:
+                type: long
+              boolean:
+                type: boolean
+
+  - do:
       cluster.health:
         wait_for_status: green
 
 ---
 "Basic test":
   - skip:
-      version: "- 3.0.0"
+      version: "- 2.9.99"
       reason:  multi_terms aggregation is introduced in 3.0.0
 
   - do:
@@ -80,7 +96,7 @@ setup:
 ---
 "IP test":
   - skip:
-      version: "- 3.0.0"
+      version: "- 2.9.99"
       reason:  multi_terms aggregation is introduced in 3.0.0
 
   - do:
@@ -130,7 +146,7 @@ setup:
 ---
 "Boolean test":
   - skip:
-      version: "- 3.0.0"
+      version: "- 2.9.99"
       reason:  multi_terms aggregation is introduced in 3.0.0
 
   - do:
@@ -180,7 +196,7 @@ setup:
 ---
 "Double test":
   - skip:
-      version: "- 3.0.0"
+      version: "- 2.9.99"
       reason:  multi_terms aggregation is introduced in 3.0.0
 
   - do:
@@ -223,7 +239,7 @@ setup:
 ---
 "Date test":
   - skip:
-      version: "- 3.0.0"
+      version: "- 2.9.99"
       reason:  multi_terms aggregation is introduced in 3.0.0
 
   - do:
@@ -266,7 +282,7 @@ setup:
 ---
 "Unmapped keywords":
   - skip:
-      version: "- 3.0.0"
+      version: "- 2.9.99"
       reason:  multi_terms aggregation is introduced in 3.0.0
 
   - do:
@@ -306,7 +322,7 @@ setup:
 ---
 "Null value":
   - skip:
-      version: "- 3.0.0"
+      version: "- 2.9.99"
       reason:  multi_terms aggregation is introduced in 3.0.0
 
   - do:
@@ -341,7 +357,7 @@ setup:
 ---
 "multiple multi_terms bucket":
   - skip:
-      version: "- 3.0.0"
+      version: "- 2.9.99"
       reason:  multi_terms aggregation is introduced in 3.0.0
 
   - do:
@@ -441,7 +457,7 @@ setup:
 ---
 "top 1 ordered by metrics ":
   - skip:
-      version: "- 3.0.0"
+      version: "- 2.9.99"
       reason:  multi_terms aggregation is introduced in 3.0.0
 
   - do:
@@ -486,7 +502,7 @@ setup:
 ---
 "min_doc_count":
   - skip:
-      version: "- 3.0.0"
+      version: "- 2.9.99"
       reason:  multi_terms aggregation is introduced in 3.0.0
 
   - do:
@@ -554,3 +570,51 @@ setup:
   - match: { aggregations.m_terms.buckets.2.key: ["c", 1] }
   - match: { aggregations.m_terms.buckets.2.key_as_string: "c|1" }
   - match: { aggregations.m_terms.buckets.2.doc_count: 0 }
+
+---
+"sum_other_doc_count":
+  - skip:
+      version: "- 2.9.99"
+      reason:  multi_terms aggregation is introduced in 3.0.0
+
+  - do:
+      bulk:
+        index: test_2
+        refresh: true
+        body:
+          - '{"index": {"routing": "s1"}}'
+          - '{"str": "a", "integer": 1}'
+          - '{"index": {"routing": "s1"}}'
+          - '{"str": "a", "integer": 1}'
+          - '{"index": {"routing": "s1"}}'
+          - '{"str": "a", "integer": 1}'
+          - '{"index": {"routing": "s1"}}'
+          - '{"str": "a", "integer": 1}'
+          - '{"index": {"routing": "s2"}}'
+          - '{"str": "b", "integer": 1}'
+          - '{"index": {"routing": "s2"}}'
+          - '{"str": "b", "integer": 1}'
+          - '{"index": {"routing": "s2"}}'
+          - '{"str": "b", "integer": 1}'
+          - '{"index": {"routing": "s2"}}'
+          - '{"str": "a", "integer": 1}'
+
+  - do:
+      search:
+        index: test_2
+        size: 0
+        body:
+          aggs:
+            m_terms:
+              multi_terms:
+                size: 1
+                shard_size: 1
+                terms:
+                  - field: str
+                  - field: integer
+
+  - length: { aggregations.m_terms.buckets: 1 }
+  - match: { aggregations.m_terms.sum_other_doc_count: 4 }
+  - match: { aggregations.m_terms.buckets.0.key: ["a", 1] }
+  - match: { aggregations.m_terms.buckets.0.key_as_string: "a|1" }
+  - match: { aggregations.m_terms.buckets.0.doc_count: 4 }

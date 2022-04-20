@@ -125,7 +125,8 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
             InternalMultiTerms.Bucket spare = null;
             BytesRef dest = null;
             BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
-            CheckedSupplier<InternalMultiTerms.Bucket, IOException> emptyBucketBuilder = () -> InternalMultiTerms.Bucket.EMPTY(formats);
+            CheckedSupplier<InternalMultiTerms.Bucket, IOException> emptyBucketBuilder =
+                () -> InternalMultiTerms.Bucket.EMPTY(showTermDocCountError, formats);
             while (ordsEnum.next()) {
                 long docCount = bucketDocCount(ordsEnum.ord());
                 otherDocCounts[ordIdx] += docCount;

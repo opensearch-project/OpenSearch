@@ -56,8 +56,8 @@ public class InternalMultiTerms extends InternalTerms<InternalMultiTerms, Intern
         /**
          * Create default {@link Bucket}.
          */
-        public static Bucket EMPTY(List<DocValueFormat> formats) {
-            return new Bucket(null, 0, null, false, 0, formats);
+        public static Bucket EMPTY(boolean showTermDocCountError, List<DocValueFormat> formats) {
+            return new Bucket(null, 0, null, showTermDocCountError, 0, formats);
         }
 
         public Bucket(
