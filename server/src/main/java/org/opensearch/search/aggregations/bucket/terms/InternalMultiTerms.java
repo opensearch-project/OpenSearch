@@ -81,10 +81,9 @@ public class InternalMultiTerms extends InternalTerms<InternalMultiTerms, Intern
             this.docCount = in.readVLong();
             this.aggregations = InternalAggregations.readFrom(in);
             this.showDocCountError = showDocCountError;
+            this.docCountError = -1;
             if (showDocCountError) {
-                this.docCountError = in.readVLong();
-            } else {
-                this.docCountError = -1;
+                this.docCountError = in.readLong();
             }
             this.termFormats = formats;
         }
@@ -109,7 +108,7 @@ public class InternalMultiTerms extends InternalTerms<InternalMultiTerms, Intern
             out.writeVLong(docCount);
             aggregations.writeTo(out);
             if (showDocCountError) {
-                out.writeVLong(docCountError);
+                out.writeLong(docCountError);
             }
         }
 
