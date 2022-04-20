@@ -49,6 +49,7 @@ import java.io.File;
 public class TestWithSslPlugin implements Plugin<Project> {
 
     @Override
+    @SuppressWarnings({ "unchecked" })
     public void apply(Project project) {
         File keyStoreDir = new File(project.getBuildDir(), "keystore");
         TaskProvider<ExportOpenSearchBuildResourcesTask> exportKeyStore = project.getTasks()

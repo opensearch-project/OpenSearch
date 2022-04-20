@@ -121,8 +121,8 @@ public class PublishPlugin implements Plugin<Project> {
             });
         });
         publishing.getPublications().withType(MavenPublication.class, publication -> {
-            //To exclude java artifcats for maven zip type publications
-            String zipPublicationSearch  = "zip";
+            // To exclude java artifcats for maven zip type publications
+            String zipPublicationSearch = "zip";
             if (!publication.getName().toLowerCase().contains(zipPublicationSearch.toLowerCase())) {
                 // Add git origin info to generated POM files
                 publication.getPom().withXml(PublishPlugin::addScmInfo);
@@ -134,9 +134,9 @@ public class PublishPlugin implements Plugin<Project> {
                 if (project.getPluginManager().hasPlugin("opensearch.java")) {
                     publication.artifact(project.getTasks().getByName("sourcesJar"));
                     publication.artifact(project.getTasks().getByName("javadocJar"));
-                    generatePomTask.configure( t -> {
-                        t.dependsOn(String.format("generatePomFileFor%sPublication", Util.capitalize(publication.getName()))); 
-                    });
+                    generatePomTask.configure(
+                        t -> { t.dependsOn(String.format("generatePomFileFor%sPublication", Util.capitalize(publication.getName()))); }
+                    );
                 }
             }
         });
