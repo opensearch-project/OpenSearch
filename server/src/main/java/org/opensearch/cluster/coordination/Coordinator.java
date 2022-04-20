@@ -941,7 +941,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert electionScheduler == null : electionScheduler;
                 assert prevotingRound == null : prevotingRound;
                 assert getStateForClusterManagerService().nodes().getMasterNodeId() == null : getStateForClusterManagerService();
-                assert leaderChecker.currentNodeIsMaster() == false;
+                assert leaderChecker.currentNodeIsClusterManager() == false;
                 assert lastKnownLeader.equals(Optional.of(leaderChecker.leader()));
                 assert followersChecker.getKnownFollowers().isEmpty();
                 assert lastKnownLeader.get().equals(applierState.nodes().getMasterNode())
@@ -956,7 +956,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert peerFinderLeader.isPresent() == false : peerFinderLeader;
                 assert prevotingRound == null || electionScheduler != null;
                 assert getStateForClusterManagerService().nodes().getMasterNodeId() == null : getStateForClusterManagerService();
-                assert leaderChecker.currentNodeIsMaster() == false;
+                assert leaderChecker.currentNodeIsClusterManager() == false;
                 assert leaderChecker.leader() == null : leaderChecker.leader();
                 assert followersChecker.getKnownFollowers().isEmpty();
                 assert applierState.nodes().getMasterNodeId() == null;
