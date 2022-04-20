@@ -121,9 +121,9 @@ public class PublishPlugin implements Plugin<Project> {
             });
         });
         publishing.getPublications().withType(MavenPublication.class, publication -> {
-            String search  = "zip";
-            if (!publication.getName().toLowerCase().contains(search.toLowerCase())) {
-                System.out.println("The Publication: " + publication.getName());
+            //To exclude java artifcats for maven zip type publications
+            String zipPublicationSearch  = "zip";
+            if (!publication.getName().toLowerCase().contains(zipPublicationSearch.toLowerCase())) {
                 // Add git origin info to generated POM files
                 publication.getPom().withXml(PublishPlugin::addScmInfo);
 

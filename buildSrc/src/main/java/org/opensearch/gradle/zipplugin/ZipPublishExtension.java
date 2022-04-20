@@ -8,8 +8,8 @@ public class ZipPublishExtension {
         this.zipGroup=zipGroup;
     }
     public String getZipgroup(){
-		return zipGroup;
-	}
+        return zipGroup;
+    }
 
 }
 

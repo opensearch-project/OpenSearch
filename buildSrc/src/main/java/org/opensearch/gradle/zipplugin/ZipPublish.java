@@ -19,12 +19,14 @@ import org.opensearch.gradle.zipplugin.ZipPublishUtil;
 public class ZipPublish implements Plugin<Project> {
     private Project project;
 
-    static final String EXTENSION_NAME = "zipmavensettings";
+    public final static String EXTENSION_NAME = "zipmavensettings";
     public final static String PUBLICATION_NAME = "mavenzip";
     public final static String STAGING_REPO = "zipstaging";
     public final static String MAVEN_ZIP_PUBLISH_TASK = "publish" + ZipPublishUtil.capitalize(PUBLICATION_NAME) + "PublicationTo" + ZipPublishUtil.capitalize(STAGING_REPO) + "Repository";
     public final static String MAVEN_ZIP_PUBLISH_POM_TASK  = "generatePomFileFor" + ZipPublishUtil.capitalize(PUBLICATION_NAME) + "Publication";
     public final static String LOCALMAVEN = "publishToMavenLocal";
+    public final static String LOCAL_STAGING_REPO_PATH = "/build/local-staging-repo";
+    public final static String BUILD_DISTRIBUTIONS_LOCATION = "/build/distributions/";
 
     private void configMaven() {
         final Path buildDirectory = this.project.getRootDir().toPath();
@@ -33,7 +35,7 @@ public class ZipPublish implements Plugin<Project> {
             publishing.repositories(repositories -> {
                 repositories.maven(maven -> {
                     maven.setName(STAGING_REPO);
-                    maven.setUrl(buildDirectory.toString() + "/build/local-staging-repo");
+                    maven.setUrl(buildDirectory.toString() + LOCAL_STAGING_REPO_PATH);
                 });
             });
             System.out.println("Starting " + MAVEN_ZIP_PUBLISH_TASK + " task");
@@ -46,18 +48,18 @@ public class ZipPublish implements Plugin<Project> {
                     //Getting the Zip version from gradle property with/without added snapshot and qualifier
                     String zipVersion = getProperty("zipVersion");
                     String version = "";
-                    String extra = "";
+                    String extraSuffix = "";
                     if (zipVersion != null){
                         StringTokenizer st = new StringTokenizer(zipVersion);  
                         version = st.nextToken("-")  + ".0";
                         try {
-                            extra = zipVersion.substring(zipVersion.indexOf("-"));
+                            extraSuffix = zipVersion.substring(zipVersion.indexOf("-"));
                         } catch (Exception e) {
                             System.out.println("");
                         }
                     };
-                    String finalZipVersion = version + extra;
-                    String zipFilePath = "/build/distributions/" + zipArtifact + "-" + finalZipVersion + ".zip";
+                    String finalZipVersion = version + extraSuffix;
+                    String zipFilePath = BUILD_DISTRIBUTIONS_LOCATION + zipArtifact + "-" + finalZipVersion + ".zip";
                     //-PzipFilePath=/build/distributions/opensearch-job-scheduler-2.0.0.0-alpha1-SNAPSHOT.zip
                     mavenZip.artifact(buildDirectory.toString() + zipFilePath);
                     mavenZip.setGroupId(zipGroup);
@@ -82,6 +84,7 @@ public class ZipPublish implements Plugin<Project> {
         final Path buildDirectory = project.getRootDir().toPath();
         this.project = project;
         project.getExtensions().create(EXTENSION_NAME, ZipPublishExtension.class);
+        //Applies the new publication once the plugin is applied
         configMaven();
         Task compileJava = project.getTasks().findByName("compileJava");
         if(compileJava != null) {
