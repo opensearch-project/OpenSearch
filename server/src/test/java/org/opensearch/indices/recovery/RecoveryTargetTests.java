@@ -125,7 +125,7 @@ public class RecoveryTargetTests extends OpenSearchTestCase {
     public void testTimer() throws Throwable {
         AtomicBoolean stop = new AtomicBoolean();
         final ReplicationTimer timer = new ReplicationTimer();
-        Streamer<ReplicationTimer> streamer = new Streamer<ReplicationTimer>(stop, timer) {
+        Streamer<ReplicationTimer> streamer = new Streamer<>(stop, timer) {
             @Override
             ReplicationTimer createObj(StreamInput in) throws IOException {
                 return new ReplicationTimer(in);
@@ -137,7 +137,7 @@ public class RecoveryTargetTests extends OpenSearchTestCase {
     public void testIndexTimer() throws Throwable {
         AtomicBoolean stop = new AtomicBoolean();
         Index index = new Index();
-        Streamer<Index> streamer = new Streamer<Index>(stop, index) {
+        Streamer<Index> streamer = new Streamer<>(stop, index) {
             @Override
             Index createObj(StreamInput in) throws IOException {
                 return new Index(in);
@@ -149,7 +149,7 @@ public class RecoveryTargetTests extends OpenSearchTestCase {
     public void testVerifyIndexTimer() throws Throwable {
         AtomicBoolean stop = new AtomicBoolean();
         VerifyIndex verifyIndex = new VerifyIndex();
-        Streamer<VerifyIndex> streamer = new Streamer<VerifyIndex>(stop, verifyIndex) {
+        Streamer<VerifyIndex> streamer = new Streamer<>(stop, verifyIndex) {
             @Override
             VerifyIndex createObj(StreamInput in) throws IOException {
                 return new VerifyIndex(in);
@@ -161,7 +161,7 @@ public class RecoveryTargetTests extends OpenSearchTestCase {
     public void testTranslogTimer() throws Throwable {
         AtomicBoolean stop = new AtomicBoolean();
         Translog translog = new Translog();
-        Streamer<Translog> streamer = new Streamer<Translog>(stop, translog) {
+        Streamer<Translog> streamer = new Streamer<>(stop, translog) {
             @Override
             Translog createObj(StreamInput in) throws IOException {
                 return new Translog(in);
@@ -174,10 +174,8 @@ public class RecoveryTargetTests extends OpenSearchTestCase {
         timer.start();
         assertTrue(timer.startTime() > 0);
         assertEquals(0, timer.stopTime());
-        // validate captured time
         ReplicationTimer lastRead = streamer.serializeDeserialize();
         final long time = lastRead.time();
-        assertEquals(timer.time(), time);
         assertBusy(() -> assertTrue("timer timer should progress compared to captured one ", time < timer.time()));
         assertEquals("captured time shouldn't change", time, lastRead.time());
 
