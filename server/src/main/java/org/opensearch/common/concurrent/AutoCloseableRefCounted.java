@@ -13,20 +13,19 @@
 
 package org.opensearch.common.concurrent;
 
+import org.opensearch.common.util.concurrent.RefCounted;
+
 /**
- * Decorator class that wraps an object reference with a {@link Runnable} that is
- * invoked when {@link #close()} is called. The internal {@link OneWayGate} instance ensures
- * that this is invoked only once. See also {@link GatedCloseable}
+ * Adapter class that enables a {@link RefCounted} implementation to function like an {@link AutoCloseable}.
+ * The {@link #close()} API invokes {@link RefCounted#decRef()} and ensures idempotency using a {@link OneWayGate}.
  */
-public class GatedAutoCloseable<T> implements AutoCloseable {
+public class AutoCloseableRefCounted<T extends RefCounted> implements AutoCloseable {
 
     private final T ref;
-    private final Runnable onClose;
     private final OneWayGate gate;
 
-    public GatedAutoCloseable(T ref, Runnable onClose) {
+    public AutoCloseableRefCounted(T ref) {
         this.ref = ref;
-        this.onClose = onClose;
         gate = new OneWayGate();
     }
 
@@ -37,7 +36,7 @@ public class GatedAutoCloseable<T> implements AutoCloseable {
     @Override
     public void close() {
         if (gate.close()) {
-            onClose.run();
+            ref.decRef();
         }
     }
 }
