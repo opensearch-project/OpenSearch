@@ -60,6 +60,7 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.common.collect.Iterators;
+import org.opensearch.common.lucene.search.AutomatonQueries;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
@@ -431,8 +432,7 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
                 automata.add(Automata.makeAnyChar());
             }
             Automaton automaton = Operations.concatenate(automata);
-            AutomatonQuery query = new AutomatonQuery(new Term(name(), value + "*"), automaton);
-            query.setRewriteMethod(method);
+            AutomatonQuery query = AutomatonQueries.createAutomatonQuery(new Term(name(), value + "*"), automaton, method);
             return new BooleanQuery.Builder().add(query, BooleanClause.Occur.SHOULD)
                 .add(new TermQuery(new Term(parentField, value)), BooleanClause.Occur.SHOULD)
                 .build();
