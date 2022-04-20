@@ -32,12 +32,12 @@
 
 package org.opensearch.common;
 
-import org.opensearch.bootstrap.JavaVersion;
 import org.opensearch.common.LocalTimeOffset.Gap;
 import org.opensearch.common.LocalTimeOffset.Overlap;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.lang.Runtime.Version;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -278,7 +278,7 @@ public class LocalTimeOffsetTests extends OpenSearchTestCase {
         assertKnownMovesBacktoPreviousDay("America/Moncton", "2005-10-29T03:01:00");
         assertKnownMovesBacktoPreviousDay("America/St_Johns", "2010-11-07T02:31:00");
         assertKnownMovesBacktoPreviousDay("Canada/Newfoundland", "2010-11-07T02:31:00");
-        if (JavaVersion.current().compareTo(JavaVersion.parse("11")) > 0) {
+        if (Runtime.version().compareTo(Version.parse("11")) > 0) {
             // Added in java 12
             assertKnownMovesBacktoPreviousDay("Pacific/Guam", "1969-01-25T13:01:00");
             assertKnownMovesBacktoPreviousDay("Pacific/Saipan", "1969-01-25T13:01:00");

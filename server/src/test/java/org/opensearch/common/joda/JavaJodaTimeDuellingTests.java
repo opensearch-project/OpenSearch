@@ -33,7 +33,6 @@
 package org.opensearch.common.joda;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.bootstrap.JavaVersion;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateFormatters;
 import org.opensearch.common.time.DateMathParser;
@@ -43,7 +42,6 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.ISODateTimeFormat;
-import org.junit.BeforeClass;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -60,18 +58,6 @@ public class JavaJodaTimeDuellingTests extends OpenSearchTestCase {
     @Override
     protected boolean enableWarningsCheck() {
         return false;
-    }
-
-    @BeforeClass
-    public static void checkJvmProperties() {
-        boolean runtimeJdk8 = JavaVersion.current().getVersion().get(0) == 8;
-        assert (runtimeJdk8 && ("SPI,JRE".equals(System.getProperty("java.locale.providers"))))
-            || (false == runtimeJdk8 && ("SPI,COMPAT".equals(System.getProperty("java.locale.providers"))))
-            : "`-Djava.locale.providers` needs to be set";
-        assumeFalse(
-            "won't work in jdk8 " + "because SPI mechanism is not looking at classpath - needs ISOCalendarDataProvider in jre's ext/libs",
-            runtimeJdk8
-        );
     }
 
     public void testTimezoneParsing() {
@@ -906,14 +892,6 @@ public class JavaJodaTimeDuellingTests extends OpenSearchTestCase {
         String jodaTimeOut = jodaDateFormatter.formatJoda(jodaDate);
 
         assertThat(jodaDate.getMillis(), is(javaDate.toInstant().toEpochMilli()));
-
-        if (JavaVersion.current().getVersion().get(0) == 8
-            && javaTimeOut.endsWith(".0")
-            && (format.equals("epoch_second") || format.equals("epoch_millis"))) {
-            // java 8 has a bug in DateTimeFormatter usage when printing dates that rely on isSupportedBy for fields, which is
-            // what we use for epoch time. This change accounts for that bug. It should be removed when java 8 support is removed
-            jodaTimeOut += ".0";
-        }
         String message = String.format(
             Locale.ROOT,
             "expected string representation to be equal for format [%s]: joda [%s], java [%s]",

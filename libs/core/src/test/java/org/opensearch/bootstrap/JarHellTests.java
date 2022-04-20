@@ -37,6 +37,7 @@ import org.opensearch.common.io.PathUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.lang.Runtime.Version;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -156,12 +157,12 @@ public class JarHellTests extends OpenSearchTestCase {
 
     public void testRequiredJDKVersionTooOld() throws Exception {
         Path dir = createTempDir();
-        List<Integer> current = JavaVersion.current().getVersion();
+        List<Integer> current = Runtime.version().version();
         List<Integer> target = new ArrayList<>(current.size());
         for (int i = 0; i < current.size(); i++) {
             target.add(current.get(i) + 1);
         }
-        JavaVersion targetVersion = JavaVersion.parse(Strings.collectionToDelimitedString(target, "."));
+        Version targetVersion = Version.parse(Strings.collectionToDelimitedString(target, "."));
 
         Manifest manifest = new Manifest();
         Attributes attributes = manifest.getMainAttributes();
@@ -173,7 +174,7 @@ public class JarHellTests extends OpenSearchTestCase {
             fail("did not get expected exception");
         } catch (IllegalStateException e) {
             assertTrue(e.getMessage().contains("requires Java " + targetVersion.toString()));
-            assertTrue(e.getMessage().contains("your system: " + JavaVersion.current().toString()));
+            assertTrue(e.getMessage().contains("your system: " + Runtime.version().toString()));
         }
     }
 
@@ -209,7 +210,7 @@ public class JarHellTests extends OpenSearchTestCase {
     }
 
     public void testValidVersions() {
-        String[] versions = new String[] { "1.7", "1.7.0", "0.1.7", "1.7.0.80" };
+        String[] versions = new String[] { "12-ea", "13.0.2.3-ea", "14-something", "11.0.2-21002", "11.0.14.1+1", "17.0.2+8" };
         for (String version : versions) {
             try {
                 JarHell.checkVersionFormat(version);
@@ -220,7 +221,7 @@ public class JarHellTests extends OpenSearchTestCase {
     }
 
     public void testInvalidVersions() {
-        String[] versions = new String[] { "", "1.7.0_80", "1.7." };
+        String[] versions = new String[] { "", "1.7.0_80", "1.7.", "11.2+something-else" };
         for (String version : versions) {
             try {
                 JarHell.checkVersionFormat(version);

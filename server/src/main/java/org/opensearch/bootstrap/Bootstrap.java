@@ -48,7 +48,6 @@ import org.opensearch.cli.UserException;
 import org.opensearch.common.PidFile;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.inject.CreationException;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.logging.LogConfigurator;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.network.IfConfig;
@@ -78,7 +77,6 @@ import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -373,14 +371,6 @@ final class Bootstrap {
             LogConfigurator.configure(environment);
         } catch (IOException e) {
             throw new BootstrapException(e);
-        }
-        if (JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0) {
-            final String message = String.format(
-                Locale.ROOT,
-                "future versions of OpenSearch will require Java 11; " + "your Java version from [%s] does not meet this requirement",
-                System.getProperty("java.home")
-            );
-            DeprecationLogger.getLogger(Bootstrap.class).deprecate("java_version_11_required", message);
         }
         if (environment.pidFile() != null) {
             try {
