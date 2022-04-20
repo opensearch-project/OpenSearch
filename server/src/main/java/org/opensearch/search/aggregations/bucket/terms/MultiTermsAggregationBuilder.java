@@ -34,7 +34,74 @@ import java.util.Objects;
 import static org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS;
 
 /**
- * Todo. MultiTermsAggregationBuilder.
+ * Multi-terms aggregation supports collecting terms from multiple fields in the same document.
+ *
+ * <p>
+ *   For example, using the multi-terms aggregation to group by two fields region, host, calculate max cpu, and sort by max cpu.
+ * </p>
+ * <pre>
+ *   GET test_000001/_search
+ *   {
+ *     "size": 0,
+ *     "aggs": {
+ *       "hot": {
+ *         "multi_terms": {
+ *           "terms": [{
+ *             "field": "region"
+ *           },{
+ *             "field": "host"
+ *           }],
+ *           "order": {"max-cpu": "desc"}
+ *         },
+ *         "aggs": {
+ *           "max-cpu": { "max": { "field": "cpu" } }
+ *         }
+ *       }
+ *     }
+ *   }
+ * </pre>
+ *
+ * <p>
+ *   The aggregation result contains
+ *     - key: a list of value extract from multiple fields in the same doc.
+ * </p>
+ * <pre>
+ *   {
+ *     "hot": {
+ *       "doc_count_error_upper_bound": 0,
+ *       "sum_other_doc_count": 0,
+ *       "buckets": [
+ *         {
+ *           "key": [
+ *             "dub",
+ *             "h1"
+ *           ],
+ *           "key_as_string": "dub|h1",
+ *           "doc_count": 2,
+ *           "max-cpu": {
+ *             "value": 90.0
+ *           }
+ *         },
+ *         {
+ *           "key": [
+ *             "dub",
+ *             "h2"
+ *           ],
+ *           "key_as_string": "dub|h2",
+ *           "doc_count": 2,
+ *           "max-cpu": {
+ *             "value": 70.0
+ *           }
+ *         }
+ *       ]
+ *     }
+ *   }
+ * </pre>
+ *
+ * <p>
+ *   <b>Notes:</b> The current implementation focuses on adding new type aggregates. Performance (latency) is not good，mainly because of
+ *   simply encoding/decoding a list of values as bucket keys.
+ * </p>
  */
 public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<MultiTermsAggregationBuilder> {
     public static final String NAME = "multi_terms";

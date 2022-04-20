@@ -60,7 +60,8 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
             true
         );
 
-        builder.register(REGISTRY_KEY,
+        builder.register(
+            REGISTRY_KEY,
             org.opensearch.common.collect.List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.DATE),
             config -> {
                 ValuesSourceConfig valuesSourceConfig = config.v1();
@@ -78,7 +79,9 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
                     }
                     return MultiTermsAggregator.InternalValuesSourceFactory.longValuesSource(valuesSource, longFilter);
                 }
-        }, true);
+            },
+            true
+        );
 
         builder.registerUsage(MultiTermsAggregationBuilder.NAME);
     }
