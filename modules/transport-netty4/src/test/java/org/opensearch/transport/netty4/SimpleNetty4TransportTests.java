@@ -34,7 +34,6 @@ package org.opensearch.transport.netty4;
 
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
-import org.opensearch.bootstrap.JavaVersion;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkService;
@@ -121,10 +120,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
     }
 
     public void testDefaultKeepAliveSettings() throws IOException {
-        assumeTrue(
-            "setting default keepalive options not supported on this platform",
-            (IOUtils.LINUX || IOUtils.MAC_OS_X) && JavaVersion.current().compareTo(JavaVersion.parse("11")) >= 0
-        );
+        assumeTrue("setting default keepalive options not supported on this platform", (IOUtils.LINUX || IOUtils.MAC_OS_X));
         try (
             MockTransportService serviceC = buildService("TS_C", Version.CURRENT, Settings.EMPTY);
             MockTransportService serviceD = buildService("TS_D", Version.CURRENT, Settings.EMPTY)

@@ -70,7 +70,6 @@ import org.opensearch.action.search.ClearScrollResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.bootstrap.JavaVersion;
 import org.opensearch.client.AdminClient;
 import org.opensearch.client.Client;
 import org.opensearch.client.ClusterAdminClient;
@@ -166,6 +165,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.lang.Runtime.Version;
 import java.lang.annotation.Annotation;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Inherited;
@@ -2403,7 +2403,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         final boolean anyDebian8Nodes = response.getNodes()
             .stream()
             .anyMatch(ni -> ni.getInfo(OsInfo.class).getPrettyName().equals("Debian GNU/Linux 8 (jessie)"));
-        boolean java15Plus = JavaVersion.current().compareTo(JavaVersion.parse("15")) >= 0;
+        boolean java15Plus = Runtime.version().compareTo(Version.parse("15")) >= 0;
         return anyDebian8Nodes && java15Plus == false;
     }
 }
