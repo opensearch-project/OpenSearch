@@ -32,7 +32,6 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.bootstrap.JavaVersion;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
@@ -134,25 +133,16 @@ public class IndexStorePluginTests extends OpenSearchTestCase {
             IllegalStateException.class,
             () -> new MockNode(settings, Arrays.asList(BarStorePlugin.class, FooStorePlugin.class))
         );
-        if (JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0) {
-            assertThat(
-                e,
-                hasToString(
-                    matches(
-                        "java.lang.IllegalStateException: Duplicate key store \\(attempted merging values "
-                            + "org.opensearch.index.store.FsDirectoryFactory@[\\w\\d]+ "
-                            + "and org.opensearch.index.store.FsDirectoryFactory@[\\w\\d]+\\)"
-                    )
+        assertThat(
+            e,
+            hasToString(
+                matches(
+                    "java.lang.IllegalStateException: Duplicate key store \\(attempted merging values "
+                        + "org.opensearch.index.store.FsDirectoryFactory@[\\w\\d]+ "
+                        + "and org.opensearch.index.store.FsDirectoryFactory@[\\w\\d]+\\)"
                 )
-            );
-        } else {
-            assertThat(
-                e,
-                hasToString(
-                    matches("java.lang.IllegalStateException: Duplicate key org.opensearch.index.store.FsDirectoryFactory@[\\w\\d]+")
-                )
-            );
-        }
+            )
+        );
     }
 
     public void testDuplicateIndexStoreRecoveryStateFactories() {
@@ -161,18 +151,6 @@ public class IndexStorePluginTests extends OpenSearchTestCase {
             IllegalStateException.class,
             () -> new MockNode(settings, Arrays.asList(FooCustomRecoveryStore.class, BarCustomRecoveryStore.class))
         );
-        if (JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0) {
-            assertThat(e.getMessage(), containsString("Duplicate key recovery-type"));
-        } else {
-            assertThat(
-                e,
-                hasToString(
-                    matches(
-                        "java.lang.IllegalStateException: Duplicate key "
-                            + "org.opensearch.plugins.IndexStorePluginTests\\$RecoveryFactory@[\\w\\d]+"
-                    )
-                )
-            );
-        }
+        assertThat(e.getMessage(), containsString("Duplicate key recovery-type"));
     }
 }

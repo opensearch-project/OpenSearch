@@ -35,7 +35,6 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.bootstrap.JavaVersion;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
@@ -386,9 +385,6 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
             ZonedDateTime expectedKey = keyIterator.next();
             String bucketKey = bucket.getKeyAsString();
             String expectedBucketName = Long.toString(expectedKey.toInstant().toEpochMilli() / millisDivider);
-            if (JavaVersion.current().getVersion().get(0) == 8 && bucket.getKeyAsString().endsWith(".0")) {
-                expectedBucketName = expectedBucketName + ".0";
-            }
             assertThat(bucketKey, equalTo(expectedBucketName));
             assertThat(((ZonedDateTime) bucket.getKey()), equalTo(expectedKey));
             assertThat(bucket.getDocCount(), equalTo(1L));
@@ -1509,11 +1505,7 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
         assertSearchResponse(response);
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo.getBuckets().size(), equalTo(1));
-        if (JavaVersion.current().getVersion().get(0) == 8 && histo.getBuckets().get(0).getKeyAsString().endsWith(".0")) {
-            assertThat(histo.getBuckets().get(0).getKeyAsString(), equalTo("1477954800000.0"));
-        } else {
-            assertThat(histo.getBuckets().get(0).getKeyAsString(), equalTo("1477954800000"));
-        }
+        assertThat(histo.getBuckets().get(0).getKeyAsString(), equalTo("1477954800000"));
         assertThat(histo.getBuckets().get(0).getDocCount(), equalTo(1L));
 
         response = client().prepareSearch(index)

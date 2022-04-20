@@ -44,7 +44,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.bootstrap.JavaVersion;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SuppressForbidden;
@@ -67,7 +66,6 @@ import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.OpenSearchMockAPIBasedRepositoryIntegTestCase;
 
-import org.junit.BeforeClass;
 import org.threeten.bp.Duration;
 
 import java.io.IOException;
@@ -88,22 +86,6 @@ import static org.opensearch.repositories.gcs.GoogleCloudStorageRepository.CLIEN
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate a Google Cloud Storage endpoint")
 public class GoogleCloudStorageBlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepositoryIntegTestCase {
-
-    public static void assumeNotJava8() {
-        assumeFalse(
-            "This test is flaky on jdk8 - we suspect a JDK bug to trigger some assertion in the HttpServer implementation used "
-                + "to emulate the server side logic of Google Cloud Storage. See https://bugs.openjdk.java.net/browse/JDK-8180754, "
-                + "https://github.com/elastic/elasticsearch/pull/51933 and https://github.com/elastic/elasticsearch/issues/52906 "
-                + "for more background on this issue.",
-            JavaVersion.current().equals(JavaVersion.parse("8"))
-        );
-    }
-
-    @BeforeClass
-    public static void skipJava8() {
-        assumeNotJava8();
-    }
-
     @Override
     protected String repositoryType() {
         return GoogleCloudStorageRepository.TYPE;
