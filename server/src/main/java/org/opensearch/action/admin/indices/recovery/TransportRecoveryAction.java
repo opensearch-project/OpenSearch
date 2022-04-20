@@ -87,7 +87,7 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
 
     @Override
     protected RecoveryState readShardResult(StreamInput in) throws IOException {
-        return RecoveryState.readRecoveryState(in);
+        return new RecoveryState(in);
     }
 
     @Override
