@@ -37,6 +37,15 @@ plugins {
   id 'java-test-fixtures'
 }
 
+gradlePlugin {
+  plugins {
+    zipPlugin {
+      id = 'opensearch.zippublish'
+      implementationClass = 'org.opensearch.gradle.zipplugin.ZipPublish'
+    }
+  }
+}
+
 group = 'org.opensearch.gradle'
 
 String minimumGradleVersion = file('src/main/resources/minimumGradleVersion').text.trim()
