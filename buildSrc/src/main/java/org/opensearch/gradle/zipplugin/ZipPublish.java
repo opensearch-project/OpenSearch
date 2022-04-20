@@ -77,8 +77,8 @@ public class ZipPublish implements Plugin<Project> {
                     String zipArtifact = getProperty("zipArtifact");
                     // Getting the Zip version from gradle property with/without added snapshot and qualifier
                     String zipVersion = getProperty("zipVersion");
-                    String version = "";
-                    String extraSuffix = "";
+                    String version = null;
+                    String extraSuffix = null;
                     if (zipVersion != null) {
                         StringTokenizer st = new StringTokenizer(zipVersion);
                         version = st.nextToken("-") + ".0";
