@@ -45,7 +45,6 @@ import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.mapper.TextFieldMapper;
-import org.opensearch.index.mapper.TypeFieldMapper;
 import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.plugins.MapperPlugin;
@@ -95,7 +94,6 @@ public class IndicesModuleTests extends OpenSearchTestCase {
         IndexFieldMapper.NAME,
         DataStreamFieldMapper.NAME,
         SourceFieldMapper.NAME,
-        TypeFieldMapper.NAME,
         VersionFieldMapper.NAME,
         SeqNoFieldMapper.NAME,
         FieldNamesFieldMapper.NAME };
