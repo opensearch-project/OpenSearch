@@ -80,7 +80,7 @@ public final class MapperRegistry {
      * returned map uses the name of the field as a key.
      */
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMapperParsers(Version indexCreatedVersion) {
-        return indexCreatedVersion.onOrAfter(LegacyESVersion.V_2_0_0) ? metadataMapperParsers : metadataMapperParsersPre20;
+        return indexCreatedVersion.onOrAfter(Version.V_2_0_0) ? metadataMapperParsers : metadataMapperParsersPre20;
     }
 
     /**
