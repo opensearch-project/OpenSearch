@@ -131,10 +131,11 @@ public class PublishPlugin implements Plugin<Project> {
             if (project.getPluginManager().hasPlugin("opensearch.java")) {
                 publication.artifact(project.getTasks().getByName("sourcesJar"));
                 publication.artifact(project.getTasks().getByName("javadocJar"));
-                generatePomTask.configure(
-                    t -> { t.dependsOn(String.format("generatePomFileFor%sPublication", Util.capitalize(publication.getName()))); }
-                );
             }
+
+            generatePomTask.configure(
+                t -> { t.dependsOn(String.format("generatePomFileFor%sPublication", Util.capitalize(publication.getName()))); }
+            );
         });
 
     }
