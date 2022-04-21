@@ -138,22 +138,6 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
         );
     }
 
-    public void toXContent_overrideMainResponseVersion() throws IOException {
-        String responseVersion = LegacyESVersion.V_7_10_2.toString();
-        MainResponse response = new MainResponse(
-            "nodeName",
-            Version.CURRENT,
-            new ClusterName("clusterName"),
-            randomAlphaOfLengthBetween(10, 20),
-            Build.CURRENT,
-            responseVersion
-        );
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertTrue(Strings.toString(builder).contains("\"number\":\"" + responseVersion + "\","));
-        assertFalse(Strings.toString(builder).contains("\"distribution\":\"" + Build.CURRENT.getDistribution() + "\","));
-    }
-
     @Override
     protected MainResponse mutateInstance(MainResponse mutateInstance) {
         String clusterUuid = mutateInstance.getClusterUuid();
