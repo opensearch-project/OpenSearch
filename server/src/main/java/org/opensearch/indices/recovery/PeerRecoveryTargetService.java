@@ -70,6 +70,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogCorruptedException;
 import org.opensearch.indices.recovery.RecoveriesCollection.RecoveryRef;
+import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectTransportException;
@@ -215,7 +216,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         final String actionName;
         final TransportRequest requestToSend;
         final StartRecoveryRequest startRequest;
-        final RecoveryState.Timer timer;
+        final ReplicationTimer timer;
         try (RecoveryRef recoveryRef = onGoingRecoveries.getRecovery(recoveryId)) {
             if (recoveryRef == null) {
                 logger.trace("not running recovery with id [{}] - can not find it (probably finished)", recoveryId);
@@ -622,9 +623,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
         private final long recoveryId;
         private final StartRecoveryRequest request;
-        private final RecoveryState.Timer timer;
+        private final ReplicationTimer timer;
 
-        private RecoveryResponseHandler(final StartRecoveryRequest request, final RecoveryState.Timer timer) {
+        private RecoveryResponseHandler(final StartRecoveryRequest request, final ReplicationTimer timer) {
             this.recoveryId = request.recoveryId();
             this.request = request;
             this.timer = timer;
