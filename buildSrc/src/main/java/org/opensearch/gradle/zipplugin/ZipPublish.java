@@ -76,7 +76,7 @@ public class ZipPublish implements Plugin<Project> {
                     String zipGroup = extset.getZipgroup();
                     String zipArtifact = getProperty("zipArtifact");
                     // Getting the Zip version from gradle property with/without added snapshot and qualifier
-                    String zipVersion = getProperty("zipVersion");
+                    String zipVersion = System.getProperty("opensearch.version");
                     String version = null;
                     String extraSuffix = null;
                     if (zipVersion != null) {
@@ -91,10 +91,11 @@ public class ZipPublish implements Plugin<Project> {
                     String finalZipVersion = version + extraSuffix;
                     String zipFilePath = null;
                     // -PzipFilePath=/build/distributions/opensearch-job-scheduler-2.0.0.0-alpha1-SNAPSHOT.zip
-                    if (getProperty("zipFilePath") != null) {
+                    if(getProperty("zipFilePath") != null) {
                         BUILD_DISTRIBUTIONS_LOCATION = getProperty("zipFilePath");
                         zipFilePath = BUILD_DISTRIBUTIONS_LOCATION + zipArtifact + "-" + finalZipVersion + ".zip";
-                    } else {
+                    }
+                    else {
                         zipFilePath = BUILD_DISTRIBUTIONS_LOCATION + zipArtifact + "-" + finalZipVersion + ".zip";
                     }
                     mavenZip.artifact(buildDirectory.toString() + zipFilePath);
@@ -105,7 +106,7 @@ public class ZipPublish implements Plugin<Project> {
             });
         });
     }
-
+    //function to get Project properties
     private String getProperty(String name) {
         if (this.project.hasProperty(name)) {
             Object property = this.project.property(name);
