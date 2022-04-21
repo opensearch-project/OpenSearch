@@ -38,26 +38,17 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.script.Script;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.Objects;
 
-public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject {
-    private final String fieldName;
-    private final Object missing;
-    private final Script script;
-    private final ZoneId timeZone;
+public class MultiValuesSourceFieldConfig extends BaseMultiValuesSourceFieldConfig {
     private final QueryBuilder filter;
 
     private static final String NAME = "field_config";
@@ -73,32 +64,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
             MultiValuesSourceFieldConfig.Builder::new
         );
 
-        parser.declareString(MultiValuesSourceFieldConfig.Builder::setFieldName, ParseField.CommonFields.FIELD);
-        parser.declareField(
-            MultiValuesSourceFieldConfig.Builder::setMissing,
-            XContentParser::objectText,
-            ParseField.CommonFields.MISSING,
-            ObjectParser.ValueType.VALUE
-        );
-
-        if (scriptable) {
-            parser.declareField(
-                MultiValuesSourceFieldConfig.Builder::setScript,
-                (p, context) -> Script.parse(p),
-                Script.SCRIPT_PARSE_FIELD,
-                ObjectParser.ValueType.OBJECT_OR_STRING
-            );
-        }
-
-        if (timezoneAware) {
-            parser.declareField(MultiValuesSourceFieldConfig.Builder::setTimeZone, p -> {
-                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                    return ZoneId.of(p.text());
-                } else {
-                    return ZoneOffset.ofHours(p.intValue());
-                }
-            }, ParseField.CommonFields.TIME_ZONE, ObjectParser.ValueType.LONG);
-        }
+        BaseMultiValuesSourceFieldConfig.PARSER.apply(parser, scriptable, timezoneAware);
 
         if (filtered) {
             parser.declareField(
@@ -112,26 +78,12 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
     };
 
     protected MultiValuesSourceFieldConfig(String fieldName, Object missing, Script script, ZoneId timeZone, QueryBuilder filter) {
-        this.fieldName = fieldName;
-        this.missing = missing;
-        this.script = script;
-        this.timeZone = timeZone;
+        super(fieldName, missing, script, timeZone);
         this.filter = filter;
     }
 
     public MultiValuesSourceFieldConfig(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
-            this.fieldName = in.readOptionalString();
-        } else {
-            this.fieldName = in.readString();
-        }
-        this.missing = in.readGenericValue();
-        this.script = in.readOptionalWriteable(Script::new);
-        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            this.timeZone = DateUtils.dateTimeZoneToZoneId(in.readOptionalTimeZone());
-        } else {
-            this.timeZone = in.readOptionalZoneId();
-        }
+        super(in);
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
             this.filter = in.readOptionalNamedWriteable(QueryBuilder.class);
         } else {
@@ -139,132 +91,42 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
         }
     }
 
-    public Object getMissing() {
-        return missing;
-    }
-
-    public Script getScript() {
-        return script;
-    }
-
-    public ZoneId getTimeZone() {
-        return timeZone;
-    }
-
-    public String getFieldName() {
-        return fieldName;
-    }
-
     public QueryBuilder getFilter() {
         return filter;
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
-            out.writeOptionalString(fieldName);
-        } else {
-            out.writeString(fieldName);
-        }
-        out.writeGenericValue(missing);
-        out.writeOptionalWriteable(script);
-        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            out.writeOptionalTimeZone(DateUtils.zoneIdToDateTimeZone(timeZone));
-        } else {
-            out.writeOptionalZoneId(timeZone);
-        }
+    public void doWriteTo(StreamOutput out) throws IOException {
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
             out.writeOptionalNamedWriteable(filter);
         }
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        if (missing != null) {
-            builder.field(ParseField.CommonFields.MISSING.getPreferredName(), missing);
-        }
-        if (script != null) {
-            builder.field(Script.SCRIPT_PARSE_FIELD.getPreferredName(), script);
-        }
-        if (fieldName != null) {
-            builder.field(ParseField.CommonFields.FIELD.getPreferredName(), fieldName);
-        }
-        if (timeZone != null) {
-            builder.field(ParseField.CommonFields.TIME_ZONE.getPreferredName(), timeZone.getId());
-        }
+    public void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (filter != null) {
             builder.field(FILTER.getPreferredName());
             filter.toXContent(builder, params);
         }
-        builder.endObject();
-        return builder;
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
+        if (super.equals(o) == false) return false;
+
         MultiValuesSourceFieldConfig that = (MultiValuesSourceFieldConfig) o;
-        return Objects.equals(fieldName, that.fieldName)
-            && Objects.equals(missing, that.missing)
-            && Objects.equals(script, that.script)
-            && Objects.equals(timeZone, that.timeZone)
-            && Objects.equals(filter, that.filter);
+        return Objects.equals(filter, that.filter);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fieldName, missing, script, timeZone, filter);
+        return Objects.hash(super.hashCode(), filter);
     }
 
-    @Override
-    public String toString() {
-        return Strings.toString(this);
-    }
-
-    public static class Builder {
-        private String fieldName;
-        private Object missing = null;
-        private Script script = null;
-        private ZoneId timeZone = null;
+    public static class Builder extends BaseMultiValuesSourceFieldConfig.Builder<BaseMultiValuesSourceFieldConfig, Builder> {
         private QueryBuilder filter = null;
-
-        public String getFieldName() {
-            return fieldName;
-        }
-
-        public Builder setFieldName(String fieldName) {
-            this.fieldName = fieldName;
-            return this;
-        }
-
-        public Object getMissing() {
-            return missing;
-        }
-
-        public Builder setMissing(Object missing) {
-            this.missing = missing;
-            return this;
-        }
-
-        public Script getScript() {
-            return script;
-        }
-
-        public Builder setScript(Script script) {
-            this.script = script;
-            return this;
-        }
-
-        public ZoneId getTimeZone() {
-            return timeZone;
-        }
-
-        public Builder setTimeZone(ZoneId timeZone) {
-            this.timeZone = timeZone;
-            return this;
-        }
 
         public Builder setFilter(QueryBuilder filter) {
             this.filter = filter;
