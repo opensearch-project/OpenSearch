@@ -309,16 +309,17 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
             query = fieldType.regexpQuery(value, sanitisedSyntaxFlag, matchFlagsValue, maxDeterminizedStates, method, context);
         }
         if (query == null) {
-            RegexpQuery regexpQuery = new RegexpQuery(
+            if (method == null) {
+                method = MultiTermQuery.CONSTANT_SCORE_REWRITE;
+            }
+            query = new RegexpQuery(
                 new Term(fieldName, BytesRefs.toBytesRef(value)),
                 sanitisedSyntaxFlag,
                 matchFlagsValue,
-                maxDeterminizedStates
+                RegexpQuery.DEFAULT_PROVIDER,
+                maxDeterminizedStates,
+                method
             );
-            if (method != null) {
-                regexpQuery.setRewriteMethod(method);
-            }
-            query = regexpQuery;
         }
         return query;
     }
