@@ -66,6 +66,7 @@ import org.opensearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.sampler.DiversifiedAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.sampler.Sampler;
 import org.opensearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.terms.MultiTermsAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.opensearch.search.aggregations.bucket.terms.SignificantTermsAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.terms.SignificantTextAggregationBuilder;
@@ -387,5 +388,12 @@ public class AggregationBuilders {
      */
     public static CompositeAggregationBuilder composite(String name, List<CompositeValuesSourceBuilder<?>> sources) {
         return new CompositeAggregationBuilder(name, sources);
+    }
+
+    /**
+     * Create a new {@link MultiTermsAggregationBuilder} aggregation with the given name.
+     */
+    public static MultiTermsAggregationBuilder multiTerms(String name) {
+        return new MultiTermsAggregationBuilder(name);
     }
 }
