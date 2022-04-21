@@ -182,7 +182,7 @@ public class MatchQuery {
 
     protected boolean transpositions = FuzzyQuery.defaultTranspositions;
 
-    protected MultiTermQuery.RewriteMethod fuzzyRewriteMethod = MultiTermQuery.CONSTANT_SCORE_REWRITE;
+    protected MultiTermQuery.RewriteMethod fuzzyRewriteMethod;
 
     protected boolean lenient = DEFAULT_LENIENCY;
 
