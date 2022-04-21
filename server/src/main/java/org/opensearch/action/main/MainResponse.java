@@ -55,7 +55,6 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     private ClusterName clusterName;
     private String clusterUuid;
     private Build build;
-    private String versionNumber;
     public static final String TAGLINE = "The OpenSearch Project: https://opensearch.org/";
 
     MainResponse() {}
@@ -70,7 +69,6 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
             in.readBoolean();
         }
-        versionNumber = build.getQualifiedVersion();
     }
 
     public MainResponse(String nodeName, Version version, ClusterName clusterName, String clusterUuid, Build build) {
@@ -79,16 +77,6 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         this.clusterName = clusterName;
         this.clusterUuid = clusterUuid;
         this.build = build;
-        this.versionNumber = build.getQualifiedVersion();
-    }
-
-    public MainResponse(String nodeName, Version version, ClusterName clusterName, String clusterUuid, Build build, String versionNumber) {
-        this.nodeName = nodeName;
-        this.version = version;
-        this.clusterName = clusterName;
-        this.clusterUuid = clusterUuid;
-        this.build = build;
-        this.versionNumber = versionNumber;
     }
 
     public String getNodeName() {
@@ -111,18 +99,10 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         return build;
     }
 
-    public String getVersionNumber() {
-        return versionNumber;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeName);
-        if (out.getVersion().before(Version.V_1_0_0)) {
-            Version.writeVersion(LegacyESVersion.V_7_10_2, out);
-        } else {
-            Version.writeVersion(version, out);
-        }
+        Version.writeVersion(version, out);
         clusterName.writeTo(out);
         out.writeString(clusterUuid);
         Build.writeBuild(build, out);
@@ -137,11 +117,9 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         builder.field("name", nodeName);
         builder.field("cluster_name", clusterName.value());
         builder.field("cluster_uuid", clusterUuid);
-        builder.startObject("version");
-        if (isCompatibilityModeDisabled()) {
-            builder.field("distribution", build.getDistribution());
-        }
-        builder.field("number", versionNumber)
+        builder.startObject("version")
+            .field("distribution", build.getDistribution())
+            .field("number", build.getQualifiedVersion())
             .field("build_type", build.type().displayName())
             .field("build_hash", build.hash())
             .field("build_date", build.date())
@@ -153,12 +131,6 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         builder.field("tagline", TAGLINE);
         builder.endObject();
         return builder;
-    }
-
-    private boolean isCompatibilityModeDisabled() {
-        // if we are not in compatibility mode (spoofing versionNumber), then
-        // build.getQualifiedVersion is always used.
-        return build.getQualifiedVersion().equals(versionNumber);
     }
 
     private static final ObjectParser<MainResponse, Void> PARSER = new ObjectParser<>(
@@ -189,7 +161,6 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
             response.version = Version.fromString(
                 ((String) value.get("number")).replace("-SNAPSHOT", "").replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", "")
             );
-            response.versionNumber = response.version.toString();
         }, (parser, context) -> parser.map(), new ParseField("version"));
     }
 
