@@ -221,7 +221,6 @@ public class Build {
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
         // the following is new for opensearch: we write the distribution name to support any "forks" of the code
         out.writeString(build.distribution);
-        out.writeString("oss");
 
         final Type buildType = build.type();
         out.writeString(buildType.displayName());
