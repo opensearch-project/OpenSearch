@@ -360,6 +360,12 @@ public abstract class Engine implements Closeable {
      */
     public abstract DeleteResult delete(Delete delete) throws IOException;
 
+    /**
+     * Add document delete operation to translog
+     * @param delete operation to perform
+     * @return {@link DeleteResult} containing updated translog location, version and
+     * document specific failures
+     */
     public abstract DeleteResult addDeleteOperationToTranslog(Delete delete) throws IOException;
 
     public abstract NoOpResult noOp(NoOp noOp) throws IOException;
