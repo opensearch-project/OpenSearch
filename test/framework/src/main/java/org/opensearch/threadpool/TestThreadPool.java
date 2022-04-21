@@ -40,6 +40,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class TestThreadPool extends ThreadPool {
 
@@ -47,12 +48,29 @@ public class TestThreadPool extends ThreadPool {
     private volatile boolean returnRejectingExecutor = false;
     private volatile ThreadPoolExecutor rejectingExecutor;
 
+    public TestThreadPool(
+        String name,
+        AtomicReference<RunnableTaskExecutionListener> runnableTaskListener,
+        ExecutorBuilder<?>... customBuilders
+    ) {
+        this(name, Settings.EMPTY, runnableTaskListener, customBuilders);
+    }
+
     public TestThreadPool(String name, ExecutorBuilder<?>... customBuilders) {
         this(name, Settings.EMPTY, customBuilders);
     }
 
     public TestThreadPool(String name, Settings settings, ExecutorBuilder<?>... customBuilders) {
-        super(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), name).put(settings).build(), customBuilders);
+        this(name, settings, null, customBuilders);
+    }
+
+    public TestThreadPool(
+        String name,
+        Settings settings,
+        AtomicReference<RunnableTaskExecutionListener> runnableTaskListener,
+        ExecutorBuilder<?>... customBuilders
+    ) {
+        super(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), name).put(settings).build(), runnableTaskListener, customBuilders);
     }
 
     @Override

@@ -198,6 +198,7 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.snapshots.mockstore.MockEventuallyConsistentRepository;
+import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.disruption.DisruptableMockTransport;
 import org.opensearch.threadpool.ThreadPool;
@@ -1738,6 +1739,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(
                     new ThreadContext(Settings.EMPTY)
                 );
+                transportService.getTaskManager()
+                    .setTaskResourceTrackingService(new TaskResourceTrackingService(settings, clusterSettings, threadPool));
                 repositoriesService = new RepositoriesService(
                     settings,
                     clusterService,
