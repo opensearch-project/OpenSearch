@@ -49,9 +49,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
-import org.opensearch.lucene.queries.MinDocQuery;
 import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -82,6 +80,7 @@ import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.action.search.SearchShardTask;
@@ -97,6 +96,7 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.search.OpenSearchToParentBlockJoinQuery;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
+import org.opensearch.lucene.queries.MinDocQuery;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.collapse.CollapseBuilder;
 import org.opensearch.search.internal.ContextIndexSearcher;
@@ -111,16 +111,16 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.opensearch.search.query.TopDocsCollectorContext.hasInfMaxScore;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
+import static org.opensearch.search.query.TopDocsCollectorContext.hasInfMaxScore;
 
 public class QueryPhaseTests extends IndexShardTestCase {
 
@@ -1069,8 +1069,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
             try (IndexReader reader = DirectoryReader.open(dir)) {
                 TestSearchContext context = new TestSearchContextWithRewriteAndCancellation(null, indexShard, newContextSearcher(reader));
-                PrefixQuery prefixQuery = new PrefixQuery(new Term("foo", "a"));
-                prefixQuery.setRewriteMethod(MultiTermQuery.SCORING_BOOLEAN_REWRITE);
+                PrefixQuery prefixQuery = new PrefixQuery(new Term("foo", "a"), MultiTermQuery.SCORING_BOOLEAN_REWRITE);
                 context.parsedQuery(new ParsedQuery(prefixQuery));
                 SearchShardTask task = mock(SearchShardTask.class);
                 when(task.isCancelled()).thenReturn(true);
