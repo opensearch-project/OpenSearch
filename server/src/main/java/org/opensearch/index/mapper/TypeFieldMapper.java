@@ -41,7 +41,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.geo.ShapeRelation;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.index.fielddata.IndexFieldData;
@@ -55,16 +54,8 @@ import java.util.Collections;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+// Todo: Remove TypeFieldMapper once we have NestedFieldMapper implementation
 public class TypeFieldMapper extends MetadataFieldMapper {
-
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TypeFieldType.class);
-
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using the _type field "
-        + "in queries and aggregations is deprecated, prefer to use a field instead.";
-
-    public static void emitTypesDeprecationWarning() {
-        deprecationLogger.deprecate("query_with_types", TYPES_DEPRECATION_MESSAGE);
-    }
 
     public static final String NAME = "_type";
 
@@ -101,7 +92,6 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            emitTypesDeprecationWarning();
             return new ConstantIndexFieldData.Builder(type, name(), CoreValuesSourceType.BYTES);
         }
 
@@ -112,13 +102,11 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query existsQuery(QueryShardContext context) {
-            emitTypesDeprecationWarning();
             return new MatchAllDocsQuery();
         }
 
         @Override
         protected boolean matches(String pattern, boolean caseInsensitive, QueryShardContext context) {
-            emitTypesDeprecationWarning();
             if (type == null) {
                 return false;
             }
@@ -136,7 +124,6 @@ public class TypeFieldMapper extends MetadataFieldMapper {
             DateMathParser parser,
             QueryShardContext context
         ) {
-            emitTypesDeprecationWarning();
             BytesRef lower = (BytesRef) lowerTerm;
             BytesRef upper = (BytesRef) upperTerm;
             if (includeLower) {

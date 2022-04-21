@@ -65,7 +65,6 @@ import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.mapper.TextFieldMapper;
-import org.opensearch.index.mapper.TypeFieldMapper;
 import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.index.seqno.RetentionLeaseBackgroundSyncAction;
 import org.opensearch.index.seqno.RetentionLeaseSyncAction;
@@ -186,7 +185,6 @@ public class IndicesModule extends AbstractModule {
         builtInMetadataMappers.put(IndexFieldMapper.NAME, IndexFieldMapper.PARSER);
         builtInMetadataMappers.put(DataStreamFieldMapper.NAME, DataStreamFieldMapper.PARSER);
         builtInMetadataMappers.put(SourceFieldMapper.NAME, SourceFieldMapper.PARSER);
-        builtInMetadataMappers.put(TypeFieldMapper.NAME, TypeFieldMapper.PARSER);
         builtInMetadataMappers.put(NestedPathFieldMapper.NAME, NestedPathFieldMapper.PARSER);
         builtInMetadataMappers.put(VersionFieldMapper.NAME, VersionFieldMapper.PARSER);
         builtInMetadataMappers.put(SeqNoFieldMapper.NAME, SeqNoFieldMapper.PARSER);
