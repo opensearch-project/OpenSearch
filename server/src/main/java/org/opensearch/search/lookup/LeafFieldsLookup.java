@@ -34,10 +34,8 @@ package org.opensearch.search.lookup;
 import org.apache.lucene.index.LeafReader;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.index.fieldvisitor.SingleFieldsVisitor;
-import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.mapper.TypeFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -147,22 +145,12 @@ public class LeafFieldsLookup implements Map {
             cachedFieldData.put(name, data);
         }
         if (data.fields() == null) {
-            List<Object> values;
-            if (TypeFieldMapper.NAME.equals(data.fieldType().name())) {
-                TypeFieldMapper.emitTypesDeprecationWarning();
-                values = new ArrayList<>(1);
-                final DocumentMapper mapper = mapperService.documentMapper();
-                if (mapper != null) {
-                    values.add(mapper.type());
-                }
-            } else {
-                values = new ArrayList<Object>(2);
-                SingleFieldsVisitor visitor = new SingleFieldsVisitor(data.fieldType(), values);
-                try {
-                    reader.document(docId, visitor);
-                } catch (IOException e) {
-                    throw new OpenSearchParseException("failed to load field [{}]", e, name);
-                }
+            List<Object> values = new ArrayList<>(2);
+            SingleFieldsVisitor visitor = new SingleFieldsVisitor(data.fieldType(), values);
+            try {
+                reader.document(docId, visitor);
+            } catch (IOException e) {
+                throw new OpenSearchParseException("failed to load field [{}]", e, name);
             }
             data.fields(singletonMap(data.fieldType().name(), values));
         }
