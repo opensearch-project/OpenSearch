@@ -296,7 +296,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         synchronized (mutex) {
             if (mode != Mode.CANDIDATE) {
                 assert lastKnownLeader.isPresent();
-                logger.info(new ParameterizedMessage("master node [{}] failed, restarting discovery", lastKnownLeader.get()), e);
+                logger.info(new ParameterizedMessage("cluster-manager node [{}] failed, restarting discovery", lastKnownLeader.get()), e);
             }
             becomeCandidate("onLeaderFailure");
         }
@@ -336,11 +336,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             } else if (mode == Mode.FOLLOWER) {
                 logger.trace("onFollowerCheckRequest: responding successfully to {}", followerCheckRequest);
             } else if (joinHelper.isJoinPending()) {
-                logger.trace("onFollowerCheckRequest: rejoining master, responding successfully to {}", followerCheckRequest);
+                logger.trace("onFollowerCheckRequest: rejoining cluster-manager, responding successfully to {}", followerCheckRequest);
             } else {
-                logger.trace("onFollowerCheckRequest: received check from faulty master, rejecting {}", followerCheckRequest);
+                logger.trace("onFollowerCheckRequest: received check from faulty cluster-manager, rejecting {}", followerCheckRequest);
                 throw new CoordinationStateRejectedException(
-                    "onFollowerCheckRequest: received check from faulty master, rejecting " + followerCheckRequest
+                    "onFollowerCheckRequest: received check from faulty cluster-manager, rejecting " + followerCheckRequest
                 );
             }
         }
@@ -510,7 +510,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private void abdicateTo(DiscoveryNode newClusterManager) {
         assert Thread.holdsLock(mutex);
         assert mode == Mode.LEADER : "expected to be leader on abdication but was " + mode;
-        assert newClusterManager.isMasterNode() : "should only abdicate to cluster-manager-eligible node but was " + newMaster;
+        assert newClusterManager.isMasterNode() : "should only abdicate to cluster-manager-eligible node but was " + newClusterManager;
         final StartJoinRequest startJoinRequest = new StartJoinRequest(newClusterManager, Math.max(getCurrentTerm(), maxTermSeen) + 1);
         logger.info("abdicating to {} with term {}", newClusterManager, startJoinRequest.getTerm());
         getLastAcceptedState().nodes().mastersFirstStream().forEach(node -> {
@@ -668,7 +668,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             lagDetector.clearTrackedNodes();
 
             if (prevMode == Mode.LEADER) {
-                cleanMasterService();
+                cleanClusterManagerService();
             }
 
             if (applierState.nodes().getMasterNodeId() != null) {
@@ -750,7 +750,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         lagDetector.clearTrackedNodes();
     }
 
-    private void cleanMasterService() {
+    private void cleanClusterManagerService() {
         clusterManagerService.submitStateUpdateTask("clean-up after stepping down as cluster-manager", new LocalClusterUpdateTask() {
             @Override
             public void onFailure(String source, Exception e) {
@@ -906,7 +906,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
                 final boolean activePublication = currentPublication.map(CoordinatorPublication::isActiveForCurrentLeader).orElse(false);
                 if (becomingClusterManager && activePublication == false) {
-                    // cluster state update task to become master is submitted to MasterService, but publication has not started yet
+                    // cluster state update task to become cluster-manager is submitted to MasterService, but publication has not started yet
                     assert followersChecker.getKnownFollowers().isEmpty() : followersChecker.getKnownFollowers();
                 } else {
                     final ClusterState lastPublishedState;
@@ -1052,7 +1052,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         // the voting config. We could exclude all the cluster-manager-ineligible nodes here, but there could be quite a few of them and
         // that makes
         // the logging much harder to follow.
-        final Stream<String> masterIneligibleNodeIdsInVotingConfig = StreamSupport.stream(clusterState.nodes().spliterator(), false)
+        final Stream<String> clusterManagerIneligibleNodeIdsInVotingConfig = StreamSupport.stream(clusterState.nodes().spliterator(), false)
             .filter(
                 n -> n.isMasterNode() == false
                     && (clusterState.getLastAcceptedConfiguration().getNodeIds().contains(n.getId())
@@ -1067,7 +1067,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             .collect(Collectors.toSet());
         final VotingConfiguration newConfig = reconfigurator.reconfigure(
             liveNodes,
-            Stream.concat(masterIneligibleNodeIdsInVotingConfig, excludedNodeIds).collect(Collectors.toSet()),
+            Stream.concat(clusterManagerIneligibleNodeIdsInVotingConfig, excludedNodeIds).collect(Collectors.toSet()),
             getLocalNode(),
             clusterState.getLastAcceptedConfiguration()
         );
@@ -1151,7 +1151,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 // If we have already won the election then the actual join does not matter for election purposes, so swallow any exception
                 final boolean isNewJoinFromClusterManagerEligibleNode = handleJoinIgnoringExceptions(join);
 
-                // If we haven't completely finished becoming master then there's already a publication scheduled which will, in turn,
+                // If we haven't completely finished becoming cluster-manager then there's already a publication scheduled which will, in turn,
                 // schedule a reconfiguration if needed. It's benign to schedule a reconfiguration anyway, but it might fail if it wins the
                 // race against the election-winning publication and log a big error message, which we can prevent by checking this here:
                 final boolean establishedAsClusterManager = mode == Mode.LEADER && getLastAcceptedState().term() == getCurrentTerm();
@@ -1235,14 +1235,14 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 if (mode != Mode.LEADER || getCurrentTerm() != clusterChangedEvent.state().term()) {
                     logger.debug(
                         () -> new ParameterizedMessage(
-                            "[{}] failed publication as node is no longer master for term {}",
+                            "[{}] failed publication as node is no longer cluster-manager for term {}",
                             clusterChangedEvent.source(),
                             clusterChangedEvent.state().term()
                         )
                     );
                     publishListener.onFailure(
                         new FailedToCommitClusterStateException(
-                            "node is no longer master for term " + clusterChangedEvent.state().term() + " while handling publication"
+                            "node is no longer cluster-manager for term " + clusterChangedEvent.state().term() + " while handling publication"
                         )
                     );
                     return;
@@ -1365,7 +1365,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
 
         @Override
-        protected void onActiveMasterFound(DiscoveryNode clusterManagerNode, long term) {
+        protected void onActiveClusterManagerFound(DiscoveryNode clusterManagerNode, long term) {
             synchronized (mutex) {
                 ensureTermAtLeast(clusterManagerNode, term);
                 joinHelper.sendJoinRequest(clusterManagerNode, getCurrentTerm(), joinWithDestination(lastJoin, clusterManagerNode, term));
