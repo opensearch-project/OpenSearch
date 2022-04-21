@@ -41,7 +41,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.opensearch.common.ParsingException;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.TypeFieldMapper;
 
 import java.io.IOException;
 
@@ -196,12 +195,6 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
             + "}";
         QueryBuilder parsedQuery = parseQuery(json);
         assertSerialization(parsedQuery);
-    }
-
-    public void testTypeField() throws IOException {
-        TermQueryBuilder builder = QueryBuilders.termQuery("_type", "value1");
-        builder.doToQuery(createShardContext());
-        assertWarnings(TypeFieldMapper.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testRewriteIndexQueryToMatchNone() throws IOException {
