@@ -159,8 +159,11 @@ import org.opensearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.opensearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.sampler.UnmappedSampler;
 import org.opensearch.search.aggregations.bucket.terms.DoubleTerms;
+import org.opensearch.search.aggregations.bucket.terms.InternalMultiTerms;
 import org.opensearch.search.aggregations.bucket.terms.LongRareTerms;
 import org.opensearch.search.aggregations.bucket.terms.LongTerms;
+import org.opensearch.search.aggregations.bucket.terms.MultiTermsAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.terms.MultiTermsAggregationFactory;
 import org.opensearch.search.aggregations.bucket.terms.RareTermsAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.terms.SignificantLongTerms;
 import org.opensearch.search.aggregations.bucket.terms.SignificantStringTerms;
@@ -685,6 +688,12 @@ public class SearchModule {
             new AggregationSpec(CompositeAggregationBuilder.NAME, CompositeAggregationBuilder::new, CompositeAggregationBuilder.PARSER)
                 .addResultReader(InternalComposite::new)
                 .setAggregatorRegistrar(CompositeAggregationBuilder::registerAggregators),
+            builder
+        );
+        registerAggregation(
+            new AggregationSpec(MultiTermsAggregationBuilder.NAME, MultiTermsAggregationBuilder::new, MultiTermsAggregationBuilder.PARSER)
+                .addResultReader(InternalMultiTerms::new)
+                .setAggregatorRegistrar(MultiTermsAggregationFactory::registerAggregators),
             builder
         );
         registerFromPlugin(plugins, SearchPlugin::getAggregations, (agg) -> this.registerAggregation(agg, builder));

@@ -57,11 +57,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 import static org.opensearch.search.aggregations.InternalOrder.isKeyAsc;
 import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 
-public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends InternalTerms.Bucket<B>> extends
+public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends InternalTerms.AbstractInternalBucket> extends
     InternalMultiBucketAggregation<A, B>
     implements
         Terms {
@@ -69,10 +70,15 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     protected static final ParseField DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME = new ParseField("doc_count_error_upper_bound");
     protected static final ParseField SUM_OF_OTHER_DOC_COUNTS = new ParseField("sum_other_doc_count");
 
-    public abstract static class Bucket<B extends Bucket<B>> extends InternalMultiBucketAggregation.InternalBucket
-        implements
-            Terms.Bucket,
-            KeyComparable<B> {
+    public abstract static class AbstractInternalBucket extends InternalMultiBucketAggregation.InternalBucket implements Terms.Bucket {
+        abstract void setDocCountError(long docCountError);
+
+        abstract void setDocCountError(Function<Long, Long> updater);
+
+        abstract boolean showDocCountError();
+    }
+
+    public abstract static class Bucket<B extends Bucket<B>> extends AbstractInternalBucket implements KeyComparable<B> {
         /**
          * Reads a bucket. Should be a constructor reference.
          */
@@ -140,6 +146,21 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                 throw new IllegalStateException("show_terms_doc_count_error is false");
             }
             return docCountError;
+        }
+
+        @Override
+        public void setDocCountError(long docCountError) {
+            this.docCountError = docCountError;
+        }
+
+        @Override
+        public void setDocCountError(Function<Long, Long> updater) {
+            this.docCountError = updater.apply(this.docCountError);
+        }
+
+        @Override
+        public boolean showDocCountError() {
+            return showDocCountError;
         }
 
         @Override
@@ -274,7 +295,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             } else {
                 // otherwise use the doc count of the last term in the
                 // aggregation
-                return terms.getBuckets().stream().mapToLong(Bucket::getDocCount).min().getAsLong();
+                return terms.getBuckets().stream().mapToLong(MultiBucketsAggregation.Bucket::getDocCount).min().getAsLong();
             }
         } else {
             return -1;
@@ -393,7 +414,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                 // for the existing error calculated in a previous reduce.
                 // Note that if the error is unbounded (-1) this will be fixed
                 // later in this method.
-                bucket.docCountError -= thisAggDocCountError;
+                bucket.setDocCountError(docCountError -> docCountError - thisAggDocCountError);
             }
         }
 
@@ -419,11 +440,12 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             final BucketPriorityQueue<B> ordered = new BucketPriorityQueue<>(size, order.comparator());
             for (B bucket : reducedBuckets) {
                 if (sumDocCountError == -1) {
-                    bucket.docCountError = -1;
+                    bucket.setDocCountError(-1);
                 } else {
-                    bucket.docCountError += sumDocCountError;
+                    final long finalSumDocCountError = sumDocCountError;
+                    bucket.setDocCountError(docCountError -> docCountError + finalSumDocCountError);
                 }
-                if (bucket.docCount >= minDocCount) {
+                if (bucket.getDocCount() >= minDocCount) {
                     B removed = ordered.insertWithOverflow(bucket);
                     if (removed != null) {
                         otherDocCount += removed.getDocCount();
@@ -448,9 +470,10 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                 reduceContext.consumeBucketsAndMaybeBreak(1);
                 list[i] = reducedBuckets.get(i);
                 if (sumDocCountError == -1) {
-                    list[i].docCountError = -1;
+                    list[i].setDocCountError(-1);
                 } else {
-                    list[i].docCountError += sumDocCountError;
+                    final long fSumDocCountError = sumDocCountError;
+                    list[i].setDocCountError(docCountError -> docCountError + fSumDocCountError);
                 }
             }
         }
@@ -474,15 +497,15 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         long docCountError = 0;
         List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
         for (B bucket : buckets) {
-            docCount += bucket.docCount;
+            docCount += bucket.getDocCount();
             if (docCountError != -1) {
-                if (bucket.docCountError == -1) {
+                if (bucket.showDocCountError() == false || bucket.getDocCountError() == -1) {
                     docCountError = -1;
                 } else {
-                    docCountError += bucket.docCountError;
+                    docCountError += bucket.getDocCountError();
                 }
             }
-            aggregationsList.add(bucket.aggregations);
+            aggregationsList.add((InternalAggregations) bucket.getAggregations());
         }
         InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
         return createBucket(docCount, aggs, docCountError, buckets.get(0));
@@ -524,12 +547,12 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         Params params,
         long docCountError,
         long otherDocCount,
-        List<? extends Bucket> buckets
+        List<? extends AbstractInternalBucket> buckets
     ) throws IOException {
         builder.field(DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME.getPreferredName(), docCountError);
         builder.field(SUM_OF_OTHER_DOC_COUNTS.getPreferredName(), otherDocCount);
         builder.startArray(CommonFields.BUCKETS.getPreferredName());
-        for (Bucket bucket : buckets) {
+        for (AbstractInternalBucket bucket : buckets) {
             bucket.toXContent(builder, params);
         }
         builder.endArray();

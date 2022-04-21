@@ -101,9 +101,11 @@ import org.opensearch.search.aggregations.bucket.sampler.ParsedSampler;
 import org.opensearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.opensearch.search.aggregations.bucket.terms.LongRareTerms;
 import org.opensearch.search.aggregations.bucket.terms.LongTerms;
+import org.opensearch.search.aggregations.bucket.terms.MultiTermsAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.terms.ParsedDoubleTerms;
 import org.opensearch.search.aggregations.bucket.terms.ParsedLongRareTerms;
 import org.opensearch.search.aggregations.bucket.terms.ParsedLongTerms;
+import org.opensearch.search.aggregations.bucket.terms.ParsedMultiTerms;
 import org.opensearch.search.aggregations.bucket.terms.ParsedSignificantLongTerms;
 import org.opensearch.search.aggregations.bucket.terms.ParsedSignificantStringTerms;
 import org.opensearch.search.aggregations.bucket.terms.ParsedStringRareTerms;
@@ -289,6 +291,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         map.put(IpRangeAggregationBuilder.NAME, (p, c) -> ParsedBinaryRange.fromXContent(p, (String) c));
         map.put(TopHitsAggregationBuilder.NAME, (p, c) -> ParsedTopHits.fromXContent(p, (String) c));
         map.put(CompositeAggregationBuilder.NAME, (p, c) -> ParsedComposite.fromXContent(p, (String) c));
+        map.put(MultiTermsAggregationBuilder.NAME, (p, c) -> ParsedMultiTerms.fromXContent(p, (String) c));
 
         namedXContents = map.entrySet()
             .stream()

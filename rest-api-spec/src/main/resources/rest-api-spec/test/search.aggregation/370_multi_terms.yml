@@ -1,0 +1,620 @@
+setup:
+  - do:
+      indices.create:
+        index: test_1
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              str:
+                type: keyword
+              ip:
+                type: ip
+              boolean:
+                type: boolean
+              integer:
+                type: long
+              double:
+                type: double
+              number:
+                type: long
+              date:
+                type: date
+
+  - do:
+      indices.create:
+        index: test_2
+        body:
+          settings:
+            number_of_shards: 2
+            number_of_replicas: 0
+          mappings:
+            properties:
+              str:
+                type: keyword
+              integer:
+                type: long
+              boolean:
+                type: boolean
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+---
+"Basic test":
+  - skip:
+      version: "- 2.9.99"
+      reason:  multi_terms aggregation is introduced in 3.0.0
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"str": "a", "integer": 1}'
+          - '{"index": {}}'
+          - '{"str": "a", "integer": 2}'
+          - '{"index": {}}'
+          - '{"str": "b", "integer": 1}'
+          - '{"index": {}}'
+          - '{"str": "b", "integer": 2}'
+          - '{"index": {}}'
+          - '{"str": "a", "integer": 1}'
+          - '{"index": {}}'
+          - '{"str": "b", "integer": 1}'
+
+  - do:
+      search:
+        index: test_1
+        size: 0
+        body:
+          aggs:
+            m_terms:
+              multi_terms:
+                terms:
+                  - field: str
+                  - field: integer
+
+  - length: { aggregations.m_terms.buckets: 4 }
+  - match: { aggregations.m_terms.buckets.0.key: ["a", 1] }
+  - match: { aggregations.m_terms.buckets.0.key_as_string: "a|1" }
+  - match: { aggregations.m_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.m_terms.buckets.1.key: ["b", 1] }
+  - match: { aggregations.m_terms.buckets.1.key_as_string: "b|1" }
+  - match: { aggregations.m_terms.buckets.1.doc_count: 2 }
+  - match: { aggregations.m_terms.buckets.2.key: ["a", 2] }
+  - match: { aggregations.m_terms.buckets.2.key_as_string: "a|2" }
+  - match: { aggregations.m_terms.buckets.2.doc_count: 1 }
+  - match: { aggregations.m_terms.buckets.3.key: ["b", 2] }
+  - match: { aggregations.m_terms.buckets.3.key_as_string: "b|2" }
+  - match: { aggregations.m_terms.buckets.3.doc_count: 1 }
+
+---
+"IP test":
+  - skip:
+      version: "- 2.9.99"
+      reason:  multi_terms aggregation is introduced in 3.0.0
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"str": "a", "ip": "::1"}'
+          - '{"index": {}}'
+          - '{"str": "a", "ip": "127.0.0.1"}'
+          - '{"index": {}}'
+          - '{"str": "b", "ip": "::1"}'
+          - '{"index": {}}'
+          - '{"str": "b", "ip": "127.0.0.1"}'
+          - '{"index": {}}'
+          - '{"str": "a", "ip": "127.0.0.1"}'
+          - '{"index": {}}'
+          - '{"str": "b", "ip": "::1"}'
+
+  - do:
+      search:
+        index: test_1
+        size: 0
+        body:
+          aggs:
+            m_terms:
+              multi_terms:
+                terms:
+                  - field: str
+                  - field: ip
+
+  - length: { aggregations.m_terms.buckets: 4 }
+  - match: { aggregations.m_terms.buckets.0.key: ["a", "127.0.0.1"] }
+  - match: { aggregations.m_terms.buckets.0.key_as_string: "a|127.0.0.1" }
+  - match: { aggregations.m_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.m_terms.buckets.1.key: ["b", "::1"] }
+  - match: { aggregations.m_terms.buckets.1.key_as_string: "b|::1" }
+  - match: { aggregations.m_terms.buckets.1.doc_count: 2 }
+  - match: { aggregations.m_terms.buckets.2.key: ["a", "::1"] }
+  - match: { aggregations.m_terms.buckets.2.key_as_string: "a|::1" }
+  - match: { aggregations.m_terms.buckets.2.doc_count: 1 }
+  - match: { aggregations.m_terms.buckets.3.key: ["b", "127.0.0.1"] }
+  - match: { aggregations.m_terms.buckets.3.key_as_string: "b|127.0.0.1" }
+  - match: { aggregations.m_terms.buckets.3.doc_count: 1 }
+
+---
+"Boolean test":
+  - skip:
+      version: "- 2.9.99"
+      reason:  multi_terms aggregation is introduced in 3.0.0
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"str": "a", "boolean": true}'
+          - '{"index": {}}'
+          - '{"str": "a", "boolean": false}'
+          - '{"index": {}}'
+          - '{"str": "b", "boolean": false}'
+          - '{"index": {}}'
+          - '{"str": "b", "boolean": true}'
+          - '{"index": {}}'
+          - '{"str": "a", "boolean": true}'
+          - '{"index": {}}'
+          - '{"str": "b", "boolean": false}'
+
+  - do:
+      search:
+        index: test_1
+        size: 0
+        body:
+          aggs:
+            m_terms:
+              multi_terms:
+                terms:
+                  - field: str
+                  - field: boolean
+
+  - length: { aggregations.m_terms.buckets: 4 }
+  - match: { aggregations.m_terms.buckets.0.key: ["a", true] }
+  - match: { aggregations.m_terms.buckets.0.key_as_string: "a|true" }
+  - match: { aggregations.m_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.m_terms.buckets.1.key: ["b", false] }
+  - match: { aggregations.m_terms.buckets.1.key_as_string: "b|false" }
+  - match: { aggregations.m_terms.buckets.1.doc_count: 2 }
+  - match: { aggregations.m_terms.buckets.2.key: ["a", false] }
+  - match: { aggregations.m_terms.buckets.2.key_as_string: "a|false" }
+  - match: { aggregations.m_terms.buckets.2.doc_count: 1 }
+  - match: { aggregations.m_terms.buckets.3.key: ["b", true] }
+  - match: { aggregations.m_terms.buckets.3.key_as_string: "b|true" }
+  - match: { aggregations.m_terms.buckets.3.doc_count: 1 }
+
+---
+"Double test":
+  - skip:
+      version: "- 2.9.99"
+      reason:  multi_terms aggregation is introduced in 3.0.0
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"str": "a", "double": 1234.5}'
+          - '{"index": {}}'
+          - '{"str": "a", "double": 5678.5}'
+          - '{"index": {}}'
+          - '{"str": "b", "double": 1234.5}'
+          - '{"index": {}}'
+          - '{"str": "a", "double": 1234.5}'
+
+  - do:
+      search:
+        index: test_1
+        size: 0
+        body:
+          aggs:
+            m_terms:
+              multi_terms:
+                terms:
+                  - field: str
+                  - field: double
+
+  - length: { aggregations.m_terms.buckets: 3 }
+  - match: { aggregations.m_terms.buckets.0.key: ["a", 1234.5] }
+  - match: { aggregations.m_terms.buckets.0.key_as_string: "a|1234.5" }
+  - match: { aggregations.m_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.m_terms.buckets.1.key: ["a", 5678.5] }
+  - match: { aggregations.m_terms.buckets.1.key_as_string: "a|5678.5" }
+  - match: { aggregations.m_terms.buckets.1.doc_count: 1 }
+  - match: { aggregations.m_terms.buckets.2.key: ["b", 1234.5] }
+  - match: { aggregations.m_terms.buckets.2.key_as_string: "b|1234.5" }
+  - match: { aggregations.m_terms.buckets.2.doc_count: 1 }
+
+---
+"Date test":
+  - skip:
+      version: "- 2.9.99"
+      reason:  multi_terms aggregation is introduced in 3.0.0
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"str": "a", "date": "2022-03-23"}'
+          - '{"index": {}}'
+          - '{"str": "a", "date": "2022-03-25"}'
+          - '{"index": {}}'
+          - '{"str": "b", "date": "2022-03-23"}'
+          - '{"index": {}}'
+          - '{"str": "a", "date": "2022-03-23"}'
+
+  - do:
+      search:
+        index: test_1
+        size: 0
+        body:
+          aggs:
+            m_terms:
+              multi_terms:
+                terms:
+                  - field: str
+                  - field: date
+
+  - length: { aggregations.m_terms.buckets: 3 }
+  - match: { aggregations.m_terms.buckets.0.key: ["a", "2022-03-23T00:00:00.000Z"] }
+  - match: { aggregations.m_terms.buckets.0.key_as_string: "a|2022-03-23T00:00:00.000Z" }
+  - match: { aggregations.m_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.m_terms.buckets.1.key: ["a", "2022-03-25T00:00:00.000Z"] }
+  - match: { aggregations.m_terms.buckets.1.key_as_string: "a|2022-03-25T00:00:00.000Z" }
+  - match: { aggregations.m_terms.buckets.1.doc_count: 1 }
+  - match: { aggregations.m_terms.buckets.2.key: ["b", "2022-03-23T00:00:00.000Z"] }
+  - match: { aggregations.m_terms.buckets.2.key_as_string: "b|2022-03-23T00:00:00.000Z" }
+  - match: { aggregations.m_terms.buckets.2.doc_count: 1 }
+
+---
+"Unmapped keywords":
+  - skip:
+      version: "- 2.9.99"
+      reason:  multi_terms aggregation is introduced in 3.0.0
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"str": "a", "integer": 1}'
+          - '{"index": {}}'
+          - '{"str": "a", "integer": 2}'
+          - '{"index": {}}'
+          - '{"str": "b", "integer": 1}'
+
+  - do:
+      search:
+        index: test_1
+        size: 0
+        body:
+          aggs:
+            m_terms:
+              multi_terms:
+                terms:
+                  - field: str
+                  - field: unmapped_string
+                    value_type: string
+                    missing: abc
+
+  - length: { aggregations.m_terms.buckets: 2 }
+  - match: { aggregations.m_terms.buckets.0.key: ["a", "abc"] }
+  - match: { aggregations.m_terms.buckets.0.key_as_string: "a|abc" }
+  - match: { aggregations.m_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.m_terms.buckets.1.key: ["b", "abc"] }
+  - match: { aggregations.m_terms.buckets.1.key_as_string: "b|abc" }
+  - match: { aggregations.m_terms.buckets.1.doc_count: 1 }
+
+---
+"Null value":
+  - skip:
+      version: "- 2.9.99"
+      reason:  multi_terms aggregation is introduced in 3.0.0
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"str": "a", "integer": null}'
+          - '{"index": {}}'
+          - '{"str": "a", "integer": 2}'
+          - '{"index": {}}'
+          - '{"str": null, "integer": 1}'
+
+  - do:
+      search:
+        index: test_1
+        size: 0
+        body:
+          aggs:
+            m_terms:
+              multi_terms:
+                terms:
+                  - field: str
+                  - field: integer
+
+  - length: { aggregations.m_terms.buckets: 1 }
+  - match: { aggregations.m_terms.buckets.0.key: ["a", 2] }
+  - match: { aggregations.m_terms.buckets.0.key_as_string: "a|2" }
+  - match: { aggregations.m_terms.buckets.0.doc_count: 1 }
+
+---
+"multiple multi_terms bucket":
+  - skip:
+      version: "- 2.9.99"
+      reason:  multi_terms aggregation is introduced in 3.0.0
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"str": "a", "integer": 1, "double": 1234.5, "boolean": true}'
+          - '{"index": {}}'
+          - '{"str": "a", "integer": 1, "double": 5678.9, "boolean": false}'
+          - '{"index": {}}'
+          - '{"str": "a", "integer": 1, "double": 1234.5, "boolean": true}'
+          - '{"index": {}}'
+          - '{"str": "b", "integer": 1, "double": 1234.5, "boolean": true}'
+
+  - do:
+      search:
+        index: test_1
+        size: 0
+        body:
+          aggs:
+            m_terms:
+              multi_terms:
+                terms:
+                  - field: str
+                  - field: integer
+              aggs:
+                n_terms:
+                  multi_terms:
+                    terms:
+                      - field: double
+                      - field: boolean
+
+  - length: { aggregations.m_terms.buckets: 2 }
+  - match: { aggregations.m_terms.buckets.0.key: ["a", 1] }
+  - match: { aggregations.m_terms.buckets.0.key_as_string: "a|1" }
+  - match: { aggregations.m_terms.buckets.0.doc_count: 3 }
+  - match: { aggregations.m_terms.buckets.0.n_terms.buckets.0.key: [1234.5, true] }
+  - match: { aggregations.m_terms.buckets.0.n_terms.buckets.0.key_as_string: "1234.5|true" }
+  - match: { aggregations.m_terms.buckets.0.n_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.m_terms.buckets.0.n_terms.buckets.1.key: [5678.9, false] }
+  - match: { aggregations.m_terms.buckets.0.n_terms.buckets.1.key_as_string: "5678.9|false" }
+  - match: { aggregations.m_terms.buckets.0.n_terms.buckets.1.doc_count: 1 }
+  - match: { aggregations.m_terms.buckets.1.key: ["b", 1] }
+  - match: { aggregations.m_terms.buckets.1.key_as_string: "b|1" }
+  - match: { aggregations.m_terms.buckets.1.doc_count: 1 }
+
+---
+"ordered by metrics":
+  - skip:
+      version: "- 3.0.0"
+      reason:  multi_terms aggregation is introduced in 3.0.0
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"str": "a", "double": 1234.5, "integer": 1}'
+          - '{"index": {}}'
+          - '{"str": "b", "double": 5678.9, "integer": 2}'
+          - '{"index": {}}'
+          - '{"str": "b", "double": 5678.9, "integer": 2}'
+          - '{"index": {}}'
+          - '{"str": "a", "double": 1234.5, "integer": 1}'
+
+  - do:
+      search:
+        index: test_1
+        size: 0
+        body:
+          aggs:
+            m_terms:
+              multi_terms:
+                terms:
+                  - field: str
+                  - field: double
+                order:
+                  the_int_sum: desc
+              aggs:
+                the_int_sum:
+                  sum:
+                    field: integer
+
+  - length: { aggregations.m_terms.buckets: 2 }
+  - match: { aggregations.m_terms.buckets.0.key: ["b", 5678.9] }
+  - match: { aggregations.m_terms.buckets.0.key_as_string: "b|5678.9" }
+  - match: { aggregations.m_terms.buckets.0.the_int_sum.value: 4.0 }
+  - match: { aggregations.m_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.m_terms.buckets.1.key: ["a", 1234.5] }
+  - match: { aggregations.m_terms.buckets.1.key_as_string: "a|1234.5" }
+  - match: { aggregations.m_terms.buckets.1.the_int_sum.value: 2.0 }
+  - match: { aggregations.m_terms.buckets.1.doc_count: 2 }
+
+---
+"top 1 ordered by metrics ":
+  - skip:
+      version: "- 2.9.99"
+      reason:  multi_terms aggregation is introduced in 3.0.0
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"str": "a", "double": 1234.5, "integer": 1}'
+          - '{"index": {}}'
+          - '{"str": "b", "double": 5678.9, "integer": 2}'
+          - '{"index": {}}'
+          - '{"str": "b", "double": 5678.9, "integer": 2}'
+          - '{"index": {}}'
+          - '{"str": "a", "double": 1234.5, "integer": 1}'
+
+  - do:
+      search:
+        index: test_1
+        size: 0
+        body:
+          aggs:
+            m_terms:
+              multi_terms:
+                terms:
+                  - field: str
+                  - field: double
+                order:
+                  the_int_sum: desc
+                size: 1
+              aggs:
+                the_int_sum:
+                  sum:
+                    field: integer
+
+  - length: { aggregations.m_terms.buckets: 1 }
+  - match: { aggregations.m_terms.buckets.0.key: ["b", 5678.9] }
+  - match: { aggregations.m_terms.buckets.0.key_as_string: "b|5678.9" }
+  - match: { aggregations.m_terms.buckets.0.the_int_sum.value: 4.0 }
+  - match: { aggregations.m_terms.buckets.0.doc_count: 2 }
+
+---
+"min_doc_count":
+  - skip:
+      version: "- 2.9.99"
+      reason:  multi_terms aggregation is introduced in 3.0.0
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"str": "a", "integer": 1}'
+          - '{"index": {}}'
+          - '{"str": "a", "integer": 1}'
+          - '{"index": {}}'
+          - '{"str": "b", "integer": 1}'
+          - '{"index": {}}'
+          - '{"str": "c", "integer": 1}'
+
+  - do:
+      search:
+        index: test_1
+        body:
+          size: 0
+          query:
+            simple_query_string:
+              fields: [str]
+              query: a b
+              minimum_should_match: 1
+          aggs:
+            m_terms:
+              multi_terms:
+                terms:
+                  - field: str
+                  - field: integer
+                min_doc_count: 2
+
+  - length: { aggregations.m_terms.buckets: 1 }
+  - match: { aggregations.m_terms.buckets.0.key: ["a", 1] }
+  - match: { aggregations.m_terms.buckets.0.key_as_string: "a|1" }
+  - match: { aggregations.m_terms.buckets.0.doc_count: 2 }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          size: 0
+          query:
+            simple_query_string:
+              fields: [str]
+              query: a b
+              minimum_should_match: 1
+          aggs:
+            m_terms:
+              multi_terms:
+                terms:
+                  - field: str
+                  - field: integer
+                min_doc_count: 0
+
+  - length: { aggregations.m_terms.buckets: 3 }
+  - match: { aggregations.m_terms.buckets.0.key: ["a", 1] }
+  - match: { aggregations.m_terms.buckets.0.key_as_string: "a|1" }
+  - match: { aggregations.m_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.m_terms.buckets.1.key: ["b", 1] }
+  - match: { aggregations.m_terms.buckets.1.key_as_string: "b|1" }
+  - match: { aggregations.m_terms.buckets.1.doc_count: 1 }
+  - match: { aggregations.m_terms.buckets.2.key: ["c", 1] }
+  - match: { aggregations.m_terms.buckets.2.key_as_string: "c|1" }
+  - match: { aggregations.m_terms.buckets.2.doc_count: 0 }
+
+---
+"sum_other_doc_count":
+  - skip:
+      version: "- 2.9.99"
+      reason:  multi_terms aggregation is introduced in 3.0.0
+
+  - do:
+      bulk:
+        index: test_2
+        refresh: true
+        body:
+          - '{"index": {"routing": "s1"}}'
+          - '{"str": "a", "integer": 1}'
+          - '{"index": {"routing": "s1"}}'
+          - '{"str": "a", "integer": 1}'
+          - '{"index": {"routing": "s1"}}'
+          - '{"str": "a", "integer": 1}'
+          - '{"index": {"routing": "s1"}}'
+          - '{"str": "a", "integer": 1}'
+          - '{"index": {"routing": "s2"}}'
+          - '{"str": "b", "integer": 1}'
+          - '{"index": {"routing": "s2"}}'
+          - '{"str": "b", "integer": 1}'
+          - '{"index": {"routing": "s2"}}'
+          - '{"str": "b", "integer": 1}'
+          - '{"index": {"routing": "s2"}}'
+          - '{"str": "a", "integer": 1}'
+
+  - do:
+      search:
+        index: test_2
+        size: 0
+        body:
+          aggs:
+            m_terms:
+              multi_terms:
+                size: 1
+                shard_size: 1
+                terms:
+                  - field: str
+                  - field: integer
+
+  - length: { aggregations.m_terms.buckets: 1 }
+  - match: { aggregations.m_terms.sum_other_doc_count: 4 }
+  - match: { aggregations.m_terms.buckets.0.key: ["a", 1] }
+  - match: { aggregations.m_terms.buckets.0.key_as_string: "a|1" }
+  - match: { aggregations.m_terms.buckets.0.doc_count: 4 }

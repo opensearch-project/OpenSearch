@@ -64,6 +64,7 @@ import org.opensearch.search.aggregations.bucket.range.InternalGeoDistanceTests;
 import org.opensearch.search.aggregations.bucket.range.InternalRangeTests;
 import org.opensearch.search.aggregations.bucket.sampler.InternalSamplerTests;
 import org.opensearch.search.aggregations.bucket.terms.DoubleTermsTests;
+import org.opensearch.search.aggregations.bucket.terms.InternalMultiTermsTests;
 import org.opensearch.search.aggregations.bucket.terms.LongRareTermsTests;
 import org.opensearch.search.aggregations.bucket.terms.LongTermsTests;
 import org.opensearch.search.aggregations.bucket.terms.SignificantLongTermsTests;
@@ -172,6 +173,7 @@ public class AggregationsTests extends OpenSearchTestCase {
         aggsTests.add(new InternalTopHitsTests());
         aggsTests.add(new InternalCompositeTests());
         aggsTests.add(new InternalMedianAbsoluteDeviationTests());
+        aggsTests.add(new InternalMultiTermsTests());
         return Collections.unmodifiableList(aggsTests);
     }
 
