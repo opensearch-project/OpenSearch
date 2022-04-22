@@ -214,8 +214,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
      * setting should be moved to {@link #BUILT_IN_INDEX_SETTINGS}.
      */
     public static final Map<String, Setting> FEATURE_FLAGGED_INDEX_SETTINGS = Map.of(
-        FeatureFlags.SEGREP_FEATURE_FLAG,
-        IndexMetadata.INDEX_SEGMENT_REPLICATION_SETTING
+        FeatureFlags.REPLICATION_TYPE,
+        IndexMetadata.INDEX_REPLICATION_TYPE_SETTING
     );
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);

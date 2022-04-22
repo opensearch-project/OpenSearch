@@ -16,10 +16,10 @@ package org.opensearch.common.util;
 public class FeatureFlags {
 
     /**
-     * Gates the visibility of the index setting that enables segment replication.
+     * Gates the visibility of the index setting that allows changing of replication type.
      * Once the feature is ready for production release, this feature flag can be removed.
      */
-    public static final String SEGREP_FEATURE_FLAG = "opensearch.segment_replication_feature_flag_enabled";
+    public static final String REPLICATION_TYPE = "opensearch.experimental.feature.replication_type.enabled";
 
     /**
      * Used to test feature flags whose values are expected to be booleans.
