@@ -256,27 +256,6 @@ public class Node implements Closeable {
     );
 
     /**
-     * Feature flag to gate the visibility of the index setting that enables segment replication.
-     * Once the feature is ready for production release, this feature flag can be removed.
-     */
-    public static final boolean SEGREP_FEATURE_FLAG_ENABLED = "true".equals(
-        System.getProperty("opensearch.segment_replication_feature_flag_enabled")
-    );
-
-    /**
-     * Used to specify if the index should use segment replication. If false, document replication is used.
-     * Currently located here so that it can gated by the {@link #SEGREP_FEATURE_FLAG_ENABLED} feature flag.
-     * Once the feature is ready for production release, the setting can be moved to
-     * {@link org.opensearch.common.settings.IndexScopedSettings#BUILT_IN_INDEX_SETTINGS}.
-     */
-    private static final Setting<Boolean> INDEX_SEGMENT_REPLICATION_SETTING = Setting.boolSetting(
-        "index.replication.segment_replication",
-        false,
-        Property.IndexScope,
-        Property.Final
-    );
-
-    /**
     * controls whether the node is allowed to persist things like metadata to disk
     * Note that this does not control whether the node stores actual indices (see
     * {@link #NODE_DATA_SETTING}). However, if this is false, {@link #NODE_DATA_SETTING}
@@ -477,10 +456,6 @@ public class Node implements Closeable {
             final List<String> additionalSettingsFilter = new ArrayList<>(pluginsService.getPluginSettingsFilter());
             for (final ExecutorBuilder<?> builder : threadPool.builders()) {
                 additionalSettings.addAll(builder.getRegisteredSettings());
-            }
-            // Add segment replication setting gated by feature flag
-            if (SEGREP_FEATURE_FLAG_ENABLED) {
-                additionalSettings.add(INDEX_SEGMENT_REPLICATION_SETTING);
             }
             client = new NodeClient(settings, threadPool);
 
