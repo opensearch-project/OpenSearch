@@ -470,9 +470,6 @@ public class TasksIT extends OpenSearchIntegTestCase {
 
                     @Override
                     public void waitForTaskCompletion(Task task) {}
-
-                    @Override
-                    public void taskExecutionStarted(Task task, Boolean closeableInvoked) {}
                 });
             }
             // Need to run the task in a separate thread because node client's .execute() is blocked by our task listener
@@ -653,9 +650,6 @@ public class TasksIT extends OpenSearchIntegTestCase {
                     public void waitForTaskCompletion(Task task) {
                         waitForWaitingToStart.countDown();
                     }
-
-                    @Override
-                    public void taskExecutionStarted(Task task, Boolean closeableInvoked) {}
 
                     @Override
                     public void onTaskRegistered(Task task) {}
