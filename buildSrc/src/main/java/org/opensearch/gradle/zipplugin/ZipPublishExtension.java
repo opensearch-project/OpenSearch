@@ -13,10 +13,9 @@ public class ZipPublishExtension {
     public void setZipGroup(String zipGroup) {
         this.zipGroup = zipGroup;
     }
-    
+
     public String getZipGroup() {
         return zipGroup;
     }
 
 }
-

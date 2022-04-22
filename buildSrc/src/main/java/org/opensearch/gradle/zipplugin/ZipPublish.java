@@ -29,10 +29,10 @@ public class ZipPublish implements Plugin<Project> {
     public final static String LOCAL_STAGING_REPO_PATH = "/build/local-staging-repo";
     public String zipDistributionLocation = "/build/distributions/";
 
-    private void configMaven() {
-        final Path buildDirectory = this.project.getRootDir().toPath();
-        this.project.getPluginManager().apply(MavenPublishPlugin.class);
-        this.project.getExtensions().configure(PublishingExtension.class, publishing -> {
+    private void configMaven(Project project) {
+        final Path buildDirectory = project.getRootDir().toPath();
+        project.getPluginManager().apply(MavenPublishPlugin.class);
+        project.getExtensions().configure(PublishingExtension.class, publishing -> {
             publishing.repositories(repositories -> {
                 repositories.maven(maven -> {
                     maven.setName(STAGING_REPO);
@@ -41,13 +41,11 @@ public class ZipPublish implements Plugin<Project> {
             });
             publishing.publications(publications -> {
                 publications.create(PUBLICATION_NAME, MavenPublication.class, mavenZip -> {
-                    ZipPublishExtension extset = this.project.getExtensions().findByType(ZipPublishExtension.class);
+                    ZipPublishExtension extset = project.getExtensions().findByType(ZipPublishExtension.class);
                     // Getting the Zip group from created extension
                     String zipGroup = extset.getZipGroup();
-                    String zipArtifact = getProperty("zipArtifact");
-                    // Getting the Zip version from gradle property with/without added snapshot and qualifier
-                    String zipVersion = extset.getZipVersion();
-                    String zipFilePath = null;
+                    String zipArtifact = project.getName();
+                    String zipVersion = ZipPublishUtil.getProperty("version", project);
                     mavenZip.artifact(project.getTasks().named("bundlePlugin"));
                     mavenZip.setGroupId(zipGroup);
                     mavenZip.setArtifactId(zipArtifact);
@@ -57,24 +55,11 @@ public class ZipPublish implements Plugin<Project> {
         });
     }
 
-    // function to get Project properties
-    private String getProperty(String name) {
-        if (this.project.hasProperty(name)) {
-            Object property = this.project.property(name);
-            if (property != null) {
-                return property.toString();
-            }
-        }
-        return null;
-    }
-
     @Override
     public void apply(Project project) {
-        final Path buildDirectory = project.getRootDir().toPath();
         this.project = project;
-        project.getExtensions().create(EXTENSION_NAME, ZipPublishExtension.class, project);
-        // Applies the new publication once the plugin is applied
-        configMaven();
+        project.getExtensions().create(EXTENSION_NAME, ZipPublishExtension.class);
+        project.afterEvaluate(evaluatedProject -> { configMaven(project); });
         Task compileJava = project.getTasks().findByName("compileJava");
         if (compileJava != null) {
             compileJava.setEnabled(false);
