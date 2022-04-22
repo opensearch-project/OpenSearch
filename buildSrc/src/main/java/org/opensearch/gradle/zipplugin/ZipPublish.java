@@ -27,7 +27,7 @@ public class ZipPublish implements Plugin<Project> {
         + "Publication";
     public final static String LOCALMAVEN = "publishToMavenLocal";
     public final static String LOCAL_STAGING_REPO_PATH = "/build/local-staging-repo";
-    public static String BUILD_DISTRIBUTIONS_LOCATION = "/build/distributions/";
+    public String zipDistributionLocation = "/build/distributions/";
 
     private void configMaven() {
         final Path buildDirectory = this.project.getRootDir().toPath();
@@ -62,10 +62,10 @@ public class ZipPublish implements Plugin<Project> {
                     String zipFilePath = null;
                     // -PzipFilePath=/build/distributions/opensearch-job-scheduler-2.0.0.0-alpha1-SNAPSHOT.zip
                     if (getProperty("zipFilePath") != null) {
-                        BUILD_DISTRIBUTIONS_LOCATION = getProperty("zipFilePath");
-                        zipFilePath = BUILD_DISTRIBUTIONS_LOCATION + zipArtifact + "-" + finalZipVersion + ".zip";
+                        zipDistributionLocation = getProperty("zipFilePath");
+                        zipFilePath = zipDistributionLocation + zipArtifact + "-" + finalZipVersion + ".zip";
                     } else {
-                        zipFilePath = BUILD_DISTRIBUTIONS_LOCATION + zipArtifact + "-" + finalZipVersion + ".zip";
+                        zipFilePath = zipDistributionLocation + zipArtifact + "-" + finalZipVersion + ".zip";
                     }
                     mavenZip.artifact(buildDirectory.toString() + zipFilePath);
                     mavenZip.setGroupId(zipGroup);
