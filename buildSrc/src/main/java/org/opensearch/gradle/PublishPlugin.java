@@ -120,6 +120,7 @@ public class PublishPlugin implements Plugin<Project> {
                 });
             });
         });
+
         publishing.getPublications().withType(MavenPublication.class, publication -> {
             // Add git origin info to generated POM files
             publication.getPom().withXml(PublishPlugin::addScmInfo);
@@ -134,7 +135,7 @@ public class PublishPlugin implements Plugin<Project> {
             }
 
             generatePomTask.configure(
-                t -> { t.dependsOn(String.format("generatePomFileFor%sPublication", Util.capitalize(publication.getName()))); }
+                t -> t.dependsOn(String.format("generatePomFileFor%sPublication", Util.capitalize(publication.getName())))
             );
         });
 
