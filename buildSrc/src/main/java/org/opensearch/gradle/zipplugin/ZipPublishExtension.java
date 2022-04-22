@@ -11,11 +11,11 @@ public class ZipPublishExtension {
 
     private String zipGroup = "org.opensearch.plugin";
 
-    public void setZipgroup(String zipGroup) {
+    public void setZipGroup(String zipGroup) {
         this.zipGroup = zipGroup;
     }
 
-    public String getZipgroup() {
+    public String getZipGroup() {
         return zipGroup;
     }
 

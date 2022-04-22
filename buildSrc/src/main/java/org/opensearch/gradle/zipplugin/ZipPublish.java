@@ -22,11 +22,6 @@ public class ZipPublish implements Plugin<Project> {
     public final static String EXTENSION_NAME = "zipmavensettings";
     public final static String PUBLICATION_NAME = "mavenzip";
     public final static String STAGING_REPO = "zipstaging";
-    public final static String MAVEN_ZIP_PUBLISH_TASK = "publish"
-        + ZipPublishUtil.capitalize(PUBLICATION_NAME)
-        + "PublicationTo"
-        + ZipPublishUtil.capitalize(STAGING_REPO)
-        + "Repository";
     public final static String MAVEN_ZIP_PUBLISH_POM_TASK = "generatePomFileFor"
         + ZipPublishUtil.capitalize(PUBLICATION_NAME)
         + "Publication";
@@ -44,12 +39,11 @@ public class ZipPublish implements Plugin<Project> {
                     maven.setUrl(buildDirectory.toString() + LOCAL_STAGING_REPO_PATH);
                 });
             });
-            System.out.println("Starting " + MAVEN_ZIP_PUBLISH_TASK + " task");
             publishing.publications(publications -> {
                 publications.create(PUBLICATION_NAME, MavenPublication.class, mavenZip -> {
                     ZipPublishExtension extset = this.project.getExtensions().findByType(ZipPublishExtension.class);
                     // Getting the Zip group from created extension
-                    String zipGroup = extset.getZipgroup();
+                    String zipGroup = extset.getZipGroup();
                     String zipArtifact = getProperty("zipArtifact");
                     // Getting the Zip version from gradle property with/without added snapshot and qualifier
                     String zipVersion = System.getProperty("opensearch.version");
