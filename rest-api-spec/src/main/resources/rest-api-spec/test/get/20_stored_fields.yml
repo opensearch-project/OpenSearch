@@ -48,5 +48,3 @@
   - match: { fields.foo:  [bar] }
   - match: { fields.count:  [1] }
   - match: { _source.foo: bar }
-
-

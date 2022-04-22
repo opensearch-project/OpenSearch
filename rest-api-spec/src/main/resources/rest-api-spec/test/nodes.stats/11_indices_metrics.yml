@@ -224,4 +224,3 @@
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
   - is_true:   nodes.$node_id.indices.segments.file_sizes
-

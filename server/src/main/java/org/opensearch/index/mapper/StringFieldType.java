@@ -34,7 +34,6 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
@@ -44,12 +43,12 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.search.AutomatonQueries;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.index.query.QueryShardContext;
-import org.opensearch.index.query.support.QueryParsers;
 
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -111,19 +110,13 @@ public abstract class StringFieldType extends TermBasedFieldType {
             );
         }
         failIfNotIndexed();
+        if (method == null) {
+            method = MultiTermQuery.CONSTANT_SCORE_REWRITE;
+        }
         if (caseInsensitive) {
-            AutomatonQuery query = AutomatonQueries.caseInsensitivePrefixQuery((new Term(name(), indexedValueForSearch(value))));
-            if (method != null) {
-                query.setRewriteMethod(method);
-            }
-            return query;
-
+            return AutomatonQueries.caseInsensitivePrefixQuery((new Term(name(), indexedValueForSearch(value))), method);
         }
-        PrefixQuery query = new PrefixQuery(new Term(name(), indexedValueForSearch(value)));
-        if (method != null) {
-            query.setRewriteMethod(method);
-        }
-        return query;
+        return new PrefixQuery(new Term(name(), indexedValueForSearch(value)), method);
     }
 
     public static final String normalizeWildcardPattern(String fieldname, String value, Analyzer normalizer) {
@@ -173,13 +166,12 @@ public abstract class StringFieldType extends TermBasedFieldType {
             term = new Term(name(), indexedValueForSearch(value));
         }
         if (caseInsensitive) {
-            AutomatonQuery query = AutomatonQueries.caseInsensitiveWildcardQuery(term);
-            QueryParsers.setRewriteMethod(query, method);
-            return query;
+            return AutomatonQueries.caseInsensitiveWildcardQuery(term, method);
         }
-        WildcardQuery query = new WildcardQuery(term);
-        QueryParsers.setRewriteMethod(query, method);
-        return query;
+        if (method == null) {
+            method = MultiTermQuery.CONSTANT_SCORE_REWRITE;
+        }
+        return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, method);
     }
 
     @Override
@@ -197,11 +189,17 @@ public abstract class StringFieldType extends TermBasedFieldType {
             );
         }
         failIfNotIndexed();
-        RegexpQuery query = new RegexpQuery(new Term(name(), indexedValueForSearch(value)), syntaxFlags, matchFlags, maxDeterminizedStates);
-        if (method != null) {
-            query.setRewriteMethod(method);
+        if (method == null) {
+            method = MultiTermQuery.CONSTANT_SCORE_REWRITE;
         }
-        return query;
+        return new RegexpQuery(
+            new Term(name(), indexedValueForSearch(value)),
+            syntaxFlags,
+            matchFlags,
+            RegexpQuery.DEFAULT_PROVIDER,
+            maxDeterminizedStates,
+            method
+        );
     }
 
     @Override

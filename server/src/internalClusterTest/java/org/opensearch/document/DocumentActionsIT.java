@@ -47,7 +47,6 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
@@ -58,7 +57,7 @@ import static org.opensearch.client.Requests.clearIndicesCacheRequest;
 import static org.opensearch.client.Requests.getRequest;
 import static org.opensearch.client.Requests.indexRequest;
 import static org.opensearch.client.Requests.refreshRequest;
-import static org.opensearch.index.query.QueryBuilders.termQuery;
+import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -181,11 +180,7 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
         // check count
         for (int i = 0; i < 5; i++) {
             // test successful
-            SearchResponse countResponse = client().prepareSearch("test")
-                .setSize(0)
-                .setQuery(termQuery("_type", MapperService.SINGLE_MAPPING_NAME))
-                .execute()
-                .actionGet();
+            SearchResponse countResponse = client().prepareSearch("test").setSize(0).setQuery(matchAllQuery()).execute().actionGet();
             assertNoFailures(countResponse);
             assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));

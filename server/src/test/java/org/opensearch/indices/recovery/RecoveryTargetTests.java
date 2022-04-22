@@ -44,9 +44,9 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.recovery.RecoveryState.FileDetail;
 import org.opensearch.indices.recovery.RecoveryState.Index;
 import org.opensearch.indices.recovery.RecoveryState.Stage;
-import org.opensearch.indices.recovery.RecoveryState.Timer;
 import org.opensearch.indices.recovery.RecoveryState.Translog;
 import org.opensearch.indices.recovery.RecoveryState.VerifyIndex;
+import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -63,9 +63,7 @@ import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -124,72 +122,81 @@ public class RecoveryTargetTests extends OpenSearchTestCase {
         }
     }
 
-    public void testTimers() throws Throwable {
-        final Timer timer;
-        Streamer<Timer> streamer;
+    public void testTimer() throws Throwable {
         AtomicBoolean stop = new AtomicBoolean();
-        if (randomBoolean()) {
-            timer = new Timer();
-            streamer = new Streamer<Timer>(stop, timer) {
-                @Override
-                Timer createObj(StreamInput in) throws IOException {
-                    return new Timer(in);
-                }
-            };
-        } else if (randomBoolean()) {
-            timer = new Index();
-            streamer = new Streamer<Timer>(stop, timer) {
-                @Override
-                Timer createObj(StreamInput in) throws IOException {
-                    return new Index(in);
-                }
-            };
-        } else if (randomBoolean()) {
-            timer = new VerifyIndex();
-            streamer = new Streamer<Timer>(stop, timer) {
-                @Override
-                Timer createObj(StreamInput in) throws IOException {
-                    return new VerifyIndex(in);
-                }
-            };
-        } else {
-            timer = new Translog();
-            streamer = new Streamer<Timer>(stop, timer) {
-                @Override
-                Timer createObj(StreamInput in) throws IOException {
-                    return new Translog(in);
-                }
-            };
-        }
+        final ReplicationTimer timer = new ReplicationTimer();
+        Streamer<ReplicationTimer> streamer = new Streamer<>(stop, timer) {
+            @Override
+            ReplicationTimer createObj(StreamInput in) throws IOException {
+                return new ReplicationTimer(in);
+            }
+        };
+        doTimerTest(timer, streamer);
+    }
 
+    public void testIndexTimer() throws Throwable {
+        AtomicBoolean stop = new AtomicBoolean();
+        Index index = new Index();
+        Streamer<Index> streamer = new Streamer<>(stop, index) {
+            @Override
+            Index createObj(StreamInput in) throws IOException {
+                return new Index(in);
+            }
+        };
+        doTimerTest(index, streamer);
+    }
+
+    public void testVerifyIndexTimer() throws Throwable {
+        AtomicBoolean stop = new AtomicBoolean();
+        VerifyIndex verifyIndex = new VerifyIndex();
+        Streamer<VerifyIndex> streamer = new Streamer<>(stop, verifyIndex) {
+            @Override
+            VerifyIndex createObj(StreamInput in) throws IOException {
+                return new VerifyIndex(in);
+            }
+        };
+        doTimerTest(verifyIndex, streamer);
+    }
+
+    public void testTranslogTimer() throws Throwable {
+        AtomicBoolean stop = new AtomicBoolean();
+        Translog translog = new Translog();
+        Streamer<Translog> streamer = new Streamer<>(stop, translog) {
+            @Override
+            Translog createObj(StreamInput in) throws IOException {
+                return new Translog(in);
+            }
+        };
+        doTimerTest(translog, streamer);
+    }
+
+    private void doTimerTest(ReplicationTimer timer, Streamer<? extends ReplicationTimer> streamer) throws Exception {
         timer.start();
-        assertThat(timer.startTime(), greaterThan(0L));
-        assertThat(timer.stopTime(), equalTo(0L));
-        Timer lastRead = streamer.serializeDeserialize();
+        assertTrue(timer.startTime() > 0);
+        assertEquals(0, timer.stopTime());
+        ReplicationTimer lastRead = streamer.serializeDeserialize();
         final long time = lastRead.time();
-        assertThat(time, lessThanOrEqualTo(timer.time()));
-        assertBusy(() -> assertThat("timer timer should progress compared to captured one ", time, lessThan(timer.time())));
-        assertThat("captured time shouldn't change", lastRead.time(), equalTo(time));
+        assertBusy(() -> assertTrue("timer timer should progress compared to captured one ", time < timer.time()));
+        assertEquals("captured time shouldn't change", time, lastRead.time());
 
-        if (randomBoolean()) {
-            timer.stop();
-            assertThat(timer.stopTime(), greaterThanOrEqualTo(timer.startTime()));
-            assertThat(timer.time(), greaterThan(0L));
-            lastRead = streamer.serializeDeserialize();
-            assertThat(lastRead.startTime(), equalTo(timer.startTime()));
-            assertThat(lastRead.time(), equalTo(timer.time()));
-            assertThat(lastRead.stopTime(), equalTo(timer.stopTime()));
-        }
+        timer.stop();
+        assertTrue(timer.stopTime() >= timer.startTime());
+        assertTrue(timer.time() > 0);
+        // validate captured time
+        lastRead = streamer.serializeDeserialize();
+        assertEquals(timer.startTime(), lastRead.startTime());
+        assertEquals(timer.time(), lastRead.time());
+        assertEquals(timer.stopTime(), lastRead.stopTime());
 
         timer.reset();
-        assertThat(timer.startTime(), equalTo(0L));
-        assertThat(timer.time(), equalTo(0L));
-        assertThat(timer.stopTime(), equalTo(0L));
+        assertEquals(0, timer.startTime());
+        assertEquals(0, timer.time());
+        assertEquals(0, timer.stopTime());
+        // validate captured time
         lastRead = streamer.serializeDeserialize();
-        assertThat(lastRead.startTime(), equalTo(0L));
-        assertThat(lastRead.time(), equalTo(0L));
-        assertThat(lastRead.stopTime(), equalTo(0L));
-
+        assertEquals(0, lastRead.startTime());
+        assertEquals(0, lastRead.time());
+        assertEquals(0, lastRead.stopTime());
     }
 
     public void testIndex() throws Throwable {

@@ -68,4 +68,3 @@
 
   - match: { items.0.update.get._source.foo: garply }
   - is_false: items.0.update.get._source.bar
-

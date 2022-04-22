@@ -45,6 +45,7 @@ import org.opensearch.common.xcontent.XContentOpenSearchExtension;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
@@ -72,7 +73,7 @@ public class RestRecoveryActionTests extends OpenSearchTestCase {
         for (int i = 0; i < successfulShards; i++) {
             final RecoveryState state = mock(RecoveryState.class);
             when(state.getShardId()).thenReturn(new ShardId(new Index("index", "_na_"), i));
-            final RecoveryState.Timer timer = mock(RecoveryState.Timer.class);
+            final ReplicationTimer timer = mock(ReplicationTimer.class);
             final long startTime = randomLongBetween(0, new Date().getTime());
             when(timer.startTime()).thenReturn(startTime);
             final long time = randomLongBetween(1000000, 10 * 1000000);
