@@ -531,7 +531,7 @@ public final class IndexSettings {
     private final String nodeName;
     private final Settings nodeSettings;
     private final int numberOfShards;
-    private final Boolean isSegRepEnabled;
+    private final ReplicationType replicationType;
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
     private volatile Settings settings;
     private volatile IndexMetadata indexMetadata;
@@ -683,9 +683,7 @@ public final class IndexSettings {
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
-
-        ReplicationType replicationType = ReplicationType.parseString(settings.get(IndexMetadata.SETTING_REPLICATION_TYPE));
-        isSegRepEnabled = ReplicationType.SEGMENT.equals(replicationType);
+        replicationType = ReplicationType.parseString(settings.get(IndexMetadata.SETTING_REPLICATION_TYPE));
 
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
@@ -924,7 +922,7 @@ public final class IndexSettings {
      * Returns true if segment replication is enabled on the index.
      */
     public boolean isSegrepEnabled() {
-        return Boolean.TRUE.equals(isSegRepEnabled);
+        return ReplicationType.SEGMENT.equals(replicationType);
     }
 
     /**
