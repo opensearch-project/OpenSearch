@@ -46,31 +46,12 @@ public class ZipPublish implements Plugin<Project> {
                     String zipGroup = extset.getZipGroup();
                     String zipArtifact = getProperty("zipArtifact");
                     // Getting the Zip version from gradle property with/without added snapshot and qualifier
-                    String zipVersion = System.getProperty("opensearch.version");
-                    String version = null;
-                    String extraSuffix = null;
-                    if (zipVersion != null) {
-                        StringTokenizer st = new StringTokenizer(zipVersion);
-                        version = st.nextToken("-") + ".0";
-                        try {
-                            extraSuffix = zipVersion.substring(zipVersion.indexOf("-"));
-                        } catch (Exception e) {
-                            System.out.println("");
-                        }
-                    }
-                    String finalZipVersion = version + extraSuffix;
+                    String zipVersion = extset.getZipVersion();
                     String zipFilePath = null;
-                    // -PzipFilePath=/build/distributions/opensearch-job-scheduler-2.0.0.0-alpha1-SNAPSHOT.zip
-                    if (getProperty("zipFilePath") != null) {
-                        zipDistributionLocation = getProperty("zipFilePath");
-                        zipFilePath = zipDistributionLocation + zipArtifact + "-" + finalZipVersion + ".zip";
-                    } else {
-                        zipFilePath = zipDistributionLocation + zipArtifact + "-" + finalZipVersion + ".zip";
-                    }
-                    mavenZip.artifact(buildDirectory.toString() + zipFilePath);
+                    mavenZip.artifact(project.getTasks().named("bundlePlugin"));
                     mavenZip.setGroupId(zipGroup);
                     mavenZip.setArtifactId(zipArtifact);
-                    mavenZip.setVersion(finalZipVersion);
+                    mavenZip.setVersion(zipVersion);
                 });
             });
         });
@@ -91,7 +72,7 @@ public class ZipPublish implements Plugin<Project> {
     public void apply(Project project) {
         final Path buildDirectory = project.getRootDir().toPath();
         this.project = project;
-        project.getExtensions().create(EXTENSION_NAME, ZipPublishExtension.class);
+        project.getExtensions().create(EXTENSION_NAME, ZipPublishExtension.class, project);
         // Applies the new publication once the plugin is applied
         configMaven();
         Task compileJava = project.getTasks().findByName("compileJava");
