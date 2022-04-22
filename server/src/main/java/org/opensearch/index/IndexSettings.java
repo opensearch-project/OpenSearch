@@ -921,7 +921,7 @@ public final class IndexSettings {
     /**
      * Returns true if segment replication is enabled on the index.
      */
-    public boolean isSegrepEnabled() {
+    public boolean isSegRepEnabled() {
         return ReplicationType.SEGMENT.equals(replicationType);
     }
 
