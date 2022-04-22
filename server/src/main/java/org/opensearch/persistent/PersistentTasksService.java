@@ -54,7 +54,7 @@ import java.util.function.Predicate;
 
 /**
  * This service is used by persistent tasks and allocated persistent tasks to communicate changes
- * to the master node so that the master can update the cluster state and can track of the states
+ * to the cluster-manager node so that the cluster-manager can update the cluster state and can track of the states
  * of the persistent tasks.
  */
 public class PersistentTasksService {

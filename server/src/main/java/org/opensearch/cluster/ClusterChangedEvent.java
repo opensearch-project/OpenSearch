@@ -263,7 +263,7 @@ public class ClusterChangedEvent {
         // If the new cluster state has a new cluster UUID, the likely scenario is that a node was elected
         // master that has had its data directory wiped out, in which case we don't want to delete the indices and lose data;
         // rather we want to import them as dangling indices instead. So we check here if the cluster UUID differs from the previous
-        // cluster UUID, in which case, we don't want to delete indices that the master erroneously believes shouldn't exist.
+        // cluster UUID, in which case, we don't want to delete indices that the cluster-manager erroneously believes shouldn't exist.
         // See test DiscoveryWithServiceDisruptionsIT.testIndicesDeleted()
         // See discussion on https://github.com/elastic/elasticsearch/pull/9952 and
         // https://github.com/elastic/elasticsearch/issues/11665
