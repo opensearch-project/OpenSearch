@@ -85,7 +85,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
     }
 
     /**
-     * Cluster Health Status, only populated on master nodes.
+     * Cluster Health Status, only populated on cluster-manager nodes.
      */
     @Nullable
     public ClusterHealthStatus clusterStatus() {

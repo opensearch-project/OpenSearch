@@ -67,7 +67,7 @@ import java.io.IOException;
 import java.util.function.Predicate;
 
 /**
- * A base class for operations that needs to be performed on the master node.
+ * A base class for operations that needs to be performed on the cluster-manager node.
  */
 public abstract class TransportMasterNodeAction<Request extends MasterNodeRequest<Request>, Response extends ActionResponse> extends
     HandledTransportAction<Request, Response> {

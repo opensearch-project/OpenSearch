@@ -61,7 +61,7 @@ class BulkPrimaryExecutionContext {
         TRANSLATED,
         /**
          * the request can not execute with the current mapping and should wait for a new mapping
-         * to arrive from the master. A mapping request for the needed changes has already been
+         * to arrive from the cluster-manager. A mapping request for the needed changes has already been
          * submitted
          */
         WAIT_FOR_MAPPING_UPDATE,
@@ -144,7 +144,7 @@ class BulkPrimaryExecutionContext {
         return currentItemState == ItemProcessingState.EXECUTED;
     }
 
-    /** returns true if the request needs to wait for a mapping update to arrive from the master */
+    /** returns true if the request needs to wait for a mapping update to arrive from the cluster-manager */
     public boolean requiresWaitingForMappingUpdate() {
         return currentItemState == ItemProcessingState.WAIT_FOR_MAPPING_UPDATE;
     }
@@ -216,7 +216,7 @@ class BulkPrimaryExecutionContext {
         return (T) requestToExecute;
     }
 
-    /** indicates that the current operation can not be completed and needs to wait for a new mapping from the master */
+    /** indicates that the current operation can not be completed and needs to wait for a new mapping from the cluster-manager */
     public void markAsRequiringMappingUpdate() {
         assert assertInvariants(ItemProcessingState.TRANSLATED);
         currentItemState = ItemProcessingState.WAIT_FOR_MAPPING_UPDATE;

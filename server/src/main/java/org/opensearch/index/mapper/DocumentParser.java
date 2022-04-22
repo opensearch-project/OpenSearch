@@ -460,7 +460,7 @@ final class DocumentParser {
         }
         if (nested.isIncludeInRoot()) {
             ParseContext.Document rootDoc = context.rootDoc();
-            // don't add it twice, if its included in parent, and we are handling the master doc...
+            // don't add it twice, if its included in parent, and we are handling the cluster-manager doc...
             if (!nested.isIncludeInParent() || parentDoc != rootDoc) {
                 addFields(nestedDoc, rootDoc);
             }

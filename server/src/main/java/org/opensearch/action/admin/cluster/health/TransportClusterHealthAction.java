@@ -222,7 +222,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                             request.waitForEvents()
                         );
                         // TransportMasterNodeAction implements the retry logic, which is triggered by passing a NotMasterException
-                        listener.onFailure(new NotMasterException("no longer master. source: [" + source + "]"));
+                        listener.onFailure(new NotMasterException("no longer cluster-manager. source: [" + source + "]"));
                     }
 
                     @Override
