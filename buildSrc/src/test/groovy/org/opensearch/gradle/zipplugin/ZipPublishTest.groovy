@@ -16,6 +16,7 @@ class ZipPublishTest {
         Project project = ProjectBuilder.builder().build()
         project.getPlugins().apply 'opensearch.zippublish'
 
+        assertTrue(project.plugins.hasPlugin("opensearch.zippublish"))
         assertTrue(project.tasks.publishMavenzipPublicationToZipstagingRepository instanceof ZipPublish)
     }
 }

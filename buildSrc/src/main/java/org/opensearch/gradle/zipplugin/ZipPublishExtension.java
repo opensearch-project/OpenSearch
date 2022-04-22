@@ -8,7 +8,6 @@
 package org.opensearch.gradle.zipplugin;
 
 public class ZipPublishExtension {
-
     private String zipGroup = "org.opensearch.plugin";
 
     public void setZipGroup(String zipGroup) {
