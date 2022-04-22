@@ -76,12 +76,6 @@ public class ZipPublish implements Plugin<Project> {
             if (graph.hasTask(LOCALMAVEN)) {
                 project.getTasks().getByName(MAVEN_ZIP_PUBLISH_POM_TASK).setEnabled(false);
             }
-            if(graph.hasTask("publishMavenzipPublicationToMavenLocal")) {
-                project.getTasks().getByName("publishMavenzipPublicationToMavenLocal").setEnabled(false);
-            }
-            if(graph.hasTask("publishMavenzipPublicationToStagingRepository")) {
-                project.getTasks().getByName("publishMavenzipPublicationToStagingRepository").setEnabled(false);
-            }
 
         });
     }
