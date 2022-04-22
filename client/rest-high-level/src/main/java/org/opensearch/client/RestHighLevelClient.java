@@ -1917,6 +1917,10 @@ public class RestHighLevelClient implements Closeable {
         ActionListener<Resp> listener,
         Set<Integer> ignores
     ) {
+        if (listener == null) {
+            throw new IllegalArgumentException("The listener is required and cannot be null");
+        }
+
         Request req;
         try {
             req = requestConverter.apply(request);
