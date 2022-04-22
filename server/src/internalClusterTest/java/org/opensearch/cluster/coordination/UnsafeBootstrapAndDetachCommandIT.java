@@ -171,7 +171,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends OpenSearchIntegTestCase {
         final Environment environment = TestEnvironment.newEnvironment(
             Settings.builder().put(nonMasterNode(internalCluster().getDefaultSettings())).build()
         );
-        expectThrows(() -> unsafeBootstrap(environment), UnsafeBootstrapMasterCommand.NOT_MASTER_NODE_MSG);
+        expectThrows(() -> unsafeBootstrap(environment), UnsafeBootstrapMasterCommand.NOT_CLUSTER_MANAGER_NODE_MSG);
     }
 
     public void testBootstrapNoDataFolder() {
