@@ -8,17 +8,14 @@
 
 package org.opensearch.indices.replication.common;
 
+/**
+ * Enumerates the types of replication strategies supported by OpenSearch.
+ * For more information, see https://github.com/opensearch-project/OpenSearch/issues/1694
+ */
 public enum ReplicationType {
 
-    DOCUMENT("document"),
-
-    SEGMENT("segment");
-
-    private final String value;
-
-    ReplicationType(String replicationType) {
-        this.value = replicationType;
-    }
+    DOCUMENT,
+    SEGMENT;
 
     public static ReplicationType parseString(String replicationType) {
         try {
@@ -29,10 +26,5 @@ public enum ReplicationType {
             // return a default value for null input
             return DOCUMENT;
         }
-    }
-
-    @Override
-    public String toString() {
-        return value;
     }
 }
