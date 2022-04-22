@@ -11,6 +11,10 @@ apply plugin: 'jacoco'
 repositories {
   mavenCentral()
   gradlePluginPortal()
+  // TODO: Find the way to use the repositories from RepositoriesSetupPlugin
+  maven {
+    url = "https://d1nvenhzbhpy0q.cloudfront.net/snapshots/lucene/"
+  }
 }
 
 allprojects {
