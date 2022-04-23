@@ -22,9 +22,7 @@ public class ZipPublish implements Plugin<Project> {
     public final static String EXTENSION_NAME = "zipmavensettings";
     public final static String PUBLICATION_NAME = "mavenzip";
     public final static String STAGING_REPO = "zipstaging";
-    public final static String MAVEN_ZIP_PUBLISH_POM_TASK = "generatePomFileFor"
-        + ZipPublishUtil.capitalize(PUBLICATION_NAME)
-        + "Publication";
+    public final static String MAVEN_ZIP_PUBLISH_POM_TASK = "generatePomFileForMavenzipPublication";
     public final static String LOCALMAVEN = "publishToMavenLocal";
     public final static String LOCAL_STAGING_REPO_PATH = "/build/local-staging-repo";
     public String zipDistributionLocation = "/build/distributions/";
@@ -45,7 +43,7 @@ public class ZipPublish implements Plugin<Project> {
                     // Getting the Zip group from created extension
                     String zipGroup = extset.getZipGroup();
                     String zipArtifact = project.getName();
-                    String zipVersion = ZipPublishUtil.getProperty("version", project);
+                    String zipVersion = getProperty("version", project);
                     mavenZip.artifact(project.getTasks().named("bundlePlugin"));
                     mavenZip.setGroupId(zipGroup);
                     mavenZip.setArtifactId(zipArtifact);
@@ -53,6 +51,16 @@ public class ZipPublish implements Plugin<Project> {
                 });
             });
         });
+    }
+
+    static String getProperty(String name, Project project) {
+        if (project.hasProperty(name)) {
+            Object property = project.property(name);
+            if (property != null) {
+                return property.toString();
+            }
+        }
+        return null;
     }
 
     @Override
