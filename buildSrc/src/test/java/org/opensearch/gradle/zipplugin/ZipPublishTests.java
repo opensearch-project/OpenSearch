@@ -16,6 +16,7 @@ import org.junit.Test;
 import java.io.IOException;
 import org.gradle.api.Task;
 import org.gradle.api.publish.maven.tasks.PublishToMavenRepository;
+import org.gradle.api.publish.maven.MavenPublication;
 
 public class ZipPublishTests extends GradleUnitTestCase {
 
@@ -31,7 +32,7 @@ public class ZipPublishTests extends GradleUnitTestCase {
         assertNotNull("plugin extensions has the right type", project.getExtensions().findByType(ZipPublishExtension.class));
         
         assertNotNull(project.getTasks().withType(PublishToMavenRepository.class));
-        assertTrue(project.getTasks().getByName("publishMavenzipPublicationToZipstagingRepository") instanceof PublishToMavenRepository);
+        assertTrue(project.getTasks().getByName("publishMavenzipPublicationToZipstagingRepository") instanceof MavenPublication);
         //project.tasks["publishTestPublicationToMavenRepository"] instanceof PublishToMavenRepository
 
         //assertNotNull(project.getTasks().getByName("hello"));
