@@ -16,9 +16,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.Writer;
 import java.io.FileWriter;
-import java.nio.file.Files;
-import org.gradle.testkit.runner.GradleRunner;
 import org.gradle.testkit.runner.BuildResult;
+import org.gradle.api.publish.maven.MavenPublication;
 
 public class ZipPublishTests extends GradleUnitTestCase {
 
@@ -28,25 +27,8 @@ public class ZipPublishTests extends GradleUnitTestCase {
         Project project = ProjectBuilder.builder().build();
         project.getPluginManager().apply(ZipPublish.class);
         assertTrue(project.getPluginManager().hasPlugin("opensearch.zippublish"));
-        File projectDir = new File("build/functionalTest");
-        Files.createDirectories(projectDir.toPath());
-        writeString(new File(projectDir, "settings.gradle"), "");
-        writeString(new File(projectDir, "build.gradle"), "plugins {" + "  id('opensearch.zippublish')" + "}");
-
-        GradleRunner runner = GradleRunner.create();
-        runner.forwardOutput();
-        runner.withPluginClasspath();
-        runner.withArguments("publishMavenzipPublicationToZipstagingRepository");
-        runner.withProjectDir(projectDir);
-        BuildResult result = runner.build();
-
-        assertTrue(result.getOutput().contains("someoutput from the publishMavenzipPublicationToZipstagingRepository task"));
+        assertTrue(project.getTasks().findByName("publishMavenzipPublicationToZipstagingRepository") instanceof MavenPublication);
     }
 
-    private void writeString(File file, String string) throws IOException {
-        try (Writer writer = new FileWriter(file)) {
-            writer.write(string);
-        }
-    }
 
 }
