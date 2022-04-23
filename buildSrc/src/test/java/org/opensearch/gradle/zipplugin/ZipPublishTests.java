@@ -25,7 +25,6 @@ public class ZipPublishTests extends GradleUnitTestCase {
         assertNotNull("plugin extension created with the right name", project.getExtensions().findByName(ZipPublish.EXTENSION_NAME));
         assertNotNull("plugin extensions has the right type", project.getExtensions().findByType(ZipPublishExtension.class));
         assertNotNull(project.getTasks().withType(PublishToMavenRepository.class));
-        assertTrue(project.getTasks().findByName("publishMavenzipPublicationToZipstagingRepository") instanceof ZipPublish);
     }
 
 }
