@@ -23,6 +23,13 @@ public class ZipPublishTests extends GradleUnitTestCase {
         Project project = ProjectBuilder.builder().build();
         project.getPluginManager().apply("opensearch.zippublish");
         assertTrue(project.getPluginManager().hasPlugin("opensearch.zippublish"));
+        assertNotNull(
+            "plugin extension created with the right name",
+            project.getExtensions().findByName(ZipPublish.EXTENSION_NAME)
+        );
+        assertNotNull("plugin extensions has the right type", project.getExtensions().findByType(ZipPublishExtension.class));
+        assertNotNull("plugin has the task", project.getExtensions().findByType(ZipPublishExtension.class));
+        assertNotNull("plugin has the task", project.getTasks().getByName("publishMavenzipPublicationToZipstagingRepository"));
     }
 
 
