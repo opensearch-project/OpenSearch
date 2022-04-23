@@ -14,6 +14,7 @@ import org.gradle.api.Plugin;
 import org.opensearch.gradle.test.GradleUnitTestCase;
 import org.junit.Test;
 import java.io.IOException;
+import org.gradle.api.Task;
 
 public class ZipPublishTests extends GradleUnitTestCase {
 
