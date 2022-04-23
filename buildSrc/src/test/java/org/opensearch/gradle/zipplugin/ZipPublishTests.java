@@ -22,10 +22,8 @@ public class ZipPublishTests extends GradleUnitTestCase {
     public void testZipPublish() throws IOException {
         System.out.println("Testing ZipPublishTests");
         Project project = ProjectBuilder.builder().build();
-        project.getPluginManager().apply(ZipPublish.class);
+        project.getPluginManager().apply("opensearch.zippublish");
         assertTrue(project.getPluginManager().hasPlugin("opensearch.zippublish"));
-        /*Task zipPublishTask = project.getTasks().findByName("publishMavenzipPublicationToZipstagingRepository");
-        assertNotNull(zipPublishTask);*/
         assertNotNull(project.getTasks().getByName("publishMavenzipPublicationToZipstagingRepository"));
     }
 
