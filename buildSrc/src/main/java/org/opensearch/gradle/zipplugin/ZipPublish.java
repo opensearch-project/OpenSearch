@@ -22,7 +22,7 @@ public class ZipPublish implements Plugin<Project> {
     public final static String EXTENSION_NAME = "zipmavensettings";
     public final static String PUBLICATION_NAME = "mavenzip";
     public final static String STAGING_REPO = "zipstaging";
-    public final static String MAVEN_ZIP_PUBLISH_POM_TASK = "generatePomFileForMavenzipPublication";
+    public final static String MAVEN_ZIP_PUBLISH_POM_TASK = "generatePomFileForMavenZipPublication";
     public final static String LOCALMAVEN = "publishToMavenLocal";
     public final static String LOCAL_STAGING_REPO_PATH = "/build/local-staging-repo";
     public String zipDistributionLocation = "/build/distributions/";
