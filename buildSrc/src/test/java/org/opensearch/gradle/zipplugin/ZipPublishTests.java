@@ -10,13 +10,10 @@ package org.opensearch.gradle.zipplugin;
 
 import org.gradle.testfixtures.ProjectBuilder;
 import org.gradle.api.Project;
-import org.gradle.api.Plugin;
 import org.opensearch.gradle.test.GradleUnitTestCase;
 import org.junit.Test;
 import java.io.IOException;
-import org.gradle.api.Task;
 import org.gradle.api.publish.maven.tasks.PublishToMavenRepository;
-import org.gradle.api.publish.maven.MavenPublication;
 
 public class ZipPublishTests extends GradleUnitTestCase {
 
@@ -25,18 +22,9 @@ public class ZipPublishTests extends GradleUnitTestCase {
         Project project = ProjectBuilder.builder().build();
         project.getPluginManager().apply("opensearch.zippublish");
         assertTrue(project.getPluginManager().hasPlugin("opensearch.zippublish"));
-        assertNotNull(
-            "plugin extension created with the right name",
-            project.getExtensions().findByName(ZipPublish.EXTENSION_NAME)
-        );
+        assertNotNull("plugin extension created with the right name", project.getExtensions().findByName(ZipPublish.EXTENSION_NAME));
         assertNotNull("plugin extensions has the right type", project.getExtensions().findByType(ZipPublishExtension.class));
-        
         assertNotNull(project.getTasks().withType(PublishToMavenRepository.class));
-        assertTrue(project.getTasks().findByName("publishMavenzipPublicationToZipstagingRepository") instanceof MavenPublication);
-        //project.tasks["publishTestPublicationToMavenRepository"] instanceof PublishToMavenRepository
-
-        //assertNotNull(project.getTasks().getByName("hello"));
     }
-
 
 }
