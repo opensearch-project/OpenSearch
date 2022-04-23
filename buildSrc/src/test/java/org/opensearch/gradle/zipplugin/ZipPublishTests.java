@@ -10,14 +10,10 @@ package org.opensearch.gradle.zipplugin;
 
 import org.gradle.testfixtures.ProjectBuilder;
 import org.gradle.api.Project;
+import org.gradle.api.Plugin;
 import org.opensearch.gradle.test.GradleUnitTestCase;
 import org.junit.Test;
-import java.io.File;
 import java.io.IOException;
-import java.io.Writer;
-import java.io.FileWriter;
-import org.gradle.testkit.runner.BuildResult;
-import org.gradle.api.publish.maven.MavenPublication;
 
 public class ZipPublishTests extends GradleUnitTestCase {
 

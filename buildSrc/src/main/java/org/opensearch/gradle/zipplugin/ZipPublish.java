@@ -59,7 +59,7 @@ public class ZipPublish implements Plugin<Project> {
         this.project = project;
         project.getExtensions().create(EXTENSION_NAME, ZipPublishExtension.class);
         project.afterEvaluate(evaluatedProject -> { configMaven(project); });
-        /*Task compileJava = project.getTasks().findByName("compileJava");
+        Task compileJava = project.getTasks().findByName("compileJava");
         if (compileJava != null) {
             compileJava.setEnabled(false);
         }
@@ -70,7 +70,7 @@ public class ZipPublish implements Plugin<Project> {
         Task javaDocJarTask = project.getTasks().findByName("javadocJar");
         if (javaDocJarTask != null) {
             javaDocJarTask.setEnabled(false);
-        }*/
+        }
         project.getGradle().getTaskGraph().whenReady(graph -> {
             if (graph.hasTask(LOCALMAVEN)) {
                 project.getTasks().getByName(MAVEN_ZIP_PUBLISH_POM_TASK).setEnabled(false);
