@@ -14,7 +14,6 @@ import org.gradle.api.publish.PublishingExtension;
 import org.gradle.api.publish.maven.MavenPublication;
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin;
 import java.nio.file.Path;
-import org.gradle.api.Task;
 
 public class ZipPublish implements Plugin<Project> {
     private Project project;
