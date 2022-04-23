@@ -28,7 +28,7 @@ public class ZipPublishTests extends GradleUnitTestCase {
         Project project = ProjectBuilder.builder().build();
         project.getPluginManager().apply("opensearch.zippublish");
         assertTrue(project.getPluginManager().hasPlugin("opensearch.zippublish"));
-        assertTrue("plugin should have a task", project.getTasks().findByName("publishMavenzipPublicationToZipstagingRepository"));
+        assertTrue(project.getTasks().findByName("publishMavenzipPublicationToZipstagingRepository"));
         File projectDir = new File("build/functionalTest");
         Files.createDirectories(projectDir.toPath());
         writeString(new File(projectDir, "settings.gradle"), "");
