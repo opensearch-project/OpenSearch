@@ -46,8 +46,8 @@ setup:
 ---
 "Basic test":
   - skip:
-      version: "- 2.9.99"
-      reason:  multi_terms aggregation is introduced in 3.0.0
+      version: "- 2.0.99"
+      reason:  multi_terms aggregation is introduced in 2.1.0
 
   - do:
       bulk:
@@ -96,8 +96,8 @@ setup:
 ---
 "IP test":
   - skip:
-      version: "- 2.9.99"
-      reason:  multi_terms aggregation is introduced in 3.0.0
+      version: "- 2.0.99"
+      reason:  multi_terms aggregation is introduced in 2.1.0
 
   - do:
       bulk:
@@ -146,8 +146,8 @@ setup:
 ---
 "Boolean test":
   - skip:
-      version: "- 2.9.99"
-      reason:  multi_terms aggregation is introduced in 3.0.0
+      version: "- 2.0.99"
+      reason:  multi_terms aggregation is introduced in 2.1.0
 
   - do:
       bulk:
@@ -196,8 +196,8 @@ setup:
 ---
 "Double test":
   - skip:
-      version: "- 2.9.99"
-      reason:  multi_terms aggregation is introduced in 3.0.0
+      version: "- 2.0.99"
+      reason:  multi_terms aggregation is introduced in 2.1.0
 
   - do:
       bulk:
@@ -239,8 +239,8 @@ setup:
 ---
 "Date test":
   - skip:
-      version: "- 2.9.99"
-      reason:  multi_terms aggregation is introduced in 3.0.0
+      version: "- 2.0.99"
+      reason:  multi_terms aggregation is introduced in 2.1.0
 
   - do:
       bulk:
@@ -282,8 +282,8 @@ setup:
 ---
 "Unmapped keywords":
   - skip:
-      version: "- 2.9.99"
-      reason:  multi_terms aggregation is introduced in 3.0.0
+      version: "- 2.0.99"
+      reason:  multi_terms aggregation is introduced in 2.1.0
 
   - do:
       bulk:
@@ -322,8 +322,8 @@ setup:
 ---
 "Null value":
   - skip:
-      version: "- 2.9.99"
-      reason:  multi_terms aggregation is introduced in 3.0.0
+      version: "- 2.0.99"
+      reason:  multi_terms aggregation is introduced in 2.1.0
 
   - do:
       bulk:
@@ -357,8 +357,8 @@ setup:
 ---
 "multiple multi_terms bucket":
   - skip:
-      version: "- 2.9.99"
-      reason:  multi_terms aggregation is introduced in 3.0.0
+      version: "- 2.0.99"
+      reason:  multi_terms aggregation is introduced in 2.1.0
 
   - do:
       bulk:
@@ -409,8 +409,8 @@ setup:
 ---
 "ordered by metrics":
   - skip:
-      version: "- 3.0.0"
-      reason:  multi_terms aggregation is introduced in 3.0.0
+      version: "- 2.0.99"
+      reason:  multi_terms aggregation is introduced in 2.1.0
 
   - do:
       bulk:
@@ -457,8 +457,8 @@ setup:
 ---
 "top 1 ordered by metrics ":
   - skip:
-      version: "- 2.9.99"
-      reason:  multi_terms aggregation is introduced in 3.0.0
+      version: "- 2.0.99"
+      reason:  multi_terms aggregation is introduced in 2.1.0
 
   - do:
       bulk:
@@ -502,8 +502,8 @@ setup:
 ---
 "min_doc_count":
   - skip:
-      version: "- 2.9.99"
-      reason:  multi_terms aggregation is introduced in 3.0.0
+      version: "- 2.0.99"
+      reason:  multi_terms aggregation is introduced in 2.1.0
 
   - do:
       bulk:
@@ -574,8 +574,8 @@ setup:
 ---
 "sum_other_doc_count":
   - skip:
-      version: "- 2.9.99"
-      reason:  multi_terms aggregation is introduced in 3.0.0
+      version: "- 2.0.99"
+      reason:  multi_terms aggregation is introduced in 2.1.0
 
   - do:
       bulk:
