@@ -33,4 +33,15 @@ public class NestedPathFieldMapperTests extends OpenSearchSingleNodeTestCase {
         ParsedDocument document = mapper.parse(new SourceToParse("index", "id", new BytesArray("{}"), XContentType.JSON));
         assertEquals(Collections.<IndexableField>emptyList(), Arrays.asList(document.rootDoc().getFields(NestedPathFieldMapper.NAME)));
     }
+
+    public void testUpdatesWithSameMappings() throws IOException {
+        Settings indexSettings = Settings.EMPTY;
+        MapperService mapperService = createIndex("test", indexSettings).mapperService();
+        DocumentMapper mapper = mapperService.merge(
+            MapperService.SINGLE_MAPPING_NAME,
+            new CompressedXContent("{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{}}"),
+            MapperService.MergeReason.MAPPING_UPDATE
+        );
+        mapper.merge(mapper.mapping(), MapperService.MergeReason.MAPPING_UPDATE);
+    }
 }
