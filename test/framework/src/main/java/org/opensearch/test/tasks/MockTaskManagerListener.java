@@ -43,7 +43,4 @@ public interface MockTaskManagerListener {
     void onTaskUnregistered(Task task);
 
     void waitForTaskCompletion(Task task);
-
-    void taskExecutionStarted(Task task, Boolean closeableInvoked);
-
 }

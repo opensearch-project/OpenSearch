@@ -42,7 +42,6 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskInfo;
-import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -61,15 +60,8 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
 
     private static final TimeValue DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT = timeValueSeconds(30);
 
-    private final TaskResourceTrackingService taskResourceTrackingService;
-
     @Inject
-    public TransportListTasksAction(
-        ClusterService clusterService,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        TaskResourceTrackingService taskResourceTrackingService
-    ) {
+    public TransportListTasksAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
         super(
             ListTasksAction.NAME,
             clusterService,
@@ -80,7 +72,6 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
             TaskInfo::new,
             ThreadPool.Names.MANAGEMENT
         );
-        this.taskResourceTrackingService = taskResourceTrackingService;
     }
 
     @Override
@@ -110,8 +101,6 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
                 }
                 taskManager.waitForTaskCompletion(task, timeoutNanos);
             });
-        } else {
-            operation = operation.andThen(taskResourceTrackingService::refreshResourceStats);
         }
         super.processTasks(request, operation);
     }
