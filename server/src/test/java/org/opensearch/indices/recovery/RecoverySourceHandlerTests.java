@@ -94,6 +94,7 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.test.CorruptionUtils;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.IndexSettingsModule;
@@ -194,7 +195,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
             metas.add(md);
         }
         Store targetStore = newStore(createTempDir());
-        MultiFileWriter multiFileWriter = new MultiFileWriter(targetStore, mock(RecoveryState.Index.class), "", logger, () -> {});
+        MultiFileWriter multiFileWriter = new MultiFileWriter(targetStore, mock(ReplicationLuceneIndex.class), "", logger, () -> {});
         RecoveryTargetHandler target = new TestRecoveryTargetHandler() {
             @Override
             public void writeFileChunk(
@@ -522,7 +523,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
             )
         );
         Store targetStore = newStore(createTempDir(), false);
-        MultiFileWriter multiFileWriter = new MultiFileWriter(targetStore, mock(RecoveryState.Index.class), "", logger, () -> {});
+        MultiFileWriter multiFileWriter = new MultiFileWriter(targetStore, mock(ReplicationLuceneIndex.class), "", logger, () -> {});
         RecoveryTargetHandler target = new TestRecoveryTargetHandler() {
             @Override
             public void writeFileChunk(
