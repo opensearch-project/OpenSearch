@@ -59,7 +59,7 @@ dependencies {
   api 'io.projectreactor:reactor-core:3.4.17'
   api 'io.projectreactor.netty:reactor-netty:1.0.17'
   api 'io.projectreactor.netty:reactor-netty-core:1.0.16'
-  api 'io.projectreactor.netty:reactor-netty-http:1.0.16'
+  api 'io.projectreactor.netty:reactor-netty-http:1.0.18'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
