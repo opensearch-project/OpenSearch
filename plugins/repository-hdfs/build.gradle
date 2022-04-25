@@ -67,7 +67,7 @@ dependencies {
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
   api 'com.google.code.gson:gson:2.9.0'
   runtimeOnly 'com.google.guava:guava:31.1-jre'
-  api 'com.google.protobuf:protobuf-java:3.20.0'
+  api 'com.google.protobuf:protobuf-java:3.20.1'
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api 'commons-cli:commons-cli:1.2'
   api "commons-codec:commons-codec:${versions.commonscodec}"
