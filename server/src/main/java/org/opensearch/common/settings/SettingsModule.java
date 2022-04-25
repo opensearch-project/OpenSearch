@@ -37,6 +37,7 @@ import org.apache.logging.log4j.LogManager;
 import org.opensearch.common.Strings;
 import org.opensearch.common.inject.Binder;
 import org.opensearch.common.inject.Module;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
@@ -83,6 +84,12 @@ public class SettingsModule implements Module {
         }
         for (Setting<?> setting : IndexScopedSettings.BUILT_IN_INDEX_SETTINGS) {
             registerSetting(setting);
+        }
+
+        for (Map.Entry<String, Setting> featureFlaggedSetting : IndexScopedSettings.FEATURE_FLAGGED_INDEX_SETTINGS.entrySet()) {
+            if (FeatureFlags.isEnabled(featureFlaggedSetting.getKey())) {
+                registerSetting(featureFlaggedSetting.getValue());
+            }
         }
 
         for (Setting<?> setting : additionalSettings) {
