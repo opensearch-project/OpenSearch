@@ -65,8 +65,8 @@ public final class RestClientBenchmark extends AbstractBenchmark<RestClient> {
     }
 
     @Override
-    protected BulkRequestExecutor bulkRequestExecutor(RestClient client, String indexName, String typeName) {
-        return new RestBulkRequestExecutor(client, indexName, typeName);
+    protected BulkRequestExecutor bulkRequestExecutor(RestClient client, String indexName) {
+        return new RestBulkRequestExecutor(client, indexName);
     }
 
     @Override
@@ -78,9 +78,9 @@ public final class RestClientBenchmark extends AbstractBenchmark<RestClient> {
         private final RestClient client;
         private final String actionMetadata;
 
-        RestBulkRequestExecutor(RestClient client, String index, String type) {
+        RestBulkRequestExecutor(RestClient client, String index) {
             this.client = client;
-            this.actionMetadata = String.format(Locale.ROOT, "{ \"index\" : { \"_index\" : \"%s\", \"_type\" : \"%s\" } }%n", index, type);
+            this.actionMetadata = String.format(Locale.ROOT, "{ \"index\" : { \"_index\" : \"%s\" } }%n", index);
         }
 
         @Override
@@ -91,7 +91,7 @@ public final class RestClientBenchmark extends AbstractBenchmark<RestClient> {
                 bulkRequestBody.append(bulkItem);
                 bulkRequestBody.append("\n");
             }
-            Request request = new Request("POST", "/geonames/type/_noop_bulk");
+            Request request = new Request("POST", "/geonames/_noop_bulk");
             request.setJsonEntity(bulkRequestBody.toString());
             try {
                 Response response = client.performRequest(request);
