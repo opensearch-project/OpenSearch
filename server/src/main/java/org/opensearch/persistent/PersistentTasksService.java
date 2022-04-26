@@ -74,7 +74,7 @@ public class PersistentTasksService {
     }
 
     /**
-     * Notifies the master node to create new persistent task and to assign it to a node.
+     * Notifies the cluster-manager node to create new persistent task and to assign it to a node.
      */
     public <Params extends PersistentTaskParams> void sendStartRequest(
         final String taskId,
@@ -89,7 +89,7 @@ public class PersistentTasksService {
     }
 
     /**
-     * Notifies the master node about the completion of a persistent task.
+     * Notifies the cluster-manager node about the completion of a persistent task.
      * <p>
      * When {@code failure} is {@code null}, the persistent task is considered as successfully completed.
      */
@@ -118,7 +118,7 @@ public class PersistentTasksService {
     }
 
     /**
-     * Notifies the master node that the state of a persistent task has changed.
+     * Notifies the cluster-manager node that the state of a persistent task has changed.
      * <p>
      * Persistent task implementers shouldn't call this method directly and use
      * {@link AllocatedPersistentTask#updatePersistentTaskState} instead
@@ -138,7 +138,7 @@ public class PersistentTasksService {
     }
 
     /**
-     * Notifies the master node to remove a persistent task from the cluster state
+     * Notifies the cluster-manager node to remove a persistent task from the cluster state
      */
     public void sendRemoveRequest(final String taskId, final ActionListener<PersistentTask<?>> listener) {
         RemovePersistentTaskAction.Request request = new RemovePersistentTaskAction.Request(taskId);

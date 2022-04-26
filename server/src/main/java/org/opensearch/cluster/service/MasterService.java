@@ -402,7 +402,7 @@ public class MasterService extends AbstractLifecycleComponent {
         ClusterState newClusterState = executionResult.resultingState;
 
         if (previousClusterState != newClusterState) {
-            // only the master controls the version numbers
+            // only the cluster-manager controls the version numbers
             Builder builder = incrementVersion(newClusterState);
             if (previousClusterState.routingTable() != newClusterState.routingTable()) {
                 builder.routingTable(
@@ -616,7 +616,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 listener.onNoLongerMaster(source);
             } catch (Exception e) {
                 logger.error(
-                    () -> new ParameterizedMessage("exception thrown by listener while notifying no longer master from [{}]", source),
+                    () -> new ParameterizedMessage("exception thrown by listener while notifying no longer cluster-manager from [{}]", source),
                     e
                 );
             }
@@ -740,7 +740,7 @@ public class MasterService extends AbstractLifecycleComponent {
             this.clusterManagerNode = nodes.getMasterNode();
             int countDown = 0;
             for (DiscoveryNode node : nodes) {
-                // we always wait for at least the master node
+                // we always wait for at least the cluster-manager node
                 if (node.equals(clusterManagerNode) || ackedTaskListener.mustAck(node)) {
                     countDown++;
                 }

@@ -76,7 +76,7 @@ public class NodeMappingRefreshAction {
 
     public void nodeMappingRefresh(final DiscoveryNode clusterManagerNode, final NodeMappingRefreshRequest request) {
         if (clusterManagerNode == null) {
-            logger.warn("can't send mapping refresh for [{}], no master known.", request.index());
+            logger.warn("can't send mapping refresh for [{}], no cluster-manager known.", request.index());
             return;
         }
         transportService.sendRequest(clusterManagerNode, ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);

@@ -60,7 +60,7 @@ import java.io.Closeable;
 import java.util.Objects;
 
 /**
- * Component that runs only on the master node and is responsible for assigning running tasks to nodes
+ * Component that runs only on the cluster-manager node and is responsible for assigning running tasks to nodes
  */
 public class PersistentTasksClusterService implements ClusterStateListener, Closeable {
 
@@ -114,7 +114,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
     }
 
     /**
-     * Creates a new persistent task on master node
+     * Creates a new persistent task on cluster-manager node
      *
      * @param taskId     the task's id
      * @param taskName   the task's name

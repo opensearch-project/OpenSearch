@@ -226,7 +226,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final ClusterState state = event.state();
 
         // we need to clean the shards and indices we have on this node, since we
-        // are going to recover them again once state persistence is disabled (no master / not recovered)
+        // are going to recover them again once state persistence is disabled (no cluster-manager / not recovered)
         // TODO: feels hacky, a block disables state persistence, and then we clean the allocated shards, maybe another flag in blocks?
         if (state.blocks().disableStatePersistence()) {
             for (AllocatedIndex<? extends Shard> indexService : indicesService) {
@@ -244,7 +244,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         failMissingShards(state);
 
-        removeShards(state);   // removes any local shards that doesn't match what the master expects
+        removeShards(state);   // removes any local shards that doesn't match what the cluster-manager expects
 
         updateIndices(event); // can also fail shards, but these are then guaranteed to be in failedShardsCache
 
@@ -269,7 +269,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         DiscoveryNode clusterManagerNode = state.nodes().getMasterNode();
 
-        // remove items from cache which are not in our routing table anymore and resend failures that have not executed on master yet
+        // remove items from cache which are not in our routing table anymore and resend failures that have not executed on cluster-manager yet
         for (Iterator<Map.Entry<ShardId, ShardRouting>> iterator = failedShardsCache.entrySet().iterator(); iterator.hasNext();) {
             ShardRouting failedShardRouting = iterator.next().getValue();
             ShardRouting matchedRouting = localRoutingNode.getByShardId(failedShardRouting.shardId());
@@ -402,7 +402,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     /**
-     * Notifies master about shards that don't exist but are supposed to be active on this node.
+     * Notifies cluster-manager about shards that don't exist but are supposed to be active on this node.
      *
      * @param state new cluster state
      */
@@ -416,7 +416,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             if (shardRouting.initializing() == false
                 && failedShardsCache.containsKey(shardId) == false
                 && indicesService.getShardOrNull(shardId) == null) {
-                // the master thinks we are active, but we don't have this shard at all, mark it as failed
+                // the cluster-manager thinks we are active, but we don't have this shard at all, mark it as failed
                 sendFailShard(
                     shardRouting,
                     "master marked shard as active, but shard has not been created, mark shard as failed",
@@ -665,12 +665,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         final IndexShardState state = shard.state();
         if (shardRouting.initializing() && (state == IndexShardState.STARTED || state == IndexShardState.POST_RECOVERY)) {
-            // the master thinks we are initializing, but we are already started or on POST_RECOVERY and waiting
-            // for master to confirm a shard started message (either master failover, or a cluster event before
-            // we managed to tell the master we started), mark us as started
+            // the cluster-manager thinks we are initializing, but we are already started or on POST_RECOVERY and waiting
+            // for cluster-manager to confirm a shard started message (either cluster-manager failover, or a cluster event before
+            // we managed to tell the cluster-manager we started), mark us as started
             if (logger.isTraceEnabled()) {
                 logger.trace(
-                    "{} master marked shard as initializing, but shard has state [{}], resending shard started to {}",
+                    "{} cluster-manager marked shard as initializing, but shard has state [{}], resending shard started to {}",
                     shardRouting.shardId(),
                     state,
                     nodes.getMasterNode()

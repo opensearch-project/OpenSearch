@@ -32,12 +32,12 @@
  * In order to be resilient to node restarts, the persistent tasks are using the cluster state instead of a transport service to send
  * requests and responses. The execution is done in six phases:
  * <p>
- * 1. The coordinating node sends an ordinary transport request to the master node to start a new persistent task. This task is handled
+ * 1. The coordinating node sends an ordinary transport request to the cluster-manager node to start a new persistent task. This task is handled
  * by the {@link org.opensearch.persistent.PersistentTasksService}, which is using
  * {@link org.opensearch.persistent.PersistentTasksClusterService} to update cluster state with the record about running persistent
  * task.
  * <p>
- * 2. The master node updates the {@link org.opensearch.persistent.PersistentTasksCustomMetadata} in the cluster state to indicate
+ * 2. The cluster-manager node updates the {@link org.opensearch.persistent.PersistentTasksCustomMetadata} in the cluster state to indicate
  * that there is a new persistent task running in the system.
  * <p>
  * 3. The {@link org.opensearch.persistent.PersistentTasksNodeService} running on every node in the cluster monitors changes in

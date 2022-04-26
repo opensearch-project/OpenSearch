@@ -406,7 +406,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
     /**
      * Returns status of shards currently finished snapshots
      * <p>
-     * This method is executed on master node and it's complimentary to the
+     * This method is executed on cluster-manager node and it's complimentary to the
      * {@link SnapshotShardsService#currentSnapshotShards(Snapshot)} because it
      * returns similar information but for already finished snapshots.
      * </p>

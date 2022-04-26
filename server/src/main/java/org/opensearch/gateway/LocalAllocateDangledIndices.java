@@ -105,7 +105,7 @@ public class LocalAllocateDangledIndices {
         ClusterState clusterState = clusterService.state();
         DiscoveryNode clusterManagerNode = clusterState.nodes().getMasterNode();
         if (clusterManagerNode == null) {
-            listener.onFailure(new MasterNotDiscoveredException("no master to send allocate dangled request"));
+            listener.onFailure(new MasterNotDiscoveredException("no cluster-manager to send allocate dangled request"));
             return;
         }
         AllocateDangledRequest request = new AllocateDangledRequest(

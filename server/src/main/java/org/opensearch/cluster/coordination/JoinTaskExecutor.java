@@ -277,7 +277,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         // updating the version of those node which have connection with the new master.
         // Note: This should get deprecated with BWC mode logic
         if (null == transportService) {
-            // this logic is only applicable when OpenSearch node is master and is noop for zen discovery node
+            // this logic is only applicable when OpenSearch node is cluster-manager and is noop for zen discovery node
             return;
         }
         if (currentNodes.getMinNodeVersion().before(Version.V_1_0_0)) {
