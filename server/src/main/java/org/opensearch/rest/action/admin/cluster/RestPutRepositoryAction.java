@@ -34,6 +34,7 @@ package org.opensearch.rest.action.admin.cluster;
 
 import org.opensearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
@@ -53,6 +54,8 @@ import static org.opensearch.rest.RestRequest.Method.PUT;
  */
 public class RestPutRepositoryAction extends BaseRestHandler {
 
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestPutRepositoryAction.class);
+
     @Override
     public List<Route> routes() {
         return unmodifiableList(asList(new Route(POST, "/_snapshot/{repository}"), new Route(PUT, "/_snapshot/{repository}")));
@@ -70,7 +73,8 @@ public class RestPutRepositoryAction extends BaseRestHandler {
             putRepositoryRequest.source(parser.mapOrdered());
         }
         putRepositoryRequest.verify(request.paramAsBoolean("verify", true));
-        putRepositoryRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRepositoryRequest.masterNodeTimeout()));
+        putRepositoryRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", putRepositoryRequest.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(putRepositoryRequest, request, deprecationLogger, getName());
         putRepositoryRequest.timeout(request.paramAsTime("timeout", putRepositoryRequest.timeout()));
         return channel -> client.admin().cluster().putRepository(putRepositoryRequest, new RestToXContentListener<>(channel));
     }

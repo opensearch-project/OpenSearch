@@ -224,7 +224,7 @@ public class VersionsTests extends OpenSearchTestCase {
         assertEquals(VersionUtils.getFirstVersion().luceneVersion.major - 1, version.luceneVersion.major);
 
         // future version, should be the same version as today
-        version = Version.fromString("2.77.1");
+        version = Version.fromString(Version.CURRENT.major + ".77.1");
         assertEquals(Version.CURRENT.luceneVersion, version.luceneVersion);
     }
 }

@@ -139,13 +139,16 @@ public abstract class ParsedTerms extends ParsedMultiBucketAggregation<ParsedTer
             XContentParser.Token token;
             String currentFieldName = parser.currentName();
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                // field value could be list, e.g. multi_terms aggregation.
+                if ((token.isValue() || token == XContentParser.Token.START_ARRAY)
+                    && CommonFields.KEY.getPreferredName().equals(currentFieldName)) {
+                    keyConsumer.accept(parser, bucket);
+                }
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token.isValue()) {
                     if (CommonFields.KEY_AS_STRING.getPreferredName().equals(currentFieldName)) {
                         bucket.setKeyAsString(parser.text());
-                    } else if (CommonFields.KEY.getPreferredName().equals(currentFieldName)) {
-                        keyConsumer.accept(parser, bucket);
                     } else if (CommonFields.DOC_COUNT.getPreferredName().equals(currentFieldName)) {
                         bucket.setDocCount(parser.longValue());
                     } else if (DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME.getPreferredName().equals(currentFieldName)) {

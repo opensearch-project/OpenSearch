@@ -32,7 +32,6 @@
 package org.opensearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
-import org.opensearch.action.main.TransportMainAction;
 import org.opensearch.cluster.routing.allocation.decider.NodeLoadAwareAllocationDecider;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
@@ -552,7 +551,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 FsHealthService.REFRESH_INTERVAL_SETTING,
                 FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING,
                 FsHealthService.HEALTHY_TIMEOUT_SETTING,
-                TransportMainAction.OVERRIDE_MAIN_RESPONSE_VERSION,
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING,
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING,
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING,

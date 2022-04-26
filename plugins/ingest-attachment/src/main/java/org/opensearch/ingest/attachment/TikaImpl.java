@@ -42,7 +42,6 @@ import org.apache.tika.parser.ParserDecorator;
 import org.opensearch.SpecialPermission;
 import org.opensearch.bootstrap.FilePermissionUtils;
 import org.opensearch.bootstrap.JarHell;
-import org.opensearch.bootstrap.JavaVersion;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
 
@@ -181,14 +180,6 @@ final class TikaImpl {
         perms.add(new RuntimePermission("accessClassInPackage.sun.java2d.cmm.kcms"));
         // xmlbeans, use by POI, needs to get the context classloader
         perms.add(new RuntimePermission("getClassLoader"));
-        // ZipFile needs accessDeclaredMembers on JDK 10; cf. https://bugs.openjdk.java.net/browse/JDK-8187485
-        if (JavaVersion.current().compareTo(JavaVersion.parse("10")) >= 0) {
-            if (JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0) {
-                // TODO remove this and from plugin-security.policy when JDK 11 is the only one we support
-                // this is needed pre 11, but it's fixed in 11 : https://bugs.openjdk.java.net/browse/JDK-8187485
-                perms.add(new RuntimePermission("accessDeclaredMembers"));
-            }
-        }
         perms.setReadOnly();
         return perms;
     }

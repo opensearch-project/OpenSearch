@@ -33,7 +33,6 @@
 package org.opensearch.indices;
 
 import org.opensearch.Version;
-import org.opensearch.index.mapper.AllFieldMapper;
 import org.opensearch.index.mapper.DataStreamFieldMapper;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
@@ -46,7 +45,6 @@ import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.mapper.TextFieldMapper;
-import org.opensearch.index.mapper.TypeFieldMapper;
 import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.plugins.MapperPlugin;
@@ -96,20 +94,6 @@ public class IndicesModuleTests extends OpenSearchTestCase {
         IndexFieldMapper.NAME,
         DataStreamFieldMapper.NAME,
         SourceFieldMapper.NAME,
-        TypeFieldMapper.NAME,
-        VersionFieldMapper.NAME,
-        SeqNoFieldMapper.NAME,
-        FieldNamesFieldMapper.NAME };
-
-    private static String[] EXPECTED_METADATA_FIELDS_6x = new String[] {
-        AllFieldMapper.NAME,
-        IgnoredFieldMapper.NAME,
-        IdFieldMapper.NAME,
-        RoutingFieldMapper.NAME,
-        IndexFieldMapper.NAME,
-        DataStreamFieldMapper.NAME,
-        SourceFieldMapper.NAME,
-        TypeFieldMapper.NAME,
         VersionFieldMapper.NAME,
         SeqNoFieldMapper.NAME,
         FieldNamesFieldMapper.NAME };

@@ -34,6 +34,7 @@ package org.opensearch.rest.action.admin.indices;
 
 import org.opensearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -45,6 +46,8 @@ import java.util.List;
 import static org.opensearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteComposableIndexTemplateAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestDeleteComposableIndexTemplateAction.class);
 
     @Override
     public List<Route> routes() {
@@ -60,7 +63,8 @@ public class RestDeleteComposableIndexTemplateAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
 
         DeleteComposableIndexTemplateAction.Request deleteReq = new DeleteComposableIndexTemplateAction.Request(request.param("name"));
-        deleteReq.masterNodeTimeout(request.paramAsTime("master_timeout", deleteReq.masterNodeTimeout()));
+        deleteReq.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", deleteReq.masterNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(deleteReq, request, deprecationLogger, getName());
 
         return channel -> client.execute(DeleteComposableIndexTemplateAction.INSTANCE, deleteReq, new RestToXContentListener<>(channel));
     }

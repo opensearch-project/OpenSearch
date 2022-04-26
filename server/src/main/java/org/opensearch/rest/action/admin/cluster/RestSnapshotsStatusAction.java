@@ -35,6 +35,7 @@ package org.opensearch.rest.action.admin.cluster;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -51,6 +52,8 @@ import static org.opensearch.rest.RestRequest.Method.GET;
  * Returns status of currently running snapshot
  */
 public class RestSnapshotsStatusAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSnapshotsStatusAction.class);
 
     @Override
     public List<Route> routes() {
@@ -78,7 +81,10 @@ public class RestSnapshotsStatusAction extends BaseRestHandler {
         SnapshotsStatusRequest snapshotsStatusRequest = snapshotsStatusRequest(repository).snapshots(snapshots);
         snapshotsStatusRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", snapshotsStatusRequest.ignoreUnavailable()));
 
-        snapshotsStatusRequest.masterNodeTimeout(request.paramAsTime("master_timeout", snapshotsStatusRequest.masterNodeTimeout()));
+        snapshotsStatusRequest.masterNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", snapshotsStatusRequest.masterNodeTimeout())
+        );
+        parseDeprecatedMasterTimeoutParameter(snapshotsStatusRequest, request, deprecationLogger, getName());
         return channel -> client.admin().cluster().snapshotsStatus(snapshotsStatusRequest, new RestToXContentListener<>(channel));
     }
 }
