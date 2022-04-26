@@ -33,7 +33,6 @@
 package org.opensearch.client;
 
 import org.apache.http.client.methods.HttpGet;
-import org.opensearch.action.main.TransportMainAction;
 import org.opensearch.client.core.MainResponse;
 
 import java.io.IOException;
@@ -62,26 +61,5 @@ public class PingAndInfoIT extends OpenSearchRestHighLevelClientTestCase {
         assertEquals(versionMap.get("build_snapshot"), info.getVersion().isSnapshot());
         assertTrue(versionMap.get("number").toString().startsWith(info.getVersion().getNumber()));
         assertEquals(versionMap.get("lucene_version"), info.getVersion().getLuceneVersion());
-    }
-
-    public void testInfo_overrideResponseVersion() throws IOException {
-        Request overrideResponseVersionRequest = new Request("PUT", "/_cluster/settings");
-        overrideResponseVersionRequest.setOptions(expectWarnings(TransportMainAction.OVERRIDE_MAIN_RESPONSE_VERSION_DEPRECATION_MESSAGE));
-        overrideResponseVersionRequest.setJsonEntity("{\"persistent\":{\"compatibility\": {\"override_main_response_version\":true}}}");
-        client().performRequest(overrideResponseVersionRequest);
-
-        MainResponse info = highLevelClient().info(RequestOptions.DEFAULT);
-        assertEquals("7.10.2", info.getVersion().getNumber());
-
-        // Set back to default version.
-        Request resetResponseVersionRequest = new Request("PUT", "/_cluster/settings");
-        resetResponseVersionRequest.setJsonEntity("{\"persistent\":{\"compatibility\": {\"override_main_response_version\":null}}}");
-        client().performRequest(resetResponseVersionRequest);
-
-        Map<String, Object> infoAsMap = entityAsMap(adminClient().performRequest(new Request(HttpGet.METHOD_NAME, "/")));
-        @SuppressWarnings("unchecked")
-        Map<String, Object> versionMap = (Map<String, Object>) infoAsMap.get("version");
-        info = highLevelClient().info(RequestOptions.DEFAULT);
-        assertTrue(versionMap.get("number").toString().startsWith(info.getVersion().getNumber()));
     }
 }

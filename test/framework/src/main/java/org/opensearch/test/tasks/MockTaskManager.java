@@ -39,7 +39,6 @@ import org.apache.logging.log4j.util.Supplier;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskAwareRequest;
 import org.opensearch.tasks.TaskManager;
@@ -126,21 +125,6 @@ public class MockTaskManager extends TaskManager {
             }
         }
         super.waitForTaskCompletion(task, untilInNanos);
-    }
-
-    @Override
-    public ThreadContext.StoredContext taskExecutionStarted(Task task) {
-        for (MockTaskManagerListener listener : listeners) {
-            listener.taskExecutionStarted(task, false);
-        }
-
-        ThreadContext.StoredContext storedContext = super.taskExecutionStarted(task);
-        return () -> {
-            for (MockTaskManagerListener listener : listeners) {
-                listener.taskExecutionStarted(task, true);
-            }
-            storedContext.restore();
-        };
     }
 
     public void addListener(MockTaskManagerListener listener) {
