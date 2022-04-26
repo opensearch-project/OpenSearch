@@ -8,8 +8,6 @@
 
 package org.opensearch.rest.action.search;
 
-import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.search.CreatePITRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
@@ -24,7 +22,6 @@ import java.util.List;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
-import static org.opensearch.action.ValidateActions.addValidationError;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
 public class RestCreatePITAction extends BaseRestHandler {
@@ -38,11 +35,6 @@ public class RestCreatePITAction extends BaseRestHandler {
         boolean allowPartialPitCreation = request.paramAsBoolean("allow_partial_pit_creation", true);
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         TimeValue keepAlive = request.paramAsTime("keep_alive", null);
-        ActionRequestValidationException validationException = null;
-        if (keepAlive == null) {
-            validationException = addValidationError("Keep alive cannot be empty", validationException);
-        }
-        ExceptionsHelper.reThrowIfNotNull(validationException);
         CreatePITRequest createPitRequest = new CreatePITRequest(keepAlive, allowPartialPitCreation, indices);
         createPitRequest.setIndicesOptions(IndicesOptions.fromRequest(request, createPitRequest.indicesOptions()));
         createPitRequest.setPreference(request.param("preference"));
@@ -53,7 +45,7 @@ public class RestCreatePITAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(new Route(POST, "/{index}/_search/_point_in_time")));
+        return unmodifiableList(asList(new Route(POST, "/{index}/_search/point_in_time")));
     }
 
 }

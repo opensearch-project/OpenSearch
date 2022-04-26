@@ -10,11 +10,7 @@ package org.opensearch.search;
 
 import org.hamcrest.Matchers;
 import org.opensearch.action.ActionFuture;
-import org.opensearch.action.search.CreatePITAction;
-import org.opensearch.action.search.CreatePITRequest;
-import org.opensearch.action.search.CreatePITResponse;
-import org.opensearch.action.search.SearchPhaseExecutionException;
-import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.search.*;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -47,7 +43,7 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         return Settings.builder()
             .put(super.nodeSettings())
             .put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(1))
-            .put(SearchService.CREATE_PIT_TEMPORARY_KEEPALIVE_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .put(PITController.CREATE_PIT_TEMPORARY_KEEPALIVE_SETTING.getKey(), TimeValue.timeValueSeconds(1))
             .build();
     }
 
@@ -175,7 +171,7 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
                 .setPointInTime(new PointInTimeBuilder(id).setKeepAlive(TimeValue.timeValueDays(1)))
                 .get()
         );
-        assertEquals("Cannot parse pit id", e.getMessage());
+        assertEquals("Cannot parse id", e.getMessage());
     }
 
     public void testPitSearchOnCloseIndex() throws ExecutionException, InterruptedException {
@@ -534,4 +530,56 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
+    public void testConcurrentSearches() throws Exception {
+        createIndex("index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
+        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
+        request.setIndices(new String[] { "index" });
+        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
+        CreatePITResponse pitResponse = execute.get();
+        Thread[] threads = new Thread[5];
+        CountDownLatch latch = new CountDownLatch(threads.length);
+
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread(() -> {
+                latch.countDown();
+                try {
+                    latch.await();
+                    for (int j = 0; j < 50; j++) {
+                        client().prepareSearch()
+                            .setSize(2)
+                            .setPointInTime(new PointInTimeBuilder(pitResponse.getId()).setKeepAlive(TimeValue.timeValueDays(1)))
+                            .execute()
+                            .get();
+                    }
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            });
+            threads[i].setName("opensearch[node_s_0][search]");
+            threads[i].start();
+        }
+        for (Thread thread : threads) {
+            thread.join();
+        }
+
+        SearchService service = getInstanceFromNode(SearchService.class);
+        assertEquals(2, service.getActiveContexts());
+        service.doClose();
+        assertEquals(0, service.getActiveContexts());
+    }
+
+    // public void testPitWithSearchAfter() throws InterruptedException {
+    // assertAcked(client().admin().indices().prepareCreate("test").setMapping("field1", "type=long", "field2", "type=keyword").get());
+    // ensureGreen();
+    // indexRandom(true, client().prepareIndex("test").setId("0").setSource("field1", 0, "field2", "toto"));
+    //
+    // client().prepareSearch("test")
+    // .addSort("field1", SortOrder.ASC)
+    // .setQuery(matchAllQuery())
+    // .searchAfter(new Object[] { 0 })
+    // .setScroll("1m")
+    // .get();
+    // }
 }

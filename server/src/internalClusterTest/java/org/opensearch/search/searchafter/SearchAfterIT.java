@@ -32,15 +32,15 @@
 
 package org.opensearch.search.searchafter;
 
+import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.opensearch.action.index.IndexRequestBuilder;
-import org.opensearch.action.search.SearchPhaseExecutionException;
-import org.opensearch.action.search.SearchRequestBuilder;
-import org.opensearch.action.search.SearchResponse;
-import org.opensearch.action.search.ShardSearchFailure;
+import org.opensearch.action.search.*;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.search.SearchHit;
+import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
@@ -50,7 +50,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Collections;
 import java.util.Arrays;
-
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
@@ -153,6 +152,57 @@ public class SearchAfterIT extends OpenSearchIntegTestCase {
                 assertThat(failure.toString(), containsString("Failed to parse search_after value for field [field1]."));
             }
         }
+    }
+
+    public void testPitWithSearchAfter() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping("field1", "type=long", "field2", "type=keyword").get());
+        ensureGreen();
+        indexRandom(
+            true,
+            client().prepareIndex("test").setId("0").setSource("field1", 0),
+            client().prepareIndex("test").setId("1").setSource("field1", 100, "field2", "toto"),
+            client().prepareIndex("test").setId("2").setSource("field1", 101),
+            client().prepareIndex("test").setId("3").setSource("field1", 99)
+        );
+
+        CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
+        request.setIndices(new String[] { "test" });
+        ActionFuture<CreatePITResponse> execute = client().execute(CreatePITAction.INSTANCE, request);
+        CreatePITResponse pitResponse = execute.get();
+        SearchResponse sr = client().prepareSearch()
+            .addSort("field1", SortOrder.ASC)
+            .setQuery(matchAllQuery())
+            .searchAfter(new Object[] { 99 })
+            .setPointInTime(new PointInTimeBuilder(pitResponse.getId()))
+            .get();
+        assertEquals(2, sr.getHits().getHits().length);
+        sr = client().prepareSearch()
+            .addSort("field1", SortOrder.ASC)
+            .setQuery(matchAllQuery())
+            .searchAfter(new Object[] { 100 })
+            .setPointInTime(new PointInTimeBuilder(pitResponse.getId()))
+            .get();
+        assertEquals(1, sr.getHits().getHits().length);
+        sr = client().prepareSearch()
+            .addSort("field1", SortOrder.ASC)
+            .setQuery(matchAllQuery())
+            .searchAfter(new Object[] { 0 })
+            .setPointInTime(new PointInTimeBuilder(pitResponse.getId()))
+            .get();
+        assertEquals(3, sr.getHits().getHits().length);
+        /**
+         * Add new data and assert PIT results remain the same and normal search results gets refreshed
+         */
+        indexRandom(true, client().prepareIndex("test").setId("4").setSource("field1", 102));
+        sr = client().prepareSearch()
+            .addSort("field1", SortOrder.ASC)
+            .setQuery(matchAllQuery())
+            .searchAfter(new Object[] { 0 })
+            .setPointInTime(new PointInTimeBuilder(pitResponse.getId()))
+            .get();
+        assertEquals(3, sr.getHits().getHits().length);
+        sr = client().prepareSearch().addSort("field1", SortOrder.ASC).setQuery(matchAllQuery()).searchAfter(new Object[] { 0 }).get();
+        assertEquals(4, sr.getHits().getHits().length);
     }
 
     public void testWithNullStrings() throws InterruptedException {

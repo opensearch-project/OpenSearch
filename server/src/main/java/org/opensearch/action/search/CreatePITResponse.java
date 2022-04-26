@@ -19,7 +19,7 @@ import org.opensearch.rest.action.RestActions;
 import java.io.IOException;
 
 /**
- * Create point in time response with point in time id and success / failures
+ * Create point in time response with point in time id and shard success / failures
  */
 public class CreatePITResponse extends ActionResponse implements StatusToXContentObject {
     // point in time id

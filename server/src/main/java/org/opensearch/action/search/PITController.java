@@ -20,10 +20,10 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.search.SearchPhaseResult;
-import org.opensearch.search.SearchService;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.Transport;
@@ -34,13 +34,15 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
+import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
+
 /**
  * Controller for creating PIT reader context
  * Phase 1 of create PIT request : Create PIT reader contexts in the associated shards with a temporary keep alive
  * Phase 2 of create PIT : Update PIT reader context with PIT ID and keep alive from request and
- * fail user request if any of the updates in this phase are failed
+ * fail user request if any of the updates in this phase are failed - we clean up PITs in case of such failures
  */
-public class CreatePITController implements Runnable {
+public class PITController implements Runnable {
     private final Runnable runner;
     private final SearchTransportService searchTransportService;
     private final ClusterService clusterService;
@@ -49,9 +51,14 @@ public class CreatePITController implements Runnable {
     private final Task task;
     private final ActionListener<CreatePITResponse> listener;
     private final CreatePITRequest request;
-    private static final Logger logger = LogManager.getLogger(CreatePITController.class);
+    private static final Logger logger = LogManager.getLogger(PITController.class);
+    public static final Setting<TimeValue> CREATE_PIT_TEMPORARY_KEEPALIVE_SETTING = Setting.positiveTimeSetting(
+        "pit.temporary.keep_alive_interval",
+        timeValueSeconds(30),
+        Setting.Property.NodeScope
+    );
 
-    public CreatePITController(
+    public PITController(
         CreatePITRequest request,
         SearchTransportService searchTransportService,
         ClusterService clusterService,
@@ -71,7 +78,7 @@ public class CreatePITController implements Runnable {
     }
 
     private TimeValue getCreatePitTemporaryKeepAlive() {
-        return SearchService.CREATE_PIT_TEMPORARY_KEEPALIVE_SETTING.get(clusterService.getSettings());
+        return CREATE_PIT_TEMPORARY_KEEPALIVE_SETTING.get(clusterService.getSettings());
     }
 
     public void executeCreatePit() {
@@ -90,7 +97,7 @@ public class CreatePITController implements Runnable {
             task.getHeaders()
         );
 
-        final StepListener<CreatePITResponse> createPitListener = new StepListener<>();
+        final StepListener<SearchResponse> createPitListener = new StepListener<>();
 
         final ActionListener<CreatePITResponse> updatePitIdListener = ActionListener.wrap(r -> listener.onResponse(r), e -> {
             logger.error("PIT creation failed while updating PIT ID", e);
@@ -110,7 +117,7 @@ public class CreatePITController implements Runnable {
     /**
      * Creates PIT reader context with temporary keep alive
      */
-    public void executeCreatePit(Task task, SearchRequest searchRequest, StepListener<CreatePITResponse> createPitListener) {
+    void executeCreatePit(Task task, SearchRequest searchRequest, StepListener<SearchResponse> createPitListener) {
         transportSearchAction.executeRequest(
             task,
             searchRequest,
@@ -139,12 +146,13 @@ public class CreatePITController implements Runnable {
     /**
      * Updates PIT ID, keep alive and createdTime of PIT reader context
      */
-    public void executeUpdatePitId(
+    void executeUpdatePitId(
         CreatePITRequest request,
-        StepListener<CreatePITResponse> createPitListener,
+        StepListener<SearchResponse> createPitListener,
         ActionListener<CreatePITResponse> updatePitIdListener
     ) {
-        createPitListener.whenComplete(createPITResponse -> {
+        createPitListener.whenComplete(searchResponse -> {
+            CreatePITResponse createPITResponse = new CreatePITResponse(searchResponse);
             SearchContextId contextId = SearchContextId.decode(namedWriteableRegistry, createPITResponse.getId());
             final StepListener<BiFunction<String, String, DiscoveryNode>> lookupListener = getConnectionLookupListener(contextId);
             lookupListener.whenComplete(nodelookup -> {

@@ -111,7 +111,7 @@ public class SearchContextId {
             }
             return new SearchContextId(Collections.unmodifiableMap(shards), Collections.unmodifiableMap(aliasFilters));
         } catch (IOException e) {
-            throw new IllegalArgumentException("Cannot parse pit id", e);
+            throw new IllegalArgumentException("Cannot parse id", e);
         }
     }
 
