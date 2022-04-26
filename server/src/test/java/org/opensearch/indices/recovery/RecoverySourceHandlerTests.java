@@ -190,12 +190,14 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         writer.close();
 
         Store.MetadataSnapshot metadata = store.getMetadata(null);
+        ReplicationLuceneIndex luceneIndex = new ReplicationLuceneIndex();
         List<StoreFileMetadata> metas = new ArrayList<>();
         for (StoreFileMetadata md : metadata) {
             metas.add(md);
+            luceneIndex.addFileDetail(md.name(), md.length(), false);
         }
         Store targetStore = newStore(createTempDir());
-        MultiFileWriter multiFileWriter = new MultiFileWriter(targetStore, mock(ReplicationLuceneIndex.class), "", logger, () -> {});
+        MultiFileWriter multiFileWriter = new MultiFileWriter(targetStore, luceneIndex, "", logger, () -> {});
         RecoveryTargetHandler target = new TestRecoveryTargetHandler() {
             @Override
             public void writeFileChunk(
@@ -509,10 +511,12 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
         writer.commit();
         writer.close();
 
+        ReplicationLuceneIndex luceneIndex = new ReplicationLuceneIndex();
         Store.MetadataSnapshot metadata = store.getMetadata(null);
         List<StoreFileMetadata> metas = new ArrayList<>();
         for (StoreFileMetadata md : metadata) {
             metas.add(md);
+            luceneIndex.addFileDetail(md.name(), md.length(), false);
         }
 
         CorruptionUtils.corruptFile(
@@ -523,7 +527,7 @@ public class RecoverySourceHandlerTests extends OpenSearchTestCase {
             )
         );
         Store targetStore = newStore(createTempDir(), false);
-        MultiFileWriter multiFileWriter = new MultiFileWriter(targetStore, mock(ReplicationLuceneIndex.class), "", logger, () -> {});
+        MultiFileWriter multiFileWriter = new MultiFileWriter(targetStore, luceneIndex, "", logger, () -> {});
         RecoveryTargetHandler target = new TestRecoveryTargetHandler() {
             @Override
             public void writeFileChunk(
