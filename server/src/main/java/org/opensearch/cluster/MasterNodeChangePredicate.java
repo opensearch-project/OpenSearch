@@ -51,11 +51,11 @@ public final class MasterNodeChangePredicate {
         final DiscoveryNode clusterManagerNode = currentState.nodes().getMasterNode();
         final String currentMasterId = clusterManagerNode == null ? null : clusterManagerNode.getEphemeralId();
         return newState -> {
-            final DiscoveryNode newMaster = newState.nodes().getMasterNode();
+            final DiscoveryNode newClusterManager = newState.nodes().getMasterNode();
             final boolean accept;
-            if (newMaster == null) {
+            if (newClusterManager == null) {
                 accept = false;
-            } else if (newMaster.getEphemeralId().equals(currentMasterId) == false) {
+            } else if (newClusterManager.getEphemeralId().equals(currentMasterId) == false) {
                 accept = true;
             } else {
                 accept = newState.version() > currentVersion;

@@ -233,7 +233,7 @@ public class Node implements Closeable {
         Property.Deprecated,
         Property.NodeScope
     );
-    private static final Setting<Boolean> NODE_CLUSTER_MANAGER_SETTING = Setting.boolSetting(
+    private static final Setting<Boolean> NODE_MASTER_SETTING = Setting.boolSetting(
         "node.master",
         true,
         Property.Deprecated,
@@ -256,7 +256,7 @@ public class Node implements Closeable {
     * controls whether the node is allowed to persist things like metadata to disk
     * Note that this does not control whether the node stores actual indices (see
     * {@link #NODE_DATA_SETTING}). However, if this is false, {@link #NODE_DATA_SETTING}
-    * and {@link #NODE_CLUSTER_MANAGER_SETTING} must also be false.
+    * and {@link #NODE_MASTER_SETTING} must also be false.
     *
     */
     public static final Setting<Boolean> NODE_LOCAL_STORAGE_SETTING = Setting.boolSetting(
@@ -445,7 +445,7 @@ public class Node implements Closeable {
             // register the node.data, node.ingest, node.master, node.remote_cluster_client settings here so we can mark them private
             additionalSettings.add(NODE_DATA_SETTING);
             additionalSettings.add(NODE_INGEST_SETTING);
-            additionalSettings.add(NODE_CLUSTER_MANAGER_SETTING);
+            additionalSettings.add(NODE_MASTER_SETTING);
             additionalSettings.add(NODE_REMOTE_CLUSTER_CLIENT);
             additionalSettings.addAll(pluginsService.getPluginSettings());
             final List<String> additionalSettingsFilter = new ArrayList<>(pluginsService.getPluginSettingsFilter());

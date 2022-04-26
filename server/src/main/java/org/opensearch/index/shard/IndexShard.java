@@ -549,7 +549,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                      * in one state causing it's term to be incremented. Note that if both current shard state and new
                      * shard state are initializing, we could replace the current shard and reinitialize it. It is however
                      * possible that this shard is being started. This can happen if:
-                     * 1) Shard is post recovery and sends shard started to the mcluster-manager
+                     * 1) Shard is post recovery and sends shard started to the cluster-manager
                      * 2) Node gets disconnected and rejoins
                      * 3) Cluster-manager assigns the shard back to the node
                      * 4) Cluster-manager processes the shard started and starts the shard
