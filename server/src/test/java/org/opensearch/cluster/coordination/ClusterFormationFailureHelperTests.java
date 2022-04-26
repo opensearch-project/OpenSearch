@@ -402,7 +402,6 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
     }
 
     // Validate the value of the deprecated 'master' setting can be obtained during cluster formation failure.
-    // TODO: Remove the test after removing MASTER_ROLE.
     public void testDescriptionBeforeBootstrappingWithDeprecatedMasterNodesSetting() {
         final DiscoveryNode localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)

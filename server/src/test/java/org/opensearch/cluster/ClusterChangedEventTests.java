@@ -315,7 +315,6 @@ public class ClusterChangedEventTests extends OpenSearchTestCase {
     }
 
     // Validate the above test case testLocalNodeIsMaster() passes when the deprecated 'master' role is assigned to the local node.
-    // TODO: Remove the test after removing MASTER_ROLE.
     public void testLocalNodeIsMasterWithDeprecatedMasterRole() {
         final DiscoveryNodes.Builder builderLocalIsMaster = DiscoveryNodes.builder();
         final DiscoveryNode node0 = newNode("node_0", Set.of(DiscoveryNodeRole.MASTER_ROLE));

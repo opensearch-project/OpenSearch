@@ -743,7 +743,6 @@ public class NodeJoinTests extends OpenSearchTestCase {
     }
 
     // Validate the deprecated MASTER_ROLE can join another node and elected as leader.
-    // TODO: Remove the test after removing MASTER_ROLE.
     public void testJoinElectedLeaderWithDeprecatedMasterRole() {
         final Set<DiscoveryNodeRole> roles = singleton(DiscoveryNodeRole.MASTER_ROLE);
         DiscoveryNode node0 = new DiscoveryNode("master0", "0", buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);

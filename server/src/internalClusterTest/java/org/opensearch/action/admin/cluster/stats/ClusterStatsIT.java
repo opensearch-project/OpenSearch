@@ -146,7 +146,6 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
     }
 
     // Validate assigning value "master" to setting "node.roles" can get correct count in Node Stats response after MASTER_ROLE deprecated.
-    // TODO: Remove the test after removing MASTER_ROLE.
     public void testNodeCountsWithDeprecatedMasterRole() {
         int total = 1;
         Settings settings = Settings.builder()
