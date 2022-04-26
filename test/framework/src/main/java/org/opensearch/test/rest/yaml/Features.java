@@ -32,8 +32,6 @@
 
 package org.opensearch.test.rest.yaml;
 
-import org.opensearch.bootstrap.JavaVersion;
-
 import java.util.Arrays;
 import java.util.List;
 
@@ -86,7 +84,7 @@ public final class Features {
     }
 
     private static boolean isSupported(String feature) {
-        if (feature.equals(SPI_ON_CLASSPATH_SINCE_JDK_9) && JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0) {
+        if (feature.equals(SPI_ON_CLASSPATH_SINCE_JDK_9)) {
             return true;
         }
         return SUPPORTED.contains(feature);

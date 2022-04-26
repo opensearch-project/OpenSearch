@@ -49,7 +49,7 @@ public abstract class AbstractBenchmark<T extends Closeable> {
 
     protected abstract T client(String benchmarkTargetHost) throws Exception;
 
-    protected abstract BulkRequestExecutor bulkRequestExecutor(T client, String indexName, String typeName);
+    protected abstract BulkRequestExecutor bulkRequestExecutor(T client, String indexName);
 
     protected abstract SearchRequestExecutor searchRequestExecutor(T client, String indexName);
 
@@ -76,16 +76,15 @@ public abstract class AbstractBenchmark<T extends Closeable> {
 
     @SuppressForbidden(reason = "system out is ok for a command line tool")
     private void runBulkIndexBenchmark(String[] args) throws Exception {
-        if (args.length != 7) {
-            System.err.println("usage: 'bulk' benchmarkTargetHostIp indexFilePath indexName typeName numberOfDocuments bulkSize");
+        if (args.length != 6) {
+            System.err.println("usage: 'bulk' benchmarkTargetHostIp indexFilePath indexName numberOfDocuments bulkSize");
             System.exit(1);
         }
         String benchmarkTargetHost = args[1];
         String indexFilePath = args[2];
         String indexName = args[3];
-        String typeName = args[4];
-        int totalDocs = Integer.valueOf(args[5]);
-        int bulkSize = Integer.valueOf(args[6]);
+        int totalDocs = Integer.valueOf(args[4]);
+        int bulkSize = Integer.valueOf(args[5]);
 
         int totalIterationCount = (int) Math.floor(totalDocs / bulkSize);
         // consider 40% of all iterations as warmup iterations
@@ -97,7 +96,7 @@ public abstract class AbstractBenchmark<T extends Closeable> {
         BenchmarkRunner benchmark = new BenchmarkRunner(
             warmupIterations,
             iterations,
-            new BulkBenchmarkTask(bulkRequestExecutor(client, indexName, typeName), indexFilePath, warmupIterations, iterations, bulkSize)
+            new BulkBenchmarkTask(bulkRequestExecutor(client, indexName), indexFilePath, warmupIterations, iterations, bulkSize)
         );
 
         try {

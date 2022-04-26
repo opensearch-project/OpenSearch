@@ -12,7 +12,6 @@ ignore:
   - 'buildSrc/src/testKit/opensearch.build/NOTICE'
   - 'server/licenses/apache-log4j-extras-DEPENDENCIES'
   # Empty files
-  - 'doc-tools/missing-doclet/bin/main/org/opensearch/missingdoclet/MissingDoclet.class'
   - 'buildSrc/src/integTest/resources/org/opensearch/gradle/internal/fake_git/remote/build.gradle'
   - 'buildSrc/src/integTest/resources/org/opensearch/gradle/internal/fake_git/remote/distribution/archives/oss-darwin-tar/build.gradle'
   - 'buildSrc/src/integTest/resources/org/opensearch/gradle/internal/fake_git/remote/distribution/bwc/bugfix/build.gradle'
