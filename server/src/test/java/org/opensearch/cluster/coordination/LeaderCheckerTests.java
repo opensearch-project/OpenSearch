@@ -509,7 +509,7 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
             CoordinationStateRejectedException cause = (CoordinationStateRejectedException) handler.transportException.getRootCause();
             assertThat(
                 cause.getMessage(),
-                equalTo("rejecting leader check from [" + otherNode + "] sent to a node that is no longer the master")
+                equalTo("rejecting leader check from [" + otherNode + "] sent to a node that is no longer the cluster-manager")
             );
         }
     }
