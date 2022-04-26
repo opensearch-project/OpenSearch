@@ -226,8 +226,9 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
     }
 
     public long getVersionOrMetadataVersion() {
-        // When following a Zen1 cluster-manager, the cluster state version is not guaranteed to increase, so instead it is preferable to use the
-        // metadata version to determine the freshest node. However when following a Zen2 cluster-manager the cluster state version should be used.
+        // When following a Zen1 cluster-manager, the cluster state version is not guaranteed to increase,
+        // so instead it is preferable to use the metadata version to determine the freshest node.
+        // However when following a Zen2 cluster-manager the cluster state version should be used.
         return term() == ZEN1_BWC_TERM ? metadata().version() : version();
     }
 

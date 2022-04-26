@@ -269,7 +269,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         DiscoveryNode clusterManagerNode = state.nodes().getMasterNode();
 
-        // remove items from cache which are not in our routing table anymore and resend failures that have not executed on cluster-manager yet
+        // remove items from cache which are not in our routing table anymore and
+        // resend failures that have not executed on cluster-manager yet
         for (Iterator<Map.Entry<ShardId, ShardRouting>> iterator = failedShardsCache.entrySet().iterator(); iterator.hasNext();) {
             ShardRouting failedShardRouting = iterator.next().getValue();
             ShardRouting matchedRouting = localRoutingNode.getByShardId(failedShardRouting.shardId());
@@ -278,7 +279,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             } else {
                 // TODO: can we remove this? Is resending shard failures the responsibility of shardStateAction?
                 if (clusterManagerNode != null) {
-                    String message = "cluster-manager " + clusterManagerNode + " has not removed previously failed shard. resending shard failure";
+                    String message = "cluster-manager "
+                        + clusterManagerNode
+                        + " has not removed previously failed shard. resending shard failure";
                     logger.trace("[{}] re-sending failed shard [{}], reason [{}]", matchedRouting.shardId(), matchedRouting, message);
                     shardStateAction.localShardFailed(matchedRouting, message, null, SHARD_STATE_ACTION_LISTENER, state);
                 }

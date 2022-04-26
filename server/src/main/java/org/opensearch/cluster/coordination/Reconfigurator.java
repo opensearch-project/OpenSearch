@@ -119,7 +119,7 @@ public class Reconfigurator {
             currentConfig,
             liveNodes,
             retiredNodeIds,
-                currentClusterManager
+            currentClusterManager
         );
 
         final Set<String> liveNodeIds = liveNodes.stream()
@@ -134,7 +134,12 @@ public class Reconfigurator {
             .filter(n -> retiredNodeIds.contains(n.getId()) == false)
             .forEach(
                 n -> orderedCandidateNodes.add(
-                    new VotingConfigNode(n.getId(), true, n.getId().equals(currentClusterManager.getId()), currentConfigNodeIds.contains(n.getId()))
+                    new VotingConfigNode(
+                        n.getId(),
+                        true,
+                        n.getId().equals(currentClusterManager.getId()),
+                        currentConfigNodeIds.contains(n.getId())
+                    )
                 )
             );
         currentConfigNodeIds.stream()

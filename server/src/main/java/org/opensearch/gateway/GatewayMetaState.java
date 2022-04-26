@@ -502,8 +502,8 @@ public class GatewayMetaState implements Closeable {
             // (2) the index is currently empty since it was opened with IndexWriterConfig.OpenMode.CREATE
 
             // In the common case it's actually sufficient to commit() the existing state and not do any indexing. For instance,
-            // this is true if there's only one data path on this cluster-manager node, and the commit we just loaded was already written out
-            // by this version of OpenSearch. TODO TBD should we avoid indexing when possible?
+            // this is true if there's only one data path on this cluster-manager node, and the commit we just loaded was already written
+            // out by this version of OpenSearch. TODO TBD should we avoid indexing when possible?
             final PersistedClusterStateService.Writer writer = persistedClusterStateService.createWriter();
             try {
                 writer.writeFullStateAndCommit(currentTerm, lastAcceptedState);

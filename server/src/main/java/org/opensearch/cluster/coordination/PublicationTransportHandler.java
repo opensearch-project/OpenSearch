@@ -337,8 +337,9 @@ public class PublicationTransportHandler {
             if (destination.equals(discoveryNodes.getLocalNode())) {
                 // if publishing to self, use original request instead (see currentPublishRequestToSelf for explanation)
                 final PublishRequest previousRequest = currentPublishRequestToSelf.getAndSet(publishRequest);
-                // we might override an in-flight publication to self in case where we failed as cluster-manager and became cluster-manager again,
-                // and the new publication started before the previous one completed (which fails anyhow because of higher current term)
+                // we might override an in-flight publication to self in case where we failed as cluster-manager and
+                // became cluster-manager again, and the new publication started before the previous one completed
+                // (which fails anyhow because of higher current term)
                 assert previousRequest == null || previousRequest.getAcceptedState().term() < publishRequest.getAcceptedState().term();
                 responseActionListener = new ActionListener<PublishWithJoinResponse>() {
                     @Override

@@ -1371,9 +1371,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 );
             }, onUpdateFailure), 2 + indices.size());
 
-            // We ignore all FileAlreadyExistsException when writing metadata since otherwise a cluster-manager failover while in this method will
-            // mean that no snap-${uuid}.dat blob is ever written for this snapshot. This is safe because any updated version of the
-            // index or global metadata will be compatible with the segments written in this snapshot as well.
+            // We ignore all FileAlreadyExistsException when writing metadata since otherwise a cluster-manager failover
+            // while in this method will mean that no snap-${uuid}.dat blob is ever written for this snapshot. This is safe because
+            // any updated version of the index or global metadata will be compatible with the segments written in this snapshot as well.
             // Failing on an already existing index-${repoGeneration} below ensures that the index.latest blob is not updated in a way
             // that decrements the generation it points at
 
@@ -1546,7 +1546,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 return seed;
             }
         } catch (Exception exp) {
-            throw new RepositoryVerificationException(metadata.name(), "path " + basePath() + " is not accessible on cluster-manager node", exp);
+            throw new RepositoryVerificationException(
+                metadata.name(),
+                "path " + basePath() + " is not accessible on cluster-manager node",
+                exp
+            );
         }
     }
 

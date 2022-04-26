@@ -906,7 +906,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
                 final boolean activePublication = currentPublication.map(CoordinatorPublication::isActiveForCurrentLeader).orElse(false);
                 if (becomingClusterManager && activePublication == false) {
-                    // cluster state update task to become cluster-manager is submitted to MasterService, but publication has not started yet
+                    // cluster state update task to become cluster-manager is submitted to MasterService,
+                    // but publication has not started yet
                     assert followersChecker.getKnownFollowers().isEmpty() : followersChecker.getKnownFollowers();
                 } else {
                     final ClusterState lastPublishedState;
@@ -1151,7 +1152,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 // If we have already won the election then the actual join does not matter for election purposes, so swallow any exception
                 final boolean isNewJoinFromClusterManagerEligibleNode = handleJoinIgnoringExceptions(join);
 
-                // If we haven't completely finished becoming cluster-manager then there's already a publication scheduled which will, in turn,
+                // If we haven't completely finished becoming cluster-manager then there's already a publication scheduled which will, in
+                // turn,
                 // schedule a reconfiguration if needed. It's benign to schedule a reconfiguration anyway, but it might fail if it wins the
                 // race against the election-winning publication and log a big error message, which we can prevent by checking this here:
                 final boolean establishedAsClusterManager = mode == Mode.LEADER && getLastAcceptedState().term() == getCurrentTerm();
@@ -1242,7 +1244,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     );
                     publishListener.onFailure(
                         new FailedToCommitClusterStateException(
-                            "node is no longer cluster-manager for term " + clusterChangedEvent.state().term() + " while handling publication"
+                            "node is no longer cluster-manager for term "
+                                + clusterChangedEvent.state().term()
+                                + " while handling publication"
                         )
                     );
                     return;

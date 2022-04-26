@@ -616,7 +616,10 @@ public class MasterService extends AbstractLifecycleComponent {
                 listener.onNoLongerMaster(source);
             } catch (Exception e) {
                 logger.error(
-                    () -> new ParameterizedMessage("exception thrown by listener while notifying no longer cluster-manager from [{}]", source),
+                    () -> new ParameterizedMessage(
+                        "exception thrown by listener while notifying no longer cluster-manager from [{}]",
+                        source
+                    ),
                     e
                 );
             }

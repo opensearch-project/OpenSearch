@@ -310,7 +310,8 @@ public class ClusterStateObserver {
          * returns true if stored state is older then given state or they are from a different cluster-manager, meaning they can't be compared
          * */
         public boolean isOlderOrDifferentClusterManager(ClusterState clusterState) {
-            return version < clusterState.version() || Objects.equals(clusterManagerNodeId, clusterState.nodes().getMasterNodeId()) == false;
+            return version < clusterState.version()
+                || Objects.equals(clusterManagerNodeId, clusterState.nodes().getMasterNodeId()) == false;
         }
     }
 

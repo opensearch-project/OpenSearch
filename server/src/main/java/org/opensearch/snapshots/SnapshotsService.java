@@ -303,8 +303,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
                 SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
                 // Fail if there are any concurrently running snapshots. The only exception to this being a snapshot in INIT state from a
-                // previous cluster-manager that we can simply ignore and remove from the cluster state because we would clean it up from the
-                // cluster state anyway in #applyClusterState.
+                // previous cluster-manager that we can simply ignore and remove from the cluster state because we would clean it up from
+                // the cluster state anyway in #applyClusterState.
                 if (snapshots != null
                     && snapshots.entries()
                         .stream()
@@ -452,7 +452,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     );
                 }
                 // Fail if there are any concurrently running snapshots. The only exception to this being a snapshot in INIT state from a
-                // previous cluster-manager that we can simply ignore and remove from the cluster state because we would clean it up from the
+                // previous cluster-manager that we can simply ignore and remove from the cluster state because we would clean it up from
+                // the
                 // cluster state anyway in #applyClusterState.
                 if (concurrentOperationsAllowed == false && runningSnapshots.stream().anyMatch(entry -> entry.state() != State.INIT)) {
                     throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName, " a snapshot is already running");
@@ -986,8 +987,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         );
                     }
                     if (clusterState.nodes().getMinNodeVersion().onOrAfter(NO_REPO_INITIALIZE_VERSION) == false) {
-                        // In mixed version clusters we initialize the snapshot in the repository so that in case of a cluster-manager failover to an
-                        // older version cluster-manager node snapshot finalization (that assumes initializeSnapshot was called) produces a valid
+                        // In mixed version clusters we initialize the snapshot in the repository so that in case of a cluster-manager
+                        // failover to an
+                        // older version cluster-manager node snapshot finalization (that assumes initializeSnapshot was called) produces a
+                        // valid
                         // snapshot.
                         repository.initializeSnapshot(
                             snapshot.snapshot().getSnapshotId(),
@@ -1118,7 +1121,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         public void onNoLongerMaster(String source) {
                             // We are not longer a cluster-manager - we shouldn't try to do any cleanup
                             // The new cluster-manager will take care of it
-                            logger.warn("[{}] failed to create snapshot - no longer a cluster-manager", snapshot.snapshot().getSnapshotId());
+                            logger.warn(
+                                "[{}] failed to create snapshot - no longer a cluster-manager",
+                                snapshot.snapshot().getSnapshotId()
+                            );
                             userCreateSnapshotListener.onFailure(
                                 new SnapshotException(snapshot.snapshot(), "cluster-manager changed during snapshot initialization")
                             );
@@ -1298,7 +1304,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     public void applyClusterState(ClusterChangedEvent event) {
         try {
             if (event.localNodeMaster()) {
-                // We don't remove old cluster-manager when cluster-manager flips anymore. So, we need to check for change in cluster-manager
+                // We don't remove old cluster-manager when cluster-manager flips anymore. So, we need to check for change in
+                // cluster-manager
                 SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                 final boolean newClusterManager = event.previousState().nodes().isLocalNodeElectedMaster() == false;
                 processExternalChanges(
@@ -1306,7 +1313,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     event.routingTableChanged() && waitingShardsStartedOrUnassigned(snapshotsInProgress, event)
                 );
             } else if (snapshotCompletionListeners.isEmpty() == false) {
-                // We have snapshot listeners but are not the cluster-manager any more. Fail all waiting listeners except for those that already
+                // We have snapshot listeners but are not the cluster-manager any more. Fail all waiting listeners except for those that
+                // already
                 // have their snapshots finalizing (those that are already finalizing will fail on their own from to update the cluster
                 // state).
                 for (Snapshot snapshot : new HashSet<>(snapshotCompletionListeners.keySet())) {
@@ -3267,7 +3275,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 updateSnapshotState,
                                 entry
                             );
-                            assert false : "This should never happen, cluster-manager will not submit a state update for a non-existing clone";
+                            assert false
+                                : "This should never happen, cluster-manager will not submit a state update for a non-existing clone";
                             continue;
                         }
                         if (existing.state().completed()) {

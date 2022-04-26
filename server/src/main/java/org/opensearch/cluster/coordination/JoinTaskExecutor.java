@@ -137,7 +137,10 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             newState = becomeClusterManagerAndTrimConflictingNodes(currentState, joiningNodes);
             nodesChanged = true;
         } else if (currentNodes.isLocalNodeElectedMaster() == false) {
-            logger.trace("processing node joins, but we are not the cluster-manager. current cluster-manager: {}", currentNodes.getMasterNode());
+            logger.trace(
+                "processing node joins, but we are not the cluster-manager. current cluster-manager: {}",
+                currentNodes.getMasterNode()
+            );
             throw new NotMasterException("Node [" + currentNodes.getLocalNode() + "] not cluster-manager for join request");
         } else {
             newState = ClusterState.builder(currentState);

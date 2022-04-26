@@ -222,7 +222,7 @@ public class ShardStateAction {
         ConnectTransportException.class,
         FailedToCommitClusterStateException.class };
 
-    private static boolean isClusterManagerChannelException(TransportException exp) {                                        
+    private static boolean isClusterManagerChannelException(TransportException exp) {
         return ExceptionsHelper.unwrap(exp, CLUSTER_MANAGER_CHANNEL_EXCEPTIONS) != null;
     }
 
@@ -714,7 +714,8 @@ public class ShardStateAction {
                 if (matched == null) {
                     // tasks that correspond to non-existent shards are marked as successful. The reason is that we resend shard started
                     // events on every cluster state publishing that does not contain the shard as started yet. This means that old stale
-                    // requests might still be in flight even after the shard has already been started or failed on the cluster-manager. We just
+                    // requests might still be in flight even after the shard has already been started or failed on the cluster-manager. We
+                    // just
                     // ignore these requests for now.
                     logger.debug("{} ignoring shard started task [{}] (shard does not exist anymore)", task.shardId, task);
                     builder.success(task);
