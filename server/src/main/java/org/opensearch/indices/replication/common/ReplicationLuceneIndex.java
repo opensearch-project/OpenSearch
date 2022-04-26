@@ -33,8 +33,10 @@ import java.util.Map;
 /**
  * Represents the Lucene Index (set of files on a single shard) involved
  * in the replication process.
+ *
+ * @opensearch.internal
  */
-public class ReplicationLuceneIndex extends ReplicationTimer implements ToXContentFragment, Writeable {
+public final class ReplicationLuceneIndex extends ReplicationTimer implements ToXContentFragment, Writeable {
     private final FilesDetails filesDetails;
 
     public static final long UNKNOWN = -1L;
@@ -305,7 +307,7 @@ public class ReplicationLuceneIndex extends ReplicationTimer implements ToXConte
         return filesDetails.get(dest);
     }
 
-    public static class FilesDetails implements ToXContentFragment, Writeable {
+    private static final class FilesDetails implements ToXContentFragment, Writeable {
         protected final Map<String, FileMetadata> fileMetadataMap = new HashMap<>();
         protected boolean complete;
 
@@ -395,7 +397,7 @@ public class ReplicationLuceneIndex extends ReplicationTimer implements ToXConte
         }
     }
 
-    public static class FileMetadata implements ToXContentObject, Writeable {
+    public static final class FileMetadata implements ToXContentObject, Writeable {
         private String name;
         private long length;
         private long recovered;
@@ -430,21 +432,21 @@ public class ReplicationLuceneIndex extends ReplicationTimer implements ToXConte
         }
 
         /**
-         * file name *
+         * file name
          */
         public String name() {
             return name;
         }
 
         /**
-         * file length *
+         * file length
          */
         public long length() {
             return length;
         }
 
         /**
-         * number of bytes recovered for this file (so far). 0 if the file is reused *
+         * number of bytes recovered for this file (so far). 0 if the file is reused
          */
         public long recovered() {
             return recovered;
