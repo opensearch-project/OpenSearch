@@ -569,17 +569,4 @@ public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         service.doClose();
         assertEquals(0, service.getActiveContexts());
     }
-
-    // public void testPitWithSearchAfter() throws InterruptedException {
-    // assertAcked(client().admin().indices().prepareCreate("test").setMapping("field1", "type=long", "field2", "type=keyword").get());
-    // ensureGreen();
-    // indexRandom(true, client().prepareIndex("test").setId("0").setSource("field1", 0, "field2", "toto"));
-    //
-    // client().prepareSearch("test")
-    // .addSort("field1", SortOrder.ASC)
-    // .setQuery(matchAllQuery())
-    // .searchAfter(new Object[] { 0 })
-    // .setScroll("1m")
-    // .get();
-    // }
 }

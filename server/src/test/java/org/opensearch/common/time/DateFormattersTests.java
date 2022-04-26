@@ -32,7 +32,6 @@
 
 package org.opensearch.common.time;
 
-import org.opensearch.bootstrap.JavaVersion;
 import org.opensearch.common.joda.Joda;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -56,11 +55,6 @@ import static org.hamcrest.Matchers.sameInstance;
 public class DateFormattersTests extends OpenSearchTestCase {
 
     public void testWeekBasedDates() {
-        assumeFalse(
-            "won't work in jdk8 " + "because SPI mechanism is not looking at classpath - needs ISOCalendarDataProvider in jre's ext/libs",
-            JavaVersion.current().equals(JavaVersion.parse("8"))
-        );
-
         // as per WeekFields.ISO first week starts on Monday and has minimum 4 days
         DateFormatter dateFormatter = DateFormatters.forPattern("YYYY-ww");
 

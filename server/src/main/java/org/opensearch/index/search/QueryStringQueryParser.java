@@ -70,7 +70,6 @@ import org.opensearch.index.mapper.TextSearchInfo;
 import org.opensearch.index.query.ExistsQueryBuilder;
 import org.opensearch.index.query.MultiMatchQueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
-import org.opensearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -110,7 +109,7 @@ public class QueryStringQueryParser extends XQueryParser {
     private ZoneId timeZone;
     private Fuzziness fuzziness = Fuzziness.AUTO;
     private int fuzzyMaxExpansions = FuzzyQuery.defaultMaxExpansions;
-    private MultiTermQuery.RewriteMethod fuzzyRewriteMethod;
+    private MultiTermQuery.RewriteMethod fuzzyRewriteMethod = MultiTermQuery.CONSTANT_SCORE_REWRITE;
     private boolean fuzzyTranspositions = FuzzyQuery.defaultTranspositions;
 
     /**
@@ -527,9 +526,11 @@ public class QueryStringQueryParser extends XQueryParser {
     @Override
     protected Query newFuzzyQuery(Term term, float minimumSimilarity, int prefixLength) {
         int numEdits = Fuzziness.build(minimumSimilarity).asDistance(term.text());
-        FuzzyQuery query = new FuzzyQuery(term, numEdits, prefixLength, fuzzyMaxExpansions, fuzzyTranspositions);
-        QueryParsers.setRewriteMethod(query, fuzzyRewriteMethod);
-        return query;
+        if (fuzzyRewriteMethod != null) {
+            return new FuzzyQuery(term, numEdits, prefixLength, fuzzyMaxExpansions, fuzzyTranspositions, fuzzyRewriteMethod);
+        } else {
+            return new FuzzyQuery(term, numEdits, prefixLength, fuzzyMaxExpansions, fuzzyTranspositions);
+        }
     }
 
     @Override

@@ -24,7 +24,7 @@ versions << [
 dependencies {
   api "com.google.apis:google-api-services-compute:v1-rev160-${versions.google}"
   api "com.google.api-client:google-api-client:${versions.google}"
-  api "com.google.oauth-client:google-oauth-client:1.33.2"
+  api "com.google.oauth-client:google-oauth-client:1.33.3"
   api "com.google.http-client:google-http-client:${versions.google}"
   api "com.google.http-client:google-http-client-jackson2:${versions.google}"
   api 'com.google.code.findbugs:jsr305:3.0.2'
@@ -58,13 +58,21 @@ test {
 thirdPartyAudit.ignoreMissingClasses(
   // classes are missing
   'javax.jms.Message',
-  'com.google.common.base.Splitter',
-  'com.google.common.collect.Lists',
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener',
   'org.apache.avalon.framework.logger.Logger',
   'org.apache.log.Hierarchy',
   'org.apache.log.Logger',
+  'com.google.api.client.json.gson.GsonFactory',
+  'com.google.common.base.Preconditions',
+  'com.google.common.base.Splitter',
+  'com.google.common.cache.CacheBuilder',
+  'com.google.common.cache.CacheLoader',
+  'com.google.common.cache.LoadingCache',
+  'com.google.common.collect.ImmutableMap',
+  'com.google.common.collect.ImmutableMap$Builder',
+  'com.google.common.collect.ImmutableSet',
+  'com.google.common.collect.Lists',
   'com.google.common.collect.Multiset',
   'com.google.common.collect.SortedMultiset',
   'com.google.common.collect.TreeMultiset',

@@ -37,6 +37,7 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.search.internal.ShardSearchRequest;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
@@ -81,6 +82,8 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
 
     public void processMessageReceived(Request request, TransportChannel channel) throws Exception {
         final Task task = taskManager.register(channel.getChannelType(), action, request);
+        ThreadContext.StoredContext contextToRestore = taskManager.taskExecutionStarted(task);
+
         Releasable unregisterTask = () -> taskManager.unregister(task);
         try {
             if (channel instanceof TcpTransportChannel && task instanceof CancellableTask) {
@@ -99,6 +102,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
             unregisterTask = null;
         } finally {
             Releasables.close(unregisterTask);
+            contextToRestore.restore();
         }
     }
 

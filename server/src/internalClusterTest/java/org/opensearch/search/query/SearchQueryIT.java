@@ -44,7 +44,6 @@ import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
-import org.opensearch.bootstrap.JavaVersion;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
 import org.opensearch.common.regex.Regex;
@@ -1860,7 +1859,6 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
      * on "Configuring IDEs And Running Tests".
      */
     public void testRangeQueryWithLocaleMapping() throws Exception {
-        assumeTrue("need java 9 for testing ", JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0);
         assert ("SPI,COMPAT".equals(System.getProperty("java.locale.providers"))) : "`-Djava.locale.providers=SPI,COMPAT` needs to be set";
 
         assertAcked(

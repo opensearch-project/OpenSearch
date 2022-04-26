@@ -50,6 +50,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.StoreStats;
+import org.opensearch.indices.replication.common.ReplicationTimer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -122,7 +123,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     private final Index index;
     private final Translog translog;
     private final VerifyIndex verifyIndex;
-    private final Timer timer;
+    private final ReplicationTimer timer;
 
     private RecoverySource recoverySource;
     private ShardId shardId;
@@ -149,12 +150,12 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         this.index = index;
         translog = new Translog();
         verifyIndex = new VerifyIndex();
-        timer = new Timer();
+        timer = new ReplicationTimer();
         timer.start();
     }
 
     public RecoveryState(StreamInput in) throws IOException {
-        timer = new Timer(in);
+        timer = new ReplicationTimer(in);
         stage = Stage.fromId(in.readByte());
         shardId = new ShardId(in);
         recoverySource = RecoverySource.readFrom(in);
@@ -256,7 +257,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         return translog;
     }
 
-    public Timer getTimer() {
+    public ReplicationTimer getTimer() {
         return timer;
     }
 
@@ -280,10 +281,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         return primary;
     }
 
-    public static RecoveryState readRecoveryState(StreamInput in) throws IOException {
-        return new RecoveryState(in);
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
 
@@ -291,9 +288,9 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         builder.field(Fields.TYPE, recoverySource.getType());
         builder.field(Fields.STAGE, stage.toString());
         builder.field(Fields.PRIMARY, primary);
-        builder.timeField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, timer.startTime);
-        if (timer.stopTime > 0) {
-            builder.timeField(Fields.STOP_TIME_IN_MILLIS, Fields.STOP_TIME, timer.stopTime);
+        builder.timeField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, timer.startTime());
+        if (timer.stopTime() > 0) {
+            builder.timeField(Fields.STOP_TIME_IN_MILLIS, Fields.STOP_TIME, timer.stopTime());
         }
         builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, new TimeValue(timer.time()));
 
@@ -375,78 +372,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         static final String TARGET_THROTTLE_TIME_IN_MILLIS = "target_throttle_time_in_millis";
     }
 
-    public static class Timer implements Writeable {
-        protected long startTime = 0;
-        protected long startNanoTime = 0;
-        protected long time = -1;
-        protected long stopTime = 0;
-
-        public Timer() {}
-
-        public Timer(StreamInput in) throws IOException {
-            startTime = in.readVLong();
-            startNanoTime = in.readVLong();
-            stopTime = in.readVLong();
-            time = in.readVLong();
-        }
-
-        @Override
-        public synchronized void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(startTime);
-            out.writeVLong(startNanoTime);
-            out.writeVLong(stopTime);
-            // write a snapshot of current time, which is not per se the time field
-            out.writeVLong(time());
-        }
-
-        public synchronized void start() {
-            assert startTime == 0 : "already started";
-            startTime = System.currentTimeMillis();
-            startNanoTime = System.nanoTime();
-        }
-
-        /** Returns start time in millis */
-        public synchronized long startTime() {
-            return startTime;
-        }
-
-        /** Returns elapsed time in millis, or 0 if timer was not started */
-        public synchronized long time() {
-            if (startNanoTime == 0) {
-                return 0;
-            }
-            if (time >= 0) {
-                return time;
-            }
-            return Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - startNanoTime));
-        }
-
-        /** Returns stop time in millis */
-        public synchronized long stopTime() {
-            return stopTime;
-        }
-
-        public synchronized void stop() {
-            assert stopTime == 0 : "already stopped";
-            stopTime = Math.max(System.currentTimeMillis(), startTime);
-            time = TimeValue.nsecToMSec(System.nanoTime() - startNanoTime);
-            assert time >= 0;
-        }
-
-        public synchronized void reset() {
-            startTime = 0;
-            startNanoTime = 0;
-            time = -1;
-            stopTime = 0;
-        }
-
-        // for tests
-        public long getStartNanoTime() {
-            return startNanoTime;
-        }
-    }
-
-    public static class VerifyIndex extends Timer implements ToXContentFragment, Writeable {
+    public static class VerifyIndex extends ReplicationTimer implements ToXContentFragment, Writeable {
         private volatile long checkIndexTime;
 
         public VerifyIndex() {}
@@ -483,7 +409,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
     }
 
-    public static class Translog extends Timer implements ToXContentFragment, Writeable {
+    public static class Translog extends ReplicationTimer implements ToXContentFragment, Writeable {
         public static final int UNKNOWN = -1;
 
         private int recovered;
@@ -819,7 +745,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
     }
 
-    public static class Index extends Timer implements ToXContentFragment, Writeable {
+    public static class Index extends ReplicationTimer implements ToXContentFragment, Writeable {
         private final RecoveryFilesDetails fileDetails;
 
         public static final long UNKNOWN = -1L;

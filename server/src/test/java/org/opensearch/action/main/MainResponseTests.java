@@ -33,7 +33,6 @@
 package org.opensearch.action.main;
 
 import org.opensearch.Build;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.common.Strings;
@@ -136,22 +135,6 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
                 + "}",
             Strings.toString(builder)
         );
-    }
-
-    public void toXContent_overrideMainResponseVersion() throws IOException {
-        String responseVersion = LegacyESVersion.V_7_10_2.toString();
-        MainResponse response = new MainResponse(
-            "nodeName",
-            Version.CURRENT,
-            new ClusterName("clusterName"),
-            randomAlphaOfLengthBetween(10, 20),
-            Build.CURRENT,
-            responseVersion
-        );
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertTrue(Strings.toString(builder).contains("\"number\":\"" + responseVersion + "\","));
-        assertFalse(Strings.toString(builder).contains("\"distribution\":\"" + Build.CURRENT.getDistribution() + "\","));
     }
 
     @Override

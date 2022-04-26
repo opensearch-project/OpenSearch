@@ -220,4 +220,3 @@
     # When all shards are skipped current logic returns 1 to produce a valid search result
   - match: { _shards.skipped : 1}
   - match: { _shards.failed: 0 }
-

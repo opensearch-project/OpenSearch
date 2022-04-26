@@ -36,6 +36,7 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
 
 import java.io.IOException;
+import java.lang.Runtime.Version;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -250,7 +251,9 @@ public class JarHell {
     }
 
     public static void checkVersionFormat(String targetVersion) {
-        if (!JavaVersion.isValid(targetVersion)) {
+        try {
+            Version.parse(targetVersion);
+        } catch (final IllegalArgumentException ex) {
             throw new IllegalStateException(
                 String.format(
                     Locale.ROOT,
@@ -267,16 +270,10 @@ public class JarHell {
      * required by {@code resource} is compatible with the current installation.
      */
     public static void checkJavaVersion(String resource, String targetVersion) {
-        JavaVersion version = JavaVersion.parse(targetVersion);
-        if (JavaVersion.current().compareTo(version) < 0) {
+        Version version = Version.parse(targetVersion);
+        if (Runtime.version().compareTo(version) < 0) {
             throw new IllegalStateException(
-                String.format(
-                    Locale.ROOT,
-                    "%s requires Java %s:, your system: %s",
-                    resource,
-                    targetVersion,
-                    JavaVersion.current().toString()
-                )
+                String.format(Locale.ROOT, "%s requires Java %s:, your system: %s", resource, targetVersion, Runtime.version().toString())
             );
         }
     }

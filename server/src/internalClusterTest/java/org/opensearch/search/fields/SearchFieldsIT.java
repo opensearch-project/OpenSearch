@@ -471,42 +471,6 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             assertThat(fields, equalTo(singleton("id")));
             assertThat(response.getHits().getAt(i).getFields().get("id").getValue(), equalTo(Integer.toString(i)));
         }
-
-        response = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .addSort("num1", SortOrder.ASC)
-            .setSize(numDocs)
-            .addScriptField("type", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._type.value", Collections.emptyMap()))
-            .get();
-
-        assertNoFailures(response);
-
-        assertThat(response.getHits().getTotalHits().value, equalTo((long) numDocs));
-        for (int i = 0; i < numDocs; i++) {
-            assertThat(response.getHits().getAt(i).getId(), equalTo(Integer.toString(i)));
-            Set<String> fields = new HashSet<>(response.getHits().getAt(i).getFields().keySet());
-            assertThat(fields, equalTo(singleton("type")));
-            assertThat(response.getHits().getAt(i).getFields().get("type").getValue(), equalTo(MapperService.SINGLE_MAPPING_NAME));
-        }
-
-        response = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .addSort("num1", SortOrder.ASC)
-            .setSize(numDocs)
-            .addScriptField("id", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._id.value", Collections.emptyMap()))
-            .addScriptField("type", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._type.value", Collections.emptyMap()))
-            .get();
-
-        assertNoFailures(response);
-
-        assertThat(response.getHits().getTotalHits().value, equalTo((long) numDocs));
-        for (int i = 0; i < numDocs; i++) {
-            assertThat(response.getHits().getAt(i).getId(), equalTo(Integer.toString(i)));
-            Set<String> fields = new HashSet<>(response.getHits().getAt(i).getFields().keySet());
-            assertThat(fields, equalTo(newHashSet("type", "id")));
-            assertThat(response.getHits().getAt(i).getFields().get("type").getValue(), equalTo(MapperService.SINGLE_MAPPING_NAME));
-            assertThat(response.getHits().getAt(i).getFields().get("id").getValue(), equalTo(Integer.toString(i)));
-        }
     }
 
     public void testScriptFieldUsingSource() throws Exception {

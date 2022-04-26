@@ -723,7 +723,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             "desc",
             "1.0",
             Version.CURRENT,
-            "1000000.0",
+            "1000000",
             "FakePlugin",
             Collections.emptyList(),
             false
