@@ -156,7 +156,7 @@ public enum XContentType implements MediaType {
      * This method will return {@code null} if no match is found
      */
     public static XContentType fromMediaType(String mediaTypeHeaderValue) {
-        mediaTypeHeaderValue = removeVersionInMediaType(mediaTypeHeaderValue.toLowerCase(Locale.ROOT));
+        mediaTypeHeaderValue = removeVersionInMediaType(mediaTypeHeaderValue);
         return MEDIA_TYPE_PARSER.fromMediaType(mediaTypeHeaderValue);
     }
 
@@ -170,7 +170,7 @@ public enum XContentType implements MediaType {
      * @return a media type string without
      */
     private static String removeVersionInMediaType(String mediaType) {
-        if (mediaType != null && mediaType.contains("vnd.opensearch")) {
+        if (mediaType != null && (mediaType = mediaType.toLowerCase(Locale.ROOT)).contains("vnd.opensearch")) {
             return mediaType.replaceAll("vnd.opensearch\\+", "").replaceAll("\\s*;\\s*compatible-with=\\d+", "");
         }
         return mediaType;
