@@ -73,12 +73,12 @@ import java.util.Collections;
  * <ol>
  *     <li>Check that there are no running repository cleanup, snapshot create, or snapshot delete actions
  *     and add an entry for the repository that is to be cleaned up to {@link RepositoryCleanupInProgress}</li>
- *     <li>Run cleanup actions on the repository. Note, these are executed exclusively on the master node.
+ *     <li>Run cleanup actions on the repository. Note, these are executed exclusively on the cluster-manager node.
  *     For the precise operations execute see {@link BlobStoreRepository#cleanup}</li>
  *     <li>Remove the entry in {@link RepositoryCleanupInProgress} in the first step.</li>
  * </ol>
  *
- * On master failover during the cleanup operation it is simply removed from the cluster state. This is safe because the logic in
+ * On cluster-manager failover during the cleanup operation it is simply removed from the cluster state. This is safe because the logic in
  * {@link BlobStoreRepository#cleanup} ensures that the repository state id has not changed between creation of the cluster state entry
  * and any delete/write operations. TODO: This will not work if we also want to clean up at the shard level as those will involve writes
  *                                        as well as deletes.
@@ -119,7 +119,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
         );
         this.repositoriesService = repositoriesService;
         this.snapshotsService = snapshotsService;
-        // We add a state applier that will remove any dangling repository cleanup actions on master failover.
+        // We add a state applier that will remove any dangling repository cleanup actions on cluster-manager failover.
         // This is safe to do since cleanups will increment the repository state id before executing any operations to prevent concurrent
         // operations from corrupting the repository. This is the same safety mechanism used by snapshot deletes.
         if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
@@ -136,7 +136,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                     return;
                 }
                 clusterService.submitStateUpdateTask(
-                    "clean up repository cleanup task after master failover",
+                    "clean up repository cleanup task after cluster-manager failover",
                     new ClusterStateUpdateTask() {
                         @Override
                         public ClusterState execute(ClusterState currentState) {

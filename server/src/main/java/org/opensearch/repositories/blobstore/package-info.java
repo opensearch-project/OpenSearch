@@ -39,7 +39,7 @@
  * {@link org.opensearch.repositories.blobstore.BlobStoreRepository#getBlobContainer()}.</p>
  *
  * <p>The blob store is written to and read from by cluster-manager-eligible nodes and data nodes. All metadata related to a snapshot's
- * scope and health is written by the master node.</p>
+ * scope and health is written by the cluster-manager node.</p>
  * <p>The data-nodes on the other hand, write the data for each individual shard but do not write any blobs outside of shard directories for
  * shards that they hold the primary of. For each shard, the data-node holding the shard's primary writes the actual data in form of
  * the shard's segment files to the repository as well as metadata about all the segment files that the repository stores for the shard.</p>
@@ -131,19 +131,19 @@
  * <h2>Writing Updated RepositoryData to the Repository</h2>
  *
  * <p>Writing an updated {@link org.opensearch.repositories.RepositoryData} to a blob store repository is an operation that uses
- * the cluster state to ensure that a specific {@code index-N} blob is never accidentally overwritten in a master failover scenario.
+ * the cluster state to ensure that a specific {@code index-N} blob is never accidentally overwritten in a cluster-manager failover scenario.
  * The specific steps to writing a new {@code index-N} blob and thus making changes from a snapshot-create or delete operation visible
- * to read operations on the repository are as follows and all run on the master node:</p>
+ * to read operations on the repository are as follows and all run on the cluster-manager node:</p>
  *
  * <ol>
  * <li>Write an updated value of {@link org.opensearch.cluster.metadata.RepositoryMetadata} for the repository that has the same
  * {@link org.opensearch.cluster.metadata.RepositoryMetadata#generation()} as the existing entry and has a value of
  * {@link org.opensearch.cluster.metadata.RepositoryMetadata#pendingGeneration()} one greater than the {@code pendingGeneration} of the
  * existing entry.</li>
- * <li>On the same master node, after the cluster state has been updated in the first step, write the new {@code index-N} blob and
+ * <li>On the same cluster-manager node, after the cluster state has been updated in the first step, write the new {@code index-N} blob and
  * also update the contents of the {@code index.latest} blob. Note that updating the index.latest blob is done on a best effort
- * basis and that there is a chance for a stuck master-node to overwrite the contents of the {@code index.latest} blob after a newer
- * {@code index-N} has been written by another master node. This is acceptable since the contents of {@code index.latest} are not used
+ * basis and that there is a chance for a stuck cluster-manager node to overwrite the contents of the {@code index.latest} blob after a newer
+ * {@code index-N} has been written by another cluster-manager node. This is acceptable since the contents of {@code index.latest} are not used
  * during normal operation of the repository and must only be correct for purposes of mounting the contents of a
  * {@link org.opensearch.repositories.blobstore.BlobStoreRepository} as a read-only url repository.</li>
  * <li>After the write has finished, set the value of {@code RepositoriesState.State#generation} to the value used for
@@ -152,7 +152,7 @@
  * last valid {@code index-N} blob in the repository.</li>
  * </ol>
  *
- * <p>If either of the last two steps in the above fails or master fails over to a new node at any point, then a subsequent operation
+ * <p>If either of the last two steps in the above fails or cluster-manager fails over to a new node at any point, then a subsequent operation
  * trying to write a new {@code index-N} blob will never use the same value of {@code N} used by a previous attempt. It will always start
  * over at the first of the above three steps, incrementing the {@code pendingGeneration} generation before attempting a write, thus
  * ensuring no overwriting of a {@code index-N} blob ever to occur. The use of the cluster state to track the latest repository generation
@@ -208,7 +208,7 @@
  *
  * <h3>Finalizing the Snapshot</h3>
  *
- * <p>After all primaries have finished writing the necessary segment files to the blob store in the previous step, the master node moves on
+ * <p>After all primaries have finished writing the necessary segment files to the blob store in the previous step, the cluster-manager node moves on
  * to finalizing the snapshot by invoking {@link org.opensearch.repositories.Repository#finalizeSnapshot}. This method executes the
  * following actions in order:</p>
  * <ol>
@@ -222,7 +222,7 @@
  *
  * <h2>Deleting a Snapshot</h2>
  *
- * <p>Deleting a snapshot is an operation that is exclusively executed on the master node that runs through the following sequence of
+ * <p>Deleting a snapshot is an operation that is exclusively executed on the cluster-manager node that runs through the following sequence of
  * action when {@link org.opensearch.repositories.blobstore.BlobStoreRepository#deleteSnapshots} is invoked:</p>
  *
  * <ol>

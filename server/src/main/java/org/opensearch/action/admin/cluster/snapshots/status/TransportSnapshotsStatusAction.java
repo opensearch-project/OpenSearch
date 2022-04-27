@@ -221,8 +221,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                                         // Unlikely edge case:
                                         // Data node has finished snapshotting the shard but the cluster state has not yet been updated
                                         // to reflect this. We adjust the status to show up as snapshot metadata being written because
-                                        // technically if the data node failed before successfully reporting DONE state to master, then
-                                        // this shards state would jump to a failed state.
+                                        // technically if the data node failed before successfully reporting DONE state to cluster-manager,
+                                        // then this shards state would jump to a failed state.
                                         shardStatus = new SnapshotIndexShardStatus(
                                             shardEntry.key,
                                             SnapshotIndexShardStage.FINALIZE,
@@ -406,7 +406,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
     /**
      * Returns status of shards currently finished snapshots
      * <p>
-     * This method is executed on master node and it's complimentary to the
+     * This method is executed on cluster-manager node and it's complimentary to the
      * {@link SnapshotShardsService#currentSnapshotShards(Snapshot)} because it
      * returns similar information but for already finished snapshots.
      * </p>

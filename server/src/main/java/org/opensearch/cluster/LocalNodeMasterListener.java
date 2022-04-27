@@ -32,29 +32,29 @@
 package org.opensearch.cluster;
 
 /**
- * Enables listening to master changes events of the local node (when the local node becomes the master, and when the local
- * node cease being a master).
+ * Enables listening to cluster-manager changes events of the local node (when the local node becomes the cluster-manager, and when the local
+ * node cease being a cluster-manager).
  */
 public interface LocalNodeMasterListener extends ClusterStateListener {
 
     /**
-     * Called when local node is elected to be the master
+     * Called when local node is elected to be the cluster-manager
      */
-    void onMaster();
+    void onClusterManager();
 
     /**
-     * Called when the local node used to be the master, a new master was elected and it's no longer the local node.
+     * Called when the local node used to be the cluster-manager, a new cluster-manager was elected and it's no longer the local node.
      */
-    void offMaster();
+    void offClusterManager();
 
     @Override
     default void clusterChanged(ClusterChangedEvent event) {
-        final boolean wasMaster = event.previousState().nodes().isLocalNodeElectedMaster();
-        final boolean isMaster = event.localNodeMaster();
-        if (wasMaster == false && isMaster) {
-            onMaster();
-        } else if (wasMaster && isMaster == false) {
-            offMaster();
+        final boolean wasClusterManager = event.previousState().nodes().isLocalNodeElectedMaster();
+        final boolean isClusterManager = event.localNodeMaster();
+        if (wasClusterManager == false && isClusterManager) {
+            onClusterManager();
+        } else if (wasClusterManager && isClusterManager == false) {
+            offClusterManager();
         }
     }
 }

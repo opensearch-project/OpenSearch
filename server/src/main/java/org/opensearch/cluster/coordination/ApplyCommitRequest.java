@@ -38,7 +38,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * A master node sends this request to its peers to inform them that it could commit the
+ * A cluster-manager node sends this request to its peers to inform them that it could commit the
  * cluster state with the given term and version. Peers that have accepted the given cluster
  * state will then consider it as committed and proceed to apply the state locally.
  */

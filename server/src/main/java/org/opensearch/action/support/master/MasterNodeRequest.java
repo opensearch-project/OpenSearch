@@ -40,7 +40,7 @@ import org.opensearch.common.unit.TimeValue;
 import java.io.IOException;
 
 /**
- * A based request for master based operation.
+ * A based request for cluster-manager based operation.
  */
 public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Request>> extends ActionRequest {
 
@@ -62,7 +62,7 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
     }
 
     /**
-     * A timeout value in case the master has not been discovered yet or disconnected.
+     * A timeout value in case the cluster-manager has not been discovered yet or disconnected.
      */
     @SuppressWarnings("unchecked")
     public final Request masterNodeTimeout(TimeValue timeout) {
@@ -71,7 +71,7 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
     }
 
     /**
-     * A timeout value in case the master has not been discovered yet or disconnected.
+     * A timeout value in case the cluster-manager has not been discovered yet or disconnected.
      */
     public final Request masterNodeTimeout(String timeout) {
         return masterNodeTimeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".masterNodeTimeout"));

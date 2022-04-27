@@ -43,11 +43,11 @@ public interface ClusterStateTaskListener {
     void onFailure(String source, Exception e);
 
     /**
-     * called when the task was rejected because the local node is no longer master.
+     * called when the task was rejected because the local node is no longer cluster-manager.
      * Used only for tasks submitted to {@link MasterService}.
      */
     default void onNoLongerMaster(String source) {
-        onFailure(source, new NotMasterException("no longer master. source: [" + source + "]"));
+        onFailure(source, new NotMasterException("no longer cluster-manager. source: [" + source + "]"));
     }
 
     /**

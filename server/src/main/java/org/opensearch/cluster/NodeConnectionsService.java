@@ -69,7 +69,7 @@ import static org.opensearch.common.settings.Setting.positiveTimeSetting;
  * This component is responsible for maintaining connections from this node to all the nodes listed in the cluster state, and for
  * disconnecting from nodes once they are removed from the cluster state. It periodically checks that all connections are still open and
  * restores them if needed. Note that this component is *not* responsible for removing nodes from the cluster state if they disconnect or
- * are unresponsive: this is the job of the master's fault detection components, particularly {@link FollowersChecker}.
+ * are unresponsive: this is the job of the cluster-manager's fault detection components, particularly {@link FollowersChecker}.
  * <p>
  * The {@link NodeConnectionsService#connectToNodes(DiscoveryNodes, Runnable)} and {@link
  * NodeConnectionsService#disconnectFromNodesExcept(DiscoveryNodes)} methods are called on the {@link ClusterApplier} thread. This component

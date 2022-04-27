@@ -36,7 +36,7 @@ import org.opensearch.cluster.ClusterState;
 import java.util.Objects;
 
 /**
- * Request which is used by the master node to publish cluster state changes.
+ * Request which is used by the cluster-manager node to publish cluster state changes.
  * Actual serialization of this request is done by {@link PublicationTransportHandler}
  */
 public class PublishRequest {

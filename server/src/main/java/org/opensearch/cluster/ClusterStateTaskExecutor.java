@@ -45,7 +45,7 @@ public interface ClusterStateTaskExecutor<T> {
     ClusterTasksResult<T> execute(ClusterState currentState, List<T> tasks) throws Exception;
 
     /**
-     * indicates whether this executor should only run if the current node is master
+     * indicates whether this executor should only run if the current node is cluster-manager
      */
     default boolean runOnlyOnMaster() {
         return true;

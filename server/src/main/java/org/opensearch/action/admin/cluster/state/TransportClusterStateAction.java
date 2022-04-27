@@ -138,7 +138,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                         } else {
                             listener.onFailure(
                                 new NotMasterException(
-                                    "master stepped down waiting for metadata version " + request.waitForMetadataVersion()
+                                    "cluster-manager stepped down waiting for metadata version " + request.waitForMetadataVersion()
                                 )
                             );
                         }
