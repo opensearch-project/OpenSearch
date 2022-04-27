@@ -268,7 +268,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
         /**
          * Gets the {@link IndexId} of the recovery source. May contain {@link IndexMetadata#INDEX_UUID_NA_VALUE} as the index uuid if it
-         * was created by an older version master in a mixed version cluster.
+         * was created by an older version cluster-manager in a mixed version cluster.
          *
          * @return IndexId
          */

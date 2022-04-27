@@ -81,7 +81,7 @@ import static org.opensearch.cluster.coordination.Coordinator.ZEN1_BWC_TERM;
  * <p>
  * The cluster state object is immutable with the exception of the {@link RoutingNodes} structure, which is
  * built on demand from the {@link RoutingTable}.
- * The cluster state can be updated only on the master node. All updates are performed by on a
+ * The cluster state can be updated only on the cluster-manager node. All updates are performed by on a
  * single thread and controlled by the {@link ClusterService}. After every update the
  * {@link Discovery#publish} method publishes a new version of the cluster state to all other nodes in the
  * cluster. The actual publishing mechanism is delegated to the {@link Discovery#publish} method and depends on
@@ -169,7 +169,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
     private final boolean wasReadFromDiff;
 
-    private final int minimumMasterNodesOnPublishingMaster;
+    private final int minimumClusterManagerNodesOnPublishingClusterManager;
 
     // built on demand
     private volatile RoutingNodes routingNodes;
@@ -198,7 +198,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         DiscoveryNodes nodes,
         ClusterBlocks blocks,
         ImmutableOpenMap<String, Custom> customs,
-        int minimumMasterNodesOnPublishingMaster,
+        int minimumClusterManagerNodesOnPublishingClusterManager,
         boolean wasReadFromDiff
     ) {
         this.version = version;
@@ -209,7 +209,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         this.nodes = nodes;
         this.blocks = blocks;
         this.customs = customs;
-        this.minimumMasterNodesOnPublishingMaster = minimumMasterNodesOnPublishingMaster;
+        this.minimumClusterManagerNodesOnPublishingClusterManager = minimumClusterManagerNodesOnPublishingClusterManager;
         this.wasReadFromDiff = wasReadFromDiff;
     }
 
@@ -226,8 +226,9 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
     }
 
     public long getVersionOrMetadataVersion() {
-        // When following a Zen1 master, the cluster state version is not guaranteed to increase, so instead it is preferable to use the
-        // metadata version to determine the freshest node. However when following a Zen2 master the cluster state version should be used.
+        // When following a Zen1 cluster-manager, the cluster state version is not guaranteed to increase,
+        // so instead it is preferable to use the metadata version to determine the freshest node.
+        // However when following a Zen2 cluster-manager the cluster state version should be used.
         return term() == ZEN1_BWC_TERM ? metadata().version() : version();
     }
 
@@ -388,7 +389,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
     }
 
     /**
-     * a cluster state supersedes another state if they are from the same master and the version of this state is higher than that of the
+     * a cluster state supersedes another state if they are from the same cluster-manager and the version of this state is higher than that of the
      * other state.
      * <p>
      * In essence that means that all the changes from the other cluster state are also reflected by the current one
@@ -590,7 +591,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         private ClusterBlocks blocks = ClusterBlocks.EMPTY_CLUSTER_BLOCK;
         private final ImmutableOpenMap.Builder<String, Custom> customs;
         private boolean fromDiff;
-        private int minimumMasterNodesOnPublishingMaster = -1;
+        private int minimumClusterManagerNodesOnPublishingClusterManager = -1;
 
         public Builder(ClusterState state) {
             this.clusterName = state.clusterName;
@@ -601,7 +602,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             this.metadata = state.metadata();
             this.blocks = state.blocks();
             this.customs = ImmutableOpenMap.builder(state.customs());
-            this.minimumMasterNodesOnPublishingMaster = state.minimumMasterNodesOnPublishingMaster;
+            this.minimumClusterManagerNodesOnPublishingClusterManager = state.minimumClusterManagerNodesOnPublishingClusterManager;
             this.fromDiff = false;
         }
 
@@ -662,8 +663,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             return this;
         }
 
-        public Builder minimumMasterNodesOnPublishingMaster(int minimumMasterNodesOnPublishingMaster) {
-            this.minimumMasterNodesOnPublishingMaster = minimumMasterNodesOnPublishingMaster;
+        public Builder minimumClusterManagerNodesOnPublishingClusterManager(int minimumClusterManagerNodesOnPublishingClusterManager) {
+            this.minimumClusterManagerNodesOnPublishingClusterManager = minimumClusterManagerNodesOnPublishingClusterManager;
             return this;
         }
 
@@ -701,7 +702,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
                 nodes,
                 blocks,
                 customs.build(),
-                minimumMasterNodesOnPublishingMaster,
+                minimumClusterManagerNodesOnPublishingClusterManager,
                 fromDiff
             );
         }
@@ -746,7 +747,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             Custom customIndexMetadata = in.readNamedWriteable(Custom.class);
             builder.putCustom(customIndexMetadata.getWriteableName(), customIndexMetadata);
         }
-        builder.minimumMasterNodesOnPublishingMaster = in.readVInt();
+        builder.minimumClusterManagerNodesOnPublishingClusterManager = in.readVInt();
         return builder.build();
     }
 
@@ -772,7 +773,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
                 out.writeNamedWriteable(cursor.value);
             }
         }
-        out.writeVInt(minimumMasterNodesOnPublishingMaster);
+        out.writeVInt(minimumClusterManagerNodesOnPublishingClusterManager);
     }
 
     private static class ClusterStateDiff implements Diff<ClusterState> {
@@ -795,7 +796,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
         private final Diff<ImmutableOpenMap<String, Custom>> customs;
 
-        private final int minimumMasterNodesOnPublishingMaster;
+        private final int minimumClusterManagerNodesOnPublishingClusterManager;
 
         ClusterStateDiff(ClusterState before, ClusterState after) {
             fromUuid = before.stateUUID;
@@ -807,7 +808,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             metadata = after.metadata.diff(before.metadata);
             blocks = after.blocks.diff(before.blocks);
             customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
-            minimumMasterNodesOnPublishingMaster = after.minimumMasterNodesOnPublishingMaster;
+            minimumClusterManagerNodesOnPublishingClusterManager = after.minimumClusterManagerNodesOnPublishingClusterManager;
         }
 
         ClusterStateDiff(StreamInput in, DiscoveryNode localNode) throws IOException {
@@ -820,7 +821,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             metadata = Metadata.readDiffFrom(in);
             blocks = ClusterBlocks.readDiffFrom(in);
             customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
-            minimumMasterNodesOnPublishingMaster = in.readVInt();
+            minimumClusterManagerNodesOnPublishingClusterManager = in.readVInt();
         }
 
         @Override
@@ -834,7 +835,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             metadata.writeTo(out);
             blocks.writeTo(out);
             customs.writeTo(out);
-            out.writeVInt(minimumMasterNodesOnPublishingMaster);
+            out.writeVInt(minimumClusterManagerNodesOnPublishingClusterManager);
         }
 
         @Override
@@ -854,7 +855,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             builder.metadata(metadata.apply(state.metadata));
             builder.blocks(blocks.apply(state.blocks));
             builder.customs(customs.apply(state.customs));
-            builder.minimumMasterNodesOnPublishingMaster(minimumMasterNodesOnPublishingMaster);
+            builder.minimumClusterManagerNodesOnPublishingClusterManager(minimumClusterManagerNodesOnPublishingClusterManager);
             builder.fromDiff(true);
             return builder.build();
         }

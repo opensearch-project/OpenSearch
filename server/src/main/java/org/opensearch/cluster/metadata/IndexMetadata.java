@@ -70,6 +70,7 @@ import org.opensearch.index.Index;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -258,6 +259,18 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         },
         Property.IndexScope
+    );
+
+    /**
+     * Used to specify the replication type for the index. By default, document replication is used.
+     */
+    public static final String SETTING_REPLICATION_TYPE = "index.replication.type";
+    public static final Setting<ReplicationType> INDEX_REPLICATION_TYPE_SETTING = new Setting<>(
+        SETTING_REPLICATION_TYPE,
+        ReplicationType.DOCUMENT.toString(),
+        ReplicationType::parseString,
+        Property.IndexScope,
+        Property.Final
     );
 
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";

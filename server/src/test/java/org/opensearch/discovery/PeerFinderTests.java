@@ -173,7 +173,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
         }
 
         @Override
-        protected void onActiveMasterFound(DiscoveryNode clusterManagerNode, long term) {
+        protected void onActiveClusterManagerFound(DiscoveryNode clusterManagerNode, long term) {
             assert holdsLock() == false : "PeerFinder lock held in error";
             assertThat(discoveredClusterManagerNode, nullValue());
             assertFalse(discoveredClusterManagerTerm.isPresent());

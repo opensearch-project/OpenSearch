@@ -208,7 +208,7 @@ public abstract class PeerFinder {
      * Invoked on receipt of a PeersResponse from a node that believes it's an active leader, which this node should therefore try and join.
      * Note that invocations of this method are not synchronised. By the time it is called we may have been deactivated.
      */
-    protected abstract void onActiveMasterFound(DiscoveryNode masterNode, long term);
+    protected abstract void onActiveClusterManagerFound(DiscoveryNode clusterManagerNode, long term);
 
     /**
      * Invoked when the set of found peers changes. Note that invocations of this method are not fully synchronised, so we only guarantee
@@ -225,7 +225,7 @@ public abstract class PeerFinder {
 
     public interface TransportAddressConnector {
         /**
-         * Identify the node at the given address and, if it is a master node and not the local node then establish a full connection to it.
+         * Identify the node at the given address and, if it is a cluster-manager node and not the local node then establish a full connection to it.
          */
         void connectToRemoteMasterNode(TransportAddress transportAddress, ActionListener<DiscoveryNode> listener);
     }
@@ -275,7 +275,7 @@ public abstract class PeerFinder {
             return peersRemoved;
         }
 
-        logger.trace("probing master nodes from cluster state: {}", lastAcceptedNodes);
+        logger.trace("probing cluster-manager nodes from cluster state: {}", lastAcceptedNodes);
         for (ObjectCursor<DiscoveryNode> discoveryNodeObjectCursor : lastAcceptedNodes.getMasterNodes().values()) {
             startProbe(discoveryNodeObjectCursor.value.getAddress());
         }
@@ -381,7 +381,7 @@ public abstract class PeerFinder {
             transportAddressConnector.connectToRemoteMasterNode(transportAddress, new ActionListener<DiscoveryNode>() {
                 @Override
                 public void onResponse(DiscoveryNode remoteNode) {
-                    assert remoteNode.isMasterNode() : remoteNode + " is not master-eligible";
+                    assert remoteNode.isMasterNode() : remoteNode + " is not cluster-manager-eligible";
                     assert remoteNode.equals(getLocalNode()) == false : remoteNode + " is the local node";
                     synchronized (mutex) {
                         if (active == false) {
@@ -449,7 +449,7 @@ public abstract class PeerFinder {
                     if (response.getMasterNode().equals(Optional.of(discoveryNode))) {
                         // Must not hold lock here to avoid deadlock
                         assert holdsLock() == false : "PeerFinder mutex is held in error";
-                        onActiveMasterFound(discoveryNode, response.getTerm());
+                        onActiveClusterManagerFound(discoveryNode, response.getTerm());
                     }
                 }
 

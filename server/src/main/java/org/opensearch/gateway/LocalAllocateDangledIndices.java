@@ -103,9 +103,9 @@ public class LocalAllocateDangledIndices {
 
     public void allocateDangled(Collection<IndexMetadata> indices, ActionListener<AllocateDangledResponse> listener) {
         ClusterState clusterState = clusterService.state();
-        DiscoveryNode masterNode = clusterState.nodes().getMasterNode();
-        if (masterNode == null) {
-            listener.onFailure(new MasterNotDiscoveredException("no master to send allocate dangled request"));
+        DiscoveryNode clusterManagerNode = clusterState.nodes().getMasterNode();
+        if (clusterManagerNode == null) {
+            listener.onFailure(new MasterNotDiscoveredException("no cluster-manager to send allocate dangled request"));
             return;
         }
         AllocateDangledRequest request = new AllocateDangledRequest(
@@ -113,7 +113,7 @@ public class LocalAllocateDangledIndices {
             indices.toArray(new IndexMetadata[indices.size()])
         );
         transportService.sendRequest(
-            masterNode,
+            clusterManagerNode,
             ACTION_NAME,
             request,
             new ActionListenerResponseHandler<>(listener, AllocateDangledResponse::new, ThreadPool.Names.SAME)

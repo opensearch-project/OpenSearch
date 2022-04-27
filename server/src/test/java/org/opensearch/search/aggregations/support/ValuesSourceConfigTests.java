@@ -40,7 +40,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
-import org.opensearch.index.mapper.TypeFieldMapper;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
@@ -307,25 +306,6 @@ public class ValuesSourceConfigTests extends OpenSearchSingleNodeTestCase {
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());
             assertEquals(1, values.nextValue());
-        }
-    }
-
-    public void testTypeFieldDeprecation() {
-        IndexService indexService = createIndex("index", Settings.EMPTY, "type");
-        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);
-
-            ValuesSourceConfig config = ValuesSourceConfig.resolve(
-                context,
-                null,
-                TypeFieldMapper.NAME,
-                null,
-                null,
-                null,
-                null,
-                CoreValuesSourceType.BYTES
-            );
-            assertWarnings(TypeFieldMapper.TYPES_DEPRECATION_MESSAGE);
         }
     }
 

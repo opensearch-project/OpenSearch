@@ -190,6 +190,17 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         );
 
         assertThat(q, equalTo(expected));
+
+        q = ft.prefixQuery("g", null, false, randomMockShardContext());
+        automaton = Operations.concatenate(Arrays.asList(Automata.makeChar('g'), Automata.makeAnyChar()));
+
+        expected = new ConstantScoreQuery(
+            new BooleanQuery.Builder().add(new AutomatonQuery(new Term("field._index_prefix", "g*"), automaton), BooleanClause.Occur.SHOULD)
+                .add(new TermQuery(new Term("field", "g")), BooleanClause.Occur.SHOULD)
+                .build()
+        );
+
+        assertThat(q, equalTo(expected));
     }
 
     public void testFetchSourceValue() throws IOException {

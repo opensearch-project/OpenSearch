@@ -68,7 +68,7 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
     static final String NO_SHARD_DATA_TO_CLEAN_UP_FOUND = "No shard data to clean-up found";
 
     public NodeRepurposeCommand() {
-        super("Repurpose this node to another master/data role, cleaning up any excess persisted data");
+        super("Repurpose this node to another cluster-manager/data role, cleaning up any excess persisted data");
     }
 
     void testExecute(Terminal terminal, OptionSet options, Environment env) throws Exception {
@@ -92,13 +92,13 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
         assert DiscoveryNode.isDataNode(env.settings()) == false;
 
         if (DiscoveryNode.isMasterNode(env.settings()) == false) {
-            processNoMasterNoDataNode(terminal, dataPaths, env);
+            processNoClusterManagerNoDataNode(terminal, dataPaths, env);
         } else {
-            processMasterNoDataNode(terminal, dataPaths, env);
+            processClusterManagerNoDataNode(terminal, dataPaths, env);
         }
     }
 
-    private void processNoMasterNoDataNode(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
+    private void processNoClusterManagerNoDataNode(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
         NodeEnvironment.NodePath[] nodePaths = toNodePaths(dataPaths);
 
         terminal.println(Terminal.Verbosity.VERBOSE, "Collecting shard data paths");
@@ -126,10 +126,10 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
 
         outputVerboseInformation(terminal, indexPaths, indexUUIDs, metadata);
 
-        terminal.println(noMasterMessage(indexUUIDs.size(), shardDataPaths.size(), indexMetadataPaths.size()));
+        terminal.println(noClusterManagerMessage(indexUUIDs.size(), shardDataPaths.size(), indexMetadataPaths.size()));
         outputHowToSeeVerboseInformation(terminal);
 
-        terminal.println("Node is being re-purposed as no-master and no-data. Clean-up of index data will be performed.");
+        terminal.println("Node is being re-purposed as no-cluster-manager and no-data. Clean-up of index data will be performed.");
         confirm(terminal, "Do you want to proceed?");
 
         removePaths(terminal, indexPaths); // clean-up shard dirs
@@ -137,10 +137,10 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
         MetadataStateFormat.deleteMetaState(dataPaths);
         IOUtils.rm(Stream.of(dataPaths).map(path -> path.resolve(INDICES_FOLDER)).toArray(Path[]::new));
 
-        terminal.println("Node successfully repurposed to no-master and no-data.");
+        terminal.println("Node successfully repurposed to no-cluster-manager and no-data.");
     }
 
-    private void processMasterNoDataNode(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
+    private void processClusterManagerNoDataNode(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
         NodeEnvironment.NodePath[] nodePaths = toNodePaths(dataPaths);
 
         terminal.println(Terminal.Verbosity.VERBOSE, "Collecting shard data paths");
@@ -162,12 +162,12 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
         terminal.println(shardMessage(shardDataPaths.size(), indexUUIDs.size()));
         outputHowToSeeVerboseInformation(terminal);
 
-        terminal.println("Node is being re-purposed as master and no-data. Clean-up of shard data will be performed.");
+        terminal.println("Node is being re-purposed as cluster-manager and no-data. Clean-up of shard data will be performed.");
         confirm(terminal, "Do you want to proceed?");
 
         removePaths(terminal, shardDataPaths); // clean-up shard dirs
 
-        terminal.println("Node successfully repurposed to master and no-data.");
+        terminal.println("Node successfully repurposed to cluster-manager and no-data.");
     }
 
     private ClusterState loadClusterState(Terminal terminal, Environment env, PersistedClusterStateService psf) throws IOException {
@@ -205,7 +205,7 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
         return indexPaths.stream().map(Path::getFileName).map(Path::toString).collect(Collectors.toSet());
     }
 
-    static String noMasterMessage(int indexes, int shards, int indexMetadata) {
+    static String noClusterManagerMessage(int indexes, int shards, int indexMetadata) {
         return "Found " + indexes + " indices (" + shards + " shards and " + indexMetadata + " index meta data) to clean up";
     }
 

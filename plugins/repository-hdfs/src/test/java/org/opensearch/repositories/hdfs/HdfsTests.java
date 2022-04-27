@@ -36,7 +36,6 @@ import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotRespon
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.bootstrap.JavaVersion;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.common.settings.Settings;
@@ -63,7 +62,6 @@ public class HdfsTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testSimpleWorkflow() {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/31498", JavaVersion.current().equals(JavaVersion.parse("11")));
         Client client = client();
 
         AcknowledgedResponse putRepositoryResponse = client.admin()

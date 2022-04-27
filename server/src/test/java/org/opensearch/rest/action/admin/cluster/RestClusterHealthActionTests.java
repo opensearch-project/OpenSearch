@@ -63,7 +63,7 @@ public class RestClusterHealthActionTests extends OpenSearchTestCase {
 
         params.put("index", index);
         params.put("local", String.valueOf(local));
-        params.put("master_timeout", clusterManagerTimeout);
+        params.put("cluster_manager_timeout", clusterManagerTimeout);
         params.put("timeout", timeout);
         params.put("wait_for_status", waitForStatus.name());
         if (waitForNoRelocatingShards || randomBoolean()) {

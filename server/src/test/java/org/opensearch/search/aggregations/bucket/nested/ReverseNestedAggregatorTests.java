@@ -42,9 +42,9 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.NestedPathFieldMapper;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
-import org.opensearch.index.mapper.TypeFieldMapper;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorTestCase;
@@ -133,7 +133,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                         document.add(
                             new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), IdFieldMapper.Defaults.NESTED_FIELD_TYPE)
                         );
-                        document.add(new Field(TypeFieldMapper.NAME, "__" + NESTED_OBJECT, TypeFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                        document.add(new Field(NestedPathFieldMapper.NAME, NESTED_OBJECT, NestedPathFieldMapper.Defaults.FIELD_TYPE));
                         documents.add(document);
                         expectedNestedDocs++;
                     }
@@ -193,7 +193,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                         document.add(
                             new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), IdFieldMapper.Defaults.NESTED_FIELD_TYPE)
                         );
-                        document.add(new Field(TypeFieldMapper.NAME, "__" + NESTED_OBJECT, TypeFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                        document.add(new Field(NestedPathFieldMapper.NAME, NESTED_OBJECT, NestedPathFieldMapper.Defaults.FIELD_TYPE));
                         documents.add(document);
                     }
                     Document document = new Document();

@@ -134,7 +134,7 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.cluster.SnapshotsInProgress.completed;
 
 /**
- * Service responsible for creating snapshots. This service runs all the steps executed on the master node during snapshot creation and
+ * Service responsible for creating snapshots. This service runs all the steps executed on the cluster-manager node during snapshot creation and
  * deletion.
  * See package level documentation of {@link org.opensearch.snapshots} for details.
  */
@@ -303,8 +303,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
                 SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
                 // Fail if there are any concurrently running snapshots. The only exception to this being a snapshot in INIT state from a
-                // previous master that we can simply ignore and remove from the cluster state because we would clean it up from the
-                // cluster state anyway in #applyClusterState.
+                // previous cluster-manager that we can simply ignore and remove from the cluster state because we would clean it up from
+                // the cluster state anyway in #applyClusterState.
                 if (snapshots != null
                     && snapshots.entries()
                         .stream()
@@ -452,7 +452,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     );
                 }
                 // Fail if there are any concurrently running snapshots. The only exception to this being a snapshot in INIT state from a
-                // previous master that we can simply ignore and remove from the cluster state because we would clean it up from the
+                // previous cluster-manager that we can simply ignore and remove from the cluster state because we would clean it up from
+                // the
                 // cluster state anyway in #applyClusterState.
                 if (concurrentOperationsAllowed == false && runningSnapshots.stream().anyMatch(entry -> entry.state() != State.INIT)) {
                     throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName, " a snapshot is already running");
@@ -807,7 +808,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         runReadyClone(target, sourceSnapshot, shardStatusBefore, repoShardId, repository);
                     }
                 } else {
-                    // Extremely unlikely corner case of master failing over between between starting the clone and
+                    // Extremely unlikely corner case of cluster-manager failing over between between starting the clone and
                     // starting shard clones.
                     logger.warn("Did not find expected entry [{}] in the cluster state", cloneEntry);
                 }
@@ -986,8 +987,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         );
                     }
                     if (clusterState.nodes().getMinNodeVersion().onOrAfter(NO_REPO_INITIALIZE_VERSION) == false) {
-                        // In mixed version clusters we initialize the snapshot in the repository so that in case of a master failover to an
-                        // older version master node snapshot finalization (that assumes initializeSnapshot was called) produces a valid
+                        // In mixed version clusters we initialize the snapshot in the repository so that in case of a cluster-manager
+                        // failover to an
+                        // older version cluster-manager node snapshot finalization (that assumes initializeSnapshot was called) produces a
+                        // valid
                         // snapshot.
                         repository.initializeSnapshot(
                             snapshot.snapshot().getSnapshotId(),
@@ -1116,11 +1119,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                         @Override
                         public void onNoLongerMaster(String source) {
-                            // We are not longer a master - we shouldn't try to do any cleanup
-                            // The new master will take care of it
-                            logger.warn("[{}] failed to create snapshot - no longer a master", snapshot.snapshot().getSnapshotId());
+                            // We are not longer a cluster-manager - we shouldn't try to do any cleanup
+                            // The new cluster-manager will take care of it
+                            logger.warn(
+                                "[{}] failed to create snapshot - no longer a cluster-manager",
+                                snapshot.snapshot().getSnapshotId()
+                            );
                             userCreateSnapshotListener.onFailure(
-                                new SnapshotException(snapshot.snapshot(), "master changed during snapshot initialization")
+                                new SnapshotException(snapshot.snapshot(), "cluster-manager changed during snapshot initialization")
                             );
                         }
 
@@ -1238,7 +1244,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     /**
      * Returns status of the currently running snapshots
      * <p>
-     * This method is executed on master node
+     * This method is executed on cluster-manager node
      * </p>
      *
      * @param snapshotsInProgress snapshots in progress in the cluster state
@@ -1298,20 +1304,22 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     public void applyClusterState(ClusterChangedEvent event) {
         try {
             if (event.localNodeMaster()) {
-                // We don't remove old master when master flips anymore. So, we need to check for change in master
+                // We don't remove old cluster-manager when cluster-manager flips anymore. So, we need to check for change in
+                // cluster-manager
                 SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
-                final boolean newMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false;
+                final boolean newClusterManager = event.previousState().nodes().isLocalNodeElectedMaster() == false;
                 processExternalChanges(
-                    newMaster || removedNodesCleanupNeeded(snapshotsInProgress, event.nodesDelta().removedNodes()),
+                    newClusterManager || removedNodesCleanupNeeded(snapshotsInProgress, event.nodesDelta().removedNodes()),
                     event.routingTableChanged() && waitingShardsStartedOrUnassigned(snapshotsInProgress, event)
                 );
             } else if (snapshotCompletionListeners.isEmpty() == false) {
-                // We have snapshot listeners but are not the master any more. Fail all waiting listeners except for those that already
+                // We have snapshot listeners but are not the cluster-manager any more. Fail all waiting listeners except for those that
+                // already
                 // have their snapshots finalizing (those that are already finalizing will fail on their own from to update the cluster
                 // state).
                 for (Snapshot snapshot : new HashSet<>(snapshotCompletionListeners.keySet())) {
                     if (endingSnapshots.add(snapshot)) {
-                        failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, "no longer master"));
+                        failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, "no longer cluster-manager"));
                     }
                 }
             }
@@ -1326,7 +1334,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     /**
      * Cleanup all snapshots found in the given cluster state that have no more work left:
      * 1. Completed snapshots
-     * 2. Snapshots in state INIT that a previous master of an older version failed to start
+     * 2. Snapshots in state INIT that a previous cluster-manager of an older version failed to start
      * 3. Snapshots in any other state that have all their shard tasks completed
      */
     private void endCompletedSnapshots(ClusterState state) {
@@ -1402,11 +1410,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
-     * Updates the state of in-progress snapshots in reaction to a change in the configuration of the cluster nodes (master fail-over or
+     * Updates the state of in-progress snapshots in reaction to a change in the configuration of the cluster nodes (cluster-manager fail-over or
      * disconnect of a data node that was executing a snapshot) or a routing change that started shards whose snapshot state is
      * {@link SnapshotsInProgress.ShardState#WAITING}.
      *
-     * @param changedNodes true iff either a master fail-over occurred or a data node that was doing snapshot work got removed from the
+     * @param changedNodes true iff either a cluster-manager fail-over occurred or a data node that was doing snapshot work got removed from the
      *                     cluster
      * @param startShards  true iff any waiting shards were started due to a routing change
      */
@@ -1863,7 +1871,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     /**
      * Handles failure to finalize a snapshot. If the exception indicates that this node was unable to publish a cluster state and stopped
-     * being the master node, then fail all snapshot create and delete listeners executing on this node by delegating to
+     * being the cluster-manager node, then fail all snapshot create and delete listeners executing on this node by delegating to
      * {@link #failAllListenersOnMasterFailOver}. Otherwise, i.e. as a result of failing to write to the snapshot repository for some
      * reason, remove the snapshot's {@link SnapshotsInProgress.Entry} from the cluster state and move on with other queued snapshot
      * operations if there are any.
@@ -1875,7 +1883,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private void handleFinalizationFailure(Exception e, SnapshotsInProgress.Entry entry, RepositoryData repositoryData) {
         Snapshot snapshot = entry.snapshot();
         if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
-            // Failure due to not being master any more, don't try to remove snapshot from cluster state the next master
+            // Failure due to not being cluster-manager any more, don't try to remove snapshot from cluster state the next cluster-manager
             // will try ending this snapshot again
             logger.debug(() -> new ParameterizedMessage("[{}] failed to update cluster state during snapshot finalization", snapshot), e);
             failSnapshotCompletionListeners(
@@ -2082,7 +2090,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void onNoLongerMaster(String source) {
-                failure.addSuppressed(new SnapshotException(snapshot, "no longer master"));
+                failure.addSuppressed(new SnapshotException(snapshot, "no longer cluster-manager"));
                 failSnapshotCompletionListeners(snapshot, failure);
                 failAllListenersOnMasterFailOver(new NotMasterException(source));
                 if (listener != null) {
@@ -2249,7 +2257,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         SnapshotsInProgress.of(
                             snapshots.entries()
                                 .stream()
-                                // remove init state snapshot we found from a previous master if there was one
+                                // remove init state snapshot we found from a previous cluster-manager if there was one
                                 .filter(existing -> abortedDuringInit == false || existing.equals(snapshotEntry) == false)
                                 .map(existing -> {
                                     if (existing.equals(snapshotEntry)) {
@@ -2297,8 +2305,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     );
                 }, e -> {
                     if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
-                        logger.warn("master failover before deleted snapshot could complete", e);
-                        // Just pass the exception to the transport handler as is so it is retried on the new master
+                        logger.warn("cluster-manager failover before deleted snapshot could complete", e);
+                        // Just pass the exception to the transport handler as is so it is retried on the new cluster-manager
                         listener.onFailure(e);
                     } else {
                         logger.warn("deleted snapshot failed", e);
@@ -2588,7 +2596,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     private static boolean isWritingToRepository(SnapshotsInProgress.Entry entry) {
         if (entry.state().completed()) {
-            // Entry is writing to the repo because it's finalizing on master
+            // Entry is writing to the repo because it's finalizing on cluster-manager
             return true;
         }
         for (ObjectCursor<ShardSnapshotStatus> value : entry.shards().values()) {
@@ -2769,19 +2777,19 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
-     * Handle snapshot or delete failure due to not being master any more so we don't try to do run additional cluster state updates.
-     * The next master will try handling the missing operations. All we can do is fail all the listeners on this master node so that
+     * Handle snapshot or delete failure due to not being cluster-manager any more so we don't try to do run additional cluster state updates.
+     * The next cluster-manager will try handling the missing operations. All we can do is fail all the listeners on this cluster-manager node so that
      * transport requests return and we don't leak listeners.
      *
-     * @param e exception that caused us to realize we are not master any longer
+     * @param e exception that caused us to realize we are not cluster-manager any longer
      */
     private void failAllListenersOnMasterFailOver(Exception e) {
-        logger.debug("Failing all snapshot operation listeners because this node is not master any longer", e);
+        logger.debug("Failing all snapshot operation listeners because this node is not cluster-manager any longer", e);
         synchronized (currentlyFinalizing) {
             if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
                 repositoryOperations.clear();
                 for (Snapshot snapshot : new HashSet<>(snapshotCompletionListeners.keySet())) {
-                    failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, "no longer master"));
+                    failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, "no longer cluster-manager"));
                 }
                 final Exception wrapped = new RepositoryException("_all", "Failed to update cluster state during repository operation", e);
                 for (Iterator<List<ActionListener<Void>>> iterator = snapshotDeletionListeners.values().iterator(); iterator.hasNext();) {
@@ -3213,7 +3221,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      *
      * If the inner loop finds that a shard update task applies to a given snapshot and either a shard-snapshot or shard-clone operation in
      * it then it will update the state of the snapshot entry accordingly. If that update was a noop, then the task is removed from the
-     * iteration as it was already applied before and likely just arrived on the master node again due to retries upstream.
+     * iteration as it was already applied before and likely just arrived on the cluster-manager node again due to retries upstream.
      * If the update was not a noop, then it means that the shard it applied to is now available for another snapshot or clone operation
      * to be re-assigned if there is another snapshot operation that is waiting for the shard to become available. We therefore record the
      * fact that a task was executed by adding it to a collection of executed tasks. If a subsequent execution of the outer loop finds that
@@ -3267,7 +3275,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 updateSnapshotState,
                                 entry
                             );
-                            assert false : "This should never happen, master will not submit a state update for a non-existing clone";
+                            assert false
+                                : "This should never happen, cluster-manager will not submit a state update for a non-existing clone";
                             continue;
                         }
                         if (existing.state().completed()) {
@@ -3810,8 +3819,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
 
         /**
-         * Clear all state associated with running snapshots. To be used on master-failover if the current node stops
-         * being master.
+         * Clear all state associated with running snapshots. To be used on cluster-manager-failover if the current node stops
+         * being cluster-manager.
          */
         synchronized void clear() {
             snapshotsToFinalize.clear();

@@ -53,6 +53,10 @@ public class FilteredCollector implements Collector {
         this.filter = filter;
     }
 
+    public Collector getCollector() {
+        return collector;
+    }
+
     @Override
     public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
         final ScorerSupplier filterScorerSupplier = filter.scorerSupplier(context);

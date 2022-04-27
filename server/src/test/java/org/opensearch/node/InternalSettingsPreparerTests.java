@@ -85,7 +85,7 @@ public class InternalSettingsPreparerTests extends OpenSearchTestCase {
         assertNotNull(settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey())); // a cluster name was set
         assertEquals(settings.toString(), size + 1 /* path.home is in the base settings */, settings.names().size());
         String home = Environment.PATH_HOME_SETTING.get(baseEnvSettings);
-        String configDir = env.configFile().toString();
+        String configDir = env.configDir().toString();
         assertTrue(configDir, configDir.startsWith(home));
     }
 
