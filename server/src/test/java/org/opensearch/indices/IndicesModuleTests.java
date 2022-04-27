@@ -41,6 +41,7 @@ import org.opensearch.index.mapper.IndexFieldMapper;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MetadataFieldMapper;
+import org.opensearch.index.mapper.NestedPathFieldMapper;
 import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
@@ -96,6 +97,7 @@ public class IndicesModuleTests extends OpenSearchTestCase {
         DataStreamFieldMapper.NAME,
         SourceFieldMapper.NAME,
         TypeFieldMapper.NAME,
+        NestedPathFieldMapper.NAME,
         VersionFieldMapper.NAME,
         SeqNoFieldMapper.NAME,
         FieldNamesFieldMapper.NAME };
