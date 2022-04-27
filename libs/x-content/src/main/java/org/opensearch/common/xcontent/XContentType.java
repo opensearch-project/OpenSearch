@@ -37,6 +37,7 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.smile.SmileXContent;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
 
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -155,7 +156,7 @@ public enum XContentType implements MediaType {
      * This method will return {@code null} if no match is found
      */
     public static XContentType fromMediaType(String mediaTypeHeaderValue) {
-        mediaTypeHeaderValue = removeVersionInMediaType(mediaTypeHeaderValue);
+        mediaTypeHeaderValue = removeVersionInMediaType(mediaTypeHeaderValue.toLowerCase(Locale.ROOT));
         return MEDIA_TYPE_PARSER.fromMediaType(mediaTypeHeaderValue);
     }
 

@@ -114,9 +114,9 @@ public class XContentTypeTests extends OpenSearchTestCase {
         assertThat(XContentType.fromMediaType("application/vnd.opensearch+smile;compatible-with=7"), equalTo(XContentType.SMILE));
 
         assertThat(XContentType.fromMediaType("application/vnd.opensearch+json ;compatible-with=7"), equalTo(XContentType.JSON));
-        assertThat(
-            XContentType.fromMediaType("application/vnd.opensearch+json ;compatible-with=7;charset=utf-8"),
-            equalTo(XContentType.JSON)
-        );
+
+        String mthv = "application/vnd.opensearch+json ;compatible-with=7;charset=utf-8";
+        assertThat(XContentType.fromMediaType(mthv), equalTo(XContentType.JSON));
+        assertThat(XContentType.fromMediaType(mthv.toUpperCase(Locale.ROOT)), equalTo(XContentType.JSON));
     }
 }

@@ -83,9 +83,9 @@ public class MediaTypeParser<T extends MediaType> {
      */
     public ParsedMediaType parseMediaType(String headerValue) {
         if (headerValue != null) {
-            String[] split = headerValue.toLowerCase(Locale.ROOT).split(";");
+            String[] split = headerValue.split(";");
 
-            String[] typeSubtype = split[0].trim().toLowerCase(Locale.ROOT).split("/");
+            String[] typeSubtype = split[0].trim().split("/");
             if (typeSubtype.length == 2) {
                 String type = typeSubtype[0];
                 String subtype = typeSubtype[1];
@@ -98,7 +98,7 @@ public class MediaTypeParser<T extends MediaType> {
                         if (keyValueParam.length != 2 || hasSpaces(keyValueParam[0]) || hasSpaces(keyValueParam[1])) {
                             return null;
                         }
-                        parameters.put(keyValueParam[0].toLowerCase(Locale.ROOT), keyValueParam[1].toLowerCase(Locale.ROOT));
+                        parameters.put(keyValueParam[0], keyValueParam[1]);
                     }
                     return new ParsedMediaType(xContentType, parameters);
                 }
