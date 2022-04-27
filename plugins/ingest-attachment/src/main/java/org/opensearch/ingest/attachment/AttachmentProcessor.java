@@ -33,7 +33,8 @@
 package org.opensearch.ingest.attachment;
 
 import org.apache.tika.exception.ZeroByteFileException;
-import org.apache.tika.language.LanguageIdentifier;
+import org.apache.tika.language.detect.LanguageDetector;
+import org.apache.tika.language.detect.LanguageResult;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.TikaCoreProperties;
 
@@ -134,9 +135,9 @@ public final class AttachmentProcessor extends AbstractProcessor {
         }
 
         if (properties.contains(Property.LANGUAGE) && Strings.hasLength(parsedContent)) {
-            // TODO: stop using LanguageIdentifier...
-            LanguageIdentifier identifier = new LanguageIdentifier(parsedContent);
-            String language = identifier.getLanguage();
+            LanguageDetector languageDetector = LanguageDetector.getDefaultLanguageDetector();
+            LanguageResult result = languageDetector.detect(parsedContent);
+            String language = result.getLanguage();
             additionalFields.put(Property.LANGUAGE.toLowerCase(), language);
         }
 
