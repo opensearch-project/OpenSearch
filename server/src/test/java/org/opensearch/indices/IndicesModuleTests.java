@@ -41,6 +41,7 @@ import org.opensearch.index.mapper.IndexFieldMapper;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MetadataFieldMapper;
+import org.opensearch.index.mapper.NestedPathFieldMapper;
 import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
@@ -94,6 +95,7 @@ public class IndicesModuleTests extends OpenSearchTestCase {
         IndexFieldMapper.NAME,
         DataStreamFieldMapper.NAME,
         SourceFieldMapper.NAME,
+        NestedPathFieldMapper.NAME,
         VersionFieldMapper.NAME,
         SeqNoFieldMapper.NAME,
         FieldNamesFieldMapper.NAME };
@@ -101,11 +103,7 @@ public class IndicesModuleTests extends OpenSearchTestCase {
     public void testBuiltinMappers() {
         IndicesModule module = new IndicesModule(Collections.emptyList());
         {
-            Version version = VersionUtils.randomVersionBetween(
-                random(),
-                Version.CURRENT.minimumIndexCompatibilityVersion(),
-                Version.CURRENT
-            );
+            Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
             assertFalse(module.getMapperRegistry().getMapperParsers().isEmpty());
             assertFalse(module.getMapperRegistry().getMetadataMapperParsers(version).isEmpty());
             Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = module.getMapperRegistry()
@@ -115,6 +113,14 @@ public class IndicesModuleTests extends OpenSearchTestCase {
             for (String field : metadataMapperParsers.keySet()) {
                 assertEquals(EXPECTED_METADATA_FIELDS[i++], field);
             }
+        }
+        {
+            Version version = VersionUtils.randomVersionBetween(
+                random(),
+                Version.V_1_0_0,
+                VersionUtils.getPreviousVersion(Version.V_2_0_0)
+            );
+            assertEquals(EXPECTED_METADATA_FIELDS.length - 1, module.getMapperRegistry().getMetadataMapperParsers(version).size());
         }
     }
 
