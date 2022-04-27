@@ -121,7 +121,7 @@ dependencies {
   // percentiles aggregation
   api 'com.tdunning:t-digest:3.2'
   // precentil ranks aggregation
-  api 'org.hdrhistogram:HdrHistogram:2.1.9'
+  api 'org.hdrhistogram:HdrHistogram:2.1.12'
 
   // lucene spatial
   api "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}", optional
