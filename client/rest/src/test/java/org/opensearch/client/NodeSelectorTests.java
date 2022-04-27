@@ -98,4 +98,33 @@ public class NodeSelectorTests extends RestClientTestCase {
             Collections.<String, List<String>>emptyMap()
         );
     }
+
+    /*
+     * Validate SKIP_DEDICATED_CLUSTER_MANAGERS can filter both the deprecated "master" role and the new "cluster_manager" role.
+     * The test is a modified copy of the above testNotClusterManagerOnly().
+     */
+    public void testDeprecatedNotMasterOnly() {
+        Node clusterManagerOnly = dummyNode(true, false, false);
+        Node all = dummyNode(true, true, true);
+        Node data = dummyNode(false, true, randomBoolean());
+        Node deprecatedMasterOnly = new Node(
+            new HttpHost("dummy"),
+            Collections.emptySet(),
+            randomAsciiAlphanumOfLength(5),
+            randomAsciiAlphanumOfLength(5),
+            new Roles(Collections.singleton("master")),
+            Collections.emptyMap()
+        );
+        List<Node> nodes = new ArrayList<>();
+        nodes.add(clusterManagerOnly);
+        nodes.add(all);
+        nodes.add(data);
+        nodes.add(deprecatedMasterOnly);
+        Collections.shuffle(nodes, getRandom());
+        List<Node> expected = new ArrayList<>(nodes);
+        expected.remove(clusterManagerOnly);
+        expected.remove(deprecatedMasterOnly);
+        NodeSelector.SKIP_DEDICATED_CLUSTER_MANAGERS.select(nodes);
+        assertEquals(expected, nodes);
+    }
 }
