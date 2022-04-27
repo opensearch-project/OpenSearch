@@ -516,7 +516,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 assert currentRouting.isRelocationTarget() == false
                     || currentRouting.primary() == false
                     || replicationTracker.isPrimaryMode()
-                    : "a primary relocation is completed by the master, but primary mode is not active " + currentRouting;
+                    : "a primary relocation is completed by the cluster-managerr, but primary mode is not active " + currentRouting;
 
                 changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
             } else if (currentRouting.primary()
@@ -539,7 +539,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (newRouting.primary()) {
                 if (newPrimaryTerm == pendingPrimaryTerm) {
                     if (currentRouting.initializing() && currentRouting.isRelocationTarget() == false && newRouting.active()) {
-                        // the master started a recovering primary, activate primary mode.
+                        // the cluster-manager started a recovering primary, activate primary mode.
                         replicationTracker.activatePrimaryMode(getLocalCheckpoint());
                         ensurePeerRecoveryRetentionLeasesExist();
                     }
@@ -549,10 +549,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                      * in one state causing it's term to be incremented. Note that if both current shard state and new
                      * shard state are initializing, we could replace the current shard and reinitialize it. It is however
                      * possible that this shard is being started. This can happen if:
-                     * 1) Shard is post recovery and sends shard started to the master
+                     * 1) Shard is post recovery and sends shard started to the cluster-manager
                      * 2) Node gets disconnected and rejoins
-                     * 3) Master assigns the shard back to the node
-                     * 4) Master processes the shard started and starts the shard
+                     * 3) Cluster-manager assigns the shard back to the node
+                     * 4) Cluster-manager processes the shard started and starts the shard
                      * 5) The node process the cluster state where the shard is both started and primary term is incremented.
                      *
                      * We could fail the shard in that case, but this will cause it to be removed from the insync allocations list
@@ -757,7 +757,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throw new IndexShardNotStartedException(shardId, state);
         }
         /*
-         * If the master cancelled recovery, the target will be removed and the recovery will be cancelled. However, it is still possible
+         * If the cluster-manager cancelled recovery, the target will be removed and the recovery will be cancelled. However, it is still possible
          * that we concurrently end up here and therefore have to protect that we do not mark the shard as relocated when its shard routing
          * says otherwise.
          */
@@ -3410,7 +3410,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     final IndexShardState shardState = state();
                     // only roll translog and update primary term if shard has made it past recovery
                     // Having a new primary term here means that the old primary failed and that there is a new primary, which again
-                    // means that the master will fail this shard as all initializing shards are failed when a primary is selected
+                    // means that the cluster-manager will fail this shard as all initializing shards are failed when a primary is selected
                     // We abort early here to prevent an ongoing recovery from the failed primary to mess with the global / local checkpoint
                     if (shardState != IndexShardState.POST_RECOVERY && shardState != IndexShardState.STARTED) {
                         throw new IndexShardNotStartedException(shardId, shardState);

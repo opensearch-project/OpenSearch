@@ -69,8 +69,8 @@ public class RestoreClusterStateListener implements ClusterStateListener {
         final RestoreInProgress.Entry prevEntry = restoreInProgress(changedEvent.previousState(), uuid);
         final RestoreInProgress.Entry newEntry = restoreInProgress(changedEvent.state(), uuid);
         if (prevEntry == null) {
-            // When there is a master failure after a restore has been started, this listener might not be registered
-            // on the current master and as such it might miss some intermediary cluster states due to batching.
+            // When there is a cluster-manager failure after a restore has been started, this listener might not be registered
+            // on the current cluster-manager and as such it might miss some intermediary cluster states due to batching.
             // Clean up listener in that case and acknowledge completion of restore operation to client.
             clusterService.removeListener(this);
             listener.onResponse(new RestoreSnapshotResponse((RestoreInfo) null));

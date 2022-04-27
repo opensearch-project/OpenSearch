@@ -101,7 +101,7 @@ public abstract class ClusterStateUpdateTask
     }
 
     /**
-     * Marked as final as cluster state update tasks should only run on master.
+     * Marked as final as cluster state update tasks should only run on cluster-manager.
      * For local requests, use {@link LocalClusterUpdateTask} instead.
      */
     @Override

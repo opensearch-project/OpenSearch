@@ -160,7 +160,7 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
         boolean hasClusterState = randomBoolean();
         createIndexDataFiles(dataMasterSettings, shardCount, hasClusterState);
 
-        String messageText = NodeRepurposeCommand.noMasterMessage(1, environment.dataFiles().length * shardCount, 0);
+        String messageText = NodeRepurposeCommand.noClusterManagerMessage(1, environment.dataFiles().length * shardCount, 0);
 
         Matcher<String> outputMatcher = allOf(
             containsString(messageText),

@@ -67,7 +67,7 @@ import java.io.IOException;
 import java.util.function.Predicate;
 
 /**
- * A base class for operations that needs to be performed on the master node.
+ * A base class for operations that needs to be performed on the cluster-manager node.
  */
 public abstract class TransportMasterNodeAction<Request extends MasterNodeRequest<Request>, Response extends ActionResponse> extends
     HandledTransportAction<Request, Response> {
@@ -198,13 +198,13 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     }
                 } else {
                     if (nodes.getMasterNode() == null) {
-                        logger.debug("no known master node, scheduling a retry");
+                        logger.debug("no known cluster-manager node, scheduling a retry");
                         retryOnMasterChange(clusterState, null);
                     } else {
-                        DiscoveryNode masterNode = nodes.getMasterNode();
-                        final String actionName = getMasterActionName(masterNode);
+                        DiscoveryNode clusterManagerNode = nodes.getMasterNode();
+                        final String actionName = getMasterActionName(clusterManagerNode);
                         transportService.sendRequest(
-                            masterNode,
+                            clusterManagerNode,
                             actionName,
                             request,
                             new ActionListenerResponseHandler<Response>(listener, TransportMasterNodeAction.this::read) {
@@ -213,7 +213,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                                     Throwable cause = exp.unwrapCause();
                                     if (cause instanceof ConnectTransportException
                                         || (exp instanceof RemoteTransportException && cause instanceof NodeClosedException)) {
-                                        // we want to retry here a bit to see if a new master is elected
+                                        // we want to retry here a bit to see if a new cluster-manager is elected
                                         logger.debug(
                                             "connection exception while trying to forward request with action name [{}] to "
                                                 + "master node [{}], scheduling a retry. Error: [{}]",
@@ -279,7 +279,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
     }
 
     /**
-     * Allows to conditionally return a different master node action name in the case an action gets renamed.
+     * Allows to conditionally return a different cluster-manager node action name in the case an action gets renamed.
      * This mainly for backwards compatibility should be used rarely
      */
     protected String getMasterActionName(DiscoveryNode node) {

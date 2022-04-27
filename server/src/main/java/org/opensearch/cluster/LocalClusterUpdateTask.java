@@ -38,7 +38,7 @@ import org.opensearch.common.unit.TimeValue;
 import java.util.List;
 
 /**
- * Used to apply state updates on nodes that are not necessarily master
+ * Used to apply state updates on nodes that are not necessarily cluster-manager
  */
 public abstract class LocalClusterUpdateTask
     implements

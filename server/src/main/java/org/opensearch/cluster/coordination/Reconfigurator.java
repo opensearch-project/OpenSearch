@@ -53,8 +53,8 @@ public class Reconfigurator {
     private static final Logger logger = LogManager.getLogger(Reconfigurator.class);
 
     /**
-     * The cluster usually requires a vote from at least half of the master nodes in order to commit a cluster state update, and to achieve
-     * the best resilience it makes automatic adjustments to the voting configuration as master nodes join or leave the cluster. Adjustments
+     * The cluster usually requires a vote from at least half of the cluster-manager nodes in order to commit a cluster state update, and to achieve
+     * the best resilience it makes automatic adjustments to the voting configuration as cluster-manager nodes join or leave the cluster. Adjustments
      * that fix or increase the size of the voting configuration are always a good idea, but the wisdom of reducing the voting configuration
      * size is less clear. For instance, automatically reducing the voting configuration down to a single node means the cluster requires
      * this node to operate, which is not resilient: if it broke we could restore every other cluster-manager-eligible node in the cluster to health
@@ -102,24 +102,24 @@ public class Reconfigurator {
      * @param retiredNodeIds Nodes that are leaving the cluster and which should not appear in the configuration if possible. Nodes that are
      *                       retired and not in the current configuration will never appear in the resulting configuration; this is useful
      *                       for shifting the vote in a 2-node cluster so one of the nodes can be restarted without harming availability.
-     * @param currentMaster  The current master. Unless retired, we prefer to keep the current master in the config.
+     * @param currentClusterManager  The current cluster-manager. Unless retired, we prefer to keep the current cluster-manager in the config.
      * @param currentConfig  The current configuration. As far as possible, we prefer to keep the current config as-is.
      * @return An optimal configuration, or leave the current configuration unchanged if the optimal configuration has no live quorum.
      */
     public VotingConfiguration reconfigure(
         Set<DiscoveryNode> liveNodes,
         Set<String> retiredNodeIds,
-        DiscoveryNode currentMaster,
+        DiscoveryNode currentClusterManager,
         VotingConfiguration currentConfig
     ) {
-        assert liveNodes.contains(currentMaster) : "liveNodes = " + liveNodes + " master = " + currentMaster;
+        assert liveNodes.contains(currentClusterManager) : "liveNodes = " + liveNodes + " cluster-manager = " + currentClusterManager;
         logger.trace(
-            "{} reconfiguring {} based on liveNodes={}, retiredNodeIds={}, currentMaster={}",
+            "{} reconfiguring {} based on liveNodes={}, retiredNodeIds={}, currentClusterManager={}",
             this,
             currentConfig,
             liveNodes,
             retiredNodeIds,
-            currentMaster
+            currentClusterManager
         );
 
         final Set<String> liveNodeIds = liveNodes.stream()
@@ -134,7 +134,12 @@ public class Reconfigurator {
             .filter(n -> retiredNodeIds.contains(n.getId()) == false)
             .forEach(
                 n -> orderedCandidateNodes.add(
-                    new VotingConfigNode(n.getId(), true, n.getId().equals(currentMaster.getId()), currentConfigNodeIds.contains(n.getId()))
+                    new VotingConfigNode(
+                        n.getId(),
+                        true,
+                        n.getId().equals(currentClusterManager.getId()),
+                        currentConfigNodeIds.contains(n.getId())
+                    )
                 )
             );
         currentConfigNodeIds.stream()
@@ -166,22 +171,22 @@ public class Reconfigurator {
     static class VotingConfigNode implements Comparable<VotingConfigNode> {
         final String id;
         final boolean live;
-        final boolean currentMaster;
+        final boolean currentClusterManager;
         final boolean inCurrentConfig;
 
-        VotingConfigNode(String id, boolean live, boolean currentMaster, boolean inCurrentConfig) {
+        VotingConfigNode(String id, boolean live, boolean currentClusterManager, boolean inCurrentConfig) {
             this.id = id;
             this.live = live;
-            this.currentMaster = currentMaster;
+            this.currentClusterManager = currentClusterManager;
             this.inCurrentConfig = inCurrentConfig;
         }
 
         @Override
         public int compareTo(VotingConfigNode other) {
-            // prefer current master
-            final int currentMasterComp = Boolean.compare(other.currentMaster, currentMaster);
-            if (currentMasterComp != 0) {
-                return currentMasterComp;
+            // prefer current cluster-manager
+            final int currentClusterManagerComp = Boolean.compare(other.currentClusterManager, currentClusterManager);
+            if (currentClusterManagerComp != 0) {
+                return currentClusterManagerComp;
             }
             // prefer nodes that are live
             final int liveComp = Boolean.compare(other.live, live);
@@ -205,8 +210,8 @@ public class Reconfigurator {
                 + '\''
                 + ", live="
                 + live
-                + ", currentMaster="
-                + currentMaster
+                + ", currentClusterManager="
+                + currentClusterManager
                 + ", inCurrentConfig="
                 + inCurrentConfig
                 + '}';

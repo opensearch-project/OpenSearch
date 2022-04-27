@@ -334,7 +334,7 @@ public class RestNodesAction extends AbstractCatAction {
     ) {
 
         DiscoveryNodes nodes = state.getState().nodes();
-        String masterId = nodes.getMasterNodeId();
+        String clusterManagerId = nodes.getMasterNodeId();
         Table table = getTableWithHeader(req);
 
         for (DiscoveryNode node : nodes) {
@@ -424,7 +424,7 @@ public class RestNodesAction extends AbstractCatAction {
                 roles = node.getRoles().stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().collect(Collectors.joining());
             }
             table.addCell(roles);
-            table.addCell(masterId == null ? "x" : masterId.equals(node.getId()) ? "*" : "-");
+            table.addCell(clusterManagerId == null ? "x" : clusterManagerId.equals(node.getId()) ? "*" : "-");
             table.addCell(node.getName());
 
             CompletionStats completionStats = indicesStats == null ? null : stats.getIndices().getCompletion();
