@@ -35,6 +35,7 @@ package org.opensearch.indices.mapper;
 import org.opensearch.Version;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MetadataFieldMapper;
+import org.opensearch.index.mapper.NestedPathFieldMapper;
 import org.opensearch.plugins.MapperPlugin;
 
 import java.util.Collections;
@@ -50,6 +51,7 @@ public final class MapperRegistry {
 
     private final Map<String, Mapper.TypeParser> mapperParsers;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
+    private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsersPre20;
     private final Function<String, Predicate<String>> fieldFilter;
 
     public MapperRegistry(
@@ -59,6 +61,9 @@ public final class MapperRegistry {
     ) {
         this.mapperParsers = Collections.unmodifiableMap(new LinkedHashMap<>(mapperParsers));
         this.metadataMapperParsers = Collections.unmodifiableMap(new LinkedHashMap<>(metadataMapperParsers));
+        Map<String, MetadataFieldMapper.TypeParser> tempPre20 = new LinkedHashMap<>(metadataMapperParsers);
+        tempPre20.remove(NestedPathFieldMapper.NAME);
+        this.metadataMapperParsersPre20 = Collections.unmodifiableMap(tempPre20);
         this.fieldFilter = fieldFilter;
     }
 
@@ -75,7 +80,7 @@ public final class MapperRegistry {
      * returned map uses the name of the field as a key.
      */
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMapperParsers(Version indexCreatedVersion) {
-        return metadataMapperParsers;
+        return indexCreatedVersion.onOrAfter(Version.V_2_0_0) ? metadataMapperParsers : metadataMapperParsersPre20;
     }
 
     /**
