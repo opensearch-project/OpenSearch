@@ -83,7 +83,7 @@ public class MediaTypeParser<T extends MediaType> {
      */
     public ParsedMediaType parseMediaType(String headerValue) {
         if (headerValue != null) {
-            String[] split = headerValue.split(";");
+            String[] split = headerValue.toLowerCase(Locale.ROOT).split(";");
 
             String[] typeSubtype = split[0].trim().split("/");
             if (typeSubtype.length == 2) {
