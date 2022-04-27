@@ -297,7 +297,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
     }
 
     public void testSetNodes() throws Exception {
-        RestClient restClient = createRestClient(NodeSelector.SKIP_DEDICATED_MASTERS);
+        RestClient restClient = createRestClient(NodeSelector.SKIP_DEDICATED_CLUSTER_MANAGERS);
         List<Node> newNodes = new ArrayList<>(nodes.size());
         for (int i = 0; i < nodes.size(); i++) {
             Node.Roles roles = i == 0

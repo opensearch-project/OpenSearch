@@ -48,10 +48,10 @@ public class TimedRequestTests extends OpenSearchTestCase {
         TimedRequest timedRequest = new TimedRequest() {
         };
         TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(0, 1000));
-        TimeValue masterTimeout = TimeValue.timeValueSeconds(randomIntBetween(0, 1000));
+        TimeValue clusterManagerTimeout = TimeValue.timeValueSeconds(randomIntBetween(0, 1000));
         timedRequest.setTimeout(timeout);
-        timedRequest.setMasterTimeout(masterTimeout);
+        timedRequest.setMasterTimeout(clusterManagerTimeout);
         assertEquals(timedRequest.timeout(), timeout);
-        assertEquals(timedRequest.masterNodeTimeout(), masterTimeout);
+        assertEquals(timedRequest.masterNodeTimeout(), clusterManagerTimeout);
     }
 }
