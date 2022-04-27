@@ -91,7 +91,7 @@ public class ClusterRequestConvertersTests extends OpenSearchTestCase {
         RequestConvertersTests.setRandomLocal(healthRequest::local, expectedParams);
         String timeoutType = OpenSearchTestCase.randomFrom("timeout", "masterTimeout", "both", "none");
         String timeout = OpenSearchTestCase.randomTimeValue();
-        String masterTimeout = OpenSearchTestCase.randomTimeValue();
+        String clusterManagerTimeout = OpenSearchTestCase.randomTimeValue();
         switch (timeoutType) {
             case "timeout":
                 healthRequest.timeout(timeout);
@@ -101,8 +101,8 @@ public class ClusterRequestConvertersTests extends OpenSearchTestCase {
                 break;
             case "masterTimeout":
                 expectedParams.put("timeout", "30s");
-                healthRequest.masterNodeTimeout(masterTimeout);
-                expectedParams.put("master_timeout", masterTimeout);
+                healthRequest.masterNodeTimeout(clusterManagerTimeout);
+                expectedParams.put("master_timeout", clusterManagerTimeout);
                 break;
             case "both":
                 healthRequest.timeout(timeout);

@@ -82,9 +82,9 @@ public class GetIndexRequest extends TimedRequest {
     }
 
     /**
-     * Return local information, do not retrieve the state from master node (default: false).
+     * Return local information, do not retrieve the state from cluster-manager node (default: false).
      * @return <code>true</code> if local information is to be returned;
-     * <code>false</code> if information is to be retrieved from master node (default).
+     * <code>false</code> if information is to be retrieved from cluster-manager node (default).
      */
     public final boolean local() {
         return local;
