@@ -234,6 +234,10 @@ public abstract class Engine implements Closeable {
         }
     }
 
+    public long getProcessedLocalCheckpoint() {
+        return 0L;
+    };
+
     /**
      * A throttling class that can be activated, causing the
      * {@code acquireThrottle} method to block on a lock when throttling
@@ -1118,6 +1122,10 @@ public abstract class Engine implements Closeable {
      * Snapshots the most recent safe index commit from the engine.
      */
     public abstract GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException;
+
+    public SegmentInfos getLatestSegmentInfos() {
+        return null;
+    };
 
     /**
      * @return a summary of the contents of the current safe commit

@@ -159,6 +159,10 @@ import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryFailedException;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
+import org.opensearch.indices.replication.SegmentReplicationReplicaService;
+import org.opensearch.indices.replication.checkpoint.PublishCheckpointRequest;
+import org.opensearch.indices.replication.copy.PrimaryShardReplicationSource;
+import org.opensearch.indices.replication.copy.ReplicationCheckpoint;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.rest.RestStatus;
@@ -1355,6 +1359,31 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             throw new IllegalIndexShardStateException(shardId, state, "snapshot is not allowed");
         }
+    }
+
+    public SegmentInfos getLatestSegmentInfos() {
+        return getEngine().getLatestSegmentInfos();
+    }
+
+    public long getProcessedLocalCheckpoint() {
+        return getEngine().getProcessedLocalCheckpoint();
+    }
+
+    public ReplicationCheckpoint getLatestReplicationCheckpoint() {
+        final SegmentInfos latestSegmentInfos = getLatestSegmentInfos();
+        return new ReplicationCheckpoint(
+            this.shardId,
+            getOperationPrimaryTerm(),
+            latestSegmentInfos.getGeneration(),
+            getProcessedLocalCheckpoint(),
+            latestSegmentInfos.getVersion()
+        );
+    }
+
+    public synchronized void onNewCheckpoint(
+        final PublishCheckpointRequest request
+    ) {
+        //To do
     }
 
     /**
