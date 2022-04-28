@@ -325,7 +325,7 @@ public class BytesRestResponseTests extends OpenSearchTestCase {
 
         final XContentType xContentType = randomFrom(XContentType.values());
 
-        Map<String, String> params = Collections.singletonMap("format", xContentType.mediaType());
+        Map<String, String> params = Collections.singletonMap("format", xContentType.format());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
         RestChannel channel = detailed ? new DetailedExceptionRestChannel(request) : new SimpleExceptionRestChannel(request);
 

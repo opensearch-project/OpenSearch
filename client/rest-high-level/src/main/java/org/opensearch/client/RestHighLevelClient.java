@@ -2073,7 +2073,7 @@ public class RestHighLevelClient implements Closeable {
         if (entity.getContentType() == null) {
             throw new IllegalStateException("OpenSearch didn't return the [Content-Type] header, unable to parse response body");
         }
-        XContentType xContentType = XContentType.fromMediaTypeOrFormat(entity.getContentType().getValue());
+        XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
         if (xContentType == null) {
             throw new IllegalStateException("Unsupported Content-Type: " + entity.getContentType().getValue());
         }
