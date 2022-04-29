@@ -24,8 +24,6 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoverySettings;
-import org.opensearch.indices.replication.SegmentReplicationReplicaService;
-import org.opensearch.indices.replication.copy.PrimaryShardReplicationSource;
 import org.opensearch.indices.replication.copy.ReplicationCheckpoint;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
@@ -92,12 +90,7 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
         final ShardId shardId = new ShardId(index, id);
         when(indexShard.shardId()).thenReturn(shardId);
 
-
         final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, clusterService.getClusterSettings());
-
-        final SegmentReplicationReplicaService replicaService = new SegmentReplicationReplicaService(threadPool,recoverySettings,transportService);
-
-        final PrimaryShardReplicationSource source = new PrimaryShardReplicationSource(transportService,clusterService,indicesService,recoverySettings,replicaService);
 
         final PublishCheckpointAction action = new PublishCheckpointAction(
             Settings.EMPTY,
@@ -106,13 +99,8 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
             indicesService,
             threadPool,
             shardStateAction,
-            new ActionFilters(Collections.emptySet()),
-            replicaService,
-            source
+            new ActionFilters(Collections.emptySet())
         );
-
-        SegmentReplicationCheckpointPublisher checkpointPublisher = new SegmentReplicationCheckpointPublisher(action);
-        checkpointPublisher.publish(indexShard);
 
         final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 1111, 111, 11, 1);
 
@@ -143,9 +131,6 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
 
         final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, clusterService.getClusterSettings());
 
-        final SegmentReplicationReplicaService replicaService = new SegmentReplicationReplicaService(threadPool,recoverySettings,transportService);
-
-        final PrimaryShardReplicationSource source = new PrimaryShardReplicationSource(transportService,clusterService,indicesService,recoverySettings,replicaService);
 
         final PublishCheckpointAction action = new PublishCheckpointAction(
             Settings.EMPTY,
@@ -154,9 +139,7 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
             indicesService,
             threadPool,
             shardStateAction,
-            new ActionFilters(Collections.emptySet()),
-            replicaService,
-            source
+            new ActionFilters(Collections.emptySet())
         );
 
         final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 1111, 111, 11, 1);

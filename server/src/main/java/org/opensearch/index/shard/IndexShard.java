@@ -159,9 +159,8 @@ import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryFailedException;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
-import org.opensearch.indices.replication.SegmentReplicationReplicaService;
 import org.opensearch.indices.replication.checkpoint.PublishCheckpointRequest;
-import org.opensearch.indices.replication.copy.PrimaryShardReplicationSource;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.copy.ReplicationCheckpoint;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -298,6 +297,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final RefreshPendingLocationListener refreshPendingLocationListener;
     private volatile boolean useRetentionLeasesInPeerRecovery;
 
+    private final CheckpointRefreshListener checkpointRefreshListener;
+
     public IndexShard(
         final ShardRouting shardRouting,
         final IndexSettings indexSettings,
@@ -318,7 +319,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final List<IndexingOperationListener> listeners,
         final Runnable globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
-        final CircuitBreakerService circuitBreakerService
+        final CircuitBreakerService circuitBreakerService,
+        final SegmentReplicationCheckpointPublisher checkpointPublisher
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -401,6 +403,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         persistMetadata(path, indexSettings, shardRouting, null, logger);
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
+        this.checkpointRefreshListener = new CheckpointRefreshListener(this, checkpointPublisher);
     }
 
     public ThreadPool getThreadPool() {
@@ -1361,29 +1364,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    public SegmentInfos getLatestSegmentInfos() {
-        return getEngine().getLatestSegmentInfos();
-    }
-
-    public long getProcessedLocalCheckpoint() {
-        return getEngine().getProcessedLocalCheckpoint();
-    }
-
     public ReplicationCheckpoint getLatestReplicationCheckpoint() {
-        final SegmentInfos latestSegmentInfos = getLatestSegmentInfos();
-        return new ReplicationCheckpoint(
-            this.shardId,
-            getOperationPrimaryTerm(),
-            latestSegmentInfos.getGeneration(),
-            getProcessedLocalCheckpoint(),
-            latestSegmentInfos.getVersion()
-        );
+        return new ReplicationCheckpoint(shardId,0,0,0,0);
     }
 
     public synchronized void onNewCheckpoint(
         final PublishCheckpointRequest request
     ) {
-        //To do
+        //TODO
     }
 
     /**
@@ -3123,6 +3111,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 this.warmer.warm(reader);
             }
         };
+
+        final List<ReferenceManager.RefreshListener> internalRefreshListener;
+        if (indexSettings.isSegRepEnabled() && shardRouting.primary()) {
+            internalRefreshListener = Arrays.asList(new RefreshMetricUpdater(refreshMetric), checkpointRefreshListener);
+        } else {
+            internalRefreshListener = Collections.singletonList(new RefreshMetricUpdater(refreshMetric));
+        }
 
         return this.engineConfigFactory.newEngineConfig(
             shardId,

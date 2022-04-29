@@ -28,8 +28,6 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.indices.replication.SegmentReplicationReplicaService;
-import org.opensearch.indices.replication.copy.PrimaryShardReplicationSource;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
@@ -48,9 +46,6 @@ public class PublishCheckpointAction extends TransportReplicationAction<
     public static final String ACTION_NAME = "indices:admin/publishCheckpoint";
     protected static Logger logger = LogManager.getLogger(PublishCheckpointAction.class);
 
-    private final SegmentReplicationReplicaService replicationService;
-    private final PrimaryShardReplicationSource source;
-
     @Inject
     public PublishCheckpointAction(
         Settings settings,
@@ -59,9 +54,7 @@ public class PublishCheckpointAction extends TransportReplicationAction<
         IndicesService indicesService,
         ThreadPool threadPool,
         ShardStateAction shardStateAction,
-        ActionFilters actionFilters,
-        SegmentReplicationReplicaService segmentCopyService,
-        PrimaryShardReplicationSource source
+        ActionFilters actionFilters
     ) {
         super(
             settings,
@@ -76,8 +69,6 @@ public class PublishCheckpointAction extends TransportReplicationAction<
             PublishCheckpointRequest::new,
             ThreadPool.Names.REFRESH
         );
-        this.replicationService = segmentCopyService;
-        this.source = source;
     }
 
     @Override
@@ -91,6 +82,7 @@ public class PublishCheckpointAction extends TransportReplicationAction<
     }
 
     final void publish(IndexShard indexShard) {
+        System.out.println(indexShard.routingEntry());
         String primaryAllocationId = indexShard.routingEntry().allocationId().getId();
         long primaryTerm = indexShard.getPendingPrimaryTerm();
         final ThreadContext threadContext = threadPool.getThreadContext();

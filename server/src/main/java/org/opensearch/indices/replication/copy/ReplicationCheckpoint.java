@@ -23,14 +23,14 @@ public class ReplicationCheckpoint implements Writeable {
     private final long primaryTerm;
     private final long segmentsGen;
     private final long seqNo;
-    private final long version;
+    private final long segmentInfosVersion;
 
-    public ReplicationCheckpoint(ShardId shardId, long primaryTerm, long segmentsGen, long seqNo, long version) {
+    public ReplicationCheckpoint(ShardId shardId, long primaryTerm, long segmentsGen, long seqNo, long segmentInfosVersion) {
         this.shardId = shardId;
         this.primaryTerm = primaryTerm;
         this.segmentsGen = segmentsGen;
         this.seqNo = seqNo;
-        this.version = version;
+        this.segmentInfosVersion = segmentInfosVersion;
     }
 
     public ReplicationCheckpoint(StreamInput in) throws IOException {
@@ -38,7 +38,7 @@ public class ReplicationCheckpoint implements Writeable {
         primaryTerm = in.readLong();
         segmentsGen = in.readLong();
         seqNo = in.readLong();
-        version = in.readLong();
+        segmentInfosVersion = in.readLong();
     }
 
     public long getPrimaryTerm() {
@@ -49,8 +49,8 @@ public class ReplicationCheckpoint implements Writeable {
         return segmentsGen;
     }
 
-    public long getVersion() {
-        return version;
+    public long getSegmentInfosVersion() {
+        return segmentInfosVersion;
     }
 
     public long getSeqNo() {
@@ -67,7 +67,7 @@ public class ReplicationCheckpoint implements Writeable {
         out.writeLong(primaryTerm);
         out.writeLong(segmentsGen);
         out.writeLong(seqNo);
-        out.writeLong(version);
+        out.writeLong(segmentInfosVersion);
     }
 
     @Override
@@ -78,7 +78,7 @@ public class ReplicationCheckpoint implements Writeable {
         return primaryTerm == that.primaryTerm
             && segmentsGen == that.segmentsGen
             && seqNo == that.seqNo
-            && version == that.version
+            && segmentInfosVersion == that.segmentInfosVersion
             && Objects.equals(shardId, that.shardId);
     }
 
@@ -88,7 +88,7 @@ public class ReplicationCheckpoint implements Writeable {
     }
 
     public boolean isAheadOf(@Nullable ReplicationCheckpoint other) {
-        return other == null || version > other.getVersion();
+        return other == null || segmentInfosVersion > other.getSegmentInfosVersion();
     }
 
     @Override
@@ -103,7 +103,7 @@ public class ReplicationCheckpoint implements Writeable {
             + ", seqNo="
             + seqNo
             + ", version="
-            + version
+            + segmentInfosVersion
             + '}';
     }
 }
