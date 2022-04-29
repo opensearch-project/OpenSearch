@@ -91,6 +91,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                 PluginInfo pluginInfo = PluginInfo.readFromProperties(plugin);
                 /*
                  * TODO: Read from extensions.yml
+                 * https://github.com/opensearch-project/OpenSearch/issues/3084
                  */
                 extensionsSet.add(
                     new DiscoveryExtension(
@@ -209,6 +210,9 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                                     new IndicesModuleRequest(indexModule),
                                     indicesModuleNameResponseHandler
                                 );
+                                /*
+                                 * Making async synchronous for now.
+                                 */
                                 inProgressIndexNameLatch.await(100, TimeUnit.SECONDS);
                                 logger.info("Received ack response from Extension");
                             } catch (Exception e) {
@@ -239,6 +243,9 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
                 new IndicesModuleRequest(indexModule),
                 indicesModuleResponseHandler
             );
+            /*
+             * Making async synchronous for now.
+             */
             inProgressLatch.await(100, TimeUnit.SECONDS);
             logger.info("Received response from Extension");
         } catch (Exception e) {
