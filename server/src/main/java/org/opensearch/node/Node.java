@@ -37,7 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.index.IndexingPressureService;
-import org.opensearch.plugins.PluginsOrchestrator;
+import org.opensearch.extensions.ExtensionsOrchestrator;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.Assertions;
 import org.opensearch.Build;
@@ -320,7 +320,7 @@ public class Node implements Closeable {
     private final Environment environment;
     private final NodeEnvironment nodeEnvironment;
     private final PluginsService pluginsService;
-    private final PluginsOrchestrator pluginsOrchestrator;
+    private final ExtensionsOrchestrator extensionsOrchestrator;
     private final NodeClient client;
     private final Collection<LifecycleComponent> pluginLifecycleComponents;
     private final LocalNodeFactory localNodeFactory;
@@ -404,6 +404,7 @@ public class Node implements Closeable {
                 initialEnvironment.pluginsDir(),
                 classpathPlugins
             );
+            this.extensionsOrchestrator = new ExtensionsOrchestrator(tmpSettings, initialEnvironment.extensionDir());
             final Settings settings = pluginsService.updatedSettings();
 
             final Set<DiscoveryNodeRole> additionalRoles = pluginsService.filterPlugins(Plugin.class)
@@ -615,6 +616,7 @@ public class Node implements Closeable {
             final IndicesService indicesService = new IndicesService(
                 settings,
                 pluginsService,
+                extensionsOrchestrator,
                 nodeEnvironment,
                 xContentRegistry,
                 analysisModule.getAnalysisRegistry(),
@@ -745,7 +747,7 @@ public class Node implements Closeable {
              * TODO: Understand the dependencies from plugins to initialize TransportService.
              *  This seems like a chicken and egg problem.
              */
-            this.pluginsOrchestrator = new PluginsOrchestrator(tmpSettings, initialEnvironment.extensionDir(), transportService);
+            this.extensionsOrchestrator.setTransportService(transportService);
             final GatewayMetaState gatewayMetaState = new GatewayMetaState();
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
             final SearchTransportService searchTransportService = new SearchTransportService(
@@ -1069,7 +1071,7 @@ public class Node implements Closeable {
         assert transportService.getLocalNode().equals(localNodeFactory.getNode())
             : "transportService has a different local node than the factory provided";
         injector.getInstance(PeerRecoverySourceService.class).start();
-        pluginsOrchestrator.pluginsInitialize();
+        extensionsOrchestrator.extensionsInitialize();
 
         // Load (and maybe upgrade) the metadata stored on disk
         final GatewayMetaState gatewayMetaState = injector.getInstance(GatewayMetaState.class);
