@@ -38,8 +38,8 @@ opensearchplugin {
 }
 
 versions << [
-  'tika'  : '2.2.0',
-  'pdfbox': '2.0.24',
+  'tika'  : '2.2.1',
+  'pdfbox': '2.0.25',
   'poi'   : '4.1.2',
   'mime4j': '0.8.3'
 ]
