@@ -38,9 +38,9 @@ opensearchplugin {
 }
 
 versions << [
-  'tika'  : '2.2.1',
+  'tika'  : '2.3.0',
   'pdfbox': '2.0.25',
-  'poi'   : '4.1.2',
+  'poi'   : '5.2.2',
   'mime4j': '0.8.3'
 ]
 
@@ -70,9 +70,9 @@ dependencies {
   // OpenOffice
   api "org.apache.poi:poi-ooxml:${versions.poi}"
   api "org.apache.poi:poi:${versions.poi}"
-  api "org.apache.poi:poi-ooxml-schemas:${versions.poi}"
+  api "org.apache.poi:poi-ooxml-lite:${versions.poi}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
-  api 'org.apache.xmlbeans:xmlbeans:3.1.0'
+  api 'org.apache.xmlbeans:xmlbeans:5.0.2'
   api 'org.apache.commons:commons-collections4:4.1'
   // MS Office
   api "org.apache.poi:poi-scratchpad:${versions.poi}"
@@ -98,6 +98,7 @@ restResources {
 tasks.named("dependencyLicenses").configure {
   mapping from: /apache-mime4j-.*/, to: 'apache-mime4j'
   mapping from: /tika-parsers-.*/, to: 'tika-parsers'
+  mapping from: /poi-ooxml-.*/, to: 'poi-ooxml'
 }
 
 forbiddenPatterns {
