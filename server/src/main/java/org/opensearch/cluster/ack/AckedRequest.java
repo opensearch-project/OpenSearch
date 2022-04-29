@@ -45,7 +45,7 @@ public interface AckedRequest {
     TimeValue ackTimeout();
 
     /**
-     * Returns the timeout for the request to be completed on the master node
+     * Returns the timeout for the request to be completed on the cluster-manager node
      */
     TimeValue masterNodeTimeout();
 }

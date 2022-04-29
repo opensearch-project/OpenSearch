@@ -87,7 +87,7 @@ public class PersistentTasksNodeService implements ClusterStateListener {
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-            // wait until the gateway has recovered from disk, otherwise if the only master restarts
+            // wait until the gateway has recovered from disk, otherwise if the only cluster-manager restarts
             // we start cancelling all local tasks before cluster has a chance to recover.
             return;
         }
@@ -103,18 +103,18 @@ public class PersistentTasksNodeService implements ClusterStateListener {
         // NULL STARTED Remove locally, Mark as PENDING_CANCEL, Cancel
         // NULL COMPLETED Remove locally
 
-        // Master states:
+        // Cluster-manager states:
         // NULL - doesn't exist in the cluster state
         // STARTED - exist in the cluster state
 
         // Local state:
         // NULL - we don't have task registered locally in runningTasks
-        // STARTED - registered in TaskManager, requires master notification when finishes
-        // PENDING_CANCEL - registered in TaskManager, doesn't require master notification when finishes
-        // COMPLETED - not registered in TaskManager, notified, waiting for master to remove it from CS so we can remove locally
+        // STARTED - registered in TaskManager, requires cluster-manager notification when finishes
+        // PENDING_CANCEL - registered in TaskManager, doesn't require cluster-manager notification when finishes
+        // COMPLETED - not registered in TaskManager, notified, waiting for cluster-manager to remove it from CS so we can remove locally
 
         // When task finishes if it is marked as STARTED or PENDING_CANCEL it is marked as COMPLETED and unregistered,
-        // If the task was STARTED, the master notification is also triggered (this is handled by unregisterTask() method, which is
+        // If the task was STARTED, the cluster-manager notification is also triggered (this is handled by unregisterTask() method, which is
         // triggered by PersistentTaskListener
 
         if (Objects.equals(tasks, previousTasks) == false || event.nodesChanged()) {
@@ -162,7 +162,7 @@ public class PersistentTasksNodeService implements ClusterStateListener {
                     );
                     runningTasks.remove(id);
                 } else {
-                    // task is running locally, but master doesn't know about it - that means that the persistent task was removed
+                    // task is running locally, but cluster-manager doesn't know about it - that means that the persistent task was removed
                     // cancel the task without notifying master
                     logger.trace(
                         "Found unregistered persistent task [{}] with id [{}] and allocation id [{}] - cancelling",
@@ -286,7 +286,7 @@ public class PersistentTasksNodeService implements ClusterStateListener {
     }
 
     /**
-     * Unregisters and then cancels the locally running task using the task manager. No notification to master will be send upon
+     * Unregisters and then cancels the locally running task using the task manager. No notification to cluster-manager will be send upon
      * cancellation.
      */
     private void cancelTask(Long allocationId) {

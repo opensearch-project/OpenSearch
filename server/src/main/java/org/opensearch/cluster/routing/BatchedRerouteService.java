@@ -50,7 +50,7 @@ import java.util.function.BiFunction;
 
 /**
  * A {@link BatchedRerouteService} is a {@link RerouteService} that batches together reroute requests to avoid unnecessary extra reroutes.
- * This component only does meaningful work on the elected master node. Reroute requests will fail with a {@link NotMasterException} on
+ * This component only does meaningful work on the elected cluster-manager node. Reroute requests will fail with a {@link NotMasterException} on
  * other nodes.
  */
 public class BatchedRerouteService implements RerouteService {
@@ -146,7 +146,7 @@ public class BatchedRerouteService implements RerouteService {
                         }
                     }
                     ActionListener.onFailure(currentListeners, new NotMasterException("delayed reroute [" + reason + "] cancelled"));
-                    // no big deal, the new master will reroute again
+                    // no big deal, the new cluster-manager will reroute again
                 }
 
                 @Override

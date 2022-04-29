@@ -39,7 +39,7 @@ import org.opensearch.index.shard.ShardId;
 public interface MappingUpdatePerformer {
 
     /**
-     * Update the mappings on the master.
+     * Update the mappings on the cluster-manager.
      */
     void updateMappings(Mapping update, ShardId shardId, ActionListener<Void> listener);
 

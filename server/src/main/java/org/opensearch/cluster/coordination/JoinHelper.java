@@ -138,23 +138,28 @@ public class JoinHelper {
             @Override
             public ClusterTasksResult<JoinTaskExecutor.Task> execute(ClusterState currentState, List<JoinTaskExecutor.Task> joiningTasks)
                 throws Exception {
-                // The current state that MasterService uses might have been updated by a (different) master in a higher term already
+                // The current state that MasterService uses might have been updated by a (different) cluster-manager in a higher term
+                // already
                 // Stop processing the current cluster state update, as there's no point in continuing to compute it as
                 // it will later be rejected by Coordinator.publish(...) anyhow
                 if (currentState.term() > term) {
-                    logger.trace("encountered higher term {} than current {}, there is a newer master", currentState.term(), term);
+                    logger.trace("encountered higher term {} than current {}, there is a newer cluster-manager", currentState.term(), term);
                     throw new NotMasterException(
-                        "Higher term encountered (current: " + currentState.term() + " > used: " + term + "), there is a newer master"
+                        "Higher term encountered (current: "
+                            + currentState.term()
+                            + " > used: "
+                            + term
+                            + "), there is a newer cluster-manager"
                     );
                 } else if (currentState.nodes().getMasterNodeId() == null && joiningTasks.stream().anyMatch(Task::isBecomeMasterTask)) {
-                    assert currentState.term() < term : "there should be at most one become master task per election (= by term)";
+                    assert currentState.term() < term : "there should be at most one become cluster-manager task per election (= by term)";
                     final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder(currentState.coordinationMetadata())
                         .term(term)
                         .build();
                     final Metadata metadata = Metadata.builder(currentState.metadata()).coordinationMetadata(coordinationMetadata).build();
                     currentState = ClusterState.builder(currentState).metadata(metadata).build();
                 } else if (currentState.nodes().isLocalNodeElectedMaster()) {
-                    assert currentState.term() == term : "term should be stable for the same master";
+                    assert currentState.term() == term : "term should be stable for the same cluster-manager";
                 }
                 return super.execute(currentState, joiningTasks);
             }
@@ -297,7 +302,7 @@ public class JoinHelper {
     }
 
     public void sendJoinRequest(DiscoveryNode destination, long term, Optional<Join> optionalJoin, Runnable onCompletion) {
-        assert destination.isMasterNode() : "trying to join master-ineligible " + destination;
+        assert destination.isMasterNode() : "trying to join cluster-manager-ineligible " + destination;
         final StatusInfo statusInfo = nodeHealthService.getHealth();
         if (statusInfo.getStatus() == UNHEALTHY) {
             logger.debug("dropping join request to [{}]: [{}]", destination, statusInfo.getInfo());
@@ -348,7 +353,7 @@ public class JoinHelper {
     }
 
     public void sendStartJoinRequest(final StartJoinRequest startJoinRequest, final DiscoveryNode destination) {
-        assert startJoinRequest.getSourceNode().isMasterNode() : "sending start-join request for master-ineligible "
+        assert startJoinRequest.getSourceNode().isMasterNode() : "sending start-join request for cluster-manager-ineligible "
             + startJoinRequest.getSourceNode();
         transportService.sendRequest(destination, START_JOIN_ACTION_NAME, startJoinRequest, new TransportResponseHandler<Empty>() {
             @Override

@@ -106,17 +106,17 @@ public class RestMasterAction extends AbstractCatAction {
         DiscoveryNodes nodes = state.getState().nodes();
 
         table.startRow();
-        DiscoveryNode master = nodes.get(nodes.getMasterNodeId());
-        if (master == null) {
+        DiscoveryNode clusterManager = nodes.get(nodes.getMasterNodeId());
+        if (clusterManager == null) {
             table.addCell("-");
             table.addCell("-");
             table.addCell("-");
             table.addCell("-");
         } else {
-            table.addCell(master.getId());
-            table.addCell(master.getHostName());
-            table.addCell(master.getHostAddress());
-            table.addCell(master.getName());
+            table.addCell(clusterManager.getId());
+            table.addCell(clusterManager.getHostName());
+            table.addCell(clusterManager.getHostAddress());
+            table.addCell(clusterManager.getName());
         }
         table.endRow();
 

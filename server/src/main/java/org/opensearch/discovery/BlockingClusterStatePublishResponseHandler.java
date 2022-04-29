@@ -41,8 +41,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Handles responses obtained when publishing a new cluster state from master to all non master nodes.
- * Allows to await a reply from all non master nodes, up to a timeout
+ * Handles responses obtained when publishing a new cluster state from cluster-manager to all non cluster-manager nodes.
+ * Allows to await a reply from all non cluster-manager nodes, up to a timeout
  */
 public class BlockingClusterStatePublishResponseHandler {
 
@@ -62,7 +62,7 @@ public class BlockingClusterStatePublishResponseHandler {
     }
 
     /**
-     * Called for each response obtained from non master nodes
+     * Called for each response obtained from non cluster-manager nodes
      *
      * @param node the node that replied to the publish event
      */
@@ -73,7 +73,7 @@ public class BlockingClusterStatePublishResponseHandler {
     }
 
     /**
-     * Called for each failure obtained from non master nodes
+     * Called for each failure obtained from non cluster-manager nodes
      * @param node the node that replied to the publish event
      */
     public void onFailure(DiscoveryNode node, Exception e) {
@@ -85,7 +85,7 @@ public class BlockingClusterStatePublishResponseHandler {
     }
 
     /**
-     * Allows to wait for all non master nodes to reply to the publish event up to a timeout
+     * Allows to wait for all non cluster-manager nodes to reply to the publish event up to a timeout
      * @param timeout the timeout
      * @return true if the timeout expired or not, false otherwise
      */

@@ -154,7 +154,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 request.index()
             );
         }
-        // if we don't have a master, we don't have metadata, that's fine, let it find a master using create index API
+        // if we don't have a master, we don't have metadata, that's fine, let it find a cluster-manager using create index API
         if (autoCreateIndex.shouldAutoCreate(request.index(), clusterService.state())) {
             client.admin()
                 .indices()

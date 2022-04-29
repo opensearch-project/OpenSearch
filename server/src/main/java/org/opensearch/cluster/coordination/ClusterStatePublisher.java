@@ -39,8 +39,8 @@ import org.opensearch.common.unit.TimeValue;
 
 public interface ClusterStatePublisher {
     /**
-     * Publish all the changes to the cluster from the master (can be called just by the master). The publish
-     * process should apply this state to the master as well!
+     * Publish all the changes to the cluster from the cluster-manager (can be called just by the cluster-manager). The publish
+     * process should apply this state to the cluster-manager as well!
      *
      * The publishListener allows to wait for the publication to complete, which can be either successful completion, timing out or failing.
      * The method is guaranteed to pass back a {@link FailedToCommitClusterStateException} to the publishListener if the change is not

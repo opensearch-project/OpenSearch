@@ -486,7 +486,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         int lineNumber = between(1, 10000);
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         ApiCallSection apiCall = new ApiCallSection("test");
-        apiCall.setNodeSelector(NodeSelector.SKIP_DEDICATED_MASTERS);
+        apiCall.setNodeSelector(NodeSelector.SKIP_DEDICATED_CLUSTER_MANAGERS);
         doSection.setApiCallSection(apiCall);
         ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
@@ -553,7 +553,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         {
             DoSection doSection = new DoSection(new XContentLocation(thirdLineNumber, 0));
             ApiCallSection apiCall = new ApiCallSection("test");
-            apiCall.setNodeSelector(NodeSelector.SKIP_DEDICATED_MASTERS);
+            apiCall.setNodeSelector(NodeSelector.SKIP_DEDICATED_CLUSTER_MANAGERS);
             doSection.setApiCallSection(apiCall);
             doSections.add(doSection);
         }
@@ -593,7 +593,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         SkipSection skipSection = new SkipSection(null, singletonList("node_selector"), null);
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         ApiCallSection apiCall = new ApiCallSection("test");
-        apiCall.setNodeSelector(NodeSelector.SKIP_DEDICATED_MASTERS);
+        apiCall.setNodeSelector(NodeSelector.SKIP_DEDICATED_CLUSTER_MANAGERS);
         doSection.setApiCallSection(apiCall);
         createTestSuite(skipSection, doSection).validate();
     }

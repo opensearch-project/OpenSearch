@@ -270,7 +270,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     }
 
     /**
-     * Add a listener for on/off local node master events
+     * Add a listener for on/off local node cluster-manager events
      */
     public void addLocalNodeMasterListener(LocalNodeMasterListener listener) {
         addListener(listener);

@@ -118,7 +118,7 @@ public class FsRepository extends BlobStoreRepository {
         if (location.isEmpty()) {
             logger.warn(
                 "the repository location is missing, it should point to a shared file system location"
-                    + " that is available on all master and data nodes"
+                    + " that is available on all cluster-manager and data nodes"
             );
             throw new RepositoryException(metadata.name(), "missing location");
         }

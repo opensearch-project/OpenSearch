@@ -242,7 +242,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
      * fail the recovery and call listener
      *
      * @param e                exception that encapsulating the failure
-     * @param sendShardFailure indicates whether to notify the master of the shard failure
+     * @param sendShardFailure indicates whether to notify the cluster-manager of the shard failure
      */
     public void fail(RecoveryFailedException e, boolean sendShardFailure) {
         if (finished.compareAndSet(false, true)) {

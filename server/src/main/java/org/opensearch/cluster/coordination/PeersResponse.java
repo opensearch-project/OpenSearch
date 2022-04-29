@@ -43,27 +43,27 @@ import java.util.Objects;
 import java.util.Optional;
 
 public class PeersResponse extends TransportResponse {
-    private final Optional<DiscoveryNode> masterNode;
+    private final Optional<DiscoveryNode> clusterManagerNode;
     private final List<DiscoveryNode> knownPeers;
     private final long term;
 
-    public PeersResponse(Optional<DiscoveryNode> masterNode, List<DiscoveryNode> knownPeers, long term) {
-        assert masterNode.isPresent() == false || knownPeers.isEmpty();
-        this.masterNode = masterNode;
+    public PeersResponse(Optional<DiscoveryNode> clusterManagerNode, List<DiscoveryNode> knownPeers, long term) {
+        assert clusterManagerNode.isPresent() == false || knownPeers.isEmpty();
+        this.clusterManagerNode = clusterManagerNode;
         this.knownPeers = knownPeers;
         this.term = term;
     }
 
     public PeersResponse(StreamInput in) throws IOException {
-        masterNode = Optional.ofNullable(in.readOptionalWriteable(DiscoveryNode::new));
+        clusterManagerNode = Optional.ofNullable(in.readOptionalWriteable(DiscoveryNode::new));
         knownPeers = in.readList(DiscoveryNode::new);
         term = in.readLong();
-        assert masterNode.isPresent() == false || knownPeers.isEmpty();
+        assert clusterManagerNode.isPresent() == false || knownPeers.isEmpty();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalWriteable(masterNode.orElse(null));
+        out.writeOptionalWriteable(clusterManagerNode.orElse(null));
         out.writeList(knownPeers);
         out.writeLong(term);
     }
@@ -72,7 +72,7 @@ public class PeersResponse extends TransportResponse {
      * @return the node that is currently leading, according to the responding node.
      */
     public Optional<DiscoveryNode> getMasterNode() {
-        return masterNode;
+        return clusterManagerNode;
     }
 
     /**
@@ -93,7 +93,7 @@ public class PeersResponse extends TransportResponse {
 
     @Override
     public String toString() {
-        return "PeersResponse{" + "masterNode=" + masterNode + ", knownPeers=" + knownPeers + ", term=" + term + '}';
+        return "PeersResponse{" + "clusterManagerNode=" + clusterManagerNode + ", knownPeers=" + knownPeers + ", term=" + term + '}';
     }
 
     @Override
@@ -101,11 +101,13 @@ public class PeersResponse extends TransportResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PeersResponse that = (PeersResponse) o;
-        return term == that.term && Objects.equals(masterNode, that.masterNode) && Objects.equals(knownPeers, that.knownPeers);
+        return term == that.term
+            && Objects.equals(clusterManagerNode, that.clusterManagerNode)
+            && Objects.equals(knownPeers, that.knownPeers);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(masterNode, knownPeers, term);
+        return Objects.hash(clusterManagerNode, knownPeers, term);
     }
 }

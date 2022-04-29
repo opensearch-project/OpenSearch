@@ -39,7 +39,7 @@ import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-// TODO: this class can be removed in master once 7.x is bumped to 7.4.0
+// TODO: this class can be removed in main once 7.x is bumped to 7.4.0
 public abstract class BaseNodeRequest extends TransportRequest {
 
     public BaseNodeRequest() {}

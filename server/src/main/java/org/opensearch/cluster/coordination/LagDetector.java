@@ -102,7 +102,7 @@ public class LagDetector {
     public void setAppliedVersion(final DiscoveryNode discoveryNode, final long appliedVersion) {
         final NodeAppliedStateTracker nodeAppliedStateTracker = appliedStateTrackersByNode.get(discoveryNode);
         if (nodeAppliedStateTracker == null) {
-            // Received an ack from a node that a later publication has removed (or we are no longer master). No big deal.
+            // Received an ack from a node that a later publication has removed (or we are no longer cluster-manager). No big deal.
             logger.trace("node {} applied version {} but this node's version is not being tracked", discoveryNode, appliedVersion);
         } else {
             nodeAppliedStateTracker.increaseAppliedVersion(appliedVersion);
