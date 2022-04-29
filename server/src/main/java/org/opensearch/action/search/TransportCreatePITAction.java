@@ -57,7 +57,7 @@ public class TransportCreatePITAction extends HandledTransportAction<CreatePITRe
 
     @Override
     protected void doExecute(Task task, CreatePITRequest request, ActionListener<CreatePITResponse> listener) {
-        Runnable runnable = new PITController(
+        Runnable runnable = new CreatePITController(
             request,
             searchTransportService,
             clusterService,

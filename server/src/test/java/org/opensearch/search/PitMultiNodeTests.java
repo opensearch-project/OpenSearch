@@ -104,6 +104,8 @@ public class PitMultiNodeTests extends OpenSearchIntegTestCase {
                     .setPointInTime(new PointInTimeBuilder(pitResponse.getId()).setKeepAlive(TimeValue.timeValueDays(1)))
                     .get();
                 assertEquals(1, searchResponse.getSuccessfulShards());
+                assertEquals(1, searchResponse.getFailedShards());
+                assertEquals(0, searchResponse.getSkippedShards());
                 assertEquals(2, searchResponse.getTotalShards());
                 return super.onNodeStopped(nodeName);
             }

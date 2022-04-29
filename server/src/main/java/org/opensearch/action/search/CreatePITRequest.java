@@ -152,6 +152,7 @@ public class CreatePITRequest extends ActionRequest implements IndicesRequest.Re
         Strings.arrayToDelimitedString(indices, ",", sb);
         sb.append("], ");
         sb.append("pointintime[").append(keepAlive).append("], ");
+        sb.append("allowPartialPitCreation[").append(allowPartialPitCreation).append("], ");
         return sb.toString();
     }
 

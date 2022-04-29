@@ -29,14 +29,19 @@ public class CreatePITResponse extends ActionResponse implements StatusToXConten
     private final int failedShards;
     private final int skippedShards;
     private final ShardSearchFailure[] shardFailures;
+    private final long creationTime;
 
-    public CreatePITResponse(SearchResponse searchResponse) {
+    public CreatePITResponse(SearchResponse searchResponse, long creationTime) {
+        if (searchResponse.pointInTimeId() == null || searchResponse.pointInTimeId().isEmpty()) {
+            throw new IllegalArgumentException("Point in time ID is empty");
+        }
         this.id = searchResponse.pointInTimeId();
         this.totalShards = searchResponse.getTotalShards();
         this.successfulShards = searchResponse.getSuccessfulShards();
         this.failedShards = searchResponse.getFailedShards();
         this.skippedShards = searchResponse.getSkippedShards();
         this.shardFailures = searchResponse.getShardFailures();
+        this.creationTime = creationTime;
     }
 
     public CreatePITResponse(StreamInput in) throws IOException {
@@ -46,6 +51,7 @@ public class CreatePITResponse extends ActionResponse implements StatusToXConten
         successfulShards = in.readVInt();
         failedShards = in.readVInt();
         skippedShards = in.readVInt();
+        creationTime = in.readLong();
         int size = in.readVInt();
         if (size == 0) {
             shardFailures = ShardSearchFailure.EMPTY_ARRAY;
@@ -70,8 +76,13 @@ public class CreatePITResponse extends ActionResponse implements StatusToXConten
             getFailedShards(),
             getShardFailures()
         );
+        builder.field("creationTime", creationTime);
         builder.endObject();
         return builder;
+    }
+
+    public long getCreationTime() {
+        return creationTime;
     }
 
     /**
@@ -97,6 +108,7 @@ public class CreatePITResponse extends ActionResponse implements StatusToXConten
             shardSearchFailure.writeTo(out);
         }
         out.writeString(id);
+        out.writeLong(creationTime);
     }
 
     public String getId() {

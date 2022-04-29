@@ -50,7 +50,7 @@ import java.util.concurrent.CountDownLatch;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class PitControllerTests extends OpenSearchTestCase {
+public class CreatePitControllerTests extends OpenSearchTestCase {
 
     DiscoveryNode node1 = null;
     DiscoveryNode node2 = null;
@@ -123,7 +123,7 @@ public class PitControllerTests extends OpenSearchTestCase {
         ClusterState state = mock(ClusterState.class);
 
         final Settings keepAliveSettings = Settings.builder()
-            .put(PITController.CREATE_PIT_TEMPORARY_KEEPALIVE_SETTING.getKey(), 30000)
+            .put(CreatePITController.CREATE_PIT_TEMPORARY_KEEPALIVE_SETTING.getKey(), 30000)
             .build();
         when(clusterServiceMock.getSettings()).thenReturn(keepAliveSettings);
 
@@ -176,7 +176,7 @@ public class PitControllerTests extends OpenSearchTestCase {
         CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index" });
 
-        PITController controller = new PITController(
+        CreatePITController controller = new CreatePITController(
             request,
             searchTransportService,
             clusterServiceMock,
@@ -186,7 +186,7 @@ public class PitControllerTests extends OpenSearchTestCase {
             createPitListener
         );
 
-        CreatePITResponse createPITResponse = new CreatePITResponse(searchResponse);
+        CreatePITResponse createPITResponse = new CreatePITResponse(searchResponse, System.currentTimeMillis());
 
         ActionListener<CreatePITResponse> updatelistener = new LatchedActionListener<>(new ActionListener<CreatePITResponse>() {
             @Override
@@ -249,7 +249,7 @@ public class PitControllerTests extends OpenSearchTestCase {
         CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index" });
 
-        PITController controller = new PITController(
+        CreatePITController controller = new CreatePITController(
             request,
             searchTransportService,
             clusterServiceMock,
@@ -325,7 +325,7 @@ public class PitControllerTests extends OpenSearchTestCase {
         };
         CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index" });
-        PITController controller = new PITController(
+        CreatePITController controller = new CreatePITController(
             request,
             searchTransportService,
             clusterServiceMock,
@@ -335,7 +335,7 @@ public class PitControllerTests extends OpenSearchTestCase {
             createPitListener
         );
 
-        CreatePITResponse createPITResponse = new CreatePITResponse(searchResponse);
+        CreatePITResponse createPITResponse = new CreatePITResponse(searchResponse, System.currentTimeMillis());
         CountDownLatch latch = new CountDownLatch(1);
 
         ActionListener<CreatePITResponse> updatelistener = new LatchedActionListener<>(new ActionListener<CreatePITResponse>() {
@@ -394,7 +394,7 @@ public class PitControllerTests extends OpenSearchTestCase {
         };
         CreatePITRequest request = new CreatePITRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index" });
-        PITController controller = new PITController(
+        CreatePITController controller = new CreatePITController(
             request,
             searchTransportService,
             clusterServiceMock,
@@ -404,7 +404,7 @@ public class PitControllerTests extends OpenSearchTestCase {
             createPitListener
         );
 
-        CreatePITResponse createPITResponse = new CreatePITResponse(searchResponse);
+        CreatePITResponse createPITResponse = new CreatePITResponse(searchResponse, System.currentTimeMillis());
         CountDownLatch latch = new CountDownLatch(1);
 
         ActionListener<CreatePITResponse> updatelistener = new LatchedActionListener<>(new ActionListener<CreatePITResponse>() {

@@ -1297,8 +1297,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
 
         if (source.slice() != null) {
-            if (context.scrollContext() == null) {
-                throw new SearchException(shardTarget, "`slice` cannot be used outside of a scroll context");
+            if (context.scrollContext() == null && !(context.readerContext() instanceof PitReaderContext)) {
+                throw new SearchException(shardTarget, "`slice` cannot be used outside of a scroll context or PIT context");
             }
             context.sliceBuilder(source.slice());
         }
