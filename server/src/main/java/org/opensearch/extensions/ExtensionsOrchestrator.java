@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugins;
+package org.opensearch.extensions;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -20,11 +20,12 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.discovery.PluginRequest;
 import org.opensearch.discovery.PluginResponse;
-import org.opensearch.extensions.DiscoveryExtension;
 import org.opensearch.index.*;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.node.ReportingService;
+import org.opensearch.plugins.PluginInfo;
+import org.opensearch.plugins.PluginsService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
@@ -39,27 +40,27 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-public class PluginsOrchestrator implements ReportingService<PluginsAndModules> {
+public class ExtensionsOrchestrator implements ReportingService<PluginsAndModules> {
     public static final String REQUEST_EXTENSION_ACTION_NAME = "internal:discovery/extensions";
     public static final String INDICES_EXTENSION_POINT_ACTION_NAME = "indices:internal/extensions";
     public static final String INDICES_EXTENSION_NAME_ACTION_NAME = "indices:internal/name";
 
-    private static final Logger logger = LogManager.getLogger(PluginsOrchestrator.class);
+    private static final Logger logger = LogManager.getLogger(ExtensionsOrchestrator.class);
     private final Path extensionsPath;
-    final List<DiscoveryExtension> pluginsConfigSet;
+    final List<DiscoveryExtension> extensionsSet;
     TransportService transportService;
     final DiscoveryNode extensionNode;
 
-    public PluginsOrchestrator(Settings settings, Path extensionsPath) throws IOException {
-        logger.info("PluginsOrchestrator initialized");
+    public ExtensionsOrchestrator(Settings settings, Path extensionsPath) throws IOException {
+        logger.info("ExtensionsOrchestrator initialized");
         this.extensionsPath = extensionsPath;
         this.transportService = null;
-        this.pluginsConfigSet = new ArrayList<DiscoveryExtension>();
+        this.extensionsSet = new ArrayList<DiscoveryExtension>();
 
         /*
-         * Now Discover plugins
+         * Now Discover extensions
          */
-        pluginsDiscovery();
+        extensionsDiscovery();
 
         this.extensionNode = new DiscoveryNode(
             "node_extension",
@@ -78,11 +79,10 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
     }
 
     /*
-     * Load all Independent plugins(for now)
-     * Populate list of plugins
+     * Load and populate all extensions
      */
-    private void pluginsDiscovery() throws IOException {
-        logger.info("PluginsDirectory :" + extensionsPath.toString());
+    private void extensionsDiscovery() throws IOException {
+        logger.info("Extensions Config Directory :" + extensionsPath.toString());
         if (!FileSystemUtils.isAccessibleDirectory(extensionsPath, logger)) {
             return;
         }
@@ -92,7 +92,7 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
                 /*
                  * TODO: Read from extensions.yml
                  */
-                pluginsConfigSet.add(
+                extensionsSet.add(
                     new DiscoveryExtension(
                         "myfirstextension",
                         "id",
@@ -110,10 +110,10 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
                 throw new IllegalStateException("Could not load plugin descriptor " + plugin.getFileName(), e);
             }
         }
-        logger.info("Loaded independent plugins");
+        logger.info("Loaded all extensions");
     }
 
-    public void pluginsInitialize() {
+    public void extensionsInitialize() {
 
         final TransportResponseHandler<PluginResponse> pluginResponseHandler = new TransportResponseHandler<PluginResponse>() {
 
@@ -142,13 +142,12 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
             transportService.sendRequest(
                 extensionNode,
                 REQUEST_EXTENSION_ACTION_NAME,
-                new PluginRequest(extensionNode, pluginsConfigSet),
+                new PluginRequest(extensionNode, extensionsSet),
                 pluginResponseHandler
             );
         } catch (Exception e) {
             logger.error(e.toString());
         }
-
     }
 
     public void onIndexModule(IndexModule indexModule) throws UnknownHostException {
@@ -211,7 +210,7 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
                                     indicesModuleNameResponseHandler
                                 );
                                 inProgressIndexNameLatch.await(100, TimeUnit.SECONDS);
-                                logger.info("Recieved ack response from Extension");
+                                logger.info("Received ack response from Extension");
                             } catch (Exception e) {
                                 logger.error(e.toString());
                             }
@@ -241,13 +240,9 @@ public class PluginsOrchestrator implements ReportingService<PluginsAndModules> 
                 indicesModuleResponseHandler
             );
             inProgressLatch.await(100, TimeUnit.SECONDS);
-            logger.info("Recieved response from Extension");
+            logger.info("Received response from Extension");
         } catch (Exception e) {
             logger.error(e.toString());
         }
-    }
-
-    private void beforeIndexRemovedPO() {
-        logger.info("beforeIndexRemovedPO event handler");
     }
 }
