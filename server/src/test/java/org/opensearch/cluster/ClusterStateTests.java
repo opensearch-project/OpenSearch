@@ -101,7 +101,7 @@ public class ClusterStateTests extends OpenSearchTestCase {
             .nodes(DiscoveryNodes.builder(nodes).masterNodeId(node2.getId()))
             .build();
 
-        // states with no master should never supersede anything
+        // states with no cluster-manager should never supersede anything
         assertFalse(noMaster1.supersedes(noMaster2));
         assertFalse(noMaster1.supersedes(withMaster1a));
 
