@@ -162,7 +162,6 @@ configure([
   project(":qa:os"),
   project(":qa:wildfly"),
   project(":rest-api-spec"),
-  project(":server"),
   project(":test:external-modules:test-delayed-aggs"),
   project(":test:fixtures:azure-fixture"),
   project(":test:fixtures:gcs-fixture"),
@@ -174,6 +173,14 @@ configure([
 ]) {
   project.tasks.withType(MissingJavadocTask) {
     isExcluded = true
+  }
+}
+
+configure(project(":server")) {
+  project.tasks.withType(MissingJavadocTask) {
+    isExcluded = true
+    // TODO: reenable after fixing missing javadocs
+    // javadocMissingLevel = "class"
   }
 }
 
@@ -274,6 +281,10 @@ class MissingJavadocTask extends DefaultTask {
     if (!classpath.isEmpty()) {
       opts << [ '-classpath', classpath.asPath ]
     }
+
+    opts << [ '-tag', 'opensearch.experimental:a:WARNING: This API is experimental and might change in incompatible ways in the next release.' ]
+    opts << [ '-tag', 'opensearch.internal:a:NOTE: This API is for internal purposes only and might change in incompatible ways in the next release.' ]
+
     opts << [ '-doclet', "org.opensearch.missingdoclet.MissingDoclet" ]
     opts << [ '-docletpath', docletpath.asPath ]
     opts << [ '--missing-level', javadocMissingLevel ]
