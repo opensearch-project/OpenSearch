@@ -89,9 +89,9 @@ public class ClusterRequestConvertersTests extends OpenSearchTestCase {
         ClusterHealthRequest healthRequest = new ClusterHealthRequest();
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomLocal(healthRequest::local, expectedParams);
-        String timeoutType = OpenSearchTestCase.randomFrom("timeout", "masterTimeout", "both", "none");
+        String timeoutType = OpenSearchTestCase.randomFrom("timeout", "clusterManagerTimeout", "both", "none");
         String timeout = OpenSearchTestCase.randomTimeValue();
-        String masterTimeout = OpenSearchTestCase.randomTimeValue();
+        String clusterManagerTimeout = OpenSearchTestCase.randomTimeValue();
         switch (timeoutType) {
             case "timeout":
                 healthRequest.timeout(timeout);
@@ -99,10 +99,10 @@ public class ClusterRequestConvertersTests extends OpenSearchTestCase {
                 // If Cluster Manager Timeout wasn't set it uses the same value as Timeout
                 expectedParams.put("cluster_manager_timeout", timeout);
                 break;
-            case "masterTimeout":
+            case "clusterManagerTimeout":
                 expectedParams.put("timeout", "30s");
-                healthRequest.masterNodeTimeout(masterTimeout);
-                expectedParams.put("cluster_manager_timeout", masterTimeout);
+                healthRequest.masterNodeTimeout(clusterManagerTimeout);
+                expectedParams.put("cluster_manager_timeout", clusterManagerTimeout);
                 break;
             case "both":
                 healthRequest.timeout(timeout);

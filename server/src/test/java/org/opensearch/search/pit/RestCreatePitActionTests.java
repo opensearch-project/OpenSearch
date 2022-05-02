@@ -13,7 +13,6 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.search.CreatePITRequest;
 import org.opensearch.action.search.CreatePITResponse;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.common.ValidationException;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.search.RestCreatePITAction;
 import org.opensearch.test.OpenSearchTestCase;
@@ -72,14 +71,5 @@ public class RestCreatePitActionTests extends OpenSearchTestCase {
 
             assertThat(createPitCalled.get(), equalTo(true));
         }
-    }
-
-    public void testNoKeepAliveThrowsException() throws Exception {
-        RestCreatePITAction action = new RestCreatePITAction();
-        Map<String, String> params = new HashMap<>();
-        params.put("allow_partial_pit_creation", "true");
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
-        Exception e = expectThrows(ValidationException.class, () -> action.prepareRequest(request, null));
-        assertThat(e.getMessage(), equalTo("Validation Failed: 1: Keep alive cannot be empty;"));
     }
 }

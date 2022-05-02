@@ -73,7 +73,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         boolean localStorageEnable = Node.NODE_LOCAL_STORAGE_SETTING.get(settings);
         if (localStorageEnable == false && (isDataNode(settings) || isMasterNode(settings))) {
             // TODO: make this a proper setting validation logic, requiring multi-settings validation
-            throw new IllegalArgumentException("storage can not be disabled for master and data nodes");
+            throw new IllegalArgumentException("storage can not be disabled for cluster-manager and data nodes");
         }
         return localStorageEnable;
     }
@@ -453,7 +453,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Can this node become master or not.
+     * Can this node become cluster-manager or not.
      */
     public boolean isMasterNode() {
         return roles.contains(DiscoveryNodeRole.MASTER_ROLE) || roles.contains(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);

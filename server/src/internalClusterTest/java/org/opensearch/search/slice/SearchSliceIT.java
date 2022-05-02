@@ -293,7 +293,7 @@ public class SearchSliceIT extends OpenSearchIntegTestCase {
         );
         Throwable rootCause = findRootCause(exc);
         assertThat(rootCause.getClass(), equalTo(SearchException.class));
-        assertThat(rootCause.getMessage(), equalTo("`slice` cannot be used outside of a scroll context"));
+        assertThat(rootCause.getMessage(), equalTo("`slice` cannot be used outside of a scroll context or PIT context"));
     }
 
     private void assertSearchSlicesWithScroll(SearchRequestBuilder request, String field, int numSlice, int numDocs) {

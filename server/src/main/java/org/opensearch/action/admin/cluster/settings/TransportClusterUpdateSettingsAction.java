@@ -155,11 +155,11 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
                 }
 
                 private void reroute(final boolean updateSettingsAcked) {
-                    // We're about to send a second update task, so we need to check if we're still the elected master
-                    // For example the minimum_master_node could have been breached and we're no longer elected master,
+                    // We're about to send a second update task, so we need to check if we're still the elected cluster-manager
+                    // For example the minimum_master_node could have been breached and we're no longer elected cluster-manager,
                     // so we should *not* execute the reroute.
                     if (!clusterService.state().nodes().isLocalNodeElectedMaster()) {
-                        logger.debug("Skipping reroute after cluster update settings, because node is no longer master");
+                        logger.debug("Skipping reroute after cluster update settings, because node is no longer cluster-manager");
                         listener.onResponse(
                             new ClusterUpdateSettingsResponse(
                                 updateSettingsAcked,
@@ -198,7 +198,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
                             @Override
                             public void onNoLongerMaster(String source) {
                                 logger.debug(
-                                    "failed to preform reroute after cluster settings were updated - current node is no longer a master"
+                                    "failed to preform reroute after cluster settings were updated - current node is no longer a cluster-manager"
                                 );
                                 listener.onResponse(
                                     new ClusterUpdateSettingsResponse(

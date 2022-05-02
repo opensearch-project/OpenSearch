@@ -91,7 +91,6 @@ import java.util.function.BiConsumer;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Answers.RETURNS_MOCKS;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.anyString;
@@ -225,7 +224,7 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         remoteResponseHandler = ArgumentCaptor.forClass(TransportResponseHandler.class);
 
         // setup services that will be called by action
-        transportService = mock(TransportService.class, RETURNS_MOCKS);
+        transportService = mock(TransportService.class);
         clusterService = mock(ClusterService.class);
         localIngest = true;
         // setup nodes for local and remote

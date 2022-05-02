@@ -218,11 +218,11 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                     @Override
                     public void onNoLongerMaster(String source) {
                         logger.trace(
-                            "stopped being master while waiting for events with priority [{}]. retrying.",
+                            "stopped being cluster-manager while waiting for events with priority [{}]. retrying.",
                             request.waitForEvents()
                         );
                         // TransportMasterNodeAction implements the retry logic, which is triggered by passing a NotMasterException
-                        listener.onFailure(new NotMasterException("no longer master. source: [" + source + "]"));
+                        listener.onFailure(new NotMasterException("no longer cluster-manager. source: [" + source + "]"));
                     }
 
                     @Override

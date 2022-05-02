@@ -958,7 +958,7 @@ public class RestoreService implements ClusterStateApplier {
 
         @Override
         public void onNoLongerMaster(String source) {
-            logger.debug("no longer master while processing restore state update [{}]", source);
+            logger.debug("no longer cluster-manager while processing restore state update [{}]", source);
         }
 
     }

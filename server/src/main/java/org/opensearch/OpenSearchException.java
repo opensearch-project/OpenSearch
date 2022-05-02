@@ -785,7 +785,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             2,
             UNKNOWN_VERSION_ADDED
         ),
-        MASTER_NOT_DISCOVERED_EXCEPTION(
+        CLUSTER_MANAGER_NOT_DISCOVERED_EXCEPTION(
             org.opensearch.discovery.MasterNotDiscoveredException.class,
             org.opensearch.discovery.MasterNotDiscoveredException::new,
             3,
@@ -1496,7 +1496,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             143,
             UNKNOWN_VERSION_ADDED
         ),
-        NOT_MASTER_EXCEPTION(
+        NOT_CLUSTER_MANAGER_EXCEPTION(
             org.opensearch.cluster.NotMasterException.class,
             org.opensearch.cluster.NotMasterException::new,
             144,

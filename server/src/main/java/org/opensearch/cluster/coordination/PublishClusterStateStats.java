@@ -50,8 +50,8 @@ public class PublishClusterStateStats implements Writeable, ToXContentObject {
     private final long compatibleClusterStateDiffReceivedCount;
 
     /**
-     * @param fullClusterStateReceivedCount the number of times this node has received a full copy of the cluster state from the master.
-     * @param incompatibleClusterStateDiffReceivedCount the number of times this node has received a cluster-state diff from the master.
+     * @param fullClusterStateReceivedCount the number of times this node has received a full copy of the cluster state from the cluster-manager.
+     * @param incompatibleClusterStateDiffReceivedCount the number of times this node has received a cluster-state diff from the cluster-manager.
      * @param compatibleClusterStateDiffReceivedCount the number of times that received cluster-state diffs were compatible with
      */
     public PublishClusterStateStats(

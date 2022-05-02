@@ -62,7 +62,7 @@ public abstract class ClusterStateUpdateRequest<T extends ClusterStateUpdateRequ
 
     /**
      * Returns the maximum time interval to wait for the request to
-     * be completed on the master node
+     * be completed on the cluster-manager node
      */
     @Override
     public TimeValue masterNodeTimeout() {
@@ -70,7 +70,7 @@ public abstract class ClusterStateUpdateRequest<T extends ClusterStateUpdateRequ
     }
 
     /**
-     * Sets the master node timeout
+     * Sets the cluster-manager node timeout
      */
     @SuppressWarnings("unchecked")
     public T masterNodeTimeout(TimeValue masterNodeTimeout) {

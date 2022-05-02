@@ -141,11 +141,11 @@ public class ClusterBootstrapService {
             bootstrapRequirements = Collections.singleton(Node.NODE_NAME_SETTING.get(settings));
             unconfiguredBootstrapTimeout = null;
         } else {
-            final List<String> initialMasterNodes = INITIAL_CLUSTER_MANAGER_NODES_SETTING.get(settings);
-            bootstrapRequirements = unmodifiableSet(new LinkedHashSet<>(initialMasterNodes));
-            if (bootstrapRequirements.size() != initialMasterNodes.size()) {
+            final List<String> initialClusterManagerNodes = INITIAL_CLUSTER_MANAGER_NODES_SETTING.get(settings);
+            bootstrapRequirements = unmodifiableSet(new LinkedHashSet<>(initialClusterManagerNodes));
+            if (bootstrapRequirements.size() != initialClusterManagerNodes.size()) {
                 throw new IllegalArgumentException(
-                    "setting [" + initialClusterManagerSettingName + "] contains duplicates: " + initialMasterNodes
+                    "setting [" + initialClusterManagerSettingName + "] contains duplicates: " + initialClusterManagerNodes
                 );
             }
             unconfiguredBootstrapTimeout = discoveryIsConfigured(settings) ? null : UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING.get(settings);

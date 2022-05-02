@@ -90,12 +90,12 @@ import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonTh
  * When started, ensures that this version is compatible with the state stored on disk, and performs a state upgrade if necessary. Note that
  * the state being loaded when constructing the instance of this class is not necessarily the state that will be used as {@link
  * ClusterState#metadata()} because it might be stale or incomplete. Cluster-manager-eligible nodes must perform an election to find a complete and
- * non-stale state, and master-ineligible nodes receive the real cluster state from the elected master after joining the cluster.
+ * non-stale state, and cluster-manager-ineligible nodes receive the real cluster state from the elected cluster-manager after joining the cluster.
  */
 public class GatewayMetaState implements Closeable {
 
     /**
-     * Fake node ID for a voting configuration written by a master-ineligible data node to indicate that its on-disk state is potentially
+     * Fake node ID for a voting configuration written by a cluster-manager-ineligible data node to indicate that its on-disk state is potentially
      * stale (since it is written asynchronously after application, rather than before acceptance). This node ID means that if the node is
      * restarted as a cluster-manager-eligible node then it does not win any elections until it has received a fresh cluster state.
      */
@@ -502,8 +502,8 @@ public class GatewayMetaState implements Closeable {
             // (2) the index is currently empty since it was opened with IndexWriterConfig.OpenMode.CREATE
 
             // In the common case it's actually sufficient to commit() the existing state and not do any indexing. For instance,
-            // this is true if there's only one data path on this master node, and the commit we just loaded was already written out
-            // by this version of OpenSearch. TODO TBD should we avoid indexing when possible?
+            // this is true if there's only one data path on this cluster-manager node, and the commit we just loaded was already written
+            // out by this version of OpenSearch. TODO TBD should we avoid indexing when possible?
             final PersistedClusterStateService.Writer writer = persistedClusterStateService.createWriter();
             try {
                 writer.writeFullStateAndCommit(currentTerm, lastAcceptedState);

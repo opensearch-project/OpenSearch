@@ -300,13 +300,13 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
             );
 
             readerContext.close();
-            readerContext = new ReaderContext(
+            readerContext = new LegacyReaderContext(
                 newContextId(),
                 indexService,
                 indexShard,
                 searcherSupplier.get(),
-                randomNonNegativeLong(),
-                false
+                shardSearchRequest,
+                randomNonNegativeLong()
             );
             // rescore is null but sliceBuilder is not null
             DefaultSearchContext context2 = new DefaultSearchContext(

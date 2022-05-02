@@ -80,10 +80,10 @@ public class CloseIndexRequestTests extends OpenSearchTestCase {
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(0, 1000));
         request.setTimeout(timeout);
 
-        final TimeValue masterTimeout = TimeValue.timeValueSeconds(randomIntBetween(0, 1000));
-        request.setMasterTimeout(masterTimeout);
+        final TimeValue clusterManagerTimeout = TimeValue.timeValueSeconds(randomIntBetween(0, 1000));
+        request.setMasterTimeout(clusterManagerTimeout);
 
         assertEquals(request.timeout(), timeout);
-        assertEquals(request.masterNodeTimeout(), masterTimeout);
+        assertEquals(request.masterNodeTimeout(), clusterManagerTimeout);
     }
 }
