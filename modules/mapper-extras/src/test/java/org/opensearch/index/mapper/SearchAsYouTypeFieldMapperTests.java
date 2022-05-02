@@ -361,6 +361,9 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
         PrefixFieldMapper prefixFieldMapper = getPrefixFieldMapper(mapper, "field._index_prefix");
         assertFalse(prefixFieldMapper.fieldType.storeTermVectors());
+        assertFalse(prefixFieldMapper.fieldType.storeTermVectorOffsets());
+        assertFalse(prefixFieldMapper.fieldType.storeTermVectorPositions());
+        assertFalse(prefixFieldMapper.fieldType.storeTermVectorPayloads());
     }
 
     public void testNorms() throws IOException {

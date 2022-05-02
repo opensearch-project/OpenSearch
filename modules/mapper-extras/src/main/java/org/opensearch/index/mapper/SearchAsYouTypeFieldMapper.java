@@ -205,11 +205,8 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
             ft.setIndexAnalyzer(analyzers.getIndexAnalyzer());
 
             // set up the prefix field
-            FieldType prefixft = new FieldType(fieldType);
-            prefixft.setStoreTermVectors(false);
-            prefixft.setStoreTermVectorPositions(false);
-            prefixft.setStoreTermVectorOffsets(false);
-            prefixft.setStoreTermVectorPayloads(false);
+            FieldType prefixft = new FieldType();
+            prefixft.setIndexOptions(fieldType.indexOptions());
             prefixft.setOmitNorms(true);
             prefixft.setStored(false);
             final String fullName = buildFullName(context);
