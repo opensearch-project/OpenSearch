@@ -25,12 +25,12 @@
  * under the License.
  */
 
-/**
- * Create index action.
- */
 /*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
  */
 
+/**
+ * Create index action.
+ */
 package org.opensearch.action.admin.indices.create;
