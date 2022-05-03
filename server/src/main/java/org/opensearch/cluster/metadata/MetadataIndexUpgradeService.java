@@ -37,6 +37,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
+import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.settings.IndexScopedSettings;
@@ -134,20 +135,35 @@ public class MetadataIndexUpgradeService {
     private void checkSupportedVersion(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
         if (indexMetadata.getState() == IndexMetadata.State.OPEN
             && isSupportedVersion(indexMetadata, minimumIndexCompatibilityVersion) == false) {
-            throw new IllegalStateException(
-                "The index ["
-                    + indexMetadata.getIndex()
-                    + "] was created with version ["
-                    + indexMetadata.getCreationVersion()
-                    + "] but the minimum compatible version is ["
-
-                    + minimumIndexCompatibilityVersion
-                    + "]. It should be re-indexed in OpenSearch "
-                    + minimumIndexCompatibilityVersion.major
-                    + ".x before upgrading to "
-                    + Version.CURRENT
-                    + "."
-            );
+            if (minimumIndexCompatibilityVersion.equals(LegacyESVersion.V_7_0_0)) {
+                // This branch can be removed when LegacyESVersion is removed
+                throw new IllegalStateException(
+                    "The index ["
+                        + indexMetadata.getIndex()
+                        + "] was created with version ["
+                        + indexMetadata.getCreationVersion()
+                        + "] but the minimum compatible version is "
+                        + "OpenSearch 1.0.0 (or Elasticsearch 7.0.0). "
+                        + "It should be re-indexed in OpenSearch 1.x "
+                        + "(or Elasticsearch 7.x) before upgrading to "
+                        + Version.CURRENT
+                        + "."
+                );
+            } else {
+                throw new IllegalStateException(
+                    "The index ["
+                        + indexMetadata.getIndex()
+                        + "] was created with version ["
+                        + indexMetadata.getCreationVersion()
+                        + "] but the minimum compatible version is ["
+                        + minimumIndexCompatibilityVersion
+                        + "]. It should be re-indexed in OpenSearch "
+                        + minimumIndexCompatibilityVersion.major
+                        + ".x before upgrading to "
+                        + Version.CURRENT
+                        + "."
+                );
+            }
         }
     }
 

@@ -139,24 +139,21 @@ public class MetadataIndexUpgradeServiceTests extends OpenSearchTestCase {
                 .put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated)
                 .build()
         );
-        String message = expectThrows(
+        String actualMessage = expectThrows(
             IllegalStateException.class,
             () -> service.upgradeIndexMetadata(metadata, Version.CURRENT.minimumIndexCompatibilityVersion())
         ).getMessage();
-        assertEquals(
-            message,
-            "The index [[foo/BOOM]] was created with version ["
-                + indexCreated
-                + "] "
-                + "but the minimum compatible version is ["
-                + minCompat
-                + "]."
-                + " It should be re-indexed in OpenSearch "
-                + minCompat.major
-                + ".x before upgrading to "
-                + Version.CURRENT.toString()
-                + "."
-        );
+
+        String expectedMessage = "The index [[foo/BOOM]] was created with version ["
+            + indexCreated
+            + "] but the minimum compatible version is "
+            + "OpenSearch 1.0.0 (or Elasticsearch 7.0.0). "
+            + "It should be re-indexed in OpenSearch 1.x "
+            + "(or Elasticsearch 7.x) before upgrading to "
+            + Version.CURRENT
+            + ".";
+
+        assertEquals(expectedMessage, actualMessage);
 
         indexCreated = VersionUtils.randomVersionBetween(random(), minCompat, Version.CURRENT);
         indexUpgraded = VersionUtils.randomVersionBetween(random(), indexCreated, Version.CURRENT);
