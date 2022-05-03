@@ -428,7 +428,7 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
 
         final ClusterState clusterState = state(
             localNode,
-            VotingConfiguration.MUST_JOIN_ELECTED_MASTER.getNodeIds().toArray(new String[0])
+            VotingConfiguration.MUST_JOIN_ELECTED_CLUSTER_MANAGER.getNodeIds().toArray(new String[0])
         );
 
         assertThat(

@@ -74,7 +74,7 @@ public class SpecificMasterNodesIT extends OpenSearchIntegTestCase {
             );
             fail("should not be able to find master");
         } catch (MasterNotDiscoveredException e) {
-            // all is well, no master elected
+            // all is well, no cluster-manager elected
         }
         logger.info("--> start master node");
         final String masterNodeName = internalCluster().startMasterOnlyNode();
@@ -124,7 +124,7 @@ public class SpecificMasterNodesIT extends OpenSearchIntegTestCase {
             );
             fail("should not be able to find master");
         } catch (MasterNotDiscoveredException e) {
-            // all is well, no master elected
+            // all is well, no cluster-manager elected
         }
 
         logger.info("--> start previous master node again");
@@ -178,7 +178,7 @@ public class SpecificMasterNodesIT extends OpenSearchIntegTestCase {
             );
             fail("should not be able to find master");
         } catch (MasterNotDiscoveredException e) {
-            // all is well, no master elected
+            // all is well, no cluster-manager elected
         }
         logger.info("--> start master node (1)");
         final String masterNodeName = internalCluster().startMasterOnlyNode();

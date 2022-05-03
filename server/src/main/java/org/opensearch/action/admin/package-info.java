@@ -25,12 +25,12 @@
  * under the License.
  */
 
-/**
- * Administrative Actions.
- */
 /*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
  */
 
+/**
+ * Administrative Actions.
+ */
 package org.opensearch.action.admin;

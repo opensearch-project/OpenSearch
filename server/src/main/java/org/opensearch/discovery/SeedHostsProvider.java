@@ -42,7 +42,7 @@ import java.util.List;
 public interface SeedHostsProvider {
 
     /**
-     * Returns a list of seed hosts to use for discovery. Called repeatedly while discovery is active (i.e. while there is no master)
+     * Returns a list of seed hosts to use for discovery. Called repeatedly while discovery is active (i.e. while there is no cluster-manager)
      * so that this list may be dynamic.
      */
     List<TransportAddress> getSeedAddresses(HostsResolver hostsResolver);
