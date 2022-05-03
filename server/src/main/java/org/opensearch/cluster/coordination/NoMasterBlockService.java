@@ -45,7 +45,7 @@ public class NoMasterBlockService {
     public static final int NO_MASTER_BLOCK_ID = 2;
     public static final ClusterBlock NO_MASTER_BLOCK_WRITES = new ClusterBlock(
         NO_MASTER_BLOCK_ID,
-        "no master",
+        "no cluster-manager",
         true,
         false,
         false,
@@ -54,7 +54,7 @@ public class NoMasterBlockService {
     );
     public static final ClusterBlock NO_MASTER_BLOCK_ALL = new ClusterBlock(
         NO_MASTER_BLOCK_ID,
-        "no master",
+        "no cluster-manager",
         true,
         true,
         false,
@@ -63,7 +63,7 @@ public class NoMasterBlockService {
     );
     public static final ClusterBlock NO_MASTER_BLOCK_METADATA_WRITES = new ClusterBlock(
         NO_MASTER_BLOCK_ID,
-        "no master",
+        "no cluster-manager",
         true,
         false,
         false,

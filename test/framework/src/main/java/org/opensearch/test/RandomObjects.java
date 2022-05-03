@@ -333,7 +333,8 @@ public final class RandomObjects {
             case 0:
                 actualException = new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES));
                 expectedException = new OpenSearchException(
-                    "OpenSearch exception [type=cluster_block_exception, " + "reason=blocked by: [SERVICE_UNAVAILABLE/2/no master];]"
+                    "OpenSearch exception [type=cluster_block_exception, "
+                        + "reason=blocked by: [SERVICE_UNAVAILABLE/2/no cluster-manager];]"
                 );
                 break;
             case 1:

@@ -220,7 +220,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         logger.info("waiting for [{}] to be removed from cluster", nonMasterNode);
         ensureStableCluster(2, masterNode);
 
-        logger.info("waiting for [{}] to have no master", nonMasterNode);
+        logger.info("waiting for [{}] to have no cluster-manager", nonMasterNode);
         assertNoMaster(nonMasterNode);
 
         logger.info("healing partition and checking cluster reforms");
