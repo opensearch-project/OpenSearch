@@ -60,9 +60,6 @@ import org.opensearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.opensearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.opensearch.action.admin.indices.exists.indices.IndicesExistsRequestBuilder;
 import org.opensearch.action.admin.indices.exists.indices.IndicesExistsResponse;
-import org.opensearch.action.admin.indices.exists.types.TypesExistsRequest;
-import org.opensearch.action.admin.indices.exists.types.TypesExistsRequestBuilder;
-import org.opensearch.action.admin.indices.exists.types.TypesExistsResponse;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.flush.FlushRequestBuilder;
 import org.opensearch.action.admin.indices.flush.FlushResponse;
@@ -162,34 +159,6 @@ public interface IndicesAdminClient extends OpenSearchClient {
      * Indices exists.
      */
     IndicesExistsRequestBuilder prepareExists(String... indices);
-
-    /**
-     * Types exists.
-     *
-     * @deprecated Types are deprecated and are in the process of being removed.
-     * @param request The types exists request
-     * @return The result future
-     */
-    @Deprecated
-    ActionFuture<TypesExistsResponse> typesExists(TypesExistsRequest request);
-
-    /**
-     * Types exists.
-     *
-     * @deprecated Types are deprecated and are in the process of being removed.
-     * @param request  The types exists
-     * @param listener A listener to be notified with a result
-     */
-    @Deprecated
-    void typesExists(TypesExistsRequest request, ActionListener<TypesExistsResponse> listener);
-
-    /**
-     * Types exists.
-     *
-     * @deprecated Types are deprecated and are in the process of being removed.
-     */
-    @Deprecated
-    TypesExistsRequestBuilder prepareTypesExists(String... index);
 
     /**
      * Indices stats.
