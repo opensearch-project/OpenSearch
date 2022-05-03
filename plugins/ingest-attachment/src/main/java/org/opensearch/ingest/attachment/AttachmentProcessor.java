@@ -160,6 +160,12 @@ public final class AttachmentProcessor extends AbstractProcessor {
             String author = metadata.get("Author");
             if (Strings.hasLength(author)) {
                 additionalFields.put(Property.AUTHOR.toLowerCase(), author);
+            } else {
+                // The MSOffice parser has deprecated "Author" in favor of "Creator"
+                author = metadata.get(TikaCoreProperties.CREATOR);
+                if (Strings.hasLength(author)) {
+                    additionalFields.put(Property.AUTHOR.toLowerCase(), author);
+                }
             }
         }
 
@@ -167,6 +173,12 @@ public final class AttachmentProcessor extends AbstractProcessor {
             String keywords = metadata.get("Keywords");
             if (Strings.hasLength(keywords)) {
                 additionalFields.put(Property.KEYWORDS.toLowerCase(), keywords);
+            } else {
+                // Fallback - EPUBs put their keywords as multiple subject fields by convention
+                keywords = metadata.get(TikaCoreProperties.SUBJECT);
+                if (Strings.hasLength(keywords)) {
+                    additionalFields.put(Property.KEYWORDS.toLowerCase(), keywords);
+                }
             }
         }
 
