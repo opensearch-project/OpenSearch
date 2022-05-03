@@ -36,8 +36,6 @@ import org.opensearch.action.ActionFuture;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
-import org.opensearch.action.admin.indices.alias.exists.AliasesExistRequestBuilder;
-import org.opensearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesResponse;
@@ -563,26 +561,6 @@ public interface IndicesAdminClient extends OpenSearchClient {
      * Get specific index aliases that exists in particular indices and / or by name.
      */
     GetAliasesRequestBuilder prepareGetAliases(String... aliases);
-
-    /**
-     * Allows to check to existence of aliases from indices.
-     */
-    AliasesExistRequestBuilder prepareAliasesExist(String... aliases);
-
-    /**
-     * Check to existence of index aliases.
-     *
-     * @param request The result future
-     */
-    ActionFuture<AliasesExistResponse> aliasesExist(GetAliasesRequest request);
-
-    /**
-     * Check the existence of specified index aliases.
-     *
-     * @param request  The index aliases request
-     * @param listener A listener to be notified with a result
-     */
-    void aliasesExist(GetAliasesRequest request, ActionListener<AliasesExistResponse> listener);
 
     /**
      * Get index metadata for particular indices.
