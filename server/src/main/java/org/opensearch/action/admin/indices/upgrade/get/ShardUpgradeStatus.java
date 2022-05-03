@@ -39,6 +39,11 @@ import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+/**
+ * Status for a Shard Upgrade
+ *
+ * @opensearch.internal
+ */
 public class ShardUpgradeStatus extends BroadcastShardResponse {
 
     private ShardRouting shardRouting;

@@ -45,6 +45,8 @@ import java.io.IOException;
  * @see org.opensearch.client.Requests#refreshRequest(String...)
  * @see org.opensearch.client.IndicesAdminClient#refresh(RefreshRequest)
  * @see RefreshResponse
+ *
+ * @opensearch.internal
  */
 public class RefreshRequest extends BroadcastRequest<RefreshRequest> {
 

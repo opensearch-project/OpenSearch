@@ -37,6 +37,8 @@ import org.opensearch.action.support.master.AcknowledgedResponse;
 
 /**
  * This action causes a dangling index to be considered as deleted by the cluster.
+ *
+ * @opensearch.internal
  */
 public class DeleteDanglingIndexAction extends ActionType<AcknowledgedResponse> {
 

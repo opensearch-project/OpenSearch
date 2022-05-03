@@ -38,6 +38,11 @@ import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentType;
 
+/**
+ * Transport request builder for putting stored script
+ *
+ * @opensearch.internal
+ */
 public class PutStoredScriptRequestBuilder extends AcknowledgedRequestBuilder<
     PutStoredScriptRequest,
     AcknowledgedResponse,

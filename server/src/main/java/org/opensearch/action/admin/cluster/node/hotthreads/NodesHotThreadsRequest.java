@@ -40,6 +40,11 @@ import org.opensearch.common.unit.TimeValue;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Transport request for OpenSearch Hot Threads
+ *
+ * @opensearch.internal
+ */
 public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequest> {
 
     int threads = 3;

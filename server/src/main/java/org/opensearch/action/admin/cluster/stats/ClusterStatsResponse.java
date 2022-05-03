@@ -49,6 +49,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
+/**
+ * Transport response for obtaining cluster stats
+ *
+ * @opensearch.internal
+ */
 public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResponse> implements ToXContentFragment {
 
     final ClusterStatsNodes nodesStats;

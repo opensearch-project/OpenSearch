@@ -43,6 +43,8 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * Verify repository request.
+ *
+ * @opensearch.internal
  */
 public class VerifyRepositoryRequest extends AcknowledgedRequest<VerifyRepositoryRequest> {
 

@@ -57,6 +57,8 @@ import static org.opensearch.cluster.routing.allocation.AbstractAllocationDecisi
  * A {@code ClusterAllocationExplanation} is an explanation of why a shard is unassigned,
  * or if it is not unassigned, then which nodes it could possibly be relocated to.
  * It is an immutable class.
+ *
+ * @opensearch.internal
  */
 public final class ClusterAllocationExplanation implements ToXContentObject, Writeable {
 

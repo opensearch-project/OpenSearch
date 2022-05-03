@@ -43,6 +43,8 @@ import java.util.Map;
 
 /**
  * Builder for an update index settings request
+ *
+ * @opensearch.internal
  */
 public class UpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<
     UpdateSettingsRequest,

@@ -69,6 +69,8 @@ import java.util.stream.Collectors;
 
 /**
  * Main class to swap the index pointed to by an alias, given some conditions
+ *
+ * @opensearch.internal
  */
 public class TransportRolloverAction extends TransportMasterNodeAction<RolloverRequest, RolloverResponse> {
 

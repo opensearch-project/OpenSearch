@@ -37,6 +37,8 @@ import org.opensearch.action.support.master.AcknowledgedResponse;
 
 /**
  * Represents a request to import a particular dangling index.
+ *
+ * @opensearch.internal
  */
 public class ImportDanglingIndexAction extends ActionType<AcknowledgedResponse> {
 

@@ -83,7 +83,12 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
-public class PluginsService implements ReportingService<PluginsAndModules> {
+/**
+ * Service responsible for loading plugins and modules (internal and external)
+ *
+ * @opensearch.internal
+ */
+public final class PluginsService implements ReportingService<PluginsAndModules> {
 
     private static final Logger logger = LogManager.getLogger(PluginsService.class);
 

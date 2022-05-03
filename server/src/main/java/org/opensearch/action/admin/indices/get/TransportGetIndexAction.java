@@ -58,6 +58,8 @@ import java.util.stream.StreamSupport;
 
 /**
  * Get index action.
+ *
+ * @openserach.internal
  */
 public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndexRequest, GetIndexResponse> {
 

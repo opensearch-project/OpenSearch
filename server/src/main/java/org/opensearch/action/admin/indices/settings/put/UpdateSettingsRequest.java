@@ -58,6 +58,8 @@ import static org.opensearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * Request for an update index settings action
+ *
+ * @opensearch.internal
  */
 public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsRequest>
     implements

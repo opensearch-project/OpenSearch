@@ -34,6 +34,11 @@ package org.opensearch.action.admin.cluster.node.reload;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for reloading OpenSearch Secure Settings
+ *
+ * @opensearch.internal
+ */
 public class NodesReloadSecureSettingsAction extends ActionType<NodesReloadSecureSettingsResponse> {
 
     public static final NodesReloadSecureSettingsAction INSTANCE = new NodesReloadSecureSettingsAction();

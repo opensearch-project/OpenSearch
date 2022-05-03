@@ -43,6 +43,11 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 
+/**
+ * Transport response for getting pending cluster tasks
+ *
+ * @opensearch.internal
+ */
 public class PendingClusterTasksResponse extends ActionResponse implements Iterable<PendingClusterTask>, ToXContentObject {
 
     private final List<PendingClusterTask> pendingTasks;

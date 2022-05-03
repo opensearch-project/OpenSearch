@@ -51,6 +51,8 @@ import java.io.IOException;
 
 /**
  * Transport action for the clone snapshot operation.
+ *
+ * @opensearch.internal
  */
 public final class TransportCloneSnapshotAction extends TransportMasterNodeAction<CloneSnapshotRequest, AcknowledgedResponse> {
 

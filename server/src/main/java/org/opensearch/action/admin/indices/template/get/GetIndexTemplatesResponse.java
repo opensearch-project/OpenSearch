@@ -46,6 +46,11 @@ import java.util.Objects;
 
 import static java.util.Collections.singletonMap;
 
+/**
+ * Response for retrieving one or more Index templates
+ *
+ * @opensearch.internal
+ */
 public class GetIndexTemplatesResponse extends ActionResponse implements ToXContentObject {
 
     private final List<IndexTemplateMetadata> indexTemplates;

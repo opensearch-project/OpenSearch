@@ -42,6 +42,8 @@ import java.io.IOException;
 /**
  * A response to {@link AddVotingConfigExclusionsRequest} indicating that voting config exclusions have been added for the requested nodes
  * and these nodes have been removed from the voting configuration.
+ *
+ * @opensearch.internal
  */
 public class AddVotingConfigExclusionsResponse extends ActionResponse implements ToXContentObject {
 

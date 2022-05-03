@@ -50,6 +50,11 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
+/**
+ * Transport action to automatically put field mappings.
+ *
+ * @opensearch.internal
+ */
 public class TransportAutoPutMappingAction extends TransportMasterNodeAction<PutMappingRequest, AcknowledgedResponse> {
 
     private final MetadataMappingService metadataMappingService;

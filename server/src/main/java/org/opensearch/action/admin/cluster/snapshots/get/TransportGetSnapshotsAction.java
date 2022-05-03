@@ -76,6 +76,8 @@ import static java.util.Collections.unmodifiableList;
 
 /**
  * Transport Action for get snapshots operation
+ *
+ * @opensearch.internal
  */
 public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSnapshotsRequest, GetSnapshotsResponse> {
 

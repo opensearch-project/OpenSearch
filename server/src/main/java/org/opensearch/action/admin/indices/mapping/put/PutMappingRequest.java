@@ -74,6 +74,8 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  * @see org.opensearch.client.Requests#putMappingRequest(String...)
  * @see org.opensearch.client.IndicesAdminClient#putMapping(PutMappingRequest)
  * @see AcknowledgedResponse
+ *
+ * @opensearch.internal
  */
 public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> implements IndicesRequest.Replaceable, ToXContentObject {
 

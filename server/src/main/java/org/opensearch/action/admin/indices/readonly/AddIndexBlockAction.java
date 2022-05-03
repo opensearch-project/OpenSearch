@@ -34,6 +34,11 @@ package org.opensearch.action.admin.indices.readonly;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action to add an index block.
+ *
+ * @opensearch.internal
+ */
 public class AddIndexBlockAction extends ActionType<AddIndexBlockResponse> {
 
     public static final AddIndexBlockAction INSTANCE = new AddIndexBlockAction();

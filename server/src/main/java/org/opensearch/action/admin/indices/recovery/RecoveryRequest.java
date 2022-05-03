@@ -42,6 +42,8 @@ import java.io.IOException;
 
 /**
  * Request for recovery information
+ *
+ * @opensearch.internal
  */
 public class RecoveryRequest extends BroadcastRequest<RecoveryRequest> {
 

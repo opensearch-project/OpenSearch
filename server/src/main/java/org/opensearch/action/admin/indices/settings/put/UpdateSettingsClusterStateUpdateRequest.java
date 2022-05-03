@@ -37,6 +37,8 @@ import org.opensearch.common.settings.Settings;
 
 /**
  * Cluster state update request that allows to update settings for some indices
+ *
+ * @opensearch.internal
  */
 public class UpdateSettingsClusterStateUpdateRequest extends IndicesClusterStateUpdateRequest<UpdateSettingsClusterStateUpdateRequest> {
 

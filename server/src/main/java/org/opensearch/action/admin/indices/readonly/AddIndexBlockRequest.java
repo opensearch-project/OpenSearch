@@ -48,6 +48,8 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to add a block to an index.
+ *
+ * @opensearch.internal
  */
 public class AddIndexBlockRequest extends AcknowledgedRequest<AddIndexBlockRequest> implements IndicesRequest.Replaceable {
 
