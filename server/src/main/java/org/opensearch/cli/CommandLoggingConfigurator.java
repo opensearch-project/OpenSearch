@@ -39,6 +39,8 @@ import org.opensearch.common.settings.Settings;
 /**
  * Holder class for method to configure logging without OpenSearch configuration files for use in CLI tools that will not read such
  * files.
+ *
+ * @opensearch.internal
  */
 public final class CommandLoggingConfigurator {
 

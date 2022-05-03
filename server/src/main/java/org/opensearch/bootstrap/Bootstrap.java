@@ -82,6 +82,8 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Internal startup code.
+ *
+ * @opensearch.internal
  */
 final class Bootstrap {
 

@@ -116,6 +116,8 @@ import static org.opensearch.bootstrap.FilePermissionUtils.addSingleFilePath;
  * </pre>
  * See <a href="https://docs.oracle.com/javase/7/docs/technotes/guides/security/troubleshooting-security.html">
  * Troubleshooting Security</a> for information.
+ *
+ * @opensearch.internal
  */
 final class Security {
     /** no instantiation */

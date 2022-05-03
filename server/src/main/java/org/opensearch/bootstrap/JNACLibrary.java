@@ -45,6 +45,8 @@ import java.util.List;
 
 /**
  * java mapping to some libc functions
+ *
+ * @opensearch.internal
  */
 final class JNACLibrary {
 
