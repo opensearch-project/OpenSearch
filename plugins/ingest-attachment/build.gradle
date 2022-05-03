@@ -54,7 +54,7 @@ dependencies {
   api "org.apache.tika:tika-langdetect-optimaize:${versions.tika}"
   // Optimaize libraries/dependencies
   runtimeOnly "com.optimaize.languagedetector:language-detector:0.6"
-  runtimeOnly 'com.google.guava:guava:31.1-jre'
+  runtimeOnly 'com.google.guava:guava:18.0'
   // Other dependencies
   api 'org.tukaani:xz:1.8'
   api 'commons-io:commons-io:2.11.0'
@@ -118,6 +118,13 @@ forbiddenPatterns {
 
 thirdPartyAudit {
   ignoreMissingClasses()
+  ignoreViolations(
+    'com.google.common.cache.Striped64',
+    'com.google.common.cache.Striped64$1',
+    'com.google.common.cache.Striped64$Cell',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1'
+  )
 }
 
 if (BuildParams.inFipsJvm) {
