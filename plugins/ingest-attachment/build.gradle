@@ -52,6 +52,9 @@ dependencies {
   api "org.apache.tika:tika-parsers-standard-package:${versions.tika}"
   // Required for language detection
   api "org.apache.tika:tika-langdetect-optimaize:${versions.tika}"
+  // Optimaize libraries
+  api "com.optimaize.languagedetector:language-detector:0.6"
+  // Other dependencies
   api 'org.tukaani:xz:1.8'
   api 'commons-io:commons-io:2.11.0'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
