@@ -145,6 +145,10 @@ thirdPartyAudit {
     'com.google.appengine.api.urlfetch.HTTPResponse',
     'com.google.appengine.api.urlfetch.URLFetchService',
     'com.google.appengine.api.urlfetch.URLFetchServiceFactory',
+    'com.google.api.gax.rpc.ApiCallContext$Key',
+    'com.google.api.gax.rpc.internal.ApiCallContextOptions',
+    'com.google.api.gax.rpc.mtls.MtlsProvider',
+    'com.google.api.gax.tracing.BaseApiTracer',
     // commons-logging optional dependencies
     'org.apache.avalon.framework.logger.Logger',
     'org.apache.log.Hierarchy',
