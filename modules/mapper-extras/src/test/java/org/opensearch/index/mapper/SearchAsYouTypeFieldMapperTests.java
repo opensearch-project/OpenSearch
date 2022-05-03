@@ -362,20 +362,20 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
         for (String termVector : termVectors) {
             DocumentMapper mapper = createDocumentMapper(
-                    fieldMapping(b -> b.field("type", "search_as_you_type").field("term_vector", termVector))
+                fieldMapping(b -> b.field("type", "search_as_you_type").field("term_vector", termVector))
             );
 
             assertTrue(getRootFieldMapper(mapper, "field").fieldType().fieldType.storeTermVectors());
 
             Stream.of(getShingleFieldMapper(mapper, "field._2gram"), getShingleFieldMapper(mapper, "field._3gram"))
-                    .forEach(m -> assertTrue("for " + m.name(), m.fieldType.storeTermVectors()));
+                .forEach(m -> assertTrue("for " + m.name(), m.fieldType.storeTermVectors()));
 
             PrefixFieldMapper prefixFieldMapper = getPrefixFieldMapper(mapper, "field._index_prefix");
             assertFalse(prefixFieldMapper.fieldType.storeTermVectors());
             assertFalse(prefixFieldMapper.fieldType.storeTermVectorOffsets());
             assertFalse(prefixFieldMapper.fieldType.storeTermVectorPositions());
             assertFalse(prefixFieldMapper.fieldType.storeTermVectorPayloads());
-       }
+        }
     }
 
     public void testNorms() throws IOException {
