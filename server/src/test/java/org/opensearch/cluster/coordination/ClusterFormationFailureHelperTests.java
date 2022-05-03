@@ -428,7 +428,7 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
 
         final ClusterState clusterState = state(
             localNode,
-            VotingConfiguration.MUST_JOIN_ELECTED_MASTER.getNodeIds().toArray(new String[0])
+            VotingConfiguration.MUST_JOIN_ELECTED_CLUSTER_MANAGER.getNodeIds().toArray(new String[0])
         );
 
         assertThat(
@@ -898,5 +898,36 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             )
         );
 
+    }
+
+    /*
+     * Validate the Cluster State with deprecated VotingConfiguration.MUST_JOIN_ELECTED_MASTER can get correct ClusterFormationState description.
+     */
+    public void testDescriptionAfterDetachClusterWithDeprecatedMasterVotingConfiguration() {
+        final DiscoveryNode localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
+
+        final ClusterState clusterState = state(
+            localNode,
+            VotingConfiguration.MUST_JOIN_ELECTED_MASTER.getNodeIds().toArray(new String[0])
+        );
+
+        assertThat(
+            new ClusterFormationState(
+                Settings.EMPTY,
+                clusterState,
+                emptyList(),
+                emptyList(),
+                0L,
+                electionStrategy,
+                new StatusInfo(HEALTHY, "healthy-info")
+            ).getDescription(),
+            is(
+                "cluster-manager not discovered yet and this node was detached from its previous cluster, "
+                    + "have discovered []; "
+                    + "discovery will continue using [] from hosts providers and ["
+                    + localNode
+                    + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"
+            )
+        );
     }
 }
