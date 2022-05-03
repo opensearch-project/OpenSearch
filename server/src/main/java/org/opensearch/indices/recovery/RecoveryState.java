@@ -46,6 +46,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
+import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.indices.replication.common.ReplicationTimer;
 
 import java.io.IOException;
@@ -56,7 +57,7 @@ import java.util.Locale;
  *
  * @opensearch.internal
  */
-public class RecoveryState implements ToXContentFragment, Writeable {
+public class RecoveryState extends ReplicationState implements ToXContentFragment, Writeable {
 
     /**
      * The stage of the recovery state
@@ -117,10 +118,8 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
     private Stage stage;
 
-    private final ReplicationLuceneIndex index;
     private final Translog translog;
     private final VerifyIndex verifyIndex;
-    private final ReplicationTimer timer;
 
     private RecoverySource recoverySource;
     private ShardId shardId;
@@ -157,13 +156,12 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     }
 
     public RecoveryState(StreamInput in) throws IOException {
-        timer = new ReplicationTimer(in);
+        super(in);
         stage = Stage.fromId(in.readByte());
         shardId = new ShardId(in);
         recoverySource = RecoverySource.readFrom(in);
         targetNode = new DiscoveryNode(in);
         sourceNode = in.readOptionalWriteable(DiscoveryNode::new);
-        index = new ReplicationLuceneIndex(in);
         translog = new Translog(in);
         verifyIndex = new VerifyIndex(in);
         primary = in.readBoolean();
@@ -171,13 +169,12 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        timer.writeTo(out);
+        super.writeTo(out);
         out.writeByte(stage.id());
         shardId.writeTo(out);
         recoverySource.writeTo(out);
         targetNode.writeTo(out);
         out.writeOptionalWriteable(sourceNode);
-        index.writeTo(out);
         translog.writeTo(out);
         verifyIndex.writeTo(out);
         out.writeBoolean(primary);
@@ -247,20 +244,12 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         return this;
     }
 
-    public ReplicationLuceneIndex getIndex() {
-        return index;
-    }
-
     public VerifyIndex getVerifyIndex() {
         return this.verifyIndex;
     }
 
     public Translog getTranslog() {
         return translog;
-    }
-
-    public ReplicationTimer getTimer() {
-        return timer;
     }
 
     public RecoverySource getRecoverySource() {
@@ -286,16 +275,11 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
 
+        super.toXContent(builder, params);
         builder.field(Fields.ID, shardId.id());
         builder.field(Fields.TYPE, recoverySource.getType());
         builder.field(Fields.STAGE, stage.toString());
         builder.field(Fields.PRIMARY, primary);
-        builder.timeField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, timer.startTime());
-        if (timer.stopTime() > 0) {
-            builder.timeField(Fields.STOP_TIME_IN_MILLIS, Fields.STOP_TIME, timer.stopTime());
-        }
-        builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, new TimeValue(timer.time()));
-
         if (recoverySource.getType() == RecoverySource.Type.PEER) {
             builder.startObject(Fields.SOURCE);
             builder.field(Fields.ID, sourceNode.getId());
@@ -316,10 +300,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         builder.field(Fields.TRANSPORT_ADDRESS, targetNode.getAddress().toString());
         builder.field(Fields.IP, targetNode.getHostAddress());
         builder.field(Fields.NAME, targetNode.getName());
-        builder.endObject();
-
-        builder.startObject(Fields.INDEX);
-        index.toXContent(builder, params);
         builder.endObject();
 
         builder.startObject(Fields.TRANSLOG);
@@ -343,10 +323,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         static final String TYPE = "type";
         static final String STAGE = "stage";
         static final String PRIMARY = "primary";
-        static final String START_TIME = "start_time";
-        static final String START_TIME_IN_MILLIS = "start_time_in_millis";
-        static final String STOP_TIME = "stop_time";
-        static final String STOP_TIME_IN_MILLIS = "stop_time_in_millis";
         static final String TOTAL_TIME = "total_time";
         static final String TOTAL_TIME_IN_MILLIS = "total_time_in_millis";
         static final String SOURCE = "source";
@@ -355,7 +331,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         static final String IP = "ip";
         static final String NAME = "name";
         static final String TARGET = "target";
-        static final String INDEX = "index";
         static final String TRANSLOG = "translog";
         static final String TOTAL_ON_START = "total_on_start";
         static final String VERIFY_INDEX = "verify_index";

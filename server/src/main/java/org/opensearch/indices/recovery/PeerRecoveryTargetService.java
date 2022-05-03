@@ -70,6 +70,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogCorruptedException;
 import org.opensearch.indices.recovery.RecoveriesCollection.RecoveryRef;
+import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.tasks.Task;
@@ -189,7 +190,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         }
     }
 
-    public void startRecovery(final IndexShard indexShard, final DiscoveryNode sourceNode, final RecoveryListener listener) {
+    public void startRecovery(final IndexShard indexShard, final DiscoveryNode sourceNode, final ReplicationListener listener) {
         // create a new recovery status, and process...
         final long recoveryId = onGoingRecoveries.startRecovery(indexShard, sourceNode, listener, recoverySettings.activityTimeout());
         // we fork off quickly here and go async but this is called from the cluster state applier thread too and that can cause
@@ -210,7 +211,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     private void retryRecovery(final long recoveryId, final TimeValue retryAfter, final TimeValue activityTimeout) {
         RecoveryTarget newTarget = onGoingRecoveries.resetRecovery(recoveryId, activityTimeout);
         if (newTarget != null) {
-            threadPool.scheduleUnlessShuttingDown(retryAfter, ThreadPool.Names.GENERIC, new RecoveryRunner(newTarget.recoveryId()));
+            threadPool.scheduleUnlessShuttingDown(retryAfter, ThreadPool.Names.GENERIC, new RecoveryRunner(newTarget.getId()));
         }
     }
 
@@ -339,21 +340,10 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             localNode,
             metadataSnapshot,
             recoveryTarget.state().getPrimary(),
-            recoveryTarget.recoveryId(),
+            recoveryTarget.getId(),
             startingSeqNo
         );
         return request;
-    }
-
-    /**
-     * The recovery listener
-     *
-     * @opensearch.internal
-     */
-    public interface RecoveryListener {
-        void onRecoveryDone(RecoveryState state);
-
-        void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure);
     }
 
     class PrepareForTranslogOperationsRequestHandler implements TransportRequestHandler<RecoveryPrepareForTranslogOperationsRequest> {

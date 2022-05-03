@@ -159,6 +159,7 @@ import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryFailedException;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
+import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.rest.RestStatus;
@@ -2876,7 +2877,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void startRecovery(
         RecoveryState recoveryState,
         PeerRecoveryTargetService recoveryTargetService,
-        PeerRecoveryTargetService.RecoveryListener recoveryListener,
+        ReplicationListener recoveryListener,
         RepositoriesService repositoriesService,
         Consumer<MappingMetadata> mappingUpdateConsumer,
         IndicesService indicesService
@@ -2909,7 +2910,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     recoveryTargetService.startRecovery(this, recoveryState.getSourceNode(), recoveryListener);
                 } catch (Exception e) {
                     failShard("corrupted preexisting index", e);
-                    recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true);
+                    recoveryListener.onFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true);
                 }
                 break;
             case SNAPSHOT:
@@ -2984,15 +2985,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private void executeRecovery(
         String reason,
         RecoveryState recoveryState,
-        PeerRecoveryTargetService.RecoveryListener recoveryListener,
+        ReplicationListener recoveryListener,
         CheckedConsumer<ActionListener<Boolean>, Exception> action
     ) {
         markAsRecovering(reason, recoveryState); // mark the shard as recovering on the cluster state thread
         threadPool.generic().execute(ActionRunnable.wrap(ActionListener.wrap(r -> {
             if (r) {
-                recoveryListener.onRecoveryDone(recoveryState);
+                recoveryListener.onDone(recoveryState);
             }
-        }, e -> recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true)), action));
+        }, e -> recoveryListener.onFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true)), action));
     }
 
     /**

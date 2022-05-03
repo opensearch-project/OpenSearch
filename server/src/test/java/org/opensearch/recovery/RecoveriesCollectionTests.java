@@ -39,10 +39,10 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.recovery.RecoveriesCollection;
-import org.opensearch.indices.recovery.RecoveryFailedException;
 import org.opensearch.indices.recovery.RecoveryState;
-import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryTarget;
+import org.opensearch.indices.replication.common.ReplicationListener;
+import org.opensearch.indices.replication.common.ReplicationState;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -52,14 +52,14 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
 public class RecoveriesCollectionTests extends OpenSearchIndexLevelReplicationTestCase {
-    static final PeerRecoveryTargetService.RecoveryListener listener = new PeerRecoveryTargetService.RecoveryListener() {
+    static final ReplicationListener listener = new ReplicationListener() {
         @Override
-        public void onRecoveryDone(RecoveryState state) {
+        public void onDone(ReplicationState state) {
 
         }
 
         @Override
-        public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
+        public void onFailure(ReplicationState state, OpenSearchException e, boolean sendShardFailure) {
 
         }
     };
@@ -86,24 +86,18 @@ public class RecoveriesCollectionTests extends OpenSearchIndexLevelReplicationTe
             final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool);
             final AtomicBoolean failed = new AtomicBoolean();
             final CountDownLatch latch = new CountDownLatch(1);
-            final long recoveryId = startRecovery(
-                collection,
-                shards.getPrimaryNode(),
-                shards.addReplica(),
-                new PeerRecoveryTargetService.RecoveryListener() {
-                    @Override
-                    public void onRecoveryDone(RecoveryState state) {
-                        latch.countDown();
-                    }
+            final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica(), new ReplicationListener() {
+                @Override
+                public void onDone(ReplicationState state) {
+                    latch.countDown();
+                }
 
-                    @Override
-                    public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
-                        failed.set(true);
-                        latch.countDown();
-                    }
-                },
-                TimeValue.timeValueMillis(100)
-            );
+                @Override
+                public void onFailure(ReplicationState state, OpenSearchException e, boolean sendShardFailure) {
+                    failed.set(true);
+                    latch.countDown();
+                }
+            }, TimeValue.timeValueMillis(100));
             try {
                 latch.await(30, TimeUnit.SECONDS);
                 assertTrue("recovery failed to timeout", failed.get());
@@ -145,7 +139,7 @@ public class RecoveriesCollectionTests extends OpenSearchIndexLevelReplicationTe
             Store store = recoveryTarget.store();
             String tempFileName = recoveryTarget.getTempNameForFile("foobar");
             RecoveryTarget resetRecovery = collection.resetRecovery(recoveryId, TimeValue.timeValueMinutes(60));
-            final long resetRecoveryId = resetRecovery.recoveryId();
+            final long resetRecoveryId = resetRecovery.getId();
             assertNotSame(recoveryTarget, resetRecovery);
             assertNotSame(recoveryTarget.cancellableThreads(), resetRecovery.cancellableThreads());
             assertSame(indexShard, resetRecovery.indexShard());
@@ -177,7 +171,7 @@ public class RecoveriesCollectionTests extends OpenSearchIndexLevelReplicationTe
         RecoveriesCollection collection,
         DiscoveryNode sourceNode,
         IndexShard indexShard,
-        PeerRecoveryTargetService.RecoveryListener listener,
+        ReplicationListener listener,
         TimeValue timeValue
     ) {
         final DiscoveryNode rNode = getDiscoveryNode(indexShard.routingEntry().currentNodeId());
