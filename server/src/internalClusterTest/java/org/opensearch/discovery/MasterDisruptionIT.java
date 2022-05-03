@@ -217,7 +217,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         // The unlucky node must report *no* master node, since it can't connect to master and in fact it should
         // continuously ping until network failures have been resolved. However
         // It may a take a bit before the node detects it has been cut off from the elected master
-        logger.info("waiting for isolated node [{}] to have no master", isolatedNode);
+        logger.info("waiting for isolated node [{}] to have no cluster-manager", isolatedNode);
         assertNoMaster(isolatedNode, NoMasterBlockService.NO_MASTER_BLOCK_WRITES, TimeValue.timeValueSeconds(30));
 
         logger.info("wait until elected master has been removed and a new 2 node cluster was from (via [{}])", isolatedNode);
@@ -236,7 +236,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
                 fail(
                     "node ["
                         + node
-                        + "] has no master or has blocks, despite of being on the right side of the partition. State dump:\n"
+                        + "] has no cluster-manager or has blocks, despite of being on the right side of the partition. State dump:\n"
                         + nodeState
                 );
             }
@@ -247,7 +247,11 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         // Wait until the master node sees al 3 nodes again.
         ensureStableCluster(3, new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + networkDisruption.expectedTimeToHeal().millis()));
 
-        logger.info("Verify no master block with {} set to {}", NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), "all");
+        logger.info(
+            "Verify no cluster-manager block with {} set to {}",
+            NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(),
+            "all"
+        );
         client().admin()
             .cluster()
             .prepareUpdateSettings()
@@ -259,7 +263,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         // The unlucky node must report *no* master node, since it can't connect to master and in fact it should
         // continuously ping until network failures have been resolved. However
         // It may a take a bit before the node detects it has been cut off from the elected master
-        logger.info("waiting for isolated node [{}] to have no master", isolatedNode);
+        logger.info("waiting for isolated node [{}] to have no cluster-manager", isolatedNode);
         assertNoMaster(isolatedNode, NoMasterBlockService.NO_MASTER_BLOCK_ALL, TimeValue.timeValueSeconds(30));
 
         // make sure we have stable cluster & cross partition recoveries are canceled by the removal of the missing node

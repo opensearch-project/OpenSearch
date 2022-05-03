@@ -404,7 +404,7 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
         List<DiscoveryNodeRole> roles = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
             final DiscoveryNodeRole role = i == numNodes - 1 && roles.contains(clusterManagerRole) == false
-                ? clusterManagerRole  // last node and still no master
+                ? clusterManagerRole  // last node and still no cluster-manager
                 : randomFrom(clusterManagerRole, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE);
             roles.add(role);
         }

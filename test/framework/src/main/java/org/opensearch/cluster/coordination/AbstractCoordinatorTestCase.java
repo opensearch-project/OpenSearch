@@ -632,7 +632,11 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     );
                 } else {
                     assertThat(nodeId + " is not following " + leaderId, clusterNode.coordinator.getMode(), is(CANDIDATE));
-                    assertThat(nodeId + " has no master", clusterNode.getLastAppliedClusterState().nodes().getMasterNode(), nullValue());
+                    assertThat(
+                        nodeId + " has no cluster-manager",
+                        clusterNode.getLastAppliedClusterState().nodes().getMasterNode(),
+                        nullValue()
+                    );
                     assertThat(
                         nodeId + " has NO_MASTER_BLOCK",
                         clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID),
