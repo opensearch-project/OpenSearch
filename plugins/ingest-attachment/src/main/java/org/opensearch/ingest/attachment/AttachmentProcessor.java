@@ -135,7 +135,9 @@ public final class AttachmentProcessor extends AbstractProcessor {
         }
 
         if (properties.contains(Property.LANGUAGE) && Strings.hasLength(parsedContent)) {
-            LanguageResult result = new OptimaizeLangDetector().detect(parsedContent);
+            OptimaizeLangDetector langDetector = new OptimaizeLangDetector();
+            langDetector.loadModels();
+            LanguageResult result = langDetector.detect(parsedContent);
             String language = result.getLanguage();
             additionalFields.put(Property.LANGUAGE.toLowerCase(), language);
         }
