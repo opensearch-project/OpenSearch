@@ -74,7 +74,7 @@ dependencies {
   api 'com.google.http-client:google-http-client-appengine:1.35.0'
   api 'com.google.http-client:google-http-client-jackson2:1.35.0'
   api 'com.google.http-client:google-http-client-gson:1.41.4'
-  api 'com.google.api:gax-httpjson:0.62.0'
+  api 'com.google.api:gax-httpjson:0.101.0'
   api 'io.grpc:grpc-context:1.45.1'
   api 'io.opencensus:opencensus-api:0.18.0'
   api 'io.opencensus:opencensus-contrib-http-util:0.18.0'
@@ -145,6 +145,10 @@ thirdPartyAudit {
     'com.google.appengine.api.urlfetch.HTTPResponse',
     'com.google.appengine.api.urlfetch.URLFetchService',
     'com.google.appengine.api.urlfetch.URLFetchServiceFactory',
+    'com.google.api.gax.rpc.ApiCallContext$Key',
+    'com.google.api.gax.rpc.internal.ApiCallContextOptions',
+    'com.google.api.gax.rpc.mtls.MtlsProvider',
+    'com.google.api.gax.tracing.BaseApiTracer',
     // commons-logging optional dependencies
     'org.apache.avalon.framework.logger.Logger',
     'org.apache.log.Hierarchy',
