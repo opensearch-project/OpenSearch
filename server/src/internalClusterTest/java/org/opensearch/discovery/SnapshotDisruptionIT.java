@@ -248,7 +248,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         blockDataNode(repoName, dataNode);
 
-        logger.info("--> create snapshot via cluster-manager node client");
+        logger.info("--> create snapshot via master node client");
         final ActionFuture<CreateSnapshotResponse> snapshotResponse = internalCluster().masterClient()
             .admin()
             .cluster()

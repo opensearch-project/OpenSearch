@@ -153,7 +153,7 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
 
         String masterNode = internalCluster().getMasterName();
         String otherNode = node1Name.equals(masterNode) ? node2Name : node1Name;
-        logger.info("--> add voting config exclusion for non-cluster-manager node, to be sure it's not elected");
+        logger.info("--> add voting config exclusion for non-master node, to be sure it's not elected");
         client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(otherNode)).get();
         logger.info("--> stop master node, no master block should appear");
         Settings masterDataPathSettings = internalCluster().dataPathSettings(masterNode);
@@ -208,7 +208,7 @@ public class MinimumMasterNodesIT extends OpenSearchIntegTestCase {
         otherNode = node1Name.equals(masterNode) ? node2Name : node1Name;
         logger.info("--> add voting config exclusion for master node, to be sure it's not elected");
         client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(masterNode)).get();
-        logger.info("--> stop non-cluster-manager node, no master block should appear");
+        logger.info("--> stop non-master node, no master block should appear");
         Settings otherNodeDataPathSettings = internalCluster().dataPathSettings(otherNode);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(otherNode));
 
