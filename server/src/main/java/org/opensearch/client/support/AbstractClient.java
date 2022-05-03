@@ -366,6 +366,11 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Map;
 
+/**
+ * Base client used to create concrete client implementations
+ *
+ * @opensearch.internal
+ */
 public abstract class AbstractClient implements Client {
 
     protected final Logger logger;
