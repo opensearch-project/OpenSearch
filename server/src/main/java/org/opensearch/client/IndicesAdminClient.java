@@ -132,6 +132,8 @@ import org.opensearch.common.Nullable;
  * Administrative actions/operations against indices.
  *
  * @see AdminClient#indices()
+ *
+ * @opensearch.internal
  */
 public interface IndicesAdminClient extends OpenSearchClient {
 

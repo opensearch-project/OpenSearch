@@ -51,6 +51,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Spawns native module controller processes if present. Will only work prior to a system call filter being installed.
+ *
+ * @opensearch.internal
  */
 final class Spawner implements Closeable {
 

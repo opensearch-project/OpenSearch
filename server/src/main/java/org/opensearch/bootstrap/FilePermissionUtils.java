@@ -40,6 +40,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Permissions;
 
+/**
+ * Utility for File Permissions during bootstrap
+ *
+ * @opensearch.internal
+ */
 public class FilePermissionUtils {
 
     /** no instantiation */

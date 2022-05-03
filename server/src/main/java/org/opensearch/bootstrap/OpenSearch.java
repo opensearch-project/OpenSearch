@@ -55,6 +55,8 @@ import java.util.Locale;
 
 /**
  * This class starts opensearch.
+ *
+ * @opensearch.internal
  */
 class OpenSearch extends EnvironmentAwareCommand {
 
