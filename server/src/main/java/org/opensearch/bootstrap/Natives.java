@@ -40,6 +40,8 @@ import java.nio.file.Path;
 /**
  * The Natives class is a wrapper class that checks if the classes necessary for calling native methods are available on
  * startup. If they are not available, this class will avoid calling code that loads these classes.
+ *
+ * @opensearch.internal
  */
 final class Natives {
     /** no instantiation */

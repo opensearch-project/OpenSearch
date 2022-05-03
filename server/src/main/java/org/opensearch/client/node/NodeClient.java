@@ -52,6 +52,8 @@ import java.util.function.Supplier;
 
 /**
  * Client that executes actions on the local node.
+ *
+ * @opensearch.internal
  */
 public class NodeClient extends AbstractClient {
 

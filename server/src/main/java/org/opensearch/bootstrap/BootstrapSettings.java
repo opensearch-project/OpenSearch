@@ -35,6 +35,11 @@ package org.opensearch.bootstrap;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 
+/**
+ * Settings used for bootstrapping OpenSearch
+ *
+ * @opensearch.internal
+ */
 public final class BootstrapSettings {
 
     private BootstrapSettings() {}

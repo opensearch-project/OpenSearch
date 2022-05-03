@@ -32,6 +32,11 @@
 
 package org.opensearch.bootstrap;
 
+/**
+ * Handler for ctrl events on the console
+ *
+ * @opensearch.internal
+ */
 public interface ConsoleCtrlHandler {
 
     int CTRL_CLOSE_EVENT = 2;
