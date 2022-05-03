@@ -88,7 +88,7 @@ import static org.opensearch.common.io.FileSystemUtils.isAccessibleDirectory;
  *
  * @opensearch.internal
  */
-public final class PluginsService implements ReportingService<PluginsAndModules> {
+public class PluginsService implements ReportingService<PluginsAndModules> {
 
     private static final Logger logger = LogManager.getLogger(PluginsService.class);
 
