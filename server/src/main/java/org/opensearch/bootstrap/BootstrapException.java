@@ -41,6 +41,8 @@ import java.nio.file.Path;
  * these checked exceptions so that
  * {@link Bootstrap#init(boolean, Path, boolean, org.opensearch.env.Environment)}
  * does not have to declare all of these checked exceptions.
+ *
+ * @opensearch.internal
  */
 class BootstrapException extends Exception {
 

@@ -37,6 +37,8 @@ import org.opensearch.env.Environment;
 
 /**
  * Context that is passed to every bootstrap check to make decisions on.
+ *
+ * @opensearch.internal
  */
 public class BootstrapContext {
     /**
