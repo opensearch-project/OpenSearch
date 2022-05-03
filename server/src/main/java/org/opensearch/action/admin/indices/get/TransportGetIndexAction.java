@@ -59,7 +59,7 @@ import java.util.stream.StreamSupport;
 /**
  * Get index action.
  *
- * @openserach.internal
+ * @opensearch.internal
  */
 public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndexRequest, GetIndexResponse> {
 
