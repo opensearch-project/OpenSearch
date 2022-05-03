@@ -136,7 +136,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                     return;
                 }
                 clusterService.submitStateUpdateTask(
-                    "clean up repository cleanup task after master failover",
+                    "clean up repository cleanup task after cluster-manager failover",
                     new ClusterStateUpdateTask() {
                         @Override
                         public ClusterState execute(ClusterState currentState) {

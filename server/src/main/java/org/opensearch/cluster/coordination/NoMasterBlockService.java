@@ -105,7 +105,9 @@ public class NoMasterBlockService {
             case "metadata_write":
                 return NO_MASTER_BLOCK_METADATA_WRITES;
             default:
-                throw new IllegalArgumentException("invalid no-master block [" + value + "], must be one of [all, write, metadata_write]");
+                throw new IllegalArgumentException(
+                    "invalid no-cluster-manager block [" + value + "], must be one of [all, write, metadata_write]"
+                );
         }
     }
 

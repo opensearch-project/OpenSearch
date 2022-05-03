@@ -216,7 +216,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
 
         final DiscoveryNodes nodes = state.nodes();
         if (state.nodes().getMasterNodeId() == null) {
-            logger.debug("not recovering from gateway, no master elected yet");
+            logger.debug("not recovering from gateway, no cluster-manager elected yet");
         } else if (recoverAfterNodes != -1 && (nodes.getMasterAndDataNodes().size()) < recoverAfterNodes) {
             logger.debug(
                 "not recovering from gateway, nodes_size (data+master) [{}] < recover_after_nodes [{}]",
@@ -333,7 +333,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
 
         @Override
         public void onNoLongerMaster(String source) {
-            logger.debug("stepped down as master before recovering state [{}]", source);
+            logger.debug("stepped down as cluster-manager before recovering state [{}]", source);
             resetRecoveredFlags();
         }
 

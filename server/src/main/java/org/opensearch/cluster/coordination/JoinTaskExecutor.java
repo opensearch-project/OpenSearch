@@ -129,7 +129,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         if (joiningNodes.size() == 1 && joiningNodes.get(0).isFinishElectionTask()) {
             return results.successes(joiningNodes).build(currentState);
         } else if (currentNodes.getMasterNode() == null && joiningNodes.stream().anyMatch(Task::isBecomeMasterTask)) {
-            assert joiningNodes.stream().anyMatch(Task::isFinishElectionTask) : "becoming a master but election is not finished "
+            assert joiningNodes.stream().anyMatch(Task::isFinishElectionTask) : "becoming a cluster-manager but election is not finished "
                 + joiningNodes;
             // use these joins to try and become the master.
             // Note that we don't have to do any validation of the amount of joining nodes - the commit
@@ -137,8 +137,11 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             newState = becomeMasterAndTrimConflictingNodes(currentState, joiningNodes);
             nodesChanged = true;
         } else if (currentNodes.isLocalNodeElectedMaster() == false) {
-            logger.trace("processing node joins, but we are not the master. current master: {}", currentNodes.getMasterNode());
-            throw new NotMasterException("Node [" + currentNodes.getLocalNode() + "] not master for join request");
+            logger.trace(
+                "processing node joins, but we are not the cluster-manager. current cluster-manager: {}",
+                currentNodes.getMasterNode()
+            );
+            throw new NotMasterException("Node [" + currentNodes.getLocalNode() + "] not cluster-manager for join request");
         } else {
             newState = ClusterState.builder(currentState);
         }

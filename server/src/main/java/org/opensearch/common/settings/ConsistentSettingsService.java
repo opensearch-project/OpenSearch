@@ -283,7 +283,7 @@ public final class ConsistentSettingsService {
 
         @Override
         public void offMaster() {
-            logger.trace("I am no longer master, nothing to do");
+            logger.trace("I am no longer cluster-manager, nothing to do");
         }
     }
 

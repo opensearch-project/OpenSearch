@@ -450,8 +450,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                             if (stage == Stage.DONE) {
                                 // but we think the shard is done - we need to make new master know that the shard is done
                                 logger.debug(
-                                    "[{}] new master thinks the shard [{}] is not completed but the shard is done locally, "
-                                        + "updating status on the master",
+                                    "[{}] new cluster-manager thinks the shard [{}] is not completed but the shard is done locally, "
+                                        + "updating status on the cluster-manager",
                                     snapshot.snapshot(),
                                     shardId
                                 );
@@ -460,8 +460,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                             } else if (stage == Stage.FAILURE) {
                                 // but we think the shard failed - we need to make new master know that the shard failed
                                 logger.debug(
-                                    "[{}] new master thinks the shard [{}] is not completed but the shard failed locally, "
-                                        + "updating status on master",
+                                    "[{}] new cluster-manager thinks the shard [{}] is not completed but the shard failed locally, "
+                                        + "updating status on cluster-manager",
                                     snapshot.snapshot(),
                                     shardId
                                 );

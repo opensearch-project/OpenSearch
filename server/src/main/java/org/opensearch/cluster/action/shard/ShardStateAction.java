@@ -180,7 +180,7 @@ public class ShardStateAction {
         DiscoveryNode masterNode = currentState.nodes().getMasterNode();
         Predicate<ClusterState> changePredicate = MasterNodeChangePredicate.build(currentState);
         if (masterNode == null) {
-            logger.warn("no master known for action [{}] for shard entry [{}]", actionName, request);
+            logger.warn("no cluster-manager known for action [{}] for shard entry [{}]", actionName, request);
             waitForNewMasterAndRetry(actionName, observer, request, listener, changePredicate);
         } else {
             logger.debug("sending [{}] to [{}] for shard entry [{}]", actionName, masterNode.getId(), request);
@@ -305,7 +305,7 @@ public class ShardStateAction {
             @Override
             public void onNewClusterState(ClusterState state) {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("new cluster state [{}] after waiting for master election for shard entry [{}]", state, request);
+                    logger.trace("new cluster state [{}] after waiting for cluster-manager election for shard entry [{}]", state, request);
                 }
                 sendShardAction(actionName, state, request, listener);
             }
@@ -376,13 +376,13 @@ public class ShardStateAction {
 
                     @Override
                     public void onNoLongerMaster(String source) {
-                        logger.error("{} no longer master while failing shard [{}]", request.shardId, request);
+                        logger.error("{} no longer cluster-manager while failing shard [{}]", request.shardId, request);
                         try {
                             channel.sendResponse(new NotMasterException(source));
                         } catch (Exception channelException) {
                             logger.warn(
                                 () -> new ParameterizedMessage(
-                                    "{} failed to send no longer master while failing shard [{}]",
+                                    "{} failed to send no longer cluster-manager while failing shard [{}]",
                                     request.shardId,
                                     request
                                 ),

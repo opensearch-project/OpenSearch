@@ -198,7 +198,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     }
                 } else {
                     if (nodes.getMasterNode() == null) {
-                        logger.debug("no known master node, scheduling a retry");
+                        logger.debug("no known cluster-manager node, scheduling a retry");
                         retryOnMasterChange(clusterState, null);
                     } else {
                         DiscoveryNode masterNode = nodes.getMasterNode();

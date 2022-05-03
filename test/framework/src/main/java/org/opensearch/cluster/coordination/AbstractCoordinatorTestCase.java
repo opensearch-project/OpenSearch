@@ -1343,7 +1343,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
 
                         @Override
                         public void onNoLongerMaster(String source) {
-                            logger.trace("no longer master: [{}]", source);
+                            logger.trace("no longer cluster-manager: [{}]", source);
                             taskListener.onNoLongerMaster(source);
                         }
 

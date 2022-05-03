@@ -158,7 +158,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
             assertNotNull(sne);
             assertThat(
                 sne.getMessage(),
-                either(endsWith(" Failed to update cluster state during snapshot finalization")).or(endsWith(" no longer master"))
+                either(endsWith(" Failed to update cluster state during snapshot finalization")).or(endsWith(" no longer cluster-manager"))
             );
             assertThat(sne.getSnapshotName(), is(snapshot));
         }
@@ -248,7 +248,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         blockDataNode(repoName, dataNode);
 
-        logger.info("--> create snapshot via master node client");
+        logger.info("--> create snapshot via cluster-manager node client");
         final ActionFuture<CreateSnapshotResponse> snapshotResponse = internalCluster().masterClient()
             .admin()
             .cluster()
@@ -272,7 +272,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
             SnapshotException.class,
             () -> snapshotResponse.actionGet(TimeValue.timeValueSeconds(30L))
         );
-        assertThat(sne.getMessage(), endsWith("no longer master"));
+        assertThat(sne.getMessage(), endsWith("no longer cluster-manager"));
     }
 
     private void assertSnapshotExists(String repository, String snapshot) {
