@@ -154,9 +154,6 @@ import org.opensearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
-import org.opensearch.action.admin.indices.alias.exists.AliasesExistAction;
-import org.opensearch.action.admin.indices.alias.exists.AliasesExistRequestBuilder;
-import org.opensearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
@@ -1361,21 +1358,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public ActionFuture<ClearIndicesCacheResponse> clearCache(final ClearIndicesCacheRequest request) {
             return execute(ClearIndicesCacheAction.INSTANCE, request);
-        }
-
-        @Override
-        public void aliasesExist(GetAliasesRequest request, ActionListener<AliasesExistResponse> listener) {
-            execute(AliasesExistAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public ActionFuture<AliasesExistResponse> aliasesExist(GetAliasesRequest request) {
-            return execute(AliasesExistAction.INSTANCE, request);
-        }
-
-        @Override
-        public AliasesExistRequestBuilder prepareAliasesExist(String... aliases) {
-            return new AliasesExistRequestBuilder(this, AliasesExistAction.INSTANCE, aliases);
         }
 
         @Override
