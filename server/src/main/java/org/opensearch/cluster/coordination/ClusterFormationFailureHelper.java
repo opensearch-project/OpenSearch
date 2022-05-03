@@ -218,7 +218,8 @@ public class ClusterFormationFailureHelper {
 
             assert clusterState.getLastCommittedConfiguration().isEmpty() == false;
 
-            if (clusterState.getLastCommittedConfiguration().equals(VotingConfiguration.MUST_JOIN_ELECTED_MASTER)) {
+            if (clusterState.getLastCommittedConfiguration().equals(VotingConfiguration.MUST_JOIN_ELECTED_MASTER)
+                || clusterState.getLastCommittedConfiguration().equals(VotingConfiguration.MUST_JOIN_ELECTED_CLUSTER_MANAGER)) {
                 return String.format(
                     Locale.ROOT,
                     "cluster-manager not discovered yet and this node was detached from its previous cluster, have discovered %s; %s",

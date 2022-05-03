@@ -86,8 +86,8 @@ public class DetachClusterCommand extends OpenSearchNodeCommand {
     // package-private for tests
     static Metadata updateMetadata(Metadata oldMetadata) {
         final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder()
-            .lastAcceptedConfiguration(CoordinationMetadata.VotingConfiguration.MUST_JOIN_ELECTED_MASTER)
-            .lastCommittedConfiguration(CoordinationMetadata.VotingConfiguration.MUST_JOIN_ELECTED_MASTER)
+            .lastAcceptedConfiguration(CoordinationMetadata.VotingConfiguration.MUST_JOIN_ELECTED_CLUSTER_MANAGER)
+            .lastCommittedConfiguration(CoordinationMetadata.VotingConfiguration.MUST_JOIN_ELECTED_CLUSTER_MANAGER)
             .term(0)
             .build();
         return Metadata.builder(oldMetadata).coordinationMetadata(coordinationMetadata).clusterUUIDCommitted(false).build();
