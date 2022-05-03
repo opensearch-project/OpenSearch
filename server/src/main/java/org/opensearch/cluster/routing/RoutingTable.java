@@ -67,6 +67,8 @@ import static org.opensearch.cluster.metadata.MetadataIndexStateService.isIndexV
  * version of the current routing state.
  *
  * @see IndexRoutingTable
+ *
+ * @opensearch.internal
  */
 public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<RoutingTable> {
 

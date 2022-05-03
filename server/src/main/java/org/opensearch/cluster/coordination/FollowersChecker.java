@@ -76,6 +76,8 @@ import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
  * follower has failed the leader will remove it from the cluster. We are fairly lenient, possibly allowing multiple checks to fail before
  * considering a follower to be faulty, to allow for a brief network partition or a long GC cycle to occur without triggering the removal of
  * a node and the consequent shard reallocation.
+ *
+ * @opensearch.internal
  */
 public class FollowersChecker {
 

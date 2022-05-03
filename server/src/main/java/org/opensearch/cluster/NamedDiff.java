@@ -37,6 +37,8 @@ import org.opensearch.common.io.stream.NamedWriteable;
 
 /**
  * Diff that also support NamedWriteable interface
+ *
+ * @opensearch.internal
  */
 public interface NamedDiff<T extends Diffable<T>> extends Diff<T>, NamedWriteable {
     /**

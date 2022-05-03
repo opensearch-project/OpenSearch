@@ -84,6 +84,11 @@ import java.util.function.Supplier;
 
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
 
+/**
+ * Helper utility class for joining the cluster
+ *
+ * @opensearch.internal
+ */
 public class JoinHelper {
 
     private static final Logger logger = LogManager.getLogger(JoinHelper.class);

@@ -58,6 +58,8 @@ import java.util.Objects;
  * A template consists of optional settings, mappings, or alias configuration for an index, however,
  * it is entirely independent from an index. It's a building block forming part of a regular index
  * template and a {@link ComponentTemplate}.
+ *
+ * @opensearch.internal
  */
 public class Template extends AbstractDiffable<Template> implements ToXContentObject {
     private static final ParseField SETTINGS = new ParseField("settings");

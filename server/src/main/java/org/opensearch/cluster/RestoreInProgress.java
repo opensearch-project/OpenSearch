@@ -54,6 +54,8 @@ import java.util.UUID;
 
 /**
  * Meta data about restore processes that are currently executing
+ *
+ * @opensearch.internal
  */
 public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements Custom, Iterable<RestoreInProgress.Entry> {
 

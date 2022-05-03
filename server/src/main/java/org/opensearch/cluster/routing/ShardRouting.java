@@ -51,6 +51,8 @@ import java.util.List;
 /**
  * {@link ShardRouting} immutably encapsulates information about shard
  * indexRoutings like id, state, version, etc.
+ *
+ * @opensearch.internal
  */
 public final class ShardRouting implements Writeable, ToXContentObject {
 

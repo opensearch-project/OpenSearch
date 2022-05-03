@@ -55,6 +55,8 @@ import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBui
 /**
  * Validator for an alias, to be used before adding an alias to the index metadata
  * and make sure the alias is valid
+ *
+ * @opensearch.internal
  */
 public class AliasValidator {
     /**

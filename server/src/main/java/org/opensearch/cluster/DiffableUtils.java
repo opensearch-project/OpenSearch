@@ -53,6 +53,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Utility class for a diffable
+ *
+ * @opensearch.internal
+ */
 public final class DiffableUtils {
     private DiffableUtils() {}
 

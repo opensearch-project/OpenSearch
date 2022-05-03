@@ -110,6 +110,11 @@ import static org.opensearch.gateway.ClusterStateUpdaters.hideStateIfNotRecovere
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
 
+/**
+ * The main lifecycle resource coordinator
+ *
+ * @opensearch.internal
+ */
 public class Coordinator extends AbstractLifecycleComponent implements Discovery {
 
     public static final long ZEN1_BWC_TERM = 0;
