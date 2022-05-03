@@ -247,7 +247,11 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         // Wait until the master node sees al 3 nodes again.
         ensureStableCluster(3, new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + networkDisruption.expectedTimeToHeal().millis()));
 
-        logger.info("Verify no cluster-manager block with {} set to {}", NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), "all");
+        logger.info(
+            "Verify no cluster-manager block with {} set to {}",
+            NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(),
+            "all"
+        );
         client().admin()
             .cluster()
             .prepareUpdateSettings()

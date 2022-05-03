@@ -1034,7 +1034,8 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
             case 0:
                 actual = new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES));
                 expected = new OpenSearchException(
-                    "OpenSearch exception [type=cluster_block_exception, " + "reason=blocked by: [SERVICE_UNAVAILABLE/2/no cluster-manager];]"
+                    "OpenSearch exception [type=cluster_block_exception, "
+                        + "reason=blocked by: [SERVICE_UNAVAILABLE/2/no cluster-manager];]"
                 );
                 break;
             case 1: // Simple opensearch exception with headers (other metadata of type number are not parsed)
