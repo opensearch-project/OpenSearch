@@ -14,6 +14,9 @@ import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;
 
+/**
+ * Update PIT context response with creation time, keep alive etc.
+ */
 public class UpdatePitContextResponse extends TransportResponse {
     private final String pitId;
 

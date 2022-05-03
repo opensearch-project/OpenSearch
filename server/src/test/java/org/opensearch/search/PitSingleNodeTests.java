@@ -31,6 +31,9 @@ import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
+/**
+ * Single node integration tests for various PIT use cases such as create pit, search etc
+ */
 public class PitSingleNodeTests extends OpenSearchSingleNodeTestCase {
     @Override
     protected boolean resetNodeAfterTest() {

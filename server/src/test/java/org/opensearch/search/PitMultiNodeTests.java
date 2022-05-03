@@ -27,6 +27,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
+/**
+ * Multi node integration tests for PIT creation and search operation with PIT ID.
+ */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 2)
 public class PitMultiNodeTests extends OpenSearchIntegTestCase {
 

@@ -138,6 +138,9 @@ public class ReaderContext implements Releasable {
         return searcherSupplier.acquireSearcher(source);
     }
 
+    /**
+     * Update keep alive if it is greater than current keep alive
+     */
     public void tryUpdateKeepAlive(long keepAlive) {
         this.keepAlive.updateAndGet(curr -> Math.max(curr, keepAlive));
     }

@@ -176,6 +176,7 @@ public class SearchSliceIT extends OpenSearchIntegTestCase {
                 .addSort(SortBuilders.fieldSort("random_int"));
             assertSearchSlicesWithPIT(request, field, max, numDocs);
         }
+        client().admin().indices().prepareDelete("test").get();
     }
 
     private void assertSearchSlicesWithPIT(SearchRequestBuilder request, String field, int numSlice, int numDocs) {

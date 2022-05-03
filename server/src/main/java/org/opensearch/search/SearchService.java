@@ -170,6 +170,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope,
         Property.Dynamic
     );
+    /**
+     * This setting will help validate the max keep alive that can be set during creation or extension for a PIT reader context
+     */
     public static final Setting<TimeValue> MAX_PIT_KEEPALIVE_SETTING = Setting.positiveTimeSetting(
         "pit.max_keep_alive",
         timeValueHours(24),
@@ -222,6 +225,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    /**
+     * This setting defines the maximum number of active PIT reader contexts in the node , since each PIT context
+     * has a resource cost attached to it
+     */
     public static final Setting<Integer> MAX_OPEN_PIT_CONTEXT = Setting.intSetting(
         "search.max_open_pit_context",
         500,

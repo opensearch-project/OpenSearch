@@ -50,6 +50,10 @@ import java.util.concurrent.CountDownLatch;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+/**
+ * Functional tests for various methods in create pit controller. Covers update pit phase specifically since
+ * integration tests don't cover it.
+ */
 public class CreatePitControllerTests extends OpenSearchTestCase {
 
     DiscoveryNode node1 = null;

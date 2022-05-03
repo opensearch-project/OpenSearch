@@ -25,6 +25,9 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Tests to verify behavior of create pit rest action
+ */
 public class RestCreatePitActionTests extends OpenSearchTestCase {
     public void testRestCreatePit() throws Exception {
         SetOnce<Boolean> createPitCalled = new SetOnce<>();

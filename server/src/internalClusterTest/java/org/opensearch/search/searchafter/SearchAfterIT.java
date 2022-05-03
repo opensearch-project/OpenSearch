@@ -209,6 +209,7 @@ public class SearchAfterIT extends OpenSearchIntegTestCase {
         assertEquals(3, sr.getHits().getHits().length);
         sr = client().prepareSearch().addSort("field1", SortOrder.ASC).setQuery(matchAllQuery()).searchAfter(new Object[] { 0 }).get();
         assertEquals(4, sr.getHits().getHits().length);
+        client().admin().indices().prepareDelete("test").get();
     }
 
     public void testWithNullStrings() throws InterruptedException {

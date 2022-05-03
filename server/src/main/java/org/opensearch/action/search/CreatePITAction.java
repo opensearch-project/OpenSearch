@@ -10,6 +10,9 @@ package org.opensearch.action.search;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Action type for creating PIT reader context
+ */
 public class CreatePITAction extends ActionType<CreatePITResponse> {
     public static final CreatePITAction INSTANCE = new CreatePITAction();
     public static final String NAME = "indices:data/write/pit";

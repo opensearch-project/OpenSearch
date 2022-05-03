@@ -24,6 +24,9 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
+/**
+ * Rest action for creating PIT context
+ */
 public class RestCreatePITAction extends BaseRestHandler {
     @Override
     public String getName() {

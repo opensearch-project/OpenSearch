@@ -277,6 +277,10 @@ public interface SearchOperationListener {
             ExceptionsHelper.reThrowIfNotNull(exception);
         }
 
+        /**
+         * Executed when a new Point-In-Time {@link ReaderContext} was created
+         * @param readerContext the created reader context
+         */
         @Override
         public void onNewPitContext(ReaderContext readerContext) {
             for (SearchOperationListener listener : listeners) {
@@ -288,6 +292,11 @@ public interface SearchOperationListener {
             }
         }
 
+        /**
+         * Executed when a Point-In-Time search {@link SearchContext} is freed.
+         * This happens on deletion of a Point-In-Time or on it's keep-alive is expiring.
+         * @param readerContext the freed search context
+         */
         @Override
         public void onFreePitContext(ReaderContext readerContext) {
             for (SearchOperationListener listener : listeners) {
