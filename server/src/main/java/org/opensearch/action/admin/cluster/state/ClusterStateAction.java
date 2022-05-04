@@ -34,6 +34,11 @@ package org.opensearch.action.admin.cluster.state;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for obtaining cluster state
+ *
+ * @opensearch.internal
+ */
 public class ClusterStateAction extends ActionType<ClusterStateResponse> {
 
     public static final ClusterStateAction INSTANCE = new ClusterStateAction();

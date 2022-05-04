@@ -51,6 +51,8 @@ import java.io.IOException;
 
 /**
  * Transport action for delete snapshot operation
+ *
+ * @opensearch.internal
  */
 public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<DeleteSnapshotRequest, AcknowledgedResponse> {
     private final SnapshotsService snapshotsService;

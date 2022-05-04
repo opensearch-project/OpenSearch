@@ -67,6 +67,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalCo
 
 /**
  * Status of a snapshot
+ *
+ * @opensearch.internal
  */
 public class SnapshotStatus implements ToXContentObject, Writeable {
 

@@ -60,6 +60,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Transport action for reloading OpenSearch Secure Settings
+ *
+ * @opensearch.internal
+ */
 public class TransportNodesReloadSecureSettingsAction extends TransportNodesAction<
     NodesReloadSecureSettingsRequest,
     NodesReloadSecureSettingsResponse,

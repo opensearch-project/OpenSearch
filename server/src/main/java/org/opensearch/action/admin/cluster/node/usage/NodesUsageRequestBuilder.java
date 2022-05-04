@@ -36,6 +36,11 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
+/**
+ * Transport builder for collecting OpenSearch telemetry
+ *
+ * @opensearch.internal
+ */
 public class NodesUsageRequestBuilder extends NodesOperationRequestBuilder<
     NodesUsageRequest,
     NodesUsageResponse,

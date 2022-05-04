@@ -36,6 +36,8 @@ import org.opensearch.action.ActionType;
 
 /**
  * ActionType for cancelling running tasks
+ *
+ * @opensearch.internal
  */
 public class CancelTasksAction extends ActionType<CancelTasksResponse> {
 

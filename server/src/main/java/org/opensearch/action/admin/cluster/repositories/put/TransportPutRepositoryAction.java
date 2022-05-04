@@ -51,6 +51,8 @@ import java.io.IOException;
 
 /**
  * Transport action for register repository operation
+ *
+ * @opensearch.internal
  */
 public class TransportPutRepositoryAction extends TransportMasterNodeAction<PutRepositoryRequest, AcknowledgedResponse> {
 

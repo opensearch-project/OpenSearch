@@ -59,6 +59,8 @@ import java.util.Set;
 
 /**
  * Transport action for get repositories operation
+ *
+ * @opensearch.internal
  */
 public class TransportGetRepositoriesAction extends TransportMasterNodeReadAction<GetRepositoriesRequest, GetRepositoriesResponse> {
 

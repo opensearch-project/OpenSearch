@@ -50,6 +50,8 @@ import java.util.Objects;
 
 /**
  * Class for holding Rollover related information within an index
+ *
+ * @opensearch.internal
  */
 public class RolloverInfo extends AbstractDiffable<RolloverInfo> implements Writeable, ToXContentFragment {
 

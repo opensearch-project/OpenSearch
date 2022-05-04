@@ -61,6 +61,8 @@ import java.util.Collections;
 
 /**
  * Close index action
+ *
+ * @opensearch.internal
  */
 public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIndexRequest, CloseIndexResponse> {
 

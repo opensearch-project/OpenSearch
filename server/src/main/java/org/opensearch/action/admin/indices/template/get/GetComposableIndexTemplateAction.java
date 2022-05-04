@@ -48,6 +48,11 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Action to retrieve one or more Composable Index templates
+ *
+ * @opensearch.internal
+ */
 public class GetComposableIndexTemplateAction extends ActionType<GetComposableIndexTemplateAction.Response> {
 
     public static final GetComposableIndexTemplateAction INSTANCE = new GetComposableIndexTemplateAction();

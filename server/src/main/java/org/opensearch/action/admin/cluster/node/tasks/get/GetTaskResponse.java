@@ -46,6 +46,8 @@ import static java.util.Objects.requireNonNull;
 
 /**
  * Returns the list of tasks currently running on the nodes
+ *
+ * @opensearch.internal
  */
 public class GetTaskResponse extends ActionResponse implements ToXContentObject {
 

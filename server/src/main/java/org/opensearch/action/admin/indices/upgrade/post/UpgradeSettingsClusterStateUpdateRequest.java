@@ -40,6 +40,8 @@ import java.util.Map;
 
 /**
  * Cluster state update request that allows to change minimum compatibility settings for some indices
+ *
+ * @opensearch.internal
  */
 public class UpgradeSettingsClusterStateUpdateRequest extends ClusterStateUpdateRequest<UpgradeSettingsClusterStateUpdateRequest> {
 

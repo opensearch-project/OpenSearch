@@ -75,6 +75,8 @@ import static org.opensearch.snapshots.SnapshotInfo.METADATA_FIELD_INTRODUCED;
  * <li>must be lowercase</li>
  * <li>must not contain invalid file name characters {@link org.opensearch.common.Strings#INVALID_FILENAME_CHARS} </li>
  * </ul>
+ *
+ * @opensearch.internal
  */
 public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotRequest>
     implements

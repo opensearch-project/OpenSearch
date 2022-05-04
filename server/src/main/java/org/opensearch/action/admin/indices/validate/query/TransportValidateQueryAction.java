@@ -72,6 +72,11 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.LongSupplier;
 
+/**
+ * Transport Action to Validate a Query
+ *
+ * @opensearch.internal
+ */
 public class TransportValidateQueryAction extends TransportBroadcastAction<
     ValidateQueryRequest,
     ValidateQueryResponse,

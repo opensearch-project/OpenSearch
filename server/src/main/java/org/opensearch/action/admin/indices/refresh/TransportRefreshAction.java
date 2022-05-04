@@ -48,6 +48,8 @@ import java.util.List;
 
 /**
  * Refresh action.
+ *
+ * @opensearch.internal
  */
 public class TransportRefreshAction extends TransportBroadcastReplicationAction<
     RefreshRequest,

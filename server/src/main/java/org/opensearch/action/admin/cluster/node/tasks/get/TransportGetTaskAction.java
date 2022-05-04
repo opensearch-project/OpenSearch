@@ -74,6 +74,8 @@ import static org.opensearch.action.admin.cluster.node.tasks.list.TransportListT
  * <li>Look up the task and return it if it exists
  * <li>If it doesn't then look up the task from the results index
  * </ul>
+ *
+ * @opensearch.internal
  */
 public class TransportGetTaskAction extends HandledTransportAction<GetTaskRequest, GetTaskResponse> {
     private final ThreadPool threadPool;

@@ -34,6 +34,11 @@ package org.opensearch.action.admin.cluster.stats;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for obtaining cluster stats
+ *
+ * @opensearch.internal
+ */
 public class ClusterStatsAction extends ActionType<ClusterStatsResponse> {
 
     public static final ClusterStatsAction INSTANCE = new ClusterStatsAction();

@@ -67,6 +67,8 @@ import java.util.Set;
 
 /**
  * Upgrade index/indices action.
+ *
+ * @opensearch.internal
  */
 public class TransportUpgradeAction extends TransportBroadcastByNodeAction<UpgradeRequest, UpgradeResponse, ShardUpgradeResult> {
 

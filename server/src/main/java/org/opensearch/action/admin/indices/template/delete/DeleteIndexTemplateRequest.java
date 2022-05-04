@@ -42,6 +42,8 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to delete an index template.
+ *
+ * @opensearch.internal
  */
 public class DeleteIndexTemplateRequest extends MasterNodeRequest<DeleteIndexTemplateRequest> {
 

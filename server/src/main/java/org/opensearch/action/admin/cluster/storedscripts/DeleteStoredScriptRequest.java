@@ -41,6 +41,11 @@ import java.io.IOException;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
+/**
+ * Transport request for deleting stored scripts
+ *
+ * @opensearch.internal
+ */
 public class DeleteStoredScriptRequest extends AcknowledgedRequest<DeleteStoredScriptRequest> {
 
     private String id;

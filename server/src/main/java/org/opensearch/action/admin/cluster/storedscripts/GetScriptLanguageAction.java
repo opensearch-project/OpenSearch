@@ -34,6 +34,11 @@ package org.opensearch.action.admin.cluster.storedscripts;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for getting script language
+ *
+ * @opensearch.internal
+ */
 public class GetScriptLanguageAction extends ActionType<GetScriptLanguageResponse> {
     public static final GetScriptLanguageAction INSTANCE = new GetScriptLanguageAction();
     public static final String NAME = "cluster:admin/script_language/get";

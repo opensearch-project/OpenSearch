@@ -62,6 +62,8 @@ import org.opensearch.transport.TransportService;
  * Implements the import of a dangling index. When handling a {@link ImportDanglingIndexAction},
  * this class first checks that such a dangling index exists. It then calls {@link LocalAllocateDangledIndices}
  * to perform the actual allocation.
+ *
+ * @opensearch.internal
  */
 public class TransportImportDanglingIndexAction extends HandledTransportAction<ImportDanglingIndexRequest, AcknowledgedResponse> {
     private static final Logger logger = LogManager.getLogger(TransportImportDanglingIndexAction.class);

@@ -34,6 +34,11 @@ package org.opensearch.action.admin.cluster.health;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport endpoint action for obtaining cluster health
+ *
+ * @opensearch.internal
+ */
 public class ClusterHealthAction extends ActionType<ClusterHealthResponse> {
 
     public static final ClusterHealthAction INSTANCE = new ClusterHealthAction();

@@ -38,6 +38,8 @@ import org.opensearch.cluster.routing.allocation.command.AllocationCommand;
 
 /**
  * Builder for a cluster reroute request
+ *
+ * @opensearch.internal
  */
 public class ClusterRerouteRequestBuilder extends AcknowledgedRequestBuilder<
     ClusterRerouteRequest,

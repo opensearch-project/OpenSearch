@@ -32,6 +32,11 @@
 
 package org.opensearch.action.admin.cluster.snapshots.status;
 
+/**
+ * Stage for snapshotting an Index Shard
+ *
+ * @opensearch.internal
+ */
 public enum SnapshotIndexShardStage {
 
     /**

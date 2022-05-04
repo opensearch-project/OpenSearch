@@ -33,6 +33,11 @@ package org.opensearch.action.admin.indices.template.get;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Action to retrieve one or more Index templates
+ *
+ * @opensearch.internal
+ */
 public class GetIndexTemplatesAction extends ActionType<GetIndexTemplatesResponse> {
 
     public static final GetIndexTemplatesAction INSTANCE = new GetIndexTemplatesAction();

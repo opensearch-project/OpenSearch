@@ -46,6 +46,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
 
 /**
  * Status of a snapshot shards
+ *
+ * @opensearch.internal
  */
 public class SnapshotShardsStats implements ToXContentObject {
 

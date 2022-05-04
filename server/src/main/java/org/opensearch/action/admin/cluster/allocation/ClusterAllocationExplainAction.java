@@ -36,6 +36,8 @@ import org.opensearch.action.ActionType;
 
 /**
  * ActionType for explaining shard allocation for a shard in the cluster
+ *
+ * @opensearch.internal
  */
 public class ClusterAllocationExplainAction extends ActionType<ClusterAllocationExplainResponse> {
 

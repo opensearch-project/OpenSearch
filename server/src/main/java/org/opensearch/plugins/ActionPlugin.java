@@ -150,6 +150,11 @@ public interface ActionPlugin {
         return null;
     }
 
+    /**
+     *  Class responsible for handing Transport Actions
+     *
+     * @opensearch.internal
+     */
     final class ActionHandler<Request extends ActionRequest, Response extends ActionResponse> {
         private final ActionType<Response> action;
         private final Class<? extends TransportAction<Request, Response>> transportAction;

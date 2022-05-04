@@ -50,6 +50,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
 
 /**
  * Snapshot status response
+ *
+ * @opensearch.internal
  */
 public class SnapshotsStatusResponse extends ActionResponse implements ToXContentObject {
 

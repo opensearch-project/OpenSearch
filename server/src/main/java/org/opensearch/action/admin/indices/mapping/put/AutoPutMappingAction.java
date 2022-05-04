@@ -35,6 +35,11 @@ package org.opensearch.action.admin.indices.mapping.put;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 
+/**
+ * Transport action to automatically put field mappings.
+ *
+ * @opensearch.internal
+ */
 public class AutoPutMappingAction extends ActionType<AcknowledgedResponse> {
 
     public static final AutoPutMappingAction INSTANCE = new AutoPutMappingAction();

@@ -61,6 +61,8 @@ import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBoole
 
 /**
  * Restore snapshot request
+ *
+ * @opensearch.internal
  */
 public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotRequest> implements ToXContentObject {
 

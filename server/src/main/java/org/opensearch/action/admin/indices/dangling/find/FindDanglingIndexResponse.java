@@ -44,6 +44,8 @@ import java.util.List;
 /**
  * Models a response to a {@link FindDanglingIndexRequest}. A find request queries every node in the
  * cluster looking for a dangling index with a specific UUID.
+ *
+ * @opensearch.internal
  */
 public class FindDanglingIndexResponse extends BaseNodesResponse<NodeFindDanglingIndexResponse> {
 

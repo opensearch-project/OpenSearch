@@ -55,6 +55,8 @@ import java.util.Map;
 
 /**
  * Represents an alias, to be associated with an index
+ *
+ * @opensearch.internal
  */
 public class Alias implements Writeable, ToXContentFragment {
 

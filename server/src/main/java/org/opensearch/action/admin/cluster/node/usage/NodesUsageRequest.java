@@ -39,6 +39,11 @@ import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+/**
+ * Transport request for collecting OpenSearch telemetry
+ *
+ * @opensearch.internal
+ */
 public class NodesUsageRequest extends BaseNodesRequest<NodesUsageRequest> {
 
     private boolean restActions;

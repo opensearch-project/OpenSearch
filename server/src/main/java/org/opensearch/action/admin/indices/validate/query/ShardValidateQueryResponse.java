@@ -42,7 +42,7 @@ import java.io.IOException;
 /**
  * Internal validate response of a shard validate request executed directly against a specific shard.
  *
- *
+ * @opensearch.internal
  */
 class ShardValidateQueryResponse extends BroadcastShardResponse {
 

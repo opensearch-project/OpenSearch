@@ -43,6 +43,11 @@ import org.opensearch.common.xcontent.XContentType;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * A request builder for putting an index template into the cluster state
+ *
+ * @opensearch.internal
+ */
 public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBuilder<
     PutIndexTemplateRequest,
     AcknowledgedResponse,

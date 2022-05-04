@@ -38,6 +38,8 @@ import org.opensearch.common.util.ArrayUtils;
 
 /**
  * Get repository request builder
+ *
+ * @opensearch.internal
  */
 public class GetRepositoriesRequestBuilder extends MasterNodeReadOperationRequestBuilder<
     GetRepositoriesRequest,

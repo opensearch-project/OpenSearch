@@ -65,6 +65,11 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.stream.Stream;
 
+/**
+ * Common Stats for OpenSearch
+ *
+ * @opensearch.internal
+ */
 public class CommonStats implements Writeable, ToXContentFragment {
 
     @Nullable
