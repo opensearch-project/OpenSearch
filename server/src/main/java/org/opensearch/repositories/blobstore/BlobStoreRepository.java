@@ -318,7 +318,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      *     <li>All repositories that are read-only, i.e. for which {@link #isReadOnly()} returns {@code true} because there are no
      *     guarantees that another cluster is not writing to the repository at the same time</li>
      *     <li>The node finds itself in a mixed-version cluster containing nodes older than
-     *     {@link RepositoryMetadata#REPO_GEN_IN_CS_VERSION} where the master node does not update the value of
+     *     {@link RepositoryMetadata#REPO_GEN_IN_CS_VERSION} where the cluster-manager node does not update the value of
      *     {@link RepositoryMetadata#generation()} when writing a new {@code index-N} blob</li>
      *     <li>The value of {@link RepositoryMetadata#generation()} for this repository is {@link RepositoryData#UNKNOWN_REPO_GEN}
      *     indicating that no consistent repository generation is tracked in the cluster state yet.</li>
@@ -726,8 +726,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 protected void doRun() throws Exception {
                     final Map<String, BlobMetadata> rootBlobs = blobContainer().listBlobs();
                     final RepositoryData repositoryData = safeRepositoryData(repositoryStateId, rootBlobs);
-                    // Cache the indices that were found before writing out the new index-N blob so that a stuck master will never
-                    // delete an index that was created by another master node after writing this index-N blob.
+                    // Cache the indices that were found before writing out the new index-N blob so that a stuck cluster-manager will never
+                    // delete an index that was created by another cluster-manager node after writing this index-N blob.
                     final Map<String, BlobContainer> foundIndices = blobStore().blobContainer(indicesPath()).children();
                     doDeleteShardSnapshots(
                         snapshotIds,
@@ -1371,9 +1371,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 );
             }, onUpdateFailure), 2 + indices.size());
 
-            // We ignore all FileAlreadyExistsException when writing metadata since otherwise a master failover while in this method will
-            // mean that no snap-${uuid}.dat blob is ever written for this snapshot. This is safe because any updated version of the
-            // index or global metadata will be compatible with the segments written in this snapshot as well.
+            // We ignore all FileAlreadyExistsException when writing metadata since otherwise a cluster-manager failover
+            // while in this method will mean that no snap-${uuid}.dat blob is ever written for this snapshot. This is safe because
+            // any updated version of the index or global metadata will be compatible with the segments written in this snapshot as well.
             // Failing on an already existing index-${repoGeneration} below ensures that the index.latest blob is not updated in a way
             // that decrements the generation it points at
 
@@ -1546,7 +1546,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 return seed;
             }
         } catch (Exception exp) {
-            throw new RepositoryVerificationException(metadata.name(), "path " + basePath() + " is not accessible on master node", exp);
+            throw new RepositoryVerificationException(
+                metadata.name(),
+                "path " + basePath() + " is not accessible on cluster-manager node",
+                exp
+            );
         }
     }
 
@@ -2782,15 +2786,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             } catch (NoSuchFileException e) {
                 throw new RepositoryVerificationException(
                     metadata.name(),
-                    "a file written by master to the store ["
+                    "a file written by cluster-manager to the store ["
                         + blobStore()
                         + "] cannot be accessed on the node ["
                         + localNode
                         + "]. "
                         + "This might indicate that the store ["
                         + blobStore()
-                        + "] is not shared between this node and the master node or "
-                        + "that permissions on the store don't allow reading files written by the master node",
+                        + "] is not shared between this node and the cluster-manager node or "
+                        + "that permissions on the store don't allow reading files written by the cluster-manager node",
                     e
                 );
             } catch (Exception e) {

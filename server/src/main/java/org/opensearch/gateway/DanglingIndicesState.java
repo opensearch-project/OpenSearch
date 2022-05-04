@@ -261,7 +261,7 @@ public class DanglingIndicesState implements ClusterStateListener {
     }
 
     /**
-     * Allocates the detected list of dangling indices by sending them to the master node
+     * Allocates the detected list of dangling indices by sending them to the cluster-manager node
      * for allocation, provided auto-import is enabled via the
      * {@link #AUTO_IMPORT_DANGLING_INDICES_SETTING} setting.
      * @param metadata the current cluster metadata, used to filter out dangling indices that cannot be allocated

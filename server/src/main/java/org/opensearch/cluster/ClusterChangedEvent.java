@@ -248,7 +248,7 @@ public class ClusterChangedEvent {
      * Determines whether or not the current cluster state represents an entirely
      * new cluster, either when a node joins a cluster for the first time or when
      * the node receives a cluster state update from a brand new cluster (different
-     * UUID from the previous cluster), which will happen when a master node is
+     * UUID from the previous cluster), which will happen when a cluster-manager node is
      * elected that has never been part of the cluster before.
      */
     public boolean isNewCluster() {
@@ -260,10 +260,10 @@ public class ClusterChangedEvent {
     // Get the deleted indices by comparing the index metadatas in the previous and new cluster states.
     // If an index exists in the previous cluster state, but not in the new cluster state, it must have been deleted.
     private List<Index> indicesDeletedFromClusterState() {
-        // If the new cluster state has a new cluster UUID, the likely scenario is that a node was elected
-        // master that has had its data directory wiped out, in which case we don't want to delete the indices and lose data;
+        // If the new cluster state has a new cluster UUID, the likely scenario is that a node was elected cluster-manager
+        // that has had its data directory wiped out, in which case we don't want to delete the indices and lose data;
         // rather we want to import them as dangling indices instead. So we check here if the cluster UUID differs from the previous
-        // cluster UUID, in which case, we don't want to delete indices that the master erroneously believes shouldn't exist.
+        // cluster UUID, in which case, we don't want to delete indices that the cluster-manager erroneously believes shouldn't exist.
         // See test DiscoveryWithServiceDisruptionsIT.testIndicesDeleted()
         // See discussion on https://github.com/elastic/elasticsearch/pull/9952 and
         // https://github.com/elastic/elasticsearch/issues/11665

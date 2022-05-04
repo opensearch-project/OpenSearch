@@ -621,7 +621,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 throw new IllegalStateException("Unexpected request operation type on replica: " + docWriteRequest.opType().getLowercase());
         }
         if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
-            // Even though the primary waits on all nodes to ack the mapping changes to the master
+            // Even though the primary waits on all nodes to ack the mapping changes to the cluster-manager
             // (see MappingUpdatedAction.updateMappingOnMaster) we still need to protect against missing mappings
             // and wait for them. The reason is concurrent requests. Request r1 which has new field f triggers a
             // mapping update. Assume that that update is first applied on the primary, and only later on the replica

@@ -68,7 +68,7 @@ import java.util.function.Function;
  * <ul>
  * <li>Data nodes call {@link Repository#snapshotShard}
  * for each shard</li>
- * <li>When all shard calls return master calls {@link #finalizeSnapshot} with possible list of failures</li>
+ * <li>When all shard calls return cluster-manager calls {@link #finalizeSnapshot} with possible list of failures</li>
  * </ul>
  */
 public interface Repository extends LifecycleComponent {
@@ -134,7 +134,7 @@ public interface Repository extends LifecycleComponent {
      * @param indices    list of indices to be snapshotted
      * @param metadata   cluster metadata
      *
-     * @deprecated this method is only used when taking snapshots in a mixed version cluster where a master node older than
+     * @deprecated this method is only used when taking snapshots in a mixed version cluster where a cluster-manager node older than
      *             {@link org.opensearch.snapshots.SnapshotsService#NO_REPO_INITIALIZE_VERSION} is present.
      */
     @Deprecated
@@ -143,7 +143,7 @@ public interface Repository extends LifecycleComponent {
     /**
      * Finalizes snapshotting process
      * <p>
-     * This method is called on master after all shards are snapshotted.
+     * This method is called on cluster-manager after all shards are snapshotted.
      *
      * @param shardGenerations      updated shard generations
      * @param repositoryStateId     the unique id identifying the state of the repository when the snapshot began
@@ -197,7 +197,7 @@ public interface Repository extends LifecycleComponent {
     }
 
     /**
-     * Verifies repository on the master node and returns the verification token.
+     * Verifies repository on the cluster-manager node and returns the verification token.
      * <p>
      * If the verification token is not null, it's passed to all data nodes for verification. If it's null - no
      * additional verification is required

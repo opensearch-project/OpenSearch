@@ -74,7 +74,7 @@ public class NoMasterBlockService {
     public static final Setting<ClusterBlock> NO_MASTER_BLOCK_SETTING = new Setting<>(
         "cluster.no_master_block",
         "write",
-        NoMasterBlockService::parseNoMasterBlock,
+        NoMasterBlockService::parseNoClusterManagerBlock,
         Property.Dynamic,
         Property.NodeScope,
         Property.Deprecated
@@ -84,19 +84,19 @@ public class NoMasterBlockService {
     public static final Setting<ClusterBlock> NO_CLUSTER_MANAGER_BLOCK_SETTING = new Setting<>(
         "cluster.no_cluster_manager_block",
         NO_MASTER_BLOCK_SETTING,
-        NoMasterBlockService::parseNoMasterBlock,
+        NoMasterBlockService::parseNoClusterManagerBlock,
         Property.Dynamic,
         Property.NodeScope
     );
 
-    private volatile ClusterBlock noMasterBlock;
+    private volatile ClusterBlock noClusterManagerBlock;
 
     public NoMasterBlockService(Settings settings, ClusterSettings clusterSettings) {
-        this.noMasterBlock = NO_CLUSTER_MANAGER_BLOCK_SETTING.get(settings);
+        this.noClusterManagerBlock = NO_CLUSTER_MANAGER_BLOCK_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(NO_CLUSTER_MANAGER_BLOCK_SETTING, this::setNoMasterBlock);
     }
 
-    private static ClusterBlock parseNoMasterBlock(String value) {
+    private static ClusterBlock parseNoClusterManagerBlock(String value) {
         switch (value) {
             case "all":
                 return NO_MASTER_BLOCK_ALL;
@@ -105,15 +105,17 @@ public class NoMasterBlockService {
             case "metadata_write":
                 return NO_MASTER_BLOCK_METADATA_WRITES;
             default:
-                throw new IllegalArgumentException("invalid no-master block [" + value + "], must be one of [all, write, metadata_write]");
+                throw new IllegalArgumentException(
+                    "invalid no-cluster-manager block [" + value + "], must be one of [all, write, metadata_write]"
+                );
         }
     }
 
     public ClusterBlock getNoMasterBlock() {
-        return noMasterBlock;
+        return noClusterManagerBlock;
     }
 
-    private void setNoMasterBlock(ClusterBlock noMasterBlock) {
-        this.noMasterBlock = noMasterBlock;
+    private void setNoMasterBlock(ClusterBlock noClusterManagerBlock) {
+        this.noClusterManagerBlock = noClusterManagerBlock;
     }
 }

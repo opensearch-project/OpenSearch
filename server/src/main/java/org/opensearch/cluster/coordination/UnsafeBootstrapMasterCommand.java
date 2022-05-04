@@ -68,12 +68,12 @@ public class UnsafeBootstrapMasterCommand extends OpenSearchNodeCommand {
         + "\n"
         + "Do you want to proceed?\n";
 
-    static final String NOT_MASTER_NODE_MSG = "unsafe-bootstrap tool can only be run on cluster-manager eligible node";
+    static final String NOT_CLUSTER_MANAGER_NODE_MSG = "unsafe-bootstrap tool can only be run on cluster-manager eligible node";
 
     static final String EMPTY_LAST_COMMITTED_VOTING_CONFIG_MSG =
         "last committed voting voting configuration is empty, cluster has never been bootstrapped?";
 
-    static final String MASTER_NODE_BOOTSTRAPPED_MSG = "Master node was successfully bootstrapped";
+    static final String CLUSTER_MANAGER_NODE_BOOTSTRAPPED_MSG = "Cluster-manager node was successfully bootstrapped";
     static final Setting<String> UNSAFE_BOOTSTRAP = ClusterService.USER_DEFINED_METADATA.getConcreteSetting(
         "cluster.metadata.unsafe-bootstrap"
     );
@@ -92,10 +92,10 @@ public class UnsafeBootstrapMasterCommand extends OpenSearchNodeCommand {
     @Override
     protected boolean validateBeforeLock(Terminal terminal, Environment env) {
         Settings settings = env.settings();
-        terminal.println(Terminal.Verbosity.VERBOSE, "Checking node.master setting");
-        Boolean master = DiscoveryNode.isMasterNode(settings);
-        if (master == false) {
-            throw new OpenSearchException(NOT_MASTER_NODE_MSG);
+        terminal.println(Terminal.Verbosity.VERBOSE, "Checking node.roles setting");
+        Boolean clusterManager = DiscoveryNode.isMasterNode(settings);
+        if (clusterManager == false) {
+            throw new OpenSearchException(NOT_CLUSTER_MANAGER_NODE_MSG);
         }
 
         return true;
@@ -171,6 +171,6 @@ public class UnsafeBootstrapMasterCommand extends OpenSearchNodeCommand {
             writer.writeFullStateAndCommit(state.v1(), newClusterState);
         }
 
-        terminal.println(MASTER_NODE_BOOTSTRAPPED_MSG);
+        terminal.println(CLUSTER_MANAGER_NODE_BOOTSTRAPPED_MSG);
     }
 }

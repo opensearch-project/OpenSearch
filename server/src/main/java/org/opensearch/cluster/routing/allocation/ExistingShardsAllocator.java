@@ -84,7 +84,7 @@ public interface ExistingShardsAllocator {
     AllocateUnassignedDecision explainUnassignedShardAllocation(ShardRouting unassignedShard, RoutingAllocation routingAllocation);
 
     /**
-     * Called when this node becomes the elected master and when it stops being the elected master, so that implementations can clean up any
+     * Called when this node becomes the elected cluster-manager and when it stops being the elected cluster-manager, so that implementations can clean up any
      * in-flight activity from an earlier mastership.
      */
     void cleanCaches();

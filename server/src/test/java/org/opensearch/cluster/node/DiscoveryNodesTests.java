@@ -277,9 +277,9 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
         DiscoveryNodes.Delta delta = discoNodesB.delta(discoNodesA);
 
         if (masterA == null) {
-            assertThat(delta.previousMasterNode(), nullValue());
+            assertThat(delta.previousClusterManagerNode(), nullValue());
         } else {
-            assertThat(delta.previousMasterNode().getId(), equalTo(masterAId));
+            assertThat(delta.previousClusterManagerNode().getId(), equalTo(masterAId));
         }
         if (masterB == null) {
             assertThat(delta.newMasterNode(), nullValue());

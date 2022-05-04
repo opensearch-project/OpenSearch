@@ -208,7 +208,7 @@ public abstract class PeerFinder {
      * Invoked on receipt of a PeersResponse from a node that believes it's an active leader, which this node should therefore try and join.
      * Note that invocations of this method are not synchronised. By the time it is called we may have been deactivated.
      */
-    protected abstract void onActiveMasterFound(DiscoveryNode masterNode, long term);
+    protected abstract void onActiveClusterManagerFound(DiscoveryNode clusterManagerNode, long term);
 
     /**
      * Invoked when the set of found peers changes. Note that invocations of this method are not fully synchronised, so we only guarantee
@@ -449,7 +449,7 @@ public abstract class PeerFinder {
                     if (response.getMasterNode().equals(Optional.of(discoveryNode))) {
                         // Must not hold lock here to avoid deadlock
                         assert holdsLock() == false : "PeerFinder mutex is held in error";
-                        onActiveMasterFound(discoveryNode, response.getTerm());
+                        onActiveClusterManagerFound(discoveryNode, response.getTerm());
                     }
                 }
 

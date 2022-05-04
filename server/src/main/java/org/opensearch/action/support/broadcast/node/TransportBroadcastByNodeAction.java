@@ -310,9 +310,9 @@ public abstract class TransportBroadcastByNodeAction<
             for (ShardRouting shard : shardIt) {
                 // send a request to the shard only if it is assigned to a node that is in the local node's cluster state
                 // a scenario in which a shard can be assigned but to a node that is not in the local node's cluster state
-                // is when the shard is assigned to the master node, the local node has detected the master as failed
-                // and a new master has not yet been elected; in this situation the local node will have removed the
-                // master node from the local cluster state, but the shards assigned to the master will still be in the
+                // is when the shard is assigned to the cluster-manager node, the local node has detected the cluster-manager as failed
+                // and a new cluster-manager has not yet been elected; in this situation the local node will have removed the
+                // cluster-manager node from the local cluster state, but the shards assigned to the cluster-manager will still be in the
                 // routing table as such
                 if (shard.assignedToNode() && nodes.get(shard.currentNodeId()) != null) {
                     String nodeId = shard.currentNodeId();

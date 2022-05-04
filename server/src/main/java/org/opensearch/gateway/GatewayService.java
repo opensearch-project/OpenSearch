@@ -132,8 +132,8 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
     private final int expectedNodes;
     private final int recoverAfterDataNodes;
     private final int expectedDataNodes;
-    private final int recoverAfterMasterNodes;
-    private final int expectedMasterNodes;
+    private final int recoverAfterClusterManagerNodes;
+    private final int expectedClusterManagerNodes;
 
     private final Runnable recoveryRunnable;
 
@@ -155,22 +155,22 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         // allow to control a delay of when indices will get created
         this.expectedNodes = EXPECTED_NODES_SETTING.get(settings);
         this.expectedDataNodes = EXPECTED_DATA_NODES_SETTING.get(settings);
-        this.expectedMasterNodes = EXPECTED_MASTER_NODES_SETTING.get(settings);
+        this.expectedClusterManagerNodes = EXPECTED_MASTER_NODES_SETTING.get(settings);
 
         if (RECOVER_AFTER_TIME_SETTING.exists(settings)) {
             recoverAfterTime = RECOVER_AFTER_TIME_SETTING.get(settings);
-        } else if (expectedNodes >= 0 || expectedDataNodes >= 0 || expectedMasterNodes >= 0) {
+        } else if (expectedNodes >= 0 || expectedDataNodes >= 0 || expectedClusterManagerNodes >= 0) {
             recoverAfterTime = DEFAULT_RECOVER_AFTER_TIME_IF_EXPECTED_NODES_IS_SET;
         } else {
             recoverAfterTime = null;
         }
         this.recoverAfterNodes = RECOVER_AFTER_NODES_SETTING.get(settings);
         this.recoverAfterDataNodes = RECOVER_AFTER_DATA_NODES_SETTING.get(settings);
-        // default the recover after master nodes to the minimum master nodes in the discovery
+        // default the recover after cluster-manager nodes to the minimum cluster-manager nodes in the discovery
         if (RECOVER_AFTER_MASTER_NODES_SETTING.exists(settings)) {
-            recoverAfterMasterNodes = RECOVER_AFTER_MASTER_NODES_SETTING.get(settings);
+            recoverAfterClusterManagerNodes = RECOVER_AFTER_MASTER_NODES_SETTING.get(settings);
         } else {
-            recoverAfterMasterNodes = -1;
+            recoverAfterClusterManagerNodes = -1;
         }
 
         if (discovery instanceof Coordinator) {
@@ -216,7 +216,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
 
         final DiscoveryNodes nodes = state.nodes();
         if (state.nodes().getMasterNodeId() == null) {
-            logger.debug("not recovering from gateway, no master elected yet");
+            logger.debug("not recovering from gateway, no cluster-manager elected yet");
         } else if (recoverAfterNodes != -1 && (nodes.getMasterAndDataNodes().size()) < recoverAfterNodes) {
             logger.debug(
                 "not recovering from gateway, nodes_size (data+master) [{}] < recover_after_nodes [{}]",
@@ -229,16 +229,16 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                 nodes.getDataNodes().size(),
                 recoverAfterDataNodes
             );
-        } else if (recoverAfterMasterNodes != -1 && nodes.getMasterNodes().size() < recoverAfterMasterNodes) {
+        } else if (recoverAfterClusterManagerNodes != -1 && nodes.getMasterNodes().size() < recoverAfterClusterManagerNodes) {
             logger.debug(
                 "not recovering from gateway, nodes_size (master) [{}] < recover_after_master_nodes [{}]",
                 nodes.getMasterNodes().size(),
-                recoverAfterMasterNodes
+                recoverAfterClusterManagerNodes
             );
         } else {
             boolean enforceRecoverAfterTime;
             String reason;
-            if (expectedNodes == -1 && expectedMasterNodes == -1 && expectedDataNodes == -1) {
+            if (expectedNodes == -1 && expectedClusterManagerNodes == -1 && expectedDataNodes == -1) {
                 // no expected is set, honor the setting if they are there
                 enforceRecoverAfterTime = true;
                 reason = "recover_after_time was set to [" + recoverAfterTime + "]";
@@ -252,10 +252,14 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                 } else if (expectedDataNodes != -1 && (nodes.getDataNodes().size() < expectedDataNodes)) { // does not meet the expected...
                     enforceRecoverAfterTime = true;
                     reason = "expecting [" + expectedDataNodes + "] data nodes, but only have [" + nodes.getDataNodes().size() + "]";
-                } else if (expectedMasterNodes != -1 && (nodes.getMasterNodes().size() < expectedMasterNodes)) {
+                } else if (expectedClusterManagerNodes != -1 && (nodes.getMasterNodes().size() < expectedClusterManagerNodes)) {
                     // does not meet the expected...
                     enforceRecoverAfterTime = true;
-                    reason = "expecting [" + expectedMasterNodes + "] master nodes, but only have [" + nodes.getMasterNodes().size() + "]";
+                    reason = "expecting ["
+                        + expectedClusterManagerNodes
+                        + "] cluster-manager nodes, but only have ["
+                        + nodes.getMasterNodes().size()
+                        + "]";
                 }
             }
             performStateRecovery(enforceRecoverAfterTime, reason);
@@ -333,7 +337,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
 
         @Override
         public void onNoLongerMaster(String source) {
-            logger.debug("stepped down as master before recovering state [{}]", source);
+            logger.debug("stepped down as cluster-manager before recovering state [{}]", source);
             resetRecoveredFlags();
         }
 

@@ -37,7 +37,7 @@ import org.opensearch.common.component.LifecycleComponent;
 
 /**
  * A pluggable module allowing to implement discovery of other nodes, publishing of the cluster
- * state to all nodes, electing a master of the cluster that raises cluster state change
+ * state to all nodes, electing a cluster-manager of the cluster that raises cluster state change
  * events.
  */
 public interface Discovery extends LifecycleComponent, ClusterStatePublisher {

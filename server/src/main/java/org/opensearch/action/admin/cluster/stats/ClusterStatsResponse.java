@@ -60,7 +60,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     public ClusterStatsResponse(StreamInput in) throws IOException {
         super(in);
         timestamp = in.readVLong();
-        // it may be that the master switched on us while doing the operation. In this case the status may be null.
+        // it may be that the cluster-manager switched on us while doing the operation. In this case the status may be null.
         status = in.readOptionalWriteable(ClusterHealthStatus::readFrom);
 
         String clusterUUID = null;
@@ -93,7 +93,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         indicesStats = new ClusterStatsIndices(nodes, MappingStats.of(state), AnalysisStats.of(state));
         ClusterHealthStatus status = null;
         for (ClusterStatsNodeResponse response : nodes) {
-            // only the master node populates the status
+            // only the cluster-manager node populates the status
             if (response.clusterStatus() != null) {
                 status = response.clusterStatus();
                 break;

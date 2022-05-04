@@ -204,7 +204,7 @@ public class RestIndicesAction extends AbstractCatAction {
         final String[] indices,
         final IndicesOptions indicesOptions,
         final boolean local,
-        final TimeValue masterNodeTimeout,
+        final TimeValue clusterManagerNodeTimeout,
         final NodeClient client,
         final ActionListener<GetSettingsResponse> listener
     ) {
@@ -212,7 +212,7 @@ public class RestIndicesAction extends AbstractCatAction {
         request.indices(indices);
         request.indicesOptions(indicesOptions);
         request.local(local);
-        request.masterNodeTimeout(masterNodeTimeout);
+        request.masterNodeTimeout(clusterManagerNodeTimeout);
         request.names(IndexSettings.INDEX_SEARCH_THROTTLED.getKey());
 
         client.admin().indices().getSettings(request, listener);
@@ -222,7 +222,7 @@ public class RestIndicesAction extends AbstractCatAction {
         final String[] indices,
         final IndicesOptions indicesOptions,
         final boolean local,
-        final TimeValue masterNodeTimeout,
+        final TimeValue clusterManagerNodeTimeout,
         final NodeClient client,
         final ActionListener<ClusterStateResponse> listener
     ) {
@@ -231,7 +231,7 @@ public class RestIndicesAction extends AbstractCatAction {
         request.indices(indices);
         request.indicesOptions(indicesOptions);
         request.local(local);
-        request.masterNodeTimeout(masterNodeTimeout);
+        request.masterNodeTimeout(clusterManagerNodeTimeout);
 
         client.admin().cluster().state(request, listener);
     }
@@ -240,7 +240,7 @@ public class RestIndicesAction extends AbstractCatAction {
         final String[] indices,
         final IndicesOptions indicesOptions,
         final boolean local,
-        final TimeValue masterNodeTimeout,
+        final TimeValue clusterManagerNodeTimeout,
         final NodeClient client,
         final ActionListener<ClusterHealthResponse> listener
     ) {
@@ -249,7 +249,7 @@ public class RestIndicesAction extends AbstractCatAction {
         request.indices(indices);
         request.indicesOptions(indicesOptions);
         request.local(local);
-        request.masterNodeTimeout(masterNodeTimeout);
+        request.masterNodeTimeout(clusterManagerNodeTimeout);
 
         client.admin().cluster().health(request, listener);
     }

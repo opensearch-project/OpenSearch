@@ -87,7 +87,7 @@ public final class ConsistentSettingsService {
 
     /**
      * Returns a {@link LocalNodeMasterListener} that will publish hashes of all the settings passed in the constructor. These hashes are
-     * published by the master node only. Note that this is not designed for {@link SecureSettings} implementations that are mutable.
+     * published by the cluster-manager node only. Note that this is not designed for {@link SecureSettings} implementations that are mutable.
      */
     public LocalNodeMasterListener newHashPublisher() {
         // eagerly compute hashes to be published
@@ -116,7 +116,7 @@ public final class ConsistentSettingsService {
                     concreteSecureSetting.getKey()
                 );
             } else if (publishedSaltAndHash == null && localHash != null) {
-                // setting missing on master but present locally
+                // setting missing on cluster-manager but present locally
                 logger.warn(
                     "no published hash for the consistent secure setting [{}] but it exists on the local node",
                     concreteSecureSetting.getKey()
@@ -256,7 +256,7 @@ public final class ConsistentSettingsService {
         }
 
         @Override
-        public void onMaster() {
+        public void onClusterManager() {
             clusterService.submitStateUpdateTask("publish-secure-settings-hashes", new ClusterStateUpdateTask(Priority.URGENT) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -282,8 +282,8 @@ public final class ConsistentSettingsService {
         }
 
         @Override
-        public void offMaster() {
-            logger.trace("I am no longer master, nothing to do");
+        public void offClusterManager() {
+            logger.trace("I am no longer cluster-manager, nothing to do");
         }
     }
 
