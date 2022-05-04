@@ -72,6 +72,8 @@ import java.util.stream.Collectors;
  *               new ActionHandler<>(RethrottleAction.INSTANCE, TransportRethrottleAction.class));
  *   }
  * }</pre>
+ *
+ * @opensearch.api
  */
 public interface ActionPlugin {
     /**

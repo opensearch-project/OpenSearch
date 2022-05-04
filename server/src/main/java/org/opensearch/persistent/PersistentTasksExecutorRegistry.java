@@ -38,6 +38,8 @@ import java.util.Map;
 
 /**
  * Components that registers all persistent task executors
+ *
+ * @opensearch.internal
  */
 public class PersistentTasksExecutorRegistry {
 

@@ -57,6 +57,8 @@ import java.util.Map;
 /**
  * {@link ScriptMetadata} is used to store user-defined scripts
  * as part of the {@link ClusterState} using only an id as the key.
+ *
+ * @opensearch.internal
  */
 public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXContentFragment {
 

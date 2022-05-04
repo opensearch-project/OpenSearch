@@ -39,6 +39,8 @@ import java.util.Objects;
  * assigning a persistent task to a node of the cluster.
  *
  * @see EnableAssignmentDecider
+ *
+ * @opensearch.internal
  */
 public final class AssignmentDecision {
 

@@ -58,6 +58,8 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  *  This action can be used to add the record for the persistent action to the cluster state.
+ *
+ *  @opensearch.internal
  */
 public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse> {
 

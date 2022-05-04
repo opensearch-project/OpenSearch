@@ -49,6 +49,8 @@ import java.util.stream.Collectors;
  * {@link org.opensearch.repositories.blobstore.BlobStoreRepository#finalizeSnapshot} the identifier for an instance of
  * {@link IndexMetadata} should be computed and then used to check if it already exists in the repository via
  * {@link #getIndexMetaBlobId(String)}.
+ *
+ * @opensearch.internal
  */
 public final class IndexMetaDataGenerations {
 

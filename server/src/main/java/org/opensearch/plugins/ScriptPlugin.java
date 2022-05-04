@@ -42,6 +42,8 @@ import org.opensearch.script.ScriptEngine;
 
 /**
  * An additional extension point for {@link Plugin}s that extends OpenSearch's scripting functionality.
+ *
+ * @opensearch.api
  */
 public interface ScriptPlugin {
 

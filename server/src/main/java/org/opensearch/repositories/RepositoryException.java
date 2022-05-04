@@ -40,6 +40,8 @@ import java.io.IOException;
 
 /**
  * Generic repository exception
+ *
+ * @opensearch.internal
  */
 public class RepositoryException extends OpenSearchException {
     private final String repository;

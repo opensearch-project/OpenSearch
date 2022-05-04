@@ -72,6 +72,11 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
+/**
+ * The OpenSearch threadpool class
+ *
+ * @opensearch.internal
+ */
 public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     private static final Logger logger = LogManager.getLogger(ThreadPool.class);

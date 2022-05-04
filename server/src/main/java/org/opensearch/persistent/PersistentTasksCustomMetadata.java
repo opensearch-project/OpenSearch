@@ -71,6 +71,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
 
 /**
  * A cluster state record that contains a list of all running persistent tasks
+ *
+ * @opensearch.internal
  */
 public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
 

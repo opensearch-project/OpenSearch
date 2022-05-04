@@ -36,6 +36,11 @@ import org.opensearch.common.util.concurrent.FutureUtils;
 
 import java.util.concurrent.Future;
 
+/**
+ * A cancellable adapter
+ *
+ * @opensearch.internal
+ */
 class CancellableAdapter implements Scheduler.Cancellable {
     private Future<?> future;
 

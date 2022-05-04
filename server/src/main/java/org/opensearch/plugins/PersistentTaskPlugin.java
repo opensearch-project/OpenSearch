@@ -43,6 +43,8 @@ import java.util.List;
 
 /**
  * Plugin for registering persistent tasks executors.
+ *
+ * @opensearch.api
  */
 public interface PersistentTaskPlugin {
 

@@ -56,6 +56,8 @@ import java.util.stream.Collectors;
 
 /**
  * An in-memory representation of the plugin descriptor.
+ *
+ * @opensearch.api
  */
 public class PluginInfo implements Writeable, ToXContentObject {
 
