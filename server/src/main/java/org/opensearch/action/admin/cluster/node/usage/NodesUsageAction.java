@@ -34,6 +34,11 @@ package org.opensearch.action.admin.cluster.node.usage;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for collecting OpenSearch telemetry
+ *
+ * @opensearch.internal
+ */
 public class NodesUsageAction extends ActionType<NodesUsageResponse> {
 
     public static final NodesUsageAction INSTANCE = new NodesUsageAction();

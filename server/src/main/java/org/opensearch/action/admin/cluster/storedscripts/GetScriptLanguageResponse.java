@@ -45,6 +45,11 @@ import org.opensearch.script.ScriptLanguagesInfo;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Transport response for getting script language
+ *
+ * @opensearch.internal
+ */
 public class GetScriptLanguageResponse extends ActionResponse implements StatusToXContentObject, Writeable {
     public final ScriptLanguagesInfo info;
 

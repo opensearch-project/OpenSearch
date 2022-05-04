@@ -34,6 +34,11 @@ package org.opensearch.action.admin.indices.shrink;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for resizing an index
+ *
+ * @opensearch.internal
+ */
 public class ResizeAction extends ActionType<ResizeResponse> {
 
     public static final ResizeAction INSTANCE = new ResizeAction();

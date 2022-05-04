@@ -38,6 +38,8 @@ import org.opensearch.common.settings.SecureString;
 
 /**
  * Builder for the reload secure settings nodes request
+ *
+ * @opensearch.internal
  */
 public class NodesReloadSecureSettingsRequestBuilder extends NodesOperationRequestBuilder<
     NodesReloadSecureSettingsRequest,

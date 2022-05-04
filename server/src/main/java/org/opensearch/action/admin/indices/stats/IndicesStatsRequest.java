@@ -45,6 +45,8 @@ import java.io.IOException;
  * <p>
  * All the stats to be returned can be cleared using {@link #clear()}, at which point, specific
  * stats can be enabled.
+ *
+ * @opensearch.internal
  */
 public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
 

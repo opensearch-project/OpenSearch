@@ -49,6 +49,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Transport action for collecting OpenSearch telemetry
+ *
+ * @opensearch.internal
+ */
 public class TransportNodesUsageAction extends TransportNodesAction<
     NodesUsageRequest,
     NodesUsageResponse,

@@ -37,7 +37,11 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.util.ArrayUtils;
 
-/** A helper class to build {@link GetFieldMappingsRequest} objects */
+/**
+ * A helper class to build {@link GetFieldMappingsRequest} objects
+ *
+ * @opensearch.internal
+ **/
 public class GetFieldMappingsRequestBuilder extends ActionRequestBuilder<GetFieldMappingsRequest, GetFieldMappingsResponse> {
 
     public GetFieldMappingsRequestBuilder(OpenSearchClient client, GetFieldMappingsAction action, String... indices) {

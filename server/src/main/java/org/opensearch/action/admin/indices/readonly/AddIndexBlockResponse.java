@@ -50,6 +50,11 @@ import java.util.Objects;
 
 import static java.util.Collections.unmodifiableList;
 
+/**
+ * Transport response to open an index.
+ *
+ * @opensearch.internal
+ */
 public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
 
     private final List<AddBlockResult> indices;

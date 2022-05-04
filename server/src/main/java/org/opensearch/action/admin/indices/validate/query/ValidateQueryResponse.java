@@ -52,7 +52,7 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalCo
 /**
  * The response of the validate action.
  *
- *
+ * @opensearch.internal
  */
 public class ValidateQueryResponse extends BroadcastResponse {
 

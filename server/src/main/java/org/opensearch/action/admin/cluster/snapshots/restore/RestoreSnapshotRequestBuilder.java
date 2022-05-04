@@ -43,6 +43,8 @@ import java.util.Map;
 
 /**
  * Restore snapshot request builder
+ *
+ * @opensearch.internal
  */
 public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<
     RestoreSnapshotRequest,

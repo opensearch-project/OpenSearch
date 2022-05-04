@@ -37,6 +37,8 @@ import org.opensearch.client.OpenSearchClient;
 
 /**
  * Builder for the request to cancel tasks running on the specified nodes
+ *
+ * @opensearch.internal
  */
 public class CancelTasksRequestBuilder extends TasksRequestBuilder<CancelTasksRequest, CancelTasksResponse, CancelTasksRequestBuilder> {
 

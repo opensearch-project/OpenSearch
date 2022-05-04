@@ -46,6 +46,11 @@ import org.opensearch.snapshots.RestoreService;
 
 import static org.opensearch.snapshots.RestoreService.restoreInProgress;
 
+/**
+ * Transport listener for cluster state updates
+ *
+ * @opensearch.internal
+ */
 public class RestoreClusterStateListener implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(RestoreClusterStateListener.class);

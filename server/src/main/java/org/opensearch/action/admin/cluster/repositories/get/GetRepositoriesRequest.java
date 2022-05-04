@@ -44,6 +44,8 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * Get repository request
+ *
+ * @opensearch.internal
  */
 public class GetRepositoriesRequest extends MasterNodeReadRequest<GetRepositoriesRequest> {
 

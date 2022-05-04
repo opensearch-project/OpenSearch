@@ -75,6 +75,12 @@ import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findC
 import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findV2Template;
 import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.resolveSettings;
 
+/**
+ * Transport Action for handling simulating an index template either by name (looking it up in the
+ * cluster state), or by a provided template configuration
+ *
+ * @opensearch.internal
+ */
 public class TransportSimulateIndexTemplateAction extends TransportMasterNodeReadAction<
     SimulateIndexTemplateRequest,
     SimulateIndexTemplateResponse> {

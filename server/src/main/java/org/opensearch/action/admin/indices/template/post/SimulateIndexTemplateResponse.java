@@ -49,6 +49,8 @@ import java.util.Objects;
 
 /**
  * Contains the information on what V2 templates would match a given index.
+ *
+ * @opensearch.internal
  */
 public class SimulateIndexTemplateResponse extends ActionResponse implements ToXContentObject {
 

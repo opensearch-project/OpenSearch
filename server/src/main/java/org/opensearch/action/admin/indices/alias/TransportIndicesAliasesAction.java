@@ -72,6 +72,8 @@ import static java.util.Collections.unmodifiableList;
 
 /**
  * Add/remove aliases action
+ *
+ * @opensearch.internal
  */
 public class TransportIndicesAliasesAction extends TransportMasterNodeAction<IndicesAliasesRequest, AcknowledgedResponse> {
 

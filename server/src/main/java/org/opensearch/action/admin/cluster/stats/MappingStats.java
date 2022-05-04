@@ -56,6 +56,8 @@ import java.util.Set;
 
 /**
  * Usage statistics about mappings usage.
+ *
+ * @opensearch.internal
  */
 public final class MappingStats implements ToXContentFragment, Writeable {
 

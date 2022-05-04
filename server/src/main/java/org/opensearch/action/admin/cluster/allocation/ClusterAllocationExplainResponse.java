@@ -40,6 +40,8 @@ import java.io.IOException;
 
 /**
  * Explanation response for a shard in the cluster
+ *
+ * @opensearch.internal
  */
 public class ClusterAllocationExplainResponse extends ActionResponse {
 

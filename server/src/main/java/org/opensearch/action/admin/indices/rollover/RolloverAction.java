@@ -34,6 +34,11 @@ package org.opensearch.action.admin.indices.rollover;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action to rollover an index.
+ *
+ * @opensearch.internal
+ */
 public class RolloverAction extends ActionType<RolloverResponse> {
 
     public static final RolloverAction INSTANCE = new RolloverAction();

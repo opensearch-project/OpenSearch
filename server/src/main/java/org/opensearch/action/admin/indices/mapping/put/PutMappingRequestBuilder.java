@@ -44,6 +44,8 @@ import java.util.Map;
 
 /**
  * Builder for a put mapping request
+ *
+ * @opensearch.internal
  */
 public class PutMappingRequestBuilder extends AcknowledgedRequestBuilder<
     PutMappingRequest,

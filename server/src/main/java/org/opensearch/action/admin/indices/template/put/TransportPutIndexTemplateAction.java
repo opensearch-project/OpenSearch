@@ -56,6 +56,8 @@ import java.io.IOException;
 
 /**
  * Put index template action.
+ *
+ * @opensearch.internal
  */
 public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<PutIndexTemplateRequest, AcknowledgedResponse> {
 

@@ -37,6 +37,8 @@ import org.opensearch.client.OpenSearchClient;
 
 /**
  * Builder for verify repository request
+ *
+ * @opensearch.internal
  */
 public class VerifyRepositoryRequestBuilder extends MasterNodeOperationRequestBuilder<
     VerifyRepositoryRequest,

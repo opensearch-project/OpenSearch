@@ -50,6 +50,8 @@ import org.opensearch.transport.TransportService;
 
 /**
  * Finds a specified dangling index by its UUID, searching across all nodes.
+ *
+ * @opensearch.internal
  */
 public class TransportFindDanglingIndexAction extends TransportNodesAction<
     FindDanglingIndexRequest,

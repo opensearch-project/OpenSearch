@@ -46,6 +46,8 @@ import java.util.List;
 
 /**
  * Information about plugins and modules
+ *
+ * @opensearch.internal
  */
 public class PluginsAndModules implements ReportingService.Info {
     private final List<PluginInfo> plugins;

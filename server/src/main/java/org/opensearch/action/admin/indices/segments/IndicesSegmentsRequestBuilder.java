@@ -35,6 +35,11 @@ package org.opensearch.action.admin.indices.segments;
 import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
+/**
+ * Transport request builder for retrieving indices segment information
+ *
+ * @opensearch.internal
+ */
 public class IndicesSegmentsRequestBuilder extends BroadcastOperationRequestBuilder<
     IndicesSegmentsRequest,
     IndicesSegmentResponse,
