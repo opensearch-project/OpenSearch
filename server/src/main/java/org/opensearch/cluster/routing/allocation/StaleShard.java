@@ -36,6 +36,8 @@ import org.opensearch.index.shard.ShardId;
 
 /**
  * A class that represents a stale shard copy.
+ *
+ * @opensearch.internal
  */
 public class StaleShard {
     private final ShardId shardId;

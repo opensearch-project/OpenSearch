@@ -38,6 +38,11 @@ import org.opensearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
+/**
+ * Cluster health status
+ *
+ * @opensearch.internal
+ */
 public enum ClusterHealthStatus implements Writeable {
     GREEN((byte) 0),
     YELLOW((byte) 1),

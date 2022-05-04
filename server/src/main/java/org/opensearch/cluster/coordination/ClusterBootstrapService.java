@@ -69,6 +69,11 @@ import static org.opensearch.discovery.DiscoveryModule.LEGACY_DISCOVERY_HOSTS_PR
 import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
 
+/**
+ * Service for bootstrapping the OpenSearch cluster
+ *
+ * @opensearch.internal
+ */
 public class ClusterBootstrapService {
 
     public static final Setting<List<String>> INITIAL_MASTER_NODES_SETTING = Setting.listSetting(

@@ -54,6 +54,8 @@ import java.util.Objects;
 /**
  * The {@link ComposableIndexTemplateMetadata} class is a custom {@link Metadata.Custom} implementation that
  * stores a map of ids to {@link ComposableIndexTemplate} templates.
+ *
+ * @opensearch.internal
  */
 public class ComposableIndexTemplateMetadata implements Metadata.Custom {
     public static final String TYPE = "index_template";

@@ -77,6 +77,8 @@ import java.util.function.Predicate;
  * <li> {@link #relocateShard} starts relocation of a started shard.
  * <li> {@link #failShard} fails/cancels an assigned shard.
  * </ul>
+ *
+ * @opensearch.internal
  */
 public class RoutingNodes implements Iterable<RoutingNode> {
 

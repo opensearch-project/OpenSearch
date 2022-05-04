@@ -45,6 +45,11 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
+/**
+ * Filters Discovery nodes
+ *
+ * @opensearch.internal
+ */
 public class DiscoveryNodeFilters {
 
     public enum OpType {

@@ -87,6 +87,11 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+/**
+ * Transport action for retrieving the shard state
+ *
+ * @opensearch.internal
+ */
 public class ShardStateAction {
 
     private static final Logger logger = LogManager.getLogger(ShardStateAction.class);

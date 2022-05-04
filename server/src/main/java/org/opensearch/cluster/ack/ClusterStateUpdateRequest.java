@@ -37,6 +37,8 @@ import org.opensearch.common.unit.TimeValue;
 /**
  * Base class to be used when needing to update the cluster state
  * Contains the basic fields that are always needed
+ *
+ * @opensearch.internal
  */
 public abstract class ClusterStateUpdateRequest<T extends ClusterStateUpdateRequest<T>> implements AckedRequest {
 

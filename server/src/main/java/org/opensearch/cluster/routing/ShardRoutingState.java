@@ -35,6 +35,8 @@ package org.opensearch.cluster.routing;
 /**
  * Represents the current state of a {@link ShardRouting} as defined by the
  * cluster.
+ *
+ * @opensearch.internal
  */
 public enum ShardRoutingState {
     /**

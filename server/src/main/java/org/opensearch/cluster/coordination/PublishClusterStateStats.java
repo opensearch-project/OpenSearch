@@ -42,6 +42,8 @@ import java.io.IOException;
 
 /**
  * Class encapsulating stats about the PublishClusterStateAction
+ *
+ * @opensearch.internal
  */
 public class PublishClusterStateStats implements Writeable, ToXContentObject {
 

@@ -52,6 +52,8 @@ import static org.opensearch.common.collect.List.copyOf;
  * An index abstraction is a reference to one or more concrete indices.
  * An index abstraction has a unique name and encapsulates all the  {@link IndexMetadata} instances it is pointing to.
  * Also depending on type it may refer to a single or many concrete indices and may or may not have a write index.
+ *
+ * @opensearch.internal
  */
 public interface IndexAbstraction {
 

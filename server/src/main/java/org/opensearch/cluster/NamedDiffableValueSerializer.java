@@ -39,6 +39,8 @@ import java.io.IOException;
 
 /**
  * Value Serializer for named diffables
+ *
+ * @opensearch.internal
  */
 public class NamedDiffableValueSerializer<T extends NamedDiffable<T>> extends DiffableUtils.DiffableValueSerializer<String, T> {
 

@@ -112,6 +112,8 @@ import static java.util.Collections.unmodifiableMap;
 
 /**
  * Service responsible for submitting open/close index requests as well as for adding index blocks
+ *
+ * @opensearch.internal
  */
 public class MetadataIndexStateService {
     private static final Logger logger = LogManager.getLogger(MetadataIndexStateService.class);

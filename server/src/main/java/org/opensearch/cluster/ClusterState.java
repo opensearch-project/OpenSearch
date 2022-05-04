@@ -97,6 +97,8 @@ import static org.opensearch.cluster.coordination.Coordinator.ZEN1_BWC_TERM;
  * make sure that the correct diffs are applied. If uuids don’t match, the {@link ClusterStateDiff#apply} method
  * throws the {@link IncompatibleClusterStateVersionException}, which causes the publishing mechanism to send
  * a full version of the cluster state to the node on which this exception was thrown.
+ *
+ * @opensearch.internal
  */
 public class ClusterState implements ToXContentFragment, Diffable<ClusterState> {
 

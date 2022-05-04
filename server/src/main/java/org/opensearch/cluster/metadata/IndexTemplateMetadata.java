@@ -62,6 +62,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * Metadata for Index Templates
+ *
+ * @opensearch.internal
+ */
 public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadata> {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IndexTemplateMetadata.class);

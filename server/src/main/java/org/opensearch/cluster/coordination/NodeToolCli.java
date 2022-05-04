@@ -44,6 +44,12 @@ import org.opensearch.env.OverrideNodeVersionCommand;
 // Even if we avoid making a static reference to Logger class, there is no nice way to avoid declaring
 // UNSAFE_BOOTSTRAP, which depends on ClusterService, which in turn has static Logger.
 // TODO execute CommandLoggingConfigurator.configureLoggingWithoutConfig() in the constructor of commands, not in beforeMain
+
+/**
+ * Command Line Interface tool for Nodes
+ *
+ * @opensearch.internal
+ */
 public class NodeToolCli extends MultiCommand {
 
     public NodeToolCli() {

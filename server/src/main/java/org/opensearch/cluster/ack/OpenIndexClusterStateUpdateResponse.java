@@ -33,6 +33,8 @@ package org.opensearch.cluster.ack;
 
 /**
  * A cluster state update response with specific fields for index opening.
+ *
+ * @opensearch.internal
  */
 public class OpenIndexClusterStateUpdateResponse extends ClusterStateUpdateResponse {
 

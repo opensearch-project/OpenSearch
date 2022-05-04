@@ -36,6 +36,8 @@ import org.opensearch.common.unit.TimeValue;
 
 /**
  * Identifies a cluster state update request with acknowledgement support
+ *
+ * @opensearch.internal
  */
 public interface AckedRequest {
 

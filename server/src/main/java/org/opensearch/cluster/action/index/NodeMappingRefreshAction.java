@@ -53,6 +53,11 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
+/**
+ * Transport action for refreshing the Node Mapping
+ *
+ * @opensearch.internal
+ */
 public class NodeMappingRefreshAction {
 
     private static final Logger logger = LogManager.getLogger(NodeMappingRefreshAction.class);

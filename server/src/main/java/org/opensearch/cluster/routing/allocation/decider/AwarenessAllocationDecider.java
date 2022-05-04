@@ -89,6 +89,8 @@ import static java.util.Collections.emptyList;
  * <pre>
  * node.zone: zone1
  * </pre>
+ *
+ * @opensearch.internal
  */
 public class AwarenessAllocationDecider extends AllocationDecider {
 

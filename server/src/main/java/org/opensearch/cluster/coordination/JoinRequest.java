@@ -41,6 +41,11 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.Optional;
 
+/**
+ * Request for a node to join the cluster
+ *
+ * @opensearch.internal
+ */
 public class JoinRequest extends TransportRequest {
 
     /**

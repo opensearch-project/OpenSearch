@@ -64,6 +64,8 @@ import java.util.concurrent.atomic.AtomicReference;
  * The actual removal of the delay marker happens in
  * {@link AllocationService#removeDelayMarkers(RoutingAllocation)}, triggering yet
  * another cluster change event.
+ *
+ * @opensearch.internal
  */
 public class DelayedAllocationService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(DelayedAllocationService.class);

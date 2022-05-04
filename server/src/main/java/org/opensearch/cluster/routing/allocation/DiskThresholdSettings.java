@@ -49,6 +49,8 @@ import java.util.Map;
 
 /**
  * A container to keep settings for disk thresholds up to date with cluster setting changes.
+ *
+ * @opensearch.internal
  */
 public class DiskThresholdSettings {
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING = Setting.boolSetting(

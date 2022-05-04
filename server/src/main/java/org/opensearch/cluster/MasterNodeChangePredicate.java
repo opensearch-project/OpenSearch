@@ -36,6 +36,11 @@ import org.opensearch.cluster.node.DiscoveryNode;
 
 import java.util.function.Predicate;
 
+/**
+ * Utility class to build a predicate that accepts cluster state changes
+ *
+ * @opensearch.internal
+ */
 public final class MasterNodeChangePredicate {
 
     private MasterNodeChangePredicate() {
