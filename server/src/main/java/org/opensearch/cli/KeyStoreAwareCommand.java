@@ -44,6 +44,8 @@ import java.util.Arrays;
 /**
  * An {@link org.opensearch.cli.EnvironmentAwareCommand} that needs to access the opensearch keystore, possibly
  * decrypting it if it is password protected.
+ *
+ * @opensearch.internal
  */
 public abstract class KeyStoreAwareCommand extends EnvironmentAwareCommand {
     public KeyStoreAwareCommand(String description) {
