@@ -65,6 +65,11 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 
+/**
+ * finds peers
+ *
+ * @opensearch.internal
+ */
 public abstract class PeerFinder {
 
     private static final Logger logger = LogManager.getLogger(PeerFinder.class);

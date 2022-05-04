@@ -48,7 +48,10 @@ import java.io.IOException;
 import java.util.Objects;
 
 /** A {@link Query} that only matches documents that are greater than or equal
- *  to a configured doc ID. */
+ *  to a configured doc ID.
+ *
+ *  @opensearch.internal
+ */
 public final class MinDocQuery extends Query {
 
     // Matching documents depend on the sequence of segments that the index reader

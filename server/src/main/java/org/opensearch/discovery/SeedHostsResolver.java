@@ -65,6 +65,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+/**
+ * Resolves seed hosts listed in the config
+ *
+ * @opensearch.internal
+ */
 public class SeedHostsResolver extends AbstractLifecycleComponent implements ConfiguredHostsResolver {
     public static final Setting<Integer> LEGACY_DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING = Setting.intSetting(
         "discovery.zen.ping.unicast.concurrent_connects",

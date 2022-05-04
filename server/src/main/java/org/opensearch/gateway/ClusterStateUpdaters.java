@@ -49,6 +49,11 @@ import java.util.Map;
 
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
+/**
+ * Updates cluster state
+ *
+ * @opensearch.internal
+ */
 public class ClusterStateUpdaters {
     private static final Logger logger = LogManager.getLogger(ClusterStateUpdaters.class);
 

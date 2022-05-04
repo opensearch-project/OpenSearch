@@ -51,6 +51,8 @@ import java.util.Comparator;
  *     <li>Lastly the index names are compared, which is useful when a date is baked into the index
  *         name, e.g. <code>logstash-2015.05.03</code></li>
  * </ol>
+ *
+ * @opensearch.internal
  */
 public abstract class PriorityComparator implements Comparator<ShardRouting> {
 

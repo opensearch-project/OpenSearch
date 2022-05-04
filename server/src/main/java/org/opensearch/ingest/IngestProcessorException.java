@@ -41,6 +41,8 @@ import java.io.IOException;
 /**
  * A dedicated wrapper for exceptions encountered executing an ingest processor. The wrapper is needed as we currently only unwrap causes
  * for instances of {@link OpenSearchWrapperException}.
+ *
+ * @opensearch.internal
  */
 public class IngestProcessorException extends OpenSearchException implements OpenSearchWrapperException {
 
