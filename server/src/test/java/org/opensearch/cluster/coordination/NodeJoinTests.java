@@ -629,17 +629,18 @@ public class NodeJoinTests extends OpenSearchTestCase {
         List<DiscoveryNode> clusterManagerNodes = IntStream.rangeClosed(1, randomIntBetween(2, 5))
             .mapToObj(nodeId -> newNode(nodeId, true))
             .collect(Collectors.toList());
-        List<DiscoveryNode> otherNodes = IntStream.rangeClosed(clusterManagerNodes.size() + 1, clusterManagerNodes.size() + 1 + randomIntBetween(0, 5))
-            .mapToObj(nodeId -> newNode(nodeId, false))
-            .collect(Collectors.toList());
+        List<DiscoveryNode> otherNodes = IntStream.rangeClosed(
+            clusterManagerNodes.size() + 1,
+            clusterManagerNodes.size() + 1 + randomIntBetween(0, 5)
+        ).mapToObj(nodeId -> newNode(nodeId, false)).collect(Collectors.toList());
         List<DiscoveryNode> allNodes = Stream.concat(clusterManagerNodes.stream(), otherNodes.stream()).collect(Collectors.toList());
 
         DiscoveryNode localNode = clusterManagerNodes.get(0);
         VotingConfiguration votingConfiguration = new VotingConfiguration(
-            randomValueOtherThan(singletonList(localNode), () -> randomSubsetOf(randomIntBetween(1, clusterManagerNodes.size()), clusterManagerNodes))
-                .stream()
-                .map(DiscoveryNode::getId)
-                .collect(Collectors.toSet())
+            randomValueOtherThan(
+                singletonList(localNode),
+                () -> randomSubsetOf(randomIntBetween(1, clusterManagerNodes.size()), clusterManagerNodes)
+            ).stream().map(DiscoveryNode::getId).collect(Collectors.toSet())
         );
 
         logger.info("Voting configuration: {}", votingConfiguration);

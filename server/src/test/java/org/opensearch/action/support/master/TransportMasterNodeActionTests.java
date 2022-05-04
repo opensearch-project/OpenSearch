@@ -512,7 +512,8 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         new Action("internal:testAction", transportService, clusterService, threadPool) {
             @Override
             protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-                // The other node has become cluster-manager, simulate failures of this node while publishing cluster state through ZenDiscovery
+                // The other node has become cluster-manager, simulate failures of this node while publishing cluster state through
+                // ZenDiscovery
                 setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
                 Exception failure = randomBoolean()
                     ? new FailedToCommitClusterStateException("Fake error")

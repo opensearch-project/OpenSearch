@@ -112,7 +112,7 @@ public class DiscoveryModuleTests extends OpenSearchTestCase {
             transportService,
             namedWriteableRegistry,
             null,
-                clusterManagerService,
+            clusterManagerService,
             clusterApplier,
             clusterSettings,
             plugins,

@@ -440,7 +440,8 @@ public class ClusterChangedEventTests extends OpenSearchTestCase {
         assert (numNodes >= 3) : "the initial cluster state for event change tests should have a minimum of 3 nodes "
             + "so there are a minimum of 2 cluster-manager nodes for testing cluster-manager change events.";
         final DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
-        final int localNodeIndex = isLocalClusterManager ? 0 : randomIntBetween(1, numNodes - 1); // randomly assign the local node if not cluster-manager
+        final int localNodeIndex = isLocalClusterManager ? 0 : randomIntBetween(1, numNodes - 1); // randomly assign the local node if not
+                                                                                                  // cluster-manager
         for (int i = 0; i < numNodes; i++) {
             final String nodeId = NODE_ID_PREFIX + i;
             Set<DiscoveryNodeRole> roles = new HashSet<>();

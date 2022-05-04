@@ -133,7 +133,10 @@ public class MasterServiceTests extends OpenSearchTestCase {
         );
         final ClusterState initialClusterState = ClusterState.builder(new ClusterName(MasterServiceTests.class.getSimpleName()))
             .nodes(
-                DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(makeClusterManager ? localNode.getId() : null)
+                DiscoveryNodes.builder()
+                    .add(localNode)
+                    .localNodeId(localNode.getId())
+                    .masterNodeId(makeClusterManager ? localNode.getId() : null)
             )
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
             .build();

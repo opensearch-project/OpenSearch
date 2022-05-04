@@ -1378,7 +1378,10 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 .collect(Collectors.toSet());
             final Set<Long> terms = clusterStates.stream().map(ClusterState::term).collect(Collectors.toSet());
             final List<Long> versions = clusterStates.stream().map(ClusterState::version).distinct().collect(Collectors.toList());
-            return versions.size() == 1 && clusterManagerNodeIds.size() == 1 && clusterManagerNodeIds.contains(null) == false && terms.size() == 1;
+            return versions.size() == 1
+                && clusterManagerNodeIds.size() == 1
+                && clusterManagerNodeIds.contains(null) == false
+                && terms.size() == 1;
         }, TimeUnit.MINUTES.toMillis(1L));
     }
 
@@ -1522,7 +1525,9 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         }
 
         public TestClusterNode randomMasterNodeSafe() {
-            return randomClusterManagerNode().orElseThrow(() -> new AssertionError("Expected to find at least one connected cluster-manager node"));
+            return randomClusterManagerNode().orElseThrow(
+                () -> new AssertionError("Expected to find at least one connected cluster-manager node")
+            );
         }
 
         public Optional<TestClusterNode> randomClusterManagerNode() {
@@ -1655,13 +1660,18 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 this.node = node;
                 final Environment environment = createEnvironment(node.getName());
                 threadPool = deterministicTaskQueue.getThreadPool(runnable -> CoordinatorTests.onNodeLog(node, runnable));
-                clusterManagerService = new FakeThreadPoolMasterService(node.getName(), "test", threadPool, deterministicTaskQueue::scheduleNow);
+                clusterManagerService = new FakeThreadPoolMasterService(
+                    node.getName(),
+                    "test",
+                    threadPool,
+                    deterministicTaskQueue::scheduleNow
+                );
                 final Settings settings = environment.settings();
                 final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
                 clusterService = new ClusterService(
                     settings,
                     clusterSettings,
-                        clusterManagerService,
+                    clusterManagerService,
                     new ClusterApplierService(node.getName(), settings, clusterSettings, threadPool) {
                         @Override
                         protected PrioritizedOpenSearchThreadPoolExecutor createThreadPoolExecutor() {
@@ -2190,7 +2200,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     transportService,
                     namedWriteableRegistry,
                     allocationService,
-                        clusterManagerService,
+                    clusterManagerService,
                     () -> persistedState,
                     hostsResolver -> nodes.values()
                         .stream()
