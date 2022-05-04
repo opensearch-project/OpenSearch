@@ -34,6 +34,11 @@ package org.opensearch.action.get;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for a multi get
+ *
+ * @opensearch.internal
+ */
 public class MultiGetAction extends ActionType<MultiGetResponse> {
 
     public static final MultiGetAction INSTANCE = new MultiGetAction();

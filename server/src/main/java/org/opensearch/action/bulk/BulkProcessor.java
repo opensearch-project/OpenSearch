@@ -63,6 +63,8 @@ import java.util.function.Supplier;
  * requests allowed to be executed in parallel.
  * <p>
  * In order to create a new bulk processor, use the {@link Builder}.
+ *
+ * @opensearch.internal
  */
 public class BulkProcessor implements Closeable {
 

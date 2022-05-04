@@ -43,6 +43,8 @@ import org.opensearch.transport.TransportService;
 /**
  * A base class for read operations that needs to be performed on the cluster-manager node.
  * Can also be executed on the local node if needed.
+ *
+ * @opensearch.internal
  */
 public abstract class TransportMasterNodeReadAction<Request extends MasterNodeReadRequest<Request>, Response extends ActionResponse> extends
     TransportMasterNodeAction<Request, Response> {

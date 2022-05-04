@@ -38,6 +38,11 @@ import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilde
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.util.ArrayUtils;
 
+/**
+ * Transport request builder for cluster information
+ *
+ * @opensearch.internal
+ */
 public abstract class ClusterInfoRequestBuilder<
     Request extends ClusterInfoRequest<Request>,
     Response extends ActionResponse,

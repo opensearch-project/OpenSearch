@@ -37,6 +37,11 @@ import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.client.OpenSearchClient;
 
+/**
+ * Request builder for a single shard operation request
+ *
+ * @opensearch.internal
+ */
 public abstract class SingleShardOperationRequestBuilder<
     Request extends SingleShardRequest<Request>,
     Response extends ActionResponse,

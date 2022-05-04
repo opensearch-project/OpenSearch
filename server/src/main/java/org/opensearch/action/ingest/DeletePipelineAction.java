@@ -35,6 +35,11 @@ package org.opensearch.action.ingest;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 
+/**
+ * Transport action to delete a pipeline
+ *
+ * @opensearch.internal
+ */
 public class DeletePipelineAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeletePipelineAction INSTANCE = new DeletePipelineAction();

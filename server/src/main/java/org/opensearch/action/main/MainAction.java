@@ -34,6 +34,11 @@ package org.opensearch.action.main;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * The main OpenSearch Action
+ *
+ * @opensearch.internal
+ */
 public class MainAction extends ActionType<MainResponse> {
 
     public static final String NAME = "cluster:monitor/main";

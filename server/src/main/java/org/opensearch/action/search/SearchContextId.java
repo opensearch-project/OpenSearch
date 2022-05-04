@@ -57,6 +57,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Id for a serach context.
+ *
+ * @opensearch.internal
+ */
 public class SearchContextId {
     private final Map<ShardId, SearchContextIdForNode> shards;
     private final Map<String, AliasFilter> aliasFilter;

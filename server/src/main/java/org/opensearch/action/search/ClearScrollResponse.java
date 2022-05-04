@@ -49,6 +49,11 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
 import static org.opensearch.rest.RestStatus.NOT_FOUND;
 import static org.opensearch.rest.RestStatus.OK;
 
+/**
+ * Transport response for clearing a search scroll
+ *
+ * @opensearch.internal
+ */
 public class ClearScrollResponse extends ActionResponse implements StatusToXContentObject {
 
     private static final ParseField SUCCEEDED = new ParseField("succeeded");

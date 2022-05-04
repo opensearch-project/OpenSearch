@@ -37,6 +37,8 @@ import org.opensearch.client.OpenSearchClient;
 
 /**
  * A multi get document action request builder.
+ *
+ * @opensearch.internal
  */
 public class MultiGetRequestBuilder extends ActionRequestBuilder<MultiGetRequest, MultiGetResponse> {
 

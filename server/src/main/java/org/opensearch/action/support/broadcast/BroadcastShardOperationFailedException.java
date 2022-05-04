@@ -42,7 +42,7 @@ import java.io.IOException;
 /**
  * An exception indicating that a failure occurred performing an operation on the shard.
  *
- *
+ * @opensearch.internal
  */
 public class BroadcastShardOperationFailedException extends OpenSearchException implements OpenSearchWrapperException {
 

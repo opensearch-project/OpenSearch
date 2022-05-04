@@ -40,6 +40,8 @@ import java.io.IOException;
 
 /**
  * A single multi get response.
+ *
+ * @opensearch.internal
  */
 public class MultiGetItemResponse implements Writeable {
 

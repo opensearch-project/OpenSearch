@@ -61,6 +61,8 @@ import java.util.function.Consumer;
  *    }, flowListener::onFailure);
  *  }
  * }</pre>
+ *
+ * @opensearch.internal
  */
 
 public final class StepListener<Response> extends NotifyOnceListener<Response> {

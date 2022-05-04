@@ -41,6 +41,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Transport response for multi get shards.
+ *
+ * @opensearch.internal
+ */
 public class MultiGetShardResponse extends ActionResponse {
 
     final IntArrayList locations;

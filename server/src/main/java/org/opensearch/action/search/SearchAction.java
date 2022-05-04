@@ -34,6 +34,11 @@ package org.opensearch.action.search;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for executing a search
+ *
+ * @opensearch.internal
+ */
 public class SearchAction extends ActionType<SearchResponse> {
 
     public static final SearchAction INSTANCE = new SearchAction();

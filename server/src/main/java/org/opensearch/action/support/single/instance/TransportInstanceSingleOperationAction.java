@@ -69,6 +69,11 @@ import java.io.IOException;
 
 import static org.opensearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
 
+/**
+ * Base class for a single operation action
+ *
+ * @opensearch.internal
+ */
 public abstract class TransportInstanceSingleOperationAction<
     Request extends InstanceShardOperationRequest<Request>,
     Response extends ActionResponse> extends HandledTransportAction<Request, Response> {

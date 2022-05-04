@@ -45,6 +45,11 @@ import org.opensearch.transport.TransportService;
 
 import java.util.Map;
 
+/**
+ * Perform the action of simulating a pipeline
+ *
+ * @opensearch.internal
+ */
 public class SimulatePipelineTransportAction extends HandledTransportAction<SimulatePipelineRequest, SimulatePipelineResponse> {
 
     private final IngestService ingestService;

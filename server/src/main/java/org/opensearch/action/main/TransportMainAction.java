@@ -45,6 +45,11 @@ import org.opensearch.node.Node;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
+/**
+ * Performs the main action
+ *
+ * @opensearch.internal
+ */
 public class TransportMainAction extends HandledTransportAction<MainRequest, MainResponse> {
 
     private final String nodeName;

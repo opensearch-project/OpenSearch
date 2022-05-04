@@ -42,6 +42,11 @@ import org.opensearch.common.util.concurrent.UncategorizedExecutionException;
 
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Future adapter action
+ *
+ * @opensearch.internal
+ */
 public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements ActionFuture<T>, ActionListener<L> {
 
     @Override

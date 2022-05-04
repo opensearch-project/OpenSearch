@@ -40,6 +40,11 @@ import org.opensearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * transport request to delete a pipeline
+ *
+ * @opensearch.internal
+ */
 public class DeletePipelineRequest extends AcknowledgedRequest<DeletePipelineRequest> {
 
     private String id;

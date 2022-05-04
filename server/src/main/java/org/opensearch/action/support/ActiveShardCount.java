@@ -49,6 +49,8 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_WAIT_FOR_ACT
 /**
  * A class whose instances represent a value for counting the number
  * of active shard copies for a given shard in an index.
+ *
+ * @opensearch.internal
  */
 public final class ActiveShardCount implements Writeable {
 

@@ -49,6 +49,8 @@ import org.opensearch.transport.TransportService;
  * </ul>
  *
  * Deprecated use TransportBulkAction with a single item instead
+ *
+ * @opensearch.internal
  */
 @Deprecated
 public class TransportIndexAction extends TransportSingleItemBulkWriteAction<IndexRequest, IndexResponse> {

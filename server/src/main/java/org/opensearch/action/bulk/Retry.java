@@ -49,6 +49,8 @@ import java.util.function.Predicate;
 
 /**
  * Encapsulates synchronous and asynchronous retry logic.
+ *
+ * @opensearch.internal
  */
 public class Retry {
     private final BackoffPolicy backoffPolicy;

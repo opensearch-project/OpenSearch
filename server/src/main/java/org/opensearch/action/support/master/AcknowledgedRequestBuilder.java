@@ -37,6 +37,8 @@ import org.opensearch.common.unit.TimeValue;
 
 /**
  * Base request builder for cluster-manager node operations that support acknowledgements
+ *
+ * @opensearch.internal
  */
 public abstract class AcknowledgedRequestBuilder<
     Request extends AcknowledgedRequest<Request>,

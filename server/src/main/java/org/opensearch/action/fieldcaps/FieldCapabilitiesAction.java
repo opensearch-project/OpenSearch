@@ -34,6 +34,11 @@ package org.opensearch.action.fieldcaps;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for a field capabilities request
+ *
+ * @opensearch.internal
+ */
 public class FieldCapabilitiesAction extends ActionType<FieldCapabilitiesResponse> {
 
     public static final FieldCapabilitiesAction INSTANCE = new FieldCapabilitiesAction();
