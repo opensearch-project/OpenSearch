@@ -36,6 +36,8 @@ import java.util.Map;
 
 /**
  * A script used in bucket aggregations that returns a {@code double} value.
+ *
+ * @opensearch.internal
  */
 public abstract class BucketAggregationScript {
 

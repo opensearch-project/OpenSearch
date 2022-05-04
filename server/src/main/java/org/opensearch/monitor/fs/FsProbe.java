@@ -51,6 +51,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * FileSystem probe
+ *
+ * @opensearch.internal
+ */
 public class FsProbe {
 
     private static final Logger logger = LogManager.getLogger(FsProbe.class);

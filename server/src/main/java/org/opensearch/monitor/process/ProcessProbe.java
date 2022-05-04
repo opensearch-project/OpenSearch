@@ -41,6 +41,11 @@ import java.lang.reflect.Method;
 
 import static org.opensearch.monitor.jvm.JvmInfo.jvmInfo;
 
+/**
+ * Probes the process
+ *
+ * @opensearch.internal
+ */
 public class ProcessProbe {
 
     private static final OperatingSystemMXBean osMxBean = ManagementFactory.getOperatingSystemMXBean();

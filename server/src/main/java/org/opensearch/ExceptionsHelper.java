@@ -61,6 +61,11 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+/**
+ * Helper class for OpenSearch Exceptions
+ *
+ * @opensearch.internal
+ */
 public final class ExceptionsHelper {
 
     private static final Logger logger = LogManager.getLogger(ExceptionsHelper.class);

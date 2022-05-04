@@ -90,6 +90,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
  *   ]
  * }
  * </code>
+ *
+ * @opensearch.internal
  */
 public class ScriptLanguagesInfo implements ToXContentObject, Writeable {
     private static final ParseField TYPES_ALLOWED = new ParseField("types_allowed");

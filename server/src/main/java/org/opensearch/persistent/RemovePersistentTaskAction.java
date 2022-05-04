@@ -53,6 +53,11 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Transport action to remove a persistent task
+ *
+ * @opensearch.internal
+ */
 public class RemovePersistentTaskAction extends ActionType<PersistentTaskResponse> {
 
     public static final RemovePersistentTaskAction INSTANCE = new RemovePersistentTaskAction();
