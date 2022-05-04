@@ -7,17 +7,17 @@
  */
 package org.opensearch.gradle.pluginzip;
 
-import java.util.*;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
 import org.gradle.api.publish.PublishingExtension;
 import org.gradle.api.publish.maven.MavenPublication;
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin;
+import org.gradle.api.publish.maven.tasks.PublishToMavenRepository;
+
 import java.nio.file.Path;
 
 public class Publish implements Plugin<Project> {
-    private Project project;
-
     public final static String EXTENSION_NAME = "zipmavensettings";
     public final static String PUBLICATION_NAME = "pluginZip";
     public final static String STAGING_REPO = "zipStaging";
@@ -48,6 +48,15 @@ public class Publish implements Plugin<Project> {
                 });
             });
         });
+
+        final Task pomFileTask = project.getTasks().findByName​("generatePomFileForNebulaPublication");
+        if (pomFileTask != null) {
+            project.getTasks().withType(PublishToMavenRepository.class).configureEach(t -> {
+                if (t.getPublication().getName().equals(PUBLICATION_NAME)) {
+                    t.dependsOn(pomFileTask);
+                }
+            });
+        }
     }
 
     static String getProperty(String name, Project project) {
@@ -62,7 +71,6 @@ public class Publish implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        this.project = project;
         project.afterEvaluate(evaluatedProject -> { configMaven(project); });
         project.getGradle().getTaskGraph().whenReady(graph -> {
             if (graph.hasTask(LOCALMAVEN)) {
