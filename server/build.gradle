@@ -35,6 +35,12 @@ apply plugin: 'nebula.optional-base'
 apply plugin: 'opensearch.publish'
 apply plugin: 'opensearch.internal-cluster-test'
 
+javadoc {
+  options.tags = [
+    "opensearch.internal"
+  ]
+}
+
 publishing {
   publications {
     nebula {
