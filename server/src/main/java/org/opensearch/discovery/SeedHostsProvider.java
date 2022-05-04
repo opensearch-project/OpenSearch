@@ -38,6 +38,8 @@ import java.util.List;
 
 /**
  * A pluggable provider of the list of seed hosts to use for discovery.
+ *
+ * @opensearch.internal
  */
 public interface SeedHostsProvider {
 

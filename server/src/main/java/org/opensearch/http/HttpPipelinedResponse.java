@@ -31,6 +31,11 @@
 
 package org.opensearch.http;
 
+/**
+ * Pipeline responses for http connections
+ *
+ * @opensearch.internal
+ */
 public class HttpPipelinedResponse implements HttpPipelinedMessage, HttpResponse {
 
     private final int sequence;

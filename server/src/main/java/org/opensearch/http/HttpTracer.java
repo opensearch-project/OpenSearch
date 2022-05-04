@@ -48,6 +48,8 @@ import java.util.List;
 
 /**
  * Http request trace logger. See {@link #maybeTraceRequest(RestRequest, Exception)} for details.
+ *
+ * @opensearch.internal
  */
 class HttpTracer {
 

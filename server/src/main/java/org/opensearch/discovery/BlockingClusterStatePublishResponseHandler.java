@@ -41,8 +41,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Handles responses obtained when publishing a new cluster state from master to all non master nodes.
- * Allows to await a reply from all non master nodes, up to a timeout
+ * Handles responses obtained when publishing a new cluster state from cluster-manager to all non cluster-manager nodes.
+ * Allows to await a reply from all non cluster-manager nodes, up to a timeout
+ *
+ * @opensearch.internal
  */
 public class BlockingClusterStatePublishResponseHandler {
 
