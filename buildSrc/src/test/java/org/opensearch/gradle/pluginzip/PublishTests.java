@@ -74,10 +74,14 @@ public class PublishTests extends GradleUnitTestCase {
             + "}";
         writeString(new File(projectDir, "build.gradle"), buildFileContent);
         // Execute the task publishPluginZipPublicationToZipStagingRepository
+        List<String> allArguments = new ArrayList<String>();
+        allArguments.add("build");
+        allArguments.add(zipPublishTask);
+        allArguments.addAll(Arrays.asList(arguments));
         GradleRunner runner = GradleRunner.create();
         runner.forwardOutput();
         runner.withPluginClasspath();
-        runner.withArguments("clean", "build", zipPublishTask);
+        runner.withArguments(allArguments);
         runner.withProjectDir(projectDir);
         BuildResult result = runner.build();
         // Check if task publishMavenzipPublicationToZipstagingRepository has ran well
