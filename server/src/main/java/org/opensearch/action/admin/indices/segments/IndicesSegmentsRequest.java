@@ -39,6 +39,11 @@ import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+/**
+ * Transport request for retrieving indices segment information
+ *
+ * @opensearch.internal
+ */
 public class IndicesSegmentsRequest extends BroadcastRequest<IndicesSegmentsRequest> {
 
     protected boolean verbose = false;

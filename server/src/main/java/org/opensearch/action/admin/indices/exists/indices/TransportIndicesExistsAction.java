@@ -51,6 +51,8 @@ import java.io.IOException;
 
 /**
  * Indices exists action.
+ *
+ * @opensearch.internal
  */
 public class TransportIndicesExistsAction extends TransportMasterNodeReadAction<IndicesExistsRequest, IndicesExistsResponse> {
 

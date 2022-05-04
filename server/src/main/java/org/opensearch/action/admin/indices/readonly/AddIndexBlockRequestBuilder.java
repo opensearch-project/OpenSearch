@@ -39,6 +39,8 @@ import org.opensearch.cluster.metadata.IndexMetadata.APIBlock;
 
 /**
  * Builder for add index block request
+ *
+ * @opensearch.internal
  */
 public class AddIndexBlockRequestBuilder extends AcknowledgedRequestBuilder<
     AddIndexBlockRequest,

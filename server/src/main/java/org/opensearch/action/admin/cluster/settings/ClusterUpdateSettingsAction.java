@@ -34,6 +34,11 @@ package org.opensearch.action.admin.cluster.settings;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for updating cluster settings
+ *
+ * @opensearch.internal
+ */
 public class ClusterUpdateSettingsAction extends ActionType<ClusterUpdateSettingsResponse> {
 
     public static final ClusterUpdateSettingsAction INSTANCE = new ClusterUpdateSettingsAction();

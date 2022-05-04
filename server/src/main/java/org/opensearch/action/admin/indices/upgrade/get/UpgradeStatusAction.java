@@ -34,6 +34,11 @@ package org.opensearch.action.admin.indices.upgrade.get;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Action for Upgrading an Index
+ *
+ * @opensearch.internal
+ */
 public class UpgradeStatusAction extends ActionType<UpgradeStatusResponse> {
 
     public static final UpgradeStatusAction INSTANCE = new UpgradeStatusAction();

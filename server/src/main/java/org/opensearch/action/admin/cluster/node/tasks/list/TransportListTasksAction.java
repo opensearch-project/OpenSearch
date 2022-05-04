@@ -50,6 +50,11 @@ import java.util.function.Consumer;
 
 import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
 
+/**
+ * Transport action for listing tasks currently running on the nodes
+ *
+ * @opensearch.internal
+ */
 public class TransportListTasksAction extends TransportTasksAction<Task, ListTasksRequest, ListTasksResponse, TaskInfo> {
     public static long waitForCompletionTimeout(TimeValue timeout) {
         if (timeout == null) {

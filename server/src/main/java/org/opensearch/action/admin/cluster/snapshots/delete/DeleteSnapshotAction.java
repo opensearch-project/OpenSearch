@@ -37,6 +37,8 @@ import org.opensearch.action.support.master.AcknowledgedResponse;
 
 /**
  * Delete snapshot action
+ *
+ * @opensearch.internal
  */
 public class DeleteSnapshotAction extends ActionType<AcknowledgedResponse> {
 

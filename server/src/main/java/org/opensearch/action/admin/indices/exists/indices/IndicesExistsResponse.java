@@ -38,6 +38,11 @@ import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+/**
+ * Transport response for checking if an index exists
+ *
+ * @opensearch.internal
+ */
 public class IndicesExistsResponse extends ActionResponse {
 
     private boolean exists;

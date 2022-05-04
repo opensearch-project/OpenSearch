@@ -34,6 +34,11 @@ package org.opensearch.action.admin.cluster.shards;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for searching shards
+ *
+ * @opensearch.internal
+ */
 public class ClusterSearchShardsAction extends ActionType<ClusterSearchShardsResponse> {
 
     public static final ClusterSearchShardsAction INSTANCE = new ClusterSearchShardsAction();

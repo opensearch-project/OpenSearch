@@ -40,6 +40,8 @@ import java.io.IOException;
 
 /**
  * Used when querying every node in the cluster for dangling indices, in response to a list request.
+ *
+ * @opensearch.internal
  */
 public class NodeListDanglingIndicesRequest extends BaseNodeRequest {
     /**

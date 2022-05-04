@@ -46,6 +46,11 @@ import java.io.IOException;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
+/**
+ * Transport request for cloning a snapshot
+ *
+ * @opensearch.internal
+ */
 public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest> implements IndicesRequest.Replaceable, ToXContentObject {
 
     private final String repository;

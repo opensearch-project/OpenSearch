@@ -45,6 +45,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Transport response for remote monitoring
+ *
+ * @opensearch.internal
+ */
 public final class RemoteInfoResponse extends ActionResponse implements ToXContentObject {
 
     private List<RemoteConnectionInfo> infos;

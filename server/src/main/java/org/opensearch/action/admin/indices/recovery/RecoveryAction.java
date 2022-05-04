@@ -36,6 +36,8 @@ import org.opensearch.action.ActionType;
 
 /**
  * Recovery information action
+ *
+ * @opensearch.internal
  */
 public class RecoveryAction extends ActionType<RecoveryResponse> {
 

@@ -40,6 +40,11 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
+/**
+ * Transport action for getting script language
+ *
+ * @opensearch.internal
+ */
 public class TransportGetScriptLanguageAction extends HandledTransportAction<GetScriptLanguageRequest, GetScriptLanguageResponse> {
     private final ScriptService scriptService;
 

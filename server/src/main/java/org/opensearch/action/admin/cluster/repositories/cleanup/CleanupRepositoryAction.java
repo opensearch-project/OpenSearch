@@ -33,6 +33,11 @@ package org.opensearch.action.admin.cluster.repositories.cleanup;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for cleaning up snapshot repositories
+ *
+ * @opensearch.internal
+ */
 public final class CleanupRepositoryAction extends ActionType<CleanupRepositoryResponse> {
 
     public static final CleanupRepositoryAction INSTANCE = new CleanupRepositoryAction();

@@ -42,6 +42,8 @@ import java.io.IOException;
 
 /**
  * A request to retrieve information about an index.
+ *
+ * @opensearch.internal
  */
 public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
     public enum Feature {

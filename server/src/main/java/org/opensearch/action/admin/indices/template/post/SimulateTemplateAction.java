@@ -47,6 +47,8 @@ import java.util.Objects;
 /**
  * An action for simulating the complete composed settings of the specified
  * index template name, or index template configuration
+ *
+ * @opensearch.internal
  */
 public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResponse> {
 

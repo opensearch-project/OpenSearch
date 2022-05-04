@@ -37,6 +37,8 @@ import org.opensearch.client.OpenSearchClient;
 
 /**
  * Builder for the request to retrieve the list of tasks running on the specified nodes
+ *
+ * @opensearch.internal
  */
 public class ListTasksRequestBuilder extends TasksRequestBuilder<ListTasksRequest, ListTasksResponse, ListTasksRequestBuilder> {
 

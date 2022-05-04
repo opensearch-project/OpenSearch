@@ -36,6 +36,8 @@ import org.opensearch.cluster.ack.IndicesClusterStateUpdateRequest;
 
 /**
  * Cluster state update request that allows to open one or more indices
+ *
+ * @opensearch.internal
  */
 public class OpenIndexClusterStateUpdateRequest extends IndicesClusterStateUpdateRequest<OpenIndexClusterStateUpdateRequest> {
 

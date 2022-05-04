@@ -38,6 +38,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Transport request to get field mappings.
+ *
+ * @opensearch.internal
+ */
 public class GetMappingsRequest extends ClusterInfoRequest<GetMappingsRequest> {
 
     public GetMappingsRequest() {}

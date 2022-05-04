@@ -34,6 +34,11 @@ package org.opensearch.action.admin.indices.get;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action to get information about an index.
+ *
+ * @opensearch.internal
+ */
 public class GetIndexAction extends ActionType<GetIndexResponse> {
 
     public static final GetIndexAction INSTANCE = new GetIndexAction();

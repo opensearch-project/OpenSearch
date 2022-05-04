@@ -69,6 +69,8 @@ import static java.util.Collections.singletonMap;
 
 /**
  * Transport action used to retrieve the mappings related to fields that belong to a specific index
+ *
+ * @opensearch.internal
  */
 public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAction<
     GetFieldMappingsIndexRequest,

@@ -36,6 +36,11 @@ import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.OpenSearchClient;
 
+/**
+ * Transport request builder for deleting stored scripts
+ *
+ * @opensearch.internal
+ */
 public class DeleteStoredScriptRequestBuilder extends AcknowledgedRequestBuilder<
     DeleteStoredScriptRequest,
     AcknowledgedResponse,

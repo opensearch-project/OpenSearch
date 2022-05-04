@@ -50,6 +50,11 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Transport action for getting pending cluster tasks
+ *
+ * @opensearch.internal
+ */
 public class TransportPendingClusterTasksAction extends TransportMasterNodeReadAction<
     PendingClusterTasksRequest,
     PendingClusterTasksResponse> {

@@ -35,6 +35,11 @@ package org.opensearch.action.admin.indices.flush;
 import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
+/**
+ * Transport request builder for flushing one or more indices
+ *
+ * @opensearch.internal
+ */
 public class FlushRequestBuilder extends BroadcastOperationRequestBuilder<FlushRequest, FlushResponse, FlushRequestBuilder> {
 
     public FlushRequestBuilder(OpenSearchClient client, FlushAction action) {

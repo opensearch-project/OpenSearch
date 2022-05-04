@@ -52,6 +52,11 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Transport Action to retrieve one or more Composable Index templates
+ *
+ * @opensearch.internal
+ */
 public class TransportGetComposableIndexTemplateAction extends TransportMasterNodeReadAction<
     GetComposableIndexTemplateAction.Request,
     GetComposableIndexTemplateAction.Response> {

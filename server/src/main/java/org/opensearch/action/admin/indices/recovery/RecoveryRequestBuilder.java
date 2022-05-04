@@ -37,6 +37,8 @@ import org.opensearch.client.OpenSearchClient;
 
 /**
  * Recovery information request builder.
+ *
+ * @opensearch.internal
  */
 public class RecoveryRequestBuilder extends BroadcastOperationRequestBuilder<RecoveryRequest, RecoveryResponse, RecoveryRequestBuilder> {
 

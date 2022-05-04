@@ -44,6 +44,8 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * Get snapshot status request
+ *
+ * @opensearch.internal
  */
 public class SnapshotsStatusRequest extends MasterNodeRequest<SnapshotsStatusRequest> {
 

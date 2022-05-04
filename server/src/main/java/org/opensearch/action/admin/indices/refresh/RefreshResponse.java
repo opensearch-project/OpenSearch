@@ -44,6 +44,8 @@ import java.util.List;
 
 /**
  * The response of a refresh action.
+ *
+ * @opensearch.internal
  */
 public class RefreshResponse extends BroadcastResponse {
 

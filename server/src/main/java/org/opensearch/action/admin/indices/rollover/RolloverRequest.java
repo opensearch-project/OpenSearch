@@ -57,6 +57,8 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  *
  * Note: there is a new class with the same name for the Java HLRC that uses a typeless format.
  * Any changes done to this class should also go to that client class.
+ *
+ * @opensearch.internal
  */
 public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implements IndicesRequest {
 

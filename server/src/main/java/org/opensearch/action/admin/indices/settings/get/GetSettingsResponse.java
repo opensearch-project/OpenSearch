@@ -52,6 +52,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Transport response for getting index segments
+ *
+ * @opensearch.internal
+ */
 public class GetSettingsResponse extends ActionResponse implements ToXContentObject {
 
     private final ImmutableOpenMap<String, Settings> indexToSettings;

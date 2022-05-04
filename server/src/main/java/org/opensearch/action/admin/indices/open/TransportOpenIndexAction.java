@@ -57,6 +57,8 @@ import java.io.IOException;
 
 /**
  * Open index action
+ *
+ * @opensearch.internal
  */
 public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenIndexRequest, OpenIndexResponse> {
 

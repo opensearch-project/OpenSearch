@@ -34,6 +34,11 @@ package org.opensearch.action.admin.indices.mapping.get;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action to get field mappings.
+ *
+ * @opensearch.internal
+ */
 public class GetMappingsAction extends ActionType<GetMappingsResponse> {
 
     public static final GetMappingsAction INSTANCE = new GetMappingsAction();

@@ -46,6 +46,8 @@ import java.util.Objects;
 
 /**
  * The response for getting the cluster state.
+ *
+ * @opensearch.internal
  */
 public class ClusterStateResponse extends ActionResponse {
 

@@ -45,6 +45,8 @@ import java.util.Objects;
 
 /**
  * Internal validate request executed directly against a specific index shard.
+ *
+ * @opensearch.internal
  */
 public class ShardValidateQueryRequest extends BroadcastShardRequest {
 

@@ -39,6 +39,8 @@ import org.opensearch.tasks.TaskId;
 
 /**
  * Builder for the request to retrieve the list of tasks running on the specified nodes
+ *
+ * @opensearch.internal
  */
 public class GetTaskRequestBuilder extends ActionRequestBuilder<GetTaskRequest, GetTaskResponse> {
     public GetTaskRequestBuilder(OpenSearchClient client, GetTaskAction action) {

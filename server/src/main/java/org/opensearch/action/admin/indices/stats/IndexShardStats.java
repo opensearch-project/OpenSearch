@@ -41,6 +41,11 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 
+/**
+ * IndexShardStats for OpenSearch
+ *
+ * @opensearch.internal
+ */
 public class IndexShardStats implements Iterable<ShardStats>, Writeable {
 
     private final ShardId shardId;
