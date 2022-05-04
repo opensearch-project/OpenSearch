@@ -36,6 +36,11 @@ import org.opensearch.cluster.ClusterState;
 
 import java.util.function.Supplier;
 
+/**
+ * Interface to monitor when cluster state changes
+ *
+ * @opensearch.internal
+ */
 public interface ClusterApplier {
     /**
      * Sets the initial state for this applier. Should only be called once.

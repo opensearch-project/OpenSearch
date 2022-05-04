@@ -46,6 +46,8 @@ import java.util.Collections;
 /**
  * A composite {@link AllocationDecider} combining the "decision" of multiple
  * {@link AllocationDecider} implementations into a single allocation decision.
+ *
+ * @opensearch.internal
  */
 public class AllocationDeciders extends AllocationDecider {
 

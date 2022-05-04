@@ -37,6 +37,8 @@ import org.opensearch.common.Priority;
 
 /**
  * Asynchronously performs a cluster reroute, updating any shard states and rebalancing the cluster if appropriate.
+ *
+ * @opensearch.internal
  */
 @FunctionalInterface
 public interface RerouteService {

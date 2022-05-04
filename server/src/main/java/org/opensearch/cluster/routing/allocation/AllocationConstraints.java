@@ -14,6 +14,8 @@ import java.util.function.Predicate;
 /**
  * Allocation constraints specify conditions which, if breached, reduce the
  * priority of a node for receiving shard allocations.
+ *
+ * @opensearch.internal
  */
 public class AllocationConstraints {
     public final long CONSTRAINT_WEIGHT = 1000000L;

@@ -51,6 +51,8 @@ import java.util.Objects;
 
 /**
  * Represents the allocation decision by an allocator for an unassigned shard.
+ *
+ * @opensearch.internal
  */
 public class AllocateUnassignedDecision extends AbstractAllocationDecision {
     /** a constant representing a shard decision where no decision was taken */

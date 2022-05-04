@@ -41,6 +41,8 @@ import org.opensearch.common.unit.TimeValue;
 /**
  * An extension interface to {@link ClusterStateUpdateTask} that allows to be notified when
  * all the nodes have acknowledged a cluster state update request
+ *
+ * @opensearch.internal
  */
 public abstract class AckedClusterStateUpdateTask<Response> extends ClusterStateUpdateTask implements AckedClusterStateTaskListener {
 

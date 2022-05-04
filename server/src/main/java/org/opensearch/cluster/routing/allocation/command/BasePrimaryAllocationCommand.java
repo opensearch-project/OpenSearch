@@ -42,6 +42,8 @@ import java.io.IOException;
 
 /**
  * Abstract base class for allocating an unassigned primary shard to a node
+ *
+ * @opensearch.internal
  */
 public abstract class BasePrimaryAllocationCommand extends AbstractAllocateAllocationCommand {
 

@@ -75,6 +75,8 @@ import java.util.function.Predicate;
  * reflected in the routing table or in related classes, replicas are
  * represented as {@link ShardRouting}.
  * </p>
+ *
+ * @opensearch.internal
  */
 public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> implements Iterable<IndexShardRoutingTable> {
 

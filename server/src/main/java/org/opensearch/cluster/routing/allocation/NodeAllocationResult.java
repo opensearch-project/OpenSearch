@@ -51,6 +51,8 @@ import static org.opensearch.cluster.routing.allocation.AbstractAllocationDecisi
 
 /**
  * This class represents the shard allocation decision and its explanation for a single node.
+ *
+ * @opensearch.internal
  */
 public class NodeAllocationResult implements ToXContentObject, Writeable, Comparable<NodeAllocationResult> {
 

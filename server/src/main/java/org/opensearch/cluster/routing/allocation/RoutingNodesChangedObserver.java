@@ -39,6 +39,8 @@ import org.opensearch.cluster.routing.UnassignedInfo;
 
 /**
  * Records if changes were made to {@link RoutingNodes} during an allocation round.
+ *
+ * @opensearch.internal
  */
 public class RoutingNodesChangedObserver implements RoutingChangesObserver {
     private boolean changed;

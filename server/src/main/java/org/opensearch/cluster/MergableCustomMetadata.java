@@ -40,6 +40,8 @@ import org.opensearch.cluster.metadata.Metadata;
  * Custom metadata can be merged using {@link #merge(Metadata.Custom)}.
  *
  * @param <T> type of custom meta data
+ *
+ * @opensearch.internal
  */
 public interface MergableCustomMetadata<T extends Metadata.Custom> {
 
