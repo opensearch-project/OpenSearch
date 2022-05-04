@@ -55,6 +55,8 @@ import static org.opensearch.common.lucene.Lucene.writeExplanation;
 
 /**
  * Response containing the score explanation.
+ *
+ * @opensearch.internal
  */
 public class ExplainResponse extends ActionResponse implements StatusToXContentObject {
 

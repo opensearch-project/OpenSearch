@@ -43,6 +43,8 @@ import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
 /**
  * Abstract class that allows to mark action requests that support acknowledgements.
  * Facilitates consistency across different api.
+ *
+ * @opensearch.internal
  */
 public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Request>> extends MasterNodeRequest<Request>
     implements

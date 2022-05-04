@@ -34,6 +34,11 @@ package org.opensearch.action.search;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for a search scroll
+ *
+ * @opensearch.internal
+ */
 public class SearchScrollAction extends ActionType<SearchResponse> {
 
     public static final SearchScrollAction INSTANCE = new SearchScrollAction();

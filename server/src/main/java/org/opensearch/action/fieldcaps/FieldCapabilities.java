@@ -59,6 +59,8 @@ import java.util.stream.Collectors;
 
 /**
  * Describes the capabilities of a field optionally merged across multiple indices.
+ *
+ * @opensearch.internal
  */
 public class FieldCapabilities implements Writeable, ToXContentObject {
 

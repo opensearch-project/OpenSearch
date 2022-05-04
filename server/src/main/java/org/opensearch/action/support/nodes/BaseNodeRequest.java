@@ -39,7 +39,15 @@ import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 
+/**
+ * Base class for node transport requests
+ *
+ * @opensearch.internal
+ *
+ * @deprecated this class is deprecated and classes will extend TransportRequest directly
+ */
 // TODO: this class can be removed in main once 7.x is bumped to 7.4.0
+@Deprecated
 public abstract class BaseNodeRequest extends TransportRequest {
 
     public BaseNodeRequest() {}

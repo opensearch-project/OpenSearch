@@ -55,6 +55,8 @@ import static org.opensearch.common.xcontent.XContentParserUtils.throwUnknownTok
  * A response of a bulk execution. Holding a response for each item responding (in order) of the
  * bulk requests. Each item holds the index/type/id is operated on, and if it failed or not (with the
  * failure message).
+ *
+ * @opensearch.internal
  */
 public class BulkResponse extends ActionResponse implements Iterable<BulkItemResponse>, StatusToXContentObject {
 

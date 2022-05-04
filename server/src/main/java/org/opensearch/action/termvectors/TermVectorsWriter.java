@@ -49,6 +49,12 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * Writer for the term vector (doc frequency, positions, offsets) for a
+ * document.
+ *
+ * @opensearch.internal
+ */
 // package only - this is an internal class!
 final class TermVectorsWriter {
     final List<String> fields = new ArrayList<>();

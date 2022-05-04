@@ -79,6 +79,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * - scroll requests are not supported
  * - field collapsing is supported, but whenever inner_hits are requested, they will be retrieved by each cluster locally after the fetch
  * phase, through the {@link ExpandSearchPhase}. Such inner_hits are not merged together as part of hits reduction.
+ *
+ * @opensearch.internal
  */
 // TODO it may make sense to integrate the remote clusters responses as a shard response in the initial search phase and ignore hits coming
 // from the remote clusters in the fetch phase. This would be identical to the removed QueryAndFetch strategy except that only the remote

@@ -36,6 +36,11 @@ import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.OpenSearchClient;
 
+/**
+ * Transport request builder to delete a pipeline
+ *
+ * @opensearch.internal
+ */
 public class DeletePipelineRequestBuilder extends ActionRequestBuilder<DeletePipelineRequest, AcknowledgedResponse> {
 
     public DeletePipelineRequestBuilder(OpenSearchClient client, DeletePipelineAction action) {

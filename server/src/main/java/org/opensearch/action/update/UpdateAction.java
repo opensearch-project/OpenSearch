@@ -34,6 +34,11 @@ package org.opensearch.action.update;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Action for updating an index
+ *
+ * @opensearch.internal
+ */
 public class UpdateAction extends ActionType<UpdateResponse> {
 
     public static final UpdateAction INSTANCE = new UpdateAction();

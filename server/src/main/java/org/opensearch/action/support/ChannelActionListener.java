@@ -37,6 +37,11 @@ import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportResponse;
 
+/**
+ * Listener for transport channel actions
+ *
+ * @opensearch.internal
+ */
 public final class ChannelActionListener<Response extends TransportResponse, Request extends TransportRequest>
     implements
         ActionListener<Response> {

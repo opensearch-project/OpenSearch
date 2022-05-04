@@ -37,5 +37,7 @@ package org.opensearch.action;
  * multiple sub-requests which relate to one or more indices.  A composite request is executed by its own transport action class
  * (e.g. {@link org.opensearch.action.search.TransportMultiSearchAction}), which goes through all sub-requests and delegates their
  * execution to the appropriate transport action (e.g. {@link org.opensearch.action.search.TransportSearchAction}) for each single item.
+ *
+ * @opensearch.internal
  */
 public interface CompositeIndicesRequest {}

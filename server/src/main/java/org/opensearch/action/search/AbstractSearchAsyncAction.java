@@ -78,6 +78,8 @@ import java.util.stream.Collectors;
  * referred to as the {@code shardIndex}.
  * The fan out and collect algorithm is traditionally used as the initial phase which can either be a query execution or collection of
  * distributed frequencies
+ *
+ * @opensearch.internal
  */
 abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase implements SearchPhaseContext {
     private static final float DEFAULT_INDEX_BOOST = 1.0f;

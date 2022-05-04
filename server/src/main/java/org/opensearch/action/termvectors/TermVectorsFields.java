@@ -130,8 +130,9 @@ import static org.apache.lucene.util.ArrayUtil.grow;
  * <li>BytesRef: payload_freqency (if payloads)</li>
  * </ul></li>
  * </ul>
+ *
+ * @opensearch.internal
  */
-
 public final class TermVectorsFields extends Fields {
 
     private final ObjectLongHashMap<String> fieldMap;

@@ -40,6 +40,8 @@ import org.opensearch.search.SearchShardTarget;
  * This is a simple base class to simplify fan out to shards and collect their results. Each results passed to
  * {@link #onResult(SearchPhaseResult)} will be set to the provided result array
  * where the given index is used to set the result on the array.
+ *
+ * @opensearch.internal
  */
 final class CountedCollector<R extends SearchPhaseResult> {
     private final ArraySearchPhaseResults<R> resultConsumer;

@@ -34,6 +34,11 @@ package org.opensearch.action.termvectors;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * A single multi term action.
+ *
+ * @opensearch.internal
+ */
 public class MultiTermVectorsAction extends ActionType<MultiTermVectorsResponse> {
 
     public static final MultiTermVectorsAction INSTANCE = new MultiTermVectorsAction();

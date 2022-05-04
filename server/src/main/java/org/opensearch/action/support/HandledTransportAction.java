@@ -42,6 +42,8 @@ import org.opensearch.transport.TransportService;
 
 /**
  * A TransportAction that self registers a handler into the transport service
+ *
+ * @opensearch.internal
  */
 public abstract class HandledTransportAction<Request extends ActionRequest, Response extends ActionResponse> extends TransportAction<
     Request,

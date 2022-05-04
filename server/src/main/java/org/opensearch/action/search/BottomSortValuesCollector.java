@@ -41,6 +41,8 @@ import org.opensearch.search.SearchSortValuesAndFormats;
 
 /**
  * Utility class to keep track of the bottom doc's sort values in a distributed search.
+ *
+ * @opensearch.internal
  */
 class BottomSortValuesCollector {
     private final int topNSize;

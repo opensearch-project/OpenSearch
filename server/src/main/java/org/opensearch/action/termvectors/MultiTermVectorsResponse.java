@@ -45,6 +45,11 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 
+/**
+ * A multi get response.
+ *
+ * @opensearch.internal
+ */
 public class MultiTermVectorsResponse extends ActionResponse implements Iterable<MultiTermVectorsItemResponse>, ToXContentObject {
 
     /**

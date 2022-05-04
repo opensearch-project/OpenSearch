@@ -50,6 +50,11 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 
+/**
+ * Async transport action for query then fetch
+ *
+ * @opensearch.internal
+ */
 class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPhaseResult> {
 
     private final SearchPhaseController searchPhaseController;
