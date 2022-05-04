@@ -78,7 +78,6 @@ public class PublishTests extends GradleUnitTestCase {
         List<String> allArguments = new ArrayList<String>();
         allArguments.add("build");
         allArguments.add(zipPublishTask);
-        allArguments.addAll(Arrays.asList(arguments));
         GradleRunner runner = GradleRunner.create();
         runner.forwardOutput();
         runner.withPluginClasspath();
