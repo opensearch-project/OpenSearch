@@ -58,6 +58,7 @@ public class PublishTests extends GradleUnitTestCase {
         writeString(new File(projectDir, "settings.gradle"), "");
         // Generate the build.gradle file
         String buildFileContent = "apply plugin: 'maven-publish' \n"
+            + "apply plugin: 'java' \n"
             + "publishing {\n"
             + "  repositories {\n"
             + "       maven {\n"
