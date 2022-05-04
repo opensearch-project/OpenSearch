@@ -315,7 +315,7 @@ public class InternalSnapshotsInfoServiceTests extends OpenSearchTestCase {
             );
         }
 
-        applyClusterState("demote-current-cluster-manager", this::demoteMasterNode);
+        applyClusterState("demote-current-cluster-manager", this::demoteClusterManagerNode);
 
         for (int i = 0; i < randomIntBetween(1, 10); i++) {
             final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -484,7 +484,7 @@ public class InternalSnapshotsInfoServiceTests extends OpenSearchTestCase {
             .build();
     }
 
-    private ClusterState demoteMasterNode(final ClusterState currentState) {
+    private ClusterState demoteClusterManagerNode(final ClusterState currentState) {
         final DiscoveryNode node = new DiscoveryNode(
             "other",
             OpenSearchTestCase.buildNewFakeTransportAddress(),

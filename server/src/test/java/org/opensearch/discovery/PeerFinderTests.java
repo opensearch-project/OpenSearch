@@ -335,7 +335,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
         assertFoundPeers();
     }
 
-    public void testDoesNotAddNonMasterEligibleNodesFromUnicastHostsList() {
+    public void testDoesNotAddNonClusterManagerEligibleNodesFromUnicastHostsList() {
         final DiscoveryNode nonClusterManagerNode = new DiscoveryNode(
             "node-from-hosts-list",
             buildNewFakeTransportAddress(),
@@ -423,7 +423,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
         assertFoundPeers(sourceNode, otherKnownNode);
     }
 
-    public void testDoesNotAddReachableNonMasterEligibleNodesFromIncomingRequests() {
+    public void testDoesNotAddReachableNonClusterManagerEligibleNodesFromIncomingRequests() {
         final DiscoveryNode sourceNode = new DiscoveryNode(
             "request-source",
             buildNewFakeTransportAddress(),
@@ -590,7 +590,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
         assertFoundPeers(otherNode, discoveredNode);
     }
 
-    public void testAddsReachableMasterFromResponse() {
+    public void testAddsReachableClusterManagerFromResponse() {
         final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
         providedAddresses.add(otherNode.getAddress());
         transportAddressConnector.addReachableNode(otherNode);
@@ -599,21 +599,21 @@ public class PeerFinderTests extends OpenSearchTestCase {
         runAllRunnableTasks();
 
         assertFoundPeers(otherNode);
-        final DiscoveryNode discoveredMaster = newDiscoveryNode("discovered-cluster-manager");
+        final DiscoveryNode discoveredClusterManager = newDiscoveryNode("discovered-cluster-manager");
 
         respondToRequests(node -> {
             assertThat(node, is(otherNode));
-            return new PeersResponse(Optional.of(discoveredMaster), emptyList(), randomNonNegativeLong());
+            return new PeersResponse(Optional.of(discoveredClusterManager), emptyList(), randomNonNegativeLong());
         });
 
-        transportAddressConnector.addReachableNode(discoveredMaster);
+        transportAddressConnector.addReachableNode(discoveredClusterManager);
         runAllRunnableTasks();
-        assertFoundPeers(otherNode, discoveredMaster);
+        assertFoundPeers(otherNode, discoveredClusterManager);
         assertThat(peerFinder.discoveredClusterManagerNode, nullValue());
         assertFalse(peerFinder.discoveredClusterManagerTerm.isPresent());
     }
 
-    public void testHandlesDiscoveryOfMasterFromResponseFromMaster() {
+    public void testHandlesDiscoveryOfClusterManagerFromResponseFromClusterManager() {
         final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
         providedAddresses.add(otherNode.getAddress());
         transportAddressConnector.addReachableNode(otherNode);

@@ -138,24 +138,24 @@ public class NodeJoinTests extends OpenSearchTestCase {
             .build();
     }
 
-    private void setupFakeMasterServiceAndCoordinator(long term, ClusterState initialState, NodeHealthService nodeHealthService) {
+    private void setupFakeClusterManagerServiceAndCoordinator(long term, ClusterState initialState, NodeHealthService nodeHealthService) {
         deterministicTaskQueue = new DeterministicTaskQueue(
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(),
             random()
         );
         final ThreadPool fakeThreadPool = deterministicTaskQueue.getThreadPool();
-        FakeThreadPoolMasterService fakeMasterService = new FakeThreadPoolMasterService(
+        FakeThreadPoolMasterService fakeClusterManagerService = new FakeThreadPoolMasterService(
             "test_node",
             "test",
             fakeThreadPool,
             deterministicTaskQueue::scheduleNow
         );
-        setupMasterServiceAndCoordinator(term, initialState, fakeMasterService, fakeThreadPool, Randomness.get(), nodeHealthService);
-        fakeMasterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
+        setupClusterManagerServiceAndCoordinator(term, initialState, fakeClusterManagerService, fakeThreadPool, Randomness.get(), nodeHealthService);
+        fakeClusterManagerService.setClusterStatePublisher((event, publishListener, ackListener) -> {
             coordinator.handlePublishRequest(new PublishRequest(event.state()));
             publishListener.onResponse(null);
         });
-        fakeMasterService.start();
+        fakeClusterManagerService.start();
     }
 
     private void setupRealClusterManagerServiceAndCoordinator(long term, ClusterState initialState) {
@@ -169,7 +169,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
             clusterStateRef.set(event.state());
             publishListener.onResponse(null);
         });
-        setupMasterServiceAndCoordinator(
+        setupClusterManagerServiceAndCoordinator(
             term,
             initialState,
             clusterManagerService,
@@ -323,7 +323,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
         DiscoveryNode node1 = newNode(1, true);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
-        setupFakeMasterServiceAndCoordinator(
+        setupFakeClusterManagerServiceAndCoordinator(
             initialTerm,
             initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(randomFrom(node0, node1))),
             () -> new StatusInfo(HEALTHY, "healthy-info")
@@ -347,7 +347,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
         DiscoveryNode node1 = newNode(1, true);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
-        setupFakeMasterServiceAndCoordinator(
+        setupFakeClusterManagerServiceAndCoordinator(
             initialTerm,
             initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node1)),
             () -> new StatusInfo(HEALTHY, "healthy-info")
@@ -367,7 +367,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
         DiscoveryNode node1 = newNode(1, true);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
-        setupFakeMasterServiceAndCoordinator(
+        setupFakeClusterManagerServiceAndCoordinator(
             initialTerm,
             initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node0)),
             () -> new StatusInfo(HEALTHY, "healthy-info")
@@ -384,7 +384,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
         DiscoveryNode node1 = newNode(1, true);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
-        setupFakeMasterServiceAndCoordinator(
+        setupFakeClusterManagerServiceAndCoordinator(
             initialTerm,
             initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node0)),
             () -> new StatusInfo(HEALTHY, "healthy-info")
@@ -404,7 +404,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
         DiscoveryNode node1 = newNode(1, true);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
-        setupFakeMasterServiceAndCoordinator(
+        setupFakeClusterManagerServiceAndCoordinator(
             initialTerm,
             initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node0)),
             () -> new StatusInfo(HEALTHY, "healthy-info")
@@ -426,7 +426,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
         DiscoveryNode node2 = newNode(2, true);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
-        setupFakeMasterServiceAndCoordinator(
+        setupFakeClusterManagerServiceAndCoordinator(
             initialTerm,
             initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node2)),
             () -> new StatusInfo(HEALTHY, "healthy-info")
@@ -458,7 +458,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
         DiscoveryNode node1 = newNode(1, true);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
-        setupFakeMasterServiceAndCoordinator(
+        setupFakeClusterManagerServiceAndCoordinator(
             initialTerm,
             initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node0)),
             () -> new StatusInfo(HEALTHY, "healthy-info")
@@ -481,7 +481,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
             "knownNodeName"
         );
 
-        setupFakeMasterServiceAndCoordinator(
+        setupFakeClusterManagerServiceAndCoordinator(
             initialTerm,
             buildStateWithVotingConfigExclusion(initialNode, initialTerm, initialVersion, votingConfigExclusion),
             () -> new StatusInfo(HEALTHY, "healthy-info")
@@ -507,7 +507,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
         );
 
         assertTrue(
-            MasterServiceTests.discoveryState(masterService)
+            MasterServiceTests.discoveryState(clusterManagerService)
                 .getVotingConfigExclusions()
                 .stream()
                 .anyMatch(
@@ -583,7 +583,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
         DiscoveryNode node1 = newNode(1, true);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
-        setupFakeMasterServiceAndCoordinator(
+        setupFakeClusterManagerServiceAndCoordinator(
             initialTerm,
             initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node0)),
             () -> new StatusInfo(HEALTHY, "healthy-info")
@@ -604,7 +604,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
         DiscoveryNode node1 = newNode(1, true);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
-        setupFakeMasterServiceAndCoordinator(
+        setupFakeClusterManagerServiceAndCoordinator(
             initialTerm,
             initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node1)),
             () -> new StatusInfo(HEALTHY, "healthy-info")
@@ -647,7 +647,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
 
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
-        setupRealMasterServiceAndCoordinator(initialTerm, initialState(localNode, initialTerm, initialVersion, votingConfiguration));
+        setupRealClusterManagerServiceAndCoordinator(initialTerm, initialState(localNode, initialTerm, initialVersion, votingConfiguration));
         long newTerm = initialTerm + randomLongBetween(1, 10);
 
         // we need at least a quorum of voting nodes with a correct term and worse state

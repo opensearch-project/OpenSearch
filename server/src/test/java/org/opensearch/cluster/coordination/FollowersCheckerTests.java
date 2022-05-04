@@ -685,7 +685,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         }
     }
 
-    public void testPreferMasterNodes() {
+    public void testPreferClusterManagerNodes() {
         List<DiscoveryNode> nodes = randomNodes(10);
         DiscoveryNodes.Builder discoNodesBuilder = DiscoveryNodes.builder();
         nodes.forEach(dn -> discoNodesBuilder.add(dn));

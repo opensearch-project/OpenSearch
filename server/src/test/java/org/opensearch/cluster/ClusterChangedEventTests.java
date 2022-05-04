@@ -361,18 +361,18 @@ public class ClusterChangedEventTests extends OpenSearchTestCase {
     }
 
     // Create a basic cluster state with a given set of indices
-    private static ClusterState createState(final int numNodes, final boolean isLocalMaster, final List<Index> indices) {
+    private static ClusterState createState(final int numNodes, final boolean isLocalClusterManager, final List<Index> indices) {
         final Metadata metadata = createMetadata(indices);
         return ClusterState.builder(TEST_CLUSTER_NAME)
-            .nodes(createDiscoveryNodes(numNodes, isLocalMaster))
+            .nodes(createDiscoveryNodes(numNodes, isLocalClusterManager))
             .metadata(metadata)
             .routingTable(createRoutingTable(1, metadata))
             .build();
     }
 
     // Create a non-initialized cluster state
-    private static ClusterState createNonInitializedState(final int numNodes, final boolean isLocalMaster) {
-        final ClusterState withoutBlock = createState(numNodes, isLocalMaster, Collections.emptyList());
+    private static ClusterState createNonInitializedState(final int numNodes, final boolean isLocalClusterManager) {
+        final ClusterState withoutBlock = createState(numNodes, isLocalClusterManager, Collections.emptyList());
         return ClusterState.builder(withoutBlock)
             .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK).build())
             .build();

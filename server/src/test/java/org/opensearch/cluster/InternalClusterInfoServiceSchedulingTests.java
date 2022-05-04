@@ -107,21 +107,21 @@ public class InternalClusterInfoServiceSchedulingTests extends OpenSearchTestCas
         clusterManagerService.setClusterStateSupplier(clusterApplierService::state);
         clusterService.start();
 
-        final AtomicBoolean becameMaster1 = new AtomicBoolean();
+        final AtomicBoolean becameClusterManager1 = new AtomicBoolean();
         clusterApplierService.onNewClusterState(
             "become cluster-manager 1",
             () -> ClusterState.builder(new ClusterName("cluster")).nodes(localMaster).build(),
-            setFlagOnSuccess(becameMaster1)
+            setFlagOnSuccess(becameClusterManager1)
         );
-        runUntilFlag(deterministicTaskQueue, becameMaster1);
+        runUntilFlag(deterministicTaskQueue, becameClusterManager1);
 
-        final AtomicBoolean failMaster1 = new AtomicBoolean();
+        final AtomicBoolean failClusterManager1 = new AtomicBoolean();
         clusterApplierService.onNewClusterState(
             "fail cluster-manager 1",
             () -> ClusterState.builder(new ClusterName("cluster")).nodes(noMaster).build(),
-            setFlagOnSuccess(failMaster1)
+            setFlagOnSuccess(failClusterManager1)
         );
-        runUntilFlag(deterministicTaskQueue, failMaster1);
+        runUntilFlag(deterministicTaskQueue, failClusterManager1);
 
         final AtomicBoolean becameMaster2 = new AtomicBoolean();
         clusterApplierService.onNewClusterState(

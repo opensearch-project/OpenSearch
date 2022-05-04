@@ -150,12 +150,12 @@ public class MasterServiceTests extends OpenSearchTestCase {
         return clusterManagerService;
     }
 
-    public void testMasterAwareExecution() throws Exception {
-        final MasterService nonMaster = createClusterManagerService(false);
+    public void testClusterManagerAwareExecution() throws Exception {
+        final MasterService nonClusterManager = createClusterManagerService(false);
 
         final boolean[] taskFailed = { false };
         final CountDownLatch latch1 = new CountDownLatch(1);
-        nonMaster.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+        nonClusterManager.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 latch1.countDown();
@@ -173,7 +173,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
         assertTrue("cluster state update task was executed on a non-cluster-manager", taskFailed[0]);
 
         final CountDownLatch latch2 = new CountDownLatch(1);
-        nonMaster.submitStateUpdateTask("test", new LocalClusterUpdateTask() {
+        nonClusterManager.submitStateUpdateTask("test", new LocalClusterUpdateTask() {
             @Override
             public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) {
                 taskFailed[0] = false;
@@ -190,7 +190,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
         latch2.await();
         assertFalse("non-cluster-manager cluster state update task was not executed", taskFailed[0]);
 
-        nonMaster.close();
+        nonClusterManager.close();
     }
 
     public void testThreadContext() throws InterruptedException {

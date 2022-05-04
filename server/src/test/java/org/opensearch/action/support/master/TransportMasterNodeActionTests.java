@@ -376,7 +376,7 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         listener.get();
     }
 
-    public void testMasterNotAvailable() throws ExecutionException, InterruptedException {
+    public void testClusterManagerNotAvailable() throws ExecutionException, InterruptedException {
         Request request = new Request().masterNodeTimeout(TimeValue.timeValueSeconds(0));
         setState(clusterService, ClusterStateCreationUtils.state(localNode, null, allNodes));
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
@@ -385,7 +385,7 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         assertListenerThrows("MasterNotDiscoveredException should be thrown", listener, MasterNotDiscoveredException.class);
     }
 
-    public void testMasterBecomesAvailable() throws ExecutionException, InterruptedException {
+    public void testClusterManagerBecomesAvailable() throws ExecutionException, InterruptedException {
         Request request = new Request();
         setState(clusterService, ClusterStateCreationUtils.state(localNode, null, allNodes));
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
@@ -396,7 +396,7 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         listener.get();
     }
 
-    public void testDelegateToMaster() throws ExecutionException, InterruptedException {
+    public void testDelegateToClusterManager() throws ExecutionException, InterruptedException {
         Request request = new Request();
         setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
 
@@ -415,9 +415,9 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         assertThat(listener.get(), equalTo(response));
     }
 
-    public void testDelegateToFailingMaster() throws ExecutionException, InterruptedException {
+    public void testDelegateToFailingClusterManager() throws ExecutionException, InterruptedException {
         boolean failsWithConnectTransportException = randomBoolean();
-        boolean rejoinSameMaster = failsWithConnectTransportException && randomBoolean();
+        boolean rejoinSameClusterManager = failsWithConnectTransportException && randomBoolean();
         Request request = new Request().masterNodeTimeout(TimeValue.timeValueSeconds(failsWithConnectTransportException ? 60 : 0));
         DiscoveryNode clusterManagerNode = this.remoteNode;
         setState(
@@ -436,7 +436,7 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         assertThat(capturedRequest.request, equalTo(request));
         assertThat(capturedRequest.action, equalTo("internal:testAction"));
 
-        if (rejoinSameMaster) {
+        if (rejoinSameClusterManager) {
             transport.handleRemoteError(
                 capturedRequest.requestId,
                 randomBoolean()
@@ -501,7 +501,7 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         }
     }
 
-    public void testMasterFailoverAfterStepDown() throws ExecutionException, InterruptedException {
+    public void testClusterManagerFailoverAfterStepDown() throws ExecutionException, InterruptedException {
         Request request = new Request().masterNodeTimeout(TimeValue.timeValueHours(1));
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 

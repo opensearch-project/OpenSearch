@@ -525,7 +525,7 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
         Index index = new Index("test", "testUUID");
 
         // build settings using same path.data as original but without data and cluster-manager roles
-        Settings noDataNoMasterSettings = Settings.builder()
+        Settings noDataNoClusterManagerSettings = Settings.builder()
             .put(settings)
             .put(
                 NodeRoles.removeRoles(
@@ -536,7 +536,7 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
             .build();
 
         // test that we can create data=false and cluster_manager=false with no meta information
-        newNodeEnvironment(noDataNoMasterSettings).close();
+        newNodeEnvironment(noDataNoClusterManagerSettings).close();
 
         Path indexPath;
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
@@ -546,7 +546,7 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
             indexPath = env.indexPaths(index)[0];
         }
 
-        verifyFailsOnMetadata(noDataNoMasterSettings, indexPath);
+        verifyFailsOnMetadata(noDataNoClusterManagerSettings, indexPath);
 
         // build settings using same path.data as original but without data role
         Settings noDataSettings = nonDataNode(settings);
@@ -563,7 +563,7 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
         verifyFailsOnShardData(noDataSettings, indexPath, shardDataDirName);
 
         // assert that we get the stricter message on meta-data when both conditions fail
-        verifyFailsOnMetadata(noDataNoMasterSettings, indexPath);
+        verifyFailsOnMetadata(noDataNoClusterManagerSettings, indexPath);
 
         // build settings using same path.data as original but without cluster-manager role
         Settings noClusterManagerSettings = nonMasterNode(settings);
@@ -580,7 +580,7 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
 
         // assert that we fail on shard data even without the metadata dir.
         verifyFailsOnShardData(noDataSettings, indexPath, shardDataDirName);
-        verifyFailsOnShardData(noDataNoMasterSettings, indexPath, shardDataDirName);
+        verifyFailsOnShardData(noDataNoClusterManagerSettings, indexPath, shardDataDirName);
     }
 
     private void verifyFailsOnShardData(Settings settings, Path indexPath, String shardDataDirName) {

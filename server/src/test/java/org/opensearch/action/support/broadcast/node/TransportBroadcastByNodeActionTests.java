@@ -457,12 +457,12 @@ public class TransportBroadcastByNodeActionTests extends OpenSearchTestCase {
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
         // simulate removing the cluster-manager
-        final boolean simulateFailedMasterNode = rarely();
-        DiscoveryNode failedMasterNode = null;
-        if (simulateFailedMasterNode) {
-            failedMasterNode = clusterService.state().nodes().getMasterNode();
+        final boolean simulateFailedClusterManagerNode = rarely();
+        DiscoveryNode failedClusterManagerNode = null;
+        if (simulateFailedClusterManagerNode) {
+            failedClusterManagerNode = clusterService.state().nodes().getMasterNode();
             DiscoveryNodes.Builder builder = DiscoveryNodes.builder(clusterService.state().getNodes());
-            builder.remove(failedMasterNode.getId());
+            builder.remove(failedClusterManagerNode.getId());
             builder.masterNodeId(null);
 
             setState(clusterService, ClusterState.builder(clusterService.state()).nodes(builder));
@@ -511,8 +511,8 @@ public class TransportBroadcastByNodeActionTests extends OpenSearchTestCase {
                 transport.handleResponse(requestId, nodeResponse);
             }
         }
-        if (simulateFailedMasterNode) {
-            totalShards += map.get(failedMasterNode.getId()).size();
+        if (simulateFailedClusterManagerNode) {
+            totalShards += map.get(failedClusterManagerNode.getId()).size();
         }
 
         Response response = listener.get();

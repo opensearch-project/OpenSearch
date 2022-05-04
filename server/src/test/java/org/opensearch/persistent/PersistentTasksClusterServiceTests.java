@@ -494,7 +494,7 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         });
     }
 
-    public void testPeriodicRecheckOffMaster() {
+    public void testPeriodicRecheckOffClusterManager() {
         ClusterState initialState = initialState();
         ClusterState.Builder builder = ClusterState.builder(initialState);
         PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder(
