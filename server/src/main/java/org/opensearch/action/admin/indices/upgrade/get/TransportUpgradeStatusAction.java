@@ -55,6 +55,11 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Transport Action for Upgrading an Index
+ *
+ * @opensearch.internal
+ */
 public class TransportUpgradeStatusAction extends TransportBroadcastByNodeAction<
     UpgradeStatusRequest,
     UpgradeStatusResponse,

@@ -46,6 +46,11 @@ import org.opensearch.index.shard.ShardPath;
 
 import java.io.IOException;
 
+/**
+ * Shard Stats for OpenSearch
+ *
+ * @opensearch.internal
+ */
 public class ShardStats implements Writeable, ToXContentFragment {
 
     private ShardRouting shardRouting;

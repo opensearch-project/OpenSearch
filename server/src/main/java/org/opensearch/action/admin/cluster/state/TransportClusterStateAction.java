@@ -58,6 +58,11 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.function.Predicate;
 
+/**
+ * Transport action for obtaining cluster state
+ *
+ * @opensearch.internal
+ */
 public class TransportClusterStateAction extends TransportMasterNodeReadAction<ClusterStateRequest, ClusterStateResponse> {
 
     private final Logger logger = LogManager.getLogger(getClass());

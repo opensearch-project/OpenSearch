@@ -34,6 +34,11 @@ package org.opensearch.action.admin.cluster.remote;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for remote monitoring
+ *
+ * @opensearch.internal
+ */
 public final class RemoteInfoAction extends ActionType<RemoteInfoResponse> {
 
     public static final String NAME = "cluster:monitor/remote/info";

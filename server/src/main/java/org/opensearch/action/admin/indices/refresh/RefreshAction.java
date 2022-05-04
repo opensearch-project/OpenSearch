@@ -34,6 +34,11 @@ package org.opensearch.action.admin.indices.refresh;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Refresh information action
+ *
+ * @opensearch.internal
+ */
 public class RefreshAction extends ActionType<RefreshResponse> {
 
     public static final RefreshAction INSTANCE = new RefreshAction();

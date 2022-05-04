@@ -35,6 +35,11 @@ package org.opensearch.action.admin.cluster.storedscripts;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 
+/**
+ * Transport action for deleting stored scripts
+ *
+ * @opensearch.internal
+ */
 public class DeleteStoredScriptAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteStoredScriptAction INSTANCE = new DeleteStoredScriptAction();

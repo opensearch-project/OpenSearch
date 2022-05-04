@@ -37,6 +37,11 @@ import org.opensearch.index.shard.ShardId;
 import java.util.Arrays;
 import java.util.Iterator;
 
+/**
+ * Status for an Index Shard Upgrade
+ *
+ * @opensearch.internal
+ */
 public class IndexShardUpgradeStatus implements Iterable<ShardUpgradeStatus> {
 
     private final ShardId shardId;

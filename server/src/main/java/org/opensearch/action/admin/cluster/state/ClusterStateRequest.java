@@ -43,6 +43,11 @@ import org.opensearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
+/**
+ * Transport request for obtaining cluster state
+ *
+ * @opensearch.internal
+ */
 public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateRequest> implements IndicesRequest.Replaceable {
 
     public static final TimeValue DEFAULT_WAIT_FOR_NODE_TIMEOUT = TimeValue.timeValueMinutes(1);

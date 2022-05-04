@@ -39,6 +39,11 @@ import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+/**
+ * Transport request for listing a dangling indices
+ *
+ * @opensearch.internal
+ */
 public class ListDanglingIndicesRequest extends BaseNodesRequest<ListDanglingIndicesRequest> {
     /**
      * Filter the response by index UUID. Leave as null to find all indices.

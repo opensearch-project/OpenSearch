@@ -35,6 +35,11 @@ package org.opensearch.action.admin.indices.template.delete;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 
+/**
+ * Transport action for deleting an index template
+ *
+ * @opensearch.internal
+ */
 public class DeleteIndexTemplateAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteIndexTemplateAction INSTANCE = new DeleteIndexTemplateAction();

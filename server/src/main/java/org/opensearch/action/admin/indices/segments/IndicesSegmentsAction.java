@@ -34,6 +34,11 @@ package org.opensearch.action.admin.indices.segments;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for retrieving indices segment information
+ *
+ * @opensearch.internal
+ */
 public class IndicesSegmentsAction extends ActionType<IndicesSegmentResponse> {
 
     public static final IndicesSegmentsAction INSTANCE = new IndicesSegmentsAction();

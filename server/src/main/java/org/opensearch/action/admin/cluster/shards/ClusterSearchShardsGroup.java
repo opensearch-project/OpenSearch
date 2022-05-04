@@ -42,6 +42,11 @@ import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 
+/**
+ * Transport action for searching shard groups
+ *
+ * @opensearch.internal
+ */
 public class ClusterSearchShardsGroup implements Writeable, ToXContentObject {
 
     private final ShardId shardId;

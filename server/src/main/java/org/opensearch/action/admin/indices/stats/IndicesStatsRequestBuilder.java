@@ -44,6 +44,8 @@ import org.opensearch.common.unit.TimeValue;
  * <p>
  * All the stats to be returned can be cleared using {@link #clear()}, at which point, specific
  * stats can be enabled.
+ *
+ * @opensearch.internal
  */
 public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder<
     IndicesStatsRequest,

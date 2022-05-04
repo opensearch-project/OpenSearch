@@ -43,6 +43,11 @@ import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+/**
+ * Transport action to get field mappings.
+ *
+ * @opensearch.internal
+ */
 public class GetFieldMappingsIndexRequest extends SingleShardRequest<GetFieldMappingsIndexRequest> {
 
     private final boolean includeDefaults;

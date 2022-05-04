@@ -78,6 +78,11 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.stream.Stream;
 
+/**
+ * Transport action for retrieving datastream stats
+ *
+ * @opensearch.internal
+ */
 public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Response> {
 
     public static final DataStreamsStatsAction INSTANCE = new DataStreamsStatsAction();

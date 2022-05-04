@@ -48,6 +48,8 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * An action for putting a single component template into the cluster state
+ *
+ * @opensearch.internal
  */
 public class PutComponentTemplateAction extends ActionType<AcknowledgedResponse> {
 

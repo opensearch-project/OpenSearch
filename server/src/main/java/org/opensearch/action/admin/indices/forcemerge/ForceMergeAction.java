@@ -34,6 +34,11 @@ package org.opensearch.action.admin.indices.forcemerge;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action to request force merging the segments of one or more indices.
+ *
+ * @opensearch.internal
+ */
 public class ForceMergeAction extends ActionType<ForceMergeResponse> {
 
     public static final ForceMergeAction INSTANCE = new ForceMergeAction();

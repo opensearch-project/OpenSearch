@@ -54,6 +54,8 @@ import static org.opensearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * Request for an update cluster settings action
+ *
+ * @opensearch.internal
  */
 public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpdateSettingsRequest> implements ToXContentObject {
 

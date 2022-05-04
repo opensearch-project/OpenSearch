@@ -34,6 +34,11 @@ package org.opensearch.action.admin.cluster.reroute;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for rerouting allocation commands
+ *
+ * @opensearch.internal
+ */
 public class ClusterRerouteAction extends ActionType<ClusterRerouteResponse> {
 
     public static final ClusterRerouteAction INSTANCE = new ClusterRerouteAction();

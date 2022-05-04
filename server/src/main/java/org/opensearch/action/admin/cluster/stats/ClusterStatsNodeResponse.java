@@ -44,6 +44,11 @@ import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+/**
+ * Transport action for obtaining cluster stats from node level
+ *
+ * @opensearch.internal
+ */
 public class ClusterStatsNodeResponse extends BaseNodeResponse {
 
     private final NodeInfo nodeInfo;

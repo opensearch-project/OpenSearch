@@ -42,6 +42,8 @@ import java.io.IOException;
 
 /**
  * A response for a open index action.
+ *
+ * @opensearch.internal
  */
 public class OpenIndexResponse extends ShardsAcknowledgedResponse {
 

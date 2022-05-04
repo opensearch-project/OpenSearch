@@ -58,6 +58,8 @@ import java.util.Map;
 
 /**
  * Node information (static, does not change over time).
+ *
+ * @opensearch.internal
  */
 public class NodeInfo extends BaseNodeResponse {
 

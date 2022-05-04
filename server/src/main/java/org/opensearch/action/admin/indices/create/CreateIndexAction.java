@@ -34,6 +34,11 @@ package org.opensearch.action.admin.indices.create;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for creating an index
+ *
+ * @opensearch.internal
+ */
 public class CreateIndexAction extends ActionType<CreateIndexResponse> {
 
     public static final CreateIndexAction INSTANCE = new CreateIndexAction();

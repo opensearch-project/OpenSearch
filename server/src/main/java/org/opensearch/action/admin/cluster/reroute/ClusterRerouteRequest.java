@@ -44,6 +44,8 @@ import java.util.Objects;
 
 /**
  * Request to submit cluster reroute allocation commands
+ *
+ * @opensearch.internal
  */
 public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteRequest> {
     private AllocationCommands commands = new AllocationCommands();

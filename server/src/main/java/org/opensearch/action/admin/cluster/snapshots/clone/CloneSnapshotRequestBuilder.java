@@ -39,6 +39,11 @@ import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.Strings;
 
+/**
+ * Transport request builder for cloning a snapshot
+ *
+ * @opensearch.internal
+ */
 public class CloneSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<
     CloneSnapshotRequest,
     AcknowledgedResponse,

@@ -50,6 +50,11 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
+/**
+ * Transport response for retrieving indices stats
+ *
+ * @opensearch.internal
+ */
 public class IndicesStatsResponse extends BroadcastResponse {
 
     private ShardStats[] shards;

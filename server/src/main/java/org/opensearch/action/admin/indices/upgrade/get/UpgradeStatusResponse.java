@@ -47,6 +47,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Transport Response for retrieving status of upgrading an Index
+ *
+ * @opensearch.internal
+ */
 public class UpgradeStatusResponse extends BroadcastResponse {
     private ShardUpgradeStatus[] shards;
 

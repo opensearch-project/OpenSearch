@@ -60,6 +60,11 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Transport action for verifying a shard before closing an index
+ *
+ * @opensearch.internal
+ */
 public class TransportVerifyShardBeforeCloseAction extends TransportReplicationAction<
     TransportVerifyShardBeforeCloseAction.ShardRequest,
     TransportVerifyShardBeforeCloseAction.ShardRequest,

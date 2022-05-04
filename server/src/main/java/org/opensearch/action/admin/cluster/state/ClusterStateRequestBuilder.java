@@ -37,6 +37,11 @@ import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilde
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
 
+/**
+ * Transport request builder for obtaining cluster state
+ *
+ * @opensearch.internal
+ */
 public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBuilder<
     ClusterStateRequest,
     ClusterStateResponse,

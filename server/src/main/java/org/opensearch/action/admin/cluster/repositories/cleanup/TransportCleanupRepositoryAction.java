@@ -82,6 +82,8 @@ import java.util.Collections;
  * {@link BlobStoreRepository#cleanup} ensures that the repository state id has not changed between creation of the cluster state entry
  * and any delete/write operations. TODO: This will not work if we also want to clean up at the shard level as those will involve writes
  *                                        as well as deletes.
+ *
+ * @opensearch.internal
  */
 public final class TransportCleanupRepositoryAction extends TransportMasterNodeAction<CleanupRepositoryRequest, CleanupRepositoryResponse> {
 

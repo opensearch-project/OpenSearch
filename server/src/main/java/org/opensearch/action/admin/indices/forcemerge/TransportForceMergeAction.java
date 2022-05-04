@@ -54,6 +54,8 @@ import java.util.List;
 
 /**
  * ForceMerge index/indices action.
+ *
+ * @opensearch.internal
  */
 public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
     ForceMergeRequest,

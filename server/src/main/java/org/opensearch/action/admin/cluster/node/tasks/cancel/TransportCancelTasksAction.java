@@ -54,6 +54,8 @@ import java.util.function.Consumer;
  * <p>
  * For a task to be cancellable it has to return an instance of
  * {@link CancellableTask} from {@link TransportRequest#createTask}
+ *
+ * @opensearch.internal
  */
 public class TransportCancelTasksAction extends TransportTasksAction<CancellableTask, CancelTasksRequest, CancelTasksResponse, TaskInfo> {
 

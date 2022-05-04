@@ -36,6 +36,8 @@ import org.opensearch.cluster.metadata.IndexMetadata.APIBlock;
 
 /**
  * Cluster state update request that allows to add a block to one or more indices
+ *
+ * @opensearch.internal
  */
 public class AddIndexBlockClusterStateUpdateRequest extends IndicesClusterStateUpdateRequest<AddIndexBlockClusterStateUpdateRequest> {
 

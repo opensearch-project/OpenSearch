@@ -49,6 +49,11 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
+/**
+ * Transport action for putting stored script
+ *
+ * @opensearch.internal
+ */
 public class TransportPutStoredScriptAction extends TransportMasterNodeAction<PutStoredScriptRequest, AcknowledgedResponse> {
 
     private final ScriptService scriptService;

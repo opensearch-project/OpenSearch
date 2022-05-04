@@ -40,6 +40,8 @@ import org.opensearch.common.io.stream.StreamOutput;
 
 /**
  * Used when querying every node in the cluster for a specific dangling index.
+ *
+ * @opensearch.internal
  */
 public class NodeFindDanglingIndexRequest extends BaseNodeRequest {
     private final String indexUUID;
