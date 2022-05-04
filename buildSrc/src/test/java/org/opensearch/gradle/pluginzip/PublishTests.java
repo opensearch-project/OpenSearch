@@ -28,6 +28,7 @@ import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
 import java.io.FileReader;
 import org.gradle.api.tasks.bundling.Zip;
+import java.util.List;
 
 public class PublishTests extends GradleUnitTestCase {
 
