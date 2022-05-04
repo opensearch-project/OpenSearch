@@ -48,6 +48,11 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.env.Environment;
 
+/**
+ * Prepares internal settings
+ *
+ * @opensearch.internal
+ */
 public class InternalSettingsPreparer {
 
     private static final String SECRET_PROMPT_VALUE = "${prompt.secret}";

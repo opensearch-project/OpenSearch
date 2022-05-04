@@ -47,6 +47,11 @@ import org.opensearch.index.Index;
 import java.util.Arrays;
 import java.util.function.Function;
 
+/**
+ * The Gateway
+ *
+ * @opensearch.internal
+ */
 public class Gateway {
 
     private static final Logger logger = LogManager.getLogger(Gateway.class);

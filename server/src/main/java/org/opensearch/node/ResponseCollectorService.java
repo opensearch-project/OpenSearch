@@ -53,6 +53,8 @@ import java.util.concurrent.ConcurrentMap;
  * Collects statistics about queue size, response time, and service time of
  * tasks executed on each node, making the EWMA of the values available to the
  * coordinating node.
+ *
+ * @opensearch.internal
  */
 public final class ResponseCollectorService implements ClusterStateListener {
 

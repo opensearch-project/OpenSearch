@@ -59,6 +59,8 @@ import java.util.function.BiConsumer;
 
 /**
  * Represents a single document being captured before indexing and holds the source and metadata (like id, type and index).
+ *
+ * @opensearch.internal
  */
 public final class IngestDocument {
 

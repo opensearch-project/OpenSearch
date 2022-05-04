@@ -48,6 +48,8 @@ import java.util.stream.Collectors;
 /**
  * A Processor that executes a list of other "processors". It executes a separate list of
  * "onFailureProcessors" when any of the processors throw an {@link Exception}.
+ *
+ * @opensearch.internal
  */
 public class CompoundProcessor implements Processor {
     public static final String ON_FAILURE_MESSAGE_FIELD = "on_failure_message";

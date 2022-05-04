@@ -54,6 +54,8 @@ import java.util.Map;
 
 /**
  * Holds the ingest pipelines that are available in the cluster
+ *
+ * @opensearch.internal
  */
 public final class IngestMetadata implements Metadata.Custom {
 

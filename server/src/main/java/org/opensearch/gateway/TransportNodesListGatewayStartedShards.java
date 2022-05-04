@@ -72,6 +72,8 @@ import java.util.Objects;
  * This transport action is used to fetch the shard version from each node during primary allocation in {@link GatewayAllocator}.
  * We use this to find out which node holds the latest shard version and which of them used to be a primary in order to allocate
  * shards after node or cluster restarts.
+ *
+ * @opensearch.internal
  */
 public class TransportNodesListGatewayStartedShards extends TransportNodesAction<
     TransportNodesListGatewayStartedShards.Request,

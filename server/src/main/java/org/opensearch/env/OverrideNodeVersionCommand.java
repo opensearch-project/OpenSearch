@@ -43,6 +43,11 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 
+/**
+ * Command to override a node version
+ *
+ * @opensearch.internal
+ */
 public class OverrideNodeVersionCommand extends OpenSearchNodeCommand {
     private static final String TOO_NEW_MESSAGE = DELIMITER
         + "\n"

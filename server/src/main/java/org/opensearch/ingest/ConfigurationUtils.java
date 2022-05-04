@@ -58,6 +58,11 @@ import java.util.Map;
 
 import static org.opensearch.script.Script.DEFAULT_TEMPLATE_LANG;
 
+/**
+ * Utility class for ingest processor configurations
+ *
+ * @opensearch.internal
+ */
 public final class ConfigurationUtils {
 
     public static final String TAG_KEY = "tag";

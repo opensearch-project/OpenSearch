@@ -44,6 +44,8 @@ import java.util.Map;
 /**
  * A basic http request abstraction. Http modules needs to implement this interface to integrate with the
  * server package's rest handling.
+ *
+ * @opensearch.internal
  */
 public interface HttpRequest {
 

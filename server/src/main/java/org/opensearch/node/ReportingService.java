@@ -35,6 +35,11 @@ package org.opensearch.node;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.ToXContent;
 
+/**
+ * Node reporting service
+ *
+ * @opensearch.internal
+ */
 public interface ReportingService<I extends ReportingService.Info> {
     I info();
 
