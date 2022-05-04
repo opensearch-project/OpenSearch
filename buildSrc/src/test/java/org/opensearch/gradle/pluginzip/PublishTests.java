@@ -29,6 +29,7 @@ import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
 import java.io.FileReader;
 import org.gradle.api.tasks.bundling.Zip;
 import java.util.List;
+import java.util.ArrayList;
 
 public class PublishTests extends GradleUnitTestCase {
 
