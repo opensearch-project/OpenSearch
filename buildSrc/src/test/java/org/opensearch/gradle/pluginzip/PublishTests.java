@@ -77,7 +77,7 @@ public class PublishTests extends GradleUnitTestCase {
         GradleRunner runner = GradleRunner.create();
         runner.forwardOutput();
         runner.withPluginClasspath();
-        runner.withArguments(zipPublishTask);
+        runner.withArguments("clean", "build", zipPublishTask);
         runner.withProjectDir(projectDir);
         BuildResult result = runner.build();
         // Check if task publishMavenzipPublicationToZipstagingRepository has ran well
@@ -87,6 +87,7 @@ public class PublishTests extends GradleUnitTestCase {
             new File("build/functionalTest/local-staging-repo/org/opensearch/plugin/sample-plugin/2.0.0.0/sample-plugin-2.0.0.0.zip")
                 .exists()
         );
+        assertEquals(SUCCESS, result.task(":" + "build").getOutcome());
         // Parse the maven file and validate the groupID to org.opensearch.plugin
         MavenXpp3Reader reader = new MavenXpp3Reader();
         Model model = reader.read(
