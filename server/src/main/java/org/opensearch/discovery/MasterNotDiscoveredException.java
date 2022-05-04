@@ -38,6 +38,11 @@ import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
+/**
+ * Exception when the cluster-manager is not discovered
+ *
+ * @opensearch.internal
+ */
 public class MasterNotDiscoveredException extends OpenSearchException {
 
     public MasterNotDiscoveredException() {

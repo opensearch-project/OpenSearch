@@ -35,6 +35,8 @@ package org.opensearch.ingest;
 /**
  * A srapping processor is one that encapsulates an inner processor, or a processor that the wrapped processor enacts upon. All processors
  * that contain an "inner" processor should implement this interface, such that the actual processor can be obtained.
+ *
+ * @opensearch.internal
  */
 public interface WrappingProcessor extends Processor {
 

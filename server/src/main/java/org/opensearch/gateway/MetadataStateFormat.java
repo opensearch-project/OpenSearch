@@ -75,6 +75,8 @@ import java.util.stream.Collectors;
  * MetadataStateFormat is a base class to write checksummed
  * XContent based files to one or more directories in a standardized directory structure.
  * @param <T> the type of the XContent base data-structure
+ *
+ * @opensearch.internal
  */
 public abstract class MetadataStateFormat<T> {
     public static final XContentType FORMAT = XContentType.SMILE;

@@ -42,6 +42,8 @@ import java.util.Set;
  * Allows to wait for all nodes to reply to the publish of a new cluster state
  * and notifies the {@link org.opensearch.discovery.Discovery.AckListener}
  * so that the cluster state update can be acknowledged
+ *
+ * @opensearch.internal
  */
 public class AckClusterStatePublishResponseHandler extends BlockingClusterStatePublishResponseHandler {
 

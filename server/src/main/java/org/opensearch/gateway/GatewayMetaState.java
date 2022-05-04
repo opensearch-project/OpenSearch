@@ -91,6 +91,8 @@ import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonTh
  * the state being loaded when constructing the instance of this class is not necessarily the state that will be used as {@link
  * ClusterState#metadata()} because it might be stale or incomplete. Cluster-manager-eligible nodes must perform an election to find a complete and
  * non-stale state, and cluster-manager-ineligible nodes receive the real cluster state from the elected cluster-manager after joining the cluster.
+ *
+ * @opensearch.internal
  */
 public class GatewayMetaState implements Closeable {
 

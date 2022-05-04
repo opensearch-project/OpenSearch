@@ -68,6 +68,11 @@ import java.util.Collection;
 
 import static org.opensearch.cluster.metadata.MetadataIndexStateService.isIndexVerifiedBeforeClosed;
 
+/**
+ * Allocates dangled indices
+ *
+ * @opensearch.internal
+ */
 public class LocalAllocateDangledIndices {
 
     private static final Logger logger = LogManager.getLogger(LocalAllocateDangledIndices.class);

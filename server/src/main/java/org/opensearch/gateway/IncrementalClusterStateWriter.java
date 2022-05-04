@@ -54,6 +54,8 @@ import java.util.function.LongSupplier;
 
 /**
  * Tracks the metadata written to disk, allowing updated metadata to be written incrementally (i.e. only writing out the changed metadata).
+ *
+ * @opensearch.internal
  */
 public class IncrementalClusterStateWriter {
 
