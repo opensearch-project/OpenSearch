@@ -36,6 +36,8 @@ import java.util.Map;
 
 /**
  * A string template rendered as a script.
+ *
+ * @opensearch.internal
  */
 public abstract class TemplateScript {
 

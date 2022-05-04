@@ -32,6 +32,11 @@
 
 package org.opensearch.monitor.jvm;
 
+/**
+ * JVM Process ID
+ *
+ * @opensearch.internal
+ */
 class JvmPid {
 
     static long getPid() {

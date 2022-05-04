@@ -49,6 +49,11 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 
+/**
+ * FileSystem information
+ *
+ * @opensearch.internal
+ */
 public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragment {
 
     public static class Path implements Writeable, ToXContentObject {

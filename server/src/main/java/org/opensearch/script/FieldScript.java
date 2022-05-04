@@ -46,6 +46,8 @@ import java.util.function.Function;
 
 /**
  * A script to produce dynamic values for return fields.
+ *
+ * @opensearch.internal
  */
 public abstract class FieldScript {
 

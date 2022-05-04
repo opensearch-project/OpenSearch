@@ -37,5 +37,7 @@ import org.opensearch.common.xcontent.ToXContentObject;
 /**
  * {@link PersistentTaskState} represents the state of the persistent tasks, as it
  * is persisted in the cluster state.
+ *
+ * @opensearch.internal
  */
 public interface PersistentTaskState extends ToXContentObject, NamedWriteable {}

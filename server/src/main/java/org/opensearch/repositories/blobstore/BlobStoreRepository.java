@@ -166,6 +166,8 @@ import static org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapsh
  * </p>
  * For in depth documentation on how exactly implementations of this class interact with the snapshot functionality please refer to the
  * documentation of the package {@link org.opensearch.repositories.blobstore}.
+ *
+ * @opensearch.internal
  */
 public abstract class BlobStoreRepository extends AbstractLifecycleComponent implements Repository {
     private static final Logger logger = LogManager.getLogger(BlobStoreRepository.class);

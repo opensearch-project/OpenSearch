@@ -57,6 +57,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Holds information about the JVM
+ *
+ * @opensearch.internal
+ */
 public class JvmInfo implements ReportingService.Info {
 
     private static JvmInfo INSTANCE;

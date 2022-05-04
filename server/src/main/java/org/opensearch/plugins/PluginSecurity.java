@@ -54,6 +54,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * Security Policy for Plugins
+ *
+ * @opensearch.api
+ */
 class PluginSecurity {
 
     /**

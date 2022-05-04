@@ -43,6 +43,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
+/**
+ * Script for terms set query
+ *
+ * @opensearch.internal
+ */
 public abstract class TermsSetQueryScript {
 
     public static final String[] PARAMETERS = {};

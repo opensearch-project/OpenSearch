@@ -36,6 +36,8 @@ import java.util.Map;
 
 /**
  * A script used in significant terms heuristic scoring.
+ *
+ * @opensearch.internal
  */
 public abstract class SignificantTermsHeuristicScoreScript {
 
