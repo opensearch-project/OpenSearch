@@ -39,6 +39,8 @@ import java.io.IOException;
 
 /**
  * Repository verification exception
+ *
+ * @opensearch.internal
  */
 public class RepositoryVerificationException extends RepositoryException {
 

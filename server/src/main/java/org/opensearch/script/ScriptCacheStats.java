@@ -45,7 +45,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-// This class is deprecated in favor of ScriptStats and ScriptContextStats.  It is removed in 8.
+/**
+ * Stats for script caching
+ *
+ * @opensearch.internal
+ *
+ * @deprecated This class is deprecated in favor of ScriptStats and ScriptContextStats.  It is removed in OpenSearch 2.0.
+ */
+@Deprecated
 public class ScriptCacheStats implements Writeable, ToXContentFragment {
     private final Map<String, ScriptStats> context;
     private final ScriptStats general;

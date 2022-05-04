@@ -41,6 +41,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Stats for a script context
+ *
+ * @opensearch.internal
+ */
 public class ScriptContextStats implements Writeable, ToXContentFragment, Comparable<ScriptContextStats> {
     private final String context;
     private final long compilations;

@@ -41,6 +41,11 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.SingleObjectCache;
 import org.opensearch.node.ReportingService;
 
+/**
+ * The service for the process
+ *
+ * @opensearch.internal
+ */
 public final class ProcessService implements ReportingService<ProcessInfo> {
 
     private static final Logger logger = LogManager.getLogger(ProcessService.class);

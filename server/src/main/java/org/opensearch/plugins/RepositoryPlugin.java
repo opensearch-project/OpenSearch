@@ -43,6 +43,8 @@ import java.util.Map;
 
 /**
  * An extension point for {@link Plugin} implementations to add custom snapshot repositories.
+ *
+ * @opensearch.api
  */
 public interface RepositoryPlugin {
 

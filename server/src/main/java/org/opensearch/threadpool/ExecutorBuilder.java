@@ -43,6 +43,8 @@ import java.util.List;
  * Base class for executor builders.
  *
  * @param <U> the underlying type of the executor settings
+ *
+ *           @opensearch.internal
  */
 public abstract class ExecutorBuilder<U extends ExecutorBuilder.ExecutorSettings> {
 

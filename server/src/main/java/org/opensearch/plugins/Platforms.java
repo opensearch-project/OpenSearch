@@ -39,6 +39,8 @@ import java.util.Locale;
 
 /**
  * Encapsulates platform-dependent methods for handling native components of plugins.
+ *
+ * @opensearch.api
  */
 public class Platforms {
 

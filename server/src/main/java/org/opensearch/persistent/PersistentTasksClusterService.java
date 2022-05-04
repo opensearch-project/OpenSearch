@@ -61,6 +61,8 @@ import java.util.Objects;
 
 /**
  * Component that runs only on the cluster-manager node and is responsible for assigning running tasks to nodes
+ *
+ * @opensearch.internal
  */
 public class PersistentTasksClusterService implements ClusterStateListener, Closeable {
 

@@ -57,6 +57,11 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
+/**
+ * Information about a script context
+ *
+ * @opensearch.internal
+ */
 public class ScriptContextInfo implements ToXContentObject, Writeable {
     public final String name;
     public final ScriptMethodInfo execute;

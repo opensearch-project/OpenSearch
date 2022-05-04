@@ -68,6 +68,8 @@ import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
 /**
  * Runs periodically and attempts to create a temp file to see if the filesystem is writable. If not then it marks the
  * path as unhealthy.
+ *
+ * @opensearch.internal
  */
 public class FsHealthService extends AbstractLifecycleComponent implements NodeHealthService {
 

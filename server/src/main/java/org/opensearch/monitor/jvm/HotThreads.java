@@ -51,6 +51,11 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.ToLongFunction;
 
+/**
+ * Monitors hot threads
+ *
+ * @opensearch.internal
+ */
 public class HotThreads {
 
     private static final Object mutex = new Object();
