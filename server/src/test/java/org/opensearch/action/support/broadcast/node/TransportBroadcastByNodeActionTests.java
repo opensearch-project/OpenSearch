@@ -456,7 +456,7 @@ public class TransportBroadcastByNodeActionTests extends OpenSearchTestCase {
         Request request = new Request(new String[] { TEST_INDEX });
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
-        // simulate removing the master
+        // simulate removing the cluster-manager
         final boolean simulateFailedMasterNode = rarely();
         DiscoveryNode failedMasterNode = null;
         if (simulateFailedMasterNode) {

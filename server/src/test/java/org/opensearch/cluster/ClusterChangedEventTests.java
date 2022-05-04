@@ -107,19 +107,19 @@ public class ClusterChangedEventTests extends OpenSearchTestCase {
     }
 
     /**
-     * Test whether the ClusterChangedEvent returns the correct value for whether the local node is master,
+     * Test whether the ClusterChangedEvent returns the correct value for whether the local node is cluster-manager,
      * based on what was set on the cluster state.
      */
-    public void testLocalNodeIsMaster() {
+    public void testLocalNodeIsClusterManager() {
         final int numNodesInCluster = 3;
         ClusterState previousState = createSimpleClusterState();
         ClusterState newState = createState(numNodesInCluster, true, initialIndices);
         ClusterChangedEvent event = new ClusterChangedEvent("_na_", newState, previousState);
-        assertTrue("local node should be master", event.localNodeMaster());
+        assertTrue("local node should be cluster-manager", event.localNodeMaster());
 
         newState = createState(numNodesInCluster, false, initialIndices);
         event = new ClusterChangedEvent("_na_", newState, previousState);
-        assertFalse("local node should not be master", event.localNodeMaster());
+        assertFalse("local node should not be cluster-manager", event.localNodeMaster());
     }
 
     /**
@@ -434,13 +434,13 @@ public class ClusterChangedEventTests extends OpenSearchTestCase {
     }
 
     // Create the discovery nodes for a cluster state. For our testing purposes, we want
-    // the first to be master, the second to be cluster-manager eligible, the third to be a data node,
+    // the first to be cluster-manager, the second to be cluster-manager eligible, the third to be a data node,
     // and the remainder can be any kinds of nodes (cluster-manager eligible, data, or both).
-    private static DiscoveryNodes createDiscoveryNodes(final int numNodes, final boolean isLocalMaster) {
+    private static DiscoveryNodes createDiscoveryNodes(final int numNodes, final boolean isLocalClusterManager) {
         assert (numNodes >= 3) : "the initial cluster state for event change tests should have a minimum of 3 nodes "
             + "so there are a minimum of 2 cluster-manager nodes for testing cluster-manager change events.";
         final DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
-        final int localNodeIndex = isLocalMaster ? 0 : randomIntBetween(1, numNodes - 1); // randomly assign the local node if not master
+        final int localNodeIndex = isLocalClusterManager ? 0 : randomIntBetween(1, numNodes - 1); // randomly assign the local node if not cluster-manager
         for (int i = 0; i < numNodes; i++) {
             final String nodeId = NODE_ID_PREFIX + i;
             Set<DiscoveryNodeRole> roles = new HashSet<>();
@@ -455,7 +455,7 @@ public class ClusterChangedEventTests extends OpenSearchTestCase {
                 // we need at least one data node
                 roles.add(DiscoveryNodeRole.DATA_ROLE);
             } else {
-                // remaining nodes can be anything (except for master)
+                // remaining nodes can be anything (except for cluster-manager)
                 if (randomBoolean()) {
                     roles.add(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
                 }

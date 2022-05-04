@@ -349,7 +349,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
         assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }
 
-    public void testOnlyMatchesMasterEligibleNodes() throws InterruptedException {
+    public void testOnlyMatchesClusterManagerEligibleNodes() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         final SetOnce<TransportException> exceptionHolder = new SetOnce<>();
 

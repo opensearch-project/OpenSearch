@@ -265,8 +265,8 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
 
         DiscoveryNodes.Builder builderB = DiscoveryNodes.builder();
         nodesB.stream().forEach(builderB::add);
-        final String masterBId = clusterManagerB == null ? null : clusterManagerB.getId();
-        builderB.masterNodeId(masterBId);
+        final String clusterManagerBId = clusterManagerB == null ? null : clusterManagerB.getId();
+        builderB.masterNodeId(clusterManagerBId);
         builderB.localNodeId(RandomPicks.randomFrom(random(), nodesB).getId());
 
         final DiscoveryNodes discoNodesA = builderA.build();
@@ -284,10 +284,10 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
         if (clusterManagerB == null) {
             assertThat(delta.newMasterNode(), nullValue());
         } else {
-            assertThat(delta.newMasterNode().getId(), equalTo(masterBId));
+            assertThat(delta.newMasterNode().getId(), equalTo(clusterManagerBId));
         }
 
-        if (Objects.equals(clusterManagerAId, masterBId)) {
+        if (Objects.equals(clusterManagerAId, clusterManagerBId)) {
             assertFalse(delta.masterNodeChanged());
         } else {
             assertTrue(delta.masterNodeChanged());

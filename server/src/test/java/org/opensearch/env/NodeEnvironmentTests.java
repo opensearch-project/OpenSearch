@@ -535,7 +535,7 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
             )
             .build();
 
-        // test that we can create data=false and master=false with no meta information
+        // test that we can create data=false and cluster_manager=false with no meta information
         newNodeEnvironment(noDataNoMasterSettings).close();
 
         Path indexPath;
@@ -568,10 +568,10 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
         // build settings using same path.data as original but without cluster-manager role
         Settings noClusterManagerSettings = nonMasterNode(settings);
 
-        // test that we can create master=false env regardless of data.
+        // test that we can create cluster_manager=false env regardless of data.
         newNodeEnvironment(noClusterManagerSettings).close();
 
-        // test that we can create data=true, master=true env. Also remove state dir to leave only shard data for following asserts
+        // test that we can create data=true, cluster_manager=true env. Also remove state dir to leave only shard data for following asserts
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
             for (Path path : env.indexPaths(index)) {
                 Files.delete(path.resolve(MetadataStateFormat.STATE_DIR_NAME));

@@ -613,7 +613,7 @@ public class CoordinationStateTests extends OpenSearchTestCase {
         );
     }
 
-    // scenario when handling a publish request from a fresh master
+    // scenario when handling a publish request from a fresh cluster-manager
     public void testHandlePublishRequestWithTermHigherThanLastAcceptedTerm() {
         VotingConfiguration initialConfig = VotingConfiguration.of(node1);
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));

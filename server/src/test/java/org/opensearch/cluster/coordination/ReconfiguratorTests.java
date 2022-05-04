@@ -230,7 +230,7 @@ public class ReconfiguratorTests extends OpenSearchTestCase {
     private void check(
         Set<DiscoveryNode> liveNodes,
         Set<String> retired,
-        String masterId,
+        String clusterManagerId,
         VotingConfiguration config,
         boolean autoShrinkVotingConfiguration,
         VotingConfiguration expectedConfig
@@ -239,11 +239,11 @@ public class ReconfiguratorTests extends OpenSearchTestCase {
             Settings.builder().put(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.getKey(), autoShrinkVotingConfiguration).build()
         );
 
-        final DiscoveryNode clusterManager = liveNodes.stream().filter(n -> n.getId().equals(masterId)).findFirst().get();
+        final DiscoveryNode clusterManager = liveNodes.stream().filter(n -> n.getId().equals(clusterManagerId)).findFirst().get();
         final VotingConfiguration adaptedConfig = reconfigurator.reconfigure(liveNodes, retired, clusterManager, config);
         assertEquals(
             new ParameterizedMessage(
-                "[liveNodes={}, retired={}, master={}, config={}, autoShrinkVotingConfiguration={}]",
+                "[liveNodes={}, retired={}, clusterManager={}, config={}, autoShrinkVotingConfiguration={}]",
                 liveNodes,
                 retired,
                 clusterManager,

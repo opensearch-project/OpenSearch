@@ -86,7 +86,7 @@ import static org.mockito.Mockito.when;
 
 public class IncrementalClusterStateWriterTests extends OpenSearchAllocationTestCase {
 
-    private ClusterState clusterStateWithUnassignedIndex(IndexMetadata indexMetadata, boolean masterEligible) {
+    private ClusterState clusterStateWithUnassignedIndex(IndexMetadata indexMetadata, boolean clusterManagerEligible) {
         Metadata metadata = Metadata.builder().put(indexMetadata, false).build();
 
         RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
@@ -94,7 +94,7 @@ public class IncrementalClusterStateWriterTests extends OpenSearchAllocationTest
         return ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
             .routingTable(routingTable)
-            .nodes(generateDiscoveryNodes(masterEligible))
+            .nodes(generateDiscoveryNodes(clusterManagerEligible))
             .build();
     }
 

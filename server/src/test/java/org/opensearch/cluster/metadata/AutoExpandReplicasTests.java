@@ -145,7 +145,7 @@ public class AutoExpandReplicasTests extends OpenSearchTestCase {
 
         try {
             List<DiscoveryNode> allNodes = new ArrayList<>();
-            DiscoveryNode localNode = createNode(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE); // local node is the master
+            DiscoveryNode localNode = createNode(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE); // local node is the cluster-manager
             allNodes.add(localNode);
             int numDataNodes = randomIntBetween(3, 5);
             List<DiscoveryNode> dataNodes = new ArrayList<>(numDataNodes);
@@ -246,7 +246,7 @@ public class AutoExpandReplicasTests extends OpenSearchTestCase {
                 VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.V_1_2_1),
                 DiscoveryNodeRole.CLUSTER_MANAGER_ROLE,
                 DiscoveryNodeRole.DATA_ROLE
-            ); // local node is the master
+            ); // local node is the cluster-manager
             allNodes.add(oldNode);
             ClusterState state = ClusterStateCreationUtils.state(oldNode, oldNode, allNodes.toArray(new DiscoveryNode[0]));
 

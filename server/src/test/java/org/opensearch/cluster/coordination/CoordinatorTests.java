@@ -191,7 +191,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.clusterNodes.add(newNode1);
             cluster.clusterNodes.add(newNode2);
             cluster.stabilise(
-                // The first pinging discovers the master
+                // The first pinging discovers the cluster-manager
                 defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING)
                     // One message delay to send a join
                     + DEFAULT_DELAY_VARIABILITY
@@ -627,7 +627,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.clusterNodes.add(newNode2);
             cluster.clusterNodes.add(newNode3);
             cluster.stabilise(
-                // The first pinging discovers the master
+                // The first pinging discovers the cluster-manager
                 defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING)
                     // One message delay to send a join
                     + DEFAULT_DELAY_VARIABILITY
@@ -1180,7 +1180,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.runRandomly();
             cluster.stabilise();
 
-            // check that if node join validation fails on master, the nodes can't join
+            // check that if node join validation fails on cluster-manager, the nodes can't join
             List<ClusterNode> addedNodes = cluster.addNodes(randomIntBetween(1, 2));
             final Set<DiscoveryNode> validatedNodes = new HashSet<>();
             cluster.getAnyLeader().extraJoinValidators.add((discoveryNode, clusterState) -> {
@@ -1698,7 +1698,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final boolean chosenNodeIsLeader = chosenNode == cluster.getAnyLeader();
             final long termBeforeRestart = cluster.getAnyNode().coordinator.getCurrentTerm();
 
-            logger.info("--> restarting [{}] as a master-ineligible node", chosenNode);
+            logger.info("--> restarting [{}] as a cluster-manager-ineligible node", chosenNode);
 
             chosenNode.close();
             cluster.clusterNodes.replaceAll(

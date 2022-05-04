@@ -162,7 +162,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
 
     public void testUpdatesNodeWithNewRoles() throws Exception {
         // Node roles vary by version, and new roles are suppressed for BWC. This means we can receive a join from a node that's already
-        // in the cluster but with a different set of roles: the node didn't change roles, but the cluster state came via an older master.
+        // in the cluster but with a different set of roles: the node didn't change roles, but the cluster state came via an older cluster-manager.
         // In this case we must properly process its join to ensure that the roles are correct.
 
         final AllocationService allocationService = mock(AllocationService.class);

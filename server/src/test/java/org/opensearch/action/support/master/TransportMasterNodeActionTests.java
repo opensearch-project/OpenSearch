@@ -240,7 +240,7 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
     }
 
     public void testLocalOperationWithoutBlocks() throws ExecutionException, InterruptedException {
-        final boolean masterOperationFailure = randomBoolean();
+        final boolean clusterManagerOperationFailure = randomBoolean();
 
         Request request = new Request();
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
@@ -253,7 +253,7 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         new Action("internal:testAction", transportService, clusterService, threadPool) {
             @Override
             protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
-                if (masterOperationFailure) {
+                if (clusterManagerOperationFailure) {
                     listener.onFailure(exception);
                 } else {
                     listener.onResponse(response);
@@ -262,7 +262,7 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         }.execute(request, listener);
         assertTrue(listener.isDone());
 
-        if (masterOperationFailure) {
+        if (clusterManagerOperationFailure) {
             try {
                 listener.get();
                 fail("Expected exception but returned proper result");
@@ -512,7 +512,7 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
         new Action("internal:testAction", transportService, clusterService, threadPool) {
             @Override
             protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-                // The other node has become master, simulate failures of this node while publishing cluster state through ZenDiscovery
+                // The other node has become cluster-manager, simulate failures of this node while publishing cluster state through ZenDiscovery
                 setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
                 Exception failure = randomBoolean()
                     ? new FailedToCommitClusterStateException("Fake error")
