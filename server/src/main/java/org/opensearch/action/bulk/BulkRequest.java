@@ -70,6 +70,8 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  *
  * Note that we only support refresh on the bulk request not per item.
  * @see org.opensearch.client.Client#bulk(BulkRequest)
+ *
+ * @opensearch.internal
  */
 public class BulkRequest extends ActionRequest implements CompositeIndicesRequest, WriteRequest<BulkRequest>, Accountable {
 

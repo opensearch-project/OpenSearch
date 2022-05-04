@@ -41,6 +41,8 @@ import org.opensearch.threadpool.ThreadPool;
 
 /**
  * An action listener that wraps another action listener and threading its execution.
+ *
+ * @opensearch.internal
  */
 public final class ThreadedActionListener<Response> implements ActionListener<Response> {
     private final Logger logger;

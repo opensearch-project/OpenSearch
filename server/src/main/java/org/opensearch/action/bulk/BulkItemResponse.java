@@ -67,6 +67,8 @@ import static org.opensearch.common.xcontent.XContentParserUtils.throwUnknownFie
 /**
  * Represents a single item response for an action executed as part of the bulk API. Holds the index/type/id
  * of the relevant action, and if it has failed or not (with the failure message in case it failed).
+ *
+ * @opensearch.internal
  */
 public class BulkItemResponse implements Writeable, StatusToXContentObject {
 

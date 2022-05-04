@@ -81,6 +81,11 @@ import static org.opensearch.ExceptionsHelper.unwrapCause;
 import static org.opensearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
 import static org.opensearch.action.bulk.TransportSingleItemBulkWriteAction.wrapBulkResponse;
 
+/**
+ * Transport action for updating an index
+ *
+ * @opensearch.internal
+ */
 public class TransportUpdateAction extends TransportInstanceSingleOperationAction<UpdateRequest, UpdateResponse> {
 
     private final AutoCreateIndex autoCreateIndex;

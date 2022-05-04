@@ -42,6 +42,11 @@ import org.opensearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
+/**
+ * Transport request for broadcast operations
+ *
+ * @opensearch.internal
+ */
 public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends ActionRequest implements IndicesRequest.Replaceable {
 
     protected String[] indices;

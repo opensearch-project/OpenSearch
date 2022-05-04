@@ -52,6 +52,11 @@ import java.util.Objects;
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * An ingest document that implements writeable
+ *
+ * @opensearch.internal
+ */
 final class WriteableIngestDocument implements Writeable, ToXContentFragment {
 
     static final String SOURCE_FIELD = "_source";

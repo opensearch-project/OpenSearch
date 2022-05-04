@@ -46,6 +46,11 @@ import org.opensearch.script.Script;
 
 import java.util.Map;
 
+/**
+ * Transport request builder for updating an index
+ *
+ * @opensearch.internal
+ */
 public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<UpdateRequest, UpdateResponse, UpdateRequestBuilder>
     implements
         WriteRequestBuilder<UpdateRequestBuilder> {

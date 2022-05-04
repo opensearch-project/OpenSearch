@@ -117,6 +117,11 @@ import static org.opensearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.opensearch.action.search.SearchType.QUERY_THEN_FETCH;
 import static org.opensearch.search.sort.FieldSortBuilder.hasPrimaryFieldSort;
 
+/**
+ * Perform search action
+ *
+ * @opensearch.internal
+ */
 public class TransportSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
 
     /** The maximum number of shards for a single search request. */

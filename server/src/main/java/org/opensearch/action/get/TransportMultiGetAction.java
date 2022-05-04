@@ -50,6 +50,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * Perform the multi get action.
+ *
+ * @opensearch.internal
+ */
 public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequest, MultiGetResponse> {
 
     private final ClusterService clusterService;

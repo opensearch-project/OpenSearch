@@ -86,6 +86,8 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  * @param <Request>              the underlying client request
  * @param <Response>             the response to the client request
  * @param <ShardOperationResult> per-shard operation results
+ *
+ * @opensearch.internal
  */
 public abstract class TransportBroadcastByNodeAction<
     Request extends BroadcastRequest<Request>,

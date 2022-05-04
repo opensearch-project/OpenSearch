@@ -34,6 +34,11 @@ package org.opensearch.action.support;
 
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
 
+/**
+ * Builder for a write request operations
+ *
+ * @opensearch.internal
+ */
 public interface WriteRequestBuilder<B extends WriteRequestBuilder<B>> {
     WriteRequest<?> request();
 

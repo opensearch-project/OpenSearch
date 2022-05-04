@@ -39,6 +39,11 @@ import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
+/**
+ * Base exception for no shard available
+ *
+ * @opensearch.internal
+ */
 public class NoShardAvailableActionException extends OpenSearchException {
 
     public NoShardAvailableActionException(ShardId shardId) {

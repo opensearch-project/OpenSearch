@@ -34,6 +34,11 @@ package org.opensearch.action.get;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action to get a document
+ *
+ * @opensearch.internal
+ */
 public class GetAction extends ActionType<GetResponse> {
 
     public static final GetAction INSTANCE = new GetAction();

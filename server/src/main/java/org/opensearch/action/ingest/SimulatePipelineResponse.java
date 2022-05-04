@@ -51,6 +51,11 @@ import java.util.List;
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
+/**
+ * transport response for simulating a pipeline
+ *
+ * @opensearch.internal
+ */
 public class SimulatePipelineResponse extends ActionResponse implements ToXContentObject {
     private String pipelineId;
     private boolean verbose;
