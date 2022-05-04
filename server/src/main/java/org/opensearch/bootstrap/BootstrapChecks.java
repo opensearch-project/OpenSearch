@@ -223,13 +223,13 @@ final class BootstrapChecks {
         checks.add(new OnErrorCheck());
         checks.add(new OnOutOfMemoryErrorCheck());
         checks.add(new EarlyAccessCheck());
-        checks.add(new JvmVersionCheck());
+        checks.add(new JavaVersionCheck());
         checks.add(new AllPermissionCheck());
         checks.add(new DiscoveryConfiguredCheck());
         return Collections.unmodifiableList(checks);
     }
 
-    static class JvmVersionCheck implements BootstrapCheck {
+    static class JavaVersionCheck implements BootstrapCheck {
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
             return DenyJvmVersionsParser.getDeniedJvmVersions()

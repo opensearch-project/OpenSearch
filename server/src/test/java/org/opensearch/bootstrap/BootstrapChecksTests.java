@@ -749,7 +749,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
     public void testJvmVersionCheck() throws NodeValidationException {
         final AtomicReference<Version> version = new AtomicReference<>(Version.parse("11.0.13+8"));
-        final BootstrapCheck check = new BootstrapChecks.JvmVersionCheck() {
+        final BootstrapCheck check = new BootstrapChecks.JavaVersionCheck() {
             @Override
             Version getVersion() {
                 return version.get();
