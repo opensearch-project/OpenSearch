@@ -36,6 +36,8 @@ import java.util.function.Consumer;
 
 /**
  * {@link ClusterInfoService} that provides empty maps for disk usage and shard sizes
+ *
+ * @opensearch.internal
  */
 public class EmptyClusterInfoService implements ClusterInfoService {
     public static final EmptyClusterInfoService INSTANCE = new EmptyClusterInfoService();

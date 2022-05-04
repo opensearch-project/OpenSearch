@@ -37,6 +37,8 @@ import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 
 /**
  * Only allow rebalancing when all shards are active within the shard replication group.
+ *
+ * @opensearch.internal
  */
 public class RebalanceOnlyWhenActiveAllocationDecider extends AllocationDecider {
 

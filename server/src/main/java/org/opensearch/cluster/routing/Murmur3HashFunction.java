@@ -36,6 +36,8 @@ import org.apache.lucene.util.StringHelper;
 
 /**
  * Hash function based on the Murmur3 algorithm, which is the default for OpenSearch.
+ *
+ * @opensearch.internal
  */
 public final class Murmur3HashFunction {
 

@@ -35,7 +35,7 @@ package org.opensearch.cluster;
 /**
  * A listener to be notified when a cluster state changes.
  *
- *
+ * @opensearch.internal
  */
 public interface ClusterStateListener {
 

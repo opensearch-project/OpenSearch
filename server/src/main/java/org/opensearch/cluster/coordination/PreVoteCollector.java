@@ -58,6 +58,11 @@ import java.util.stream.StreamSupport;
 import static org.opensearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
 
+/**
+ * Collects information prior to a promotion vote
+ *
+ * @opensearch.internal
+ */
 public class PreVoteCollector {
 
     private static final Logger logger = LogManager.getLogger(PreVoteCollector.class);

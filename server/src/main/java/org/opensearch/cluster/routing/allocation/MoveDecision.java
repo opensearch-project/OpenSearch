@@ -47,6 +47,8 @@ import java.util.Objects;
 /**
  * Represents a decision to move a started shard, either because it is no longer allowed to remain on its current node
  * or because moving it to another node will form a better cluster balance.
+ *
+ * @opensearch.internal
  */
 public final class MoveDecision extends AbstractAllocationDecision {
     /** a constant representing no decision taken */

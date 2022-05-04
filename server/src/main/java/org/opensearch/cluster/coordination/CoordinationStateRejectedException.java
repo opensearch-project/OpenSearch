@@ -43,6 +43,8 @@ import java.io.IOException;
  * Occurrences of this exception don't always signal failures, but can often be just caused by the
  * asynchronous, distributed nature of the system. They will, for example, naturally happen during
  * leader election, if multiple nodes are trying to become leader at the same time.
+ *
+ * @opensearch.internal
  */
 public class CoordinationStateRejectedException extends OpenSearchException {
     public CoordinationStateRejectedException(String msg, Object... args) {

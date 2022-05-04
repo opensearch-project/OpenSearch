@@ -35,6 +35,11 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.unit.TimeValue;
 
+/**
+ * Listener when cluster state task is acknowledged
+ *
+ * @opensearch.internal
+ */
 public interface AckedClusterStateTaskListener extends ClusterStateTaskListener {
 
     /**

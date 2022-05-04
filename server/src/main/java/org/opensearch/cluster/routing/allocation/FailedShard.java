@@ -38,6 +38,8 @@ import org.opensearch.common.Nullable;
 
 /**
  * A class representing a failed shard.
+ *
+ * @opensearch.internal
  */
 public class FailedShard {
     private final ShardRouting routingEntry;

@@ -54,6 +54,11 @@ import java.util.Objects;
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
+/**
+ * Cluster shard health information
+ *
+ * @opensearch.internal
+ */
 public final class ClusterShardHealth implements Writeable, ToXContentFragment {
     private static final String STATUS = "status";
     private static final String ACTIVE_SHARDS = "active_shards";

@@ -40,6 +40,8 @@ import java.io.IOException;
 /**
  * Response to a {@link PublishRequest}, carrying the term and version of the request.
  * Typically wrapped in a {@link PublishWithJoinResponse}.
+ *
+ * @opensearch.internal
  */
 public class PublishResponse implements Writeable {
 

@@ -49,6 +49,8 @@ import java.util.Set;
 /**
  * This is a {@code Map<String, String>} that implements AbstractDiffable so it
  * can be used for cluster state purposes
+ *
+ * @opensearch.internal
  */
 public class DiffableStringMap extends AbstractMap<String, String> implements Diffable<DiffableStringMap> {
 

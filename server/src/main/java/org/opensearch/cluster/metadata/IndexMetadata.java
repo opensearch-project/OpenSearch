@@ -96,6 +96,11 @@ import static org.opensearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 import static org.opensearch.common.settings.Settings.readSettingsFromStream;
 import static org.opensearch.common.settings.Settings.writeSettingsToStream;
 
+/**
+ * Index metadata information
+ *
+ * @opensearch.internal
+ */
 public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragment {
 
     public static final ClusterBlock INDEX_READ_ONLY_BLOCK = new ClusterBlock(

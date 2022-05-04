@@ -55,6 +55,8 @@ import java.util.Objects;
  * - {@link PeerRecoverySource} recovery from a primary on another node
  * - {@link SnapshotRecoverySource} recovery from a snapshot
  * - {@link LocalShardsRecoverySource} recovery from other shards of another index on the same node
+ *
+ * @opensearch.internal
  */
 public abstract class RecoverySource implements Writeable, ToXContentObject {
 
