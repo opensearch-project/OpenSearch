@@ -55,6 +55,8 @@ import java.util.List;
 
 /**
  * Contains metadata about registered snapshot repositories
+ *
+ * @opensearch.internal
  */
 public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implements Custom {
 

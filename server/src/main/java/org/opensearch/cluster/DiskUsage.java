@@ -45,6 +45,8 @@ import java.util.Objects;
 
 /**
  * Encapsulation class used to represent the amount of disk used on a node.
+ *
+ * @opensearch.internal
  */
 public class DiskUsage implements ToXContentFragment, Writeable {
     final String nodeId;

@@ -41,6 +41,11 @@ import org.opensearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
+/**
+ * Represents a task that is pending in the cluster
+ *
+ * @opensearch.internal
+ */
 public class PendingClusterTask implements Writeable {
 
     private long insertOrder;

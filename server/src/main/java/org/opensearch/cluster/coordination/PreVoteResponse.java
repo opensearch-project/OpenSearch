@@ -39,6 +39,11 @@ import org.opensearch.transport.TransportResponse;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Response for a PreVoteRequest
+ *
+ * @opensearch.internal
+ */
 public class PreVoteResponse extends TransportResponse {
     private final long currentTerm;
     private final long lastAcceptedTerm;

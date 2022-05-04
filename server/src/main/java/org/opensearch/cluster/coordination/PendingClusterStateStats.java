@@ -42,6 +42,8 @@ import java.io.IOException;
 
 /**
  * Class encapsulating stats about the PendingClusterStatsQueue
+ *
+ * @opensearch.internal
  */
 public class PendingClusterStateStats implements Writeable, ToXContentFragment {
 

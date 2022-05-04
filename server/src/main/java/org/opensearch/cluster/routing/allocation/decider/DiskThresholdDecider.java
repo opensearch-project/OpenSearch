@@ -86,6 +86,8 @@ import static org.opensearch.cluster.routing.allocation.DiskThresholdSettings.CL
  *
  * <code>cluster.routing.allocation.disk.threshold_enabled</code> is used to
  * enable or disable this decider. It defaults to true (enabled).
+ *
+ * @opensearch.internal
  */
 public class DiskThresholdDecider extends AllocationDecider {
 

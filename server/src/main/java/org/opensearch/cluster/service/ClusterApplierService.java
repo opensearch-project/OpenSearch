@@ -78,6 +78,11 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonThreadFactory;
 
+/**
+ * Service that provides callbacks when cluster state changes
+ *
+ * @opensearch.internal
+ */
 public class ClusterApplierService extends AbstractLifecycleComponent implements ClusterApplier {
     private static final Logger logger = LogManager.getLogger(ClusterApplierService.class);
 

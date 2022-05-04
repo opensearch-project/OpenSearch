@@ -57,6 +57,8 @@ import java.util.Set;
 
 /**
  * A class that represents the snapshot deletions that are in progress in the cluster.
+ *
+ * @opensearch.internal
  */
 public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> implements Custom {
 

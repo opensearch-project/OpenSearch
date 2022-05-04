@@ -40,6 +40,8 @@ import java.util.List;
 
 /**
  * A task that can update the cluster state.
+ *
+ * @opensearch.internal
  */
 public abstract class ClusterStateUpdateTask
     implements

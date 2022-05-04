@@ -45,6 +45,8 @@ import org.opensearch.cluster.routing.allocation.RoutingAllocation;
  * a newer version than the node we relocate to this might cause {@link org.apache.lucene.index.IndexFormatTooNewException}
  * on the lowest level since it might have already written segments that use a new postings format or codec that is not
  * available on the target node.
+ *
+ * @opensearch.internal
  */
 public class NodeVersionAllocationDecider extends AllocationDecider {
 
