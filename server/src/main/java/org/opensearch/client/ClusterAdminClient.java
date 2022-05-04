@@ -139,6 +139,8 @@ import org.opensearch.tasks.TaskId;
  * Administrative actions/operations against indices.
  *
  * @see AdminClient#cluster()
+ *
+ * @opensearch.internal
  */
 public interface ClusterAdminClient extends OpenSearchClient {
 

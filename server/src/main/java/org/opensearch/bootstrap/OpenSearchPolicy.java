@@ -48,7 +48,11 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.function.Predicate;
 
-/** custom policy for union of static and dynamic permissions */
+/**
+ * custom policy for union of static and dynamic permissions
+ *
+ * @opensearch.internal
+ **/
 final class OpenSearchPolicy extends Policy {
 
     /** template policy file, the one used in tests */
