@@ -227,6 +227,7 @@ public class ExtensionsOrchestrator implements ReportingService<PluginsAndModule
             @Override
             public void handleException(TransportException exp) {
                 logger.error(new ParameterizedMessage("IndicesModuleRequest failed"), exp);
+                inProgressLatch.countDown();
             }
 
             @Override
