@@ -79,6 +79,8 @@ import org.opensearch.common.xcontent.XContentType;
 
 /**
  * A handy one stop shop for creating requests (make sure to import static this class).
+ *
+ * @opensearch.internal
  */
 public class Requests {
 

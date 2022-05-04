@@ -155,7 +155,7 @@ public class CoordinationStateTestCluster {
                     .getLastAcceptedConfiguration()
                     .isEmpty()
                         ? CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG
-                        : CoordinationMetadata.VotingConfiguration.MUST_JOIN_ELECTED_MASTER;
+                        : CoordinationMetadata.VotingConfiguration.MUST_JOIN_ELECTED_CLUSTER_MANAGER;
                 persistedState = new InMemoryPersistedState(
                     0L,
                     clusterState(0L, 0L, localNode, votingConfiguration, votingConfiguration, 0L)

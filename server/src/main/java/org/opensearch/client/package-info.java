@@ -25,12 +25,12 @@
  * under the License.
  */
 
-/**
- * The client module allowing to easily perform actions/operations.
- */
 /*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
  */
 
+/**
+ * The client module allowing to easily perform actions/operations.
+ */
 package org.opensearch.client;
