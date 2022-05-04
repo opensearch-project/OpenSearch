@@ -133,7 +133,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                 }
             }
 
-            // apply cluster state to nodes (incl. master)
+            // apply cluster state to nodes (incl. cluster-manager)
             for (DiscoveryNode node : state.nodes()) {
                 IndicesClusterStateService indicesClusterStateService = clusterStateServiceMap.get(node);
                 ClusterState localState = adaptClusterStateToLocalNode(state, node);
@@ -327,7 +327,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         Supplier<MockIndicesService> indicesServiceSupplier
     ) {
         List<DiscoveryNode> allNodes = new ArrayList<>();
-        DiscoveryNode localNode = createNode(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE); // local node is the master
+        DiscoveryNode localNode = createNode(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE); // local node is the cluster-manager
         allNodes.add(localNode);
         // at least two nodes that have the data role so that we can allocate shards
         allNodes.add(createNode(DiscoveryNodeRole.DATA_ROLE));
@@ -480,7 +480,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         state = cluster.applyFailedShards(state, failedShards);
         state = cluster.applyStartedShards(state, startedShards);
 
-        // randomly add and remove nodes (except current master)
+        // randomly add and remove nodes (except current cluster-manager)
         if (rarely()) {
             if (randomBoolean()) {
                 // add node

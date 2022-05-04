@@ -494,7 +494,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
     }
 
     public void testDelegatesRequestHandlingWhenInactive() {
-        final DiscoveryNode clusterManagerNode = newDiscoveryNode("master-node");
+        final DiscoveryNode clusterManagerNode = newDiscoveryNode("cluster-manager-node");
         final DiscoveryNode sourceNode = newDiscoveryNode("request-source");
         transportAddressConnector.addReachableNode(sourceNode);
 
@@ -599,7 +599,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
         runAllRunnableTasks();
 
         assertFoundPeers(otherNode);
-        final DiscoveryNode discoveredMaster = newDiscoveryNode("discovered-master");
+        final DiscoveryNode discoveredMaster = newDiscoveryNode("discovered-cluster-manager");
 
         respondToRequests(node -> {
             assertThat(node, is(otherNode));

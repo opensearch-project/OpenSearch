@@ -403,8 +403,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
     public void testSnapshotWithNodeDisconnects() {
         final int dataNodes = randomIntBetween(2, 10);
-        final int masterNodes = randomFrom(1, 3, 5);
-        setupTestCluster(masterNodes, dataNodes);
+        final int clusterManagerNodes = randomFrom(1, 3, 5);
+        setupTestCluster(clusterManagerNodes, dataNodes);
 
         String repoName = "repo";
         String snapshotName = "snapshot";
@@ -435,7 +435,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 scheduleNow(this::disconnectOrRestartDataNode);
             }
             // Only disconnect cluster-manager if we have more than a single cluster-manager and can simulate a failover
-            final boolean disconnectedMaster = randomBoolean() && masterNodes > 1;
+            final boolean disconnectedMaster = randomBoolean() && clusterManagerNodes > 1;
             if (disconnectedMaster) {
                 scheduleNow(this::disconnectOrRestartMasterNode);
             }
@@ -481,8 +481,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
     public void testSnapshotDeleteWithMasterFailover() {
         final int dataNodes = randomIntBetween(2, 10);
-        final int masterNodes = randomFrom(3, 5);
-        setupTestCluster(masterNodes, dataNodes);
+        final int clusterManagerNodes = randomFrom(3, 5);
+        setupTestCluster(clusterManagerNodes, dataNodes);
 
         String repoName = "repo";
         String snapshotName = "snapshot";
@@ -541,7 +541,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         final String index = "test";
         final int shards = randomIntBetween(1, 10);
 
-        TestClusterNodes.TestClusterNode masterNode = testClusterNodes.currentMaster(
+        TestClusterNodes.TestClusterNode clusterManagerNode = testClusterNodes.currentMaster(
             testClusterNodes.nodes.values().iterator().next().clusterService.state()
         );
 
@@ -557,12 +557,12 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
         final StepListener<AcknowledgedResponse> deleteSnapshotStepListener = new StepListener<>();
 
-        masterNode.clusterService.addListener(new ClusterStateListener() {
+        clusterManagerNode.clusterService.addListener(new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
                 if (event.state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().isEmpty() == false) {
                     client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).execute(deleteSnapshotStepListener);
-                    masterNode.clusterService.removeListener(this);
+                    clusterManagerNode.clusterService.removeListener(this);
                 }
             }
         });
@@ -586,9 +586,9 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
         assertNotNull(createSnapshotResponseStepListener.result());
         assertNotNull(createAnotherSnapshotResponseStepListener.result());
-        SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
+        SnapshotsInProgress finalSnapshotsInProgress = clusterManagerNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
         assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
-        final Repository repository = masterNode.repositoriesService.repository(repoName);
+        final Repository repository = clusterManagerNode.repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
         assertThat(snapshotIds, hasSize(1));
 
@@ -607,7 +607,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         final String index = "test";
         final int shards = randomIntBetween(1, 10);
 
-        TestClusterNodes.TestClusterNode masterNode = testClusterNodes.currentMaster(
+        TestClusterNodes.TestClusterNode clusterManagerNode = testClusterNodes.currentMaster(
             testClusterNodes.nodes.values().iterator().next().clusterService.state()
         );
 
@@ -658,9 +658,9 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
         deterministicTaskQueue.runAllRunnableTasks();
 
-        SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
+        SnapshotsInProgress finalSnapshotsInProgress = clusterManagerNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
         assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
-        final Repository repository = masterNode.repositoriesService.repository(repoName);
+        final Repository repository = clusterManagerNode.repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
         // We end up with two snapshots no matter if the delete worked out or not
         assertThat(snapshotIds, hasSize(2));
@@ -682,7 +682,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         final String index = "test";
         final int shards = randomIntBetween(1, 10);
 
-        TestClusterNodes.TestClusterNode masterNode = testClusterNodes.currentMaster(
+        TestClusterNodes.TestClusterNode clusterManagerNode = testClusterNodes.currentMaster(
             testClusterNodes.nodes.values().iterator().next().clusterService.state()
         );
 
@@ -721,9 +721,9 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
         deterministicTaskQueue.runAllRunnableTasks();
 
-        SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
+        SnapshotsInProgress finalSnapshotsInProgress = clusterManagerNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
         assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
-        final Repository repository = masterNode.repositoriesService.repository(repoName);
+        final Repository repository = clusterManagerNode.repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
         // No snapshots should be left in the repository
         assertThat(snapshotIds, empty());
@@ -737,7 +737,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         final String index = "test";
         final int shards = randomIntBetween(1, 10);
 
-        TestClusterNodes.TestClusterNode masterNode = testClusterNodes.currentMaster(
+        TestClusterNodes.TestClusterNode clusterManagerNode = testClusterNodes.currentMaster(
             testClusterNodes.nodes.values().iterator().next().clusterService.state()
         );
 
@@ -811,7 +811,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         assertThat(deleteSnapshotStepListener.result().isAcknowledged(), is(true));
         assertThat(restoreSnapshotResponseListener.result().getRestoreInfo().failedShards(), is(0));
 
-        final Repository repository = masterNode.repositoriesService.repository(repoName);
+        final Repository repository = clusterManagerNode.repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
         assertThat(snapshotIds, contains(createOtherSnapshotResponseStepListener.result().getSnapshotInfo().snapshotId()));
 
@@ -849,7 +849,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         String snapshotName = "snapshot";
         final String index = "test";
 
-        TestClusterNodes.TestClusterNode masterNode = testClusterNodes.currentMaster(
+        TestClusterNodes.TestClusterNode clusterManagerNode = testClusterNodes.currentMaster(
             testClusterNodes.nodes.values().iterator().next().clusterService.state()
         );
 
@@ -858,7 +858,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
         final SetOnce<Index> firstIndex = new SetOnce<>();
         continueOrDie(createRepoAndIndex(repoName, index, 1), createIndexResponse -> {
-            firstIndex.set(masterNode.clusterService.state().metadata().index(index).getIndex());
+            firstIndex.set(clusterManagerNode.clusterService.state().metadata().index(index).getIndex());
             // create a few more indices to make it more likely that the subsequent index delete operation happens before snapshot
             // finalization
             final GroupedActionListener<CreateIndexResponse> listener = new GroupedActionListener<>(createIndicesListener, indices);
@@ -906,9 +906,9 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
         deterministicTaskQueue.runAllRunnableTasks();
 
-        SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
+        SnapshotsInProgress finalSnapshotsInProgress = clusterManagerNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
         assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
-        final Repository repository = masterNode.repositoriesService.repository(repoName);
+        final Repository repository = clusterManagerNode.repositoriesService.repository(repoName);
         final RepositoryData repositoryData = getRepositoryData(repository);
         Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
         assertThat(snapshotIds, hasSize(1));
@@ -943,7 +943,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         final String index = "test";
         final int shards = randomIntBetween(1, 10);
 
-        TestClusterNodes.TestClusterNode masterNode = testClusterNodes.currentMaster(
+        TestClusterNodes.TestClusterNode clusterManagerNode = testClusterNodes.currentMaster(
             testClusterNodes.nodes.values().iterator().next().clusterService.state()
         );
 
@@ -989,9 +989,9 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
         deterministicTaskQueue.runAllRunnableTasks();
 
-        SnapshotDeletionsInProgress deletionsInProgress = masterNode.clusterService.state().custom(SnapshotDeletionsInProgress.TYPE);
+        SnapshotDeletionsInProgress deletionsInProgress = clusterManagerNode.clusterService.state().custom(SnapshotDeletionsInProgress.TYPE);
         assertFalse(deletionsInProgress.hasDeletionsInProgress());
-        final Repository repository = masterNode.repositoriesService.repository(repoName);
+        final Repository repository = clusterManagerNode.repositoriesService.repository(repoName);
         final RepositoryData repositoryData = getRepositoryData(repository);
         Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
         // We end up with no snapshots since at least one of the deletes worked out
@@ -1006,8 +1006,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
      * deleting a snapshot.
      */
     public void testSnapshotPrimaryRelocations() {
-        final int masterNodeCount = randomFrom(1, 3, 5);
-        setupTestCluster(masterNodeCount, randomIntBetween(2, 5));
+        final int clusterManagerNodeCount = randomFrom(1, 3, 5);
+        setupTestCluster(clusterManagerNodeCount, randomIntBetween(2, 5));
 
         String repoName = "repo";
         String snapshotName = "snapshot";
@@ -1015,11 +1015,11 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
         final int shards = randomIntBetween(1, 5);
 
-        final TestClusterNodes.TestClusterNode masterNode = testClusterNodes.currentMaster(
+        final TestClusterNodes.TestClusterNode clusterManagerNode = testClusterNodes.currentMaster(
             testClusterNodes.nodes.values().iterator().next().clusterService.state()
         );
         final AtomicBoolean createdSnapshot = new AtomicBoolean();
-        final AdminClient masterAdminClient = masterNode.client.admin();
+        final AdminClient clusterManagerAdminClient = clusterManagerNode.client.admin();
 
         final StepListener<ClusterStateResponse> clusterStateResponseStepListener = new StepListener<>();
 
@@ -1037,15 +1037,15 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 @Override
                 public void run() {
                     final StepListener<ClusterStateResponse> updatedClusterStateResponseStepListener = new StepListener<>();
-                    masterAdminClient.cluster().state(new ClusterStateRequest(), updatedClusterStateResponseStepListener);
+                    clusterManagerAdminClient.cluster().state(new ClusterStateRequest(), updatedClusterStateResponseStepListener);
                     continueOrDie(updatedClusterStateResponseStepListener, updatedClusterState -> {
                         final ShardRouting shardRouting = updatedClusterState.getState()
                             .routingTable()
                             .shardRoutingTable(shardToRelocate.shardId())
                             .primaryShard();
                         if (shardRouting.unassigned() && shardRouting.unassignedInfo().getReason() == UnassignedInfo.Reason.NODE_LEFT) {
-                            if (masterNodeCount > 1) {
-                                scheduleNow(() -> testClusterNodes.stopNode(masterNode));
+                            if (clusterManagerNodeCount > 1) {
+                                scheduleNow(() -> testClusterNodes.stopNode(clusterManagerNode));
                             }
                             testClusterNodes.randomDataNodeSafe().client.admin()
                                 .cluster()
@@ -1109,7 +1109,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
         final int shards = randomIntBetween(1, 10);
         final int documents = randomIntBetween(2, 100);
-        TestClusterNodes.TestClusterNode masterNode = testClusterNodes.currentMaster(
+        TestClusterNodes.TestClusterNode clusterManagerNode = testClusterNodes.currentMaster(
             testClusterNodes.nodes.values().iterator().next().clusterService.state()
         );
 
@@ -1170,7 +1170,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 "Documents were restored but the restored index mapping was older than some documents and misses some of their fields",
                 (int) hitCount,
                 lessThanOrEqualTo(
-                    ((Map<?, ?>) masterNode.clusterService.state()
+                    ((Map<?, ?>) clusterManagerNode.clusterService.state()
                         .metadata()
                         .index(restoredIndex)
                         .mapping()
@@ -1185,9 +1185,9 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
         assertNotNull(createSnapshotResponseStepListener.result());
         assertNotNull(restoreSnapshotResponseStepListener.result());
-        SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
+        SnapshotsInProgress finalSnapshotsInProgress = clusterManagerNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
         assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
-        final Repository repository = masterNode.repositoriesService.repository(repoName);
+        final Repository repository = clusterManagerNode.repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
         assertThat(snapshotIds, hasSize(1));
 
@@ -1209,7 +1209,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         final int shards = randomIntBetween(1, 10);
         final int documents = randomIntBetween(1, 100);
 
-        final TestClusterNodes.TestClusterNode masterNode = testClusterNodes.currentMaster(
+        final TestClusterNodes.TestClusterNode clusterManagerNode = testClusterNodes.currentMaster(
             testClusterNodes.nodes.values().iterator().next().clusterService.state()
         );
 
@@ -1252,9 +1252,9 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         });
 
         runUntil(() -> doneIndexing.get() && doneSnapshotting.get(), TimeUnit.MINUTES.toMillis(5L));
-        SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
+        SnapshotsInProgress finalSnapshotsInProgress = clusterManagerNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
         assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
-        final Repository repository = masterNode.repositoriesService.repository(repoName);
+        final Repository repository = clusterManagerNode.repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
         assertThat(snapshotIds, hasSize(snapshotNames.size()));
 
@@ -1314,11 +1314,11 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
     }
 
     private void disconnectOrRestartMasterNode() {
-        testClusterNodes.randomClusterManagerNode().ifPresent(masterNode -> {
+        testClusterNodes.randomClusterManagerNode().ifPresent(clusterManagerNode -> {
             if (randomBoolean()) {
-                testClusterNodes.disconnectNode(masterNode);
+                testClusterNodes.disconnectNode(clusterManagerNode);
             } else {
-                masterNode.restart();
+                clusterManagerNode.restart();
             }
         });
     }

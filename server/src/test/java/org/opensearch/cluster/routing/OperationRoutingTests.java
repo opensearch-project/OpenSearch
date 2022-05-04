@@ -775,7 +775,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
             allNodes[i++] = node;
         }
         DiscoveryNode clusterManager = new DiscoveryNode(
-            "master",
+            "cluster-manager",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),

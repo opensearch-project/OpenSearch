@@ -170,7 +170,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
         });
 
         latch1.await();
-        assertTrue("cluster state update task was executed on a non-master", taskFailed[0]);
+        assertTrue("cluster state update task was executed on a non-cluster-manager", taskFailed[0]);
 
         final CountDownLatch latch2 = new CountDownLatch(1);
         nonMaster.submitStateUpdateTask("test", new LocalClusterUpdateTask() {

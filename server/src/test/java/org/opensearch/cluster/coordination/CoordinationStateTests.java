@@ -845,7 +845,7 @@ public class CoordinationStateTests extends OpenSearchTestCase {
 
         assertFalse(
             voteCollection.addVote(
-                new DiscoveryNode("master-ineligible", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT)
+                new DiscoveryNode("cluster-manager-ineligible", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT)
             )
         );
         assertTrue(voteCollection.isEmpty());

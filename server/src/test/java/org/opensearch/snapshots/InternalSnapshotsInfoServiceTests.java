@@ -310,18 +310,18 @@ public class InternalSnapshotsInfoServiceTests extends OpenSearchTestCase {
             final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
             final int nbShards = randomIntBetween(1, 5);
             applyClusterState(
-                "restore-indices-when-master-" + indexName,
+                "restore-indices-when-cluster-manager-" + indexName,
                 clusterState -> addUnassignedShards(clusterState, indexName, nbShards)
             );
         }
 
-        applyClusterState("demote-current-master", this::demoteMasterNode);
+        applyClusterState("demote-current-cluster-manager", this::demoteMasterNode);
 
         for (int i = 0; i < randomIntBetween(1, 10); i++) {
             final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
             final int nbShards = randomIntBetween(1, 5);
             applyClusterState(
-                "restore-indices-when-no-longer-master-" + indexName,
+                "restore-indices-when-no-longer-cluster-manager-" + indexName,
                 clusterState -> addUnassignedShards(clusterState, indexName, nbShards)
             );
         }

@@ -532,11 +532,11 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         // task can never be assigned while nonClusterStateCondition = false
         assertTrue(service.getPeriodicRechecker().isScheduled());
 
-        // Now simulate the node ceasing to be the master
+        // Now simulate the node ceasing to be the cluster-manager
         builder = ClusterState.builder(clusterState);
         nodes = DiscoveryNodes.builder(clusterState.nodes());
-        nodes.add(DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), "a_new_master_node"));
-        nodes.masterNodeId("a_new_master_node");
+        nodes.add(DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), "a_new_cluster_manager_node"));
+        nodes.masterNodeId("a_new_cluster_manager_node");
         ClusterState nonMasterClusterState = builder.nodes(nodes).build();
         event = new ClusterChangedEvent("test", nonMasterClusterState, clusterState);
         service.clusterChanged(event);
