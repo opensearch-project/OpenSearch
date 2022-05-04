@@ -34,6 +34,11 @@ package org.opensearch.action.index;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for indexing a document.
+ *
+ * @opensearch.internal
+ */
 public class IndexAction extends ActionType<IndexResponse> {
 
     public static final IndexAction INSTANCE = new IndexAction();

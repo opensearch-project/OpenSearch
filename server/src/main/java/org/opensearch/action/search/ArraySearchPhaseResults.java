@@ -39,6 +39,8 @@ import java.util.stream.Stream;
 
 /**
  * This class acts as a basic result collection that can be extended to do on-the-fly reduction or result processing
+ *
+ * @opensearch.internal
  */
 class ArraySearchPhaseResults<Result extends SearchPhaseResult> extends SearchPhaseResults<Result> {
     final AtomicArray<Result> results;

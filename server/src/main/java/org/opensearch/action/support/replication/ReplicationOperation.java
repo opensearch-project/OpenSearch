@@ -67,6 +67,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
 
+/**
+ * Operation for a replication request
+ *
+ * @opensearch.internal
+ */
 public class ReplicationOperation<
     Request extends ReplicationRequest<Request>,
     ReplicaRequest extends ReplicationRequest<ReplicaRequest>,

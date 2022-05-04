@@ -38,6 +38,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Transport request for main action
+ *
+ * @opensearch.internal
+ */
 public class MainRequest extends ActionRequest {
 
     public MainRequest() {}

@@ -34,6 +34,11 @@ package org.opensearch.action.support;
 
 import org.opensearch.common.CheckedConsumer;
 
+/**
+ * Creates a new future for a plain action.
+ *
+ * @opensearch.internal
+ */
 public class PlainActionFuture<T> extends AdapterActionFuture<T, T> {
 
     public static <T> PlainActionFuture<T> newFuture() {

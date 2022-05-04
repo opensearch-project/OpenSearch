@@ -39,6 +39,8 @@ import java.util.function.Supplier;
 /**
  * Restores the given {@link org.opensearch.common.util.concurrent.ThreadContext.StoredContext}
  * once the listener is invoked
+ *
+ * @opensearch.internal
  */
 public final class ContextPreservingActionListener<R> implements ActionListener<R> {
 

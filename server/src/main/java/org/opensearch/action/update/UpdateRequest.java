@@ -72,6 +72,11 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
+/**
+ * Transport request for updating an index
+ *
+ * @opensearch.internal
+ */
 public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     implements
         DocWriteRequest<UpdateRequest>,

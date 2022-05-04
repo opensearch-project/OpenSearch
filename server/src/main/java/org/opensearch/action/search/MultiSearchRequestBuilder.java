@@ -38,6 +38,8 @@ import org.opensearch.client.OpenSearchClient;
 
 /**
  * A request builder for multiple search requests.
+ *
+ * @opensearch.internal
  */
 public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchRequest, MultiSearchResponse> {
 

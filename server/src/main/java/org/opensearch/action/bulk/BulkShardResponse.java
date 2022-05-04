@@ -43,6 +43,11 @@ import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 
+/**
+ * Transport response for a bulk shard request
+ *
+ * @opensearch.internal
+ */
 public class BulkShardResponse extends ReplicationResponse implements WriteResponse {
 
     private static final Version COMPACT_SHARD_ID_VERSION = LegacyESVersion.V_7_9_0;

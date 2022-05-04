@@ -40,6 +40,11 @@ import org.opensearch.search.internal.ShardSearchContextId;
 
 import java.io.IOException;
 
+/**
+ * Id for a search context per node.
+ *
+ * @opensearch.internal
+ */
 public final class SearchContextIdForNode implements Writeable {
     private final String node;
     private final ShardSearchContextId searchContextId;

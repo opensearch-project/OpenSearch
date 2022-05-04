@@ -56,6 +56,8 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
 
 /**
  * Base class for write action responses.
+ *
+ * @opensearch.internal
  */
 public class ReplicationResponse extends ActionResponse {
 

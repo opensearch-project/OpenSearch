@@ -49,6 +49,8 @@ import java.util.function.Predicate;
 /**
  * This class provides primitives for waiting for a configured number of shards
  * to become active before sending a response on an {@link ActionListener}.
+ *
+ * @opensearch.internal
  */
 public class ActiveShardsObserver {
 

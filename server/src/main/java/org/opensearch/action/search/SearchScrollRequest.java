@@ -50,6 +50,11 @@ import java.util.Objects;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
+/**
+ * Transport request for a search scroll
+ *
+ * @opensearch.internal
+ */
 public class SearchScrollRequest extends ActionRequest implements ToXContentObject {
 
     private String scrollId;

@@ -48,6 +48,11 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Base64;
 
+/**
+ * Helper class for the search transport
+ *
+ * @opensearch.internal
+ */
 final class TransportSearchHelper {
 
     private static final String INCLUDE_CONTEXT_UUID = "include_context_uuid";

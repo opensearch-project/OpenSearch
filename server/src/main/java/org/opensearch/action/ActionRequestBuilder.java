@@ -37,6 +37,11 @@ import org.opensearch.common.unit.TimeValue;
 
 import java.util.Objects;
 
+/**
+ * Base Action Request Builder
+ *
+ * @opensearch.internal
+ */
 public abstract class ActionRequestBuilder<Request extends ActionRequest, Response extends ActionResponse> {
 
     protected final ActionType<Response> action;

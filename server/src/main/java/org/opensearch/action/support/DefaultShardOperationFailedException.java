@@ -49,6 +49,11 @@ import java.io.IOException;
 import static org.opensearch.ExceptionsHelper.detailedMessage;
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
+/**
+ * Exception for a default shard operation
+ *
+ * @opensearch.internal
+ */
 public class DefaultShardOperationFailedException extends ShardOperationFailedException implements Writeable {
 
     private static final String INDEX = "index";

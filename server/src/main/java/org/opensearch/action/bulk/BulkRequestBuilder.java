@@ -50,6 +50,8 @@ import org.opensearch.common.xcontent.XContentType;
 /**
  * A bulk request holds an ordered {@link IndexRequest}s and {@link DeleteRequest}s and allows to executes
  * it in a single batch.
+ *
+ * @opensearch.internal
  */
 public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkResponse> implements WriteRequestBuilder<BulkRequestBuilder> {
 
