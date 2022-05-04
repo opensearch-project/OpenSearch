@@ -49,6 +49,11 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 
+/**
+ * Async action for DFS Query Then Fetch
+ *
+ * @opensearch.internal
+ */
 final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSearchResult> {
 
     private final SearchPhaseController searchPhaseController;

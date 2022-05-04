@@ -61,6 +61,8 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM
 
 /**
  * Helper to parse bulk requests. This should be considered an internal class.
+ *
+ * @opensearch.internal
  */
 public final class BulkRequestParser {
 

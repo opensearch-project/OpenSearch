@@ -56,6 +56,8 @@ import java.util.Objects;
  *
  * @see GetRequest
  * @see org.opensearch.client.Client#get(GetRequest)
+ *
+ * @opensearch.internal
  */
 public class GetResponse extends ActionResponse implements Iterable<DocumentField>, ToXContentObject {
 

@@ -39,6 +39,8 @@ import org.opensearch.search.Scroll;
 
 /**
  * A search scroll action request builder.
+ *
+ * @opensearch.internal
  */
 public class SearchScrollRequestBuilder extends ActionRequestBuilder<SearchScrollRequest, SearchResponse> {
 

@@ -44,6 +44,11 @@ import org.opensearch.common.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * transport request to put a pipeline
+ *
+ * @opensearch.internal
+ */
 public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> implements ToXContentObject {
 
     private String id;

@@ -53,6 +53,8 @@ import java.util.stream.Collectors;
  * of the search request (useful especially with cross-cluster search, as each cluster has its own set of original indices) as well as
  * the cluster alias.
  * @see OriginalIndices
+ *
+ * @opensearch.internal
  */
 public final class SearchShardIterator implements Comparable<SearchShardIterator>, Countable {
 

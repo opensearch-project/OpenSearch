@@ -39,6 +39,8 @@ import java.util.stream.Stream;
 
 /**
  * This class acts as a basic result collection that can be extended to do on-the-fly reduction or result processing
+ *
+ * @opensearch.internal
  */
 abstract class SearchPhaseResults<Result extends SearchPhaseResult> {
     private final int numShards;

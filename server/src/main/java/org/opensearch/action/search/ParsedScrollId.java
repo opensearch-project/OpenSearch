@@ -34,6 +34,11 @@ package org.opensearch.action.search;
 
 import java.util.Arrays;
 
+/**
+ * Search scroll id that has been parsed
+ *
+ * @opensearch.internal
+ */
 public class ParsedScrollId {
 
     public static final String QUERY_THEN_FETCH_TYPE = "queryThenFetch";

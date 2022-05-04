@@ -56,6 +56,8 @@ import java.util.function.BiFunction;
 /**
  * This search phase merges the query results from the previous phase together and calculates the topN hits for this search.
  * Then it reaches out to all relevant shards to fetch the topN hits.
+ *
+ * @opensearch.internal
  */
 final class FetchSearchPhase extends SearchPhase {
     private final ArraySearchPhaseResults<FetchSearchResult> fetchResults;

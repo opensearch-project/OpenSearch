@@ -41,6 +41,8 @@ import java.io.IOException;
 
 /**
  * A based request for cluster-manager based operation.
+ *
+ * @opensearch.internal
  */
 public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Request>> extends ActionRequest {
 

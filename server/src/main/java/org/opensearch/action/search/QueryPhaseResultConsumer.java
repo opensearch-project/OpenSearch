@@ -66,6 +66,8 @@ import java.util.function.Consumer;
  * in the {@link CircuitBreaker#REQUEST} circuit breaker. Before any partial or final reduce, the memory
  * needed to reduce the aggregations is estimated and a {@link CircuitBreakingException} is thrown if it
  * exceeds the maximum memory allowed in this breaker.
+ *
+ * @opensearch.internal
  */
 public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult> implements Releasable {
     private static final Logger logger = LogManager.getLogger(QueryPhaseResultConsumer.class);

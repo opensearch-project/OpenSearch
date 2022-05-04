@@ -46,6 +46,8 @@ import static java.util.Objects.requireNonNull;
 
 /**
  * Task that tracks replication actions.
+ *
+ * @opensearch.internal
  */
 public class ReplicationTask extends Task {
     private volatile String phase = "starting";

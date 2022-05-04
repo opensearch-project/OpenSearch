@@ -39,7 +39,9 @@ import org.opensearch.common.io.stream.Writeable;
 import java.io.IOException;
 
 /**
- * A single multi get response.
+ * A single multi term response.
+ *
+ * @opensearch.internal
  */
 public class MultiTermVectorsItemResponse implements Writeable {
 

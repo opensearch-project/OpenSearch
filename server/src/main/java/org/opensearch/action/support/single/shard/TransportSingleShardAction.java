@@ -71,6 +71,8 @@ import static org.opensearch.action.support.TransportActions.isShardNotAvailable
  * A base class for operations that need to perform a read operation on a single shard copy. If the operation fails,
  * the read operation can be performed on other shard copies. Concrete implementations can provide their own list
  * of candidate shards to try the read operation on.
+ *
+ * @opensearch.internal
  */
 public abstract class TransportSingleShardAction<Request extends SingleShardRequest<Request>, Response extends ActionResponse> extends
     TransportAction<Request, Response> {

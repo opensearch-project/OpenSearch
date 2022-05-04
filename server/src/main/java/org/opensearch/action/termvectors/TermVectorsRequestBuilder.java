@@ -45,6 +45,8 @@ import java.util.Map;
  * <p>
  * Note, the {@code index}, {@code type} and {@code id} are
  * required.
+ *
+ * @opensearch.internal
  */
 public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsRequest, TermVectorsResponse> {
 

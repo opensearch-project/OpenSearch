@@ -42,6 +42,11 @@ import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 
+/**
+ * Base class for broadcasting shard requests
+ *
+ * @opensearch.internal
+ */
 public abstract class BroadcastShardRequest extends TransportRequest implements IndicesRequest {
 
     private ShardId shardId;

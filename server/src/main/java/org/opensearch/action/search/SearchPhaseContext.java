@@ -47,6 +47,8 @@ import java.util.concurrent.Executor;
 
 /**
  * This class provide contextual state and access to resources across multiple search phases.
+ *
+ * @opensearch.internal
  */
 interface SearchPhaseContext extends Executor {
     // TODO maybe we can make this concrete later - for now we just implement this in the base class for all initial phases

@@ -39,6 +39,11 @@ import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;
 
+/**
+ * Base class for broadcasting response
+ *
+ * @opensearch.internal
+ */
 public abstract class BroadcastShardResponse extends TransportResponse {
 
     ShardId shardId;

@@ -41,6 +41,8 @@ import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
 /**
  * A get document action request builder.
+ *
+ * @opensearch.internal
  */
 public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetRequest, GetResponse, GetRequestBuilder> {
 
