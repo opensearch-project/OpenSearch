@@ -38,19 +38,26 @@ opensearchplugin {
 }
 
 versions << [
-  'tika'  : '1.24.1',
-  'pdfbox': '2.0.24',
-  'poi'   : '4.1.2',
+  'tika'  : '2.4.0',
+  'pdfbox': '2.0.25',
+  'poi'   : '5.2.2',
   'mime4j': '0.8.3'
 ]
 
 dependencies {
   // mandatory for tika
   api "org.apache.tika:tika-core:${versions.tika}"
-  // build against Jackson 2.9.5, but still works on our current version
   api "org.apache.tika:tika-parsers:${versions.tika}"
+  // Required for the various document parsers
+  api "org.apache.tika:tika-parsers-standard-package:${versions.tika}"
+  // Required for language detection
+  api "org.apache.tika:tika-langdetect-optimaize:${versions.tika}"
+  // Optimaize libraries/dependencies
+  runtimeOnly "com.optimaize.languagedetector:language-detector:0.6"
+  runtimeOnly 'com.google.guava:guava:18.0'
+  // Other dependencies
   api 'org.tukaani:xz:1.8'
-  api 'commons-io:commons-io:2.7'
+  api 'commons-io:commons-io:2.11.0'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
 
   // character set detection
@@ -70,9 +77,9 @@ dependencies {
   // OpenOffice
   api "org.apache.poi:poi-ooxml:${versions.poi}"
   api "org.apache.poi:poi:${versions.poi}"
-  api "org.apache.poi:poi-ooxml-schemas:${versions.poi}"
+  api "org.apache.poi:poi-ooxml-lite:${versions.poi}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
-  api 'org.apache.xmlbeans:xmlbeans:3.0.1'
+  api 'org.apache.xmlbeans:xmlbeans:5.0.2'
   api 'org.apache.commons:commons-collections4:4.1'
   // MS Office
   api "org.apache.poi:poi-scratchpad:${versions.poi}"
@@ -97,6 +104,8 @@ restResources {
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /apache-mime4j-.*/, to: 'apache-mime4j'
+  mapping from: /tika-.*/, to: 'tika-parsers'
+  mapping from: /poi-ooxml-.*/, to: 'poi-ooxml'
 }
 
 forbiddenPatterns {
@@ -109,6 +118,13 @@ forbiddenPatterns {
 
 thirdPartyAudit {
   ignoreMissingClasses()
+  ignoreViolations(
+    'com.google.common.cache.Striped64',
+    'com.google.common.cache.Striped64$1',
+    'com.google.common.cache.Striped64$Cell',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1'
+  )
 }
 
 if (BuildParams.inFipsJvm) {
