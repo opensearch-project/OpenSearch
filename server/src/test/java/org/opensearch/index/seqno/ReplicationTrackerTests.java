@@ -160,7 +160,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         // now insert an unknown active/insync id , the checkpoint shouldn't change but a refresh should be requested.
         final AllocationId extraId = AllocationId.newInitializing();
 
-        // first check that adding it without the master blessing doesn't change anything.
+        // first check that adding it without the cluster-manager blessing doesn't change anything.
         updateLocalCheckpoint(tracker, extraId.getId(), minLocalCheckpointAfterUpdates + 1 + randomInt(4));
         assertNull(tracker.checkpoints.get(extraId.getId()));
         expectThrows(IllegalStateException.class, () -> tracker.initiateTracking(extraId.getId()));
@@ -421,7 +421,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             assertTrue(complete.get());
             assertTrue(tracker.getTrackedLocalCheckpointForShard(trackingAllocationId.getId()).inSync);
         } else {
-            // master changes its mind and cancels the allocation
+            // cluster-manager changes its mind and cancels the allocation
             tracker.updateFromMaster(
                 clusterStateVersion + 1,
                 Collections.singleton(inSyncAllocationId.getId()),
@@ -645,7 +645,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         assertTrue(tracker.getTrackedLocalCheckpointForShard(newSyncingAllocationId.getId()).inSync);
 
         /*
-         * The new in-sync allocation ID is in the in-sync set now yet the master does not know this; the allocation ID should still be in
+         * The new in-sync allocation ID is in the in-sync set now yet the cluster-manager does not know this; the allocation ID should still be in
          * the in-sync set even if we receive a cluster state update that does not reflect this.
          *
          */

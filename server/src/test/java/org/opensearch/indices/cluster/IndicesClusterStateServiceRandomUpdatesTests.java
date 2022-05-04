@@ -367,20 +367,20 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         Map<DiscoveryNode, IndicesClusterStateService> clusterStateServiceMap,
         Supplier<MockIndicesService> indicesServiceSupplier
     ) {
-        // randomly remove no_master blocks
+        // randomly remove no_cluster_manager blocks
         if (randomBoolean() && state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID)) {
             state = ClusterState.builder(state)
                 .blocks(ClusterBlocks.builder().blocks(state.blocks()).removeGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_ID))
                 .build();
         }
 
-        // randomly add no_master blocks
+        // randomly add no_cluster_manager blocks
         if (rarely() && state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID) == false) {
             ClusterBlock block = randomBoolean() ? NoMasterBlockService.NO_MASTER_BLOCK_ALL : NoMasterBlockService.NO_MASTER_BLOCK_WRITES;
             state = ClusterState.builder(state).blocks(ClusterBlocks.builder().blocks(state.blocks()).addGlobalBlock(block)).build();
         }
 
-        // if no_master block is in place, make no other cluster state changes
+        // if no_cluster_manager block is in place, make no other cluster state changes
         if (state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID)) {
             return state;
         }

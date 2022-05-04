@@ -186,7 +186,7 @@ public abstract class AbstractDisruptionTestCase extends OpenSearchIntegTestCase
             if (state.nodes().getMasterNode() != null) {
                 masterNode = state.nodes().getMasterNode().getName();
             }
-            logger.trace("[{}] master is [{}]", node, state.nodes().getMasterNode());
+            logger.trace("[{}] cluster-manager is [{}]", node, state.nodes().getMasterNode());
             assertThat("node [" + node + "] still has [" + masterNode + "] as master", oldMasterNode, not(equalTo(masterNode)));
         }, 30, TimeUnit.SECONDS);
     }
@@ -198,7 +198,7 @@ public abstract class AbstractDisruptionTestCase extends OpenSearchIntegTestCase
                 String failMsgSuffix = "cluster_state:\n" + state;
                 assertThat("wrong node count on [" + node + "]. " + failMsgSuffix, state.nodes().getSize(), equalTo(nodes.size()));
                 String otherMasterNodeName = state.nodes().getMasterNode() != null ? state.nodes().getMasterNode().getName() : null;
-                assertThat("wrong master on node [" + node + "]. " + failMsgSuffix, otherMasterNodeName, equalTo(masterNode));
+                assertThat("wrong cluster-manager on node [" + node + "]. " + failMsgSuffix, otherMasterNodeName, equalTo(masterNode));
             }
         });
     }

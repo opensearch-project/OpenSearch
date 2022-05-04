@@ -147,7 +147,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
                                 listener.onResponse(discoveryNode);
                                 return;
                             } else {
-                                listener.onFailure(new OpenSearchException("non-master node " + discoveryNode));
+                                listener.onFailure(new OpenSearchException("non-cluster-manager node " + discoveryNode));
                                 return;
                             }
                         }

@@ -445,7 +445,7 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
             );
             assertFalse(listener.isDone());
             if (randomBoolean()) {
-                // simulate master node removal
+                // simulate cluster-manager node removal
                 final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
                 nodesBuilder.masterNodeId(null);
                 setState(clusterService, ClusterState.builder(clusterService.state()).nodes(nodesBuilder));
@@ -457,7 +457,7 @@ public class TransportMasterNodeActionTests extends OpenSearchTestCase {
                 nodesBuilder.masterNodeId(clusterManagerNode.getId());
                 setState(clusterService, ClusterState.builder(clusterService.state()).nodes(nodesBuilder));
             } else {
-                // simulate master restart followed by a state recovery - this will reset the cluster state version
+                // simulate cluster-manager restart followed by a state recovery - this will reset the cluster state version
                 final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
                 nodesBuilder.remove(clusterManagerNode);
                 clusterManagerNode = new DiscoveryNode(

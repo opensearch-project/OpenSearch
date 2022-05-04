@@ -109,7 +109,7 @@ public class ClusterStateTests extends OpenSearchTestCase {
         assertFalse(withMaster1a.supersedes(withMaster2));
         assertFalse(withMaster1a.supersedes(noMaster1));
 
-        // state from the same master compare by version
+        // state from the same cluster-manager compare by version
         assertThat(withMaster1a.supersedes(withMaster1b), equalTo(withMaster1a.version() > withMaster1b.version()));
     }
 

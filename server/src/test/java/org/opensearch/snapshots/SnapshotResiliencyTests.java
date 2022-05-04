@@ -434,7 +434,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
             for (int i = 0; i < randomIntBetween(0, dataNodes); ++i) {
                 scheduleNow(this::disconnectOrRestartDataNode);
             }
-            // Only disconnect master if we have more than a single master and can simulate a failover
+            // Only disconnect cluster-manager if we have more than a single cluster-manager and can simulate a failover
             final boolean disconnectedMaster = randomBoolean() && masterNodes > 1;
             if (disconnectedMaster) {
                 scheduleNow(this::disconnectOrRestartMasterNode);
@@ -455,18 +455,18 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
             }
         });
 
-        runUntil(() -> testClusterNodes.randomMasterNode().map(master -> {
+        runUntil(() -> testClusterNodes.randomMasterNode().map(clusterManager -> {
             if (snapshotNeverStarted.get()) {
                 return true;
             }
-            final SnapshotsInProgress snapshotsInProgress = master.clusterService.state().custom(SnapshotsInProgress.TYPE);
+            final SnapshotsInProgress snapshotsInProgress = clusterManager.clusterService.state().custom(SnapshotsInProgress.TYPE);
             return snapshotsInProgress != null && snapshotsInProgress.entries().isEmpty();
         }).orElse(false), TimeUnit.MINUTES.toMillis(1L));
 
         clearDisruptionsAndAwaitSync();
 
         final TestClusterNodes.TestClusterNode randomMaster = testClusterNodes.randomMasterNode()
-            .orElseThrow(() -> new AssertionError("expected to find at least one active master node"));
+            .orElseThrow(() -> new AssertionError("expected to find at least one active cluster-manager node"));
         SnapshotsInProgress finalSnapshotsInProgress = randomMaster.clusterService.state()
             .custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
         assertThat(finalSnapshotsInProgress.entries(), empty());
@@ -512,8 +512,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         runUntil(
             () -> testClusterNodes.randomMasterNode()
                 .map(
-                    master -> snapshotDeleteResponded.get()
-                        && master.clusterService.state()
+                    clusterManager -> snapshotDeleteResponded.get()
+                        && clusterManager.clusterService.state()
                             .custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY)
                             .getEntries()
                             .isEmpty()
@@ -525,7 +525,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         clearDisruptionsAndAwaitSync();
 
         final TestClusterNodes.TestClusterNode randomMaster = testClusterNodes.randomMasterNode()
-            .orElseThrow(() -> new AssertionError("expected to find at least one active master node"));
+            .orElseThrow(() -> new AssertionError("expected to find at least one active cluster-manager node"));
         SnapshotsInProgress finalSnapshotsInProgress = randomMaster.clusterService.state().custom(SnapshotsInProgress.TYPE);
         assertThat(finalSnapshotsInProgress.entries(), empty());
         final Repository repository = randomMaster.repositoriesService.repository(repoName);
@@ -1002,7 +1002,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
     }
 
     /**
-     * Simulates concurrent restarts of data and master nodes as well as relocating a primary shard, while starting and subsequently
+     * Simulates concurrent restarts of data and cluster-manager nodes as well as relocating a primary shard, while starting and subsequently
      * deleting a snapshot.
      */
     public void testSnapshotPrimaryRelocations() {
@@ -1079,11 +1079,11 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
             });
         });
 
-        runUntil(() -> testClusterNodes.randomMasterNode().map(master -> {
+        runUntil(() -> testClusterNodes.randomMasterNode().map(clusterManager -> {
             if (createdSnapshot.get() == false) {
                 return false;
             }
-            return master.clusterService.state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().isEmpty();
+            return clusterManager.clusterService.state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().isEmpty();
         }).orElse(false), TimeUnit.MINUTES.toMillis(1L));
 
         clearDisruptionsAndAwaitSync();
@@ -1522,7 +1522,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         }
 
         public TestClusterNode randomMasterNodeSafe() {
-            return randomMasterNode().orElseThrow(() -> new AssertionError("Expected to find at least one connected master node"));
+            return randomMasterNode().orElseThrow(() -> new AssertionError("Expected to find at least one connected cluster-manager node"));
         }
 
         public Optional<TestClusterNode> randomMasterNode() {
@@ -1595,15 +1595,15 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         }
 
         /**
-         * Returns the {@link TestClusterNode} for the master node in the given {@link ClusterState}.
+         * Returns the {@link TestClusterNode} for the cluster-manager node in the given {@link ClusterState}.
          * @param state ClusterState
          * @return Master Node
          */
-        public TestClusterNode currentMaster(ClusterState state) {
-            TestClusterNode master = nodes.get(state.nodes().getMasterNode().getName());
-            assertNotNull(master);
-            assertTrue(master.node.isMasterNode());
-            return master;
+        public TestClusterNode currentClusterManager(ClusterState state) {
+            TestClusterNode clusterManager = nodes.get(state.nodes().getMasterNode().getName());
+            assertNotNull(clusterManager);
+            assertTrue(clusterManager.node.isMasterNode());
+            return clusterManager;
         }
 
         private final class TestClusterNode {

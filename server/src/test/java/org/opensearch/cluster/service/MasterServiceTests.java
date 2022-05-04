@@ -185,13 +185,13 @@ public class MasterServiceTests extends OpenSearchTestCase {
             }
         });
         latch2.await();
-        assertFalse("non-master cluster state update task was not executed", taskFailed[0]);
+        assertFalse("non-cluster-manager cluster state update task was not executed", taskFailed[0]);
 
         nonMaster.close();
     }
 
     public void testThreadContext() throws InterruptedException {
-        final MasterService master = createMasterService(true);
+        final MasterService clusterManager = createMasterService(true);
         final CountDownLatch latch = new CountDownLatch(1);
 
         try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
@@ -205,7 +205,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
             final TimeValue ackTimeout = randomBoolean() ? TimeValue.ZERO : TimeValue.timeValueMillis(randomInt(10000));
             final TimeValue masterTimeout = randomBoolean() ? TimeValue.ZERO : TimeValue.timeValueMillis(randomInt(10000));
 
-            master.submitStateUpdateTask("test", new AckedClusterStateUpdateTask<Void>(null, null) {
+            clusterManager.submitStateUpdateTask("test", new AckedClusterStateUpdateTask<Void>(null, null) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     assertTrue(threadPool.getThreadContext().isSystemContext());
@@ -277,7 +277,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
 
         latch.await();
 
-        master.close();
+        clusterManager.close();
     }
 
     /*
@@ -1096,7 +1096,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
     }
 
     /**
-     * Returns the cluster state that the master service uses (and that is provided by the discovery layer)
+     * Returns the cluster state that the cluster-manager service uses (and that is provided by the discovery layer)
      */
     public static ClusterState discoveryState(MasterService masterService) {
         return masterService.state();

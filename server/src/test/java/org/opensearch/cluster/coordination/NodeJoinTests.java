@@ -245,14 +245,14 @@ public class NodeJoinTests extends OpenSearchTestCase {
         return newNode(i, randomBoolean());
     }
 
-    protected DiscoveryNode newNode(int i, boolean master) {
+    protected DiscoveryNode newNode(int i, boolean clusterManager) {
         final Set<DiscoveryNodeRole> roles;
-        if (master) {
+        if (clusterManager) {
             roles = singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
         } else {
             roles = Collections.emptySet();
         }
-        final String prefix = master ? "master_" : "data_";
+        final String prefix = clusterManager ? "cluster_manager_" : "data_";
         return new DiscoveryNode(prefix + i, i + "", buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
     }
 

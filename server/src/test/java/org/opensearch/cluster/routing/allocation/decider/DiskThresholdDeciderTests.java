@@ -1072,7 +1072,7 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
 
         RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
 
-        logger.info("--> adding one master node, one data node");
+        logger.info("--> adding one cluster-manager node, one data node");
         DiscoveryNode discoveryNode1 = new DiscoveryNode(
             "",
             "node1",

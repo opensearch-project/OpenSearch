@@ -413,7 +413,7 @@ public class ShardStateActionTests extends OpenSearchTestCase {
         }
         Thread[] clientThreads = new Thread[between(1, 6)];
         int iterationsPerThread = scaledRandomIntBetween(50, 500);
-        Phaser barrier = new Phaser(clientThreads.length + 2); // one for master thread, one for the main thread
+        Phaser barrier = new Phaser(clientThreads.length + 2); // one for cluster-manager thread, one for the main thread
         Thread masterThread = new Thread(() -> {
             barrier.arriveAndAwaitAdvance();
             while (shutdown.get() == false) {

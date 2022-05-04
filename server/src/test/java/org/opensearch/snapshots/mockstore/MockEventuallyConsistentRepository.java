@@ -373,7 +373,7 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
                                         new BytesArray(data)
                                     );
                                     // If the existing snapshotInfo differs only in the timestamps it stores, then the overwrite is not
-                                    // a problem and could be the result of a correctly handled master failover.
+                                    // a problem and could be the result of a correctly handled cluster-manager failover.
                                     final SnapshotInfo existingInfo = SNAPSHOT_FORMAT.deserialize(
                                         blobName,
                                         namedXContentRegistry,

@@ -524,7 +524,7 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
         Settings settings = buildEnvSettings(Settings.EMPTY);
         Index index = new Index("test", "testUUID");
 
-        // build settings using same path.data as original but without data and master roles
+        // build settings using same path.data as original but without data and cluster-manager roles
         Settings noDataNoMasterSettings = Settings.builder()
             .put(settings)
             .put(
@@ -565,7 +565,7 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
         // assert that we get the stricter message on meta-data when both conditions fail
         verifyFailsOnMetadata(noDataNoMasterSettings, indexPath);
 
-        // build settings using same path.data as original but without master role
+        // build settings using same path.data as original but without cluster-manager role
         Settings noClusterManagerSettings = nonMasterNode(settings);
 
         // test that we can create master=false env regardless of data.
@@ -597,7 +597,7 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
     private void verifyFailsOnMetadata(Settings settings, Path indexPath) {
         IllegalStateException ex = expectThrows(
             IllegalStateException.class,
-            "Must fail creating NodeEnvironment on a data path that has index metadata if node does not have data and master roles",
+            "Must fail creating NodeEnvironment on a data path that has index metadata if node does not have data and cluster-manager roles",
             () -> newNodeEnvironment(settings).close()
         );
 

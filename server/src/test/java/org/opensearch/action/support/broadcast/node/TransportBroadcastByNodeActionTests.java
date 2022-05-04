@@ -366,11 +366,11 @@ public class TransportBroadcastByNodeActionTests extends OpenSearchTestCase {
         }
     }
 
-    // simulate the master being removed from the cluster but before a new master is elected
-    // as such, the shards assigned to the master will still show up in the cluster state as assigned to a node but
-    // that node will not be in the local cluster state on any node that has detected the master as failing
+    // simulate the cluster-manager being removed from the cluster but before a new cluster-manager is elected
+    // as such, the shards assigned to the cluster-manager will still show up in the cluster state as assigned to a node but
+    // that node will not be in the local cluster state on any node that has detected the cluster-manager as failing
     // in this case, such a shard should be treated as unassigned
-    public void testRequestsAreNotSentToFailedMaster() {
+    public void testRequestsAreNotSentToFailedClusterManager() {
         Request request = new Request(new String[] { TEST_INDEX });
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
@@ -399,7 +399,7 @@ public class TransportBroadcastByNodeActionTests extends OpenSearchTestCase {
         // check requests were sent to the right nodes
         assertEquals(set, capturedRequests.keySet());
         for (Map.Entry<String, List<CapturingTransport.CapturedRequest>> entry : capturedRequests.entrySet()) {
-            // check one request was sent to each non-master node
+            // check one request was sent to each non-cluster-manager node
             assertEquals(1, entry.getValue().size());
         }
     }

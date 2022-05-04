@@ -528,7 +528,7 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
             assertThat(tasksInProgress.tasks().size(), equalTo(1));
         }
 
-        // The rechecker should recheck indefinitely on the master node as the
+        // The rechecker should recheck indefinitely on the cluster-manager node as the
         // task can never be assigned while nonClusterStateCondition = false
         assertTrue(service.getPeriodicRechecker().isScheduled());
 
@@ -541,7 +541,7 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         event = new ClusterChangedEvent("test", nonMasterClusterState, clusterState);
         service.clusterChanged(event);
 
-        // The service should have cancelled the rechecker on learning it is no longer running on the master node
+        // The service should have cancelled the rechecker on learning it is no longer running on the cluster-manager node
         assertFalse(service.getPeriodicRechecker().isScheduled());
     }
 
@@ -796,7 +796,7 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
             }
         }
         if (randomBoolean()) {
-            // remove a node that doesn't have any tasks assigned to it and it's not the master node
+            // remove a node that doesn't have any tasks assigned to it and it's not the cluster-manager node
             for (DiscoveryNode node : clusterState.nodes()) {
                 if (hasTasksAssignedTo(tasks, node.getId()) == false && "this_node".equals(node.getId()) == false) {
                     logger.info("removed unassigned node {}", node.getId());

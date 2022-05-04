@@ -107,7 +107,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
     /**
-     * This test was added to verify that state recovery is properly reset on a node after it has become master and successfully
+     * This test was added to verify that state recovery is properly reset on a node after it has become cluster-manager and successfully
      * recovered a state (see {@link GatewayService}). The situation which triggers this with a decent likelihood is as follows:
      * 3 cluster-manager-eligible nodes (leader, follower1, follower2), the followers are shut down (leader remains), when followers come back
      * one of them becomes leader and publishes first state (with STATE_NOT_RECOVERED_BLOCK) to old leader, which accepts it.
@@ -1333,7 +1333,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.clearBlackholedConnections();
 
             cluster.stabilise(
-                // time for the disconnected node to find the master again
+                // time for the disconnected node to find the cluster-manager again
                 defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2
                     // time for joining
                     + 4 * DEFAULT_DELAY_VARIABILITY

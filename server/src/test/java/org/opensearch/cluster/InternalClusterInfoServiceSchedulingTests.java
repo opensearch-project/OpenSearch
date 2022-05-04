@@ -91,7 +91,7 @@ public class InternalClusterInfoServiceSchedulingTests extends OpenSearchTestCas
             "test",
             "masterService",
             threadPool,
-            r -> { fail("master service should not run any tasks"); }
+            r -> { fail("cluster-manager service should not run any tasks"); }
         );
 
         final ClusterService clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
@@ -109,7 +109,7 @@ public class InternalClusterInfoServiceSchedulingTests extends OpenSearchTestCas
 
         final AtomicBoolean becameMaster1 = new AtomicBoolean();
         clusterApplierService.onNewClusterState(
-            "become master 1",
+            "become cluster-manager 1",
             () -> ClusterState.builder(new ClusterName("cluster")).nodes(localMaster).build(),
             setFlagOnSuccess(becameMaster1)
         );
@@ -117,7 +117,7 @@ public class InternalClusterInfoServiceSchedulingTests extends OpenSearchTestCas
 
         final AtomicBoolean failMaster1 = new AtomicBoolean();
         clusterApplierService.onNewClusterState(
-            "fail master 1",
+            "fail cluster-manager 1",
             () -> ClusterState.builder(new ClusterName("cluster")).nodes(noMaster).build(),
             setFlagOnSuccess(failMaster1)
         );
@@ -125,7 +125,7 @@ public class InternalClusterInfoServiceSchedulingTests extends OpenSearchTestCas
 
         final AtomicBoolean becameMaster2 = new AtomicBoolean();
         clusterApplierService.onNewClusterState(
-            "become master 2",
+            "become cluster-manager 2",
             () -> ClusterState.builder(new ClusterName("cluster")).nodes(localMaster).build(),
             setFlagOnSuccess(becameMaster2)
         );
@@ -141,7 +141,7 @@ public class InternalClusterInfoServiceSchedulingTests extends OpenSearchTestCas
 
         final AtomicBoolean failMaster2 = new AtomicBoolean();
         clusterApplierService.onNewClusterState(
-            "fail master 2",
+            "fail cluster-manager 2",
             () -> ClusterState.builder(new ClusterName("cluster")).nodes(noMaster).build(),
             setFlagOnSuccess(failMaster2)
         );
