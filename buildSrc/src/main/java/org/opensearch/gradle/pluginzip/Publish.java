@@ -14,6 +14,7 @@ import org.gradle.api.publish.PublishingExtension;
 import org.gradle.api.publish.maven.MavenPublication;
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin;
 import java.nio.file.Path;
+import org.gradle.api.Task;
 
 public class Publish implements Plugin<Project> {
     private Project project;
@@ -63,12 +64,19 @@ public class Publish implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         this.project = project;
-        project.afterEvaluate(evaluatedProject -> { configMaven(project); });
-        project.getGradle().getTaskGraph().whenReady(graph -> {
-            if (graph.hasTask(LOCALMAVEN)) {
-                project.getTasks().getByName(PLUGIN_ZIP_PUBLISH_POM_TASK).setEnabled(false);
+        project.afterEvaluate(evaluatedProject -> {
+            configMaven(project);
+            Task validatePluginZipPom = project.getTasks().findByName("validatePluginZipPom");
+            if (validatePluginZipPom != null) {
+                project.getTasks().getByName("validatePluginZipPom").dependsOn("generatePomFileForNebulaPublication");
             }
-
+            Task publishPluginZipPublicationToZipStagingRepository = project.getTasks()
+                .findByName("publishPluginZipPublicationToZipStagingRepository");
+            if (validatePluginZipPom != null) {
+                project.getTasks()
+                    .getByName("publishPluginZipPublicationToZipStagingRepository")
+                    .dependsOn("generatePomFileForNebulaPublication");
+            }
         });
     }
 }
