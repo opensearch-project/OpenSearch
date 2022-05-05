@@ -53,6 +53,8 @@ import java.util.Locale;
 
 /**
  * Keeps track of state related to shard recovery.
+ *
+ * @opensearch.internal
  */
 public class RecoveryState implements ToXContentFragment, Writeable {
 

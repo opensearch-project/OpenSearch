@@ -72,6 +72,8 @@ import java.util.function.Predicate;
  * A query that selects all docs that do NOT belong in the current shards this query is executed on.
  * It can be used to split a shard into N shards marking every document that doesn't belong into the shard
  * as deleted. See {@link org.apache.lucene.index.IndexWriter#deleteDocuments(Query...)}
+ *
+ * @opensearch.internal
  */
 final class ShardSplittingQuery extends Query {
     private final IndexMetadata indexMetadata;

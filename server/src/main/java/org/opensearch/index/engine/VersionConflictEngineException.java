@@ -38,6 +38,11 @@ import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown if there is a version conflict
+ *
+ * @opensearch.internal
+ */
 public class VersionConflictEngineException extends EngineException {
 
     public VersionConflictEngineException(ShardId shardId, Engine.Operation op, long currentVersion, boolean deleted) {

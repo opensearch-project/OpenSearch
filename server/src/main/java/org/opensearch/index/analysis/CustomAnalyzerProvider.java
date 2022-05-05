@@ -44,6 +44,8 @@ import static org.opensearch.index.analysis.AnalyzerComponents.createComponents;
 /**
  * A custom analyzer that is built out of a single {@link org.apache.lucene.analysis.Tokenizer} and a list
  * of {@link org.apache.lucene.analysis.TokenFilter}s.
+ *
+ * @opensearch.internal
  */
 public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer> {
 

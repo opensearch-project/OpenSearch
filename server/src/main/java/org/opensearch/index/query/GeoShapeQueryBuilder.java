@@ -57,6 +57,8 @@ import java.util.function.Supplier;
  * can be applied to any {@link MappedFieldType} that implements {@link GeoShapeQueryable}.
  *
  * GeoJson and WKT shape definitions are supported
+ *
+ * @opensearch.internal
  */
 public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQueryBuilder> {
     public static final String NAME = "geo_shape";

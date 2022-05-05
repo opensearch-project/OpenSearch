@@ -48,6 +48,11 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
 
+/**
+ * Shard level search stats
+ *
+ * @opensearch.internal
+ */
 public final class ShardSearchStats implements SearchOperationListener {
 
     private final StatsHolder totalStats = new StatsHolder();

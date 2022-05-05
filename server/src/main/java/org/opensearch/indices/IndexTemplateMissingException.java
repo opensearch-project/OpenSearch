@@ -38,6 +38,11 @@ import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown if an index template is missing
+ *
+ * @opensearch.internal
+ */
 public class IndexTemplateMissingException extends OpenSearchException {
 
     private final String name;

@@ -64,6 +64,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.ToLongBiFunction;
 
+/**
+ * The field data cache for multiple indices
+ *
+ * @opensearch.internal
+ */
 public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCache.Key, Accountable>, Releasable {
 
     private static final Logger logger = LogManager.getLogger(IndicesFieldDataCache.class);

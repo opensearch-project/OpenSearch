@@ -75,6 +75,14 @@ import java.util.List;
 
 import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
+/**
+ * Query Processor for Legacy Geo Shape types (prefix trees)
+ *
+ * @opensearch.internal
+ *
+ * @deprecated this will be removed in a future release
+ */
+@Deprecated
 public class LegacyGeoShapeQueryProcessor {
 
     private AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType ft;

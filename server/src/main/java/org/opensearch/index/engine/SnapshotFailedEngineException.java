@@ -36,6 +36,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown if snapshot fails the engine
+ *
+ * @opensearch.internal
+ */
 public class SnapshotFailedEngineException extends EngineException {
 
     public SnapshotFailedEngineException(StreamInput in) throws IOException {

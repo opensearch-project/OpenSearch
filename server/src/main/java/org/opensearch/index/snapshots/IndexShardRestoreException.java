@@ -40,6 +40,8 @@ import java.io.IOException;
 
 /**
  * Generic shard restore exception
+ *
+ * @opensearch.internal
  */
 public class IndexShardRestoreException extends OpenSearchException {
     public IndexShardRestoreException(ShardId shardId, String msg) {

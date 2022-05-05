@@ -44,6 +44,11 @@ import java.io.IOException;
 import java.text.ParseException;
 import java.util.Objects;
 
+/**
+ * Metadata for the store file
+ *
+ * @opensearch.internal
+ */
 public class StoreFileMetadata implements Writeable {
 
     private final String name;

@@ -38,7 +38,11 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 
-/** Normalizer used to lowercase values */
+/**
+ * Normalizer used to lowercase values
+ *
+ * @opensearch.internal
+ */
 public final class LowercaseNormalizer extends Analyzer {
 
     @Override

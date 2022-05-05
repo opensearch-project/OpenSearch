@@ -39,6 +39,8 @@ import java.io.IOException;
  * <p>
  * This can be used if you want to have one multi-valued implementation
  * that works for single or multi-valued types.
+ *
+ * @opensearch.internal
  */
 final class SingletonSortedNumericDoubleValues extends SortedNumericDoubleValues {
     private final NumericDoubleValues in;

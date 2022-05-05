@@ -62,6 +62,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Query builder for terms_set queries
+ *
+ * @opensearch.internal
+ */
 public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQueryBuilder> {
 
     public static final String NAME = "terms_set";

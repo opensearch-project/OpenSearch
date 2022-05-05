@@ -72,6 +72,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
 
+/**
+ * Foundation builder for a decay function
+ *
+ * @opensearch.internal
+ */
 public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>> extends ScoreFunctionBuilder<DFB> {
 
     protected static final String ORIGIN = "origin";

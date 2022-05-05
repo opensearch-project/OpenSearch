@@ -40,6 +40,11 @@ import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 
+/**
+ * Transport request for recovery
+ *
+ * @opensearch.internal
+ */
 public abstract class RecoveryTransportRequest extends TransportRequest {
 
     private final long requestSeqNo;

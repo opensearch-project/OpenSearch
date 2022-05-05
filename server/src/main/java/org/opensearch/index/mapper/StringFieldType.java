@@ -59,7 +59,10 @@ import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 /** Base class for {@link MappedFieldType} implementations that use the same
  * representation for internal index terms as the external representation so
  * that partial matching queries such as prefix, wildcard and fuzzy queries
- * can be implemented. */
+ * can be implemented.
+ *
+ * @opensearch.internal
+ */
 public abstract class StringFieldType extends TermBasedFieldType {
 
     private static final Pattern WILDCARD_PATTERN = Pattern.compile("(\\\\.)|([?*]+)");

@@ -45,6 +45,11 @@ import org.opensearch.index.mapper.MapperService;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Tracks indexing statistics
+ *
+ * @opensearch.internal
+ */
 public class IndexingStats implements Writeable, ToXContentFragment {
 
     public static class Stats implements Writeable, ToXContentFragment {

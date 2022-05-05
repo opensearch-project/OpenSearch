@@ -61,6 +61,8 @@ import java.util.function.Supplier;
 
 /**
  * A field mapper for keywords. This mapper accepts strings and indexes them as-is.
+ *
+ * @opensearch.internal
  */
 public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 

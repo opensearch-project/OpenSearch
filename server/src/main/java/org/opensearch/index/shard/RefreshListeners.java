@@ -56,6 +56,8 @@ import static java.util.Objects.requireNonNull;
  * {@link IndexShard} but kept here so it can be tested without standing up the entire thing.
  *
  * When {@link Closeable#close()}d it will no longer accept listeners and flush any existing listeners.
+ *
+ * @opensearch.internal
  */
 public final class RefreshListeners implements ReferenceManager.RefreshListener, Closeable {
     private final IntSupplier getMaxRefreshListeners;

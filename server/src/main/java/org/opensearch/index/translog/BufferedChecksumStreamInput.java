@@ -43,6 +43,8 @@ import java.util.zip.Checksum;
 /**
  * Similar to Lucene's BufferedChecksumIndexInput, however this wraps a
  * {@link StreamInput} so anything read will update the checksum
+ *
+ * @opensearch.internal
  */
 public final class BufferedChecksumStreamInput extends FilterStreamInput {
     private static final int SKIP_BUFFER_SIZE = 1024;

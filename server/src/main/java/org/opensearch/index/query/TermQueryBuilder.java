@@ -50,6 +50,8 @@ import java.util.Objects;
 
 /**
  * A Query that matches documents containing a term.
+ *
+ * @opensearch.internal
  */
 public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
     public static final String NAME = "term";

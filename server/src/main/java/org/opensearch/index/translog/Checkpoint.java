@@ -54,6 +54,11 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 
+/**
+ * A checkpoint for OpenSearch operations
+ *
+ * @opensearch.internal
+ */
 final class Checkpoint {
 
     final long offset;

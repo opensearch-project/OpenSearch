@@ -22,6 +22,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Field mapper for a datastream field
+ *
+ * @opensearch.internal
+ */
 public class DataStreamFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_data_stream_timestamp";

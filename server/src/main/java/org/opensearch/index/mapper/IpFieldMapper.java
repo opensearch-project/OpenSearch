@@ -63,7 +63,11 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
-/** A {@link FieldMapper} for ip addresses. */
+/**
+ * A {@link FieldMapper} for ip addresses.
+ *
+ * @opensearch.internal
+ */
 public class IpFieldMapper extends ParametrizedFieldMapper {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IpFieldMapper.class);

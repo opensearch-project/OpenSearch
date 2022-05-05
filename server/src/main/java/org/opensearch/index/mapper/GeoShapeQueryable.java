@@ -41,6 +41,8 @@ import org.opensearch.index.query.QueryShardContext;
 /**
  * Implemented by {@link org.opensearch.index.mapper.MappedFieldType} that support
  * GeoShape queries.
+ *
+ * @opensearch.internal
  */
 public interface GeoShapeQueryable {
 

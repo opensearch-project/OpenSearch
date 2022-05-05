@@ -18,6 +18,8 @@ import java.io.IOException;
 /**
  * A serializable timer that is used to measure the time taken for
  * file replication operations like recovery.
+ *
+ * @opensearch.internal
  */
 public class ReplicationTimer implements Writeable {
     private long startTime = 0;

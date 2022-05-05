@@ -38,6 +38,11 @@ import org.opensearch.common.io.stream.StreamInput;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Exception thrown when a retention lease is not found
+ *
+ * @opensearch.internal
+ */
 public class RetentionLeaseNotFoundException extends ResourceNotFoundException {
 
     public RetentionLeaseNotFoundException(final String id) {

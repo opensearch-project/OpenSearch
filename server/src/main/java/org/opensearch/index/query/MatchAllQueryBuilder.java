@@ -45,6 +45,8 @@ import java.io.IOException;
 
 /**
  * A query that matches on all documents.
+ *
+ * @opensearch.internal
  */
 public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuilder> {
     public static final String NAME = "match_all";

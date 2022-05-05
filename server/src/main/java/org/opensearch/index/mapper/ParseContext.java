@@ -49,6 +49,11 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * Holds the context at parse time
+ *
+ * @opensearch.internal
+ */
 public abstract class ParseContext implements Iterable<ParseContext.Document> {
 
     /** Fork of {@link org.apache.lucene.document.Document} with additional functionality. */

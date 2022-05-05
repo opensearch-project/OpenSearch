@@ -38,6 +38,8 @@ import java.util.List;
 
 /**
  * This exception can be used to indicate various reasons why validation of a query has failed.
+ *
+ * @opensearch.internal
  */
 public class QueryValidationException extends ValidationException {
 

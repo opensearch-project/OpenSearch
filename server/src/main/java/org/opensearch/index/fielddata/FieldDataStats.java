@@ -44,6 +44,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Encapsulates heap usage for field data
+ *
+ * @opensearch.internal
+ */
 public class FieldDataStats implements Writeable, ToXContentFragment {
 
     private static final String FIELDDATA = "fielddata";

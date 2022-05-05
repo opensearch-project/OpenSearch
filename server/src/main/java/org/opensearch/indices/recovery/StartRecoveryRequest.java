@@ -44,6 +44,8 @@ import java.io.IOException;
 
 /**
  * Represents a request for starting a peer recovery.
+ *
+ * @opensearch.internal
  */
 public class StartRecoveryRequest extends TransportRequest {
 

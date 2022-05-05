@@ -37,6 +37,11 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 
+/**
+ * Provider class for the simple analyzer
+ *
+ * @opensearch.internal
+ */
 public class SimpleAnalyzerProvider extends AbstractIndexAnalyzerProvider<SimpleAnalyzer> {
 
     private final SimpleAnalyzer simpleAnalyzer;

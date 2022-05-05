@@ -42,6 +42,11 @@ import org.opensearch.index.store.StoreFileMetadata;
 
 import java.io.IOException;
 
+/**
+ * Request for a recovery file chunk
+ *
+ * @opensearch.internal
+ */
 public final class RecoveryFileChunkRequest extends RecoveryTransportRequest {
     private final boolean lastChunk;
     private final long recoveryId;

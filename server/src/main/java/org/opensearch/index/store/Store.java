@@ -140,6 +140,8 @@ import static java.util.Collections.unmodifiableMap;
  *          store.decRef();
  *      }
  * </pre>
+ *
+ * @opensearch.internal
  */
 public class Store extends AbstractIndexShardComponent implements Closeable, RefCounted {
     /**

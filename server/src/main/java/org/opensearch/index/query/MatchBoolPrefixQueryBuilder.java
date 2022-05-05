@@ -58,6 +58,8 @@ import static org.opensearch.index.query.MatchQueryBuilder.PREFIX_LENGTH_FIELD;
 /**
  * The boolean prefix query analyzes the input text and creates a boolean query containing a Term query for each term, except
  * for the last term, which is used to create a prefix query
+ *
+ * @opensearch.internal
  */
 public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolPrefixQueryBuilder> {
 

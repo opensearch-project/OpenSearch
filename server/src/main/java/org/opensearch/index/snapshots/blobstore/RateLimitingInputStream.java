@@ -41,6 +41,8 @@ import java.util.function.Supplier;
 
 /**
  * Rate limiting wrapper for InputStream
+ *
+ * @opensearch.internal
  */
 public class RateLimitingInputStream extends FilterInputStream {
 

@@ -41,6 +41,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Encapsulates statistics for flush
+ *
+ * @opensearch.internal
+ */
 public class FlushStats implements Writeable, ToXContentFragment {
 
     private long total;

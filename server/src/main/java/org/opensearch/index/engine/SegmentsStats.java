@@ -44,6 +44,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Tracker for segment stats
+ *
+ * @opensearch.internal
+ */
 public class SegmentsStats implements Writeable, ToXContentFragment {
 
     private long count;

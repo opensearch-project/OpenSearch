@@ -44,6 +44,8 @@ import java.io.IOException;
 
 /**
  * A query that matches no document.
+ *
+ * @opensearch.internal
  */
 public class MatchNoneQueryBuilder extends AbstractQueryBuilder<MatchNoneQueryBuilder> {
     public static final String NAME = "match_none";
