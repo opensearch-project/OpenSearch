@@ -406,6 +406,53 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.checkpointRefreshListener = new CheckpointRefreshListener(this, checkpointPublisher);
     }
 
+    public IndexShard(
+        final ShardRouting shardRouting,
+        final IndexSettings indexSettings,
+        final ShardPath path,
+        final Store store,
+        final Supplier<Sort> indexSortSupplier,
+        final IndexCache indexCache,
+        final MapperService mapperService,
+        final SimilarityService similarityService,
+        final EngineFactory engineFactory,
+        final EngineConfigFactory engineConfigFactory,
+        final IndexEventListener indexEventListener,
+        final CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
+        final ThreadPool threadPool,
+        final BigArrays bigArrays,
+        final Engine.Warmer warmer,
+        final List<SearchOperationListener> searchOperationListener,
+        final List<IndexingOperationListener> listeners,
+        final Runnable globalCheckpointSyncer,
+        final RetentionLeaseSyncer retentionLeaseSyncer,
+        final CircuitBreakerService circuitBreakerService
+    ) throws IOException {
+        this(
+            shardRouting,
+            indexSettings,
+            path,
+            store,
+            indexSortSupplier,
+            indexCache,
+            mapperService,
+            similarityService,
+            engineFactory,
+            engineConfigFactory,
+            indexEventListener,
+            indexReaderWrapper,
+            threadPool,
+            bigArrays,
+            warmer,
+            searchOperationListener,
+            listeners,
+            globalCheckpointSyncer,
+            retentionLeaseSyncer,
+            circuitBreakerService,
+            null
+        );
+    }
+
     public ThreadPool getThreadPool() {
         return this.threadPool;
     }
@@ -1365,13 +1412,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public ReplicationCheckpoint getLatestReplicationCheckpoint() {
-        return new ReplicationCheckpoint(shardId,0,0,0,0);
+        return new ReplicationCheckpoint(shardId, 0, 0, 0, 0);
     }
 
-    public synchronized void onNewCheckpoint(
-        final PublishCheckpointRequest request
-    ) {
-        //TODO
+    public synchronized void onNewCheckpoint(final PublishCheckpointRequest request) {
+        // TODO
     }
 
     /**
@@ -3135,7 +3180,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             translogConfig,
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
             Arrays.asList(refreshListeners, refreshPendingLocationListener),
-            Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
+            internalRefreshListener,
             indexSort,
             circuitBreakerService,
             globalCheckpointSupplier,

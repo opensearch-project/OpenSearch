@@ -82,7 +82,6 @@ public class PublishCheckpointAction extends TransportReplicationAction<
     }
 
     final void publish(IndexShard indexShard) {
-        System.out.println(indexShard.routingEntry());
         String primaryAllocationId = indexShard.routingEntry().allocationId().getId();
         long primaryTerm = indexShard.getPendingPrimaryTerm();
         final ThreadContext threadContext = threadPool.getThreadContext();

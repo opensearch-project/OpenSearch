@@ -9,7 +9,6 @@
 package org.opensearch.indices.replication.checkpoint;
 
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.action.support.PlainActionFuture;
@@ -32,7 +31,6 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.util.Collections;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.sameInstance;
@@ -76,7 +74,7 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
         super.tearDown();
     }
 
-    public void testPublishCheckpointActionOnPrimary() throws InterruptedException{
+    public void testPublishCheckpointActionOnPrimary() throws InterruptedException {
         final IndicesService indicesService = mock(IndicesService.class);
 
         final Index index = new Index("index", "uuid");
@@ -106,12 +104,10 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
 
         final PublishCheckpointRequest request = new PublishCheckpointRequest(checkpoint);
 
-        final CountDownLatch latch = new CountDownLatch(1);
-        action.shardOperationOnPrimary(request, indexShard, new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {
-            // we should forward the request containing the current retention leases to the replica
+        action.shardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
+            // we should forward the request containing the current publish checkpoint to the replica
             assertThat(result.replicaRequest(), sameInstance(request));
-        }), latch));
-        latch.await();
+        }));
 
     }
 
@@ -131,7 +127,6 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
 
         final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, clusterService.getClusterSettings());
 
-
         final PublishCheckpointAction action = new PublishCheckpointAction(
             Settings.EMPTY,
             transportService,
@@ -150,10 +145,14 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
         action.shardOperationOnReplica(request, indexShard, listener);
         final TransportReplicationAction.ReplicaResult result = listener.actionGet();
 
+        // onNewCheckpoint should be called on shard with checkpoint request
+        verify(indexShard).onNewCheckpoint(request);
+
         // the result should indicate success
         final AtomicBoolean success = new AtomicBoolean();
         result.runPostReplicaActions(ActionListener.wrap(r -> success.set(true), e -> fail(e.toString())));
         assertTrue(success.get());
 
     }
+
 }
