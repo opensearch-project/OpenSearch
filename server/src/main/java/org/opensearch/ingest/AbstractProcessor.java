@@ -35,6 +35,8 @@ package org.opensearch.ingest;
 /**
  * An Abstract Processor that holds tag and description information
  * about the processor.
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractProcessor implements Processor {
     protected final String tag;

@@ -34,6 +34,11 @@ package org.opensearch.gateway;
 
 import org.opensearch.common.inject.AbstractModule;
 
+/**
+ * Binds the gateway module
+ *
+ * @opensearch.internal
+ */
 public class GatewayModule extends AbstractModule {
 
     @Override

@@ -36,6 +36,8 @@ import org.opensearch.OpenSearchCorruptionException;
 /**
  * This exception is thrown when OpenSearch detects
  * an inconsistency in one of it's persistent states.
+ *
+ * @opensearch.internal
  */
 public class CorruptStateException extends OpenSearchCorruptionException {
 

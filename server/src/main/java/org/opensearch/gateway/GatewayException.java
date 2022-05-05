@@ -37,6 +37,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Base Exception for the gateway
+ *
+ * @opensearch.internal
+ */
 public class GatewayException extends OpenSearchException {
 
     public GatewayException(StreamInput in) throws IOException {
