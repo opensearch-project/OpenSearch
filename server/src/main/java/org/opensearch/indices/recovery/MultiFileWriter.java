@@ -44,6 +44,7 @@ import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.transport.Transports;
 
 import java.io.IOException;
@@ -63,7 +64,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class MultiFileWriter extends AbstractRefCounted implements Releasable {
 
-    public MultiFileWriter(Store store, RecoveryState.Index indexState, String tempFilePrefix, Logger logger, Runnable ensureOpen) {
+    public MultiFileWriter(Store store, ReplicationLuceneIndex indexState, String tempFilePrefix, Logger logger, Runnable ensureOpen) {
         super("multi_file_writer");
         this.store = store;
         this.indexState = indexState;
@@ -76,7 +77,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Logger logger;
     private final Store store;
-    private final RecoveryState.Index indexState;
+    private final ReplicationLuceneIndex indexState;
     private final String tempFilePrefix;
 
     private final ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();

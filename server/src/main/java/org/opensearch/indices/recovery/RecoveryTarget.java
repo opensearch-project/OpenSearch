@@ -60,6 +60,7 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -425,7 +426,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         ActionListener.completeWith(listener, () -> {
             indexShard.resetRecoveryStage();
             indexShard.prepareForIndexRecovery();
-            final RecoveryState.Index index = state().getIndex();
+            final ReplicationLuceneIndex index = state().getIndex();
             for (int i = 0; i < phase1ExistingFileNames.size(); i++) {
                 index.addFileDetail(phase1ExistingFileNames.get(i), phase1ExistingFileSizes.get(i), true);
             }

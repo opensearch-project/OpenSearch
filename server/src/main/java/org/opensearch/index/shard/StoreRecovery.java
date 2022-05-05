@@ -62,6 +62,7 @@ import org.opensearch.index.snapshots.IndexShardRestoreFailedException;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.Repository;
 
@@ -178,7 +179,7 @@ final class StoreRecovery {
     }
 
     void addIndices(
-        final RecoveryState.Index indexRecoveryStats,
+        final ReplicationLuceneIndex indexRecoveryStats,
         final Directory target,
         final Sort indexSort,
         final Directory[] sources,
@@ -235,9 +236,9 @@ final class StoreRecovery {
      * @opensearch.internal
      */
     static final class StatsDirectoryWrapper extends FilterDirectory {
-        private final RecoveryState.Index index;
+        private final ReplicationLuceneIndex index;
 
-        StatsDirectoryWrapper(Directory in, RecoveryState.Index indexRecoveryStats) {
+        StatsDirectoryWrapper(Directory in, ReplicationLuceneIndex indexRecoveryStats) {
             super(in);
             this.index = indexRecoveryStats;
         }
@@ -358,7 +359,7 @@ final class StoreRecovery {
                     + "]";
 
                 if (logger.isTraceEnabled()) {
-                    RecoveryState.Index index = recoveryState.getIndex();
+                    ReplicationLuceneIndex index = recoveryState.getIndex();
                     StringBuilder sb = new StringBuilder();
                     sb.append("    index    : files           [")
                         .append(index.totalFileCount())
@@ -475,7 +476,7 @@ final class StoreRecovery {
                     writeEmptyRetentionLeasesFile(indexShard);
                 }
                 // since we recover from local, just fill the files and size
-                final RecoveryState.Index index = recoveryState.getIndex();
+                final ReplicationLuceneIndex index = recoveryState.getIndex();
                 try {
                     if (si != null) {
                         addRecoveredFileDetails(si, store, index);
@@ -513,7 +514,7 @@ final class StoreRecovery {
         assert indexShard.loadRetentionLeases().leases().isEmpty();
     }
 
-    private void addRecoveredFileDetails(SegmentInfos si, Store store, RecoveryState.Index index) throws IOException {
+    private void addRecoveredFileDetails(SegmentInfos si, Store store, ReplicationLuceneIndex index) throws IOException {
         final Directory directory = store.directory();
         for (String name : Lucene.files(si)) {
             long length = directory.fileLength(name);
