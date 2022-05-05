@@ -133,6 +133,7 @@ import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
+import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
@@ -3139,7 +3140,7 @@ public class IndexShardTests extends IndexShardTestCase {
             RecoveryState recoveryState = targetShard.recoveryState();
             assertEquals(RecoveryState.Stage.DONE, recoveryState.getStage());
             assertTrue(recoveryState.getIndex().fileDetails().size() > 0);
-            for (RecoveryState.FileDetail file : recoveryState.getIndex().fileDetails()) {
+            for (ReplicationLuceneIndex.FileMetadata file : recoveryState.getIndex().fileDetails()) {
                 if (file.reused()) {
                     assertEquals(file.recovered(), 0);
                 } else {
