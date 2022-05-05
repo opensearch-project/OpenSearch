@@ -68,14 +68,14 @@ public class Publish implements Plugin<Project> {
             configMaven(project);
             Task validatePluginZipPom = project.getTasks().findByName("validatePluginZipPom");
             if (validatePluginZipPom != null) {
-                project.getTasks().getByName("validatePluginZipPom").mustRunAfter("generatePomFileForNebulaPublication");
+                project.getTasks().getByName("validatePluginZipPom").dependsOn("generatePomFileForNebulaPublication");
             }
             Task publishPluginZipPublicationToZipStagingRepository = project.getTasks()
                 .findByName("publishPluginZipPublicationToZipStagingRepository");
             if (validatePluginZipPom != null) {
                 project.getTasks()
                     .getByName("publishPluginZipPublicationToZipStagingRepository")
-                    .mustRunAfter("generatePomFileForNebulaPublication");
+                    .dependsOn("generatePomFileForNebulaPublication");
             }
         });
     }
