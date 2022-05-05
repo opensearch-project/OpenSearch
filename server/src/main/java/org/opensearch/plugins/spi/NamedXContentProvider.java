@@ -38,6 +38,8 @@ import java.util.List;
 
 /**
  * Provides named XContent parsers.
+ *
+ * @opensearch.api
  */
 public interface NamedXContentProvider {
 

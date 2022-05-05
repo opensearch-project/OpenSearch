@@ -69,6 +69,8 @@ import java.util.function.Function;
 /**
  * Base class for transport actions that modify data in some shard like index, delete, and shardBulk.
  * Allows performing async actions (e.g. refresh) after performing write operations on primary and replica shards
+ *
+ * @opensearch.internal
  */
 public abstract class TransportWriteAction<
     Request extends ReplicatedWriteRequest<Request>,

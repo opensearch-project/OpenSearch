@@ -67,6 +67,8 @@ import java.util.Objects;
  * nodes and a node could be removed from the cluster for a period of time, the
  * tombstones remain in the cluster state for a fixed period of time, after which
  * they are purged.
+ *
+ * @opensearch.internal
  */
 public final class IndexGraveyard implements Metadata.Custom {
 

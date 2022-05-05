@@ -47,6 +47,11 @@ import java.util.List;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
+/**
+ * Transport request for clearing a search scroll
+ *
+ * @opensearch.internal
+ */
 public class ClearScrollRequest extends ActionRequest implements ToXContentObject {
 
     private List<String> scrollIds;

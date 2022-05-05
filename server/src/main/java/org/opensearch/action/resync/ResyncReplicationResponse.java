@@ -37,6 +37,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Transport response for resyncing replication
+ *
+ * @opensearch.internal
+ */
 public final class ResyncReplicationResponse extends ReplicationResponse implements WriteResponse {
 
     public ResyncReplicationResponse() {}

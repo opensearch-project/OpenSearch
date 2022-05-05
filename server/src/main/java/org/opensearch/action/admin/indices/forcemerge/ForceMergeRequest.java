@@ -54,6 +54,8 @@ import java.util.Arrays;
  * @see org.opensearch.client.Requests#forceMergeRequest(String...)
  * @see org.opensearch.client.IndicesAdminClient#forceMerge(ForceMergeRequest)
  * @see ForceMergeResponse
+ *
+ * @opensearch.internal
  */
 public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
 

@@ -40,6 +40,8 @@ import java.io.IOException;
 
 /**
  * A request to get cluster level stats.
+ *
+ * @opensearch.internal
  */
 public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
 

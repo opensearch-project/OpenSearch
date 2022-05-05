@@ -88,6 +88,8 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * @see IndexResponse
  * @see org.opensearch.client.Requests#indexRequest(String)
  * @see org.opensearch.client.Client#index(IndexRequest)
+ *
+ * @opensearch.internal
  */
 public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implements DocWriteRequest<IndexRequest>, CompositeIndicesRequest {
 

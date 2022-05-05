@@ -54,6 +54,11 @@ import java.util.function.BiFunction;
 
 import static java.util.Collections.unmodifiableMap;
 
+/**
+ * Service to monitor garbage collection
+ *
+ * @opensearch.internal
+ */
 public class JvmGcMonitorService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(JvmGcMonitorService.class);
 

@@ -43,6 +43,12 @@ import org.opensearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Transport Request for handling simulating an index template either by name (looking it up in the
+ * cluster state), or by a provided template configuration
+ *
+ * @opensearch.internal
+ */
 public class SimulateIndexTemplateRequest extends MasterNodeReadRequest<SimulateIndexTemplateRequest> {
 
     private String indexName;

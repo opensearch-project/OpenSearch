@@ -355,7 +355,7 @@ tasks.register('buildDeb', Deb) {
 }
 
 tasks.register('buildNoJdkDeb', Deb) {
-  configure(commonDebConfig(true, 'x64'))
+  configure(commonDebConfig(false, 'x64'))
 }
 
 Closure commonRpmConfig(boolean jdk, String architecture) {

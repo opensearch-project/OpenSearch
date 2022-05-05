@@ -50,6 +50,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Script cache and compilation rate limiter.
+ *
+ * @opensearch.internal
  */
 public class ScriptCache {
 

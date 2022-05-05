@@ -42,6 +42,8 @@ import java.io.IOException;
 /**
  * Condition for maximum index docs. Evaluates to <code>true</code>
  * when the index has at least {@link #value} docs
+ *
+ * @opensearch.internal
  */
 public class MaxDocsCondition extends Condition<Long> {
     public static final String NAME = "max_docs";

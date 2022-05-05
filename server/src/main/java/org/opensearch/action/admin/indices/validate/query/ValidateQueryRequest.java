@@ -52,6 +52,8 @@ import java.util.Arrays;
  * A request to validate a specific query.
  * <p>
  * The request requires the query to be set using {@link #query(QueryBuilder)}
+ *
+ * @opensearch.internal
  */
 public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest> implements ToXContentObject {
 

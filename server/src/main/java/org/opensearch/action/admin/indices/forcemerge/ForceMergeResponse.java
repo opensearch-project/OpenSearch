@@ -44,6 +44,8 @@ import java.util.List;
 
 /**
  * A response for force merge action.
+ *
+ * @opensearch.internal
  */
 public class ForceMergeResponse extends BroadcastResponse {
 

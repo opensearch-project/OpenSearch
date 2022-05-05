@@ -93,6 +93,8 @@ import java.util.Map;
  * A client can be retrieved from a started {@link org.opensearch.node.Node}.
  *
  * @see org.opensearch.node.Node#client()
+ *
+ * @opensearch.internal
  */
 public interface Client extends OpenSearchClient, Releasable {
 

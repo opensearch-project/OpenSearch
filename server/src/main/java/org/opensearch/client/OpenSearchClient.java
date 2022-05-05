@@ -39,6 +39,11 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.threadpool.ThreadPool;
 
+/**
+ * Interface for an OpenSearch client implementation
+ *
+ * @opensearch.internal
+ */
 public interface OpenSearchClient {
 
     /**

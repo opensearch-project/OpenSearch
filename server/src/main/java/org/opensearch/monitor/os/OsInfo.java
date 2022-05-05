@@ -40,6 +40,11 @@ import org.opensearch.node.ReportingService;
 
 import java.io.IOException;
 
+/**
+ * Holds Operating System Information
+ *
+ * @opensearch.internal
+ */
 public class OsInfo implements ReportingService.Info {
 
     private final long refreshInterval;

@@ -55,6 +55,8 @@ import org.opensearch.common.settings.Settings;
  * {@code host}. Allocations of multiple copies of the same shard on the same
  * {@code node} are not allowed independently of this setting.
  * </p>
+ *
+ * @opensearch.internal
  */
 public class SameShardAllocationDecider extends AllocationDecider {
 

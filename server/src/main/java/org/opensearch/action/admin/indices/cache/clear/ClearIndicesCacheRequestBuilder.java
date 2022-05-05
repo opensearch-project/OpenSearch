@@ -35,6 +35,11 @@ package org.opensearch.action.admin.indices.cache.clear;
 import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
+/**
+ * Transport request builder for clearing cache
+ *
+ * @opensearch.internal
+ */
 public class ClearIndicesCacheRequestBuilder extends BroadcastOperationRequestBuilder<
     ClearIndicesCacheRequest,
     ClearIndicesCacheResponse,

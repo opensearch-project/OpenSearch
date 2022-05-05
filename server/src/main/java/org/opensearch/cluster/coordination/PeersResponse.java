@@ -42,6 +42,11 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+/**
+ * Response from peer nodes
+ *
+ * @opensearch.internal
+ */
 public class PeersResponse extends TransportResponse {
     private final Optional<DiscoveryNode> clusterManagerNode;
     private final List<DiscoveryNode> knownPeers;

@@ -48,6 +48,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
 
 /**
  * A response for a cluster update settings action.
+ *
+ * @opensearch.internal
  */
 public class ClusterUpdateSettingsResponse extends AcknowledgedResponse {
 

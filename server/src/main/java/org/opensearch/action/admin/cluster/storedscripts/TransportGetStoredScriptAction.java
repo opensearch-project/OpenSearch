@@ -48,6 +48,11 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
+/**
+ * Transport action for getting stored script
+ *
+ * @opensearch.internal
+ */
 public class TransportGetStoredScriptAction extends TransportMasterNodeReadAction<GetStoredScriptRequest, GetStoredScriptResponse> {
 
     private final ScriptService scriptService;

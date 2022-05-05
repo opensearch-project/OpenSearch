@@ -69,6 +69,8 @@ import java.util.Objects;
 
 /**
  * A wrapper around ZonedDateTime that exposes joda methods for backcompat.
+ *
+ * @opensearch.internal
  */
 public class JodaCompatibleZonedDateTime
     implements

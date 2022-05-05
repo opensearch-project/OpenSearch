@@ -38,6 +38,8 @@ import java.io.IOException;
 
 /**
  * Thrown when failing to publish a cluster state. See {@link ClusterStatePublisher} for more details.
+ *
+ * @opensearch.internal
  */
 public class FailedToCommitClusterStateException extends OpenSearchException {
 

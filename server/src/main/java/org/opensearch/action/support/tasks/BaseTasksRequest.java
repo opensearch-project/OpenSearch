@@ -49,6 +49,8 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * A base class for task requests
+ *
+ * @opensearch.internal
  */
 public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends ActionRequest {
 

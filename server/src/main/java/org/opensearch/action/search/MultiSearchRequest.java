@@ -70,6 +70,8 @@ import static org.opensearch.common.xcontent.support.XContentMapValues.nodeTimeV
 
 /**
  * A multi search API request.
+ *
+ * @opensearch.internal
  */
 public class MultiSearchRequest extends ActionRequest implements CompositeIndicesRequest {
 

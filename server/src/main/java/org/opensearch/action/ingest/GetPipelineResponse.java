@@ -53,6 +53,11 @@ import java.util.Map;
 
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
+/**
+ * transport response for getting a pipeline
+ *
+ * @opensearch.internal
+ */
 public class GetPipelineResponse extends ActionResponse implements StatusToXContentObject {
 
     private List<PipelineConfiguration> pipelines;

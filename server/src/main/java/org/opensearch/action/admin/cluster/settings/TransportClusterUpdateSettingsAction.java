@@ -58,6 +58,11 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
+/**
+ * Transport action for updating cluster settings
+ *
+ * @opensearch.internal
+ */
 public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAction<
     ClusterUpdateSettingsRequest,
     ClusterUpdateSettingsResponse> {

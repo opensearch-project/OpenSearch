@@ -39,6 +39,11 @@ import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 
+/**
+ * Get's the version of a term
+ *
+ * @opensearch.internal
+ */
 abstract class TermVersionRequest extends TransportRequest implements Writeable {
     protected final DiscoveryNode sourceNode;
     protected final long term;

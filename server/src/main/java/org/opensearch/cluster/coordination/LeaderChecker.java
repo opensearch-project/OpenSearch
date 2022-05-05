@@ -75,6 +75,8 @@ import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
  * fairly lenient, possibly allowing multiple checks to fail before considering the leader to be faulty, to allow for the leader to
  * temporarily stand down on occasion, e.g. if it needs to move to a higher term. On deciding that the leader has failed a follower will
  * become a candidate and attempt to become a leader itself.
+ *
+ * @opensearch.internal
  */
 public class LeaderChecker {
 

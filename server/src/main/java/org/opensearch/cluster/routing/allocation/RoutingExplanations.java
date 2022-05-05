@@ -47,6 +47,8 @@ import java.util.stream.Collectors;
 /**
  * Class used to encapsulate a number of {@link RerouteExplanation}
  * explanations.
+ *
+ * @opensearch.internal
  */
 public class RoutingExplanations implements ToXContentFragment {
     private final List<RerouteExplanation> explanations;

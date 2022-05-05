@@ -29,6 +29,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.opensearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
 import static org.opensearch.action.search.TransportSearchAction.SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING;
 
+/**
+ * Utility to cancel a timeout task
+ *
+ * @opensearch.internal
+ */
 public class TimeoutTaskCancellationUtility {
 
     private static final Logger logger = LogManager.getLogger(TimeoutTaskCancellationUtility.class);

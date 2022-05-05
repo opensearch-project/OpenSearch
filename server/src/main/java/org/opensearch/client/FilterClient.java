@@ -43,6 +43,8 @@ import org.opensearch.threadpool.ThreadPool;
  * A {@link Client} that contains another {@link Client} which it
  * uses as its basic source, possibly transforming the requests / responses along the
  * way or providing additional functionality.
+ *
+ * @opensearch.internal
  */
 public abstract class FilterClient extends AbstractClient {
 

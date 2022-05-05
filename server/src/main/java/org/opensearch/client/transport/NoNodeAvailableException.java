@@ -40,6 +40,8 @@ import java.io.IOException;
 
 /**
  * An exception indicating no node is available to perform the operation.
+ *
+ * @opensearch.internal
  */
 public class NoNodeAvailableException extends OpenSearchException {
 

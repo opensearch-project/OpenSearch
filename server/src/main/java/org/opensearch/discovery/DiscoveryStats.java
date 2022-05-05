@@ -42,6 +42,11 @@ import org.opensearch.cluster.coordination.PublishClusterStateStats;
 
 import java.io.IOException;
 
+/**
+ * Stores discovery stats
+ *
+ * @opensearch.internal
+ */
 public class DiscoveryStats implements Writeable, ToXContentFragment {
 
     private final PendingClusterStateStats queueStats;

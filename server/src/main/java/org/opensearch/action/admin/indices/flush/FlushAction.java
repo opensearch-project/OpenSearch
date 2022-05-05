@@ -34,6 +34,11 @@ package org.opensearch.action.admin.indices.flush;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for flushing one or more indices
+ *
+ * @opensearch.internal
+ */
 public class FlushAction extends ActionType<FlushResponse> {
 
     public static final FlushAction INSTANCE = new FlushAction();

@@ -57,6 +57,11 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Lists gateway meta state
+ *
+ * @opensearch.internal
+ */
 public class TransportNodesListGatewayMetaState extends TransportNodesAction<
     TransportNodesListGatewayMetaState.Request,
     TransportNodesListGatewayMetaState.NodesGatewayMetaState,

@@ -37,6 +37,11 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.unit.TimeValue;
 
+/**
+ * Publishes the cluster state
+ *
+ * @opensearch.internal
+ */
 public interface ClusterStatePublisher {
     /**
      * Publish all the changes to the cluster from the cluster-manager (can be called just by the cluster-manager). The publish

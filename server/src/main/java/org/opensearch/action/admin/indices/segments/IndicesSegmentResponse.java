@@ -55,6 +55,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Transport response for retrieving indices segment information
+ *
+ * @opensearch.internal
+ */
 public class IndicesSegmentResponse extends BroadcastResponse {
 
     private final ShardSegments[] shards;

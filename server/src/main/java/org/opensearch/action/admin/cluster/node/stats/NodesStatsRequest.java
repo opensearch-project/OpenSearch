@@ -47,6 +47,8 @@ import java.util.stream.Collectors;
 
 /**
  * A request to get node (cluster) level stats.
+ *
+ * @opensearch.internal
  */
 public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
 

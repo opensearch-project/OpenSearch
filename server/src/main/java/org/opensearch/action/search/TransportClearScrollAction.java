@@ -41,6 +41,11 @@ import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
+/**
+ * Perform transport action to clear a search scroll
+ *
+ * @opensearch.internal
+ */
 public class TransportClearScrollAction extends HandledTransportAction<ClearScrollRequest, ClearScrollResponse> {
 
     private final ClusterService clusterService;

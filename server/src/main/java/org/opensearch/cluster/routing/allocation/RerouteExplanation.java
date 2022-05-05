@@ -44,6 +44,8 @@ import java.io.IOException;
 /**
  * Class encapsulating the explanation for a single {@link AllocationCommand}
  * taken from the Deciders
+ *
+ * @opensearch.internal
  */
 public class RerouteExplanation implements ToXContentObject {
 

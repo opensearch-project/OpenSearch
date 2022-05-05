@@ -64,6 +64,8 @@ import java.util.Map;
 
 /**
  * Node statistics (dynamic, changes depending on when created).
+ *
+ * @opensearch.internal
  */
 public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
 

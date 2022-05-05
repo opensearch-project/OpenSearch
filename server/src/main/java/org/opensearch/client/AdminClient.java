@@ -35,8 +35,9 @@ package org.opensearch.client;
 /**
  * Administrative actions/operations against the cluster or the indices.
  *
- *
  * @see org.opensearch.client.Client#admin()
+ *
+ * @opensearch.internal
  */
 public interface AdminClient {
 

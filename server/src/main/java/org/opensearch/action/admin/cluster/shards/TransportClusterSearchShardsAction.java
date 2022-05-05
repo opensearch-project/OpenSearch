@@ -58,6 +58,11 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Transport action for searching shards
+ *
+ * @opensearch.internal
+ */
 public class TransportClusterSearchShardsAction extends TransportMasterNodeReadAction<
     ClusterSearchShardsRequest,
     ClusterSearchShardsResponse> {

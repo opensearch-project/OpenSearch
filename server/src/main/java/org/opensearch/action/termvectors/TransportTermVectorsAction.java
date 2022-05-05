@@ -55,6 +55,8 @@ import java.io.IOException;
 
 /**
  * Performs the get operation.
+ *
+ * @opensearch.internal
  */
 public class TransportTermVectorsAction extends TransportSingleShardAction<TermVectorsRequest, TermVectorsResponse> {
 

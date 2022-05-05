@@ -35,6 +35,11 @@ package org.opensearch.action.admin.cluster.snapshots.clone;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 
+/**
+ * Transport action for cloning a snapshot
+ *
+ * @opensearch.internal
+ */
 public final class CloneSnapshotAction extends ActionType<AcknowledgedResponse> {
 
     public static final CloneSnapshotAction INSTANCE = new CloneSnapshotAction();

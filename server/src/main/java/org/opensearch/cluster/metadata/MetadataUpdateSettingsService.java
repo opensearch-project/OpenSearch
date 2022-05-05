@@ -74,6 +74,8 @@ import static org.opensearch.index.IndexSettings.same;
 
 /**
  * Service responsible for submitting update index settings requests
+ *
+ * @opensearch.internal
  */
 public class MetadataUpdateSettingsService {
     private static final Logger logger = LogManager.getLogger(MetadataUpdateSettingsService.class);

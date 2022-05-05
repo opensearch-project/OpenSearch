@@ -59,6 +59,11 @@ import java.util.stream.StreamSupport;
 
 import static org.opensearch.env.NodeEnvironment.INDICES_FOLDER;
 
+/**
+ * Command to repurpose a node
+ *
+ * @opensearch.internal
+ */
 public class NodeRepurposeCommand extends OpenSearchNodeCommand {
 
     static final String ABORTED_BY_USER_MSG = OpenSearchNodeCommand.ABORTED_BY_USER_MSG;

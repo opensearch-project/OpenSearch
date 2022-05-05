@@ -34,6 +34,11 @@ package org.opensearch.action.admin.indices.exists.indices;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for checking if an index exists
+ *
+ * @opensearch.internal
+ */
 public class IndicesExistsAction extends ActionType<IndicesExistsResponse> {
 
     public static final IndicesExistsAction INSTANCE = new IndicesExistsAction();

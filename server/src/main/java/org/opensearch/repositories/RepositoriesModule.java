@@ -49,6 +49,8 @@ import java.util.Map;
 
 /**
  * Sets up classes for Snapshot/Restore.
+ *
+ * @opensearch.internal
  */
 public final class RepositoriesModule {
 

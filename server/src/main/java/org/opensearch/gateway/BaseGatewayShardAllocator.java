@@ -53,6 +53,8 @@ import java.util.List;
  *
  * Individual implementations of this class are responsible for providing
  * the logic to determine to which nodes (if any) those shards are allocated.
+ *
+ * @opensearch.internal
  */
 public abstract class BaseGatewayShardAllocator {
 

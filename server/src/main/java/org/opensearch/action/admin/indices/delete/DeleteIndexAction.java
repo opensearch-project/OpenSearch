@@ -35,6 +35,11 @@ package org.opensearch.action.admin.indices.delete;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 
+/**
+ * Transport action for deleting an index
+ *
+ * @opensearch.internal
+ */
 public class DeleteIndexAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteIndexAction INSTANCE = new DeleteIndexAction();

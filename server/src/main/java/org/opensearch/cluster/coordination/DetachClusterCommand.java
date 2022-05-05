@@ -41,6 +41,11 @@ import org.opensearch.gateway.PersistedClusterStateService;
 import java.io.IOException;
 import java.nio.file.Path;
 
+/**
+ * Command to detach a node from the cluster
+ *
+ * @opensearch.internal
+ */
 public class DetachClusterCommand extends OpenSearchNodeCommand {
 
     static final String NODE_DETACHED_MSG = "Node was successfully detached from the cluster";
@@ -86,8 +91,8 @@ public class DetachClusterCommand extends OpenSearchNodeCommand {
     // package-private for tests
     static Metadata updateMetadata(Metadata oldMetadata) {
         final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder()
-            .lastAcceptedConfiguration(CoordinationMetadata.VotingConfiguration.MUST_JOIN_ELECTED_MASTER)
-            .lastCommittedConfiguration(CoordinationMetadata.VotingConfiguration.MUST_JOIN_ELECTED_MASTER)
+            .lastAcceptedConfiguration(CoordinationMetadata.VotingConfiguration.MUST_JOIN_ELECTED_CLUSTER_MANAGER)
+            .lastCommittedConfiguration(CoordinationMetadata.VotingConfiguration.MUST_JOIN_ELECTED_CLUSTER_MANAGER)
             .term(0)
             .build();
         return Metadata.builder(oldMetadata).coordinationMetadata(coordinationMetadata).clusterUUIDCommitted(false).build();

@@ -48,6 +48,8 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
  *
  * @see IndexRequest
  * @see org.opensearch.client.Client#index(IndexRequest)
+ *
+ * @opensearch.internal
  */
 public class IndexResponse extends DocWriteResponse {
 

@@ -42,6 +42,8 @@ import java.util.Map;
 
 /**
  * Create snapshot request builder
+ *
+ * @opensearch.internal
  */
 public class CreateSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<
     CreateSnapshotRequest,

@@ -73,6 +73,11 @@ import java.util.Set;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
+/**
+ * Transport action for deleting a datastream
+ *
+ * @opensearch.internal
+ */
 public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(DeleteDataStreamAction.class);

@@ -50,6 +50,8 @@ import java.io.IOException;
 
 /**
  * Transport action for create snapshot operation
+ *
+ * @opensearch.internal
  */
 public class TransportCreateSnapshotAction extends TransportMasterNodeAction<CreateSnapshotRequest, CreateSnapshotResponse> {
     private final SnapshotsService snapshotsService;

@@ -43,6 +43,8 @@ import java.util.stream.Collectors;
 /**
  * Resolves cluster names from an expression. The expression must be the exact match of a cluster
  * name or must be a wildcard expression.
+ *
+ * @opensearch.internal
  */
 public final class ClusterNameExpressionResolver {
 

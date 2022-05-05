@@ -43,6 +43,8 @@ import org.opensearch.cluster.routing.allocation.decider.Decision.Type;
  * {@link AllocationDecider} is an abstract base class that allows to make
  * dynamic cluster- or index-wide shard allocation decisions on a per-node
  * basis.
+ *
+ * @opensearch.internal
  */
 public abstract class AllocationDecider {
     /**

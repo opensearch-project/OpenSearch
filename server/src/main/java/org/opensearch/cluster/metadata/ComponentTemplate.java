@@ -53,6 +53,8 @@ import java.util.Objects;
  * component template is expected to be valid on its own. For example, if a component template
  * contains a field "foo", it's expected to contain all the necessary settings/mappings/etc for the
  * "foo" field. These component templates make up the individual pieces composing an index template.
+ *
+ * @opensearch.internal
  */
 public class ComponentTemplate extends AbstractDiffable<ComponentTemplate> implements ToXContentObject {
     private static final ParseField TEMPLATE = new ParseField("template");

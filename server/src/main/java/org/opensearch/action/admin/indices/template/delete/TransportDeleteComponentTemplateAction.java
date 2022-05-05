@@ -51,6 +51,11 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
+/**
+ * Transport action for deleting a component template
+ *
+ * @opensearch.internal
+ */
 public class TransportDeleteComponentTemplateAction extends TransportMasterNodeAction<
     DeleteComponentTemplateAction.Request,
     AcknowledgedResponse> {

@@ -37,6 +37,8 @@ import org.opensearch.action.support.master.AcknowledgedResponse;
 
 /**
  * Register repository action
+ *
+ * @opensearch.internal
  */
 public class PutRepositoryAction extends ActionType<AcknowledgedResponse> {
 

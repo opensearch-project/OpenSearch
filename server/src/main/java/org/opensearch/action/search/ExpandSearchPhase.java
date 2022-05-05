@@ -53,6 +53,8 @@ import java.util.List;
  * This search phase is an optional phase that will be executed once all hits are fetched from the shards that executes
  * field-collapsing on the inner hits. This phase only executes if field collapsing is requested in the search request and otherwise
  * forwards to the next phase immediately.
+ *
+ * @opensearch.internal
  */
 final class ExpandSearchPhase extends SearchPhase {
     private final SearchPhaseContext context;

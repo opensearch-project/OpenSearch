@@ -52,6 +52,8 @@ import java.util.List;
 /**
  * Implements the listing of all dangling indices. All nodes in the cluster are queried, and
  * their answers aggregated. Finding dangling indices is performed in {@link DanglingIndicesState}.
+ *
+ * @opensearch.internal
  */
 public class TransportListDanglingIndicesAction extends TransportNodesAction<
     ListDanglingIndicesRequest,

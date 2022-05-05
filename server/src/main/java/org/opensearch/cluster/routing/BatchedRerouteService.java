@@ -52,6 +52,8 @@ import java.util.function.BiFunction;
  * A {@link BatchedRerouteService} is a {@link RerouteService} that batches together reroute requests to avoid unnecessary extra reroutes.
  * This component only does meaningful work on the elected cluster-manager node. Reroute requests will fail with a {@link NotMasterException} on
  * other nodes.
+ *
+ * @opensearch.internal
  */
 public class BatchedRerouteService implements RerouteService {
     private static final Logger logger = LogManager.getLogger(BatchedRerouteService.class);

@@ -45,6 +45,8 @@ import java.util.EnumSet;
 
 /**
  * Request for {@link IndicesShardStoresAction}
+ *
+ * @opensearch.internal
  */
 public class IndicesShardStoresRequest extends MasterNodeReadRequest<IndicesShardStoresRequest> implements IndicesRequest.Replaceable {
 

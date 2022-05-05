@@ -74,6 +74,8 @@ import java.util.stream.Collectors;
  * - An error case retrieving these values from a linux kernel
  * - A non-standard libc implementation not implementing the required values
  * For a more exhaustive explanation, see https://github.com/elastic/elasticsearch/pull/42725
+ *
+ * @opensearch.internal
  */
 public class OsProbe {
 

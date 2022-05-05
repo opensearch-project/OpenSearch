@@ -38,6 +38,8 @@ import java.util.Map;
 
 /**
  * A script used by {@link org.opensearch.ingest.ConditionalProcessor}.
+ *
+ * @opensearch.internal
  */
 public abstract class IngestConditionalScript {
 

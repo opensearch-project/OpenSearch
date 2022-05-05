@@ -32,6 +32,11 @@
 
 package org.opensearch.monitor;
 
+/**
+ * The service for monitoring node health
+ *
+ * @opensearch.internal
+ */
 @FunctionalInterface
 public interface NodeHealthService {
 

@@ -53,6 +53,8 @@ import java.util.NoSuchElementException;
  * </ul>
  *
  * Note that backoff policies are exposed as <code>Iterables</code> in order to be consumed multiple times.
+ *
+ * @opensearch.internal
  */
 public abstract class BackoffPolicy implements Iterable<TimeValue> {
     private static final BackoffPolicy NO_BACKOFF = new NoBackoff();

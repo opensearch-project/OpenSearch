@@ -57,6 +57,8 @@ import java.util.Objects;
  * cluster and aggregates their responses. When the aggregated response is converted to {@link XContent},
  * information for each dangling index is presented under the "dangling_indices" key. If any nodes
  * in the cluster failed to answer, the details are presented under the "_nodes.failures" key.
+ *
+ * @opensearch.internal
  */
 public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeListDanglingIndicesResponse> implements StatusToXContentObject {
 

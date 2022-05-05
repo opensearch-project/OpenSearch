@@ -53,6 +53,8 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * Explain request encapsulating the explain query and document identifier to get an explanation for.
+ *
+ * @opensearch.internal
  */
 public class ExplainRequest extends SingleShardRequest<ExplainRequest> implements ToXContentObject {
 

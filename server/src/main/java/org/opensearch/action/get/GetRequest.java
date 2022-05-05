@@ -60,6 +60,8 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  * @see GetResponse
  * @see org.opensearch.client.Requests#getRequest(String)
  * @see org.opensearch.client.Client#get(GetRequest)
+ *
+ * @opensearch.internal
  */
 public class GetRequest extends SingleShardRequest<GetRequest> implements RealtimeRequest {
 

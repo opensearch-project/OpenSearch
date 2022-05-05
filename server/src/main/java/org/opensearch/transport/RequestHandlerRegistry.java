@@ -43,7 +43,12 @@ import org.opensearch.tasks.TaskManager;
 
 import java.io.IOException;
 
-public class RequestHandlerRegistry<Request extends TransportRequest> {
+/**
+ * Registry for OpenSearch RequestHandlers
+ *
+ * @opensearch.internal
+ */
+public final class RequestHandlerRegistry<Request extends TransportRequest> {
 
     private final String action;
     private final TransportRequestHandler<Request> handler;
