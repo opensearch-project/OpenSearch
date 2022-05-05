@@ -52,6 +52,11 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * Metadata for cluster coordination
+ *
+ * @opensearch.internal
+ */
 public class CoordinationMetadata implements Writeable, ToXContentFragment {
 
     public static final CoordinationMetadata EMPTY_METADATA = builder().build();

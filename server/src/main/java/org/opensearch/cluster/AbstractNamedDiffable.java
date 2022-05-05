@@ -43,6 +43,8 @@ import java.io.IOException;
 /**
  * Abstract diffable object with simple diffs implementation that sends the entire object if object has changed or
  * nothing is object remained the same. Comparing to AbstractDiffable, this class also works with NamedWriteables
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractNamedDiffable<T extends NamedDiffable<T>> implements Diffable<T>, NamedWriteable {
 

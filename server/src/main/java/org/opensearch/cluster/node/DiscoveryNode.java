@@ -64,6 +64,8 @@ import static org.opensearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
 /**
  * A discovery node represents a node that is part of the cluster.
+ *
+ * @opensearch.internal
  */
 public class DiscoveryNode implements Writeable, ToXContentFragment {
 

@@ -44,6 +44,8 @@ import java.util.Locale;
 /**
  * An enum which represents the various decision types that can be taken by the
  * allocators and deciders for allocating a shard to a node.
+ *
+ * @opensearch.internal
  */
 public enum AllocationDecision implements Writeable {
     /**

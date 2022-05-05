@@ -59,6 +59,8 @@ import static java.util.stream.Collectors.toSet;
 
 /**
  * Represents current cluster level blocks to block dirty operations done against the cluster.
+ *
+ * @opensearch.internal
  */
 public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
     public static final ClusterBlocks EMPTY_CLUSTER_BLOCK = new ClusterBlocks(emptySet(), ImmutableOpenMap.of());

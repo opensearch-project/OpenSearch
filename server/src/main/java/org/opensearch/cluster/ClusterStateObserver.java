@@ -50,6 +50,8 @@ import java.util.function.Supplier;
  * A utility class which simplifies interacting with the cluster state in cases where
  * one tries to take action based on the current state but may want to wait for a new state
  * and retry upon failure.
+ *
+ * @opensearch.internal
  */
 public class ClusterStateObserver {
 

@@ -54,6 +54,11 @@ import java.util.Collections;
 import java.util.Locale;
 import java.util.Objects;
 
+/**
+ * Tool to run an unsafe bootstrap
+ *
+ * @opensearch.internal
+ */
 public class UnsafeBootstrapMasterCommand extends OpenSearchNodeCommand {
 
     static final String CLUSTER_STATE_TERM_VERSION_MSG_FORMAT = "Current node cluster state (term, version) pair is (%s, %s)";

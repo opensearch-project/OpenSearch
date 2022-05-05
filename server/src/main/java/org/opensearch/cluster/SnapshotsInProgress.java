@@ -71,6 +71,8 @@ import static org.opensearch.snapshots.SnapshotInfo.METADATA_FIELD_INTRODUCED;
 
 /**
  * Meta data about snapshots that are currently executing
+ *
+ * @opensearch.internal
  */
 public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implements Custom {
 

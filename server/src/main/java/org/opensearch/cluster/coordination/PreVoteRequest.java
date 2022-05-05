@@ -40,6 +40,11 @@ import org.opensearch.transport.TransportRequest;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Requests pre vote information collection
+ *
+ * @opensearch.internal
+ */
 public class PreVoteRequest extends TransportRequest {
 
     private final DiscoveryNode sourceNode;

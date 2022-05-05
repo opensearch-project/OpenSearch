@@ -37,6 +37,11 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Interface that updates the cluster state based on the task
+ *
+ * @opensearch.internal
+ */
 public interface ClusterStateTaskExecutor<T> {
     /**
      * Update the cluster state based on the current state and the given tasks. Return the *same instance* if no state

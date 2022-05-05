@@ -70,6 +70,8 @@ import org.opensearch.common.settings.Settings;
  *
  * @see Rebalance
  * @see Allocation
+ *
+ * @opensearch.internal
  */
 public class EnableAllocationDecider extends AllocationDecider {
 

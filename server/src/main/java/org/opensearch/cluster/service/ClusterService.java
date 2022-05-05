@@ -56,6 +56,11 @@ import org.opensearch.threadpool.ThreadPool;
 import java.util.Collections;
 import java.util.Map;
 
+/**
+ * Main Cluster Service
+ *
+ * @opensearch.internal
+ */
 public class ClusterService extends AbstractLifecycleComponent {
     private final MasterService masterService;
 

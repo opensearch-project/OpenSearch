@@ -57,6 +57,8 @@ import java.util.Objects;
 
 /**
  * A command that cancels relocation, or recovery of a given shard on a node.
+ *
+ * @opensearch.internal
  */
 public class CancelAllocationCommand implements AllocationCommand {
 

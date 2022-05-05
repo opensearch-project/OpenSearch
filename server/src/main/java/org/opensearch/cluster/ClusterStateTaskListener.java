@@ -35,6 +35,11 @@ import org.opensearch.cluster.service.MasterService;
 
 import java.util.List;
 
+/**
+ * Interface to implement a cluster state change listener
+ *
+ * @opensearch.internal
+ */
 public interface ClusterStateTaskListener {
 
     /**

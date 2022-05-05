@@ -38,6 +38,11 @@ import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 
+/**
+ * Transport request to validate node join
+ *
+ * @opensearch.internal
+ */
 public class ValidateJoinRequest extends TransportRequest {
     private ClusterState state;
 

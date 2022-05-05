@@ -37,7 +37,7 @@ import org.opensearch.common.unit.TimeValue;
 /**
  * An exception to cluster state listener that allows for timeouts and for post added notifications.
  *
- *
+ * @opensearch.internal
  */
 public interface TimeoutClusterStateListener extends ClusterStateListener {
 
