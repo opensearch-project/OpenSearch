@@ -48,6 +48,11 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
+/**
+ * Perform the action of deleting a pipeline
+ *
+ * @opensearch.internal
+ */
 public class DeletePipelineTransportAction extends TransportMasterNodeAction<DeletePipelineRequest, AcknowledgedResponse> {
 
     private final IngestService ingestService;

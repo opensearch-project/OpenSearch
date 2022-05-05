@@ -52,6 +52,8 @@ import java.util.Objects;
 
 /**
  * Encapsulates a pipeline's id and configuration as a blob
+ *
+ * @opensearch.internal
  */
 public final class PipelineConfiguration extends AbstractDiffable<PipelineConfiguration> implements ToXContentObject {
 

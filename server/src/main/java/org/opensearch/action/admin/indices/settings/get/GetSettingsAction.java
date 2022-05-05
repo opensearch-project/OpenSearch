@@ -34,6 +34,11 @@ package org.opensearch.action.admin.indices.settings.get;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for getting index segments
+ *
+ * @opensearch.internal
+ */
 public class GetSettingsAction extends ActionType<GetSettingsResponse> {
 
     public static final GetSettingsAction INSTANCE = new GetSettingsAction();

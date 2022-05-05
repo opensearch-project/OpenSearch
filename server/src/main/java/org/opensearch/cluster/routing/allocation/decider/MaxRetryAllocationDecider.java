@@ -46,6 +46,7 @@ import org.opensearch.common.settings.Setting;
  * Note: This allocation decider also allows allocation of repeatedly failing shards when the {@code /_cluster/reroute?retry_failed=true}
  * API is manually invoked. This allows single retries without raising the limits.
  *
+ * @opensearch.internal
  */
 public class MaxRetryAllocationDecider extends AllocationDecider {
 

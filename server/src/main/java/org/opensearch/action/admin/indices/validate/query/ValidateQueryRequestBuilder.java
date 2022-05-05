@@ -36,6 +36,11 @@ import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.index.query.QueryBuilder;
 
+/**
+ * Transport Request Builder to Validate a Query
+ *
+ * @opensearch.internal
+ */
 public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilder<
     ValidateQueryRequest,
     ValidateQueryResponse,

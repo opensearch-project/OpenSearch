@@ -51,6 +51,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
+/**
+ * OpenSearch Version Class
+ *
+ * @opensearch.api
+ */
 public class Version implements Comparable<Version>, ToXContentFragment {
     /*
      * The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is alpha/beta/rc indicator AA

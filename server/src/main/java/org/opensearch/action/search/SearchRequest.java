@@ -69,6 +69,8 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  * @see org.opensearch.client.Requests#searchRequest(String...)
  * @see org.opensearch.client.Client#search(SearchRequest)
  * @see SearchResponse
+ *
+ * @opensearch.internal
  */
 public class SearchRequest extends ActionRequest implements IndicesRequest.Replaceable {
 

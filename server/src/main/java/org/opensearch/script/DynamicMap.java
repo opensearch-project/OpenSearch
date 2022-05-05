@@ -42,6 +42,8 @@ import java.util.function.Function;
  * functions is provided for the overridden values where the function
  * is applied to the existing value when one exists for the
  * corresponding key.
+ *
+ * @opensearch.internal
  */
 public final class DynamicMap implements Map<String, Object> {
 

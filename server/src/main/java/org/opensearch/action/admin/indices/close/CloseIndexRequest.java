@@ -48,6 +48,8 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to close an index.
+ *
+ * @opensearch.internal
  */
 public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> implements IndicesRequest.Replaceable {
 

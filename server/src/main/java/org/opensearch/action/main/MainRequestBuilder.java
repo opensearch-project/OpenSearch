@@ -35,6 +35,11 @@ package org.opensearch.action.main;
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
+/**
+ * Transport request builder for the main opensearch action
+ *
+ * @opensearch.internal
+ */
 public class MainRequestBuilder extends ActionRequestBuilder<MainRequest, MainResponse> {
 
     public MainRequestBuilder(OpenSearchClient client, MainAction action) {

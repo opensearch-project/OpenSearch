@@ -50,6 +50,8 @@ import static org.opensearch.common.settings.AbstractScopedSettings.ARCHIVED_SET
 /**
  * Updates transient and persistent cluster state settings if there are any changes
  * due to the update.
+ *
+ * @opensearch.internal
  */
 final class SettingsUpdater {
     final Settings.Builder transientUpdates = Settings.builder();

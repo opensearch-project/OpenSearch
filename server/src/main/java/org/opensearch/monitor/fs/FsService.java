@@ -44,6 +44,11 @@ import org.opensearch.env.NodeEnvironment;
 import java.io.IOException;
 import java.util.function.Supplier;
 
+/**
+ * FileSystem service
+ *
+ * @opensearch.internal
+ */
 public class FsService {
 
     private static final Logger logger = LogManager.getLogger(FsService.class);

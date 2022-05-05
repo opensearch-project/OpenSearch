@@ -55,6 +55,11 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
+/**
+ * Transport action for flushing one or more indices
+ *
+ * @opensearch.internal
+ */
 public class TransportShardFlushAction extends TransportReplicationAction<ShardFlushRequest, ShardFlushRequest, ReplicationResponse> {
 
     public static final String NAME = FlushAction.NAME + "[s]";

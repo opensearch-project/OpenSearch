@@ -46,6 +46,8 @@ import java.util.Arrays;
  * File resources watcher
  *
  * The file watcher checks directory and all its subdirectories for file changes and notifies its listeners accordingly
+ *
+ * @opensearch.internal
  */
 public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
 

@@ -154,9 +154,6 @@ import org.opensearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
-import org.opensearch.action.admin.indices.alias.exists.AliasesExistAction;
-import org.opensearch.action.admin.indices.alias.exists.AliasesExistRequestBuilder;
-import org.opensearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
@@ -192,10 +189,6 @@ import org.opensearch.action.admin.indices.exists.indices.IndicesExistsAction;
 import org.opensearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.opensearch.action.admin.indices.exists.indices.IndicesExistsRequestBuilder;
 import org.opensearch.action.admin.indices.exists.indices.IndicesExistsResponse;
-import org.opensearch.action.admin.indices.exists.types.TypesExistsAction;
-import org.opensearch.action.admin.indices.exists.types.TypesExistsRequest;
-import org.opensearch.action.admin.indices.exists.types.TypesExistsRequestBuilder;
-import org.opensearch.action.admin.indices.exists.types.TypesExistsResponse;
 import org.opensearch.action.admin.indices.flush.FlushAction;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.flush.FlushRequestBuilder;
@@ -373,6 +366,11 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Map;
 
+/**
+ * Base client used to create concrete client implementations
+ *
+ * @opensearch.internal
+ */
 public abstract class AbstractClient implements Client {
 
     protected final Logger logger;
@@ -1332,22 +1330,6 @@ public abstract class AbstractClient implements Client {
             return new IndicesExistsRequestBuilder(this, IndicesExistsAction.INSTANCE, indices);
         }
 
-        @Deprecated
-        @Override
-        public ActionFuture<TypesExistsResponse> typesExists(TypesExistsRequest request) {
-            return execute(TypesExistsAction.INSTANCE, request);
-        }
-
-        @Override
-        public void typesExists(TypesExistsRequest request, ActionListener<TypesExistsResponse> listener) {
-            execute(TypesExistsAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public TypesExistsRequestBuilder prepareTypesExists(String... index) {
-            return new TypesExistsRequestBuilder(this, TypesExistsAction.INSTANCE, index);
-        }
-
         @Override
         public ActionFuture<AcknowledgedResponse> aliases(final IndicesAliasesRequest request) {
             return execute(IndicesAliasesAction.INSTANCE, request);
@@ -1381,21 +1363,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public ActionFuture<ClearIndicesCacheResponse> clearCache(final ClearIndicesCacheRequest request) {
             return execute(ClearIndicesCacheAction.INSTANCE, request);
-        }
-
-        @Override
-        public void aliasesExist(GetAliasesRequest request, ActionListener<AliasesExistResponse> listener) {
-            execute(AliasesExistAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public ActionFuture<AliasesExistResponse> aliasesExist(GetAliasesRequest request) {
-            return execute(AliasesExistAction.INSTANCE, request);
-        }
-
-        @Override
-        public AliasesExistRequestBuilder prepareAliasesExist(String... aliases) {
-            return new AliasesExistRequestBuilder(this, AliasesExistAction.INSTANCE, aliases);
         }
 
         @Override

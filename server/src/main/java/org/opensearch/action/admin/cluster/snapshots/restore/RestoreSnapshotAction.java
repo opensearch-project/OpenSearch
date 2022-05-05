@@ -36,6 +36,8 @@ import org.opensearch.action.ActionType;
 
 /**
  * Restore snapshot action
+ *
+ * @opensearch.internal
  */
 public class RestoreSnapshotAction extends ActionType<RestoreSnapshotResponse> {
 

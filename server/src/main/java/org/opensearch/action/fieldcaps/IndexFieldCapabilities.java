@@ -46,6 +46,8 @@ import java.util.stream.Collectors;
 
 /**
  * Describes the capabilities of a field in a single index.
+ *
+ * @opensearch.internal
  */
 public class IndexFieldCapabilities implements Writeable {
 

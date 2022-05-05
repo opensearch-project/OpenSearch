@@ -62,6 +62,8 @@ import java.util.function.Predicate;
 
 /**
  * Holds additional information as to why the shard is in unassigned state.
+ *
+ * @opensearch.internal
  */
 public final class UnassignedInfo implements ToXContentFragment, Writeable {
 

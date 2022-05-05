@@ -47,6 +47,8 @@ import org.opensearch.script.ScriptService;
 
 /**
  * A pipeline is a list of {@link Processor} instances grouped under a unique id.
+ *
+ * @opensearch.internal
  */
 public final class Pipeline {
 

@@ -42,6 +42,8 @@ import java.io.IOException;
  * Unfortunately ReplicationRequest can't be declared as a type parameter
  * because it has a self referential type parameter of its own. So use this
  * instead.
+ *
+ * @opensearch.internal
  */
 public class BasicReplicationRequest extends ReplicationRequest<BasicReplicationRequest> {
     /**

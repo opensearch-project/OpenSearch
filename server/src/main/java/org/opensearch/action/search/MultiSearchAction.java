@@ -34,6 +34,11 @@ package org.opensearch.action.search;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for executing a multi search
+ *
+ * @opensearch.internal
+ */
 public class MultiSearchAction extends ActionType<MultiSearchResponse> {
 
     public static final MultiSearchAction INSTANCE = new MultiSearchAction();

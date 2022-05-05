@@ -58,6 +58,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
 
 /**
  * A multi search response.
+ *
+ * @opensearch.internal
  */
 public class MultiSearchResponse extends ActionResponse implements Iterable<MultiSearchResponse.Item>, ToXContentObject {
 

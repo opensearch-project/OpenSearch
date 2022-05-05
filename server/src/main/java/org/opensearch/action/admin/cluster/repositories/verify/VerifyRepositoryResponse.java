@@ -52,6 +52,8 @@ import java.util.stream.Collectors;
 
 /**
  * Verify repository response
+ *
+ * @opensearch.internal
  */
 public class VerifyRepositoryResponse extends ActionResponse implements ToXContentObject {
 

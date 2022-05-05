@@ -48,6 +48,8 @@ import java.util.Objects;
 /**
  * Metadata associated with this node: its persistent node ID and its version.
  * The metadata is persisted in the data folder of this node and is reused across restarts.
+ *
+ * @opensearch.internal
  */
 public final class NodeMetadata {
 

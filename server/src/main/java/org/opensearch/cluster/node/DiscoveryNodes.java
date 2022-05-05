@@ -63,6 +63,8 @@ import java.util.stream.StreamSupport;
 /**
  * This class holds all {@link DiscoveryNode} in the cluster and provides convenience methods to
  * access, modify merge / diff discovery nodes.
+ *
+ * @opensearch.internal
  */
 public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements Iterable<DiscoveryNode> {
 

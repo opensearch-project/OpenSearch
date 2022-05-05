@@ -64,6 +64,11 @@ import java.io.IOException;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+/**
+ * Perform replication resync
+ *
+ * @opensearch.internal
+ */
 public class TransportResyncReplicationAction extends TransportWriteAction<
     ResyncReplicationRequest,
     ResyncReplicationRequest,

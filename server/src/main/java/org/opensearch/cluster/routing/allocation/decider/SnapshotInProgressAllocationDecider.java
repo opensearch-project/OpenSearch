@@ -42,6 +42,8 @@ import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 /**
  * This {@link AllocationDecider} prevents shards that
  * are currently been snapshotted to be moved to other nodes.
+ *
+ * @opensearch.internal
  */
 public class SnapshotInProgressAllocationDecider extends AllocationDecider {
 

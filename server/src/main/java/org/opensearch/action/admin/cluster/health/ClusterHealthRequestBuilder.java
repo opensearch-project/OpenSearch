@@ -40,6 +40,11 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.Priority;
 import org.opensearch.common.unit.TimeValue;
 
+/**
+ * Builder for requesting cluster health
+ *
+ * @opensearch.internal
+ */
 public class ClusterHealthRequestBuilder extends MasterNodeReadOperationRequestBuilder<
     ClusterHealthRequest,
     ClusterHealthResponse,

@@ -63,6 +63,11 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
+/**
+ * Base transport broadcast action class
+ *
+ * @opensearch.internal
+ */
 public abstract class TransportBroadcastAction<
     Request extends BroadcastRequest<Request>,
     Response extends BroadcastResponse,

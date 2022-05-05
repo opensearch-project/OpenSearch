@@ -55,6 +55,11 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
+/**
+ * Transport action for updating index settings
+ *
+ * @opensearch.internal
+ */
 public class TransportUpdateSettingsAction extends TransportMasterNodeAction<UpdateSettingsRequest, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportUpdateSettingsAction.class);

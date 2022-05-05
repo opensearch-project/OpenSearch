@@ -37,6 +37,11 @@ import org.opensearch.index.shard.ShardId;
 import java.util.Arrays;
 import java.util.Iterator;
 
+/**
+ * List of Index Shard Segments
+ *
+ * @opensearch.internal
+ */
 public class IndexShardSegments implements Iterable<ShardSegments> {
 
     private final ShardId shardId;

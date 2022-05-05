@@ -57,6 +57,8 @@ import java.util.List;
 
 /**
  * A search action request builder.
+ *
+ * @opensearch.internal
  */
 public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse> {
 

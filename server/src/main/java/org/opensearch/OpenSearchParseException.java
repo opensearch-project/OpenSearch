@@ -39,6 +39,8 @@ import java.io.IOException;
 
 /**
  * Unchecked exception that is translated into a {@code 400 BAD REQUEST} error when it bubbles out over HTTP.
+ *
+ * @opensearch.internal
  */
 public class OpenSearchParseException extends OpenSearchException {
 

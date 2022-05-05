@@ -38,6 +38,8 @@ import java.util.Map;
 
 /**
  * A script used by the Ingest Script Processor.
+ *
+ * @opensearch.internal
  */
 public abstract class IngestScript {
 

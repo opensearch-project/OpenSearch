@@ -36,6 +36,8 @@ import org.opensearch.action.ActionType;
 
 /**
  * Represents a request to list all dangling indices known to the cluster.
+ *
+ * @opensearch.internal
  */
 public class ListDanglingIndicesAction extends ActionType<ListDanglingIndicesResponse> {
 

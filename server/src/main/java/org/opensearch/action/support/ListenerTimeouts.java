@@ -41,6 +41,11 @@ import org.opensearch.threadpool.ThreadPool;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+/**
+ * Supports timeouts on listeners
+ *
+ * @opensearch.internal
+ */
 public class ListenerTimeouts {
 
     /**

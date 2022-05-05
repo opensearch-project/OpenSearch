@@ -54,6 +54,8 @@ import java.util.function.Predicate;
 
 /**
  * Handles writing and loading {@link Manifest}, {@link Metadata} and {@link IndexMetadata}
+ *
+ * @opensearch.internal
  */
 public class MetaStateService {
     private static final Logger logger = LogManager.getLogger(MetaStateService.class);

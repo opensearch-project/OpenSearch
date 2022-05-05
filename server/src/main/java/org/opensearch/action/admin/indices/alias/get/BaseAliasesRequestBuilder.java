@@ -39,6 +39,11 @@ import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilde
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.util.ArrayUtils;
 
+/**
+ * Base request builder for listing index aliases
+ *
+ * @opensearch.internal
+ */
 public abstract class BaseAliasesRequestBuilder<
     Response extends ActionResponse,
     Builder extends BaseAliasesRequestBuilder<Response, Builder>> extends MasterNodeReadOperationRequestBuilder<

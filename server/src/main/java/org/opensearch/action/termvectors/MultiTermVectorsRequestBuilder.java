@@ -35,6 +35,11 @@ package org.opensearch.action.termvectors;
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
+/**
+ * A single multi get request builder.
+ *
+ * @opensearch.internal
+ */
 public class MultiTermVectorsRequestBuilder extends ActionRequestBuilder<MultiTermVectorsRequest, MultiTermVectorsResponse> {
 
     public MultiTermVectorsRequestBuilder(OpenSearchClient client, MultiTermVectorsAction action) {

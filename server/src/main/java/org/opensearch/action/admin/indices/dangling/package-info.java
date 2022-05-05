@@ -25,6 +25,11 @@
  * under the License.
  */
 
+/*
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
 /**
  * Dangling indices are indices that exist on disk on one or more nodes but
  * which do not currently exist in the cluster state. They arise in a
@@ -40,10 +45,6 @@
  * </ul>
  *
  * <p>The classes in this package form an API for managing dangling indices, allowing them to be listed, imported or deleted.
- */
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
  */
 
 package org.opensearch.action.admin.indices.dangling;

@@ -34,6 +34,11 @@ package org.opensearch.action.admin.indices.alias.get;
 
 import org.opensearch.client.OpenSearchClient;
 
+/**
+ * Transport request builder for listing index aliases
+ *
+ * @opensearch.internal
+ */
 public class GetAliasesRequestBuilder extends BaseAliasesRequestBuilder<GetAliasesResponse, GetAliasesRequestBuilder> {
 
     public GetAliasesRequestBuilder(OpenSearchClient client, GetAliasesAction action, String... aliases) {

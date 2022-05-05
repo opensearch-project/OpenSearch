@@ -112,6 +112,8 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 /**
  * Groups bulk request items by shard, optionally creating non-existent indices and
  * delegates to {@link TransportShardBulkAction} for shard-level bulk execution
+ *
+ * @opensearch.internal
  */
 public class TransportBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
 

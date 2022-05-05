@@ -48,6 +48,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
 
 /**
  * A response that indicates that a request has been acknowledged
+ *
+ * @opensearch.internal
  */
 public class AcknowledgedResponse extends ActionResponse implements ToXContentObject {
 

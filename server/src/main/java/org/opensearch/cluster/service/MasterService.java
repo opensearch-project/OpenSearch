@@ -83,6 +83,11 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonThreadFactory;
 
+/**
+ * Main Master Node Service
+ *
+ * @opensearch.internal
+ */
 public class MasterService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(MasterService.class);
 

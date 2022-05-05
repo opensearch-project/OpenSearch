@@ -43,6 +43,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * Utility class to resolve index abstractions
+ *
+ * @opensearch.internal
+ */
 public class IndexAbstractionResolver {
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;

@@ -48,6 +48,8 @@ import java.util.function.Predicate;
 
 /**
  * Represents a executor node operation that corresponds to a persistent task
+ *
+ * @opensearch.internal
  */
 public class AllocatedPersistentTask extends CancellableTask {
 

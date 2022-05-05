@@ -46,6 +46,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
+/**
+ * Scripts for aggregations
+ *
+ * @opensearch.internal
+ */
 public abstract class AggregationScript implements ScorerAware {
 
     public static final String[] PARAMETERS = {};

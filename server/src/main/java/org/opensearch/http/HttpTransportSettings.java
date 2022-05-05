@@ -50,6 +50,11 @@ import static org.opensearch.common.settings.Setting.boolSetting;
 import static org.opensearch.common.settings.Setting.intSetting;
 import static org.opensearch.common.settings.Setting.listSetting;
 
+/**
+ * Transport settings for http connections
+ *
+ * @opensearch.internal
+ */
 public final class HttpTransportSettings {
 
     public static final Setting<Boolean> SETTING_CORS_ENABLED = Setting.boolSetting("http.cors.enabled", false, Property.NodeScope);

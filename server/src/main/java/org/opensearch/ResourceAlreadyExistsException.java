@@ -38,6 +38,11 @@ import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
+/**
+ * Exception when Resources already exists
+ *
+ * @opensearch.internal
+ */
 public class ResourceAlreadyExistsException extends OpenSearchException {
 
     public ResourceAlreadyExistsException(Index index) {

@@ -39,6 +39,8 @@ import org.opensearch.tasks.Task;
 
 /**
  * A filter allowing to filter transport actions
+ *
+ * @opensearch.internal
  */
 public interface ActionFilter {
 

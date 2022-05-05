@@ -35,6 +35,11 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
+/**
+ * Transport builder for cleaning up snapshot repositories
+ *
+ * @opensearch.internal
+ */
 public class CleanupRepositoryRequestBuilder extends MasterNodeOperationRequestBuilder<
     CleanupRepositoryRequest,
     CleanupRepositoryResponse,

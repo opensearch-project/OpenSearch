@@ -43,6 +43,8 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * Request that allows to retrieve index templates
+ *
+ * @opensearch.internal
  */
 public class GetIndexTemplatesRequest extends MasterNodeReadRequest<GetIndexTemplatesRequest> {
 

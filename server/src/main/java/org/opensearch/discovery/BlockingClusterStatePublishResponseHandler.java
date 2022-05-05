@@ -43,6 +43,8 @@ import java.util.concurrent.TimeUnit;
 /**
  * Handles responses obtained when publishing a new cluster state from cluster-manager to all non cluster-manager nodes.
  * Allows to await a reply from all non cluster-manager nodes, up to a timeout
+ *
+ * @opensearch.internal
  */
 public class BlockingClusterStatePublishResponseHandler {
 

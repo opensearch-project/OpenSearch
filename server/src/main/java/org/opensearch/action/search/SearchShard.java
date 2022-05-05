@@ -41,6 +41,8 @@ import java.util.Objects;
 /**
  * A class that encapsulates the {@link ShardId} and the cluster alias
  * of a shard used during the search action.
+ *
+ * @opensearch.internal
  */
 public final class SearchShard implements Comparable<SearchShard> {
     @Nullable

@@ -36,6 +36,8 @@ import java.util.List;
 
 /**
  * A shuffler for shards whose primary goal is to balance load.
+ *
+ * @opensearch.internal
  */
 public abstract class ShardShuffler {
 

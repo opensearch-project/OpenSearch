@@ -38,6 +38,8 @@ import org.opensearch.client.OpenSearchClient;
 /**
  * A request to upgrade one or more indices. In order to optimize on all the indices, pass an empty array or
  * {@code null} for the indices.
+ *
+ * @opensearch.internal
  */
 public class UpgradeRequestBuilder extends BroadcastOperationRequestBuilder<UpgradeRequest, UpgradeResponse, UpgradeRequestBuilder> {
 

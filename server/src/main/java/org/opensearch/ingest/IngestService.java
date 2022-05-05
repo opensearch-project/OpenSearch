@@ -92,6 +92,8 @@ import java.util.function.IntConsumer;
 
 /**
  * Holder class for several ingest related services.
+ *
+ * @opensearch.internal
  */
 public class IngestService implements ClusterStateApplier, ReportingService<IngestInfo> {
 

@@ -38,6 +38,8 @@ import java.io.IOException;
  * <p>
  * Different resource watchers can be registered with {@link ResourceWatcherService} to be called
  * periodically in order to check for changes in different external resources.
+ *
+ * @opensearch.internal
  */
 public interface ResourceWatcher {
     /**

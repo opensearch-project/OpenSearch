@@ -35,6 +35,11 @@ package org.opensearch.action.admin.cluster.stats;
 import org.opensearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
+/**
+ * Transport request builder for obtaining cluster stats
+ *
+ * @opensearch.internal
+ */
 public class ClusterStatsRequestBuilder extends NodesOperationRequestBuilder<
     ClusterStatsRequest,
     ClusterStatsResponse,

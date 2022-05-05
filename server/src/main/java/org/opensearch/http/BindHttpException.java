@@ -36,6 +36,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown when trying to bind to an http endpoint
+ *
+ * @opensearch.internal
+ */
 public class BindHttpException extends HttpException {
 
     public BindHttpException(String message) {

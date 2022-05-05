@@ -51,6 +51,11 @@ import java.util.Objects;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
+/**
+ * An action for putting a composable template into the cluster state
+ *
+ * @opensearch.internal
+ */
 public class PutComposableIndexTemplateAction extends ActionType<AcknowledgedResponse> {
 
     public static final PutComposableIndexTemplateAction INSTANCE = new PutComposableIndexTemplateAction();

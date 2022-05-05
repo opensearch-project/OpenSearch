@@ -41,6 +41,11 @@ import org.opensearch.rest.RestStatus;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Base exception for a missing routing
+ *
+ * @opensearch.internal
+ */
 public class RoutingMissingException extends OpenSearchException {
 
     private final String type;

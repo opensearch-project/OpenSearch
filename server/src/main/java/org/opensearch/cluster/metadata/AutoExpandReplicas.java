@@ -52,6 +52,8 @@ import static org.opensearch.cluster.metadata.MetadataIndexStateService.isIndexV
  * This class acts as a functional wrapper around the {@code index.auto_expand_replicas} setting.
  * This setting or rather it's value is expanded into a min and max value which requires special handling
  * based on the number of datanodes in the cluster. This class handles all the parsing and streamlines the access to these values.
+ *
+ * @opensearch.internal
  */
 public final class AutoExpandReplicas {
     // the value we recognize in the "max" position to mean all the nodes

@@ -103,6 +103,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * The action samples cluster state on the receiving node to reroute to node with primary copy and on the
  * primary node to validate request before primary operation followed by sampling state again for resolving
  * nodes with replica copies to perform replication.
+ *
+ * @opensearch.internal
  */
 public abstract class TransportReplicationAction<
     Request extends ReplicationRequest<Request>,

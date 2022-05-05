@@ -39,6 +39,8 @@ import java.util.List;
 
 /**
  * Used to apply state updates on nodes that are not necessarily cluster-manager
+ *
+ * @opensearch.internal
  */
 public abstract class LocalClusterUpdateTask
     implements

@@ -41,6 +41,8 @@ import java.util.Map;
 
 /**
  * Builder for request to modify many aliases at once.
+ *
+ * @opensearch.internal
  */
 public class IndicesAliasesRequestBuilder extends AcknowledgedRequestBuilder<
     IndicesAliasesRequest,

@@ -42,6 +42,11 @@ import org.opensearch.transport.TransportService;
 
 import java.util.Set;
 
+/**
+ * Transport action for getting script context
+ *
+ * @opensearch.internal
+ */
 public class TransportGetScriptContextAction extends HandledTransportAction<GetScriptContextRequest, GetScriptContextResponse> {
 
     private final ScriptService scriptService;

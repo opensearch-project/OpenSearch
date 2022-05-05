@@ -62,6 +62,11 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
+/**
+ * Main executor for Nodes joining the OpenSearch cluster
+ *
+ * @opensearch.internal
+ */
 public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecutor.Task> {
 
     private final AllocationService allocationService;

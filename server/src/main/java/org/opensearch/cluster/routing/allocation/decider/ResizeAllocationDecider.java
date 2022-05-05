@@ -43,6 +43,8 @@ import org.opensearch.index.shard.ShardId;
 
 /**
  * An allocation decider that ensures we allocate the shards of a target index for resize operations next to the source primaries
+ *
+ * @opensearch.internal
  */
 public class ResizeAllocationDecider extends AllocationDecider {
 

@@ -60,6 +60,11 @@ import static java.util.Collections.emptyMap;
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * Transport response for Cluster Health
+ *
+ * @opensearch.internal
+ */
 public class ClusterHealthResponse extends ActionResponse implements StatusToXContentObject {
     private static final String CLUSTER_NAME = "cluster_name";
     private static final String STATUS = "status";

@@ -54,6 +54,8 @@ import java.util.Objects;
  * the target shard (only materialized in RoutingNodes) is initializing with the id set to the origin shard
  * relocationId. Once relocation is done, the new allocation id is set to the relocationId. This is similar
  * behavior to how ShardRouting#currentNodeId is used.
+ *
+ * @opensearch.internal
  */
 public class AllocationId implements ToXContentObject, Writeable {
     private static final String ID_KEY = "id";

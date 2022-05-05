@@ -42,6 +42,11 @@ import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+/**
+ * Transport request for cluster information
+ *
+ * @opensearch.internal
+ */
 public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Request>> extends MasterNodeReadRequest<Request>
     implements
         IndicesRequest.Replaceable {

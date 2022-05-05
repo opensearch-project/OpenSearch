@@ -34,6 +34,11 @@ package org.opensearch.action.admin.cluster.storedscripts;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for getting stored scripts
+ *
+ * @opensearch.internal
+ */
 public class GetScriptContextAction extends ActionType<GetScriptContextResponse> {
 
     public static final GetScriptContextAction INSTANCE = new GetScriptContextAction();

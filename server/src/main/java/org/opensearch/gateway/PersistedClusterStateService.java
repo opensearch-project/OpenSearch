@@ -131,6 +131,8 @@ import java.util.function.Supplier;
  * +---------------------------+-------------------------+-------------------------------------------------------------------------------+
  *
  * (the last-accepted term is recorded in Metadata → CoordinationMetadata so does not need repeating here)
+ *
+ * @opensearch.internal
  */
 public class PersistedClusterStateService {
     private static final Logger logger = LogManager.getLogger(PersistedClusterStateService.class);

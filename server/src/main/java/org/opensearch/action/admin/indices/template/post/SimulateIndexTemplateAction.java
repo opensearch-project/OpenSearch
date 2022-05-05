@@ -34,6 +34,12 @@ package org.opensearch.action.admin.indices.template.post;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport Action for handling simulating an index template either by name (looking it up in the
+ * cluster state), or by a provided template configuration
+ *
+ * @opensearch.internal
+ */
 public class SimulateIndexTemplateAction extends ActionType<SimulateIndexTemplateResponse> {
 
     public static final SimulateIndexTemplateAction INSTANCE = new SimulateIndexTemplateAction();

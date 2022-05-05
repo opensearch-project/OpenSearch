@@ -39,6 +39,11 @@ import org.opensearch.rest.RestStatus;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Pipeline requests for http connections
+ *
+ * @opensearch.internal
+ */
 public class HttpPipelinedRequest implements HttpRequest, HttpPipelinedMessage {
 
     private final int sequence;

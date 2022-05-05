@@ -73,6 +73,8 @@ import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
  * <p>
  * Note, the {@link #index()}, and {@link #id(String)} are
  * required.
+ *
+ * @opensearch.internal
  */
 public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> implements RealtimeRequest {
     private static final ParseField INDEX = new ParseField("_index");

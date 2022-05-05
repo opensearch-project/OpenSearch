@@ -37,6 +37,8 @@ import org.opensearch.common.unit.TimeValue;
 
 /**
  * Cluster state update task configuration for timeout and priority
+ *
+ * @opensearch.internal
  */
 public interface ClusterStateTaskConfig {
     /**

@@ -52,6 +52,8 @@ import java.util.stream.Collectors;
  * Class representing statistics about adaptive replica selection. This includes
  * EWMA of queue size, service time, and response time, as well as outgoing
  * searches to each node and the "rank" based on the ARS formula.
+ *
+ * @opensearch.internal
  */
 public class AdaptiveSelectionStats implements Writeable, ToXContentFragment {
 

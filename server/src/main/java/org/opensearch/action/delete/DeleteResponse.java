@@ -47,6 +47,8 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
  *
  * @see org.opensearch.action.delete.DeleteRequest
  * @see org.opensearch.client.Client#delete(DeleteRequest)
+ *
+ * @opensearch.internal
  */
 public class DeleteResponse extends DocWriteResponse {
 

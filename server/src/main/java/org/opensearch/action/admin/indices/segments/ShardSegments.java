@@ -42,6 +42,11 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 
+/**
+ * Collection of shard segments
+ *
+ * @opensearch.internal
+ */
 public class ShardSegments implements Writeable, Iterable<Segment> {
 
     private final ShardRouting shardRouting;

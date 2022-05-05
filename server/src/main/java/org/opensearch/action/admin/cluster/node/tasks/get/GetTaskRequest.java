@@ -45,6 +45,8 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to get node tasks
+ *
+ * @opensearch.internal
  */
 public class GetTaskRequest extends ActionRequest {
     private TaskId taskId = TaskId.EMPTY_TASK_ID;

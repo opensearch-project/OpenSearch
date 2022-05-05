@@ -33,6 +33,8 @@ package org.opensearch.repositories;
 
 /**
  * Coordinates of an operation that modifies a repository, assuming that repository at a specific generation.
+ *
+ * @opensearch.internal
  */
 public interface RepositoryOperation {
 

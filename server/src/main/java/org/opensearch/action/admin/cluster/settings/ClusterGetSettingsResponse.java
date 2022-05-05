@@ -52,6 +52,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalCo
 /**
  * This response is specific to the REST client. {@link ClusterStateResponse}
  * is used on the transport layer.
+ *
+ * @opensearch.internal
  */
 public class ClusterGetSettingsResponse extends ActionResponse implements ToXContentObject {
 

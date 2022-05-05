@@ -40,6 +40,11 @@ import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
+/**
+ * Base exception for shards unavailable
+ *
+ * @opensearch.internal
+ */
 public class UnavailableShardsException extends OpenSearchException {
 
     public UnavailableShardsException(@Nullable ShardId shardId, String message, Object... args) {

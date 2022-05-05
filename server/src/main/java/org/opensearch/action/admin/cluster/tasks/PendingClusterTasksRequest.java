@@ -38,6 +38,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Transport request for getting pending cluster tasks
+ *
+ * @opensearch.internal
+ */
 public class PendingClusterTasksRequest extends MasterNodeReadRequest<PendingClusterTasksRequest> {
 
     public PendingClusterTasksRequest() {}

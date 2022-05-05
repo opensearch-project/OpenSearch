@@ -44,6 +44,11 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Information about a repository
+ *
+ * @opensearch.internal
+ */
 public final class RepositoryInfo implements Writeable, ToXContentFragment {
     public final String ephemeralId;
     public final String name;

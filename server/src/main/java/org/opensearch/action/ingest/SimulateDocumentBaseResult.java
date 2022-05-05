@@ -47,6 +47,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalCo
 
 /**
  * Holds the end result of what a pipeline did to sample document provided via the simulate api.
+ *
+ *
  */
 public final class SimulateDocumentBaseResult implements SimulateDocumentResult {
     private final WriteableIngestDocument ingestDocument;

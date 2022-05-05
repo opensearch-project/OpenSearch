@@ -34,6 +34,11 @@ package org.opensearch.action.admin.indices.alias.get;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for listing index aliases
+ *
+ * @opensearch.internal
+ */
 public class GetAliasesAction extends ActionType<GetAliasesResponse> {
 
     public static final GetAliasesAction INSTANCE = new GetAliasesAction();

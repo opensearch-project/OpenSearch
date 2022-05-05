@@ -40,6 +40,11 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.node.ReportingService;
 
+/**
+ * Service for monitoring the JVM
+ *
+ * @opensearch.internal
+ */
 public class JvmService implements ReportingService<JvmInfo> {
 
     private static final Logger logger = LogManager.getLogger(JvmService.class);

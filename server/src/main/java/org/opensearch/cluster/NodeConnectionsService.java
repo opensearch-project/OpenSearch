@@ -80,6 +80,8 @@ import static org.opensearch.common.settings.Setting.positiveTimeSetting;
  * <p>
  * This component does not block on disconnections at all, because a disconnection might need to wait for an ongoing (background) connection
  * attempt to complete first.
+ *
+ * @opensearch.internal
  */
 public class NodeConnectionsService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(NodeConnectionsService.class);

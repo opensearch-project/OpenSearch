@@ -56,6 +56,8 @@ import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBoole
 
 /**
  * Mapping configuration for a type.
+ *
+ * @opensearch.internal
  */
 public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
     public static final MappingMetadata EMPTY_MAPPINGS = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, Collections.emptyMap());
