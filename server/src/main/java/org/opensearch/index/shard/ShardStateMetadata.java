@@ -45,6 +45,11 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Objects;
 
+/**
+ * Metadata string a shard state
+ *
+ * @opensearch.internal
+ */
 public final class ShardStateMetadata {
 
     private static final String SHARD_STATE_FILE_PREFIX = "state-";

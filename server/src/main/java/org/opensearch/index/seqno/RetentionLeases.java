@@ -55,6 +55,8 @@ import java.util.stream.Collectors;
 /**
  * Represents a versioned collection of retention leases. We version the collection of retention leases to ensure that sync requests that
  * arrive out of order on the replica, using the version to ensure that older sync requests are rejected.
+ *
+ * @opensearch.internal
  */
 public class RetentionLeases implements ToXContentFragment, Writeable {
 

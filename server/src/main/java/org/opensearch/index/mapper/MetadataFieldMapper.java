@@ -42,6 +42,8 @@ import java.util.function.Function;
 
 /**
  * A mapper for a builtin field containing metadata about a document.
+ *
+ * @opensearch.internal
  */
 public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
 

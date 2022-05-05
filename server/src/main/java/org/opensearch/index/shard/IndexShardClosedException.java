@@ -36,6 +36,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown if trying to operate on a closed Index Shard
+ *
+ * @opensearch.internal
+ */
 public class IndexShardClosedException extends IllegalIndexShardStateException {
     public IndexShardClosedException(ShardId shardId) {
         super(shardId, IndexShardState.CLOSED, "Closed");

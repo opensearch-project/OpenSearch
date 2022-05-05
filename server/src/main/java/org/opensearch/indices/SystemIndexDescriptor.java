@@ -39,6 +39,8 @@ import java.util.Objects;
 
 /**
  * Describes a system index. Provides the information required to create and maintain the system index.
+ *
+ * @opensearch.internal
  */
 public class SystemIndexDescriptor {
     private final String indexPattern;

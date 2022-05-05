@@ -53,6 +53,8 @@ import java.util.Objects;
  * A query that generates the union of documents produced by its sub-queries, and that scores each document
  * with the maximum score for that document as produced by any sub-query, plus a tie breaking increment for any
  * additional matching sub-queries.
+ *
+ * @opensearch.internal
  */
 public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder> {
     public static final String NAME = "dis_max";

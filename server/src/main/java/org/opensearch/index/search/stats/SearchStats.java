@@ -47,6 +47,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Encapsulates stats for search time
+ *
+ * @opensearch.internal
+ */
 public class SearchStats implements Writeable, ToXContentFragment {
 
     public static class Stats implements Writeable, ToXContentFragment {

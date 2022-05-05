@@ -14,6 +14,8 @@ import org.opensearch.common.settings.Settings;
  * This class contains all the settings which are required and owned by {TODO link ShardIndexingPressure}. These will be
  * referenced/used in ShardIndexingPressure, as well as its dependent components, i.e.
  * {TODO link ShardIndexingPressureMemoryManager} and {TODO link ShardIndexingPressureStore}
+ *
+ * @opensearch.internal
  */
 public final class ShardIndexingPressureSettings {
 

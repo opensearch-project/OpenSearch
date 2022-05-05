@@ -55,6 +55,8 @@ import java.util.function.LongUnaryOperator;
 
 /**
  * Base class for numeric field data.
+ *
+ * @opensearch.internal
  */
 public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumericFieldData> {
     /**

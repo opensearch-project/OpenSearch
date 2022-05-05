@@ -66,6 +66,8 @@ import static org.opensearch.common.util.CollectionUtils.isEmpty;
 
 /**
  * A scrollable source of hits from a {@linkplain Client} instance.
+ *
+ * @opensearch.internal
  */
 public class ClientScrollableHitSource extends ScrollableHitSource {
     private final ParentTaskAssigningClient client;

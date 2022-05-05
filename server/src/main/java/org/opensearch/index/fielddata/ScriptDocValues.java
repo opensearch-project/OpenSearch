@@ -57,6 +57,8 @@ import java.util.function.UnaryOperator;
  * Implementations should not internally re-use objects for the values that they
  * return as a single {@link ScriptDocValues} instance can be reused to return
  * values form multiple documents.
+ *
+ * @opensearch.internal
  */
 public abstract class ScriptDocValues<T> extends AbstractList<T> {
 

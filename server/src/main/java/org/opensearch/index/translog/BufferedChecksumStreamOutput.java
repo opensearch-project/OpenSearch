@@ -42,6 +42,8 @@ import java.util.zip.Checksum;
 /**
  * Similar to Lucene's BufferedChecksumIndexOutput, however this wraps a
  * {@link StreamOutput} so anything written will update the checksum
+ *
+ * @opensearch.internal
  */
 public final class BufferedChecksumStreamOutput extends StreamOutput {
     private final StreamOutput out;

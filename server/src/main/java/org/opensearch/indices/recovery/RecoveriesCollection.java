@@ -55,6 +55,8 @@ import java.util.concurrent.ConcurrentMap;
  * of those recoveries). The class is used to guarantee concurrent semantics such that once a recoveries was done/cancelled/failed
  * no other thread will be able to find it. Last, the {@link RecoveryRef} inner class verifies that recovery temporary files
  * and store will only be cleared once on going usage is finished.
+ *
+ * @opensearch.internal
  */
 public class RecoveriesCollection {
 

@@ -37,6 +37,11 @@ import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
+/**
+ * Request builder for updating a document by query
+ *
+ * @opensearch.internal
+ */
 public class UpdateByQueryRequestBuilder extends AbstractBulkIndexByScrollRequestBuilder<
     UpdateByQueryRequest,
     UpdateByQueryRequestBuilder> {

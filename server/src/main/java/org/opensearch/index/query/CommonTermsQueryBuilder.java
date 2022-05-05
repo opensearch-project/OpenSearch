@@ -63,6 +63,8 @@ import java.util.Objects;
  *
  * @deprecated Since max_optimization optimization landed in 7.0, normal MatchQuery
  *             will achieve the same result without any configuration.
+ *
+ * @opensearch.internal
  */
 @Deprecated
 public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQueryBuilder> {

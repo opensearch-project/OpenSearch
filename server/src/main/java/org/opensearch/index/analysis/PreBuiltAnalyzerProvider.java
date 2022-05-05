@@ -34,6 +34,11 @@ package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 
+/**
+ * Provider for all prebuilt analyzers
+ *
+ * @opensearch.internal
+ */
 public class PreBuiltAnalyzerProvider implements AnalyzerProvider<NamedAnalyzer> {
 
     private final NamedAnalyzer analyzer;

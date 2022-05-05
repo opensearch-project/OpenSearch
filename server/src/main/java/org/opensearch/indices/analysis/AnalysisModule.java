@@ -74,6 +74,8 @@ import static org.opensearch.plugins.AnalysisPlugin.requiresAnalysisSettings;
 
 /**
  * Sets up {@link AnalysisRegistry}.
+ *
+ * @opensearch.internal
  */
 public final class AnalysisModule {
     static {

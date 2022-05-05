@@ -44,6 +44,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+/**
+ * A template that is dynamic based on field types
+ *
+ * @opensearch.internal
+ */
 public class DynamicTemplate implements ToXContentObject {
 
     public enum MatchType {

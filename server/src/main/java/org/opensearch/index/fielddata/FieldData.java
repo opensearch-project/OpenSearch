@@ -46,6 +46,8 @@ import java.util.List;
 
 /**
  * Utility methods, similar to Lucene's {@link DocValues}.
+ *
+ * @opensearch.internal
  */
 public enum FieldData {
     ;

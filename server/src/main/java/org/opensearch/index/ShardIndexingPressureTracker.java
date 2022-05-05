@@ -31,6 +31,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * increase the complexity of handling shard-lister events and handling other race scenarios such as request-draining etc.
  * To prefer simplicity we have modelled by keeping explicit fields for different operation tracking, while tracker by itself is
  * agnostic of the actual shard role.
+ *
+ * @opensearch.internal
  */
 public class ShardIndexingPressureTracker {
 

@@ -66,6 +66,8 @@ import java.util.Objects;
 /**
  * A query that uses a filters with a script associated with them to compute the
  * score.
+ *
+ * @opensearch.internal
  */
 public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScoreQueryBuilder> {
     public static final String NAME = "function_score";

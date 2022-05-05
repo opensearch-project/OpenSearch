@@ -41,6 +41,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Stats collected about the warmer
+ *
+ * @opensearch.internal
+ */
 public class WarmerStats implements Writeable, ToXContentFragment {
 
     private long current;

@@ -37,6 +37,11 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.AbstractIndexShardComponent;
 import org.opensearch.index.shard.ShardId;
 
+/**
+ * Bitset Filter Cache for shards
+ *
+ * @opensearch.internal
+ */
 public class ShardBitsetFilterCache extends AbstractIndexShardComponent {
 
     private final CounterMetric totalMetric = new CounterMetric();

@@ -45,6 +45,8 @@ import java.util.function.LongSupplier;
 
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
+ *
+ * @opensearch.internal
  */
 public class QueryRewriteContext {
     private final NamedXContentRegistry xContentRegistry;

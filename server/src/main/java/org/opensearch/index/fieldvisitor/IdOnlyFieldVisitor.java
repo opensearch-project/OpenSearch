@@ -37,6 +37,11 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.Uid;
 
+/**
+ * Visitor pattern for doc ids only
+ *
+ * @opensearch.internal
+ */
 public final class IdOnlyFieldVisitor extends StoredFieldVisitor {
     private String id = null;
     private boolean visited = false;

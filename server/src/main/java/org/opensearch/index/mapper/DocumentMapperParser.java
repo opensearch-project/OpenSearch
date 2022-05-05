@@ -55,6 +55,11 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.unmodifiableMap;
 
+/**
+ * Parser for a document mapper
+ *
+ * @opensearch.internal
+ */
 public class DocumentMapperParser {
 
     final MapperService mapperService;

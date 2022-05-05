@@ -21,6 +21,11 @@ import org.opensearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
 
+/**
+ * Replacement for TypesFieldMapper used in nested fields
+ *
+ * @opensearch.internal
+ */
 public class NestedPathFieldMapper extends MetadataFieldMapper {
     // OpenSearch version 2.0 removed types; this name is used for bwc
     public static final String LEGACY_NAME = "_type";

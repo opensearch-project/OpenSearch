@@ -73,6 +73,8 @@ import java.util.Objects;
  * that if a replica misses a background retention lease sync then that shard will not be marked as stale. We have some tolerance for a
  * shard copy missing renewals of retention leases since the background sync interval is much smaller than the expected lifetime of
  * retention leases.
+ *
+ * @opensearch.internal
  */
 public class RetentionLeaseBackgroundSyncAction extends TransportReplicationAction<
     RetentionLeaseBackgroundSyncAction.Request,

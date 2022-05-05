@@ -77,7 +77,11 @@ import static org.opensearch.index.query.RangeQueryBuilder.GT_FIELD;
 import static org.opensearch.index.query.RangeQueryBuilder.LTE_FIELD;
 import static org.opensearch.index.query.RangeQueryBuilder.LT_FIELD;
 
-/** A {@link FieldMapper} for indexing numeric and date ranges, and creating queries */
+/**
+ * A {@link FieldMapper} for indexing numeric and date ranges, and creating queries
+ *
+ * @opensearch.internal
+ */
 public class RangeFieldMapper extends ParametrizedFieldMapper {
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
     public static final boolean DEFAULT_INCLUDE_LOWER = true;

@@ -94,6 +94,8 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * <p>
  * Note, it can be safely assumed that there will only be a single recovery per shard (index+id) and
  * not several of them (since we don't allocate several shard replicas to the same node).
+ *
+ * @opensearch.internal
  */
 public class PeerRecoveryTargetService implements IndexEventListener {
 

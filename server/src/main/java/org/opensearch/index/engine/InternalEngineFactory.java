@@ -32,6 +32,11 @@
 
 package org.opensearch.index.engine;
 
+/**
+ * Factory for creating an in InternalEngine instance
+ *
+ * @opensearch.internal
+ */
 public class InternalEngineFactory implements EngineFactory {
     @Override
     public Engine newReadWriteEngine(EngineConfig config) {

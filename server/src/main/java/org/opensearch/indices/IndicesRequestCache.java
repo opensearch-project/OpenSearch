@@ -76,6 +76,8 @@ import java.util.concurrent.ConcurrentMap;
  * <p>
  * There are still several TODOs left in this class, some easily addressable, some more complex, but the support
  * is functional.
+ *
+ * @opensearch.internal
  */
 public final class IndicesRequestCache implements RemovalListener<IndicesRequestCache.Key, BytesReference>, Closeable {
 

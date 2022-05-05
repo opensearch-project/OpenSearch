@@ -18,6 +18,8 @@ import java.util.function.LongSupplier;
 /**
  * Sets up classes for node/shard level indexing pressure.
  * Provides abstraction and orchestration for indexing pressure interfaces when called from Transport Actions or for Stats.
+ *
+ * @opensearch.internal
  */
 public class IndexingPressureService {
 

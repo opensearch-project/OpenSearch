@@ -39,6 +39,8 @@ import org.apache.lucene.util.RamUsageEstimator;
  * A {@link CountedBitSet} wraps a {@link FixedBitSet} but automatically releases the internal bitset
  * when all bits are set to reduce memory usage. This structure can work well for sequence numbers as
  * these numbers are likely to form contiguous ranges (eg. filling all bits).
+ *
+ * @opensearch.internal
  */
 public final class CountedBitSet {
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CountedBitSet.class);

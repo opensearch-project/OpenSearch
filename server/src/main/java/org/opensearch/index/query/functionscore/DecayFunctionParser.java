@@ -79,6 +79,8 @@ import java.util.function.BiFunction;
  * {@link DecayFunctionBuilder}, setup a PARSER field with this class, and
  * register them in {@link SearchModule#registerScoreFunctions} or {@link SearchPlugin#getScoreFunctions}
  * See {@link GaussDecayFunctionBuilder#PARSER} for an example.
+ *
+ * @opensearch.internal
  */
 public final class DecayFunctionParser<DFB extends DecayFunctionBuilder<DFB>> implements ScoreFunctionParser<DFB> {
 

@@ -136,6 +136,11 @@ import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/**
+ * The default internal engine (can be overridden by plugins)
+ *
+ * @opensearch.internal
+ */
 public class InternalEngine extends Engine {
 
     /**
