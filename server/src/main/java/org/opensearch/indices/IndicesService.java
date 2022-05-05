@@ -189,6 +189,11 @@ import static org.opensearch.index.IndexService.IndexCreationContext.METADATA_VE
 import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
+/**
+ * Main OpenSearch indices service
+ *
+ * @opensearch.internal
+ */
 public class IndicesService extends AbstractLifecycleComponent
     implements
         IndicesClusterStateService.AllocatedIndices<IndexShard, IndexService>,

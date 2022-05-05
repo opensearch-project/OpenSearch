@@ -41,6 +41,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Request for the query cache statistics
+ *
+ * @opensearch.internal
+ */
 public class RequestCacheStats implements Writeable, ToXContentFragment {
 
     private long memorySize;

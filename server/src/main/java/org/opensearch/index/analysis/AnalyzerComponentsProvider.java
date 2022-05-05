@@ -34,6 +34,8 @@ package org.opensearch.index.analysis;
 
 /**
  * Analyzers that provide access to their token filters should implement this
+ *
+ * @opensearch.internal
  */
 public interface AnalyzerComponentsProvider {
 

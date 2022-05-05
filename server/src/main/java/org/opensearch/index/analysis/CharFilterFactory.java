@@ -34,6 +34,11 @@ package org.opensearch.index.analysis;
 
 import java.io.Reader;
 
+/**
+ * Base character filter factory behavior used in analysis chain
+ *
+ * @opensearch.internal
+ */
 public interface CharFilterFactory {
 
     String name();

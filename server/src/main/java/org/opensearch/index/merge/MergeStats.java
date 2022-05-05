@@ -42,6 +42,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Stores stats about a merge process
+ *
+ * @opensearch.internal
+ */
 public class MergeStats implements Writeable, ToXContentFragment {
 
     private long total;

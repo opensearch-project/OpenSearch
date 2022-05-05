@@ -55,6 +55,8 @@ import java.util.Objects;
 
 /**
  * A Query that matches documents within an range of terms.
+ *
+ * @opensearch.internal
  */
 public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> implements MultiTermQueryBuilder {
     public static final String NAME = "range";

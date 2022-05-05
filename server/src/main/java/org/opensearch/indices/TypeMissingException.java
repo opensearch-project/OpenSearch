@@ -40,6 +40,14 @@ import org.opensearch.rest.RestStatus;
 import java.io.IOException;
 import java.util.Arrays;
 
+/**
+ * Exception thrown if a document type is missing
+ *
+ * @opensearch.internal
+ *
+ * @deprecated Types are removed
+ */
+@Deprecated
 public class TypeMissingException extends OpenSearchException {
 
     public TypeMissingException(Index index, String... types) {

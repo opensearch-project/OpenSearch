@@ -33,6 +33,8 @@ package org.opensearch.index.engine;
 
 /**
  * Simple Engine Factory
+ *
+ * @opensearch.internal
  */
 @FunctionalInterface
 public interface EngineFactory {

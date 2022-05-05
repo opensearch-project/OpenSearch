@@ -39,6 +39,8 @@ import org.opensearch.common.unit.ByteSizeValue;
 
 /**
  * Settings for a {@link CircuitBreaker}
+ *
+ * @opensearch.internal
  */
 public final class BreakerSettings {
 

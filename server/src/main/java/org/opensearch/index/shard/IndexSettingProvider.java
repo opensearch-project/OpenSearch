@@ -37,6 +37,8 @@ import org.opensearch.common.settings.Settings;
 /**
  * An {@link IndexSettingProvider} is a provider for index level settings that can be set
  * explicitly as a default value (so they show up as "set" for newly created indices)
+ *
+ * @opensearch.internal
  */
 public interface IndexSettingProvider {
     /**

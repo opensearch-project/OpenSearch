@@ -42,6 +42,8 @@ import java.util.function.Predicate;
 
 /**
  * A predicate that checks whether an index pattern matches the current search shard target.
+ *
+ * @opensearch.internal
  */
 public class SearchIndexNameMatcher implements Predicate<String> {
     private final String indexName;

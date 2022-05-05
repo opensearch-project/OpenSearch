@@ -43,6 +43,8 @@ import org.opensearch.script.SimilarityWeightScript;
 
 /**
  * A {@link Similarity} implementation that allows scores to be scripted.
+ *
+ * @opensearch.internal
  */
 public final class ScriptedSimilarity extends Similarity {
 

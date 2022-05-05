@@ -41,6 +41,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Translog statistics
+ *
+ * @opensearch.internal
+ */
 public class TranslogStats implements Writeable, ToXContentFragment {
 
     private long translogSizeInBytes;

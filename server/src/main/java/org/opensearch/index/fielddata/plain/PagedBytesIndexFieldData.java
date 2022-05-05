@@ -64,6 +64,11 @@ import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;
 
+/**
+ * Doc Values for paged bytes
+ *
+ * @opensearch.internal
+ */
 public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     private final double minFrequency, maxFrequency;

@@ -40,7 +40,7 @@ import java.io.IOException;
 /**
  * An exception marking that this recovery attempt should be ignored (since probably, we already recovered).
  *
- *
+ * @opensearch.internal
  */
 public class DelayRecoveryException extends OpenSearchException {
 

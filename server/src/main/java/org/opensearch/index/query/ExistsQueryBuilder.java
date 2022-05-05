@@ -58,6 +58,8 @@ import java.util.Objects;
 
 /**
  * Constructs a query that only match on documents that the field has a value in them.
+ *
+ * @opensearch.internal
  */
 public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder> {
     public static final String NAME = "exists";

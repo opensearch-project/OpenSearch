@@ -49,6 +49,8 @@ import static org.opensearch.index.query.SpanQueryBuilder.SpanQueryBuilderUtil.c
 
 /**
  * Builder for {@link org.apache.lucene.queries.spans.SpanWithinQuery}.
+ *
+ * @opensearch.internal
  */
 public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "span_within";

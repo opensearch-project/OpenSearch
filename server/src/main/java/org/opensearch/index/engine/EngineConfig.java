@@ -62,10 +62,12 @@ import java.util.Objects;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
-/*
+/**
  * Holds all the configuration that is used to create an {@link Engine}.
  * Once {@link Engine} has been created with this object, changes to this
  * object will affect the {@link Engine} instance.
+ *
+ * @opensearch.internal
  */
 public final class EngineConfig {
     private final ShardId shardId;

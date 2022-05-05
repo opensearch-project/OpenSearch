@@ -66,7 +66,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.BiFunction;
 
-/** Enum defining the type of range */
+/**
+ * Enum defining the type of range
+ *
+ * @opensearch.internal
+ */
 public enum RangeType {
     IP("ip_range", LengthType.FIXED_16) {
         @Override

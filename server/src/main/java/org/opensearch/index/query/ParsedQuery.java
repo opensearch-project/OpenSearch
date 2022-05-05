@@ -41,6 +41,8 @@ import static java.util.Collections.emptyMap;
 
 /**
  * The result of parsing a query.
+ *
+ * @opensearch.internal
  */
 public class ParsedQuery {
     private final Query query;

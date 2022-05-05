@@ -41,6 +41,11 @@ import org.opensearch.index.store.StoreStats;
 
 import java.io.IOException;
 
+/**
+ * Document statistics
+ *
+ * @opensearch.internal
+ */
 public class DocsStats implements Writeable, ToXContentFragment {
 
     private long count = 0;

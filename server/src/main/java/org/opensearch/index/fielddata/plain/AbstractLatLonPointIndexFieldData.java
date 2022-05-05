@@ -51,6 +51,11 @@ import org.opensearch.search.aggregations.support.ValuesSourceType;
 import org.opensearch.search.sort.BucketedSort;
 import org.opensearch.search.sort.SortOrder;
 
+/**
+ * Base class for sorting LatLonPoint docvalues
+ *
+ * @opensearch.internal
+ */
 public abstract class AbstractLatLonPointIndexFieldData implements IndexGeoPointFieldData {
 
     protected final String fieldName;

@@ -40,6 +40,8 @@ import java.util.List;
 
 /**
  * A basic interface for rewriteable classes.
+ *
+ * @opensearch.internal
  */
 public interface Rewriteable<T> {
 

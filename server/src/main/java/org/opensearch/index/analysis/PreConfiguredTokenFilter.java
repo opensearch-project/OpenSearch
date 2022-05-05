@@ -43,6 +43,8 @@ import java.util.function.Function;
 
 /**
  * Provides pre-configured, shared {@link TokenFilter}s.
+ *
+ * @opensearch.internal
  */
 public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisComponent<TokenFilterFactory> {
     /**

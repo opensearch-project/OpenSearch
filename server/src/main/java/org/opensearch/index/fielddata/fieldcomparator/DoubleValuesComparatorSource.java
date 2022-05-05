@@ -57,6 +57,8 @@ import java.io.IOException;
 
 /**
  * Comparator source for double values.
+ *
+ * @opensearch.internal
  */
 public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparatorSource {
 

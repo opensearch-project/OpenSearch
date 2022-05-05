@@ -109,6 +109,8 @@ import static org.opensearch.index.translog.TranslogConfig.EMPTY_TRANSLOG_BUFFER
  * which is an fsynced copy of its last {@code translog.ckp} such that in disaster recovery last fsynced offsets, number of
  * operation etc. are still preserved.
  * </p>
+ *
+ * @opensearch.internal
  */
 public class Translog extends AbstractIndexShardComponent implements IndexShardComponent, Closeable {
 

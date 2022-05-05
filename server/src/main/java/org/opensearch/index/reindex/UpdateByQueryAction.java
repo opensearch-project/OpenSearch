@@ -34,6 +34,11 @@ package org.opensearch.index.reindex;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Action type for updating by query
+ *
+ * @opensearch.internal
+ */
 public class UpdateByQueryAction extends ActionType<BulkByScrollResponse> {
     public static final UpdateByQueryAction INSTANCE = new UpdateByQueryAction();
     public static final String NAME = "indices:data/write/update/byquery";

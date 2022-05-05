@@ -63,6 +63,8 @@ import org.opensearch.common.util.concurrent.OpenSearchExecutors;
  *     throttled, while an application doing heavy indexing will see the throttle
  *     move higher to allow merges to keep up with ongoing indexing.
  * </ul>
+ *
+ * @opensearch.internal
  */
 public final class MergeSchedulerConfig {
 

@@ -65,6 +65,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Objects.requireNonNull;
 
+/**
+ * Syncer for Primary replica
+ *
+ * @opensearch.internal
+ */
 public class PrimaryReplicaSyncer {
 
     private static final Logger logger = LogManager.getLogger(PrimaryReplicaSyncer.class);

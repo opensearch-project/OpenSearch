@@ -47,6 +47,11 @@ import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;
 
+/**
+ * Field Data for binary strings
+ *
+ * @opensearch.internal
+ */
 public class StringBinaryIndexFieldData implements IndexFieldData<StringBinaryDVLeafFieldData> {
 
     protected final String fieldName;

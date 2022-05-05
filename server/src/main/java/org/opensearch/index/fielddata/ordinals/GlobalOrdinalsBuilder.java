@@ -55,6 +55,8 @@ import java.util.function.Function;
 
 /**
  * Utility class to build global ordinals.
+ *
+ * @opensearch.internal
  */
 public enum GlobalOrdinalsBuilder {
     ;

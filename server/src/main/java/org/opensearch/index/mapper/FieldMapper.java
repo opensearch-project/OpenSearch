@@ -60,6 +60,11 @@ import java.util.Objects;
 import java.util.TreeMap;
 import java.util.stream.StreamSupport;
 
+/**
+ * The base OpenSearch Field Mapper
+ *
+ * @opensearch.internal
+ */
 public abstract class FieldMapper extends Mapper implements Cloneable {
     public static final Setting<Boolean> IGNORE_MALFORMED_SETTING = Setting.boolSetting(
         "index.mapping.ignore_malformed",

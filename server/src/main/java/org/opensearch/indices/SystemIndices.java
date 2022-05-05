@@ -63,6 +63,8 @@ import static org.opensearch.tasks.TaskResultsService.TASK_INDEX;
  * This class holds the {@link SystemIndexDescriptor} objects that represent system indices the
  * node knows about. Methods for determining if an index should be a system index are also provided
  * to reduce the locations within the code that need to deal with {@link SystemIndexDescriptor}s.
+ *
+ * @opensearch.internal
  */
 public class SystemIndices {
     private static final Logger logger = LogManager.getLogger(SystemIndices.class);

@@ -47,6 +47,11 @@ import org.opensearch.search.aggregations.support.ValuesSourceType;
 import org.opensearch.search.sort.BucketedSort;
 import org.opensearch.search.sort.SortOrder;
 
+/**
+ * Binary doc values ValuesSource
+ *
+ * @opensearch.internal
+ */
 public class BinaryIndexFieldData implements IndexFieldData<BinaryDVLeafFieldData> {
 
     public static class Builder implements IndexFieldData.Builder {

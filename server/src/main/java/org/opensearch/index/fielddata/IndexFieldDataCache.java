@@ -39,6 +39,8 @@ import org.opensearch.index.shard.ShardId;
 
 /**
  * A simple field data cache abstraction on the *index* level.
+ *
+ * @opensearch.internal
  */
 public interface IndexFieldDataCache {
 

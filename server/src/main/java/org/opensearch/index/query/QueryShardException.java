@@ -42,6 +42,8 @@ import java.io.IOException;
 
 /**
  * Exception that is thrown when creating lucene queries on the shard
+ *
+ * @opensearch.internal
  */
 public class QueryShardException extends OpenSearchException {
 

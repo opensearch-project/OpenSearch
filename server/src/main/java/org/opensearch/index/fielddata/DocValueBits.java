@@ -34,6 +34,11 @@ package org.opensearch.index.fielddata;
 
 import java.io.IOException;
 
+/**
+ * Base class for doc value bit sets
+ *
+ * @opensearch.internal
+ */
 public abstract class DocValueBits {
 
     /**

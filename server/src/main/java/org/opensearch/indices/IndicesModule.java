@@ -89,6 +89,8 @@ import java.util.function.Predicate;
 
 /**
  * Configures classes and services that are shared by indices on each node.
+ *
+ * @opensearch.internal
  */
 public class IndicesModule extends AbstractModule {
     private final List<Entry> namedWritables = new ArrayList<>();
