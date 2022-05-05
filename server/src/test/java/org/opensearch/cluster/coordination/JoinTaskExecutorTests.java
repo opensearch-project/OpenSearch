@@ -53,6 +53,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.is;
 import static org.opensearch.test.VersionUtils.maxCompatibleVersion;
 import static org.opensearch.test.VersionUtils.randomCompatibleVersion;
 import static org.opensearch.test.VersionUtils.randomVersion;
@@ -271,5 +272,15 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         assertEquals(LegacyESVersion.V_7_10_0, resultNodes.get(node_6).getVersion());
         // 7.9.0 node without active channel but shouldn't get removed
         assertEquals(LegacyESVersion.V_7_10_0, resultNodes.get(node_7).getVersion());
+    }
+
+    /**
+     * Validate isBecomeMasterTask() can identify "become cluster manager task" properly
+     */
+    public void testIsBecomeClusterManagerTask() {
+        JoinTaskExecutor.Task joinTaskOfMaster = JoinTaskExecutor.newBecomeMasterTask();
+        assertThat(joinTaskOfMaster.isBecomeMasterTask(), is(true));
+        JoinTaskExecutor.Task joinTaskOfClusterManager = JoinTaskExecutor.newBecomeClusterManagerTask();
+        assertThat(joinTaskOfClusterManager.isBecomeMasterTask(), is(true));
     }
 }
