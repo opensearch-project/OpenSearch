@@ -36,6 +36,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown if there is an error relocating an index shard
+ *
+ * @opensearch.internal
+ */
 public class IndexShardRelocatedException extends IllegalIndexShardStateException {
 
     public IndexShardRelocatedException(ShardId shardId) {

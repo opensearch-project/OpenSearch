@@ -62,6 +62,8 @@ import java.util.Map;
 
 /**
  * Keeps track of state related to shard recovery.
+ *
+ * @opensearch.internal
  */
 public class RecoveryState implements ToXContentFragment, Writeable {
 

@@ -49,6 +49,8 @@ import java.io.IOException;
  * CompositeIndicesRequest but in a misleading way. Rather than returning all the subrequests that it will make it tries to return a
  * representative set of subrequests. This is best-effort but better than {@linkplain ReindexRequest} because scripts can't change the
  * destination index and things.
+ *
+ * @opensearch.internal
  */
 public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<UpdateByQueryRequest>
     implements

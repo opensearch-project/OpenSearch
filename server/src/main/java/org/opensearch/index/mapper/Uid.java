@@ -38,6 +38,11 @@ import org.apache.lucene.util.UnicodeUtil;
 import java.util.Arrays;
 import java.util.Base64;
 
+/**
+ * A documents OpenSearch id
+ *
+ * @opensearch.internal
+ */
 public final class Uid {
 
     public static final char DELIMITER = '#';

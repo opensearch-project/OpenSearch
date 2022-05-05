@@ -43,6 +43,8 @@ import java.io.IOException;
  * {@link TermsEnum} that takes a CircuitBreaker, increasing the breaker
  * every time {@code .next(...)} is called. Proxies all methods to the original
  * TermsEnum otherwise.
+ *
+ * @opensearch.internal
  */
 public final class RamAccountingTermsEnum extends FilteredTermsEnum {
 

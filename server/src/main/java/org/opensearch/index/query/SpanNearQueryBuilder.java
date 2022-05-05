@@ -57,6 +57,8 @@ import static org.opensearch.index.query.SpanQueryBuilder.SpanQueryBuilderUtil.c
  * Matches spans which are near one another. One can specify slop, the maximum number
  * of intervening unmatched positions, as well as whether matches are required to be in-order.
  * The span near query maps to Lucene {@link SpanNearQuery}.
+ *
+ * @opensearch.internal
  */
 public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "span_near";

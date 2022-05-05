@@ -63,6 +63,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
 
+/**
+ * The OpenSearch DocumentMapper
+ *
+ * @opensearch.internal
+ */
 public class DocumentMapper implements ToXContentFragment {
 
     public static class Builder {

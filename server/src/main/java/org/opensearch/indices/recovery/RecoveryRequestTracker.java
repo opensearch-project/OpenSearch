@@ -44,6 +44,11 @@ import java.util.Map;
 
 import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 
+/**
+ * Tracks recovery requests
+ *
+ * @opensearch.internal
+ */
 public class RecoveryRequestTracker {
 
     private final Map<Long, ListenableFuture<Void>> ongoingRequests = Collections.synchronizedMap(new HashMap<>());

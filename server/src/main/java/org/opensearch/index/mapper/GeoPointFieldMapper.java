@@ -65,6 +65,8 @@ import java.util.function.Supplier;
  * Field Mapper for geo_point types.
  *
  * Uses lucene 6 LatLonPoint encoding
+ *
+ * @opensearch.internal
  */
 public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<ParsedGeoPoint>, List<? extends GeoPoint>> {
     public static final String CONTENT_TYPE = "geo_point";

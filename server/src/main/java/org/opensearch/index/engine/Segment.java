@@ -52,6 +52,11 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * A segment in the engine
+ *
+ * @opensearch.internal
+ */
 public class Segment implements Writeable {
 
     private String name;

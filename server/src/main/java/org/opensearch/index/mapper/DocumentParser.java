@@ -56,7 +56,11 @@ import java.util.List;
 
 import static org.opensearch.index.mapper.FieldMapper.IGNORE_MALFORMED_SETTING;
 
-/** A parser for documents, given mappings from a DocumentMapper */
+/**
+ * A parser for documents, given mappings from a DocumentMapper
+ *
+ * @opensearch.internal
+ */
 final class DocumentParser {
 
     private final IndexSettings indexSettings;

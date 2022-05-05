@@ -62,6 +62,8 @@ import java.util.Arrays;
  *      bool.must(new TermQueryBuilder("field2","value2"));
  * </code>
  * </pre>
+ *
+ * @opensearch.internal
  */
 public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilder> {
     public static final String NAME = "wrapper";

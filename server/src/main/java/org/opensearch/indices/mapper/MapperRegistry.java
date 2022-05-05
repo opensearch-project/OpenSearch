@@ -46,6 +46,8 @@ import java.util.function.Predicate;
 
 /**
  * A registry for all field mappers.
+ *
+ * @opensearch.internal
  */
 public final class MapperRegistry {
 

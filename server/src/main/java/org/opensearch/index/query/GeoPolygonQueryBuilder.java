@@ -56,6 +56,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Query builder for polygon queries
+ *
+ * @opensearch.internal
+ */
 public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQueryBuilder> {
     public static final String NAME = "geo_polygon";
 

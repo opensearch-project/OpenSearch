@@ -48,6 +48,8 @@ import java.util.Set;
 
 /**
  * Helpers to extract and expand field names and boosts
+ *
+ * @opensearch.internal
  */
 public final class QueryParserHelper {
     private QueryParserHelper() {}

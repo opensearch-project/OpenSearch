@@ -39,6 +39,11 @@ import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 
+/**
+ * Request to prepare cluster for translog operations
+ *
+ * @opensearch.internal
+ */
 class RecoveryPrepareForTranslogOperationsRequest extends RecoveryTransportRequest {
 
     private final long recoveryId;

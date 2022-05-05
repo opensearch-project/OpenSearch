@@ -44,6 +44,7 @@ import static java.util.Objects.isNull;
  * update and evict operations can be abstracted out to support any other strategy such as LRU, if
  * discovered a need later.
  *
+ * @opensearch.internal
  */
 public class ShardIndexingPressureStore {
 

@@ -87,6 +87,11 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
+/**
+ * The core field mapping service
+ *
+ * @opensearch.internal
+ */
 public class MapperService extends AbstractIndexComponent implements Closeable {
 
     /**

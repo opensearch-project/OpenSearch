@@ -46,7 +46,9 @@ import java.io.IOException;
  *  On STRICT validation invalid coordinates cause an exception to be thrown.
  *  On IGNORE_MALFORMED invalid coordinates are being accepted.
  *  On COERCE invalid coordinates are being corrected to the most likely valid coordinate.
- * */
+ *
+ * @opensearch.internal
+ */
 public enum GeoValidationMethod implements Writeable {
     COERCE,
     IGNORE_MALFORMED,

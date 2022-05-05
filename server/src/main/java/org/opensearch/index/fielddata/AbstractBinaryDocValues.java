@@ -42,6 +42,8 @@ import java.io.IOException;
  * {@link DocIdSetIterator} APIs. This impl is safe to use for sorting and
  * aggregations, which only use {@link #advanceExact(int)} and
  * {@link #binaryValue()}.
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractBinaryDocValues extends BinaryDocValues {
 

@@ -40,6 +40,8 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * This class generates sequences numbers and keeps track of the so-called "local checkpoint" which is the highest number for which all
  * previous sequence numbers have been processed (inclusive).
+ *
+ * @opensearch.internal
  */
 public class LocalCheckpointTracker {
 

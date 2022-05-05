@@ -88,6 +88,11 @@ import java.util.Set;
 
 import static java.util.Collections.unmodifiableMap;
 
+/**
+ * Core analysis class
+ *
+ * @opensearch.internal
+ */
 public class Analysis {
 
     public static CharArraySet parseStemExclusion(Settings settings, CharArraySet defaultStemExclusion) {

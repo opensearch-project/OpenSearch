@@ -41,6 +41,8 @@ import java.util.Map;
 /**
  * A class that groups analysis components necessary to produce a custom analyzer.
  * See {@link ReloadableCustomAnalyzer} for an example usage.
+ *
+ * @opensearch.internal
  */
 public final class AnalyzerComponents {
 

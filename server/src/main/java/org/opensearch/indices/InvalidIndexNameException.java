@@ -39,6 +39,11 @@ import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown if an index name is invalid
+ *
+ * @opensearch.internal
+ */
 public class InvalidIndexNameException extends OpenSearchException {
 
     public InvalidIndexNameException(String name, String desc) {

@@ -66,6 +66,8 @@ import static java.util.Objects.requireNonNull;
  * A scrollable source of results. Pumps data out into the passed onResponse consumer. Same data may come out several times in case
  * of failures during searching (though not yet). Once the onResponse consumer is done, it should call AsyncResponse.isDone(time) to receive
  * more data (only receives one response at a time).
+ *
+ * @opensearch.internal
  */
 public abstract class ScrollableHitSource {
     private final AtomicReference<String> scrollId = new AtomicReference<>();

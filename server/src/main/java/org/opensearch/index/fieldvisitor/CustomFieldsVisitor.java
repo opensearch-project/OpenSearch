@@ -40,6 +40,8 @@ import java.util.Set;
  * Supported pattern styles: "xxx*", "*xxx", "*xxx*" and "xxx*yyy".
  * The Uid field is always loaded.
  * The class is optimized for source loading as it is a common use case.
+ *
+ * @opensearch.internal
  */
 public class CustomFieldsVisitor extends FieldsVisitor {
 

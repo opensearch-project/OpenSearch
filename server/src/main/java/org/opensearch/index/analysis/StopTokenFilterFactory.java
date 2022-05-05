@@ -43,6 +43,11 @@ import org.opensearch.index.IndexSettings;
 
 import java.util.Set;
 
+/**
+ * Token filter factory for the stop word analyzer
+ *
+ * @opensearch.internal
+ */
 public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final CharArraySet stopWords;

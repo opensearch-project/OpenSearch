@@ -39,6 +39,11 @@ import org.opensearch.index.shard.ShardId;
 
 import java.util.Objects;
 
+/**
+ * Syncs retention leases
+ *
+ * @opensearch.internal
+ */
 public class RetentionLeaseSyncer {
     private final SyncAction syncAction;
     private final BackgroundSyncAction backgroundSyncAction;

@@ -39,6 +39,11 @@ import org.opensearch.common.util.CollectionUtils;
 
 import java.io.Reader;
 
+/**
+ * Custom analyzer chain
+ *
+ * @opensearch.internal
+ */
 public final class CustomAnalyzer extends Analyzer implements AnalyzerComponentsProvider {
 
     private final AnalyzerComponents components;

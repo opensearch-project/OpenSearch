@@ -58,6 +58,8 @@ import static org.opensearch.common.xcontent.ObjectParser.fromList;
 
 /**
  * A query that will return only documents matching specific ids (and a type).
+ *
+ * @opensearch.internal
  */
 public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     public static final String NAME = "ids";

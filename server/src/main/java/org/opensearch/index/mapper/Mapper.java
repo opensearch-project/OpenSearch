@@ -48,6 +48,11 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+/**
+ * The foundation OpenSearch mapper
+ *
+ * @opensearch.internal
+ */
 public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
     public static class BuilderContext {

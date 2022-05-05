@@ -44,6 +44,8 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Helps build a {@link BulkByScrollResponse}. Used by an instance of {@link ObjectParser} when parsing from XContent.
+ *
+ * @opensearch.internal
  */
 class BulkByScrollResponseBuilder extends StatusBuilder {
     private TimeValue took;

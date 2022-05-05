@@ -59,6 +59,11 @@ import org.opensearch.search.sort.SortOrder;
 import java.util.Collection;
 import java.util.Collections;
 
+/**
+ * Constant value field data
+ *
+ * @opensearch.internal
+ */
 public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     public static class Builder implements IndexFieldData.Builder {

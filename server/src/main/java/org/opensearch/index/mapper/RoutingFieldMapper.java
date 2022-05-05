@@ -42,6 +42,11 @@ import org.opensearch.search.lookup.SearchLookup;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Internal field mapper for _routing fields
+ *
+ * @opensearch.internal
+ */
 public class RoutingFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_routing";

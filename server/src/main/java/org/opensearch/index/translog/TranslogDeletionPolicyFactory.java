@@ -13,6 +13,11 @@ import org.opensearch.index.seqno.RetentionLeases;
 
 import java.util.function.Supplier;
 
+/**
+ * Factory to instantiate a translog deletion policy
+ *
+ * @opensearch.api
+ */
 @FunctionalInterface
 public interface TranslogDeletionPolicyFactory {
     TranslogDeletionPolicy create(IndexSettings settings, Supplier<RetentionLeases> supplier);

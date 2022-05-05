@@ -56,6 +56,11 @@ import java.util.PriorityQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * A multi file writer utility for recovery
+ *
+ * @opensearch.internal
+ */
 public class MultiFileWriter extends AbstractRefCounted implements Releasable {
 
     public MultiFileWriter(Store store, RecoveryState.Index indexState, String tempFilePrefix, Logger logger, Runnable ensureOpen) {

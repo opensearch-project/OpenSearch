@@ -42,6 +42,8 @@ import java.io.IOException;
 
 /**
  * The request object to handoff the primary context to the relocation target.
+ *
+ * @opensearch.internal
  */
 class RecoveryHandoffPrimaryContextRequest extends TransportRequest {
 

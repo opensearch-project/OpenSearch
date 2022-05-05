@@ -44,6 +44,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.function.Function;
 
+/**
+ * Baseclass for ordinals docvalues
+ *
+ * @opensearch.internal
+ */
 public abstract class AbstractLeafOrdinalsFieldData implements LeafOrdinalsFieldData {
 
     public static final Function<SortedSetDocValues, ScriptDocValues<?>> DEFAULT_SCRIPT_FUNCTION = ((Function<

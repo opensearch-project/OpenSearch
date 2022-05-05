@@ -59,6 +59,11 @@ import org.opensearch.index.mapper.MappedFieldType;
 
 import java.util.ArrayList;
 
+/**
+ * Query processor for lucene 6 LatLonPoint queries
+ *
+ * @opensearch.internal
+ */
 public class VectorGeoPointShapeQueryProcessor {
 
     public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {

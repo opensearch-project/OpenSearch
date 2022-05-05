@@ -39,6 +39,8 @@ import java.util.List;
 
 /**
  * An indexing listener for indexing, delete, events.
+ *
+ * @opensearch.internal
  */
 public interface IndexingOperationListener {
 
