@@ -142,7 +142,11 @@ public class IncrementalClusterStateWriterTests extends OpenSearchAllocationTest
             .build();
     }
 
-    private ClusterState clusterStateWithReplicatedClosedIndex(IndexMetadata indexMetadata, boolean clusterManagerEligible, boolean assigned) {
+    private ClusterState clusterStateWithReplicatedClosedIndex(
+        IndexMetadata indexMetadata,
+        boolean clusterManagerEligible,
+        boolean assigned
+    ) {
         ClusterState oldClusterState = clusterStateWithAssignedIndex(indexMetadata, clusterManagerEligible);
 
         Metadata metadataNewClusterState = Metadata.builder()
@@ -206,7 +210,9 @@ public class IncrementalClusterStateWriterTests extends OpenSearchAllocationTest
     public void testGetRelevantIndicesWithAssignedShards() {
         IndexMetadata indexMetadata = createIndexMetadata("test");
         boolean clusterManagerEligible = randomBoolean();
-        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(clusterStateWithAssignedIndex(indexMetadata, clusterManagerEligible));
+        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(
+            clusterStateWithAssignedIndex(indexMetadata, clusterManagerEligible)
+        );
         assertThat(indices.size(), equalTo(1));
     }
 

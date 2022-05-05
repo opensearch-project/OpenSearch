@@ -989,7 +989,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
         deterministicTaskQueue.runAllRunnableTasks();
 
-        SnapshotDeletionsInProgress deletionsInProgress = clusterManagerNode.clusterService.state().custom(SnapshotDeletionsInProgress.TYPE);
+        SnapshotDeletionsInProgress deletionsInProgress = clusterManagerNode.clusterService.state()
+            .custom(SnapshotDeletionsInProgress.TYPE);
         assertFalse(deletionsInProgress.hasDeletionsInProgress());
         final Repository repository = clusterManagerNode.repositoriesService.repository(repoName);
         final RepositoryData repositoryData = getRepositoryData(repository);

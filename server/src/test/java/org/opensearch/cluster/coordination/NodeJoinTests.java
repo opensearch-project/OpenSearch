@@ -150,7 +150,14 @@ public class NodeJoinTests extends OpenSearchTestCase {
             fakeThreadPool,
             deterministicTaskQueue::scheduleNow
         );
-        setupClusterManagerServiceAndCoordinator(term, initialState, fakeClusterManagerService, fakeThreadPool, Randomness.get(), nodeHealthService);
+        setupClusterManagerServiceAndCoordinator(
+            term,
+            initialState,
+            fakeClusterManagerService,
+            fakeThreadPool,
+            Randomness.get(),
+            nodeHealthService
+        );
         fakeClusterManagerService.setClusterStatePublisher((event, publishListener, ackListener) -> {
             coordinator.handlePublishRequest(new PublishRequest(event.state()));
             publishListener.onResponse(null);
@@ -647,7 +654,10 @@ public class NodeJoinTests extends OpenSearchTestCase {
 
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
-        setupRealClusterManagerServiceAndCoordinator(initialTerm, initialState(localNode, initialTerm, initialVersion, votingConfiguration));
+        setupRealClusterManagerServiceAndCoordinator(
+            initialTerm,
+            initialState(localNode, initialTerm, initialVersion, votingConfiguration)
+        );
         long newTerm = initialTerm + randomLongBetween(1, 10);
 
         // we need at least a quorum of voting nodes with a correct term and worse state
