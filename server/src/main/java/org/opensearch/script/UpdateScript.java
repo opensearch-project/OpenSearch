@@ -39,6 +39,8 @@ import java.util.function.Function;
 
 /**
  * An update script.
+ *
+ * @opensearch.internal
  */
 public abstract class UpdateScript {
 

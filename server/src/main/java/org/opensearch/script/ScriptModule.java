@@ -48,6 +48,8 @@ import java.util.stream.Stream;
 
 /**
  * Manages building {@link ScriptService}.
+ *
+ * @opensearch.internal
  */
 public class ScriptModule {
 

@@ -41,6 +41,8 @@ import java.util.Objects;
 
 /**
  * Response upon a successful start or an persistent task
+ *
+ * @opensearch.internal
  */
 public class PersistentTaskResponse extends ActionResponse {
     private PersistentTask<?> task;

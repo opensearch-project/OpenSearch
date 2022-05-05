@@ -44,6 +44,11 @@ import java.util.List;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+/**
+ * Archive of repository stats
+ *
+ * @opensearch.internal
+ */
 public final class RepositoriesStatsArchive {
     private static final Logger logger = LogManager.getLogger(RepositoriesStatsArchive.class);
 

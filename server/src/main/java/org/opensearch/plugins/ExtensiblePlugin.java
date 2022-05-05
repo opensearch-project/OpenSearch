@@ -39,6 +39,8 @@ import java.util.List;
  *
  * This class provides a callback for extensible plugins to be informed of other plugins
  * which extend them.
+ *
+ * @opensearch.api
  */
 public interface ExtensiblePlugin {
 

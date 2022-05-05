@@ -39,7 +39,7 @@ import java.io.IOException;
 /**
  * A generic exception indicating failure to generate.
  *
- *
+ * @opensearch.internal
  */
 public class OpenSearchGenerationException extends OpenSearchException {
 

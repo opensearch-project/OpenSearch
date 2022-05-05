@@ -43,6 +43,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Holds stats for the process
+ *
+ * @opensearch.internal
+ */
 public class ProcessStats implements Writeable, ToXContentFragment {
 
     private final long timestamp;

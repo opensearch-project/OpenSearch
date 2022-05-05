@@ -38,6 +38,8 @@ import org.opensearch.common.xcontent.ToXContentObject;
 
 /**
  * Parameters used to start persistent task
+ *
+ * @opensearch.internal
  */
 public interface PersistentTaskParams extends VersionedNamedWriteable, ToXContentObject, ClusterState.FeatureAware {
 

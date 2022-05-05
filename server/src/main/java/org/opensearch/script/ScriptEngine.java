@@ -39,6 +39,8 @@ import java.util.Set;
 
 /**
  * A script language implementation.
+ *
+ * @opensearch.internal
  */
 public interface ScriptEngine extends Closeable {
 

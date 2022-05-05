@@ -36,6 +36,8 @@ import java.util.Map;
 
 /**
  * A script used in bucket aggregations that returns a {@code boolean} value.
+ *
+ * @opensearch.internal
  */
 public abstract class BucketAggregationSelectorScript {
 

@@ -42,6 +42,8 @@ import java.util.Map;
 /**
  * A script implementation of a query filter.
  * See {@link org.opensearch.index.query.ScriptQueryBuilder}.
+ *
+ * @opensearch.internal
  */
 public abstract class FilterScript {
 

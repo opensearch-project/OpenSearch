@@ -39,6 +39,8 @@ import java.io.IOException;
 
 /**
  * Repository missing exception
+ *
+ * @opensearch.internal
  */
 public class RepositoryMissingException extends RepositoryException {
 
