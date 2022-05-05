@@ -33,78 +33,35 @@
 package org.opensearch.common.util.concurrent;
 
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
- * Tests for the automatic queue resizing of the {@code QueueResizingOpenSearchThreadPoolExecutor}
+ * Tests for the automatic queue resizing of the {@code QueueResizableOpenSearchThreadPoolExecutor}
  * based on the time taken for each event.
  */
-public class QueueResizingOpenSearchThreadPoolExecutorTests extends OpenSearchTestCase {
-
-    public void testExactWindowSizeAdjustment() throws Exception {
-        ThreadContext context = new ThreadContext(Settings.EMPTY);
-        ResizableBlockingQueue<Runnable> queue = new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), 100);
-
-        int threads = randomIntBetween(1, 3);
-        int measureWindow = 3;
-        logger.info("--> auto-queue with a measurement window of {} tasks", measureWindow);
-        QueueResizingOpenSearchThreadPoolExecutor executor = new QueueResizingOpenSearchThreadPoolExecutor(
-            "test-threadpool",
-            threads,
-            threads,
-            1000,
-            TimeUnit.MILLISECONDS,
-            queue,
-            10,
-            1000,
-            fastWrapper(),
-            measureWindow,
-            TimeValue.timeValueMillis(1),
-            OpenSearchExecutors.daemonThreadFactory("queuetest"),
-            new OpenSearchAbortPolicy(),
-            context
-        );
-        executor.prestartAllCoreThreads();
-        logger.info("--> executor: {}", executor);
-
-        // Execute exactly 3 (measureWindow) times
-        executor.execute(() -> {});
-        executor.execute(() -> {});
-        executor.execute(() -> {});
-
-        // The queue capacity should have increased by 50 since they were very fast tasks
-        assertBusy(() -> { assertThat(queue.capacity(), equalTo(150)); });
-        executor.shutdown();
-        executor.awaitTermination(10, TimeUnit.SECONDS);
-    }
-
-    public void testAutoQueueSizingUp() throws Exception {
+public class QueueResizableOpenSearchThreadPoolExecutorTests extends OpenSearchTestCase {
+    public void testResizeQueueSameSize() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);
         ResizableBlockingQueue<Runnable> queue = new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), 2000);
 
         int threads = randomIntBetween(1, 10);
         int measureWindow = randomIntBetween(100, 200);
         logger.info("--> auto-queue with a measurement window of {} tasks", measureWindow);
-        QueueResizingOpenSearchThreadPoolExecutor executor = new QueueResizingOpenSearchThreadPoolExecutor(
+        QueueResizableOpenSearchThreadPoolExecutor executor = new QueueResizableOpenSearchThreadPoolExecutor(
             "test-threadpool",
             threads,
             threads,
             1000,
             TimeUnit.MILLISECONDS,
             queue,
-            10,
-            3000,
             fastWrapper(),
-            measureWindow,
-            TimeValue.timeValueMillis(1),
             OpenSearchExecutors.daemonThreadFactory("queuetest"),
             new OpenSearchAbortPolicy(),
             context
@@ -113,103 +70,29 @@ public class QueueResizingOpenSearchThreadPoolExecutorTests extends OpenSearchTe
         logger.info("--> executor: {}", executor);
 
         // Execute a task multiple times that takes 1ms
+        assertThat(executor.resize(1000), equalTo(1000));
         executeTask(executor, (measureWindow * 5) + 2);
 
-        assertBusy(() -> { assertThat(queue.capacity(), greaterThan(2000)); });
+        assertBusy(() -> { assertThat(queue.capacity(), lessThanOrEqualTo(1000)); });
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
     }
 
-    public void testAutoQueueSizingDown() throws Exception {
+    public void testResizeQueueUp() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);
         ResizableBlockingQueue<Runnable> queue = new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), 2000);
 
         int threads = randomIntBetween(1, 10);
         int measureWindow = randomIntBetween(100, 200);
         logger.info("--> auto-queue with a measurement window of {} tasks", measureWindow);
-        QueueResizingOpenSearchThreadPoolExecutor executor = new QueueResizingOpenSearchThreadPoolExecutor(
+        QueueResizableOpenSearchThreadPoolExecutor executor = new QueueResizableOpenSearchThreadPoolExecutor(
             "test-threadpool",
             threads,
             threads,
             1000,
             TimeUnit.MILLISECONDS,
             queue,
-            10,
-            3000,
-            slowWrapper(),
-            measureWindow,
-            TimeValue.timeValueMillis(1),
-            OpenSearchExecutors.daemonThreadFactory("queuetest"),
-            new OpenSearchAbortPolicy(),
-            context
-        );
-        executor.prestartAllCoreThreads();
-        logger.info("--> executor: {}", executor);
-
-        // Execute a task multiple times that takes 1m
-        executeTask(executor, (measureWindow * 5) + 2);
-
-        assertBusy(() -> { assertThat(queue.capacity(), lessThan(2000)); });
-        executor.shutdown();
-        executor.awaitTermination(10, TimeUnit.SECONDS);
-    }
-
-    public void testAutoQueueSizingWithMin() throws Exception {
-        ThreadContext context = new ThreadContext(Settings.EMPTY);
-        ResizableBlockingQueue<Runnable> queue = new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), 5000);
-
-        int threads = randomIntBetween(1, 5);
-        int measureWindow = randomIntBetween(10, 100);
-        int min = randomIntBetween(4981, 4999);
-        logger.info("--> auto-queue with a measurement window of {} tasks", measureWindow);
-        QueueResizingOpenSearchThreadPoolExecutor executor = new QueueResizingOpenSearchThreadPoolExecutor(
-            "test-threadpool",
-            threads,
-            threads,
-            1000,
-            TimeUnit.MILLISECONDS,
-            queue,
-            min,
-            100000,
-            slowWrapper(),
-            measureWindow,
-            TimeValue.timeValueMillis(1),
-            OpenSearchExecutors.daemonThreadFactory("queuetest"),
-            new OpenSearchAbortPolicy(),
-            context
-        );
-        executor.prestartAllCoreThreads();
-        logger.info("--> executor: {}", executor);
-
-        // Execute a task multiple times that takes 1m
-        executeTask(executor, (measureWindow * 5));
-
-        // The queue capacity should decrease, but no lower than the minimum
-        assertBusy(() -> { assertThat(queue.capacity(), equalTo(min)); });
-        executor.shutdown();
-        executor.awaitTermination(10, TimeUnit.SECONDS);
-    }
-
-    public void testAutoQueueSizingWithMax() throws Exception {
-        ThreadContext context = new ThreadContext(Settings.EMPTY);
-        ResizableBlockingQueue<Runnable> queue = new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), 5000);
-
-        int threads = randomIntBetween(1, 5);
-        int measureWindow = randomIntBetween(10, 100);
-        int max = randomIntBetween(5010, 5024);
-        logger.info("--> auto-queue with a measurement window of {} tasks", measureWindow);
-        QueueResizingOpenSearchThreadPoolExecutor executor = new QueueResizingOpenSearchThreadPoolExecutor(
-            "test-threadpool",
-            threads,
-            threads,
-            1000,
-            TimeUnit.MILLISECONDS,
-            queue,
-            10,
-            max,
             fastWrapper(),
-            measureWindow,
-            TimeValue.timeValueMillis(1),
             OpenSearchExecutors.daemonThreadFactory("queuetest"),
             new OpenSearchAbortPolicy(),
             context
@@ -218,10 +101,41 @@ public class QueueResizingOpenSearchThreadPoolExecutorTests extends OpenSearchTe
         logger.info("--> executor: {}", executor);
 
         // Execute a task multiple times that takes 1ms
-        executeTask(executor, measureWindow * 3);
+        assertThat(executor.resize(3000), equalTo(3000));
+        executeTask(executor, (measureWindow * 5) + 2);
 
-        // The queue capacity should increase, but no higher than the maximum
-        assertBusy(() -> { assertThat(queue.capacity(), equalTo(max)); });
+        assertBusy(() -> { assertThat(queue.capacity(), greaterThanOrEqualTo(2000)); });
+        executor.shutdown();
+        executor.awaitTermination(10, TimeUnit.SECONDS);
+    }
+
+    public void testResizeQueueDown() throws Exception {
+        ThreadContext context = new ThreadContext(Settings.EMPTY);
+        ResizableBlockingQueue<Runnable> queue = new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), 2000);
+
+        int threads = randomIntBetween(1, 10);
+        int measureWindow = randomIntBetween(100, 200);
+        logger.info("--> auto-queue with a measurement window of {} tasks", measureWindow);
+        QueueResizableOpenSearchThreadPoolExecutor executor = new QueueResizableOpenSearchThreadPoolExecutor(
+            "test-threadpool",
+            threads,
+            threads,
+            1000,
+            TimeUnit.MILLISECONDS,
+            queue,
+            fastWrapper(),
+            OpenSearchExecutors.daemonThreadFactory("queuetest"),
+            new OpenSearchAbortPolicy(),
+            context
+        );
+        executor.prestartAllCoreThreads();
+        logger.info("--> executor: {}", executor);
+
+        // Execute a task multiple times that takes 1ms
+        assertThat(executor.resize(900), equalTo(900));
+        executeTask(executor, (measureWindow * 5) + 2);
+
+        assertBusy(() -> { assertThat(queue.capacity(), lessThanOrEqualTo(900)); });
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
     }
@@ -230,18 +144,14 @@ public class QueueResizingOpenSearchThreadPoolExecutorTests extends OpenSearchTe
         ThreadContext context = new ThreadContext(Settings.EMPTY);
         ResizableBlockingQueue<Runnable> queue = new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), 100);
 
-        QueueResizingOpenSearchThreadPoolExecutor executor = new QueueResizingOpenSearchThreadPoolExecutor(
+        QueueResizableOpenSearchThreadPoolExecutor executor = new QueueResizableOpenSearchThreadPoolExecutor(
             "test-threadpool",
             1,
             1,
             1000,
             TimeUnit.MILLISECONDS,
             queue,
-            10,
-            200,
             fastWrapper(),
-            10,
-            TimeValue.timeValueMillis(1),
             OpenSearchExecutors.daemonThreadFactory("queuetest"),
             new OpenSearchAbortPolicy(),
             context
@@ -270,18 +180,14 @@ public class QueueResizingOpenSearchThreadPoolExecutorTests extends OpenSearchTe
         ThreadContext context = new ThreadContext(Settings.EMPTY);
         ResizableBlockingQueue<Runnable> queue = new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), 100);
 
-        QueueResizingOpenSearchThreadPoolExecutor executor = new QueueResizingOpenSearchThreadPoolExecutor(
+        QueueResizableOpenSearchThreadPoolExecutor executor = new QueueResizableOpenSearchThreadPoolExecutor(
             "test-threadpool",
             1,
             1,
             1000,
             TimeUnit.MILLISECONDS,
             queue,
-            10,
-            200,
             exceptionalWrapper(),
-            10,
-            TimeValue.timeValueMillis(1),
             OpenSearchExecutors.daemonThreadFactory("queuetest"),
             new OpenSearchAbortPolicy(),
             context
@@ -299,10 +205,6 @@ public class QueueResizingOpenSearchThreadPoolExecutorTests extends OpenSearchTe
         return (runnable) -> new SettableTimedRunnable(TimeUnit.NANOSECONDS.toNanos(100), false);
     }
 
-    private Function<Runnable, WrappedRunnable> slowWrapper() {
-        return (runnable) -> new SettableTimedRunnable(TimeUnit.MINUTES.toNanos(2), false);
-    }
-
     /**
      * The returned function outputs a WrappedRunnabled that simulates the case
      * where {@link TimedRunnable#getTotalExecutionNanos()} returns -1 because
@@ -313,7 +215,7 @@ public class QueueResizingOpenSearchThreadPoolExecutorTests extends OpenSearchTe
     }
 
     /** Execute a blank task {@code times} times for the executor */
-    private void executeTask(QueueResizingOpenSearchThreadPoolExecutor executor, int times) {
+    private void executeTask(QueueResizableOpenSearchThreadPoolExecutor executor, int times) {
         logger.info("--> executing a task [{}] times", times);
         for (int i = 0; i < times; i++) {
             executor.execute(() -> {});

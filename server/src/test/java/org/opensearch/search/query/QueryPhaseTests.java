@@ -299,9 +299,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
         dir.close();
     }
 
-    //TODO: The executor of our new resizable search queue is OpenSearchThreadPoolExecutor which
-    // unfortunately does not keep track of queue size/EWMA execution time. Disable this UT for now
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/477")
     public void testQueryCapturesThreadPoolStats() throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig();

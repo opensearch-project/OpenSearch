@@ -172,17 +172,31 @@ public class OpenSearchExecutors {
         );
     }
 
-    public static OpenSearchThreadPoolExecutor newResizable(String name, int size, int queueCapacity,
-                                                    ThreadFactory threadFactory, ThreadContext contextHolder) {
+    public static OpenSearchThreadPoolExecutor newResizable(
+        String name,
+        int size,
+        int queueCapacity,
+        ThreadFactory threadFactory,
+        ThreadContext contextHolder
+    ) {
         BlockingQueue<Runnable> queue;
         if (queueCapacity < 0) {
             queue = ConcurrentCollections.newBlockingQueue();
         } else {
-            queue = new OpenSearchResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(),
-                queueCapacity);
+            queue = new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), queueCapacity);
         }
-        return new OpenSearchThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS,
-            queue, threadFactory, new OpenSearchAbortPolicy(), contextHolder);
+        return new QueueResizableOpenSearchThreadPoolExecutor(
+            name,
+            size,
+            size,
+            0,
+            TimeUnit.MILLISECONDS,
+            queue,
+            TimedRunnable::new,
+            threadFactory,
+            new OpenSearchAbortPolicy(),
+            contextHolder
+        );
     }
 
     /**

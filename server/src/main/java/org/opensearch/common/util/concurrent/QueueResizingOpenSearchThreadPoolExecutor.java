@@ -49,7 +49,9 @@ import java.util.function.Function;
  * An extension to thread pool executor, which automatically adjusts the queue size of the
  * {@code ResizableBlockingQueue} according to Little's Law.
  */
-public final class QueueResizingOpenSearchThreadPoolExecutor extends OpenSearchThreadPoolExecutor {
+public final class QueueResizingOpenSearchThreadPoolExecutor extends OpenSearchThreadPoolExecutor
+    implements
+        EWMATrackingThreadPoolExecutor {
 
     // This is a random starting point alpha. TODO: revisit this with actual testing and/or make it configurable
     public static double EWMA_ALPHA = 0.3;
@@ -153,6 +155,7 @@ public final class QueueResizingOpenSearchThreadPoolExecutor extends OpenSearchT
     /**
      * Returns the exponentially weighted moving average of the task execution time
      */
+    @Override
     public double getTaskExecutionEWMA() {
         return executionEWMA.getAverage();
     }
@@ -160,6 +163,7 @@ public final class QueueResizingOpenSearchThreadPoolExecutor extends OpenSearchT
     /**
      * Returns the current queue size (operations that are queued)
      */
+    @Override
     public int getCurrentQueueSize() {
         return workQueue.size();
     }
