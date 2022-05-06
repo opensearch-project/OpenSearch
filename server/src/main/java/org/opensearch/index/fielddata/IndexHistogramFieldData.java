@@ -36,6 +36,8 @@ import org.opensearch.search.aggregations.support.ValuesSourceType;
 
 /**
  * Specialization of {@link IndexFieldData} for histograms.
+ *
+ * @opensearch.internal
  */
 public abstract class IndexHistogramFieldData implements IndexFieldData<LeafHistogramFieldData> {
     protected final String fieldName;

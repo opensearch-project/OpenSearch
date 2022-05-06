@@ -47,6 +47,8 @@ import java.util.function.Supplier;
 
 /**
  * Utility functions for text mapper parameters
+ *
+ * @opensearch.internal
  */
 public final class TextParams {
 

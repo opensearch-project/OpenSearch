@@ -42,6 +42,11 @@ import org.opensearch.index.translog.Translog;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Request for recovery translog operations
+ *
+ * @opensearch.internal
+ */
 public class RecoveryTranslogOperationsRequest extends RecoveryTransportRequest {
 
     private final long recoveryId;

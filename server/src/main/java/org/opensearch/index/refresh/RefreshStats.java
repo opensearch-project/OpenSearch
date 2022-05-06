@@ -43,6 +43,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Encapsulates stats for index refresh
+ *
+ * @opensearch.internal
+ */
 public class RefreshStats implements Writeable, ToXContentFragment {
 
     private long total;

@@ -62,6 +62,11 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 
+/**
+ * Memory controller for indexing operations
+ *
+ * @opensearch.internal
+ */
 public class IndexingMemoryController implements IndexingOperationListener, Closeable {
 
     private static final Logger logger = LogManager.getLogger(IndexingMemoryController.class);

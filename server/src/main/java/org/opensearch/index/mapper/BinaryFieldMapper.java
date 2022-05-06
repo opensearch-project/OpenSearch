@@ -59,6 +59,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+/**
+ * A mapper for binary fields
+ *
+ * @opensearch.internal
+ */
 public class BinaryFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "binary";

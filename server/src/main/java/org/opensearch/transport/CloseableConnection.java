@@ -37,6 +37,8 @@ import org.opensearch.common.concurrent.CompletableContext;
 
 /**
  * Abstract Transport.Connection that provides common close logic.
+ *
+ * @opensearch.internal
  */
 public abstract class CloseableConnection implements Transport.Connection {
 

@@ -39,6 +39,8 @@ import java.util.List;
 
 /**
  * Represents a single on going merge within an index.
+ *
+ * @opensearch.internal
  */
 public class OnGoingMerge {
 

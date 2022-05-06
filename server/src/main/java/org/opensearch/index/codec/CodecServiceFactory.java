@@ -10,6 +10,8 @@ package org.opensearch.index.codec;
 
 /**
  * A factory for creating new {@link CodecService} instance
+ *
+ * @opensearch.internal
  */
 @FunctionalInterface
 public interface CodecServiceFactory {

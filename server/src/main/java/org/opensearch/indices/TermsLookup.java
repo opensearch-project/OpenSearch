@@ -51,6 +51,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
 
 /**
  * Encapsulates the parameters needed to fetch terms.
+ *
+ * @opensearch.internal
  */
 public class TermsLookup implements Writeable, ToXContentFragment {
 

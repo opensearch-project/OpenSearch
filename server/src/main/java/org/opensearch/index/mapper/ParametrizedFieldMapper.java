@@ -70,6 +70,8 @@ import java.util.function.Supplier;
  *
  * Subclasses should implement a {@link Builder} that is returned from the
  * {@link #getMergeBuilder()} method, initialised with the existing builder.
+ *
+ * @opensearch.internal
  */
 public abstract class ParametrizedFieldMapper extends FieldMapper {
 

@@ -69,6 +69,7 @@ import java.util.function.Supplier;
  *     </li>
  * </ul>
  *
+ * @opensearch.internal
 **/
 public final class IndexSortConfig {
     /**

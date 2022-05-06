@@ -40,6 +40,8 @@ import org.opensearch.common.component.AbstractLifecycleComponent;
 /**
  * Interface for Circuit Breaker services, which provide breakers to classes
  * that load field data.
+ *
+ * @opensearch.internal
  */
 public abstract class CircuitBreakerService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(CircuitBreakerService.class);

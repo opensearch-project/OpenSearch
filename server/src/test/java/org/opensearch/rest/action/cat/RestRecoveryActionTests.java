@@ -45,6 +45,7 @@ import org.opensearch.common.xcontent.XContentOpenSearchExtension;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -91,21 +92,7 @@ public class RestRecoveryActionTests extends OpenSearchTestCase {
             when(targetNode.getHostName()).thenReturn(randomAlphaOfLength(8));
             when(state.getTargetNode()).thenReturn(targetNode);
 
-            RecoveryState.Index index = mock(RecoveryState.Index.class);
-
-            final int totalRecoveredFiles = randomIntBetween(1, 64);
-            when(index.totalRecoverFiles()).thenReturn(totalRecoveredFiles);
-            final int recoveredFileCount = randomIntBetween(0, totalRecoveredFiles);
-            when(index.recoveredFileCount()).thenReturn(recoveredFileCount);
-            when(index.recoveredFilesPercent()).thenReturn((100f * recoveredFileCount) / totalRecoveredFiles);
-            when(index.totalFileCount()).thenReturn(randomIntBetween(totalRecoveredFiles, 2 * totalRecoveredFiles));
-
-            final int totalRecoveredBytes = randomIntBetween(1, 1 << 24);
-            when(index.totalRecoverBytes()).thenReturn((long) totalRecoveredBytes);
-            final int recoveredBytes = randomIntBetween(0, totalRecoveredBytes);
-            when(index.recoveredBytes()).thenReturn((long) recoveredBytes);
-            when(index.recoveredBytesPercent()).thenReturn((100f * recoveredBytes) / totalRecoveredBytes);
-            when(index.totalRecoverBytes()).thenReturn((long) randomIntBetween(totalRecoveredBytes, 2 * totalRecoveredBytes));
+            ReplicationLuceneIndex index = createTestIndex();
             when(state.getIndex()).thenReturn(index);
 
             final RecoveryState.Translog translog = mock(RecoveryState.Translog.class);
@@ -210,6 +197,36 @@ public class RestRecoveryActionTests extends OpenSearchTestCase {
             final List<Table.Cell> cells = table.getRows().get(i);
             for (int j = 0; j < expectedValues.size(); j++) {
                 assertThat(cells.get(j).value, equalTo(expectedValues.get(j)));
+            }
+        }
+    }
+
+    private ReplicationLuceneIndex createTestIndex() {
+        ReplicationLuceneIndex index = new ReplicationLuceneIndex();
+        final int filesToRecoverCount = randomIntBetween(1, 64);
+        final int recoveredFilesCount = randomIntBetween(0, filesToRecoverCount);
+        addTestFileMetadata(index, 0, recoveredFilesCount, false, true);
+        addTestFileMetadata(index, recoveredFilesCount, filesToRecoverCount, false, false);
+
+        final int totalFilesCount = randomIntBetween(filesToRecoverCount, 2 * filesToRecoverCount);
+        addTestFileMetadata(index, filesToRecoverCount, totalFilesCount, true, false);
+        return index;
+    }
+
+    private void addTestFileMetadata(ReplicationLuceneIndex index, int startIndex, int endIndex, boolean reused, boolean isFullyRecovered) {
+        for (int i = startIndex; i < endIndex; i++) {
+            final int completeFileSize = randomIntBetween(1, 1024);
+            index.addFileDetail(String.valueOf(i), completeFileSize, reused);
+
+            if (!reused) {
+                final int recoveredFileSize;
+                if (isFullyRecovered) {
+                    recoveredFileSize = completeFileSize;
+
+                } else {
+                    recoveredFileSize = randomIntBetween(0, completeFileSize);
+                }
+                index.addRecoveredBytesToFile(String.valueOf(i), recoveredFileSize);
             }
         }
     }

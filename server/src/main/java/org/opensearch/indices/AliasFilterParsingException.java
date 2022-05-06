@@ -38,6 +38,11 @@ import org.opensearch.index.Index;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown for parsing alias filters
+ *
+ * @opensearch.internal
+ */
 public class AliasFilterParsingException extends OpenSearchException {
 
     public AliasFilterParsingException(Index index, String name, String desc, Throwable ex) {

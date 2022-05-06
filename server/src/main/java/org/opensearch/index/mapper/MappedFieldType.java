@@ -77,6 +77,8 @@ import java.util.function.Supplier;
 
 /**
  * This defines the core properties and functions to operate on a field.
+ *
+ * @opensearch.internal
  */
 public abstract class MappedFieldType {
 

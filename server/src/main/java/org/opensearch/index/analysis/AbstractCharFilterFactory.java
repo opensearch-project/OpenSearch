@@ -35,6 +35,11 @@ package org.opensearch.index.analysis;
 import org.opensearch.index.AbstractIndexComponent;
 import org.opensearch.index.IndexSettings;
 
+/**
+ * Base character filter factory used in analysis chain
+ *
+ * @opensearch.internal
+ */
 public abstract class AbstractCharFilterFactory extends AbstractIndexComponent implements CharFilterFactory {
 
     private final String name;

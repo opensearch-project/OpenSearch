@@ -44,6 +44,11 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * Defines a translog deletion policy
+ *
+ * @opensearch.internal
+ */
 public abstract class TranslogDeletionPolicy {
 
     private final Map<Object, RuntimeException> openTranslogRef;

@@ -39,6 +39,8 @@ import org.apache.lucene.analysis.TokenStream;
  *
  * The default implementation delegates {@link #normalize(TokenStream)} to
  * {@link #create(TokenStream)}}.
+ *
+ * @opensearch.internal
  */
 public interface NormalizingTokenFilterFactory extends TokenFilterFactory {
 

@@ -38,6 +38,11 @@ import org.opensearch.common.io.stream.Writeable;
 import java.io.IOException;
 import java.util.function.Function;
 
+/**
+ * Handles transport responses
+ *
+ * @opensearch.internal
+ */
 public interface TransportResponseHandler<T extends TransportResponse> extends Writeable.Reader<T> {
 
     void handleResponse(T response);

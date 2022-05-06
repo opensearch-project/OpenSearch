@@ -37,6 +37,11 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 
+/**
+ * Provider for the keyword analyzer
+ *
+ * @opensearch.internal
+ */
 public class KeywordAnalyzerProvider extends AbstractIndexAnalyzerProvider<KeywordAnalyzer> {
 
     private final KeywordAnalyzer keywordAnalyzer;

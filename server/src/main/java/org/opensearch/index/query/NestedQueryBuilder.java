@@ -74,6 +74,11 @@ import java.util.Objects;
 import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.opensearch.search.fetch.subphase.InnerHitsContext.intersect;
 
+/**
+ * Query builder for nested queries
+ *
+ * @opensearch.internal
+ */
 public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder> {
     public static final String NAME = "nested";
     /**

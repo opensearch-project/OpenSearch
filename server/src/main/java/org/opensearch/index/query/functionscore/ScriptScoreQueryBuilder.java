@@ -61,6 +61,8 @@ import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /**
  * A query that computes a document score based on the provided script
+ *
+ * @opensearch.internal
  */
 public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQueryBuilder> {
 

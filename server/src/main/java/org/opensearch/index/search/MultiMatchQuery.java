@@ -58,6 +58,11 @@ import java.util.Objects;
 
 import static org.opensearch.common.lucene.search.Queries.newLenientFieldQuery;
 
+/**
+ * Foundation multi match query
+ *
+ * @opensearch.internal
+ */
 public class MultiMatchQuery extends MatchQuery {
 
     private Float groupTieBreaker = null;

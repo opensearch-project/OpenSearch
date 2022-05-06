@@ -39,6 +39,11 @@ import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown if an alias name is invalid
+ *
+ * @opensearch.internal
+ */
 public class InvalidAliasNameException extends OpenSearchException {
 
     public InvalidAliasNameException(Index index, String name, String desc) {

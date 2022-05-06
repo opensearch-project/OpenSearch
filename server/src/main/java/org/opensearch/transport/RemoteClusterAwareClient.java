@@ -42,6 +42,11 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.threadpool.ThreadPool;
 
+/**
+ * Client that is aware of remote clusters
+ *
+ * @opensearch.internal
+ */
 final class RemoteClusterAwareClient extends AbstractClient {
 
     private final TransportService service;

@@ -46,6 +46,8 @@ import java.util.Arrays;
  * Simple class to build document ID &lt;-&gt; ordinal mapping. Note: Ordinals are
  * {@code 1} based monotonically increasing positive integers. {@code 0}
  * donates the missing value in this context.
+ *
+ * @opensearch.internal
  */
 public final class OrdinalsBuilder implements Closeable {
 

@@ -36,6 +36,11 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.transport.TransportAddress;
 
+/**
+ * Message over the transport interface
+ *
+ * @opensearch.internal
+ */
 public abstract class TransportMessage implements Writeable {
 
     private TransportAddress remoteAddress;

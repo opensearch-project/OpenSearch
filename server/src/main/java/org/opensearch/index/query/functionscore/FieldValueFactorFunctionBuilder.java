@@ -52,6 +52,8 @@ import java.util.Objects;
 /**
  * Builder to construct {@code field_value_factor} functions for a function
  * score query.
+ *
+ * @opensearch.internal
  */
 public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldValueFactorFunctionBuilder> {
     public static final String NAME = "field_value_factor";

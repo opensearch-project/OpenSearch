@@ -70,6 +70,11 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
+/**
+ * Target handler for remote recovery
+ *
+ * @opensearch.internal
+ */
 public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
 
     private static final Logger logger = LogManager.getLogger(RemoteRecoveryTargetHandler.class);

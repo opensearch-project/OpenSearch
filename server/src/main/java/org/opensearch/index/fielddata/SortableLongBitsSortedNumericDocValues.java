@@ -41,6 +41,8 @@ import java.io.IOException;
  * {@link SortedNumericDocValues} instance that wraps a {@link SortedNumericDoubleValues}
  * and converts the doubles to sortable long bits using
  * {@link NumericUtils#doubleToSortableLong(double)}.
+ *
+ * @opensearch.internal
  */
 final class SortableLongBitsSortedNumericDocValues extends AbstractSortedNumericDocValues {
 

@@ -37,6 +37,11 @@ import org.opensearch.common.CheckedConsumer;
 
 import java.util.function.Consumer;
 
+/**
+ * Action listener for rejections
+ *
+ * @opensearch.internal
+ */
 // public for testing
 public interface RejectAwareActionListener<T> extends ActionListener<T> {
     void onRejection(Exception e);

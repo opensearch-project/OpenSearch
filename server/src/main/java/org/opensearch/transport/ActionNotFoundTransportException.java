@@ -40,7 +40,7 @@ import java.io.IOException;
 /**
  * An exception indicating that a transport action was not found.
  *
- *
+ * @opensearch.internal
  */
 public class ActionNotFoundTransportException extends TransportException {
 

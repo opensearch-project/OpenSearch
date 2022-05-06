@@ -43,6 +43,11 @@ import org.opensearch.core.internal.io.IOUtils;
 import java.io.IOException;
 import java.util.function.Consumer;
 
+/**
+ * Decodes inbound data off the wire
+ *
+ * @opensearch.internal
+ */
 public class InboundDecoder implements Releasable {
 
     static final Object PING = new Object();

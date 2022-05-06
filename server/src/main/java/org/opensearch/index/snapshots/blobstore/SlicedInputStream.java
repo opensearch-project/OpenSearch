@@ -43,6 +43,8 @@ import java.io.InputStream;
  * of all logical sub-streams ahead of time. Instead, {@link #openSlice(int)} is called
  * if a new slice is required. Each slice is closed once it's been fully consumed or if
  * close is called before.
+ *
+ * @opensearch.internal
  */
 public abstract class SlicedInputStream extends InputStream {
     private int slice = 0;

@@ -33,6 +33,11 @@ package org.opensearch.transport;
 
 import org.opensearch.cluster.node.DiscoveryNode;
 
+/**
+ * Listens for transport messages
+ *
+ * @opensearch.internal
+ */
 public interface TransportMessageListener {
 
     TransportMessageListener NOOP_LISTENER = new TransportMessageListener() {

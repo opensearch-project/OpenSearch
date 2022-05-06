@@ -52,6 +52,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Sends and receives transport-level connection handshakes. This class will send the initial handshake,
  * manage state/timeouts while the handshake is in transit, and handle the eventual response.
+ *
+ * @opensearch.internal
  */
 final class TransportHandshaker {
 

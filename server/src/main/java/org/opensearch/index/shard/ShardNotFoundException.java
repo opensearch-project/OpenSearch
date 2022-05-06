@@ -37,6 +37,11 @@ import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown if a shard is not found
+ *
+ * @opensearch.internal
+ */
 public class ShardNotFoundException extends ResourceNotFoundException {
     public ShardNotFoundException(ShardId shardId) {
         this(shardId, null);

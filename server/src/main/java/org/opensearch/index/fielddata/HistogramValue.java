@@ -37,6 +37,8 @@ import java.io.IOException;
 /**
  * Per-document histogram value. Every value of the histogram consist on
  * a value and a count.
+ *
+ * @opensearch.internal
  */
 public abstract class HistogramValue {
 

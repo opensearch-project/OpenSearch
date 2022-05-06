@@ -35,6 +35,8 @@ import org.opensearch.index.seqno.SequenceNumbers;
 
 /**
  * Information about the safe commit, for making decisions about recoveries.
+ *
+ * @opensearch.internal
  */
 public class SafeCommitInfo {
 

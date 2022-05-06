@@ -63,6 +63,8 @@ import java.io.IOException;
 /**
  * Thread-safe utility class that allows to get per-segment values via the
  * {@link #load(LeafReaderContext)} method.
+ *
+ * @opensearch.internal
  */
 public interface IndexFieldData<FD extends LeafFieldData> {
 

@@ -40,6 +40,8 @@ import java.io.IOException;
 /**
  * abstract class for verifying what was written.
  * subclasses override {@link #writeByte(byte)} and {@link #writeBytes(byte[], int, int)}
+ *
+ * @opensearch.internal
  */
 // do NOT optimize this class for performance
 public abstract class VerifyingIndexOutput extends FilterIndexOutput {

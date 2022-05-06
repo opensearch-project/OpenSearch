@@ -38,6 +38,8 @@ import org.opensearch.common.metrics.CounterMetric;
 
 /**
  * Tracks the portion of the request cache in use for a particular shard.
+ *
+ * @opensearch.internal
  */
 public final class ShardRequestCache {
 

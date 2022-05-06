@@ -43,6 +43,11 @@ import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Statistics about an OpenSearch Store
+ *
+ * @opensearch.internal
+ */
 public class StoreStats implements Writeable, ToXContentFragment {
 
     /**

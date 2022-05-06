@@ -55,6 +55,11 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Set;
 
+/**
+ * Outbound data handler
+ *
+ * @opensearch.internal
+ */
 final class OutboundHandler {
 
     private static final Logger logger = LogManager.getLogger(OutboundHandler.class);

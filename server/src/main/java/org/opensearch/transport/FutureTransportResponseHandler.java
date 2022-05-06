@@ -36,6 +36,8 @@ import org.opensearch.threadpool.ThreadPool;
 
 /**
  * A response handler to be used when all interaction will be done through the {@link TransportFuture}.
+ *
+ * @opensearch.internal
  */
 public abstract class FutureTransportResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
 

@@ -47,6 +47,8 @@ import java.util.Map;
  * codec layer that allows to use use-case specific file formats &amp;
  * data-structures per field. OpenSearch exposes the full
  * {@link Codec} capabilities through this {@link CodecService}.
+ *
+ * @opensearch.internal
  */
 public class CodecService {
 

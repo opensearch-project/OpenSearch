@@ -35,6 +35,8 @@ package org.opensearch.index.engine;
 /**
  * Exception indicating that not all requested operations from {@link LuceneChangesSnapshot}
  * are available.
+ *
+ * @opensearch.internal
  */
 public final class MissingHistoryOperationsException extends IllegalStateException {
 

@@ -39,7 +39,11 @@ import org.opensearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
-/** Specifies how a geo query should be run. */
+/**
+ * Specifies how a geo query should be run.
+ *
+ * @opensearch.internal
+ */
 public enum GeoExecType implements Writeable {
 
     MEMORY(0),

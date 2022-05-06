@@ -45,7 +45,11 @@ import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import java.io.IOException;
 import java.util.Objects;
 
-/** A {@link ToParentBlockJoinQuery} that allows to retrieve its nested path. */
+/**
+ * A {@link ToParentBlockJoinQuery} that allows to retrieve its nested path.
+ *
+ * @opensearch.internal
+ */
 public final class OpenSearchToParentBlockJoinQuery extends Query {
 
     private final ToParentBlockJoinQuery query;

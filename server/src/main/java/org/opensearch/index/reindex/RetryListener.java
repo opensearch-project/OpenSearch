@@ -42,6 +42,11 @@ import org.opensearch.threadpool.ThreadPool;
 import java.util.Iterator;
 import java.util.function.Consumer;
 
+/**
+ * Base listener for retries
+ *
+ * @opensearch.internal
+ */
 class RetryListener implements RejectAwareActionListener<ScrollableHitSource.Response> {
     private final Logger logger;
     private final Iterator<TimeValue> retries;

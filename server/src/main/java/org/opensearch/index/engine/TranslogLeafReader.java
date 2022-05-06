@@ -64,6 +64,8 @@ import java.util.Set;
 
 /**
  * Internal class that mocks a single doc read from the transaction log as a leaf reader.
+ *
+ * @opensearch.internal
  */
 public final class TranslogLeafReader extends LeafReader {
 
