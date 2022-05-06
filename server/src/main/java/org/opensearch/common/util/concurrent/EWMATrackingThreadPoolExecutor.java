@@ -9,9 +9,12 @@
 package org.opensearch.common.util.concurrent;
 
 /**
- * Marks the thread pool executor as supporting EWMA tracking
+ * Marks the thread pool executor as supporting EWMA (exponential weighted moving average) tracking
  */
 public interface EWMATrackingThreadPoolExecutor {
+    // This is a random starting point alpha. TODO: revisit this with actual testing and/or make it configurable
+    double EWMA_ALPHA = 0.3;
+
     /**
      * Returns the exponentially weighted moving average of the task execution time
      */

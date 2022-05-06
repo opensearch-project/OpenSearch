@@ -10,7 +10,6 @@ package org.opensearch.common.util.concurrent;
 
 import org.opensearch.common.ExponentiallyWeightedMovingAverage;
 
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -25,10 +24,7 @@ public final class QueueResizableOpenSearchThreadPoolExecutor extends OpenSearch
     implements
         EWMATrackingThreadPoolExecutor {
 
-    // This is a random starting point alpha. TODO: revisit this with actual testing and/or make it configurable
-    public static double EWMA_ALPHA = 0.3;
-
-    private final BlockingQueue<Runnable> workQueue;
+    private final ResizableBlockingQueue<Runnable> workQueue;
     private final Function<Runnable, WrappedRunnable> runnableWrapper;
     private final ExponentiallyWeightedMovingAverage executionEWMA;
 
@@ -38,7 +34,7 @@ public final class QueueResizableOpenSearchThreadPoolExecutor extends OpenSearch
         int maximumPoolSize,
         long keepAliveTime,
         TimeUnit unit,
-        BlockingQueue<Runnable> workQueue,
+        ResizableBlockingQueue<Runnable> workQueue,
         Function<Runnable, WrappedRunnable> runnableWrapper,
         ThreadFactory threadFactory,
         XRejectedExecutionHandler handler,
@@ -110,17 +106,14 @@ public final class QueueResizableOpenSearchThreadPoolExecutor extends OpenSearch
      * @param capacity the new capacity
      */
     public synchronized int resize(int capacity) {
-        if (workQueue instanceof ResizableBlockingQueue) {
-            final ResizableBlockingQueue<Runnable> resizableWorkQueue = (ResizableBlockingQueue<Runnable>) workQueue;
-            final int currentCapacity = resizableWorkQueue.capacity();
-            // Reusing adjustCapacity method instead of introducing the new one
-            if (currentCapacity < capacity) {
-                return resizableWorkQueue.adjustCapacity(capacity + 1, StrictMath.abs(capacity - currentCapacity), capacity, capacity);
-            } else {
-                return resizableWorkQueue.adjustCapacity(capacity - 1, StrictMath.abs(capacity - currentCapacity), capacity, capacity);
-            }
-        } else {
-            return workQueue.size();
-        }
+        final ResizableBlockingQueue<Runnable> resizableWorkQueue = (ResizableBlockingQueue<Runnable>) workQueue;
+        final int currentCapacity = resizableWorkQueue.capacity();
+        // Reusing adjustCapacity method instead of introducing the new one
+        return resizableWorkQueue.adjustCapacity(
+            currentCapacity < capacity ? capacity + 1 : capacity - 1,
+            StrictMath.abs(capacity - currentCapacity),
+            capacity,
+            capacity
+        );
     }
 }

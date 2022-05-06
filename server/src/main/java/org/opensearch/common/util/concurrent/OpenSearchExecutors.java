@@ -179,19 +179,18 @@ public class OpenSearchExecutors {
         ThreadFactory threadFactory,
         ThreadContext contextHolder
     ) {
-        BlockingQueue<Runnable> queue;
-        if (queueCapacity < 0) {
-            queue = ConcurrentCollections.newBlockingQueue();
-        } else {
-            queue = new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), queueCapacity);
+
+        if (queueCapacity <= 0) {
+            throw new IllegalArgumentException("queue capacity for [" + name + "] executor must be positive, got: " + queueCapacity);
         }
+
         return new QueueResizableOpenSearchThreadPoolExecutor(
             name,
             size,
             size,
             0,
             TimeUnit.MILLISECONDS,
-            queue,
+            new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), queueCapacity),
             TimedRunnable::new,
             threadFactory,
             new OpenSearchAbortPolicy(),

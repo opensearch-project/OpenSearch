@@ -53,9 +53,6 @@ public final class QueueResizingOpenSearchThreadPoolExecutor extends OpenSearchT
     implements
         EWMATrackingThreadPoolExecutor {
 
-    // This is a random starting point alpha. TODO: revisit this with actual testing and/or make it configurable
-    public static double EWMA_ALPHA = 0.3;
-
     private static final Logger logger = LogManager.getLogger(QueueResizingOpenSearchThreadPoolExecutor.class);
     // The amount the queue size is adjusted by for each calcuation
     private static final int QUEUE_ADJUSTMENT_AMOUNT = 50;
